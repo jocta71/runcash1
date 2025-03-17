@@ -440,7 +440,37 @@ const RouletteCardRealtime = ({
   // Função para tentar recarregar os dados
   const reloadData = (e: React.MouseEvent) => {
     e.stopPropagation();
-    window.location.reload();
+    // Não vamos mais recarregar a página inteira
+    // window.location.reload();
+    
+    // Em vez disso, vamos chamar a função refreshNumbers do hook
+    refreshNumbers()
+      .then((success) => {
+        if (success) {
+          toast({
+            title: "Dados atualizados",
+            description: "Os dados da roleta foram atualizados com sucesso.",
+            variant: "default",
+            duration: 2000
+          });
+        } else {
+          toast({
+            title: "Sem novos dados",
+            description: "Não foi possível encontrar novos dados para esta roleta.",
+            variant: "default",
+            duration: 2000
+          });
+        }
+      })
+      .catch((error) => {
+        toast({
+          title: "Erro ao atualizar",
+          description: "Ocorreu um erro ao tentar atualizar os dados da roleta.",
+          variant: "destructive",
+          duration: 3000
+        });
+        console.error("Erro ao atualizar dados:", error);
+      });
   };
 
   // Conteúdo quando não há dados disponíveis
