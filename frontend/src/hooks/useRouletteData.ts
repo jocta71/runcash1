@@ -73,7 +73,7 @@ const generateFallbackNumbers = (amount: number = 12): RouletteNumber[] => {
 export function useRouletteData(
   roletaId: string, 
   roletaNome: string, 
-  limit: number = 50
+  limit: number = 500
 ): UseRouletteDataResult {
   const [numbers, setNumbers] = useState<RouletteNumber[]>([]);
   const [loading, setLoading] = useState<boolean>(true); // Only for initial loading

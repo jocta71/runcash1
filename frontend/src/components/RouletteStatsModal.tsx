@@ -68,9 +68,9 @@ const fetchRouletteHistoricalNumbers = async (rouletteName: string) => {
     const roletaId = idData[0].id;
     console.log(`[${new Date().toLocaleTimeString()}] ID da roleta ${rouletteName}: ${roletaId}`);
     
-    // Agora buscamos até 100 números da tabela roleta_numeros
+    // Agora buscamos até 500 números da tabela roleta_numeros
     const response = await fetch(
-      `https://evzqzghxuttctbxgohpx.supabase.co/rest/v1/roleta_numeros?roleta_id=eq.${roletaId}&select=numero,timestamp&order=timestamp.desc&limit=100`,
+      `https://evzqzghxuttctbxgohpx.supabase.co/rest/v1/roleta_numeros?roleta_id=eq.${roletaId}&select=numero,timestamp&order=timestamp.desc&limit=500`,
       {
         headers: {
           'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2enF6Z2h4dXR0Y3RieGdvaHB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExNzc5OTEsImV4cCI6MjA1Njc1Mzk5MX0.CmoM_y0i36nbBx2iN0DlOIob3yAgVRM1xY_XiOFBZLQ',
@@ -281,12 +281,12 @@ const RouletteStatsModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[80vw] md:max-w-[60vw] lg:max-w-[768px] h-[90vh] max-h-[700px] p-0 gap-0">
+      <DialogContent className="sm:max-w-[95vw] md:max-w-[95vw] lg:max-w-[95vw] h-[95vh] max-h-[95vh] p-0 gap-0 overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-[#00ff00] flex items-center text-lg md:text-xl">
-            <BarChart className="mr-2" /> Estatísticas da {roletaNome}
+          <DialogTitle className="text-[#00ff00] flex items-center text-xl md:text-2xl px-4 pt-4">
+            <BarChart className="mr-3" /> Estatísticas da {roletaNome}
           </DialogTitle>
-          <DialogDescription className="text-sm">
+          <DialogDescription className="text-sm md:text-base px-4">
             {isLoading ? (
               "Carregando dados históricos..."
             ) : (
@@ -295,22 +295,22 @@ const RouletteStatsModal = ({
           </DialogDescription>
         </DialogHeader>
         
-        <DialogClose className="absolute right-2 md:right-4 top-2 md:top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground text-[#00ff00]">
-          <X className="h-4 w-4" />
+        <DialogClose className="absolute right-4 md:right-6 top-4 md:top-6 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground text-[#00ff00]">
+          <X className="h-6 w-6" />
           <span className="sr-only">Fechar</span>
         </DialogClose>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 lg:gap-8 p-4 md:p-6 lg:p-8">
           {/* Historical Numbers Section */}
-          <div className="p-3 md:p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light">
-            <h3 className="text-[#00ff00] flex items-center text-sm md:text-base mb-2 font-bold">
-              <BarChart className="mr-2 h-4 w-4" /> Histórico de Números ({historicalNumbers.length})
+          <div className="p-4 md:p-6 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light">
+            <h3 className="text-[#00ff00] flex items-center text-base md:text-lg mb-3 font-bold">
+              <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {Math.min(historicalNumbers.length, 500)})
             </h3>
-            <div className="grid grid-cols-10 gap-1.5">
-              {historicalNumbers.slice(0, 30).map((num, idx) => (
+            <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-15 xl:grid-cols-18 gap-2 max-h-[500px] overflow-y-auto p-3">
+              {historicalNumbers.map((num, idx) => (
                 <div 
                   key={idx} 
-                  className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center text-xs md:text-sm font-bold ${getRouletteNumberColor(num)}`}
+                  className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm md:text-base font-bold ${getRouletteNumberColor(num)}`}
                 >
                   {num}
                 </div>
@@ -319,11 +319,11 @@ const RouletteStatsModal = ({
           </div>
 
           {/* Win Rate Chart */}
-          <div className="glass-card p-3 md:p-4 space-y-2 md:space-y-4">
-            <h3 className="text-base md:text-lg font-semibold flex items-center">
-              <PercentIcon size={16} className="text-[#00ff00] mr-2" /> Taxa de Vitória
+          <div className="glass-card p-4 md:p-6 space-y-3 md:space-y-5">
+            <h3 className="text-lg md:text-xl font-semibold flex items-center">
+              <PercentIcon size={20} className="text-[#00ff00] mr-2" /> Taxa de Vitória
             </h3>
-            <div className="h-40 md:h-60">
+            <div className="h-60 md:h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -351,16 +351,16 @@ const RouletteStatsModal = ({
           </div>
           
           {/* Frequency Chart */}
-          <div className="glass-card p-3 md:p-4 space-y-2 md:space-y-4">
-            <h3 className="text-base md:text-lg font-semibold flex items-center">
-              <ChartBar size={16} className="text-[#00ff00] mr-2" /> Frequência de Números
+          <div className="glass-card p-4 md:p-6 space-y-3 md:space-y-5">
+            <h3 className="text-lg md:text-xl font-semibold flex items-center">
+              <ChartBar size={20} className="text-[#00ff00] mr-2" /> Frequência de Números
             </h3>
-            <div className="h-40 md:h-60">
+            <div className="h-60 md:h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <RechartsBarChart data={frequencyData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <RechartsBarChart data={frequencyData} margin={{ top: 10, right: 30, left: 20, bottom: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 10}} />
-                  <YAxis stroke="#ccc" tick={{fontSize: 10}} />
+                  <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 12}} />
+                  <YAxis stroke="#ccc" tick={{fontSize: 12}} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#222', borderColor: '#00ff00' }} 
                     labelStyle={{ color: '#00ff00' }}
@@ -372,11 +372,11 @@ const RouletteStatsModal = ({
           </div>
           
           {/* Distribution Pie Chart */}
-          <div className="glass-card p-3 md:p-4 space-y-2 md:space-y-4">
-            <h3 className="text-base md:text-lg font-semibold flex items-center">
-              <ChartBar size={16} className="text-[#00ff00] mr-2" /> Distribuição por Cor
+          <div className="glass-card p-4 md:p-6 space-y-3 md:space-y-5">
+            <h3 className="text-lg md:text-xl font-semibold flex items-center">
+              <ChartBar size={20} className="text-[#00ff00] mr-2" /> Distribuição por Cor
             </h3>
-            <div className="h-40 md:h-60">
+            <div className="h-60 md:h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -400,36 +400,36 @@ const RouletteStatsModal = ({
           </div>
           
           {/* Hot & Cold Numbers */}
-          <div className="glass-card p-3 md:p-4 space-y-2 md:space-y-4 col-span-1 lg:col-span-2">
-            <h3 className="text-base md:text-lg font-semibold">Números Quentes & Frios</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-              <div className="p-2 md:p-3 bg-vegas-darkgray rounded-lg">
-                <h4 className="text-sm md:text-md font-semibold flex items-center text-red-500 mb-2">
-                  <ArrowUp size={14} className="mr-1" /> Números Quentes (Mais Frequentes)
+          <div className="glass-card p-4 md:p-6 space-y-3 md:space-y-5 col-span-1 lg:col-span-2 xl:col-span-3">
+            <h3 className="text-lg md:text-xl font-semibold">Números Quentes & Frios</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <div className="p-4 md:p-5 bg-vegas-darkgray rounded-lg">
+                <h4 className="text-base md:text-lg font-semibold flex items-center text-red-500 mb-3">
+                  <ArrowUp size={18} className="mr-2" /> Números Quentes (Mais Frequentes)
                 </h4>
-                <div className="flex flex-wrap gap-1 md:gap-2">
+                <div className="flex flex-wrap gap-3 md:gap-4">
                   {hot.map((item, i) => (
-                    <div key={i} className="flex items-center space-x-1">
-                      <div className={`w-6 h-6 md:w-8 md:h-8 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs md:text-sm font-medium`}>
+                    <div key={i} className="flex items-center space-x-2">
+                      <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-sm md:text-base font-medium`}>
                         {item.number}
                       </div>
-                      <span className="text-vegas-gold text-xs md:text-sm">({item.frequency}x)</span>
+                      <span className="text-vegas-gold text-sm md:text-base">({item.frequency}x)</span>
                     </div>
                   ))}
                 </div>
               </div>
               
-              <div className="p-2 md:p-3 bg-vegas-darkgray rounded-lg">
-                <h4 className="text-sm md:text-md font-semibold flex items-center text-blue-500 mb-2">
-                  <ArrowDown size={14} className="mr-1" /> Números Frios (Menos Frequentes)
+              <div className="p-4 md:p-5 bg-vegas-darkgray rounded-lg">
+                <h4 className="text-base md:text-lg font-semibold flex items-center text-blue-500 mb-3">
+                  <ArrowDown size={18} className="mr-2" /> Números Frios (Menos Frequentes)
                 </h4>
-                <div className="flex flex-wrap gap-1 md:gap-2">
+                <div className="flex flex-wrap gap-3 md:gap-4">
                   {cold.map((item, i) => (
-                    <div key={i} className="flex items-center space-x-1">
-                      <div className={`w-6 h-6 md:w-8 md:h-8 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs md:text-sm font-medium`}>
+                    <div key={i} className="flex items-center space-x-2">
+                      <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-sm md:text-base font-medium`}>
                         {item.number}
                       </div>
-                      <span className="text-vegas-gold text-xs md:text-sm">({item.frequency}x)</span>
+                      <span className="text-vegas-gold text-sm md:text-base">({item.frequency}x)</span>
                     </div>
                   ))}
                 </div>
@@ -438,21 +438,21 @@ const RouletteStatsModal = ({
           </div>
           
           {/* Média de cores por hora */}
-          <div className="glass-card p-3 md:p-4 space-y-2 md:space-y-4 col-span-1 lg:col-span-2">
-            <h3 className="text-base md:text-lg font-semibold">Média de cores por hora</h3>
-            <div className="space-y-3">
+          <div className="glass-card p-4 md:p-6 space-y-3 md:space-y-5 col-span-1 lg:col-span-2 xl:col-span-3">
+            <h3 className="text-lg md:text-xl font-semibold">Média de cores por hora</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {colorHourlyStats.map((stat, index) => (
-                <div key={`color-stat-${index}`} className="bg-gray-100/10 rounded-md p-3">
-                  <div className="flex items-center mb-1">
+                <div key={`color-stat-${index}`} className="bg-gray-100/10 rounded-md p-4">
+                  <div className="flex items-center mb-2">
                     <div 
-                      className="w-8 h-8 rounded-md mr-2 flex items-center justify-center" 
+                      className="w-10 h-10 rounded-md mr-3 flex items-center justify-center" 
                       style={{ backgroundColor: stat.color === "#111827" ? "black" : stat.color }}
                     >
-                      <div className="w-5 h-5 rounded-full border-2 border-white"></div>
+                      <div className="w-6 h-6 rounded-full border-2 border-white"></div>
                     </div>
                     <div>
-                      <p className="text-sm font-medium">{stat.name}</p>
-                      <p className="text-xs text-gray-400">Total de {stat.total} <span className="bg-gray-800 text-xs px-1.5 py-0.5 rounded ml-1">{stat.percentage}%</span> {stat.color === "#ef4444" ? "vermelhos" : stat.color === "#111827" ? "pretos" : "brancos"} no dia selecionado</p>
+                      <p className="text-base font-medium">{stat.name}</p>
+                      <p className="text-sm text-gray-400">Total de {stat.total} <span className="bg-gray-800 text-sm px-2 py-0.5 rounded ml-1">{stat.percentage}%</span> {stat.color === "#ef4444" ? "vermelhos" : stat.color === "#111827" ? "pretos" : "brancos"} no dia selecionado</p>
                     </div>
                   </div>
                 </div>
