@@ -27,12 +27,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface RouletteStatsModalProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
-  name: string;
+  onClose: (open: boolean) => void;
+  roletaNome: string;
   lastNumbers: number[];
   wins: number;
   losses: number;
-  trend: { value: number }[];
 }
 
 // Função para obter dados históricos - retorna array vazio quando não há dados
@@ -223,12 +222,11 @@ const getRouletteNumberColor = (num: number) => {
 
 const RouletteStatsModal = ({ 
   open, 
-  onOpenChange, 
-  name, 
+  onClose, 
+  roletaNome, 
   lastNumbers, 
   wins, 
-  losses, 
-  trend 
+  losses 
 }: RouletteStatsModalProps) => {
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -239,8 +237,8 @@ const RouletteStatsModal = ({
         setIsLoading(true);
         
         try {
-          console.log(`Buscando histórico para ${name}...`);
-          let numbers = await fetchRouletteHistoricalNumbers(name);
+          console.log(`Buscando histórico para ${roletaNome}...`);
+          let numbers = await fetchRouletteHistoricalNumbers(roletaNome);
           
           // Se houver lastNumbers nas props, garantir que eles estão incluídos no início do histórico
           if (lastNumbers && lastNumbers.length > 0) {
@@ -255,10 +253,10 @@ const RouletteStatsModal = ({
           }
           
           if (numbers && numbers.length > 20) {
-            console.log(`Encontrados ${numbers.length} números históricos para ${name}`);
+            console.log(`Encontrados ${numbers.length} números históricos para ${roletaNome}`);
             setHistoricalNumbers(numbers);
           } else {
-            console.log(`Histórico insuficiente para ${name}, usando dados gerados`);
+            console.log(`Histórico insuficiente para ${roletaNome}, usando dados gerados`);
             setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
           }
         } catch (error) {
@@ -272,7 +270,7 @@ const RouletteStatsModal = ({
     };
     
     loadHistoricalData();
-  }, [open, name, lastNumbers]);
+  }, [open, roletaNome, lastNumbers]);
   
   const frequencyData = generateFrequencyData(historicalNumbers);
   const { hot, cold } = getHotColdNumbers(frequencyData);
@@ -282,11 +280,11 @@ const RouletteStatsModal = ({
   const winRate = (wins / (wins + losses)) * 100;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] md:max-w-5xl max-h-[90vh] overflow-y-auto bg-vegas-black border-[#00ff00] p-2 md:p-6 stats-modal-content">
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[80vw] md:max-w-[60vw] lg:max-w-[768px] h-[90vh] max-h-[700px] p-0 gap-0">
         <DialogHeader>
           <DialogTitle className="text-[#00ff00] flex items-center text-lg md:text-xl">
-            <BarChart className="mr-2" /> Estatísticas da {name}
+            <BarChart className="mr-2" /> Estatísticas da {roletaNome}
           </DialogTitle>
           <DialogDescription className="text-sm">
             {isLoading ? (

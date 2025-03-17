@@ -344,6 +344,21 @@ class SocketService {
     // A conexão existe, então pode haver dados reais
     return true;
   }
+  
+  // Método para enviar mensagens via socket
+  public sendMessage(data: any): void {
+    if (!this.socket || !this.isConnected) {
+      console.warn('[SocketService] Tentativa de enviar mensagem sem conexão ativa');
+      return;
+    }
+    
+    try {
+      console.log(`[SocketService] Enviando mensagem:`, data);
+      this.socket.emit('message', data);
+    } catch (error) {
+      console.error('[SocketService] Erro ao enviar mensagem:', error);
+    }
+  }
 }
 
 export default SocketService; 

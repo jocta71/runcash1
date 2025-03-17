@@ -14,7 +14,8 @@ import {
 } from 'recharts';
 
 interface RouletteTrendChartProps {
-  trend: { value: number }[];
+  data: { value: number }[];
+  className?: string;
 }
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -34,13 +35,13 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-const RouletteTrendChart = ({ trend }: RouletteTrendChartProps) => {
+const RouletteTrendChart = ({ data, className = '' }: RouletteTrendChartProps) => {
   // Calcular médias móveis
-  const enhancedData = trend.map((item, index) => {
+  const enhancedData = data.map((item, index) => {
     // Média móvel simples de 5 períodos
     let sma5 = 0;
     if (index >= 4) {
-      const last5 = trend.slice(index - 4, index + 1);
+      const last5 = data.slice(index - 4, index + 1);
       sma5 = last5.reduce((sum, item) => sum + item.value, 0) / 5;
     }
     
@@ -50,16 +51,16 @@ const RouletteTrendChart = ({ trend }: RouletteTrendChartProps) => {
       // Adicionando indicadores de alta/baixa para criar a aparência de trading
       high: item.value + (Math.random() * 1.5),
       low: item.value - (Math.random() * 1.5),
-      open: index > 0 ? trend[index - 1].value : item.value - (Math.random() * 0.5),
+      open: index > 0 ? data[index - 1].value : item.value - (Math.random() * 0.5),
       close: item.value
     };
   });
   
   // Calcular valor médio para usar como linha de referência
-  const avgValue = trend.reduce((sum, item) => sum + item.value, 0) / trend.length;
+  const avgValue = data.reduce((sum, item) => sum + item.value, 0) / data.length;
   
   return (
-    <div className="h-12 w-full">
+    <div className={`h-12 w-full ${className}`}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart 
           data={enhancedData}

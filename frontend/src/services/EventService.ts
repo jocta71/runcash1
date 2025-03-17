@@ -533,6 +533,28 @@ class EventService {
       this.usingSocketService = false;
     }
   }
+
+  // Adiciona um listener para eventos de um tipo específico
+  public subscribeToEvent(eventType: string, callback: RouletteEventCallback): void {
+    debugLog(`[EventService] Inscrevendo para eventos do tipo: ${eventType}`);
+    this.subscribe(eventType, callback);
+  }
+
+  // Remove um listener de um tipo específico
+  public unsubscribeFromEvent(eventType: string, callback: RouletteEventCallback): void {
+    this.unsubscribe(eventType, callback);
+  }
+
+  // Adiciona um listener para todos os eventos
+  public subscribeToGlobalEvents(callback: RouletteEventCallback): void {
+    debugLog(`[EventService] Inscrevendo para todos os eventos`);
+    this.subscribe('*', callback);
+  }
+
+  // Remove um listener global
+  public unsubscribeFromGlobalEvents(callback: RouletteEventCallback): void {
+    this.unsubscribe('*', callback);
+  }
 }
 
 export default EventService; 
