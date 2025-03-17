@@ -11,6 +11,12 @@ interface EnvConfig {
   // URL da API de eventos SSE
   sseServerUrl: string;
   
+  // URL base da API REST
+  apiBaseUrl: string;
+  
+  // URL do servidor WebSocket
+  wsUrl: string;
+  
   // Indica se estamos em ambiente de produção
   isProduction: boolean;
 }
@@ -26,7 +32,9 @@ function getRequiredEnvVar(key: string): string {
   
   // Valores mock para desenvolvimento local
   const mockValues: Record<string, string> = {
-    'VITE_SSE_SERVER_URL': 'https://short-mammals-help.loca.lt/api/events'
+    'VITE_SSE_SERVER_URL': 'https://black-starfish-12.loca.lt/api/events',
+    'VITE_API_BASE_URL': 'https://black-starfish-12.loca.lt/api',
+    'VITE_WS_URL': 'https://black-starfish-12.loca.lt'
   };
   
   if (value === undefined || value === '') {
@@ -59,7 +67,37 @@ const config: EnvConfig = {
       // Fallback para desenvolvimento apenas
       if (!isProduction) {
         console.warn('[Config] Fallback para SSE local, defina VITE_SSE_SERVER_URL para produção');
-        return 'https://short-mammals-help.loca.lt/api/events'; // URL atualizada para o novo endpoint
+        return 'http://localhost:5000/api/events';
+      }
+      throw e;
+    }
+  })(),
+  
+  // URL base da API REST
+  apiBaseUrl: (function() {
+    try {
+      // @ts-ignore
+      return getRequiredEnvVar('VITE_API_BASE_URL');
+    } catch (e) {
+      // Fallback para desenvolvimento apenas
+      if (!isProduction) {
+        console.warn('[Config] Fallback para API local, defina VITE_API_BASE_URL para produção');
+        return 'http://localhost:5000/api';
+      }
+      throw e;
+    }
+  })(),
+  
+  // URL do servidor WebSocket
+  wsUrl: (function() {
+    try {
+      // @ts-ignore
+      return getRequiredEnvVar('VITE_WS_URL');
+    } catch (e) {
+      // Fallback para desenvolvimento apenas
+      if (!isProduction) {
+        console.warn('[Config] Fallback para WebSocket local, defina VITE_WS_URL para produção');
+        return 'http://localhost:5000';
       }
       throw e;
     }
@@ -73,6 +111,8 @@ const config: EnvConfig = {
 if (!isProduction) {
   console.log('[Config] Variáveis de ambiente carregadas:', {
     sseServerUrl: config.sseServerUrl,
+    apiBaseUrl: config.apiBaseUrl,
+    wsUrl: config.wsUrl,
     isProduction: config.isProduction
   });
 }

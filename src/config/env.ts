@@ -14,6 +14,9 @@ interface EnvConfig {
   // URL do servidor WebSocket
   wsServerUrl: string;
   
+  // URL base da API REST
+  apiBaseUrl: string;
+  
   // Indica se estamos em ambiente de produção
   isProduction: boolean;
 }
@@ -22,67 +25,60 @@ interface EnvConfig {
 const isProduction = window.location.hostname !== 'localhost' && 
                      window.location.hostname !== '127.0.0.1';
 
-// Função para obter variáveis de ambiente sem fallback
-function getRequiredEnvVar(key: string): string {
+// Exibir todas as variáveis disponíveis
+console.log('[Config] Variáveis de ambiente disponíveis:', import.meta.env);
+
+// Função para garantir que uma URL tenha o protocolo correto
+function ensureValidProtocol(url: string): string {
+  if (!url) return url;
+  
+  console.log(`[Config] Verificando protocolo da URL: "${url}"`);
+  
+  // Corrigir caso específico de ttps://
+  if (url.includes('ttps://')) {
+    console.warn(`[Config] Protocolo inválido ttps:// detectado, corrigindo para https://`);
+    return url.replace('ttps://', 'https://');
+  }
+  
+  // Se a URL não começar com http:// ou https://, presumir https://
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    console.warn(`[Config] URL inválida detectada: ${url}, adicionando protocolo https://`);
+    return `https://${url}`;
+  }
+  
+  return url;
+}
+
+// Função para obter variáveis de ambiente com fallback
+function getEnvVar(key: string, fallback: string): string {
   // @ts-ignore - Ignorando erro de tipagem do Vite
   const value = import.meta.env[key];
   
-  // Valores mock para desenvolvimento local
-  const mockValues: Record<string, string> = {
-    'VITE_SSE_SERVER_URL': 'https://short-mammals-help.loca.lt/api/events',
-    'VITE_WS_URL': 'http://localhost:5000'
-  };
-  
   if (value === undefined || value === '') {
-    // Em desenvolvimento, usar valor mock se disponível
-    if (!isProduction && mockValues[key]) {
-      console.warn(`[Config Mock] Usando valor mock para ${key}: ${mockValues[key]}`);
-      return mockValues[key];
-    }
-    
-    // Em desenvolvimento, mostrar um erro útil
+    // Em desenvolvimento, mostrar um aviso
     if (!isProduction) {
-      console.error(`[Config Error] Variável de ambiente ${key} não está definida. Usando valor padrão.`);
+      console.warn(`[Config] Variável ${key} não definida, usando fallback: ${fallback}`);
     }
     
-    // Fornecer um valor padrão para evitar erros
-    return mockValues[key] || '';
+    return fallback;
   }
   
-  return value;
+  return ensureValidProtocol(value);
 }
 
-// Configuração com variáveis de ambiente do Vercel/env
+// URL do túnel atual para desenvolvimento
+const TUNNEL_URL = 'https://evil-moth-31.loca.lt';
+
+// Configuração centralizada
 const config: EnvConfig = {
   // URL do servidor SSE
-  sseServerUrl: (function() {
-    try {
-      // @ts-ignore
-      return getRequiredEnvVar('VITE_SSE_SERVER_URL');
-    } catch (e) {
-      // Fallback para desenvolvimento apenas
-      if (!isProduction) {
-        console.warn('[Config] Fallback para SSE local, defina VITE_SSE_SERVER_URL para produção');
-        return 'https://evil-moth-31.loca.lt/api/events'; // URL atualizada para o novo endpoint
-      }
-      throw e;
-    }
-  })(),
+  sseServerUrl: getEnvVar('VITE_SSE_SERVER_URL', `${TUNNEL_URL}/api/events`),
   
   // URL do servidor WebSocket
-  wsServerUrl: (function() {
-    try {
-      // @ts-ignore
-      return getRequiredEnvVar('VITE_WS_URL');
-    } catch (e) {
-      // Fallback para desenvolvimento apenas
-      if (!isProduction) {
-        console.warn('[Config] Fallback para WebSocket local, defina VITE_WS_URL para produção');
-        return 'http://localhost:5000';
-      }
-      throw e;
-    }
-  })(),
+  wsServerUrl: getEnvVar('VITE_WS_URL', TUNNEL_URL),
+  
+  // URL base da API REST
+  apiBaseUrl: getEnvVar('VITE_API_BASE_URL', `${TUNNEL_URL}/api`),
   
   // Flag de ambiente
   isProduction
@@ -94,13 +90,7 @@ if (!isProduction) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 }
 
-// Log das configurações carregadas em desenvolvimento
-if (!isProduction) {
-  console.log('[Config] Variáveis de ambiente carregadas:', {
-    sseServerUrl: config.sseServerUrl,
-    wsServerUrl: config.wsServerUrl,
-    isProduction: config.isProduction
-  });
-}
+// Log das configurações carregadas
+console.log('[Config] Configuração carregada:', config);
 
 export default config; 

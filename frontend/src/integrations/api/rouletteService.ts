@@ -1,8 +1,8 @@
 import axios from 'axios';
 import config from '@/config/env';
 
-// Usar a variável de ambiente VITE_API_BASE_URL ou fallback para localhost
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Usar a variável de ambiente centralizada do config
+const API_URL = config.apiBaseUrl;
 console.log('[API] Usando URL da API:', API_URL);
 
 // Configuração do axios com headers padrão

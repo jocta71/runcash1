@@ -52,7 +52,7 @@ class SocketService {
   private getSocketUrl(): string {
     // URL do servidor WebSocket (ajustar conforme necessário)
     // Em ambiente de produção, deve apontar para a URL real do servidor
-    const socketUrl = import.meta.env.VITE_WS_URL || 'http://localhost:5000';
+    const socketUrl = config.wsUrl;
     console.log(`[SocketService] URL do servidor Socket.IO: ${socketUrl}`);
     return socketUrl;
   }

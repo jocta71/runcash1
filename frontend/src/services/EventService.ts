@@ -359,7 +359,7 @@ class EventService {
   private async performPoll(): Promise<void> {
     try {
       // Tentar endpoint Socket.IO alternativo que sabemos que funciona
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const baseUrl = config.apiBaseUrl;
       const url = `${baseUrl}/latest-numbers`;
       
       const response = await fetch(url);
