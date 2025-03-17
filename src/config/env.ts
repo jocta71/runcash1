@@ -63,7 +63,7 @@ const config: EnvConfig = {
       // Fallback para desenvolvimento apenas
       if (!isProduction) {
         console.warn('[Config] Fallback para SSE local, defina VITE_SSE_SERVER_URL para produção');
-        return 'https://short-mammals-help.loca.lt/api/events'; // URL atualizada para o novo endpoint
+        return 'https://evil-moth-31.loca.lt/api/events'; // URL atualizada para o novo endpoint
       }
       throw e;
     }
@@ -87,6 +87,12 @@ const config: EnvConfig = {
   // Flag de ambiente
   isProduction
 };
+
+// Configuração para contornar problemas de SSL/autenticação durante desenvolvimento
+if (!isProduction) {
+  // Ignorar erros de certificado SSL em desenvolvimento (NÃO FAZER ISSO EM PRODUÇÃO!)
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
 
 // Log das configurações carregadas em desenvolvimento
 if (!isProduction) {

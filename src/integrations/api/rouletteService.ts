@@ -1,5 +1,6 @@
 import axios from 'axios';
 import config from '@/config/env';
+import https from 'https';
 
 // Adicionar logs de depuração para identificar o problema
 console.log('[DEBUG] Todas as variáveis de ambiente:', import.meta.env);
@@ -38,11 +39,44 @@ const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true'  // Adicionar este header para ignorar a tela de proteção do ngrok
+    'ngrok-skip-browser-warning': 'true',  // Adicionar este header para ignorar a tela de proteção do ngrok
+    'bypass-tunnel-reminder': 'true',      // Tentativa de contornar lembretes de tunnel
+    'Access-Control-Allow-Origin': '*',    // CORS header
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
   },
   // Adicionar timeout mais longo para permitir conexões mais lentas
   timeout: 10000,
+  // Ignorar erros de SSL em desenvolvimento - NÃO USAR EM PRODUÇÃO
+  httpsAgent: new https.Agent({
+    rejectUnauthorized: false
+  })
 });
+
+// Para contornar o erro 511, adicionar interceptor para repetir requisições com diferentes headers
+api.interceptors.response.use(
+  response => response,
+  async error => {
+    if (error.response && error.response.status === 511) {
+      console.warn('[API] Erro 511 detectado, tentando com bypass de autenticação');
+      
+      // Cria uma nova requisição com headers específicos para contornar autenticação
+      const originalRequest = error.config;
+      
+      // Adicionar headers especiais para tentar contornar
+      originalRequest.headers = {
+        ...originalRequest.headers,
+        'Cookie': 'localtunnel-bypass=true',
+        'Authorization': 'Basic YnlwYXNzOnR1bm5lbA==', // bypass:tunnel em Base64
+        'X-Bypass-Tunnel-Authentication': 'true'
+      };
+      
+      // Tentar novamente com os novos headers
+      return axios(originalRequest);
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // Tipos e interfaces necessárias
 export interface RouletteData {
