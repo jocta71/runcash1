@@ -3,8 +3,6 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { strategies, numberGroups } from './roulette/constants';
-
-import type { ReactNode } from 'react';
 import LastNumbers from './roulette/LastNumbers';
 import WinRateDisplay from './roulette/WinRateDisplay';
 import RouletteTrendChart from './roulette/RouletteTrendChart';
@@ -191,7 +189,7 @@ const RouletteCardRealtime = ({
   const roletaNome = name || roleta_nome || "Roleta Desconhecida";
   
   // Usar o hook personalizado para obter dados em tempo real
-  const { numbers, loading, error, isConnected, hasData, strategy, strategyLoading, refreshNumbers } = useRouletteData(roletaId, roletaNome);
+  const { numbers, loading: isLoading, error, isConnected, hasData, strategy, strategyLoading, refreshNumbers } = useRouletteData(roletaId, roletaNome);
   
   // Converter os objetos RouletteNumber para números simples para compatibilidade com componentes existentes
   const lastNumbers = useMemo(() => {
@@ -475,29 +473,6 @@ const RouletteCardRealtime = ({
       });
   };
 
-  // Efeito para tentar recarregar dados automaticamente em intervalos
-  useEffect(() => {
-    // Se não há dados e não está carregando, tentar recarregar automaticamente
-    if (!hasData && !loading) {
-      console.log(`[RouletteCardRealtime] Sem dados para ${roletaNome}, tentando carregar automaticamente...`);
-      const reloadInterval = setInterval(() => {
-        console.log(`[RouletteCardRealtime] Tentativa automática de recarregar dados para ${roletaNome}`);
-        refreshNumbers()
-          .then(success => {
-            if (success) {
-              console.log(`[RouletteCardRealtime] Dados carregados com sucesso para ${roletaNome}`);
-              // Limpar o intervalo uma vez que os dados foram carregados
-              clearInterval(reloadInterval);
-            }
-          })
-          .catch(err => console.error(`[RouletteCardRealtime] Erro ao tentar recarregar dados para ${roletaNome}:`, err));
-      }, 15000); // Tentar a cada 15 segundos
-      
-      // Limpar o intervalo quando o componente for desmontado
-      return () => clearInterval(reloadInterval);
-    }
-  }, [hasData, loading, refreshNumbers, roletaNome]);
-
   // Conteúdo quando não há dados disponíveis
   const noDataContent = (
     <div className="flex flex-col items-center justify-center h-full py-8 text-center">
@@ -518,8 +493,8 @@ const RouletteCardRealtime = ({
 
   // Memorize components to prevent unnecessary re-renders
   const memoizedNumbers = useMemo(() => (
-    <LastNumbers numbers={lastNumbers} isLoading={loading} />
-  ), [lastNumbers, loading]);
+    <LastNumbers numbers={lastNumbers} isLoading={isLoading} />
+  ), [lastNumbers, isLoading]);
 
   const memoizedSuggestion = useMemo(() => (
     <SuggestionDisplay 
@@ -612,7 +587,7 @@ const RouletteCardRealtime = ({
       
       {/* Conteúdo principal */}
       <div className="flex flex-col h-full">
-        {loading ? (
+        {isLoading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-vegas-gold"></div>
           </div>
