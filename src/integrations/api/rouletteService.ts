@@ -1,8 +1,13 @@
 import axios from 'axios';
 import config from '@/config/env';
 
-// Usar a variável de ambiente VITE_API_URL ou fallback para localhost
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Adicionar logs de depuração para identificar o problema
+console.log('[DEBUG] Todas as variáveis de ambiente:', import.meta.env);
+console.log('[DEBUG] VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+console.log('[DEBUG] VITE_WS_URL:', import.meta.env.VITE_WS_URL);
+
+// Usar a variável de ambiente VITE_API_BASE_URL ou fallback para localhost
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 console.log('[API] Usando URL da API:', API_URL);
 
 // Configuração do axios com headers padrão
@@ -274,10 +279,4 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
       };
     }
     
-    console.warn(`[API] Nenhum dado de estratégia encontrado para roleta ID ${roletaId}`);
-    return null;
-  } catch (error) {
-    console.error(`[API] Erro ao buscar estratégia para roleta ID ${roletaId}:`, error);
-    return null;
-  }
-};
+    console.warn(`
