@@ -195,8 +195,26 @@ const RouletteCardRealtime = memo(({
   // Converter os objetos RouletteNumber para números simples para compatibilidade com componentes existentes
   // usando useMemo para evitar recalcular quando numbers não mudar
   const lastNumbers = useMemo(() => {
-    return numbers.map(numObj => numObj.numero);
-  }, [numbers]);
+    // Garantir que numbers é um array válido e não undefined
+    if (!Array.isArray(numbers)) {
+      return [];
+    }
+    
+    // Mapear números obtidos do hook, garantindo que sejam válidos
+    const mappedNumbers = numbers.map(numObj => {
+      // Verificar se o número é válido (números de roleta vão de 0 a 36)
+      const num = typeof numObj.numero === 'number' ? numObj.numero : 
+                 typeof numObj.numero === 'string' ? parseInt(numObj.numero, 10) : 0;
+      return isNaN(num) ? 0 : num;
+    });
+    
+    // Verificar o resultado e logar para debug
+    if (DEBUG_ENABLED) {
+      debugLog(`[RouletteCardRealtime] Números mapeados para ${roletaNome}:`, mappedNumbers.slice(0, 5));
+    }
+    
+    return mappedNumbers;
+  }, [numbers, roletaNome]);
 
   // Otimizar trend com useMemo para evitar recálculos desnecessários
   const trend = useMemo(() => {
@@ -315,8 +333,6 @@ const RouletteCardRealtime = memo(({
           
           // Atualizar referência do último número processado
           lastProcessedNumberRef.current = topNumber;
-          
-          // Processar a estratégia para este novo número (isso será feito pelo efeito de estratégia existente)
         }
       }
     };
@@ -324,15 +340,13 @@ const RouletteCardRealtime = memo(({
     // Verificar imediatamente ao montar
     checkTopNumber();
     
-    // Configurar verificação periódica
+    // Configurar verificação periódica com intervalo maior para evitar refreshes constantes
     if (!checkIntervalRef.current) {
       debugLog(`[RouletteCardRealtime] Iniciando verificação periódica de números do topo para ${roletaNome}`);
       checkIntervalRef.current = window.setInterval(() => {
-        // Forçar uma atualização dos números
-        refreshNumbers();
-        // Verificar após breve delay para permitir que os dados sejam carregados
-        setTimeout(checkTopNumber, 300);
-      }, 5000); // Verificar a cada 5 segundos
+        // Verificar sem forçar atualização completa
+        checkTopNumber();
+      }, 15000); // Verificar a cada 15 segundos para não sobrecarregar a UI
     }
     
     // Limpar ao desmontar
@@ -343,7 +357,7 @@ const RouletteCardRealtime = memo(({
         checkIntervalRef.current = null;
       }
     };
-  }, [lastNumbers, roletaNome, refreshNumbers]);
+  }, [lastNumbers, roletaNome]);
 
   // Adicionar um hook simples para depuração das estratégias recebidas do backend
   useEffect(() => {
@@ -351,6 +365,20 @@ const RouletteCardRealtime = memo(({
       debugLog(`[${roletaNome}] Exibindo estratégia recebida do backend: Estado=${strategyState}, Terminais=[${strategyTerminals.join(',')}]`);
     }
   }, [strategyState, strategyTerminals, roletaNome]);
+
+  // Adicionar efeito para verificar dados ao montar
+  useEffect(() => {
+    // Log somente uma vez ao montar para não sobrecarregar a console
+    debugLog(`[RouletteCardRealtime] Montado para ${roletaNome} (ID: ${roletaId})`);
+    debugLog(`[RouletteCardRealtime] Estado inicial: loading=${isLoading}, hasData=${hasData}, números=${lastNumbers.length}`);
+    
+    // Verificar se os dados estão sendo carregados corretamente
+    if (!isLoading && lastNumbers.length === 0) {
+      // Tentar fazer um refresh para recuperar dados
+      debugLog(`[RouletteCardRealtime] Sem números para ${roletaNome}, tentando refresh...`);
+      refreshNumbers();
+    }
+  }, [roletaId, roletaNome, isLoading, hasData, lastNumbers.length, refreshNumbers]);
 
   const generateSuggestion = () => {
     const groupKeys = Object.keys(numberGroups);
@@ -395,106 +423,104 @@ const RouletteCardRealtime = memo(({
     window.location.reload();
   };
 
+  // Memoização do LastNumbers component para evitar re-renders
+  const numbersDisplay = useMemo(() => (
+    <LastNumbers 
+      numbers={lastNumbers} 
+      isLoading={isLoading && lastNumbers.length === 0} // Só mostrar loading se não tivermos números
+    />
+  ), [lastNumbers, isLoading]);
+
   // Memoização do renderizado do componente para evitar re-renders
   const cardContent = useMemo(() => {
     return (
-      <div className={`relative flex flex-col h-full min-h-[400px] rounded-xl bg-[#17161e] overflow-hidden transition-opacity ${isBlurred ? 'opacity-30' : 'opacity-100'}`}>
-        {/* Parte superior com rótulos */}
-        <div className="bg-gradient-to-r from-[#0f0e14] to-[#17161e] p-3">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-white font-bold text-lg">{roletaNome}</h2>
-              <div className="flex items-center text-xs">
-                <span className={strategyState === 'TRIGGER' ? 'text-vegas-gold' : (strategyState === 'ACTIVE' ? 'text-green-500' : 'text-gray-400')}>
-                  {strategyState === 'TRIGGER' ? 'Gatilho Ativado ⚡' : 
-                   strategyState === 'ACTIVE' ? 'Estratégia Ativa ✓' : 
-                   'Aguardando Padrão'}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
+      <div 
+        className={`glass-card flex flex-col justify-between p-4 ${isBlurred ? 'blurred-content' : ''}`}
+        data-roleta-id={roletaId}
+        data-loading={isLoading ? 'true' : 'false'}
+        data-connected={isConnected ? 'true' : 'false'}
+      >
+        {/* Header com nome da roleta e controles */}
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h2 className="text-white/90 font-bold">{roletaNome}</h2>
+            <p className="text-[#00ff00] text-xs">{
+              strategyState === 'WAITING' ? 'Aguardando Padrão' :
+              strategyState === 'ACTIVE' ? (strategyDisplay || 'Padrão Ativo') :
+              strategyState === 'TRIGGER' ? 'Padrão Identificado' :
+              'Aguardando Padrão'
+            }</p>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <TrendingUp
+              size={16}
+              className={`text-[#00ff00] ${isConnected ? 'animate-pulse' : 'text-opacity-30'}`}
+              aria-label={isConnected ? 'Conectado' : 'Desconectado'}
+            />
+            <Star size={16} className="text-[#00ff00]" style={{opacity: 0.7}} />
+            {showSuggestions && 
               <button 
-                onClick={reloadData}
-                className="p-1 text-gray-400 hover:text-white"
-                title="Recarregar dados"
+                onClick={() => setIsBlurred(!isBlurred)}
+                className="text-[#00ff00] hover:text-[#00ff00]/90 transition-colors"
               >
-                <RefreshCw size={16} />
+                {isBlurred ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
-              <button 
-                onClick={toggleVisibility}
-                className="p-1 text-gray-400 hover:text-white"
-                title={showSuggestions ? "Ocultar sugestões" : "Mostrar sugestões"}
-              >
-                {showSuggestions ? <Eye size={16} /> : <EyeOff size={16} />}
-              </button>
-              <button 
-                onClick={handleDetailsClick}
-                className="p-1 text-gray-400 hover:text-white"
-                title="Ver estatísticas"
-              >
-                <ChartBar size={16} />
-              </button>
-              <button 
-                onClick={handlePlayClick}
-                className="p-1 bg-vegas-gold/10 rounded-md text-vegas-gold hover:bg-vegas-gold/20"
-                title="Jogar agora"
-              >
-                <ArrowUp size={16} />
-              </button>
-            </div>
+            }
           </div>
         </div>
         
-        {/* Parte principal com os últimos números */}
-        <div className="flex-1 p-3 flex flex-col">
-          {isLoading ? (
-            <div className="flex-1 flex justify-center items-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-vegas-gold"></div>
-            </div>
-          ) : (
-            <>
-              {/* Exibição dos últimos números */}
-              <LastNumbers 
-                numbers={lastNumbers}
-                className="mb-3" 
-              />
-              
-              {/* Gráfico e informações de tendência */}
-              <div className="flex items-center gap-4 mb-3">
-                <RouletteTrendChart 
-                  data={trend} 
-                  className="flex-1 h-20" 
-                />
-                <WinRateDisplay 
-                  wins={strategyWins || wins} 
-                  losses={strategyLosses || losses} 
-                />
-              </div>
-              
-              {/* Mostrar insights baseados nos dados */}
-              <div className="mb-3 py-2 px-3 bg-[#1A191F] rounded-md text-xs text-white/80">
-                <div className="flex items-center gap-1 mb-1">
-                  <Target size={14} className="text-vegas-gold" />
-                  <span className="font-semibold">Análise de Padrão</span>
-                </div>
-                <p>{getInsightMessage(lastNumbers, strategyWins || wins, strategyLosses || losses)}</p>
-              </div>
-              
-              {/* Exibição da sugestão */}
-              {showSuggestions && (
-                <SuggestionDisplay 
-                  suggestion={strategyDisplay || "Aguardando padrão..."} 
-                  isActive={strategyState === 'ACTIVE'} 
-                  isTrigger={strategyState === 'TRIGGER'}
-                  terminals={strategyTerminals}
-                />
-              )}
-            </>
-          )}
+        {/* Display de números - usando o componente memoizado */}
+        <div className="flex flex-col py-2">
+          {numbersDisplay}
         </div>
         
-        {/* Rodapé com botões de ação */}
+        {/* Taxa de vitória */}
+        <div className="mt-1 mb-3">
+          <WinRateDisplay 
+            wins={strategyWins || wins} 
+            losses={strategyLosses || losses} 
+          />
+          <RouletteTrendChart data={trend} />
+        </div>
+        
+        {/* Análise de padrão */}
+        <div className="mb-3">
+          <div className="flex items-center gap-1">
+            <Target size={10} className="text-[#00ff00]" />
+            <span className="text-[8px] text-[#00ff00] font-medium">Análise de Padrão</span>
+          </div>
+          <div className="text-[10px] text-gray-300">
+            {hasData && lastNumbers.length > 0 ? 
+              getInsightMessage(lastNumbers, strategyWins || wins, strategyLosses || losses) : 
+              "Aguardando dados..."
+            }
+          </div>
+        </div>
+        
+        {/* Status atual */}
+        <div className="mb-4">
+          <div className="flex items-center gap-1">
+            <Target size={10} className="text-[#00ff00]" />
+            <span className="text-[8px] text-[#00ff00] font-medium">Status</span>
+          </div>
+          <div className="text-[10px] text-gray-300">
+            {strategyState === 'TRIGGER' ? 'Aguardando padrão...' :
+             strategyState === 'ACTIVE' ? (
+               <SuggestionDisplay
+                suggestion={strategyDisplay || "Estratégia ativa, mas sem sugestão"}
+                isActive={true}
+                terminals={strategyTerminals}
+                isBlurred={isBlurred && showSuggestions}
+              />
+             ) : 'Aguardando padrão...'}
+          </div>
+        </div>
+        
+        {/* Botões de ação */}
         <RouletteActionButtons 
+          onDetailsClick={() => setStatsOpen(true)} 
+          onPlayClick={() => navigate(`/roleta/${roletaId}`)}
           isConnected={isConnected}
           hasData={hasData}
         />
@@ -502,7 +528,7 @@ const RouletteCardRealtime = memo(({
         {/* Modal de estatísticas */}
         <RouletteStatsModal 
           open={statsOpen} 
-          onClose={() => setStatsOpen(false)} 
+          onClose={setStatsOpen} 
           roletaNome={roletaNome}
           lastNumbers={lastNumbers}
           wins={strategyWins || wins}
@@ -526,7 +552,9 @@ const RouletteCardRealtime = memo(({
     strategyTerminals, 
     isConnected, 
     hasData, 
-    statsOpen
+    statsOpen,
+    navigate,
+    numbersDisplay
   ]);
 
   return cardContent;
