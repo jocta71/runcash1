@@ -6,9 +6,30 @@ console.log('[DEBUG] Todas as variáveis de ambiente:', import.meta.env);
 console.log('[DEBUG] VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
 console.log('[DEBUG] VITE_WS_URL:', import.meta.env.VITE_WS_URL);
 
+// Função auxiliar para garantir que uma URL tenha o protocolo correto
+function ensureValidProtocol(url: string): string {
+  if (!url) return url;
+  
+  // Se a URL não começar com http:// ou https://, presumir https://
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    console.warn(`[API] URL inválida detectada: ${url}, adicionando protocolo https://`);
+    return `https://${url}`;
+  }
+  
+  // Corrigir caso específico de ttps://
+  if (url.startsWith('ttps://')) {
+    console.warn(`[API] Protocolo inválido ttps:// detectado, corrigindo para https://`);
+    return url.replace('ttps://', 'https://');
+  }
+  
+  return url;
+}
+
 // Usar a variável de ambiente VITE_API_BASE_URL ou fallback para localhost
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-console.log('[API] Usando URL da API:', API_URL);
+let API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Garantir que a URL tenha um protocolo válido
+API_URL = ensureValidProtocol(API_URL);
+console.log('[API] Usando URL da API (validada):', API_URL);
 
 // Configuração do axios com headers padrão
 const api = axios.create({
