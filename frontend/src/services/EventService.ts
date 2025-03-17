@@ -362,7 +362,11 @@ class EventService {
       const baseUrl = config.apiBaseUrl;
       const url = `${baseUrl}/latest-numbers`;
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'bypass-tunnel-reminder': 'true'
+        }
+      });
       
       if (!response.ok) {
         // Se falhar, tentar o url original

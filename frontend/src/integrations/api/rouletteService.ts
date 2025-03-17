@@ -10,7 +10,8 @@ const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true'  // Adicionar este header para ignorar a tela de proteção do ngrok
+    'ngrok-skip-browser-warning': 'true',  // Adicionar este header para ignorar a tela de proteção do ngrok
+    'bypass-tunnel-reminder': 'true'       // Ignorar lembrete do serviço de túnel
   },
   // Adicionar timeout mais longo para permitir conexões mais lentas
   timeout: 10000,
