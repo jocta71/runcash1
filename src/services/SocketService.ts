@@ -74,7 +74,9 @@ class SocketService {
         transports: ['websocket', 'polling'], // Tentar WebSocket primeiro, depois polling
         forceNew: true,
         extraHeaders: {
-          'ngrok-skip-browser-warning': 'true'  // Adicionar para ignorar a proteção do ngrok
+          'ngrok-skip-browser-warning': 'true',  // Adicionar para ignorar a proteção do ngrok
+          'bypass-tunnel-reminder': 'true',      // Contornar página de lembrete do localtunnel
+          'User-Agent': 'Mozilla/5.0 RunCash Custom Client' // User-Agent personalizado
         },
         auth: {
           token: 'anonymous' // Permitir conexão anônima sem autenticação

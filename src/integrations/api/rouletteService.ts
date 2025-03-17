@@ -2,45 +2,18 @@ import axios from 'axios';
 import config from '@/config/env';
 import https from 'https';
 
-// Adicionar logs de depuração para identificar o problema
-console.log('[DEBUG] Todas as variáveis de ambiente:', import.meta.env);
-console.log('[DEBUG] VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
-console.log('[DEBUG] VITE_WS_URL:', import.meta.env.VITE_WS_URL);
-
-// Função auxiliar para garantir que uma URL tenha o protocolo correto
-function ensureValidProtocol(url: string): string {
-  if (!url) return url;
-  
-  console.log(`[API] Verificando protocolo da URL: "${url}"`);
-  
-  // Corrigir caso específico de ttps://
-  if (url.includes('ttps://')) {
-    console.warn(`[API] Protocolo inválido ttps:// detectado, corrigindo para https://`);
-    return url.replace('ttps://', 'https://');
-  }
-  
-  // Se a URL não começar com http:// ou https://, presumir https://
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    console.warn(`[API] URL inválida detectada: ${url}, adicionando protocolo https://`);
-    return `https://${url}`;
-  }
-  
-  return url;
-}
-
-// Usar a variável de ambiente VITE_API_BASE_URL ou fallback para localhost
-let API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-// Garantir que a URL tenha um protocolo válido
-API_URL = ensureValidProtocol(API_URL);
-console.log('[API] Usando URL da API (validada):', API_URL);
+// Logs de depuração
+console.log('[API] Config carregada:', config);
+console.log('[API] URL da API a ser usada:', config.apiBaseUrl);
 
 // Configuração do axios com headers padrão
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: config.apiBaseUrl,
   headers: {
     'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true',  // Adicionar este header para ignorar a tela de proteção do ngrok
-    'bypass-tunnel-reminder': 'true',      // Tentativa de contornar lembretes de tunnel
+    'bypass-tunnel-reminder': 'true',      // Header específico para contornar a página de lembrete do localtunnel
+    'User-Agent': 'Mozilla/5.0 RunCash Custom Client',  // User-Agent personalizado conforme recomendado
     'Access-Control-Allow-Origin': '*',    // CORS header
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
   },
@@ -214,7 +187,7 @@ export const fetchAllRoulettes = async (): Promise<RouletteData[]> => {
     
     // Se o erro for relacionado a um problema de protocolo, mostrar detalhes específicos
     if (error.message && error.message.includes('protocol')) {
-      console.error('[API] Erro de protocolo detectado. URL usada:', API_URL);
+      console.error('[API] Erro de protocolo detectado. URL usada:', config.apiBaseUrl);
     }
     
     return [];
