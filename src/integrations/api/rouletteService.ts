@@ -160,7 +160,27 @@ export const fetchAllRoulettes = async (): Promise<RouletteData[]> => {
     console.warn('[API] Formato de resposta inválido ou sem roletas');
     return [];
   } catch (error) {
+    // Melhorar o log de erro para exibir informações mais detalhadas
     console.error('[API] Erro ao buscar roletas:', error);
+    console.error('[API] Erro completo:', JSON.stringify(error, null, 2));
+    
+    if (error.response) {
+      // O servidor respondeu com um status de erro
+      console.error('[API] Detalhes da resposta de erro:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
+      });
+    } else if (error.request) {
+      // A requisição foi feita mas não houve resposta
+      console.error('[API] Sem resposta do servidor:', error.request);
+    }
+    
+    // Se o erro for relacionado a um problema de protocolo, mostrar detalhes específicos
+    if (error.message && error.message.includes('protocol')) {
+      console.error('[API] Erro de protocolo detectado. URL usada:', API_URL);
+    }
+    
     return [];
   }
 };
@@ -300,4 +320,10 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
       };
     }
     
-    console.warn(`
+    console.warn(`[API] Nenhum dado de estratégia encontrado para roleta ID ${roletaId}`);
+    return null;
+  } catch (error) {
+    console.error(`[API] Erro ao buscar estratégia para roleta ID ${roletaId}:`, error);
+    return null;
+  }
+};
