@@ -93,9 +93,25 @@ export const fetchAllRoulettes = async (): Promise<RouletteData[]> => {
     // Fazer requisição ao backend para buscar todas as roletas
     const response = await api.get('/roulettes');
     
-    if (response.data && Array.isArray(response.data)) {
+    // Verificar o formato dos dados recebidos para compatibilidade
+    let roletasData: any[] = [];
+    
+    if (response.data) {
+      // Se os dados vierem dentro de uma propriedade 'value' (formato PowerShell)
+      if (response.data.value && Array.isArray(response.data.value)) {
+        roletasData = response.data.value;
+        console.log('[API] Dados de roletas encontrados na propriedade "value"');
+      } 
+      // Se os dados vierem diretamente como um array
+      else if (Array.isArray(response.data)) {
+        roletasData = response.data;
+        console.log('[API] Dados de roletas encontrados diretamente no response.data');
+      }
+    }
+    
+    if (roletasData.length > 0) {
       // Formatar os dados para o tipo RouletteData
-      const formattedData: RouletteData[] = response.data.map((roleta: any) => ({
+      const formattedData: RouletteData[] = roletasData.map((roleta: any) => ({
         id: roleta.id || roleta._id,
         nome: roleta.nome,
         roleta_nome: roleta.roleta_nome || roleta.nome,
