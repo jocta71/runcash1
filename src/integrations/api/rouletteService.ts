@@ -10,16 +10,18 @@ console.log('[DEBUG] VITE_WS_URL:', import.meta.env.VITE_WS_URL);
 function ensureValidProtocol(url: string): string {
   if (!url) return url;
   
+  console.log(`[API] Verificando protocolo da URL: "${url}"`);
+  
+  // Corrigir caso específico de ttps://
+  if (url.includes('ttps://')) {
+    console.warn(`[API] Protocolo inválido ttps:// detectado, corrigindo para https://`);
+    return url.replace('ttps://', 'https://');
+  }
+  
   // Se a URL não começar com http:// ou https://, presumir https://
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     console.warn(`[API] URL inválida detectada: ${url}, adicionando protocolo https://`);
     return `https://${url}`;
-  }
-  
-  // Corrigir caso específico de ttps://
-  if (url.startsWith('ttps://')) {
-    console.warn(`[API] Protocolo inválido ttps:// detectado, corrigindo para https://`);
-    return url.replace('ttps://', 'https://');
   }
   
   return url;
