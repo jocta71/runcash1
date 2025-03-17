@@ -1,5 +1,5 @@
 import { TrendingUp, ChartBar, ArrowUp, Eye, EyeOff, History, Target, Percent, Star, AlertTriangle, RefreshCw } from 'lucide-react';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { strategies, numberGroups } from './roulette/constants';
@@ -16,7 +16,7 @@ import EventService from '@/services/EventService';
 import SocketService from '@/services/SocketService';
 
 // Debug flag - set to false to disable logs in production
-const DEBUG_ENABLED = true;  // Temporariamente habilitado para depuração do fluxo de estados
+const DEBUG_ENABLED = false;  // Desabilitando logs para melhorar performance
 
 // Helper function for controlled logging
 const debugLog = (...args: any[]) => {
@@ -156,7 +156,8 @@ interface RouletteCardRealtimeProps {
   losses?: number;
 }
 
-const RouletteCardRealtime = ({ 
+// Uso de React.memo para evitar re-renders desnecessários
+const RouletteCardRealtime = memo(({ 
   roletaId,
   name, 
   roleta_nome, 
@@ -192,22 +193,33 @@ const RouletteCardRealtime = ({
   const { numbers, loading: isLoading, error, isConnected, hasData, strategy, strategyLoading, refreshNumbers } = useRouletteData(roletaId, roletaNome);
   
   // Converter os objetos RouletteNumber para números simples para compatibilidade com componentes existentes
+  // usando useMemo para evitar recalcular quando numbers não mudar
   const lastNumbers = useMemo(() => {
-    const nums = numbers.map(numObj => numObj.numero);
-    console.log(`[RouletteCardRealtime] Números convertidos para ${roletaNome}:`, nums);
-    return nums;
-  }, [numbers, roletaNome]);
+    return numbers.map(numObj => numObj.numero);
+  }, [numbers]);
 
-  // Adicionar um efeito para verificar quando os números mudam
-  useEffect(() => {
-    console.log(`[RouletteCardRealtime] Números atualizados para ${roletaNome}:`, numbers);
-    console.log(`[RouletteCardRealtime] Total de números: ${numbers.length}`);
-    console.log(`[RouletteCardRealtime] hasData: ${hasData}, isLoading: ${isLoading}`);
-  }, [numbers, roletaNome, hasData, isLoading]);
-
+  // Otimizar trend com useMemo para evitar recálculos desnecessários
   const trend = useMemo(() => {
     return generateTrendFromWinRate(strategyWins || wins, strategyLosses || losses);
   }, [wins, losses, strategyWins, strategyLosses]);
+
+  // Callback memoizado para atualizar a estratégia (reduz re-renders)
+  const updateStrategy = useCallback((event: StrategyUpdateEvent) => {
+    debugLog(`[RouletteCardRealtime] ⚠️ Evento de estratégia recebido para ${roletaNome}: ${event.estado}`);
+    
+    // Importante: Como este evento vem do backend, vamos marcar que já processamos o último número 
+    // para que a geração local não sobrescreva esta atualização
+    if (lastNumbers.length > 0) {
+      lastProcessedNumberRef.current = lastNumbers[0];
+    }
+    
+    // Atualizar os estados da estratégia com os dados do evento
+    setStrategyState(event.estado);
+    setStrategyDisplay(event.sugestao_display || "");
+    setStrategyTerminals(event.terminais_gatilho || []);
+    setStrategyWins(event.vitorias);
+    setStrategyLosses(event.derrotas);
+  }, [lastNumbers, roletaNome]);
 
   // Efeito para inicializar os dados da estratégia a partir do hook
   useEffect(() => {
@@ -237,127 +249,58 @@ const RouletteCardRealtime = ({
         return;
       }
       
-      debugLog(`[RouletteCardRealtime] ⚠️ Evento de estratégia recebido para ${roletaNome}: ${event.estado}`);
-      
-      // Importante: Como este evento vem do backend, vamos marcar que já processamos o último número 
-      // para que a geração local não sobrescreva esta atualização
-      if (lastNumbers.length > 0) {
-        lastProcessedNumberRef.current = lastNumbers[0];
-      }
-      
-      // Atualizar os estados da estratégia com os dados do evento
-      setStrategyState(event.estado);
-      setStrategyDisplay(event.sugestao_display || "");
-      setStrategyTerminals(event.terminais_gatilho || []);
-      
-      // Atualizar contadores apenas se existirem no evento
-      if (typeof event.vitorias === 'number') {
-        setStrategyWins(event.vitorias);
-      }
-      
-      if (typeof event.derrotas === 'number') {
-        setStrategyLosses(event.derrotas);
-      }
-      
-      // Notificar o usuário sobre mudanças importantes na estratégia
-      if (event.estado === 'TRIGGER' && event.terminais_gatilho?.length > 0) {
-        toast({
-          title: `⚠️ Estratégia atualizada (Backend): ${roletaNome}`,
-          description: `${event.sugestao_display || `Apostar em: ${event.terminais_gatilho.join(', ')}`}`,
-          variant: "default"
-        });
-      }
+      updateStrategy(event);
     };
     
-    // Inscrever-se para eventos específicos desta roleta
-    debugLog(`[RouletteCardRealtime] Inscrevendo-se para eventos de estratégia: ${roletaNome}`);
-    eventService.subscribe(roletaNome, handleStrategyUpdate as any);
+    // Subscrever para eventos de estratégia
+    debugLog(`[RouletteCardRealtime] Inscrevendo para eventos de estratégia: ${roletaNome}`);
+    eventService.subscribeToEvent('strategy_update', handleStrategyUpdate);
     
-    // Também inscrever-se para o evento global
+    // Subscrever para eventos globais (apenas para debug)
+    debugLog(`[RouletteCardRealtime] Inscrevendo para eventos globais: ${roletaNome}`);
     const globalHandler = (event: any) => {
-      if (event.type === 'strategy_update' && 
-          (event.roleta_id === roletaId || event.roleta_nome === roletaNome)) {
-        debugLog(`[RouletteCardRealtime] Recebido evento global para ${roletaNome}`);
-        handleStrategyUpdate(event as StrategyUpdateEvent);
+      // Debug de todos os eventos para esta roleta
+      if (event.roleta_id === roletaId || event.roleta_nome === roletaNome) {
+        debugLog(`[RouletteCardRealtime] ⚠️ Evento global recebido para ${roletaNome}:`, event);
       }
     };
     
-    eventService.subscribe('*', globalHandler);
+    eventService.subscribeToGlobalEvents(globalHandler);
     
-    // Criar também subscrição com o Socket Service diretamente
-    let socketHandler: any = null;
-    try {
-      const socketService = SocketService.getInstance();
-      if (socketService) {
-        debugLog(`[RouletteCardRealtime] Inscrevendo também no Socket Service: ${roletaNome}`);
-        
-        socketHandler = (socketEvent: any) => {
-          // Verificar se é um evento de estratégia
-          if (socketEvent.type === 'strategy_update' && 
-              (socketEvent.roleta_id === roletaId || socketEvent.roleta_nome === roletaNome)) {
-            debugLog(`[RouletteCardRealtime] Evento de estratégia via Socket para ${roletaNome}: ${socketEvent.estado}`);
-            
-            // Adaptar formato se necessário
-            const adaptedEvent = {...socketEvent};
-            if (!adaptedEvent.roleta_id && roletaId) adaptedEvent.roleta_id = roletaId;
-            if (!adaptedEvent.roleta_nome && roletaNome) adaptedEvent.roleta_nome = roletaNome;
-            
-            handleStrategyUpdate(adaptedEvent as StrategyUpdateEvent);
-          }
-        };
-        
-        socketService.subscribe(roletaNome, socketHandler);
-        
-        // Adicionar subscrição para canal global também
-        socketService.subscribe('global_strategy_updates', socketHandler);
-      }
-    } catch (e) {
-      debugLog(`[RouletteCardRealtime] Erro ao se inscrever no Socket Service: ${e}`);
-    }
-    
-    // Solicitar a estratégia atual ao montar o componente
+    // Necessário solicitar o estado atual da estratégia para sincronização inicial
     const requestCurrentStrategy = () => {
-      try {
-        debugLog(`[RouletteCardRealtime] Solicitando estratégia atual para ${roletaNome}`);
-        const socketService = SocketService.getInstance();
-        // Usar o método correto para verificar a conexão
-        if (socketService && socketService.isSocketConnected()) {
-          // Enviar um evento solicitando o estado atual da estratégia
-          socketService.emit('request_strategy', {
-            roleta_id: roletaId,
-            roleta_nome: roletaNome
-          });
-        }
-      } catch (e) {
-        debugLog(`[RouletteCardRealtime] Erro ao solicitar estratégia atual: ${e}`);
+      const socketService = SocketService.getInstance();
+      
+      if (!socketService.isSocketConnected()) {
+        debugLog(`[RouletteCardRealtime] Socket.IO não conectado para ${roletaNome}`);
+        return;
       }
+      
+      debugLog(`[RouletteCardRealtime] Solicitando estratégia atual para ${roletaNome}`);
+      
+      socketService.sendMessage({
+        type: 'get_strategy',
+        roleta_id: roletaId,
+        roleta_nome: roletaNome
+      });
     };
     
-    // Tentar obter a estratégia atual ao montar
-    requestCurrentStrategy();
+    // Solicitar estratégia após um delay para garantir que o socket já está conectado
+    setTimeout(requestCurrentStrategy, 2000);
     
-    // Limpar ao desmontar
+    // Limpeza: remover subscrições ao desmontar
     return () => {
       debugLog(`[RouletteCardRealtime] Desmontando componente para ${roletaNome}`);
+      eventService.unsubscribeFromEvent('strategy_update', handleStrategyUpdate);
+      eventService.unsubscribeFromGlobalEvents(globalHandler);
       
-      // Limpar todas as subscrições
-      eventService.unsubscribe(roletaNome, handleStrategyUpdate as any);
-      eventService.unsubscribe('*', globalHandler);
-      
-      // Tentar limpar também do socketService, se disponível
-      if (socketHandler) {
-        try {
-          const socketService = SocketService.getInstance();
-          if (socketService) {
-            socketService.unsubscribe(roletaNome, socketHandler);
-            socketService.unsubscribe('global_strategy_updates', socketHandler);
-          }
-        } catch (e) {
-          // Silenciar erros na limpeza
-        }
+      // Limpar qualquer intervalo de verificação pendente
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current);
+        checkIntervalRef.current = null;
       }
     };
-  }, [roletaId, roletaNome, lastNumbers]);
+  }, [roletaId, roletaNome, updateStrategy]);
 
   // Efeito para verificar constantemente os números do topo
   useEffect(() => {
@@ -452,215 +395,147 @@ const RouletteCardRealtime = ({
     window.location.reload();
   };
 
-  // Conteúdo quando não há dados disponíveis
-  const noDataContent = (
-    <div className="flex flex-col items-center justify-center h-full py-8 text-center">
-      <AlertTriangle size={40} className="text-yellow-500 mb-3" />
-      <h3 className="text-white text-lg font-semibold mb-2">Sem Dados Disponíveis</h3>
-      <p className="text-gray-400 text-sm mb-4">
-        Não há números registrados no MongoDB para esta roleta.
-      </p>
-      <Button 
-        className="flex items-center gap-2 bg-vegas-gold text-black hover:bg-vegas-gold/80"
-        onClick={reloadData}
-      >
-        <RefreshCw size={16} />
-        Recarregar
-      </Button>
-    </div>
-  );
-
-  // Memorize components to prevent unnecessary re-renders
-  const memoizedNumbers = useMemo(() => {
-    console.log(`[RouletteCardRealtime] Renderizando números para ${roletaNome}:`, lastNumbers);
-    console.log(`[RouletteCardRealtime] Estado de carregamento:`, isLoading);
-    console.log(`[RouletteCardRealtime] Tem dados:`, hasData);
-    
+  // Memoização do renderizado do componente para evitar re-renders
+  const cardContent = useMemo(() => {
     return (
-      <LastNumbers numbers={lastNumbers} isLoading={isLoading} />
-    );
-  }, [lastNumbers, isLoading, roletaNome, hasData]);
-
-  const memoizedSuggestion = useMemo(() => (
-    <SuggestionDisplay 
-      suggestion={suggestion}
-      selectedGroup={selectedGroup}
-      isBlurred={isBlurred}
-      toggleVisibility={toggleVisibility}
-      numberGroups={numberGroups}
-      strategyState={strategyState}
-      strategyDisplay={strategyTerminals && strategyTerminals.length > 0 ? strategyDisplay : "AGUARDANDO GATILHO"}
-      strategyTerminals={strategyTerminals}
-    />
-  ), [suggestion, selectedGroup, isBlurred, strategyState, strategyDisplay, strategyTerminals]);
-
-  const memoizedWinRate = useMemo(() => (
-    <WinRateDisplay wins={strategyWins || wins} losses={strategyLosses || losses} />
-  ), [wins, losses, strategyWins, strategyLosses]);
-
-  const memoizedTrendChart = useMemo(() => (
-    <RouletteTrendChart trend={trend} />
-  ), [trend]);
-
-  const memoizedActionButtons = useMemo(() => (
-    <RouletteActionButtons 
-      onDetailsClick={handleDetailsClick}
-      onPlayClick={handlePlayClick}
-    />
-  ), []);
-
-  return (
-    <div 
-      className="bg-[#17161e]/90 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl p-3 md:p-4 space-y-2 md:space-y-3 animate-fade-in hover-scale cursor-pointer h-auto w-full overflow-hidden"
-      onClick={handleDetailsClick}
-    >
-      {/* Header com Nome da Roleta */}
-      <div className="flex items-center justify-between mb-2 border-b border-white/10 pb-2">
-        <div className="flex items-center gap-2">
-          <div className="text-lg font-bold text-white truncate max-w-[180px]">
-            {roletaNome}
-          </div>
-          
-          {/* Indicador de estado da estratégia - versão mais visível */}
-          {strategyState && (
-            <div className={`text-xs px-2 py-1 rounded-md font-semibold flex items-center gap-1.5 min-w-20 justify-center ${
-              strategyState === 'TRIGGER' ? 'bg-green-500/30 text-green-300 border border-green-500/50' : 
-              strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 
-              strategyState === 'MORTO' ? 'bg-red-500/30 text-red-300 border border-red-500/50' : 
-              'bg-blue-500/30 text-blue-300 border border-blue-500/50'
-            }`}>
-              <Target size={14} />
-              <span>{strategyState}</span>
+      <div className={`relative flex flex-col h-full min-h-[400px] rounded-xl bg-[#17161e] overflow-hidden transition-opacity ${isBlurred ? 'opacity-30' : 'opacity-100'}`}>
+        {/* Parte superior com rótulos */}
+        <div className="bg-gradient-to-r from-[#0f0e14] to-[#17161e] p-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-white font-bold text-lg">{roletaNome}</h2>
+              <div className="flex items-center text-xs">
+                <span className={strategyState === 'TRIGGER' ? 'text-vegas-gold' : (strategyState === 'ACTIVE' ? 'text-green-500' : 'text-gray-400')}>
+                  {strategyState === 'TRIGGER' ? 'Gatilho Ativado ⚡' : 
+                   strategyState === 'ACTIVE' ? 'Estratégia Ativa ✓' : 
+                   'Aguardando Padrão'}
+                </span>
+              </div>
             </div>
-          )}
-          
-          {/* Indicador de status de conexão em tempo real */}
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} 
-              title={isConnected ? 'Conectado em tempo real' : 'Sem conexão em tempo real'} />
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={reloadData}
+                className="p-1 text-gray-400 hover:text-white"
+                title="Recarregar dados"
+              >
+                <RefreshCw size={16} />
+              </button>
+              <button 
+                onClick={toggleVisibility}
+                className="p-1 text-gray-400 hover:text-white"
+                title={showSuggestions ? "Ocultar sugestões" : "Mostrar sugestões"}
+              >
+                {showSuggestions ? <Eye size={16} /> : <EyeOff size={16} />}
+              </button>
+              <button 
+                onClick={handleDetailsClick}
+                className="p-1 text-gray-400 hover:text-white"
+                title="Ver estatísticas"
+              >
+                <ChartBar size={16} />
+              </button>
+              <button 
+                onClick={handlePlayClick}
+                className="p-1 bg-vegas-gold/10 rounded-md text-vegas-gold hover:bg-vegas-gold/20"
+                title="Jogar agora"
+              >
+                <ArrowUp size={16} />
+              </button>
+            </div>
+          </div>
         </div>
         
-        <div className="flex items-center gap-1">
-          {/* Pequena visualização do trend */}
-          <div className="text-xs text-green-400 flex items-center gap-1">
-            <TrendingUp size={12} />
-            <span>{strategyWins || wins}</span>
-          </div>
-          <div className="mx-1 text-gray-400">/</div>
-          <div className="text-xs text-red-400 flex items-center gap-1">
-            <TrendingUp size={12} className="transform rotate-180" />
-            <span>{strategyLosses || losses}</span>
-          </div>
-          
-          {/* Adicionar botão de atualização manual */}
-          <button
-            className="ml-2 text-gray-400 hover:text-white transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              refreshNumbers();
-              toast({
-                title: "Atualizando",
-                description: `Buscando últimos números para ${roletaNome}...`,
-                variant: "default"
-              });
-            }}
-            title="Atualizar números manualmente"
-          >
-            <RefreshCw size={14} />
-          </button>
-        </div>
-      </div>
-      
-      {/* Conteúdo principal */}
-      <div className="flex flex-col h-full">
-        {isLoading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-vegas-gold"></div>
-          </div>
-        ) : !hasData ? (
-          noDataContent
-        ) : (
-          <>
-            {/* Números Recentes */}
-            <div className="mb-3">
-              <div className="flex items-center justify-between mb-1">
-                <div className="text-xs text-gray-400 flex items-center gap-1">
-                  <History size={12} />
-                  <span>Números Recentes</span>
-                </div>
-              </div>
-              {memoizedNumbers}
+        {/* Parte principal com os últimos números */}
+        <div className="flex-1 p-3 flex flex-col">
+          {isLoading ? (
+            <div className="flex-1 flex justify-center items-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-vegas-gold"></div>
             </div>
-            
-            {/* Sugestões */}
-            {showSuggestions && (
-              <div className="mb-3">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-xs text-gray-400 flex items-center gap-1">
-                    <Target size={12} />
-                    <span>Sugestões</span>
-                  </div>
-                  <button 
-                    className="text-xs text-gray-400 hover:text-white transition-colors"
-                    onClick={toggleVisibility}
-                  >
-                    {isBlurred ? <EyeOff size={12} /> : <Eye size={12} />}
-                  </button>
-                </div>
-                {memoizedSuggestion}
-              </div>
-            )}
-            
-            {/* Win Rate e Trend juntos numa linha */}
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-                  <Percent size={12} />
-                  <span>Taxa de Acerto</span>
-                </div>
-                {memoizedWinRate}
+          ) : (
+            <>
+              {/* Exibição dos últimos números */}
+              <LastNumbers 
+                numbers={lastNumbers}
+                className="mb-3" 
+              />
+              
+              {/* Gráfico e informações de tendência */}
+              <div className="flex items-center gap-4 mb-3">
+                <RouletteTrendChart 
+                  data={trend} 
+                  className="flex-1 h-20" 
+                />
+                <WinRateDisplay 
+                  wins={strategyWins || wins} 
+                  losses={strategyLosses || losses} 
+                />
               </div>
               
-              <div>
-                <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-                  <ChartBar size={12} />
-                  <span>Tendência</span>
+              {/* Mostrar insights baseados nos dados */}
+              <div className="mb-3 py-2 px-3 bg-[#1A191F] rounded-md text-xs text-white/80">
+                <div className="flex items-center gap-1 mb-1">
+                  <Target size={14} className="text-vegas-gold" />
+                  <span className="font-semibold">Análise de Padrão</span>
                 </div>
-                {memoizedTrendChart}
+                <p>{getInsightMessage(lastNumbers, strategyWins || wins, strategyLosses || losses)}</p>
               </div>
-            </div>
-            
-            {/* Insights */}
-            <div className="mb-3">
-              <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-                <AlertTriangle size={12} />
-                <span>Insights</span>
-              </div>
-              <div className="text-sm bg-[#221f2e]/50 rounded-lg p-2 border border-indigo-500/20">
-                <div className="flex gap-1 items-center">
-                  <Star className="text-yellow-500" size={14} />
-                  <span className="text-white">
-                    {getInsightMessage(lastNumbers, strategyWins || wins, strategyLosses || losses)}
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            {memoizedActionButtons}
-          </>
-        )}
-
-        <RouletteStatsModal
-          open={statsOpen}
-          onOpenChange={setStatsOpen}
-          name={roletaNome}
+              
+              {/* Exibição da sugestão */}
+              {showSuggestions && (
+                <SuggestionDisplay 
+                  suggestion={strategyDisplay || "Aguardando padrão..."} 
+                  isActive={strategyState === 'ACTIVE'} 
+                  isTrigger={strategyState === 'TRIGGER'}
+                  terminals={strategyTerminals}
+                />
+              )}
+            </>
+          )}
+        </div>
+        
+        {/* Rodapé com botões de ação */}
+        <RouletteActionButtons 
+          isConnected={isConnected}
+          hasData={hasData}
+        />
+        
+        {/* Modal de estatísticas */}
+        <RouletteStatsModal 
+          open={statsOpen} 
+          onClose={() => setStatsOpen(false)} 
+          roletaNome={roletaNome}
           lastNumbers={lastNumbers}
           wins={strategyWins || wins}
           losses={strategyLosses || losses}
-          trend={trend}
         />
       </div>
-    </div>
-  );
-};
+    );
+  }, [
+    isBlurred, 
+    roletaNome, 
+    strategyState, 
+    showSuggestions, 
+    isLoading, 
+    lastNumbers, 
+    trend, 
+    strategyWins, 
+    strategyLosses, 
+    wins, 
+    losses, 
+    strategyDisplay, 
+    strategyTerminals, 
+    isConnected, 
+    hasData, 
+    statsOpen
+  ]);
+
+  return cardContent;
+}, (prevProps, nextProps) => {
+  // Função de comparação personalizada para React.memo
+  // Retorna true se o componente NÃO deve ser renderizado novamente
+  return prevProps.roletaId === nextProps.roletaId &&
+         prevProps.name === nextProps.name &&
+         prevProps.roleta_nome === nextProps.roleta_nome;
+});
 
 export default RouletteCardRealtime; 

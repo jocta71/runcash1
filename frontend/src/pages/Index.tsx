@@ -124,7 +124,7 @@ const Index = () => {
   }, [roulettes, filteredRoulettes]);
 
   // Modificar a renderização das roletas para adicionar mais logs
-  const renderRoulettes = () => {
+  const renderRoulettes = useMemo(() => {
     console.log('[Index] Renderizando roletas:', filteredRoulettes);
     
     if (isLoading) {
@@ -145,19 +145,16 @@ const Index = () => {
       console.log('[Index] Exibindo roletas filtradas:', filteredRoulettes.length);
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredRoulettes.map((roulette) => {
-            console.log('[Index] Renderizando roleta:', roulette);
-            return (
-              <RouletteCardRealtime
-                key={roulette.id}
-                roletaId={roulette.id}
-                name={roulette.name}
-                roleta_nome={roulette.roleta_nome}
-                wins={roulette.wins}
-                losses={roulette.losses}
-              />
-            );
-          })}
+          {filteredRoulettes.map((roulette) => (
+            <RouletteCardRealtime
+              key={roulette.id}
+              roletaId={roulette.id}
+              name={roulette.name}
+              roleta_nome={roulette.roleta_nome}
+              wins={roulette.wins}
+              losses={roulette.losses}
+            />
+          ))}
         </div>
       );
     }
@@ -177,7 +174,7 @@ const Index = () => {
         </Button>
       </div>
     );
-  };
+  }, [isLoading, filteredRoulettes, fetchRoulettes]);
 
   return (
     <div className="h-screen grid grid-cols-1 md:grid-cols-[260px_1fr_345px] bg-vegas-black overflow-hidden">
@@ -336,7 +333,9 @@ const Index = () => {
               Roletas Ativas
             </h2>
             
-            {renderRoulettes()}
+            <div className="flex-1 overflow-auto p-4 md:p-6">
+              {renderRoulettes}
+            </div>
           </div>
           
           {/* Mobile Footer Space (to avoid content being hidden behind fixed elements) */}
