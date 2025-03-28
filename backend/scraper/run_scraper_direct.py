@@ -13,7 +13,7 @@ from scraper_mongodb import scrape_roletas
 def main():
     """Executar o scraper diretamente"""
     print("Iniciando scraper direto para 888 Casino...")
-    print("URL: https://es.888casino.com/live-casino/#filters=live-roulette")
+    print("URL: https://888casino.com/live-casino/#filters=live-roulette")
     
     try:
         # Inicializar a fonte de dados MongoDB

@@ -100,13 +100,37 @@ def cfg_driver():
     opts.add_argument("--disable-gpu")
     opts.add_argument("--window-size=1920,1080")
     
+    # Adicionar argumentos para reduzir erros de console
+    opts.add_argument("--disable-extensions")
+    opts.add_argument("--disable-notifications")
+    opts.add_argument("--disable-default-apps")
+    opts.add_argument("--disable-popup-blocking")
+    opts.add_argument("--disable-background-networking")
+    opts.add_argument("--disable-blink-features=AutomationControlled")
+    opts.add_argument("--disable-translate")
+    opts.add_argument("--disable-web-security")
+    opts.add_argument("--log-level=3")  # Reduzir logs do Chrome
+    opts.add_argument("--silent")
+    
+    # Definir user-agent para evitar detecção como bot
+    opts.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+    
+    # Configurações experimentais
+    opts.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
+    opts.add_experimental_option("useAutomationExtension", False)
+    
     # Método rápido
     try:
         service = Service(ChromeDriverManager().install())
-        return webdriver.Chrome(service=service, options=opts)
+        driver = webdriver.Chrome(service=service, options=opts)
+        # Executar script para modificar o navigator.webdriver
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        return driver
     except:
         try:
-            return webdriver.Chrome(options=opts)
+            driver = webdriver.Chrome(options=opts)
+            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            return driver
         except Exception as e:
             print(f"Erro: {str(e)}")
             raise

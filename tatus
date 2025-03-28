@@ -13,3 +13,8 @@ credential.https://dev.azure.com.usehttppath=true
 init.defaultbranch=main
 user.email=joctaxd@gmail.com
 user.name=jocta71
+[33mcommit aa8b8704b6e3717eb1753f7321593717a3719d92[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: jocta71 <joctaxd@gmail.com>
+Date:   Mon Mar 17 11:49:33 2025 +0000
+
+    Aumentar limite de números da roleta de 50 para 500 e melhorar layout do modal

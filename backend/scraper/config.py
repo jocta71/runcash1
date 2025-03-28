@@ -26,7 +26,7 @@ MODO_SIMULACAO = False  # Forçando modo real, não simulado
 API_VERSION = "1.0.0"
 
 # URL do casino para scraping
-CASINO_URL = os.environ.get('CASINO_URL', 'https://es.888casino.com/live-casino/#filters=live-roulette')
+CASINO_URL = os.environ.get('CASINO_URL', 'https://888casino.com/live-casino/#filters=live-roulette')
 
 # Seletor CSS para encontrar as roletas no site
 # Pode variar dependendo do site do casino
