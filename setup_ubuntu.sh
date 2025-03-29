@@ -41,27 +41,25 @@ sudo apt-get install -y chromium-browser
 echo "Instalando localtunnel globalmente..."
 sudo npm install -g localtunnel
 
-# Criar diretório do projeto
-echo "Criando diretório do projeto..."
-mkdir -p ~/runcash
-cd ~/runcash
+# Trabalhar com o diretório do projeto
+echo "Configurando diretório do projeto..."
+RUNCASH_DIR=/root/runcash1
 
-# Clonar ou copiar o código (assumindo que o código já está no servidor)
-# Caso o código precise ser transferido de outra fonte, ajuste conforme necessário
-
-# Instalar dependências do projeto Node.js
-echo "Instalando dependências Node.js..."
-cd ~/runcash/backend
+# Instalar dependências do projeto Node.js para o backend
+echo "Instalando dependências Node.js para o backend..."
+cd $RUNCASH_DIR/backend
 npm install express socket.io cors mongodb dotenv axios
 
 # Criar ambiente virtual Python e instalar dependências
 echo "Configurando ambiente Python..."
-cd ~/runcash
+cd $RUNCASH_DIR
 python3 -m venv venv
 source venv/bin/activate
 
 # Instalar dependências Python
 echo "Instalando dependências Python..."
+cd $RUNCASH_DIR/backend/scraper
+pip install -r requirements.txt
 pip install pymongo selenium webdriver-manager python-dotenv flask flask-cors requests
 
 # Instalar Chrome WebDriver via pip

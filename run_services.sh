@@ -7,12 +7,16 @@ echo "===== RunCash - Iniciando Serviços ====="
 echo "Configurando ambiente e iniciando serviços..."
 
 # Diretório principal
-RUNCASH_DIR=~/runcash
+RUNCASH_DIR=/root/runcash1
 
 # Configurar variáveis de ambiente MongoDB
 export MONGODB_URI="mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash"
 export MONGODB_DB_NAME="runcash"
 export MONGODB_ENABLED=true
+
+# Criar diretórios se necessário
+mkdir -p $RUNCASH_DIR/backend
+mkdir -p $RUNCASH_DIR/backend/scraper
 
 # Configurar URL do websocket no .env
 echo "Configurando variáveis de ambiente..."
