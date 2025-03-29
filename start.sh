@@ -71,7 +71,78 @@ VITE_SSE_SERVER_URL=$RAILWAY_STATIC_URL/api/events
 VITE_API_BASE_URL=$RAILWAY_STATIC_URL/api
 EOL
 
-# Iniciar o backend (WebSocket Server)
+# Função para encerrar processos ao finalizar o script
+cleanup() {
+    echo "Encerrando serviços..."
+    kill $WEBSOCKET_PID 2>/dev/null
+    kill $SCRAPER_PID 2>/dev/null
+    exit
+}
+
+# Configurar trap para limpeza ao sair
+trap cleanup SIGINT SIGTERM
+
+# Iniciar o backend (WebSocket Server) em segundo plano
 echo "Iniciando WebSocket Server..."
 cd backend
-node websocket_server.js 
+node websocket_server.js > websocket.log 2>&1 &
+WEBSOCKET_PID=$!
+cd ..
+
+# Verificar se o WebSocket Server está rodando
+sleep 5
+if ! ps -p $WEBSOCKET_PID > /dev/null; then
+    echo "ERRO: WebSocket Server falhou ao iniciar. Verificando logs:"
+    cat backend/websocket.log
+    exit 1
+fi
+
+echo "WebSocket Server iniciado com PID: $WEBSOCKET_PID"
+
+# Aguardar o WebSocket Server inicializar completamente
+sleep 5
+
+# Iniciar o scraper em segundo plano
+echo "Iniciando Scraper..."
+cd backend/scraper
+python run_real_scraper.py > scraper.log 2>&1 &
+SCRAPER_PID=$!
+cd ../..
+
+# Verificar se o Scraper está rodando
+sleep 5
+if ! ps -p $SCRAPER_PID > /dev/null; then
+    echo "ERRO: Scraper falhou ao iniciar. Verificando logs:"
+    cat backend/scraper/scraper.log
+    exit 1
+fi
+
+echo "Scraper iniciado com PID: $SCRAPER_PID"
+
+echo "===== Todos os serviços iniciados com sucesso! ====="
+echo "WebSocket Server rodando em: $RAILWAY_STATIC_URL"
+echo "WebSocket PID: $WEBSOCKET_PID"
+echo "Scraper PID: $SCRAPER_PID"
+
+# Manter o script em execução para permitir que os processos em segundo plano continuem rodando
+# Railway precisa que o processo principal continue em execução
+while true; do
+    sleep 60
+    
+    # Verificar se os processos continuam rodando
+    if ! ps -p $WEBSOCKET_PID > /dev/null; then
+        echo "AVISO: WebSocket Server parou. Tentando reiniciar..."
+        cd backend
+        node websocket_server.js > websocket.log 2>&1 &
+        WEBSOCKET_PID=$!
+        cd ..
+    fi
+    
+    if ! ps -p $SCRAPER_PID > /dev/null; then
+        echo "AVISO: Scraper parou. Tentando reiniciar..."
+        cd backend/scraper
+        python run_real_scraper.py > scraper.log 2>&1 &
+        SCRAPER_PID=$!
+        cd ../..
+    fi
+done 
