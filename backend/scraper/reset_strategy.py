@@ -2,75 +2,77 @@
 # -*- coding: utf-8 -*-
 
 """
-Script para reiniciar todas as estratégias para o estado NEUTRAL
+Script para resetar o estado das estratégias para todas as roletas
 """
 
 import sys
+import time
 import logging
-from pymongo import MongoClient
 from datetime import datetime
+import os
+from typing import List, Dict, Any, Optional
+from pymongo import MongoClient
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+                   format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger('runcash')
 
-# Conectar ao MongoDB
-def reset_strategies():
-    """Reinicia todas as estratégias para estado NEUTRAL"""
+# MongoDB
+MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash')
+
+def main():
+    """Função principal para resetar estratégias"""
     try:
         # Conectar ao MongoDB
-        client = MongoClient('mongodb://localhost:27017/runcash')
-        db = client.runcash
+        client = MongoClient(MONGODB_URI)
+        db = client['runcash']
         
-        # Coleções a serem atualizadas
-        collections = [
-            db.estrategias,
-            db.estrategia_historico,
-            db.estrategia_historico_novo
-        ]
+        # Listar todas as roletas cadastradas
+        roletas = list(db.roletas.find({}))
         
-        # Reiniciar cada coleção
-        for collection in collections:
-            result = collection.update_many(
-                {}, 
-                {
-                    "$set": {
-                        "estado": "NEUTRAL",
-                        "numero_gatilho": None,
-                        "terminais_gatilho": [],
-                        "ultima_atualizacao": datetime.now().isoformat()
-                    }
-                }
-            )
-            logger.info(f"Coleção {collection.name}: {result.modified_count} estratégias reiniciadas")
-            
-        # Criar um histórico para cada roleta
-        roletas = db.roletas.find({})
-        timestamp = datetime.now().isoformat()
+        logger.info(f"Encontradas {len(roletas)} roletas")
+        
+        # Coleção para armazenar histórico de estratégias
+        historico_colecao = db['estrategia_historico_novo']
+        
+        # Resetar todas as estratégias
+        reset_count = 0
         
         for roleta in roletas:
-            db.estrategia_historico_novo.insert_one({
-                "roleta_id": roleta.get("_id") or roleta.get("id"),
-                "roleta_nome": roleta.get("nome"),
-                "estado": "NEUTRAL",
-                "numero_gatilho": None,
-                "terminais_gatilho": [],
-                "timestamp": timestamp,
-                "vitorias": 0,
-                "derrotas": 0
-            })
-            logger.info(f"Nova entrada adicionada para roleta: {roleta.get('nome')}")
+            roleta_id = roleta['_id']
+            roleta_nome = roleta['nome']
+            
+            # Encontrar último estado da estratégia para esta roleta
+            ultimo_estado = historico_colecao.find_one(
+                {'roleta_id': roleta_id},
+                sort=[('timestamp', -1)]
+            )
+            
+            if ultimo_estado and ultimo_estado.get('estado') != 'NEUTRAL':
+                logger.info(f"Resetando estratégia para roleta {roleta_nome}")
+                
+                # Inserir novo documento com estado NEUTRAL
+                historico_colecao.insert_one({
+                    'roleta_id': roleta_id,
+                    'roleta_nome': roleta_nome,
+                    'estado': 'NEUTRAL',
+                    'numero_gatilho': 0,
+                    'terminais_gatilho': [],
+                    'vitorias': ultimo_estado.get('vitorias', 0),
+                    'derrotas': ultimo_estado.get('derrotas', 0),
+                    'timestamp': datetime.now(),
+                    'sugestao_display': 'AGUARDANDO GATILHO'
+                })
+                
+                reset_count += 1
         
-        logger.info("Todas as estratégias foram reiniciadas com sucesso!")
-        return True
-    
+        logger.info(f"Resetadas {reset_count} estratégias com sucesso!")
+        
+        return 0
     except Exception as e:
-        logger.error(f"Erro ao reiniciar estratégias: {str(e)}")
-        return False
+        logger.error(f"Erro ao resetar estratégias: {str(e)}")
+        return 1
 
 if __name__ == "__main__":
-    if reset_strategies():
-        sys.exit(0)
-    else:
-        sys.exit(1) 
+    sys.exit(main()) 

@@ -17,7 +17,7 @@ if (-not (Test-Path ".env")) {
         # Criar arquivo .env com configuração padrão
         @"
 # Configurações do MongoDB
-MONGODB_URI=mongodb://localhost:27017/runcash
+MONGODB_URI=mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash
 MONGODB_DB_NAME=runcash
 
 # Configurações da API
@@ -58,7 +58,7 @@ Write-Host "`nVerificando se há dados no MongoDB..." -ForegroundColor Yellow
 $hasData = python -c "
 import pymongo
 try:
-    client = pymongo.MongoClient('mongodb://localhost:27017/runcash', serverSelectionTimeoutMS=2000)
+    client = pymongo.MongoClient('mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash', serverSelectionTimeoutMS=2000)
     db = client['runcash']
     roletas_count = db.roletas.count_documents({})
     numeros_count = db.roleta_numeros.count_documents({})
