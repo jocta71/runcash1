@@ -1,0 +1,19 @@
+[phases.setup]
+nixPkgs = ["nodejs", "npm", "python3", "python3Packages.pip", "python3Packages.setuptools", "python3Packages.wheel", "chromium", "wget", "curl"]
+
+[phases.install]
+cmds = [
+  "npm install --prefix backend",
+  "python3 -m pip install -r requirements.txt"
+]
+
+[phases.build]
+cmds = [
+  "chmod +x start.sh"
+]
+
+[start]
+cmd = "sh start.sh"
+
+[phases.build.cache]
+directories = ["node_modules", "backend/node_modules", "venv"] 
