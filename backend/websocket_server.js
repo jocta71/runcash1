@@ -42,6 +42,15 @@ app.get('/socket-status', (req, res) => {
   });
 });
 
+// Adicionar rota para a raiz - necessária para health checks do Railway
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'RunCash WebSocket Server',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Endpoint para testar CORS
 app.get('/test-cors', (req, res) => {
   res.json({
