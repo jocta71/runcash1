@@ -14,34 +14,20 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/runcas
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
 
-// Desabilitar CORS - permitir todas as origens
-console.log('CORS está completamente desabilitado - permitindo todas as origens');
+// Desativando completamente CORS - conforme solicitado
+console.log('CORS completamente desativado - ignorando configurações CORS');
 
 // Inicializar Express
 const app = express();
 
-// Configurar CORS para permitir qualquer origem
-const corsOptions = {
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Origin', 'ngrok-skip-browser-warning'],
-  credentials: true
-};
-
-app.use(cors(corsOptions));
-
-// Adicionar cabeçalhos CORS manualmente para garantir
+// Remover todas as configurações CORS
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, ngrok-skip-browser-warning');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Lidar com solicitações OPTIONS (para CORS preflight)
+  res.header('Access-Control-Allow-Methods', '*');
+  res.header('Access-Control-Allow-Headers', '*');
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  
   next();
 });
 
@@ -60,7 +46,7 @@ app.get('/socket-status', (req, res) => {
 app.get('/test-cors', (req, res) => {
   res.json({
     success: true,
-    message: 'CORS está funcionando corretamente',
+    message: 'CORS desativado - permitindo tudo',
     origin: req.headers.origin || 'unknown'
   });
 });
@@ -89,14 +75,9 @@ app.post('/emit-event', (req, res) => {
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO com configurações CORS explícitas
+// Inicializar Socket.IO sem configurações de CORS
 const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Origin', 'ngrok-skip-browser-warning'],
-    credentials: true
-  },
+  cors: false,
   allowEIO3: true,
   transports: ['websocket', 'polling']
 });
