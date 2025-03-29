@@ -378,11 +378,27 @@ app.get('/api/status', (req, res) => {
 });
 
 // Rota para listar todas as roletas (endpoint em inglês)
-app.get('/api/roulettes', (req, res) => {
+app.get('/api/roulettes', async (req, res) => {
   console.log('[API] Requisição recebida para /api/roulettes');
   
-  // Retornar um array vazio ou mock data para teste
-  res.json([]);
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json([]);
+    }
+    
+    // Obter roletas únicas da coleção
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
+    
+    console.log(`[API] Processadas ${roulettes.length} roletas`);
+    res.json(roulettes);
+  } catch (error) {
+    console.error('[API] Erro ao listar roletas:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+  }
 });
 
 // Rota para listar todas as roletas (endpoint em português - compatibilidade)
