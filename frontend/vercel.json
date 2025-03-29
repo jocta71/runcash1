@@ -6,14 +6,13 @@
     { "source": "/api/events", "destination": "/api/proxy?path=/api/events" },
     { "source": "/api/roulettes", "destination": "/api/proxy?path=/api/roulettes" },
     { "source": "/api/strategies", "destination": "/api/proxy?path=/api/strategies" },
-    { "source": "/socket.io/(.*)", "destination": "/api/socket-proxy/socket.io/$1" },
     { "source": "/emit-event", "destination": "/api/proxy?path=/emit-event" },
     { "source": "/test-cors", "destination": "/api/proxy?path=/test-cors" },
     { "source": "/socket-status", "destination": "/api/proxy?path=/socket-status" }
   ],
   "env": {
-    "VITE_WS_URL": "https://runcash1.vercel.app",
-    "VITE_SSE_SERVER_URL": "https://runcash1.vercel.app/api/events",
+    "VITE_WS_URL": "https://runcash1-production.up.railway.app",
+    "VITE_SSE_SERVER_URL": "https://runcash1-production.up.railway.app/api/events",
     "VITE_API_BASE_URL": "https://runcash1.vercel.app/api",
     "BACKEND_URL": "https://runcash1-production.up.railway.app"
   }
