@@ -15,21 +15,27 @@ const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
 
 // Desabilitar CORS - permitir todas as origens
-console.log('CORS está desabilitado - permitindo todas as origens');
+console.log('CORS está completamente desabilitado - permitindo todas as origens');
 
 // Inicializar Express
 const app = express();
-app.use(cors({
-  origin: '*',  // Permitir qualquer origem
-  methods: ['GET', 'POST', 'OPTIONS'],
+
+// Configurar CORS para permitir qualquer origem
+const corsOptions = {
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Origin', 'ngrok-skip-browser-warning'],
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Adicionar cabeçalhos CORS manualmente para garantir
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, ngrok-skip-browser-warning');
+  res.header('Access-Control-Allow-Credentials', 'true');
   
   // Lidar com solicitações OPTIONS (para CORS preflight)
   if (req.method === 'OPTIONS') {
@@ -47,6 +53,15 @@ app.get('/socket-status', (req, res) => {
     status: 'online',
     mongoConnected: isConnected,
     timestamp: new Date().toISOString()
+  });
+});
+
+// Endpoint para testar CORS
+app.get('/test-cors', (req, res) => {
+  res.json({
+    success: true,
+    message: 'CORS está funcionando corretamente',
+    origin: req.headers.origin || 'unknown'
   });
 });
 
@@ -74,13 +89,16 @@ app.post('/emit-event', (req, res) => {
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO
+// Inicializar Socket.IO com configurações CORS explícitas
 const io = new Server(server, {
   cors: {
-    origin: '*',  // Permitir qualquer origem
-    methods: ['GET', 'POST', 'OPTIONS'],
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: ['X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Origin', 'ngrok-skip-browser-warning'],
     credentials: true
-  }
+  },
+  allowEIO3: true,
+  transports: ['websocket', 'polling']
 });
 
 // Status e números das roletas
@@ -370,23 +388,11 @@ app.get('/api/status', (req, res) => {
 });
 
 // Rota para listar todas as roletas (endpoint em inglês)
-app.get('/api/roulettes', async (req, res) => {
-  try {
-    if (!isConnected) {
-      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
-    }
-    
-    // Obter roletas únicas da coleção
-    const roulettes = await collection.aggregate([
-      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-      { $project: { _id: 0, id: 1, nome: "$_id" } }
-    ]).toArray();
-    
-    res.json(roulettes);
-  } catch (error) {
-    console.error('Erro ao listar roletas:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
-  }
+app.get('/api/roulettes', (req, res) => {
+  console.log('[API] Requisição recebida para /api/roulettes');
+  
+  // Retornar um array vazio ou mock data para teste
+  res.json([]);
 });
 
 // Rota para listar todas as roletas (endpoint em português - compatibilidade)
