@@ -15,6 +15,7 @@ from datetime import datetime
 import threading
 import queue
 import sys
+import tempfile
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -114,6 +115,10 @@ def cfg_driver():
     
     # Definir user-agent para evitar detecção como bot
     opts.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+    
+    # Add unique user-data-dir to avoid session conflicts
+    unique_dir = os.path.join(tempfile.gettempdir(), f"chrome-userdata-{os.getpid()}")
+    opts.add_argument(f"--user-data-dir={unique_dir}")
     
     # Configurações experimentais
     opts.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])

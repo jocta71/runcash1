@@ -51,6 +51,12 @@ def configurar_driver() -> webdriver.Chrome:
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
     
+    # Add unique user-data-dir to avoid session conflicts
+    import tempfile
+    import os
+    unique_dir = os.path.join(tempfile.gettempdir(), f"chrome-userdata-{os.getpid()}")
+    chrome_options.add_argument(f"--user-data-dir={unique_dir}")
+    
     # Configurações adicionais específicas para o Render e ambientes cloud
     if IS_PRODUCTION:
         chrome_options.add_argument("--disable-extensions")
