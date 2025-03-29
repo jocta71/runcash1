@@ -14,47 +14,20 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/runcas
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
 
-// Parse allowed origins from environment variable or use defaults
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS ? 
-  process.env.ALLOWED_ORIGINS.split(',') : 
-  ['http://localhost:3000', 'http://localhost:5173', 'https://runcash-production.up.railway.app'];
-
-console.log('Allowed CORS origins:', ALLOWED_ORIGINS);
+// Desabilitar CORS - permitir todas as origens
+console.log('CORS está desabilitado - permitindo todas as origens');
 
 // Inicializar Express
 const app = express();
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, etc)
-    if(!origin) return callback(null, true);
-    
-    if(ALLOWED_ORIGINS.indexOf(origin) === -1) {
-      // For development, still allow any origin
-      if (process.env.NODE_ENV !== 'production') {
-        return callback(null, true);
-      }
-      
-      // Otherwise only allow configured origins
-      return callback(null, ALLOWED_ORIGINS.includes(origin));
-    }
-    return callback(null, true);
-  },
+  origin: '*',  // Permitir qualquer origem
   methods: ['GET', 'POST', 'OPTIONS'],
   credentials: true
 }));
 
 // Adicionar cabeçalhos CORS manualmente para garantir
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  
-  // Check if the origin is allowed or if we're in dev mode
-  if (ALLOWED_ORIGINS.includes(origin) || process.env.NODE_ENV !== 'production') {
-    res.header('Access-Control-Allow-Origin', origin || '*');
-  } else {
-    // In production, only allow specific origins
-    res.header('Access-Control-Allow-Origin', ALLOWED_ORIGINS.join(' '));
-  }
-  
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, ngrok-skip-browser-warning');
   
@@ -104,21 +77,7 @@ const server = http.createServer(app);
 // Inicializar Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: function(origin, callback) {
-      // Allow requests with no origin (like mobile apps, curl, etc)
-      if(!origin) return callback(null, true);
-      
-      if(ALLOWED_ORIGINS.indexOf(origin) === -1) {
-        // For development, still allow any origin
-        if (process.env.NODE_ENV !== 'production') {
-          return callback(null, true);
-        }
-        
-        // Otherwise only allow configured origins
-        return callback(null, ALLOWED_ORIGINS.includes(origin));
-      }
-      return callback(null, true);
-    },
+    origin: '*',  // Permitir qualquer origem
     methods: ['GET', 'POST', 'OPTIONS'],
     credentials: true
   }
