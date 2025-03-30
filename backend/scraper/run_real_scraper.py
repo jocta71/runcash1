@@ -15,6 +15,7 @@ from datetime import datetime
 import os
 import threading
 from dotenv import load_dotenv
+import subprocess
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -56,6 +57,45 @@ try:
     print("Thread de heartbeat iniciada com sucesso", flush=True)
 except Exception as e:
     print(f"Erro ao iniciar thread de heartbeat: {str(e)}", flush=True)
+
+# Tentar instalar pacotes faltantes localmente
+try:
+    print("Verificando pacotes essenciais...")
+    import requests
+    print("✅ Pacote 'requests' já está instalado")
+except ImportError:
+    print("⚠️ Pacote 'requests' não encontrado, tentando instalar...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", "requests"])
+        print("✅ Pacote 'requests' instalado com sucesso!")
+        
+        # Adicionar caminho para pacotes instalados com --user ao sys.path
+        import site
+        import sys
+        user_site = site.getusersitepackages()
+        if user_site not in sys.path:
+            sys.path.insert(0, user_site)
+            
+        # Agora importa após instalação e ajuste do path
+        import requests
+        print("✅ Pacote 'requests' importado com sucesso após instalação!")
+    except Exception as e:
+        print(f"❌ Erro ao instalar 'requests': {e}")
+        sys.exit(1)
+
+# Tentar outros imports essenciais
+try:
+    from selenium import webdriver
+    print("✅ Pacote 'selenium' já está instalado")
+except ImportError:
+    print("⚠️ Pacote 'selenium' não encontrado, tentando instalar...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", "selenium"])
+        from selenium import webdriver
+        print("✅ Pacote 'selenium' instalado com sucesso!")
+    except Exception as e:
+        print(f"❌ Erro ao instalar 'selenium': {e}")
+        sys.exit(1)
 
 # Imports locais - reorganizados para evitar importação circular
 try:
