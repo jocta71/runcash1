@@ -1,5 +1,5 @@
 import React from 'react';
-import { WandSparkles, Eye, EyeOff, Target, AlertTriangle, Info, TrendingUp } from 'lucide-react';
+import { WandSparkles, Eye, EyeOff, Target, AlertTriangle, Info, TrendingUp, Trophy, CircleX } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import RouletteNumber from './RouletteNumber';
 
@@ -12,6 +12,8 @@ interface SuggestionDisplayProps {
   strategyState?: string;
   strategyDisplay?: string;
   strategyTerminals?: number[];
+  wins?: number;
+  losses?: number;
 }
 
 const SuggestionDisplay = ({ 
@@ -22,7 +24,9 @@ const SuggestionDisplay = ({
   numberGroups,
   strategyState,
   strategyDisplay,
-  strategyTerminals
+  strategyTerminals,
+  wins = 0,
+  losses = 0
 }: SuggestionDisplayProps) => {
   
   const getSuggestionColor = (num: number) => {
@@ -102,6 +106,23 @@ const SuggestionDisplay = ({
           </div>
         </div>
       )}
+      
+      {/* Seção de Vitórias e Derrotas */}
+      <div className="flex justify-between items-center mb-2 bg-black/20 p-1.5 rounded-md">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <Trophy size={14} className="text-green-500" />
+            <span className="text-green-400 text-xs font-bold">{wins}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <CircleX size={14} className="text-red-500" />
+            <span className="text-red-400 text-xs font-bold">{losses}</span>
+          </div>
+        </div>
+        <div className="text-[9px] text-gray-400">
+          Taxa: {wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0}%
+        </div>
+      </div>
       
       {/* Seção de Terminais e Estratégia */}
       <div className="grid grid-cols-2 gap-2 mt-2">

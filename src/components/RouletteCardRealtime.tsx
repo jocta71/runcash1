@@ -531,8 +531,10 @@ const RouletteCardRealtime = ({
       strategyState={strategyState}
       strategyDisplay={strategyDisplay || (strategyTerminals && strategyTerminals.length > 0 ? `APOSTAR NOS TERMINAIS: ${strategyTerminals.join(',')}` : "AGUARDANDO GATILHO")}
       strategyTerminals={strategyTerminals}
+      wins={strategyWins || wins}
+      losses={strategyLosses || losses}
     />
-  ), [suggestion, selectedGroup, isBlurred, strategyState, strategyDisplay, strategyTerminals]);
+  ), [suggestion, selectedGroup, isBlurred, strategyState, strategyDisplay, strategyTerminals, strategyWins, strategyLosses, wins, losses]);
 
   const memoizedWinRate = useMemo(() => (
     <WinRateDisplay wins={strategyWins || wins} losses={strategyLosses || losses} />
