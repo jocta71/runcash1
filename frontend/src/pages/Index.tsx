@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Wallet, Menu, MessageSquare } from 'lucide-react';
+import { Search, Wallet, Menu, MessageSquare, AlertCircle } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import RouletteCard from '@/components/RouletteCard';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import ChatUI from '@/components/ChatUI';
 import { Button } from '@/components/ui/button';
 import AnimatedInsights from '@/components/AnimatedInsights';
 import ProfileDropdown from '@/components/ProfileDropdown';
+import Layout from '@/components/Layout';
 
 interface ChatMessage {
   id: string;
@@ -219,6 +220,7 @@ const Index = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   
   const filteredRoulettes = mockRoulettes.filter(roulette => roulette.name.toLowerCase().includes(search.toLowerCase()));
   const topRoulettes = useMemo(() => {
@@ -230,125 +232,74 @@ const Index = () => {
   }, []);
 
   return (
-    <div className="min-h-screen flex bg-vegas-black">
-      {/* Desktop Sidebar */}
-      <Sidebar />
-      
-      {/* Mobile Sidebar (drawer) */}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isMobile={true} />
-      
-      <div className="flex-1 relative">
-        {/* Mobile Header */}
-        <div className="mobile-header">
-          <button 
-            className="p-2"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu size={24} className="text-[#00ff00]" />
-          </button>
+    <Layout>
+      <div className="container mx-auto px-4 pt-4 md:pt-8">
+        {/* Cabeçalho */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold mb-2 text-white">Roletas Disponíveis</h1>
+            <p className="text-sm text-gray-400 mb-4 md:mb-0">
+              Escolha uma roleta para começar a jogar
+            </p>
+          </div>
           
-          <div className="flex-1"></div>
-          
-          <div className="flex items-center gap-2">
-            {showMobileSearch ? (
-              <div className="absolute top-0 left-0 right-0 z-50 p-2 bg-[#100f13] border-b border-[#33333359]">
-                <div className="relative flex items-center w-full">
-                  <Search size={16} className="absolute left-3 text-gray-400" />
-                  <Input 
-                    type="text" 
-                    placeholder="Pesquisar roleta..." 
-                    className="w-full pl-9 py-2 pr-3 text-sm bg-[#1A191F] border-none rounded-full text-white focus-visible:ring-0 focus-visible:ring-offset-0" 
-                    value={search} 
-                    onChange={e => setSearch(e.target.value)}
-                    autoFocus
-                    onBlur={() => setShowMobileSearch(false)}
-                  />
+          <div className="w-full md:w-auto flex flex-col md:flex-row gap-3">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Buscar roleta..."
+                className="bg-gray-800 text-white rounded-lg pl-10 pr-4 py-2 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-green-500"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            </div>
+          </div>
+        </div>
+
+        {/* Grade de roletas com espaçamento adequado */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-5">
+          {isLoading ? (
+            // Esqueletos de carregamento
+            Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="bg-gray-800 rounded-lg p-4 h-64 animate-pulse">
+                <div className="h-6 bg-gray-700 rounded w-3/4 mb-4"></div>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <div key={i} className="w-6 h-6 bg-gray-700 rounded-full"></div>
+                  ))}
+                </div>
+                <div className="h-4 bg-gray-700 rounded w-full mb-2"></div>
+                <div className="h-4 bg-gray-700 rounded w-full mb-4"></div>
+                <div className="mt-auto flex justify-between">
+                  <div className="h-8 bg-gray-700 rounded w-1/3"></div>
+                  <div className="h-8 bg-gray-700 rounded w-1/3"></div>
                 </div>
               </div>
-            ) : (
-              <>
-                <button 
-                  className="p-2 bg-[#1A191F] rounded-full"
-                  onClick={() => setShowMobileSearch(true)}
-                >
-                  <Search size={16} className="text-gray-400" />
-                </button>
-                <Button 
-                  variant="default" 
-                  size="sm" 
-                  className="h-8 text-black font-medium bg-gradient-to-b from-[#00ff00] to-[#00ff00] hover:from-[#00ff00]/90 hover:to-[#00ff00]/90"
-                >
-                  <Wallet size={14} className="mr-1" /> Saldo
-                </Button>
-                <ProfileDropdown />
-              </>
-            )}
-            <button 
-              className="p-2"
-              onClick={() => setChatOpen(true)}
-            >
-              <MessageSquare size={24} className="text-[#00ff00]" />
-            </button>
-          </div>
-        </div>
-        
-        {/* Desktop Header */}
-        <div className="hidden md:flex fixed top-0 left-0 right-0 md:left-64 md:right-80 z-40 h-[70px] items-center justify-between px-4 border-b border-[#33333359] bg-[#100f13]">
-          <div className="flex items-center gap-2">
-            <span className="text-white text-2xl font-bold">RunCash</span>
-            <div className="relative flex items-center ml-4 max-w-[180px]">
-              <Search size={14} className="absolute left-2 text-gray-400" />
-              <Input 
-                type="text" 
-                placeholder="Pesquisar roleta..." 
-                className="h-8 pl-7 py-1 pr-2 text-xs bg-[#1A191F] border-none rounded-full text-white focus-visible:ring-0 focus-visible:ring-offset-0" 
-                value={search} 
-                onChange={e => setSearch(e.target.value)} 
+            ))
+          ) : filteredRoulettes.length > 0 ? (
+            filteredRoulettes.map((roleta) => (
+              <RouletteCard
+                key={roleta.roletaId}
+                roletaId={roleta.roletaId}
+                roletaNome={roleta.name}
+                lastNumbers={roleta.lastNumbers}
+                estrategia={roleta.trend.map(t => t.value)}
+                trend={roleta.trend}
               />
+            ))
+          ) : (
+            <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
+              <AlertCircle size={48} className="text-gray-500 mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">Nenhuma roleta encontrada</h3>
+              <p className="text-gray-400 max-w-md">
+                Não encontramos roletas correspondentes à sua busca. Tente com outros termos ou verifique sua conexão.
+              </p>
             </div>
-          </div>
-          
-          <AnimatedInsights />
-          
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-[#1A191F] rounded-full py-1 px-3">
-              <span className="h-5 w-5 bg-vegas-blue rounded-full flex items-center justify-center">
-                <span className="text-[10px] text-white">R$</span>
-              </span>
-              <span className="text-white text-xs">1.346,34</span>
-              <Wallet size={14} className="text-gray-400" />
-            </div>
-            
-            <Button variant="default" size="sm" className="h-8 text-black font-medium bg-gradient-to-b from-[#00ff00] to-[#00ff00] hover:from-[#00ff00]/90 hover:to-[#00ff00]/90">
-              <Wallet size={14} className="mr-1" /> Saldo
-            </Button>
-            
-            <ProfileDropdown />
-          </div>
+          )}
         </div>
-        
-        {/* Mobile Insights */}
-        <div className="md:hidden px-4 py-2 mt-14">
-          <div className="bg-[#1A191F]/50 rounded-lg p-3">
-            <AnimatedInsights />
-          </div>
-        </div>
-        
-        <main className="pt-4 md:pt-[70px] pb-8 px-2 sm:px-4 md:px-6 md:pl-[280px] md:pr-[340px] xl:pr-[300px] w-full min-h-screen bg-[#100f13]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 mt-2 md:mt-6">
-            {filteredRoulettes.map((roulette, index) => <RouletteCard key={index} {...roulette} />)}
-          </div>
-          
-          <div className="h-16 md:h-0"></div>
-        </main>
       </div>
-      
-      {/* Desktop Chat */}
-      <ChatUI />
-      
-      {/* Mobile Chat (drawer) */}
-      <ChatUI isOpen={chatOpen} onClose={() => setChatOpen(false)} isMobile={true} />
-    </div>
+    </Layout>
   );
 };
 

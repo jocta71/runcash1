@@ -321,49 +321,31 @@ const RouletteCard = memo(({
 
   return (
     <div 
-      className="bg-[#17161e]/90 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl p-2 sm:p-3 lg:p-4 space-y-2 flex flex-col h-full w-full overflow-hidden shadow-lg"
+      className="bg-[#17161e] border border-white/10 rounded-lg p-3 flex flex-col h-full w-full"
       data-roleta-id={roletaId}
       data-loading={isLoading ? 'true' : 'false'}
       data-connected={isConnected ? 'true' : 'false'}
       onClick={handleDetailsClick}
     >
       {/* Header com nome da roleta e controles */}
-      <div className="flex justify-between items-start mb-1 pb-1 border-b border-white/10">
-        <div className="flex flex-col">
-          <div className="text-base lg:text-lg font-bold text-white truncate max-w-[140px]">
-            {roletaNome}
-          </div>
-          
-          {/* Indicador de estado da estratégia - versão mais compacta */}
-          {strategyState && (
-            <div className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold flex items-center gap-1 ${
-              strategyState === 'TRIGGER' ? 'bg-green-500/30 text-green-300 border border-green-500/50' : 
-              strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 
-              strategyState === 'MORTO' ? 'bg-red-500/30 text-red-300 border border-red-500/50' : 
-              'bg-blue-500/30 text-blue-300 border border-blue-500/50'
-            }`}>
-              {strategyState === 'WAITING' ? 'Aguardando' :
-               strategyState === 'ACTIVE' ? 'Ativo' :
-               strategyState === 'TRIGGER' ? 'Padrão' :
-               strategyState}
-            </div>
-          )}
+      <div className="flex justify-between items-center mb-2 border-b border-white/10 pb-2">
+        <div className="text-base font-bold text-white truncate max-w-[140px]">
+          {roletaNome}
         </div>
         
         <div className="flex items-center space-x-2">
           <TrendingUp
             size={16}
-            className={`text-[#00ff00] ${isConnected ? 'animate-pulse' : 'text-opacity-30'}`}
+            className="text-[#00ff00]"
             aria-label={isConnected ? 'Conectado' : 'Desconectado'}
           />
-          <Star size={16} className="text-[#00ff00]" style={{opacity: 0.7}} />
           {showSuggestions && 
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 setIsBlurred(!isBlurred);
               }}
-              className="text-[#00ff00] hover:text-[#00ff00]/90 transition-colors"
+              className="text-[#00ff00]"
             >
               {isBlurred ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
@@ -371,66 +353,53 @@ const RouletteCard = memo(({
         </div>
       </div>
       
-      {/* Display de números - usando o componente memoizado */}
-      <div className="flex flex-col py-2">
-        {numbersDisplay}
+      {/* Display de números */}
+      <div className="flex flex-wrap gap-1 my-2">
+        {mappedNumbers.slice(0, 12).map((num, idx) => (
+          <div
+            key={`${num}-${idx}`}
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold 
+              ${num === 0 ? 'bg-green-600 text-white' : 
+                [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num) ? 
+                'bg-red-600 text-white' : 'bg-black text-white'
+              }
+            `}
+          >
+            {num}
+          </div>
+        ))}
       </div>
       
       {/* Taxa de vitória */}
-      <div className="mt-1 mb-3">
-        <WinRateDisplay 
-          wins={strategyWins || wins} 
-          losses={strategyLosses || losses} 
-        />
-        <RouletteTrendChart data={trendData} />
-      </div>
-      
-      {/* Análise de padrão */}
-      <div className="mb-3">
-        <div className="flex items-center gap-1">
-          <Target size={10} className="text-[#00ff00]" />
-          <span className="text-[8px] text-[#00ff00] font-medium">Análise de Padrão</span>
-        </div>
-        <div className="text-[10px] text-gray-300">
-          {hasData && mappedNumbers.length > 0 ? 
-            getInsightMessage(mappedNumbers, strategyWins || wins, strategyLosses || losses) : 
-            "Aguardando dados..."
-          }
-        </div>
-      </div>
-      
-      {/* Status atual */}
-      <div className="mb-4">
-        <div className="flex items-center gap-1">
-          <Target size={10} className="text-[#00ff00]" />
-          <span className="text-[8px] text-[#00ff00] font-medium">Status</span>
-        </div>
-        <div className="text-[10px] text-gray-300">
-          {strategyState === 'TRIGGER' ? 'Aguardando padrão...' :
-            strategyState === 'ACTIVE' ? (
-              <SuggestionDisplay
-                suggestion={strategyDisplay || "Estratégia ativa, mas sem sugestão"}
-                isActive={true}
-                terminals={strategyTerminals}
-                isBlurred={isBlurred && showSuggestions}
-              />
-            ) : 'Aguardando padrão...'}
+      <div className="mt-1 mb-2">
+        <div className="flex justify-between text-xs text-gray-400">
+          <span>Vitórias: {strategyWins || wins}</span>
+          <span>Derrotas: {strategyLosses || losses}</span>
         </div>
       </div>
       
       {/* Botões de ação */}
-      <RouletteActionButtons 
-        onDetailsClick={(e) => {
-          e.stopPropagation();
-          setStatsOpen(true);
-        }} 
-        onPlayClick={(e) => {
-          e.stopPropagation();
-          navigate(`/roleta/${roletaId}`);
-        }}
-        isConnected={isConnected}
-        hasData={hasData}
-      />
+      <div className="mt-auto pt-2 flex justify-between">
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            setStatsOpen(true);
+          }}
+          className="px-2 py-1 text-xs bg-[#1A191F] text-gray-300 rounded hover:bg-[#22202a]"
+        >
+          Detalhes
+        </button>
+        
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/roleta/${roletaId}`);
+          }}
+          className="px-2 py-1 text-xs bg-[#00ff00]/20 text-[#00ff00] rounded hover:bg-[#00ff00]/30"
+        >
+          Jogar
+        </button>
+      </div>
       
       {/* Modal de estatísticas */}
       <RouletteStatsModal 
