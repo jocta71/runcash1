@@ -1,12 +1,13 @@
 [phases.setup]
-nixPkgs = ["firefox", "nodejs", "python3", "python3-pip"]
+nixPkgs = ["firefox", "nodejs", "python3"]
 aptPkgs = [
   "libdbus-glib-1-2",
   "libgtk-3-0", 
   "libxt6",
   "xvfb",
   "wget", 
-  "curl"
+  "curl",
+  "python3-pip"
 ]
 
 [phases.install]
