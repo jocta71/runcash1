@@ -22,6 +22,7 @@ interface ChatMessage {
 }
 
 const mockRoulettes = [{
+  roletaId: "roleta-brasileira-1",
   name: "Roleta Brasileira",
   lastNumbers: [7, 11, 23, 5, 18],
   wins: 150,
@@ -32,6 +33,7 @@ const mockRoulettes = [{
     value: Math.random() * 100
   }))
 }, {
+  roletaId: "roleta-europeia-1",
   name: "Roleta Europeia",
   lastNumbers: [32, 15, 3, 26, 8],
   wins: 180,
@@ -42,6 +44,7 @@ const mockRoulettes = [{
     value: Math.random() * 100
   }))
 }, {
+  roletaId: "roleta-americana-1",
   name: "Roleta Americana",
   lastNumbers: [0, 12, 28, 35, 14],
   wins: 200,
@@ -52,6 +55,7 @@ const mockRoulettes = [{
     value: Math.random() * 100
   }))
 }, {
+  roletaId: "roleta-platinum-vip-1",
   name: "Roleta Platinum VIP",
   lastNumbers: [17, 22, 9, 31, 4],
   wins: 220,
@@ -62,6 +66,7 @@ const mockRoulettes = [{
     value: Math.random() * 100
   }))
 }, {
+  roletaId: "roleta-diamond-1",
   name: "Roleta Diamond",
   lastNumbers: [19, 6, 27, 13, 36],
   wins: 190,
@@ -72,6 +77,7 @@ const mockRoulettes = [{
     value: Math.random() * 100
   }))
 }, {
+  roletaId: "roleta-gold-1",
   name: "Roleta Gold",
   lastNumbers: [2, 10, 20, 33, 16],
   wins: 170,
@@ -82,6 +88,7 @@ const mockRoulettes = [{
     value: Math.random() * 100
   }))
 }, {
+  roletaId: "roleta-lightning-1",
   name: "Roleta Lightning",
   lastNumbers: [29, 24, 1, 30, 21],
   wins: 210,
@@ -92,6 +99,7 @@ const mockRoulettes = [{
     value: Math.random() * 100
   }))
 }, {
+  roletaId: "roleta-premium-1",
   name: "Roleta Premium",
   lastNumbers: [5, 18, 34, 11, 25],
   wins: 230,
@@ -102,6 +110,7 @@ const mockRoulettes = [{
     value: Math.random() * 100
   }))
 }, {
+  roletaId: "roleta-turbo-1",
   name: "Roleta Turbo",
   lastNumbers: [8, 17, 29, 2, 19],
   wins: 185,

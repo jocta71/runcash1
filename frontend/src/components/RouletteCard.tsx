@@ -92,11 +92,13 @@ const generateTrendFromWinRate = (wins: number, losses: number) => {
 };
 
 interface RouletteCardProps {
-  roletaId: string;
+  roletaId?: string;
   name?: string;
   roleta_nome?: string;
   wins?: number;
   losses?: number;
+  lastNumbers?: number[];
+  trend?: { value: number }[];
 }
 
 const RouletteCard = memo(({ 
@@ -104,7 +106,9 @@ const RouletteCard = memo(({
   name, 
   roleta_nome, 
   wins = 0, 
-  losses = 0
+  losses = 0,
+  lastNumbers = [],
+  trend = []
 }: RouletteCardProps) => {
   const navigate = useNavigate();
   const [showSuggestions, setShowSuggestions] = useState(true);
@@ -127,39 +131,60 @@ const RouletteCard = memo(({
   // Verificar se o nome da roleta é válido, com fallback para roleta_nome
   const roletaNome = name || roleta_nome || "Roleta Desconhecida";
   
-  // Usar o hook personalizado para obter dados em tempo real
-  const { numbers, loading: isLoading, error, isConnected, hasData, strategy, strategyLoading, refreshNumbers } = useRouletteData(roletaId, roletaNome);
+  // Usar o hook personalizado para obter dados em tempo real, apenas se tivermos um roletaId
+  const { 
+    numbers, 
+    loading: isLoading, 
+    error, 
+    isConnected = true, 
+    hasData = true, 
+    strategy, 
+    strategyLoading, 
+    refreshNumbers = () => {} 
+  } = roletaId ? useRouletteData(roletaId, roletaNome) : {
+    numbers: lastNumbers.map(num => ({ numero: num })),
+    loading: false,
+    error: null,
+    isConnected: true,
+    hasData: lastNumbers && lastNumbers.length > 0,
+    strategy: null,
+    strategyLoading: false,
+    refreshNumbers: () => {}
+  };
   
   // Converter os objetos RouletteNumber para números simples
-  const lastNumbers = useMemo(() => {
+  const mappedNumbers = useMemo(() => {
     if (!Array.isArray(numbers)) {
-      return [];
+      return lastNumbers || [];
     }
     
-    const mappedNumbers = numbers.map(numObj => {
+    const mapped = numbers.map(numObj => {
       const num = typeof numObj.numero === 'number' ? numObj.numero : 
                  typeof numObj.numero === 'string' ? parseInt(numObj.numero, 10) : 0;
       return isNaN(num) ? 0 : num;
     });
     
     if (DEBUG_ENABLED) {
-      debugLog(`[RouletteCard] Números mapeados para ${roletaNome}:`, mappedNumbers.slice(0, 5));
+      debugLog(`[RouletteCard] Números mapeados para ${roletaNome}:`, mapped.slice(0, 5));
     }
     
-    return mappedNumbers;
-  }, [numbers, roletaNome]);
+    return mapped;
+  }, [numbers, roletaNome, lastNumbers]);
 
   // Otimizar trend com useMemo para evitar recálculos desnecessários
-  const trend = useMemo(() => {
+  const trendData = useMemo(() => {
+    if (trend && trend.length > 0) {
+      return trend;
+    }
     return generateTrendFromWinRate(strategyWins || wins, strategyLosses || losses);
-  }, [wins, losses, strategyWins, strategyLosses]);
+  }, [wins, losses, strategyWins, strategyLosses, trend]);
 
   // Callback memoizado para atualizar a estratégia
   const updateStrategy = useCallback((event: StrategyUpdateEvent) => {
     debugLog(`[RouletteCard] Evento de estratégia recebido para ${roletaNome}: ${event.estado}`);
     
-    if (lastNumbers.length > 0) {
-      lastProcessedNumberRef.current = lastNumbers[0];
+    if (mappedNumbers.length > 0) {
+      lastProcessedNumberRef.current = mappedNumbers[0];
     }
     
     setStrategyState(event.estado);
@@ -167,7 +192,7 @@ const RouletteCard = memo(({
     setStrategyTerminals(event.terminais_gatilho || []);
     setStrategyWins(event.vitorias);
     setStrategyLosses(event.derrotas);
-  }, [lastNumbers, roletaNome]);
+  }, [mappedNumbers, roletaNome]);
 
   // Efeito para inicializar os dados da estratégia a partir do hook
   useEffect(() => {
@@ -237,11 +262,11 @@ const RouletteCard = memo(({
   useEffect(() => {
     debugLog(`[RouletteCard] Montado para ${roletaNome} (ID: ${roletaId})`);
     
-    if (!isLoading && lastNumbers.length === 0) {
+    if (!isLoading && mappedNumbers.length === 0) {
       debugLog(`[RouletteCard] Sem números para ${roletaNome}, tentando refresh...`);
       refreshNumbers();
     }
-  }, [roletaId, roletaNome, isLoading, hasData, lastNumbers.length, refreshNumbers]);
+  }, [roletaId, roletaNome, isLoading, hasData, mappedNumbers.length, refreshNumbers]);
 
   const generateSuggestion = () => {
     const groupKeys = Object.keys(numberGroups);
@@ -289,14 +314,14 @@ const RouletteCard = memo(({
   // Memoização do LastNumbers component para evitar re-renders
   const numbersDisplay = useMemo(() => (
     <LastNumbers 
-      numbers={lastNumbers} 
-      isLoading={isLoading && lastNumbers.length === 0}
+      numbers={mappedNumbers} 
+      isLoading={isLoading && mappedNumbers.length === 0}
     />
-  ), [lastNumbers, isLoading]);
+  ), [mappedNumbers, isLoading]);
 
   return (
     <div 
-      className="bg-[#17161e]/90 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl p-3 md:p-4 space-y-2 md:space-y-3 animate-fade-in hover-scale cursor-pointer h-auto w-full overflow-hidden"
+      className="bg-[#17161e]/90 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl p-3 md:p-4 space-y-2 md:space-y-3 flex flex-col h-auto w-full overflow-hidden shadow-lg"
       data-roleta-id={roletaId}
       data-loading={isLoading ? 'true' : 'false'}
       data-connected={isConnected ? 'true' : 'false'}
@@ -357,7 +382,7 @@ const RouletteCard = memo(({
           wins={strategyWins || wins} 
           losses={strategyLosses || losses} 
         />
-        <RouletteTrendChart data={trend} />
+        <RouletteTrendChart data={trendData} />
       </div>
       
       {/* Análise de padrão */}
@@ -367,8 +392,8 @@ const RouletteCard = memo(({
           <span className="text-[8px] text-[#00ff00] font-medium">Análise de Padrão</span>
         </div>
         <div className="text-[10px] text-gray-300">
-          {hasData && lastNumbers.length > 0 ? 
-            getInsightMessage(lastNumbers, strategyWins || wins, strategyLosses || losses) : 
+          {hasData && mappedNumbers.length > 0 ? 
+            getInsightMessage(mappedNumbers, strategyWins || wins, strategyLosses || losses) : 
             "Aguardando dados..."
           }
         </div>
@@ -412,7 +437,7 @@ const RouletteCard = memo(({
         open={statsOpen} 
         onClose={setStatsOpen} 
         roletaNome={roletaNome}
-        lastNumbers={lastNumbers}
+        lastNumbers={mappedNumbers}
         wins={strategyWins || wins}
         losses={strategyLosses || losses}
       />
