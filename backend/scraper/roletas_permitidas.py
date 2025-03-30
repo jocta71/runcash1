@@ -48,10 +48,8 @@ def roleta_permitida_por_id(roleta_id):
     # Verificar se a roleta está na lista de permitidas
     permitida = roleta_id in ALLOWED_ROULETTES
     
-    # Log detalhado para diagnóstico
-    if not permitida:
-        print(f"[DEBUG] Roleta rejeitada: ID={original_id}, ID_limpo={roleta_id}, não está na lista de permitidas")
-    else:
+    # Log apenas para roletas aceitas
+    if permitida:
         print(f"[DEBUG] Roleta aceita: ID={original_id}, ID_limpo={roleta_id}")
     
     return permitida
