@@ -13,9 +13,11 @@ aptPkgs = [
 [phases.install]
 cmds = [
   "npm install --prefix backend",
+  "pip3 install --no-cache-dir requests",
+  "pip3 install --no-cache-dir selenium webdriver-manager",
+  "pip3 install --no-cache-dir pymongo python-dotenv flask flask-cors",
   "pip3 install -r requirements.txt",
-  "pip3 install requests selenium webdriver_manager",
-  "ln -sf /usr/bin/python3 /usr/bin/python"  # Create a symlink from python3 to python
+  "ln -sf /usr/bin/python3 /usr/bin/python"
 ]
 
 [phases.build]
