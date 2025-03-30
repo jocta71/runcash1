@@ -14,6 +14,7 @@ aptPkgs = [
 cmds = [
   "npm install --prefix backend",
   "pip3 install -r requirements.txt",
+  "pip3 install requests selenium webdriver_manager",
   "ln -sf /usr/bin/python3 /usr/bin/python"  # Create a symlink from python3 to python
 ]
 
