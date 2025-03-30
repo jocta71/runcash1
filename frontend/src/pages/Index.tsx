@@ -334,8 +334,8 @@ const Index = () => {
           </div>
         </div>
         
-        <main className="pt-4 md:pt-[70px] pb-8 px-4 md:px-6 md:pl-[280px] md:pr-[340px] w-full min-h-screen bg-[#100f13]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mt-2 md:mt-6">
+        <main className="pt-4 md:pt-[70px] pb-8 px-2 sm:px-4 md:px-6 md:pl-[280px] md:pr-[340px] xl:pr-[300px] w-full min-h-screen bg-[#100f13]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 mt-2 md:mt-6">
             {filteredRoulettes.map((roulette, index) => <RouletteCard key={index} {...roulette} />)}
           </div>
           

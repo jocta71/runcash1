@@ -321,22 +321,22 @@ const RouletteCard = memo(({
 
   return (
     <div 
-      className="bg-[#17161e]/90 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl p-3 md:p-4 space-y-2 md:space-y-3 flex flex-col h-auto w-full overflow-hidden shadow-lg"
+      className="bg-[#17161e]/90 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl p-2 sm:p-3 lg:p-4 space-y-2 flex flex-col h-full w-full overflow-hidden shadow-lg"
       data-roleta-id={roletaId}
       data-loading={isLoading ? 'true' : 'false'}
       data-connected={isConnected ? 'true' : 'false'}
       onClick={handleDetailsClick}
     >
       {/* Header com nome da roleta e controles */}
-      <div className="flex justify-between items-start mb-2 border-b border-white/10 pb-2">
-        <div className="flex items-center gap-2">
-          <div className="text-lg font-bold text-white truncate max-w-[180px]">
+      <div className="flex justify-between items-start mb-1 pb-1 border-b border-white/10">
+        <div className="flex flex-col">
+          <div className="text-base lg:text-lg font-bold text-white truncate max-w-[140px]">
             {roletaNome}
           </div>
           
-          {/* Indicador de estado da estratégia - versão mais visível */}
+          {/* Indicador de estado da estratégia - versão mais compacta */}
           {strategyState && (
-            <div className={`text-xs px-2 py-1 rounded-md font-semibold flex items-center gap-1.5 min-w-20 justify-center ${
+            <div className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold flex items-center gap-1 ${
               strategyState === 'TRIGGER' ? 'bg-green-500/30 text-green-300 border border-green-500/50' : 
               strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 
               strategyState === 'MORTO' ? 'bg-red-500/30 text-red-300 border border-red-500/50' : 
