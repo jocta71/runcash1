@@ -16,12 +16,17 @@ import threading
 import queue
 import sys
 import tempfile
+import traceback
+import json
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from webdriver_manager.firefox import GeckoDriverManager
 
 # Logs de inicialização do scraper
 print("\n\n" + "*" * 80)
@@ -105,51 +110,75 @@ ultima_atividade_roleta = {}  # {id_roleta: timestamp}
 periodo_castigo_roleta = 120
 
 def cfg_driver():
-    """Driver minimalista"""
-    opts = Options()
-    opts.add_argument("--headless=new")
-    opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-gpu")
-    opts.add_argument("--window-size=1920,1080")
-    
-    # Adicionar argumentos para reduzir erros de console
-    opts.add_argument("--disable-extensions")
-    opts.add_argument("--disable-notifications")
-    opts.add_argument("--disable-default-apps")
-    opts.add_argument("--disable-popup-blocking")
-    opts.add_argument("--disable-background-networking")
-    opts.add_argument("--disable-blink-features=AutomationControlled")
-    opts.add_argument("--disable-translate")
-    opts.add_argument("--disable-web-security")
-    opts.add_argument("--log-level=3")  # Reduzir logs do Chrome
-    opts.add_argument("--silent")
-    
-    # Definir user-agent para evitar detecção como bot
-    opts.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
-    
-    # Add unique user-data-dir to avoid session conflicts
-    unique_dir = os.path.join(tempfile.gettempdir(), f"chrome-userdata-{os.getpid()}")
-    opts.add_argument(f"--user-data-dir={unique_dir}")
-    
-    # Configurações experimentais
-    opts.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
-    opts.add_experimental_option("useAutomationExtension", False)
-    
-    # Método rápido
+    """Driver minimalista usando Firefox em vez de Chrome (para Railway)"""
     try:
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=opts)
+        print("Configurando driver Firefox para execução no Railway...")
+        
+        # Configurar opções do Firefox
+        opts = FirefoxOptions()
+        opts.add_argument("--headless")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-gpu")
+        opts.add_argument("--window-size=1920,1080")
+        
+        # Configurações adicionais para reduzir erros
+        opts.add_argument("--disable-extensions")
+        opts.add_argument("--disable-notifications")
+        opts.add_argument("--disable-popup-blocking")
+        opts.set_preference("dom.webnotifications.enabled", False)
+        opts.set_preference("app.update.enabled", False)
+        
+        # Configuração para evitar detecção de automação
+        opts.set_preference("dom.webdriver.enabled", False)
+        opts.set_preference("useAutomationExtension", False)
+        
+        # Definir diretório de perfil único para evitar conflitos
+        unique_dir = os.path.join(tempfile.gettempdir(), f"firefox-profile-{os.getpid()}")
+        if not os.path.exists(unique_dir):
+            os.makedirs(unique_dir)
+        
+        # Configurar as preferências de log
+        opts.log.level = "fatal"  # Reduzir logs do Firefox
+        
+        print("Instalando GeckoDriver...")
+        service = FirefoxService(GeckoDriverManager().install())
+        
+        print("Iniciando driver Firefox...")
+        driver = webdriver.Firefox(service=service, options=opts)
+        
         # Executar script para modificar o navigator.webdriver
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        
+        print("Driver Firefox iniciado com sucesso!")
         return driver
-    except:
+    
+    except Exception as e:
+        print(f"Erro ao configurar Firefox: {str(e)}")
+        
+        # Fallback para o Chrome como último recurso
         try:
+            print("Tentando fallback para Chrome...")
+            opts = Options()
+            opts.add_argument("--headless=new")
+            opts.add_argument("--disable-dev-shm-usage")
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-gpu")
+            opts.add_argument("--window-size=1920,1080")
+            
+            # Definir user-agent para evitar detecção como bot
+            opts.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+            
+            # Configurações experimentais
+            opts.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
+            opts.add_experimental_option("useAutomationExtension", False)
+            
+            # Tentar criar driver sem webdriver-manager (caso esteja instalado globalmente)
             driver = webdriver.Chrome(options=opts)
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             return driver
-        except Exception as e:
-            print(f"Erro: {str(e)}")
+        except Exception as chrome_error:
+            print(f"Erro no fallback para Chrome: {str(chrome_error)}")
             raise
 
 def ext_numeros(driver, elemento):
@@ -358,7 +387,6 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
             print(f"[DEBUG] Erro ao importar módulo de análise: {str(ie)}")
         except Exception as e:
             print(f"[DEBUG] Erro ao processar número com analisador de estratégia: {str(e)}")
-            import traceback
             traceback.print_exc()
             
             # Tentar fazer um fallback muito simples para garantir que ALGUMA estratégia seja enviada

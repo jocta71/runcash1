@@ -1,5 +1,18 @@
 [phases.setup]
-aptPkgs = ["nodejs", "npm", "python3", "python3-pip", "python3-venv", "chromium-browser", "wget", "curl"]
+aptPkgs = [
+  "firefox-esr", 
+  "libdbus-glib-1-2",
+  "libgtk-3-0", 
+  "libxt6",
+  "xvfb",
+  "nodejs", 
+  "npm", 
+  "python3", 
+  "python3-pip", 
+  "python3-venv",
+  "wget", 
+  "curl"
+]
 
 [phases.install]
 cmds = [
@@ -10,6 +23,10 @@ cmds = [
 
 [phases.build]
 cmds = [
+  "wget https://github.com/mozilla/geckodriver/releases/download/v0.34.0/geckodriver-v0.34.0-linux64.tar.gz",
+  "tar -xvzf geckodriver-v0.34.0-linux64.tar.gz",
+  "chmod +x geckodriver",
+  "mv geckodriver /usr/local/bin/",
   "chmod +x start.sh"
 ]
 
