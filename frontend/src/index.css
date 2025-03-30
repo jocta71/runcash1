@@ -70,7 +70,7 @@
   }
   
   .neon-border-gold {
-    @apply border border-vegas-gold shadow-[0_0_10px_rgba(0,255,0,0.5)];
+    @apply border border-vegas-gold shadow-[0_0_10px_rgba(255,173,51,0.5)];
   }
   
   .neon-border-blue {
