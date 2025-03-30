@@ -42,7 +42,7 @@ const SuggestionDisplay = ({
     ? strategyTerminals 
     : suggestion;
     
-  const displayLabel = useStrategyData ? 'Estratégia' : 'Sugestão';
+  const displayLabel = useStrategyData ? 'Terminais' : 'Sugestão';
   
   // Cores para diferentes estados
   const getStateColor = () => {
@@ -128,7 +128,7 @@ const SuggestionDisplay = ({
       <div className="grid grid-cols-2 gap-2 mt-2">
         {/* Coluna de Terminais */}
         <div>
-          <div className="text-red-500 text-xs font-medium mb-1">terminais aqui</div>
+          <div className="text-red-500 text-xs font-bold mb-1 uppercase">terminais</div>
           <div className="flex flex-wrap gap-1">
             {displaySuggestion.map((num, i) => (
               <TooltipProvider key={i}>
@@ -137,7 +137,7 @@ const SuggestionDisplay = ({
                     <div>
                       <RouletteNumber
                         number={num}
-                        className={`w-5 h-5 text-[9px] font-bold border ${useStrategyData ? `border-${displayColor.replace('text-', '')}` : 'border-[#00ff00]'} ${
+                        className={`w-6 h-6 text-[10px] font-bold border ${useStrategyData ? `border-${displayColor.replace('text-', '')}` : 'border-[#00ff00]'} ${
                           useStrategyData 
                             ? (strategyState === 'TRIGGER' ? 'bg-green-500/10' : 
                               strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/10' :
@@ -148,7 +148,7 @@ const SuggestionDisplay = ({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{useStrategyData && isActiveState ? `Terminal ${num}` : `Número ${num}`}</p>
+                    <p>Terminal {num}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -158,7 +158,7 @@ const SuggestionDisplay = ({
         
         {/* Coluna de Estratégia */}
         <div>
-          <div className="text-red-500 text-xs font-medium mb-1">estrategia aqui</div>
+          <div className="text-red-500 text-xs font-bold mb-1 uppercase">estrategia</div>
           <div className={`text-[10px] ${displayColor} font-medium bg-black/30 p-1.5 rounded-sm`}>
             {isActiveState ? (
               <div className="flex flex-col">
@@ -177,8 +177,8 @@ const SuggestionDisplay = ({
         <div className="mt-1">
           <p className={`text-[8px] ${displayColor}/80`}>
             {strategyState === 'TRIGGER' 
-              ? 'Números com terminais acima estão em alerta' 
-              : 'Continue observando estes terminais'}
+              ? 'APOSTAR NOS TERMINAIS ACIMA' 
+              : 'OBSERVE OS TERMINAIS ACIMA'}
           </p>
         </div>
       )}
