@@ -1,8 +1,10 @@
-import { TrendingUp, ChartBar, ArrowUp, Eye, EyeOff, History, Target, Percent, Star, AlertTriangle, RefreshCw } from 'lucide-react';
+import { TrendingUp, ChartBar, ArrowUp, Eye, EyeOff, History, Target, Percent, Star, AlertTriangle, RefreshCw, Info } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { strategies, numberGroups } from './roulette/constants';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
 
 import type { ReactNode } from 'react';
 import LastNumbers from './roulette/LastNumbers';
@@ -12,7 +14,6 @@ import SuggestionDisplay from './roulette/SuggestionDisplay';
 import RouletteActionButtons from './roulette/RouletteActionButtons';
 import RouletteStatsModal from './roulette/RouletteStatsModal';
 import { useRouletteData } from '@/hooks/useRouletteData';
-import { Button } from '@/components/ui/button';
 import { StrategyUpdateEvent } from '@/services/EventService';
 import EventService from '@/services/EventService';
 import SocketService from '@/services/SocketService';
@@ -206,11 +207,25 @@ const RouletteCardRealtime = ({
   useEffect(() => {
     if (strategy && !strategyLoading) {
       debugLog(`[RouletteCardRealtime] Inicializando estado da estratégia de ${roletaNome} com dados carregados:`, strategy);
-      setStrategyState(strategy.estado);
+      
+      // Garantir que usamos os dados da estratégia recebidos do hook
+      setStrategyState(strategy.estado || 'NEUTRAL');
       setStrategyDisplay(strategy.sugestao_display || "");
       setStrategyTerminals(strategy.terminais_gatilho || []);
-      setStrategyWins(strategy.vitorias);
-      setStrategyLosses(strategy.derrotas);
+      setStrategyWins(strategy.vitorias || 0);
+      setStrategyLosses(strategy.derrotas || 0);
+      
+      // Log adicional para depuração
+      debugLog(`[RouletteCardRealtime] Estado definido: ${strategy.estado}, Terminais: ${strategy.terminais_gatilho}`);
+      
+      // Notificar o usuário sobre estratégias ativas
+      if (strategy.estado === 'TRIGGER' && strategy.terminais_gatilho?.length > 0) {
+        toast({
+          title: `⚠️ Estratégia ativa: ${roletaNome}`,
+          description: `${strategy.sugestao_display || `Apostar em: ${strategy.terminais_gatilho.join(', ')}`}`,
+          variant: "default"
+        });
+      }
     }
   }, [strategy, strategyLoading, roletaNome]);
 
@@ -529,7 +544,7 @@ const RouletteCardRealtime = ({
       toggleVisibility={toggleVisibility}
       numberGroups={numberGroups}
       strategyState={strategyState}
-      strategyDisplay={strategyDisplay || (strategyTerminals && strategyTerminals.length > 0 ? `APOSTAR NOS TERMINAIS: ${strategyTerminals.join(',')}` : "AGUARDANDO GATILHO")}
+      strategyDisplay={strategyDisplay}
       strategyTerminals={strategyTerminals}
       wins={strategyWins || wins}
       losses={strategyLosses || losses}
@@ -564,155 +579,144 @@ const RouletteCardRealtime = ({
   }, [strategyState, strategyTerminals, roletaNome, strategyWins, strategyLosses]);
 
   return (
-    <div 
-      className="bg-[#17161e]/90 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl p-3 md:p-4 space-y-2 md:space-y-3 animate-fade-in hover-scale cursor-pointer h-auto w-full overflow-hidden"
-      onClick={handleDetailsClick}
-    >
-      {/* Header com Nome da Roleta */}
-      <div className="flex items-center justify-between mb-2 border-b border-white/10 pb-2">
-        <div className="flex items-center gap-2">
-          <div className="text-lg font-bold text-white truncate max-w-[180px]">
-            {roletaNome}
-          </div>
-          
-          {/* Indicador de estado da estratégia - versão mais visível */}
-          {strategyState && (
-            <div className={`text-xs px-2 py-1 rounded-md font-semibold flex items-center gap-1.5 min-w-20 justify-center ${
-              strategyState === 'TRIGGER' ? 'bg-green-500/30 text-green-300 border border-green-500/50' : 
-              strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 
-              strategyState === 'MORTO' ? 'bg-red-500/30 text-red-300 border border-red-500/50' : 
-              'bg-blue-500/30 text-blue-300 border border-blue-500/50'
-            }`}>
-              <Target size={14} />
-              <span>{strategyState}</span>
-            </div>
-          )}
-          
-          {/* Indicador de status de conexão em tempo real */}
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} 
-              title={isConnected ? 'Conectado em tempo real' : 'Sem conexão em tempo real'} />
+    <div className={`relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-lg shadow-xl overflow-hidden transition-all duration-300 hover:shadow-2xl ${isConnected ? '' : 'opacity-50'}`}>
+      {/* Header */}
+      <div className="flex justify-between items-center px-3 py-2 bg-gradient-to-r from-slate-800 to-slate-700">
+        <div className="flex items-center space-x-2">
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <h3 className="text-white font-bold truncate" style={{ maxWidth: "150px" }}>{roletaNome}</h3>
         </div>
-        
-        <div className="flex items-center gap-1">
-          {/* Pequena visualização do trend */}
-          <div className="text-xs text-green-400 flex items-center gap-1">
-            <TrendingUp size={12} />
-            <span>{strategyWins || wins}</span>
-          </div>
-          <div className="mx-1 text-gray-400">/</div>
-          <div className="text-xs text-red-400 flex items-center gap-1">
-            <TrendingUp size={12} className="transform rotate-180" />
-            <span>{strategyLosses || losses}</span>
-          </div>
-          
-          {/* Adicionar botão de atualização manual */}
-          <button
-            className="ml-2 text-gray-400 hover:text-white transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              refreshNumbers();
-              toast({
-                title: "Atualizando",
-                description: `Buscando últimos números para ${roletaNome}...`,
-                variant: "default"
-              });
-            }}
-            title="Atualizar números manualmente"
-          >
-            <RefreshCw size={14} />
-          </button>
+        <div className="flex space-x-1">
+          <RouletteActionButtons
+            onRefresh={handleRefresh}
+            isLoading={loading || strategyLoading}
+            onShowStats={() => setStatsOpen(true)}
+          />
         </div>
       </div>
       
-      {/* Conteúdo principal */}
-      <div className="flex flex-col h-full">
-        {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-vegas-gold"></div>
+      {/* Content */}
+      <div className="p-3">
+        {/* Caso de erro ao carregar */}
+        {error && (
+          <div className="text-red-400 text-xs mb-2 flex items-center">
+            <AlertTriangle size={12} className="mr-1"/>
+            {error}
           </div>
-        ) : !hasData ? (
-          noDataContent
-        ) : (
-          <>
-            {/* Números Recentes */}
-            <div className="mb-3">
-              <div className="flex items-center justify-between mb-1">
-                <div className="text-xs text-gray-400 flex items-center gap-1">
-                  <History size={12} />
-                  <span>Números Recentes</span>
-                </div>
-              </div>
-              {memoizedNumbers}
+        )}
+        
+        {/* Carregando */}
+        {loading && (
+          <div className="animate-pulse flex flex-col space-y-2">
+            <div className="h-6 bg-slate-700 rounded"></div>
+            <div className="grid grid-cols-5 gap-1">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-6 w-6 bg-slate-700 rounded-full"></div>
+              ))}
             </div>
+          </div>
+        )}
+        
+        {/* Conteúdo principal */}
+        {!loading && hasData && (
+          <>
+            {/* Últimos Números */}
+            <LastNumbers numbers={lastNumbers} isBlurred={isBlurred} />
             
-            {/* Sugestões */}
-            {showSuggestions && (
-              <div className="mb-3">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-xs text-gray-400 flex items-center gap-1">
-                    <Target size={12} />
-                    <span>Sugestões</span>
+            {/* Componentes de Informação */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mt-2">
+              <div className="space-y-2">
+                {/* Taxa de Vitória */}
+                <WinRateDisplay 
+                  wins={strategyWins || wins} 
+                  losses={strategyLosses || losses} 
+                />
+                
+                {/* Gráfico de Tendência */}
+                <div className="bg-slate-800 p-2 rounded-md">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-gray-400 text-xs font-medium flex items-center">
+                      <TrendingUp size={12} className="mr-1.5"/>
+                      Tendência
+                    </h3>
+                    <span className="text-[10px] text-gray-500">{lastNumbers.length} jogos</span>
                   </div>
-                  <button 
-                    className="text-xs text-gray-400 hover:text-white transition-colors"
-                    onClick={toggleVisibility}
-                  >
-                    {isBlurred ? <EyeOff size={12} /> : <Eye size={12} />}
-                  </button>
+                  <RouletteTrendChart data={trend} />
                 </div>
-                {memoizedSuggestion}
-              </div>
-            )}
-            
-            {/* Win Rate e Trend juntos numa linha */}
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-                  <Percent size={12} />
-                  <span>Taxa de Acerto</span>
-                </div>
-                {memoizedWinRate}
               </div>
               
-              <div>
-                <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-                  <ChartBar size={12} />
-                  <span>Tendência</span>
+              <div className="bg-slate-800 p-2 rounded-md">
+                {/* Sugestões */}
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-gray-400 text-xs font-medium">
+                    <Target size={12} className="inline mr-1.5"/>
+                    {strategyState === 'TRIGGER' ? 'ESTRATÉGIA ATIVA' : 'Estratégia'}
+                  </h3>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info size={14} className="text-gray-400 cursor-help hover:text-gray-300" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">
+                        {getInsightMessage(lastNumbers, strategyWins || wins, strategyLosses || losses)}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
-                {memoizedTrendChart}
+                
+                <div>
+                  <SuggestionDisplay 
+                    suggestion={suggestion}
+                    selectedGroup={selectedGroup}
+                    isBlurred={isBlurred}
+                    toggleVisibility={toggleVisibility}
+                    numberGroups={numberGroups}
+                    strategyState={strategyState}
+                    strategyDisplay={strategyDisplay}
+                    strategyTerminals={strategyTerminals}
+                    wins={strategyWins || wins}
+                    losses={strategyLosses || losses}
+                  />
+                </div>
               </div>
             </div>
-            
-            {/* Insights */}
-            <div className="mb-3">
-              <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-                <AlertTriangle size={12} />
-                <span>Insights</span>
-              </div>
-              <div className="text-sm bg-[#221f2e]/50 rounded-lg p-2 border border-indigo-500/20">
-                <div className="flex gap-1 items-center">
-                  <Star className="text-yellow-500" size={14} />
-                  <span className="text-white">
-                    {getInsightMessage(lastNumbers, strategyWins || wins, strategyLosses || losses)}
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            {memoizedActionButtons}
           </>
         )}
-
-        <RouletteStatsModal
-          open={statsOpen}
-          onOpenChange={setStatsOpen}
-          name={roletaNome}
-          lastNumbers={lastNumbers}
-          wins={strategyWins || wins}
-          losses={strategyLosses || losses}
-          trend={trend}
-        />
+        
+        {/* Mensagem de Sem Dados */}
+        {!loading && !hasData && (
+          <div className="flex flex-col items-center justify-center py-4">
+            <p className="text-gray-400 text-sm mb-2">Sem dados disponíveis</p>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={handleRefresh}
+              className="text-xs"
+            >
+              <RefreshCw size={14} className="mr-1"/>
+              Atualizar
+            </Button>
+          </div>
+        )}
       </div>
+      
+      {/* Modal de Estatísticas */}
+      <RouletteStatsModal 
+        open={statsOpen} 
+        onOpenChange={setStatsOpen}
+        roleta={{
+          nome: roletaNome,
+          id: roletaId,
+          numeros: lastNumbers,
+        }}
+        strategy={{
+          estado: strategyState,
+          terminais: strategyTerminals,
+          vitorias: strategyWins || wins,
+          derrotas: strategyLosses || losses,
+          sugestao: strategyDisplay
+        }}
+      />
     </div>
   );
 };
