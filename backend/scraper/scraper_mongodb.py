@@ -23,13 +23,23 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 
+# Logs de inicialização do scraper
+print("\n\n" + "*" * 80)
+print("* MÓDULO SCRAPER_MONGODB SENDO CARREGADO")
+print(f"* Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"* Diretório atual: {os.getcwd()}")
+print(f"* Python versão: {sys.version}")
+print("*" * 80 + "\n")
+
 from config import CASINO_URL, roleta_permitida_por_id, MAX_CICLOS, MAX_ERROS_CONSECUTIVOS
 from event_manager import event_manager
 
 # Importar funções para processar estratégias
 try:
     from run_real_scraper import generate_display_suggestion, process_new_number
-except ImportError:
+    print("[DEBUG] ✅ Módulos de estratégia importados com sucesso")
+except ImportError as e:
+    print(f"[DEBUG] ⚠️ Erro ao importar módulos de estratégia: {str(e)}")
     # Fallback simples caso o módulo não esteja disponível
     def generate_display_suggestion(estado, terminais):
         if estado == "NEUTRAL":
@@ -42,14 +52,16 @@ except ImportError:
             return "AGUARDANDO PRÓXIMO CICLO"
         return ""
 
-# Configurar logging minimalista - apenas erros críticos
-logging.basicConfig(level=logging.CRITICAL)
+# Configurar logging para diagnóstico no Railway
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - [SCRAPER_MONGODB] - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 logger = logging.getLogger('runcash')
-logger.setLevel(logging.CRITICAL)
-
-# Remover todos os handlers existentes
-for handler in logger.handlers[:]:
-    logger.removeHandler(handler)
+logger.setLevel(logging.INFO)
 
 # Variáveis de controle
 ultima_atividade = time.time()

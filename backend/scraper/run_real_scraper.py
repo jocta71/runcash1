@@ -55,12 +55,21 @@ heartbeat.daemon = True
 heartbeat.start()
 
 # Adicionar mais logs para garantir visibilidade no console do Railway
-logger.info("\n\n==================================================")
+logger.info("\n\n")
+logger.info("*"*80)
+logger.info("*"*80)
+logger.info("*"*30 + " INICIANDO SCRAPER RUNCASH " + "*"*30)
+logger.info("*"*80)
+logger.info("*"*80)
+logger.info("\n")
 logger.info("🔄 Script run_real_scraper.py iniciando...")
 logger.info(f"📅 Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 logger.info(f"📂 Diretório: {os.getcwd()}")
 logger.info(f"🐍 Python: {sys.version}")
 logger.info(f"🔧 Variáveis de ambiente carregadas: {os.environ.get('MONGODB_URI') is not None}")
+logger.info(f"🔌 Railway URL: {os.environ.get('RAILWAY_URL', 'não definido')}")
+logger.info(f"📊 MongoDB habilitado: {os.environ.get('MONGODB_ENABLED', 'não definido')}")
+logger.info(f"🔍 Sistema operacional: {sys.platform}")
 logger.info("==================================================\n\n")
 
 # Imports locais - reorganizados para evitar importação circular

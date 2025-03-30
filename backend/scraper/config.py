@@ -67,33 +67,36 @@ logger = logging.getLogger('runcash')
 
 def configurar_logging():
     """Configura o sistema de logging"""
-    # Silenciar virtualmente tudo
+    # Configuração menos silenciosa para debug no Railway
     logging.basicConfig(
-        level=logging.CRITICAL,  # Silenciar quase tudo
-        format='%(message)s',  # Formato ultra mínimo
+        level=logging.INFO,  # Mostrar logs de informação
+        format='%(asctime)s - [RUNCASH] - %(levelname)s - %(message)s',  # Formato mais completo
         handlers=[
             logging.StreamHandler(sys.stdout)
         ]
     )
     
-    # Silenciar loggers específicos que podem ser muito verbosos
-    for logger_name in ['werkzeug', 'selenium', 'urllib3', 'requests', 'pymongo']:
-        logging.getLogger(logger_name).setLevel(logging.CRITICAL)
+    # Silenciar apenas loggers muito verbosos
+    for logger_name in ['selenium', 'urllib3']:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
     
-    # Configurar o logger principal
-    logger.setLevel(logging.CRITICAL)  # Só mostrar erros críticos
+    # Configurar o logger principal para mostrar mais informações
+    logger.setLevel(logging.INFO)  # Mostrar informações, não só erros críticos
     logger.handlers = []  # Limpar handlers existentes
     
-    # Remover formatação de data e tempo para minimizar ainda mais
+    # Configurar formato para mostrar mais detalhes
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter('%(message)s'))
+    handler.setFormatter(logging.Formatter('%(asctime)s - [RUNCASH] - %(levelname)s - %(message)s'))
     logger.addHandler(handler)
     
-    # Mensagem inicial
+    # Mensagem inicial com mais detalhes
     logger.info(f"Log iniciado em {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"Sistema operacional: {platform.system()} {platform.version()}")
     logger.info(f"Ambiente: {'Produção' if AMBIENTE_PROD else 'Desenvolvimento'}")
     logger.info(f"MongoDB: {'Habilitado' if MONGODB_ENABLED else 'Desabilitado'}")
-    logger.info(f"MongoDB URI: {MONGODB_URI}")
+    logger.info(f"MongoDB URI: {MONGODB_URI.replace(':8867Jpp@', ':****@')}")  # Ocultar senha
+    logger.info(f"Railway URL: {RAILWAY_URL}")
+    logger.info(f"Modo simulação: {MODO_SIMULACAO}")
+    logger.info(f"Casino URL: {CASINO_URL}")
     
     return logger
