@@ -5,11 +5,11 @@ echo "===== RunCash - Iniciando Serviços no Railway ====="
 
 # Configurar variáveis de ambiente
 export PORT=${PORT:-5000}
-export RAILWAY_STATIC_URL=${RAILWAY_STATIC_URL:-"https://runcash-production.up.railway.app"}
-export MONGODB_URI=${MONGODB_URI:-"mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash"}
-export MONGODB_DB_NAME=${MONGODB_DB_NAME:-"runcash"}
-export MONGODB_ENABLED=${MONGODB_ENABLED:-"true"}
-export POLL_INTERVAL=${POLL_INTERVAL:-2000}
+export RAILWAY_STATIC_URL=${RAILWAY_STATIC_URL}
+export MONGODB_URI=${MONGODB_URI:-""}
+export MONGODB_DB_NAME=${MONGODB_DB_NAME}
+export MONGODB_ENABLED=${MONGODB_ENABLED}
+export POLL_INTERVAL=${POLL_INTERVAL}
 export ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-"https://runcash-production.up.railway.app,http://localhost:5173,http://localhost:3000"}
 
 # Criar arquivo .env para o backend
