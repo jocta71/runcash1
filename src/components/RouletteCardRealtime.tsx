@@ -635,6 +635,34 @@ const RouletteCardRealtime = ({
             {/* Últimos Números */}
             <LastNumbers numbers={lastNumbers} isBlurred={isBlurred} />
             
+            {/* Adicionar nova seção para destacar os dados da estratégia */}
+            {strategyState && (
+              <div className="mt-2 p-2 rounded-md border border-gray-700 bg-black/30">
+                <div className="flex justify-between items-center mb-1">
+                  <h3 className="text-white text-xs font-semibold">Dados do MongoDB</h3>
+                  <span className="text-[10px] text-gray-400">ID: {roletaId.substring(0, 8)}...</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <p className="text-gray-400">Estado: <span className={`font-semibold ${
+                      strategyState === 'TRIGGER' ? 'text-green-400' :
+                      strategyState === 'POST_GALE_NEUTRAL' ? 'text-yellow-400' :
+                      strategyState === 'MORTO' ? 'text-red-400' :
+                      'text-blue-400'
+                    }`}>{strategyState}</span></p>
+                    <p className="text-gray-400">Nº Gatilho: <span className="font-semibold text-white">{strategy?.numero_gatilho || "N/A"}</span></p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">Vitórias: <span className="font-semibold text-green-400">{strategyWins || 0}</span></p>
+                    <p className="text-gray-400">Derrotas: <span className="font-semibold text-red-400">{strategyLosses || 0}</span></p>
+                  </div>
+                </div>
+                <div className="mt-1.5">
+                  <p className="text-gray-400 text-[11px]">Terminais: <span className="font-semibold text-white">{strategyTerminals?.join(', ') || "Nenhum"}</span></p>
+                </div>
+              </div>
+            )}
+            
             {/* Componentes de Informação */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mt-2">
               <div className="space-y-2">
