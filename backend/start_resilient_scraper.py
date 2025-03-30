@@ -38,7 +38,7 @@ railway_url = os.environ.get('RAILWAY_URL', 'https://runcash1-production.up.rail
 def log(message):
     """Registra mensagens com timestamp"""
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] {message}")
+    print(f"[RUNCASH_MONITOR] [{timestamp}] {message}")
     sys.stdout.flush()  # Garantir que a mensagem seja exibida imediatamente
 
 
@@ -171,7 +171,8 @@ def monitor_scraper():
                 # Ler e encaminhar a saída do scraper
                 output_line = current_process.stdout.readline()
                 if output_line:
-                    print(output_line.strip())
+                    # Adicionar prefixo para destacar a saída no console do Railway
+                    print("[RUNCASH_SCRAPER_OUTPUT] " + output_line.strip())
                     sys.stdout.flush()
                 else:
                     # Se não há saída, aguardar um pouco

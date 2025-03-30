@@ -13,6 +13,7 @@ import requests
 import traceback
 from datetime import datetime
 import os
+import threading
 from dotenv import load_dotenv
 
 # Carregar variáveis de ambiente
@@ -28,12 +29,39 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Flag para controlar o heartbeat
+RUNNING = True
+
+# Função para enviar heartbeat periódico
+def heartbeat_thread():
+    """Envia mensagens periódicas para garantir que o script está sendo executado"""
+    counter = 0
+    while RUNNING:
+        counter += 1
+        logger.info(f"❤️ HEARTBEAT #{counter} - Scraper em execução | {datetime.now().isoformat()}")
+        # Mostrar uso de memória, se disponível
+        try:
+            import psutil
+            process = psutil.Process(os.getpid())
+            mem_usage = process.memory_info().rss / 1024 / 1024  # em MB
+            logger.info(f"📊 Memória em uso: {mem_usage:.2f} MB")
+        except:
+            pass
+        time.sleep(60)  # Heartbeat a cada 60 segundos
+
+# Iniciar thread de heartbeat
+heartbeat = threading.Thread(target=heartbeat_thread)
+heartbeat.daemon = True
+heartbeat.start()
+
 # Adicionar mais logs para garantir visibilidade no console do Railway
+logger.info("\n\n==================================================")
 logger.info("🔄 Script run_real_scraper.py iniciando...")
 logger.info(f"📅 Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 logger.info(f"📂 Diretório: {os.getcwd()}")
 logger.info(f"🐍 Python: {sys.version}")
 logger.info(f"🔧 Variáveis de ambiente carregadas: {os.environ.get('MONGODB_URI') is not None}")
+logger.info("==================================================\n\n")
 
 # Imports locais - reorganizados para evitar importação circular
 try:
@@ -255,8 +283,12 @@ def main():
 if __name__ == "__main__":
     try:
         logger.info("🏁 Iniciando script run_real_scraper.py")
-        sys.exit(main())
+        exit_code = main()
+        logger.info(f"🛑 Script encerrado com código: {exit_code}")
+        RUNNING = False  # Parar o heartbeat
+        sys.exit(exit_code)
     except Exception as e:
         logger.critical(f"💥 Erro crítico não tratado: {str(e)}")
         traceback.print_exc()
+        RUNNING = False  # Parar o heartbeat
         sys.exit(1)
