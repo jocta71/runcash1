@@ -3,13 +3,6 @@ import EventService, { StrategyUpdateEvent } from '@/services/EventService';
 import SocketService from '@/services/SocketService';
 import { v4 as uuidv4 } from 'uuid';
 
-// Add type definition for ImportMeta to fix TypeScript error
-declare global {
-  interface ImportMeta {
-    env: Record<string, string>;
-  }
-}
-
 // Enable logs for debugging
 const DEBUG_ENABLED = true;
 
