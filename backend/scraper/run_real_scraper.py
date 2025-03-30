@@ -6,16 +6,35 @@ Script para executar o scraper em modo real com integração de análise de estr
 """
 
 import sys
-import time
-import logging
-import json
-import requests
-import traceback
-from datetime import datetime
 import os
-import threading
-from dotenv import load_dotenv
-import subprocess
+
+# Adicionar diretórios específicos ao path antes de qualquer importação
+sys.path.insert(0, '/usr/local/lib/python3.10/dist-packages')  # Pacotes globais
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # Diretório atual
+
+# Diagnóstico do ambiente
+print(f"Python Version: {sys.version}", flush=True)
+print(f"Python Path: {sys.path}", flush=True)
+print(f"Current Directory: {os.getcwd()}", flush=True)
+print(f"Script Location: {__file__}", flush=True)
+print(f"Directory Contents: {os.listdir('.')}", flush=True)
+
+try:
+    print("Tentando importar módulos essenciais...", flush=True)
+    import time
+    import logging
+    import json
+    import traceback
+    from datetime import datetime
+    import threading
+    from dotenv import load_dotenv
+    import subprocess
+    import requests
+    print("✅ Módulos básicos importados com sucesso", flush=True)
+except ImportError as e:
+    print(f"⚠️ Erro ao importar módulos: {e}", flush=True)
+    traceback.print_exc()
+    sys.exit(1)
 
 # Carregar variáveis de ambiente
 load_dotenv()
