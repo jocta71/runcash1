@@ -585,6 +585,18 @@ const RouletteCardRealtime = ({
         <div className="flex items-center space-x-2">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
           <h3 className="text-white font-bold truncate" style={{ maxWidth: "150px" }}>{roletaNome}</h3>
+          
+          {/* Badge do Estado da Estratégia */}
+          {strategyState && (
+            <div className={`ml-2 px-2 py-0.5 text-[10px] font-semibold rounded ${
+              strategyState === 'TRIGGER' ? 'bg-green-500/40 text-green-300 border border-green-500/50' : 
+              strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/40 text-yellow-300 border border-yellow-500/50' : 
+              strategyState === 'MORTO' ? 'bg-red-500/40 text-red-300 border border-red-500/50' : 
+              'bg-blue-500/40 text-blue-300 border border-blue-500/50'
+            }`}>
+              {strategyState}
+            </div>
+          )}
         </div>
         <div className="flex space-x-1">
           <RouletteActionButtons
