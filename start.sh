@@ -80,7 +80,8 @@ cleanup() {
 }
 
 # Configurar trap para limpeza ao sair
-trap cleanup SIGINT SIGTERM
+# Usando formato mais compatível para evitar 'bad trap' em diferentes shells
+trap 'cleanup' INT TERM
 
 # Iniciar o backend (WebSocket Server) em segundo plano
 echo "Iniciando WebSocket Server..."
@@ -102,18 +103,18 @@ echo "WebSocket Server iniciado com PID: $WEBSOCKET_PID"
 # Aguardar o WebSocket Server inicializar completamente
 sleep 5
 
-# Iniciar o scraper em segundo plano
-echo "Iniciando Scraper..."
-cd backend/scraper
-python run_real_scraper.py > scraper.log 2>&1 &
+# Iniciar o scraper resiliente em segundo plano
+echo "Iniciando Scraper Resiliente..."
+cd backend
+python start_resilient_scraper.py > scraper_resilient.log 2>&1 &
 SCRAPER_PID=$!
-cd ../..
+cd ..
 
 # Verificar se o Scraper está rodando
 sleep 5
 if ! ps -p $SCRAPER_PID > /dev/null; then
     echo "ERRO: Scraper falhou ao iniciar. Verificando logs:"
-    cat backend/scraper/scraper.log
+    cat backend/scraper_resilient.log
     exit 1
 fi
 
@@ -140,9 +141,9 @@ while true; do
     
     if ! ps -p $SCRAPER_PID > /dev/null; then
         echo "AVISO: Scraper parou. Tentando reiniciar..."
-        cd backend/scraper
-        python run_real_scraper.py > scraper.log 2>&1 &
+        cd backend
+        python start_resilient_scraper.py > scraper_resilient.log 2>&1 &
         SCRAPER_PID=$!
-        cd ../..
+        cd ..
     fi
-done 
+done

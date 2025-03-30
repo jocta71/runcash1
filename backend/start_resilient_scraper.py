@@ -55,7 +55,8 @@ def signal_handler(sig, frame):
     log(f"Sinal recebido: {sig}. Encerrando...")
     forced_exit = True
     cleanup()
-    sys.exit(0)
+    # Usar uma saída mais limpa para evitar problemas com o trap
+    os._exit(0)
 
 
 def check_excessive_restarts():
@@ -89,7 +90,7 @@ def start_scraper():
     
     # Construir comando para iniciar o scraper
     python_executable = sys.executable
-    script_path = os.path.join(os.path.dirname(__file__), "scraper", "scraper_mongodb.py")
+    script_path = os.path.join(os.path.dirname(__file__), "scraper", "run_real_scraper.py")
     
     # Garantir que o caminho exista
     if not os.path.exists(script_path):
@@ -124,8 +125,13 @@ def monitor_scraper():
     log("Pressione Ctrl+C para encerrar\n")
     
     # Registrar handlers para sinais
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    try:
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        log("Handlers de sinais registrados com sucesso")
+    except Exception as e:
+        log(f"Aviso: Não foi possível registrar handlers de sinais: {str(e)}")
+        # Continuar mesmo se não conseguir registrar os handlers
     
     # Registrar função de limpeza para ser executada ao sair
     atexit.register(cleanup)
@@ -183,4 +189,4 @@ if __name__ == "__main__":
         log(f"Erro fatal: {str(e)}")
         import traceback
         log(traceback.format_exc())
-        sys.exit(1) 
+        sys.exit(1)
