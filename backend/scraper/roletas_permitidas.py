@@ -16,11 +16,23 @@ logger = logging.getLogger('runcash')
 # Carregar variáveis de ambiente
 load_dotenv()
 
+# Lista de roletas específicas permitidas (IDs)
+# 2010016 - Immersive Roulette
+# 2380335 - Brazilian Mega Roulette
+# 2010065 - Bucharest Auto-Roulette
+# 2010096 - Speed Auto Roulette
+# 2010017 - Auto-Roulette
+# 2010098 - Auto-Roulette VIP
+
 # Obter lista de roletas permitidas do .env ou usar valores padrão
 ALLOWED_ROULETTES_STR = os.environ.get('ALLOWED_ROULETTES', '2010016,2380335,2010065,2010096,2010017,2010098')
 
 # Converter string em lista
 ALLOWED_ROULETTES = ALLOWED_ROULETTES_STR.split(',')
+
+# Remover "*" da lista se existir (não queremos permitir todas as roletas)
+if "*" in ALLOWED_ROULETTES:
+    ALLOWED_ROULETTES.remove("*")
 
 # Imprimir informações para diagnóstico
 print(f"[DEBUG] Roletas permitidas configuradas: {ALLOWED_ROULETTES}")
@@ -39,11 +51,6 @@ def roleta_permitida_por_id(roleta_id):
     original_id = roleta_id
     if '_' in roleta_id:
         roleta_id = roleta_id.split('_')[0]
-    
-    # Se a lista de roletas permitidas estiver vazia, permitir todas
-    if not ALLOWED_ROULETTES or ALLOWED_ROULETTES[0] == '':
-        print(f"[DEBUG] Lista de roletas permitidas vazia, permitindo todas as roletas")
-        return True
     
     # Verificar se a roleta está na lista de permitidas
     permitida = roleta_id in ALLOWED_ROULETTES
