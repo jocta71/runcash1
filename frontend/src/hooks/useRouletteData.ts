@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import SocketService from '@/services/SocketService';
 import { RouletteNumberEvent } from '@/services/EventService';
+import EventService from '@/services/EventService';
 import { fetchRouletteLatestNumbers, fetchRouletteStrategy, RouletteStrategy as ApiRouletteStrategy } from '@/integrations/api/rouletteService';
 import { toast } from '@/components/ui/use-toast';
 
@@ -340,6 +341,55 @@ export function useRouletteData(
       return false;
     }
   }, [roletaId, roletaNome]);
+  
+  // Eventos de atualização da estratégia
+  useEffect(() => {
+    const handleStrategyEvent = (event: any) => {
+      // Verificar se é um evento para a roleta atual
+      if (event.type === 'strategy_update' && 
+          (event.roleta_id === roletaId || event.roleta_nome === roletaNome)) {
+        
+        console.log(`[useRouletteData] Recebido evento de estratégia para ${roletaNome}:`, {
+          vitorias: event.vitorias,
+          derrotas: event.derrotas,
+          estado: event.estado
+        });
+        
+        if (event.vitorias !== undefined || event.derrotas !== undefined) {
+          // Criar uma versão atualizada da estratégia atual
+          const updatedStrategy: RouletteStrategy = {
+            ...strategy, // Manter valores existentes que podem não estar no evento
+            estado: event.estado || (strategy?.estado || 'NEUTRAL'),
+            numero_gatilho: event.numero_gatilho || strategy?.numero_gatilho || null,
+            terminais_gatilho: event.terminais_gatilho || strategy?.terminais_gatilho || [],
+            vitorias: event.vitorias !== undefined ? event.vitorias : (strategy?.vitorias || 0),
+            derrotas: event.derrotas !== undefined ? event.derrotas : (strategy?.derrotas || 0),
+            sugestao_display: event.sugestao_display || strategy?.sugestao_display || '',
+          };
+          
+          console.log(`[useRouletteData] Atualizando estratégia para ${roletaNome}:`, updatedStrategy);
+          setStrategy(updatedStrategy);
+        }
+      }
+    };
+    
+    // Registrar o handler para eventos de estratégia
+    const eventService = EventService.getInstance();
+    eventService.subscribeToEvent('strategy_update', handleStrategyEvent);
+    
+    return () => {
+      // Remover registro ao desmontar
+      eventService.unsubscribeFromEvent('strategy_update', handleStrategyEvent);
+    };
+  }, [roletaId, roletaNome, strategy]);
+
+  // Solicitar estratégia assim que obtiver os primeiros números
+  useEffect(() => {
+    if (numbers.length > 0 && !strategyLoading && !strategy) {
+      console.log(`[useRouletteData] Números carregados, solicitando estratégia para ${roletaNome}`);
+      refreshStrategy();
+    }
+  }, [numbers.length, strategyLoading, strategy, roletaNome, refreshStrategy]);
   
   return {
     numbers,
