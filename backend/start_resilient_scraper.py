@@ -171,8 +171,8 @@ def monitor_scraper():
                 # Ler e encaminhar a saída do scraper
                 output_line = current_process.stdout.readline()
                 if output_line:
-                    # Adicionar prefixo para destacar a saída no console do Railway
-                    print("[RUNCASH_SCRAPER_OUTPUT] " + output_line.strip())
+                    # Não modificar a saída, apenas encaminhá-la diretamente
+                    print(output_line.strip())
                     sys.stdout.flush()
                 else:
                     # Se não há saída, aguardar um pouco
