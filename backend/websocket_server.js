@@ -84,11 +84,23 @@ app.post('/emit-event', (req, res) => {
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO sem configurações de CORS
+// Inicializar Socket.IO
 const io = new Server(server, {
-  cors: false,
+  cors: {
+    origin: "*", // Permitir todas as origens
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true
+  },
   allowEIO3: true,
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000, // Aumentar o timeout do ping para 60 segundos
+  pingInterval: 25000, // Intervalo do ping: 25 segundos 
+  upgradeTimeout: 30000, // Tempo máximo para upgrade: 30 segundos
+  maxHttpBufferSize: 1e8, // 100MB
+  path: '/socket.io/',
+  connectTimeout: 45000, // Tempo máximo para conexão: 45 segundos
+  // Log de diagnóstico
+  ...(process.env.WEBSOCKET_DEBUG ? { debug: true } : {})
 });
 
 // Status e números das roletas

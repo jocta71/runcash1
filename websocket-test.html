@@ -86,11 +86,15 @@
             try {
                 // Inicializar Socket.IO
                 socket = io(socketUrl, {
-                    reconnectionAttempts: 10,
-                    reconnectionDelay: 3000,
-                    timeout: 15000,
-                    forceNew: true,
-                    transports: ['websocket', 'polling']
+                    transports: ['websocket', 'polling'],  // Tentar websocket primeiro, depois polling
+                    reconnectionAttempts: 10,              // Número máximo de tentativas
+                    reconnectionDelay: 1000,               // Atraso inicial entre tentativas (1s)
+                    reconnectionDelayMax: 10000,           // Atraso máximo entre tentativas (10s)
+                    timeout: 30000,                        // Timeout para conexão (30s)
+                    forceNew: true,                        // Forçar nova conexão
+                    autoConnect: true,                     // Conectar automaticamente
+                    upgrade: true,                         // Permitir upgrade de transporte
+                    rejectUnauthorized: false              // Aceitar certificados auto-assinados
                 });
                 
                 // Evento de conexão estabelecida
