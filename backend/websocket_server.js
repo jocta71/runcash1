@@ -10,9 +10,16 @@ dotenv.config();
 
 // Configuração
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/runcash';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash';
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
+
+// Informações de configuração
+console.log('==== Configuração do Servidor WebSocket ====');
+console.log(`PORT: ${PORT}`);
+console.log(`MONGODB_URI: ${MONGODB_URI.replace(/:.*@/, ':****@')}`);
+console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
+console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 
 // Desativando completamente CORS - conforme solicitado
 console.log('CORS completamente desativado - ignorando configurações CORS');
@@ -84,23 +91,11 @@ app.post('/emit-event', (req, res) => {
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO
+// Inicializar Socket.IO sem configurações de CORS
 const io = new Server(server, {
-  cors: {
-    origin: "*", // Permitir todas as origens
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true
-  },
+  cors: false,
   allowEIO3: true,
-  transports: ['websocket', 'polling'],
-  pingTimeout: 60000, // Aumentar o timeout do ping para 60 segundos
-  pingInterval: 25000, // Intervalo do ping: 25 segundos 
-  upgradeTimeout: 30000, // Tempo máximo para upgrade: 30 segundos
-  maxHttpBufferSize: 1e8, // 100MB
-  path: '/socket.io/',
-  connectTimeout: 45000, // Tempo máximo para conexão: 45 segundos
-  // Log de diagnóstico
-  ...(process.env.WEBSOCKET_DEBUG ? { debug: true } : {})
+  transports: ['websocket', 'polling']
 });
 
 // Status e números das roletas

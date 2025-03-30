@@ -12,6 +12,11 @@ import json
 import requests
 import traceback
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente
+load_dotenv()
 
 # Configurar logging para mostrar mais informações
 logging.basicConfig(
@@ -38,12 +43,20 @@ except Exception as e:
 # Dicionário global para armazenar instâncias de analisadores de estratégia
 _strategy_analyzers = {}
 
-# Configuração do WebSocket - ajustar conforme necessário
-# Esta URL deve apontar para o servidor WebSocket que você implantou
-WEBSOCKET_SERVER_URL = "http://localhost:5000/emit-event"  # URL local com protocolo http://
+# Configuração do WebSocket - usar a URL do Railway
+RAILWAY_URL = os.environ.get('RAILWAY_URL', 'https://runcash1-production.up.railway.app')
+WEBSOCKET_SERVER_URL = f"{RAILWAY_URL}/emit-event"
+
+# Informações adicionais de MongoDB
+MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash')
+MONGODB_ENABLED = os.environ.get('MONGODB_ENABLED', 'true').lower() in ('true', '1', 't')
 
 # Log da configuração
+logger.info('==== Configuração do Scraper ====')
 logger.info(f"🔌 WebSocket configurado para: {WEBSOCKET_SERVER_URL}")
+logger.info(f"📊 MongoDB habilitado: {MONGODB_ENABLED}")
+logger.info(f"📊 MongoDB URI: {MONGODB_URI.replace(':8867Jpp@', ':****@')}")
+logger.info('===============================')
 
 def notify_websocket(event_type, data):
     """

@@ -13,6 +13,10 @@ import signal
 import subprocess
 import datetime
 import atexit
+from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente do arquivo .env
+load_dotenv()
 
 # Configurações
 MAX_RESTARTS = 20  # Máximo de reinicializações em um período
@@ -26,6 +30,10 @@ last_restarts = []  # Lista de timestamps das últimas reinicializações
 current_process = None
 forced_exit = False
 
+# Verificar configuração do MongoDB
+mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash')
+mongodb_enabled = os.environ.get('MONGODB_ENABLED', 'true').lower() in ('true', '1', 't')
+railway_url = os.environ.get('RAILWAY_URL', 'https://runcash1-production.up.railway.app')
 
 def log(message):
     """Registra mensagens com timestamp"""
@@ -97,16 +105,26 @@ def start_scraper():
         log(f"ERRO: Script do scraper não encontrado em: {script_path}")
         return None
     
+    # Definir variáveis de ambiente para o scraper
+    env = os.environ.copy()
+    env["MONGODB_URI"] = mongodb_uri
+    env["MONGODB_ENABLED"] = "true"
+    env["RAILWAY_URL"] = railway_url
+    
     log(f"Iniciando scraper: {python_executable} {script_path}")
+    log(f"MONGODB_URI: {mongodb_uri.replace(':8867Jpp@', ':****@')}")
+    log(f"MONGODB_ENABLED: {mongodb_enabled}")
+    log(f"RAILWAY_URL: {railway_url}")
     
     try:
-        # Iniciar scraper como processo separado
+        # Iniciar scraper como processo separado com as variáveis de ambiente
         current_process = subprocess.Popen(
             [python_executable, script_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             universal_newlines=True,
-            bufsize=1
+            bufsize=1,
+            env=env
         )
         
         log(f"Scraper iniciado com PID: {current_process.pid}")

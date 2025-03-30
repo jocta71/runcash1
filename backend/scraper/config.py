@@ -49,9 +49,12 @@ SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
 SUPABASE_ENABLED = os.environ.get('SUPABASE_ENABLED', '').lower() in ('true', '1', 't')
 
 # MongoDB
-MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/runcash')
+MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash')
 MONGODB_DB_NAME = os.environ.get('MONGODB_DB_NAME', 'runcash')
-MONGODB_ENABLED = os.environ.get('MONGODB_ENABLED', '').lower() in ('true', '1', 't')
+MONGODB_ENABLED = os.environ.get('MONGODB_ENABLED', 'true').lower() in ('true', '1', 't')
+
+# URL do Railway para envio de eventos
+RAILWAY_URL = os.environ.get('RAILWAY_URL', 'https://runcash1-production.up.railway.app')
 
 # Configuração de segurança
 API_KEY = os.environ.get('API_KEY', 'dev_key')
@@ -90,5 +93,7 @@ def configurar_logging():
     logger.info(f"Log iniciado em {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"Sistema operacional: {platform.system()} {platform.version()}")
     logger.info(f"Ambiente: {'Produção' if AMBIENTE_PROD else 'Desenvolvimento'}")
+    logger.info(f"MongoDB: {'Habilitado' if MONGODB_ENABLED else 'Desabilitado'}")
+    logger.info(f"MongoDB URI: {MONGODB_URI}")
     
     return logger
