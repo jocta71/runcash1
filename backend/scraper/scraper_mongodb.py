@@ -41,7 +41,7 @@ from event_manager import event_manager
 
 # Importar funções para processar estratégias
 try:
-    from run_real_scraper import generate_display_suggestion, process_new_number
+    from strategy_helper import generate_display_suggestion, process_new_number
     print("[DEBUG] ✅ Módulos de estratégia importados com sucesso")
 except ImportError as e:
     print(f"[DEBUG] ⚠️ Erro ao importar módulos de estratégia: {str(e)}")
@@ -343,7 +343,7 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         # NOVO: Processar o número com o StrategyAnalyzer
         try:
             # Importamos o módulo apenas quando necessário para evitar dependência cíclica
-            from run_real_scraper import process_new_number
+            from strategy_helper import process_new_number
             
             # Processar o número com o analisador de estratégia
             print(f"[DEBUG] Processando número {num_int} com o analisador de estratégia para {roleta_nome}")

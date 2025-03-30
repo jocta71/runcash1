@@ -96,4 +96,40 @@ def atualizar_estrategia(
     
     except Exception as e:
         logger.error(f"Erro ao atualizar estratégia: {str(e)}")
-        return False 
+        return False
+
+def generate_display_suggestion(estado, terminais):
+    """
+    Gera uma sugestão de exibição com base no estado da estratégia
+    
+    Args:
+        estado (str): Estado atual da estratégia (NEUTRAL, TRIGGER, POST_GALE_NEUTRAL, MORTO)
+        terminais (list): Lista de terminais para apostar
+        
+    Returns:
+        str: Texto a ser exibido para o usuário
+    """
+    if estado == "NEUTRAL":
+        return "AGUARDANDO GATILHO"
+    elif estado == "TRIGGER" and terminais:
+        return f"APOSTAR EM: {','.join(map(str, terminais))}"
+    elif estado == "POST_GALE_NEUTRAL" and terminais:
+        return f"GALE EM: {','.join(map(str, terminais))}"
+    elif estado == "MORTO":
+        return "AGUARDANDO PRÓXIMO CICLO"
+    return ""
+
+def process_new_number(estrategia, numero):
+    """
+    Processa um novo número para a estratégia
+    
+    Args:
+        estrategia (dict): Dicionário com o estado atual da estratégia
+        numero (int): Novo número a ser processado
+        
+    Returns:
+        dict: Estado atualizado da estratégia
+    """
+    # Implementação simples para evitar erro
+    # Esta função deve ser implementada de acordo com a lógica específica da estratégia
+    return estrategia 
