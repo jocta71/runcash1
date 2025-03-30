@@ -534,6 +534,90 @@ app.post('/api/numbers', async (req, res) => {
   }
 });
 
+// Rota para buscar número específico por ID
+app.get('/api/numbers/:id', async (req, res) => {
+  try {
+    if (!isConnected) {
+      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
+    }
+    
+    const id = req.params.id;
+    console.log(`Buscando número com ID: ${id}`);
+    
+    // Verificar formato do ID
+    let numeroDoc;
+    try {
+      // Tentar buscar por ID do MongoDB (ObjectId)
+      const ObjectId = require('mongodb').ObjectId;
+      if (ObjectId.isValid(id)) {
+        numeroDoc = await collection.findOne({ _id: new ObjectId(id) });
+      }
+    } catch (err) {
+      console.log(`Não foi possível buscar como ObjectId: ${err.message}`);
+    }
+    
+    // Se não encontrou por ObjectId, tentar buscar por campo personalizado
+    if (!numeroDoc) {
+      numeroDoc = await collection.findOne({ 
+        $or: [
+          { roleta_id: id },
+          { numero: parseInt(id, 10) }
+        ]
+      });
+    }
+    
+    if (!numeroDoc) {
+      console.log(`Número não encontrado com ID: ${id}`);
+      return res.status(404).json({ error: 'Número não encontrado' });
+    }
+    
+    res.json(numeroDoc);
+  } catch (error) {
+    console.error(`Erro ao buscar número com ID ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Erro interno ao buscar número' });
+  }
+});
+
+// Rota para listar todos os números
+app.get('/api/numbers', async (req, res) => {
+  try {
+    if (!isConnected) {
+      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
+    }
+    
+    // Parâmetros opcionais de paginação
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = parseInt(req.query.skip) || 0;
+    
+    // Filtros opcionais
+    const filtros = {};
+    if (req.query.roleta_id) filtros.roleta_id = req.query.roleta_id;
+    if (req.query.roleta_nome) filtros.roleta_nome = req.query.roleta_nome;
+    if (req.query.numero) filtros.numero = parseInt(req.query.numero);
+    if (req.query.cor) filtros.cor = req.query.cor;
+    
+    // Buscar números com filtros e paginação
+    const numeros = await collection.find(filtros)
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    
+    // Contar total de documentos que correspondem aos filtros
+    const total = await collection.countDocuments(filtros);
+    
+    res.json({
+      total,
+      skip,
+      limit,
+      data: numeros
+    });
+  } catch (error) {
+    console.error('Erro ao listar números:', error);
+    res.status(500).json({ error: 'Erro interno ao listar números' });
+  }
+});
+
 // Configuração do Socket.IO
 io.on('connection', (socket) => {
   console.log(`Cliente conectado: ${socket.id}`);
