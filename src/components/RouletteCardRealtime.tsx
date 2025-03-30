@@ -17,6 +17,7 @@ import { useRouletteData } from '@/hooks/useRouletteData';
 import { StrategyUpdateEvent } from '@/services/EventService';
 import EventService from '@/services/EventService';
 import SocketService from '@/services/SocketService';
+import StrategyDataPanel from './roulette/StrategyDataPanel';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;  // Temporariamente habilitado para depuração do fluxo de estados
@@ -651,7 +652,7 @@ const RouletteCardRealtime = ({
                       'text-blue-400'
                     }`}>{strategyState}</span></p>
                     <p className="text-gray-400">Nº Gatilho: <span className="font-semibold text-white">{strategy?.numero_gatilho || "N/A"}</span></p>
-                  </div>
+              </div>
                   <div>
                     <p className="text-gray-400">Vitórias: <span className="font-semibold text-green-400">{strategyWins || 0}</span></p>
                     <p className="text-gray-400">Derrotas: <span className="font-semibold text-red-400">{strategyLosses || 0}</span></p>
@@ -702,8 +703,8 @@ const RouletteCardRealtime = ({
                       </p>
                     </TooltipContent>
                   </Tooltip>
-                </div>
-                
+            </div>
+            
                 <div>
                   <SuggestionDisplay 
                     suggestion={suggestion}
@@ -722,7 +723,7 @@ const RouletteCardRealtime = ({
             </div>
           </>
         )}
-        
+
         {/* Mensagem de Sem Dados */}
         {!loading && !hasData && (
           <div className="flex flex-col items-center justify-center py-4">
@@ -741,9 +742,9 @@ const RouletteCardRealtime = ({
       </div>
       
       {/* Modal de Estatísticas */}
-      <RouletteStatsModal 
-        open={statsOpen} 
-        onOpenChange={setStatsOpen}
+        <RouletteStatsModal
+          open={statsOpen}
+          onOpenChange={setStatsOpen}
         roleta={{
           nome: roletaNome,
           id: roletaId,
@@ -757,6 +758,22 @@ const RouletteCardRealtime = ({
           sugestao: strategyDisplay
         }}
       />
+
+      {/* Resultados e gráfico */}
+      <div className="flex flex-col py-2">
+        {/* ... existing numbers display code ... */}
+      </div>
+      
+      {/* MongoDB Data Panel */}
+      {roletaId && roleta_nome && (
+        <StrategyDataPanel
+          roletaId={roletaId}
+          roletaNome={roleta_nome || name}
+        />
+      )}
+
+      {/* Botões */}
+      {/* ... existing code ... */}
     </div>
   );
 };
