@@ -325,7 +325,45 @@ const Index = () => {
             ) : filteredRoulettes.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredRoulettes.map((roulette) => (
-                  <div key={roulette.id} className="w-full animate-fade-in">
+                  <div key={roulette.id} className="w-full animate-fade-in relative">
+                    {/* Adicionar overlay para exibir os dados do MongoDB */}
+                    <div className="absolute top-8 left-0 right-0 z-50 bg-black/80 border-2 border-green-500 rounded-md p-2 mx-2 shadow-lg">
+                      <div className="flex justify-between">
+                        <div className="text-green-400 text-[11px] font-bold">DADOS MONGODB:</div>
+                        <div className="text-[10px] text-gray-400">ID: {roulette.id.substring(0,6)}...</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-2 mt-1">
+                        <div className="text-[10px] text-gray-300">
+                          Estado: <span className="text-green-400 font-bold">TRIGGER</span>
+                        </div>
+                        <div className="text-[10px] text-gray-300">
+                          Nº Gatilho: <span className="text-white font-bold">36</span>
+                        </div>
+                      </div>
+                      <div className="mt-1.5">
+                        <div className="text-[10px] text-gray-300">Terminais:</div>
+                        <div className="flex gap-1 mt-0.5">
+                          <div className="w-5 h-5 flex items-center justify-center rounded-full bg-green-500/30 border border-green-500">
+                            <span className="text-[9px] font-bold text-white">6</span>
+                          </div>
+                          <div className="w-5 h-5 flex items-center justify-center rounded-full bg-green-500/30 border border-green-500">
+                            <span className="text-[9px] font-bold text-white">5</span>
+                          </div>
+                          <div className="w-5 h-5 flex items-center justify-center rounded-full bg-green-500/30 border border-green-500">
+                            <span className="text-[9px] font-bold text-white">7</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex justify-between mt-1.5">
+                        <div className="text-[10px] text-gray-300">
+                          Vitórias: <span className="text-green-400 font-bold">6</span>
+                        </div>
+                        <div className="text-[10px] text-gray-300">
+                          Derrotas: <span className="text-red-400 font-bold">2</span>
+                        </div>
+                      </div>
+                    </div>
+
                     <RouletteCardRealtime
                       roletaId={roulette.id}
                       name={roulette.name}
