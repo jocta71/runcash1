@@ -15,8 +15,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-[#100f13] text-white">
-      {/* Barra de navegação superior */}
-      <nav className="sticky top-0 z-50 w-full bg-[#141318] border-b border-[#2a2a2e] px-4 py-3">
+      {/* Barra de navegação superior - z-index mais baixo (20) para ficar abaixo dos sidebars */}
+      <nav className="sticky top-0 z-20 w-full bg-[#141318] border-b border-[#2a2a2e] px-4 py-3">
         <div className="container mx-auto flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center">
@@ -51,15 +51,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </nav>
       
-      <div className="flex">
-        <div className="hidden md:block w-64 min-h-screen">
+      <div className="flex relative">
+        {/* Sidebar com z-index alto (30) para aparecer por cima da navbar */}
+        <div className="hidden md:block w-64 min-h-screen fixed left-0 top-0 z-30">
           <Sidebar />
         </div>
         
-        <main className="flex-1 p-0 relative">
+        {/* Área do conteúdo principal com padding à esquerda para compensar o sidebar fixo */}
+        <main className="flex-1 p-0 md:ml-64 relative">
           {children}
           
-          {/* Botão Chat Flutuante */}
+          {/* Botão Chat Flutuante com z-index muito alto (50) para sempre aparecer */}
           <button 
             onClick={() => setChatOpen(!chatOpen)}
             className="fixed bottom-6 right-6 bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700 z-50"
@@ -68,7 +70,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <MessageSquare size={24} />
           </button>
           
-          {/* Chat UI */}
+          {/* Chat UI com z-index alto (40) para aparecer por cima da navbar mas abaixo do botão de chat */}
           <div className={`fixed top-0 right-0 h-full w-80 transform transition-transform duration-300 ease-in-out ${chatOpen ? 'translate-x-0' : 'translate-x-full'} z-40`}>
             <ChatUI isOpen={chatOpen} onClose={() => setChatOpen(false)} />
           </div>
