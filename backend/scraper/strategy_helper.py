@@ -119,17 +119,29 @@ def generate_display_suggestion(estado, terminais):
         return "AGUARDANDO PRÓXIMO CICLO"
     return ""
 
-def process_new_number(estrategia, numero):
+def process_new_number(db, id_roleta, roleta_nome, numero):
     """
     Processa um novo número para a estratégia
     
     Args:
-        estrategia (dict): Dicionário com o estado atual da estratégia
+        db: Objeto da fonte de dados (MongoDataSource)
+        id_roleta (str): ID da roleta
+        roleta_nome (str): Nome da roleta
         numero (int): Novo número a ser processado
         
     Returns:
         dict: Estado atualizado da estratégia
     """
-    # Implementação simples para evitar erro
-    # Esta função deve ser implementada de acordo com a lógica específica da estratégia
-    return estrategia 
+    # Implementação simples para compatibilidade
+    # Esta função deve ser implementada com a lógica específica da estratégia
+    terminal = numero % 10
+    
+    # Retornar um estado básico para a estratégia
+    return {
+        "estado": "NEUTRAL",
+        "numero_gatilho": numero,
+        "terminais_gatilho": [terminal],
+        "vitorias": 0,
+        "derrotas": 0,
+        "sugestao_display": f"AGUARDANDO GATILHO (último: {numero})"
+    } 
