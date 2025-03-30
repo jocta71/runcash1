@@ -304,34 +304,90 @@ def cor_numero(num):
     vermelhos = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
     return 'vermelho' if num in vermelhos else 'preto'
 
-def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
-    """Minimalista para novo número"""
+def novo_numero(db, id_roleta, roleta_nome, num_int, numero_hook=None, seq_completa=None):
+    """Processa um novo número, emite eventos e atualiza estratégia"""
     try:
-        if isinstance(numero, str):
-            num_int = int(re.sub(r'[^\d]', '', numero))
-        else:
-            num_int = int(numero)
+        print(f"[DEBUG] Processando número {num_int} com o analisador de estratégia para {roleta_nome}")
         
-        if not (0 <= num_int <= 36):
-            return False
-        
-        cor = cor_numero(num_int)
-        ts = datetime.now().isoformat()
-        
-        db.garantir_roleta_existe(id_roleta, roleta_nome)
-        db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
-        
-        # Saída com nome completo e cor por extenso
-        print(f"{roleta_nome}:{num_int}:{cor}")
-        
-        event_data = {
-            "type": "new_number",
-            "roleta_id": id_roleta,
-            "roleta_nome": roleta_nome, 
-            "numero": num_int,
-            "timestamp": ts
-        }
-        event_manager.notify_clients(event_data, silent=True)
+        # Processar número com o analisador de estratégia
+        try:
+            # Processar o número com o analisador de estratégia
+            status = process_new_number(db, id_roleta, roleta_nome, num_int)
+            
+            print(f"[DEBUG] Resultado da estratégia: {status.get('estado', 'DESCONHECIDO')}")
+            print(f"[DEBUG] Sugestão de exibição: {status.get('sugestao_display', '')}")
+            
+            # Atualizar dados no MongoDB
+            atualizar_estrategia(
+                id_roleta,
+                roleta_nome,
+                status.get('estado', 'NEUTRAL'),
+                num_int,
+                status.get('terminais_gatilho', []),
+                status.get('vitorias', 0),
+                status.get('derrotas', 0)
+            )
+            
+            # Preparar dados para WebSocket com informações de estratégia
+            dados_evento = {
+                "roleta_id": id_roleta,
+                "roleta_nome": roleta_nome,
+                "numero": num_int,
+                "timestamp": datetime.now().isoformat(),
+                "estrategia": {
+                    "estado": status.get('estado', 'NEUTRAL'),
+                    "terminais": status.get('terminais_gatilho', []),
+                    "vitorias": status.get('vitorias', 0),
+                    "derrotas": status.get('derrotas', 0),
+                    "sugestao_display": status.get('sugestao_display', 'AGUARDANDO PADRÃO')
+                }
+            }
+            
+            # Emitir evento via WebSocket com dados da estratégia
+            try:
+                evento = {"event": "new_number", "data": dados_evento}
+                event_manager.emit_event(evento)
+                print(f"[DEBUG] Evento emitido: {{event: new_number, data: {json.dumps(dados_evento)}}}")
+            except Exception as e:
+                print(f"[DEBUG] Erro ao emitir evento: {str(e)}")
+            
+        except Exception as e:
+            print(f"[DEBUG] Erro ao processar número com analisador de estratégia: {str(e)}")
+            traceback.print_exc()
+            
+            # Tentar enviar evento mesmo se a estratégia falhar (fallback)
+            status_fallback = {
+                "estado": "NEUTRAL",
+                "numero_gatilho": num_int,
+                "terminais_gatilho": [num_int % 10],
+                "vitorias": 0,
+                "derrotas": 0,
+                "sugestao_display": "AGUARDANDO GATILHO"
+            }
+            
+            print(f"[DEBUG] Tentando enviar evento de fallback: {status_fallback}")
+            
+            # Preparar dados para WebSocket (fallback)
+            dados_evento = {
+                "roleta_id": id_roleta,
+                "roleta_nome": roleta_nome,
+                "numero": num_int,
+                "timestamp": datetime.now().isoformat(),
+                "estrategia": {
+                    "estado": status_fallback.get('estado', 'NEUTRAL'),
+                    "terminais": status_fallback.get('terminais_gatilho', []),
+                    "vitorias": status_fallback.get('vitorias', 0),
+                    "derrotas": status_fallback.get('derrotas', 0),
+                    "sugestao_display": status_fallback.get('sugestao_display', 'AGUARDANDO PADRÃO')
+                }
+            }
+            
+            # Emitir evento via WebSocket (fallback)
+            try:
+                evento = {"event": "new_number", "data": dados_evento}
+                event_manager.emit_event(evento)
+            except Exception as e:
+                print(f"[DEBUG] Erro ao emitir evento fallback: {str(e)}")
         
         # Chamar o hook personalizado se fornecido
         if numero_hook:
@@ -339,76 +395,12 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
                 numero_hook(id_roleta, roleta_nome, num_int)
             except Exception as e:
                 print(f"[DEBUG] Erro ao executar hook personalizado: {str(e)}")
-        
-        # NOVO: Processar o número com o StrategyAnalyzer
-        try:
-            # Importamos o módulo apenas quando necessário para evitar dependência cíclica
-            from strategy_helper import process_new_number
-            
-            # Processar o número com o analisador de estratégia
-            print(f"[DEBUG] Processando número {num_int} com o analisador de estratégia para {roleta_nome}")
-            status = process_new_number(db, id_roleta, roleta_nome, num_int)
-            
-            if status:
-                print(f"[DEBUG] Resultado da estratégia: {status['estado']}")
-                print(f"[DEBUG] Terminais: {status['terminais_gatilho'][:3] if status['terminais_gatilho'] else []}")
-                print(f"[DEBUG] Vitórias/Derrotas: {status['vitorias']}/{status['derrotas']}")
                 
-                # Notificar clientes sobre a atualização da estratégia
-                strategy_event = {
-                    "type": "strategy_update",
-                    "roleta_id": id_roleta,
-                    "roleta_nome": roleta_nome,
-                    "estado": status["estado"],
-                    "numero_gatilho": status["numero_gatilho"],
-                    "terminais_gatilho": status["terminais_gatilho"][:3] if status["terminais_gatilho"] else [],
-                    "vitorias": status["vitorias"],
-                    "derrotas": status["derrotas"],
-                    "sugestao_display": status.get("sugestao_display", "") or generate_display_suggestion(status["estado"], status["terminais_gatilho"])
-                }
-                print(f"[DEBUG] Enviando evento de estratégia: {strategy_event}")
-                
-                # Tentar varias vezes em caso de falha
-                max_attempts = 3
-                for attempt in range(max_attempts):
-                    try:
-                        event_manager.notify_clients(strategy_event, silent=True)
-                        print(f"[DEBUG] Evento de estratégia enviado com sucesso (tentativa {attempt+1})")
-                        break
-                    except Exception as notify_error:
-                        print(f"[DEBUG] Erro ao notificar clientes (tentativa {attempt+1}): {str(notify_error)}")
-                        if attempt == max_attempts - 1:
-                            print(f"[ERROR] Falha ao enviar evento de estratégia após {max_attempts} tentativas")
-                        else:
-                            time.sleep(0.5)  # Pequena pausa antes de tentar novamente
-            else:
-                print(f"[DEBUG] Nenhum status de estratégia retornado para {roleta_nome}")
-        except ImportError as ie:
-            print(f"[DEBUG] Erro ao importar módulo de análise: {str(ie)}")
-        except Exception as e:
-            print(f"[DEBUG] Erro ao processar número com analisador de estratégia: {str(e)}")
-            traceback.print_exc()
-            
-            # Tentar fazer um fallback muito simples para garantir que ALGUMA estratégia seja enviada
-            try:
-                fallback_event = {
-                    "type": "strategy_update",
-                    "roleta_id": id_roleta,
-                    "roleta_nome": roleta_nome,
-                    "estado": "NEUTRAL",
-                    "numero_gatilho": num_int,
-                    "terminais_gatilho": [num_int % 10],
-                    "vitorias": 0,
-                    "derrotas": 0,
-                    "sugestao_display": "AGUARDANDO GATILHO"
-                }
-                print(f"[DEBUG] Tentando enviar evento de fallback: {fallback_event}")
-                event_manager.notify_clients(fallback_event, silent=True)
-            except Exception as fallback_error:
-                print(f"[DEBUG] Erro ao enviar evento de fallback: {str(fallback_error)}")
-        
+        print(f"[ACEITO] Número {num_int} para {roleta_nome} aceito como novo")
         return True
-    except:
+    except Exception as e:
+        print(f"Erro ao processar novo número: {str(e)}")
+        traceback.print_exc()
         return False
 
 def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=None):

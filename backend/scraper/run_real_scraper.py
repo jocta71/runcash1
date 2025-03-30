@@ -21,11 +21,11 @@ print(f"Directory Contents: {os.listdir('.')}", flush=True)
 
 try:
     print("Tentando importar módulos essenciais...", flush=True)
-    import time
-    import logging
-    import json
-    import traceback
-    from datetime import datetime
+import time
+import logging
+import json
+import traceback
+from datetime import datetime
     import threading
     from dotenv import load_dotenv
     import subprocess

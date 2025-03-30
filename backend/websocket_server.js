@@ -67,24 +67,43 @@ app.get('/test-cors', (req, res) => {
   });
 });
 
-// Endpoint para receber eventos do scraper Python
+// Lidar com eventos de números e estratégia
 app.post('/emit-event', (req, res) => {
   try {
-    const { event, data } = req.body;
-    
-    if (!event || !data) {
-      return res.status(400).json({ error: 'Evento ou dados ausentes no payload' });
+    const eventData = req.body;
+    console.log('Recebido evento para emitir:', JSON.stringify(eventData));
+
+    // Enviar para todos os clientes WebSocket
+    if (eventData && eventData.event === 'new_number' && eventData.data) {
+      const data = eventData.data;
+      
+      // Log detalhado dos dados recebidos
+      console.log('Dados do evento new_number:', JSON.stringify(data));
+      
+      // Verificar se temos informações de estratégia
+      if (data.estrategia) {
+        console.log('Estratégia recebida:', JSON.stringify(data.estrategia));
+      }
+      
+      // Emitir para clientes WebSocket
+      broadcastToClients(JSON.stringify(eventData));
+      
+      // Emitir para SSE também
+      emitSSE({
+        event: 'new_number',
+        data: data
+      });
+      
+      // Responder com sucesso
+      res.status(200).json({ success: true, message: 'Evento emitido com sucesso' });
+    } else {
+      // Para outros tipos de eventos, apenas repassar
+      broadcastToClients(JSON.stringify(eventData));
+      res.status(200).json({ success: true, message: 'Evento emitido com sucesso' });
     }
-    
-    console.log(`[WebSocket] Recebido evento ${event} do scraper`);
-    
-    // Broadcast do evento para todos os clientes conectados
-    io.emit(event, data);
-    
-    res.status(200).json({ success: true, message: 'Evento emitido com sucesso' });
   } catch (error) {
-    console.error('[WebSocket] Erro ao processar evento do scraper:', error);
-    res.status(500).json({ error: 'Erro interno ao processar evento' });
+    console.error('Erro ao emitir evento:', error);
+    res.status(500).json({ success: false, error: 'Falha ao emitir evento' });
   }
 });
 

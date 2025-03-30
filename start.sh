@@ -6,6 +6,13 @@ echo "===== RunCash - Iniciando Serviços no Railway ====="
 # Instalar pacotes críticos diretamente antes de iniciar
 pip3 install --no-cache-dir requests selenium webdriver-manager pymongo python-dotenv
 
+# Imprimir informações do ambiente Python para diagnóstico
+echo "PATH: $PATH"
+echo "PYTHONPATH: $PYTHONPATH"
+which python3
+python3 -c "import sys; print('Python sys.path:'); print('\n'.join(sys.path))"
+python3 -c "import site; print('Python site-packages:'); print(site.getsitepackages())"
+
 # Configurar variáveis de ambiente
 export PORT=${PORT:-5000}
 export RAILWAY_STATIC_URL=${RAILWAY_STATIC_URL}
@@ -111,7 +118,18 @@ echo "Iniciando Scraper Direto (run_real_scraper.py)..."
 cd backend
 echo "Mudando para diretório de scraper..."
 cd scraper
-python run_real_scraper.py &
+PYTHONPATH=/usr/local/lib/python3.10/dist-packages:/app/backend/scraper python3 -E <<EOF
+import sys
+sys.path.insert(0, '/usr/local/lib/python3.10/dist-packages')
+sys.path.insert(0, '/app/backend/scraper')
+print(f"Python path modificado: {sys.path}")
+try:
+    exec(open('run_real_scraper.py').read())
+except Exception as e:
+    import traceback
+    print(f"Erro ao executar o script: {e}")
+    traceback.print_exc()
+EOF
 SCRAPER_PID=$!
 cd ../..
 
@@ -146,7 +164,18 @@ while true; do
     if ! ps -p $SCRAPER_PID > /dev/null; then
         echo "AVISO: Scraper parou. Tentando reiniciar..."
         cd backend/scraper
-        python run_real_scraper.py &
+        PYTHONPATH=/usr/local/lib/python3.10/dist-packages:/app/backend/scraper python3 -E <<EOF
+import sys
+sys.path.insert(0, '/usr/local/lib/python3.10/dist-packages')
+sys.path.insert(0, '/app/backend/scraper')
+print(f"Python path modificado: {sys.path}")
+try:
+    exec(open('run_real_scraper.py').read())
+except Exception as e:
+    import traceback
+    print(f"Erro ao executar o script: {e}")
+    traceback.print_exc()
+EOF
         SCRAPER_PID=$!
         cd ../..
     fi
