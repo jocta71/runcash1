@@ -124,11 +124,14 @@ const SuggestionDisplay = ({
         </div>
       </div>
       
-      {/* Seção de Terminais e Estratégia */}
+      {/* Seção de Terminais e Estratégia - Agora mais clara e destacada */}
       <div className="grid grid-cols-2 gap-2 mt-2">
         {/* Coluna de Terminais */}
         <div>
-          <div className="text-red-500 text-xs font-bold mb-1 uppercase">terminais</div>
+          <div className="text-red-500 text-xs font-bold mb-1 uppercase flex items-center gap-1">
+            <Target size={10} />
+            <span>terminais</span>
+          </div>
           <div className="flex flex-wrap gap-1">
             {displaySuggestion.map((num, i) => (
               <TooltipProvider key={i}>
@@ -137,11 +140,11 @@ const SuggestionDisplay = ({
                     <div>
                       <RouletteNumber
                         number={num}
-                        className={`w-6 h-6 text-[10px] font-bold border ${useStrategyData ? `border-${displayColor.replace('text-', '')}` : 'border-[#00ff00]'} ${
+                        className={`w-7 h-7 text-[11px] font-bold border-2 ${useStrategyData ? `border-${displayColor.replace('text-', '')}` : 'border-[#00ff00]'} ${
                           useStrategyData 
-                            ? (strategyState === 'TRIGGER' ? 'bg-green-500/10' : 
-                              strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/10' :
-                              'bg-blue-500/10') 
+                            ? (strategyState === 'TRIGGER' ? 'bg-green-500/20' : 
+                              strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/20' :
+                              'bg-blue-500/20') 
                             : getSuggestionColor(num)
                         } ${isBlurred ? 'blur-sm' : (strategyState === 'TRIGGER' ? 'animate-pulse' : '')}`}
                       />
@@ -158,7 +161,10 @@ const SuggestionDisplay = ({
         
         {/* Coluna de Estratégia */}
         <div>
-          <div className="text-red-500 text-xs font-bold mb-1 uppercase">estrategia</div>
+          <div className="text-red-500 text-xs font-bold mb-1 uppercase flex items-center gap-1">
+            <WandSparkles size={10} />
+            <span>estrategia</span>
+          </div>
           <div className={`text-[10px] ${displayColor} font-medium bg-black/30 p-1.5 rounded-sm`}>
             {isActiveState ? (
               <div className="flex flex-col">
@@ -172,13 +178,13 @@ const SuggestionDisplay = ({
         </div>
       </div>
       
-      {/* Texto adicional para estados ativos */}
+      {/* Texto adicional para estados ativos - Mais claro e instrutivo */}
       {useStrategyData && isActiveState && (
-        <div className="mt-1">
-          <p className={`text-[8px] ${displayColor}/80`}>
+        <div className="mt-1 bg-black/20 p-1 rounded">
+          <p className={`text-[10px] ${displayColor} font-semibold text-center`}>
             {strategyState === 'TRIGGER' 
-              ? 'APOSTAR NOS TERMINAIS ACIMA' 
-              : 'OBSERVE OS TERMINAIS ACIMA'}
+              ? '👉 APOSTAR NOS TERMINAIS ACIMA 👈' 
+              : '⚠️ OBSERVE OS TERMINAIS ACIMA ⚠️'}
           </p>
         </div>
       )}

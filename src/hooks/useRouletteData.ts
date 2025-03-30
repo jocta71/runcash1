@@ -242,6 +242,30 @@ export function useRouletteData(
         
         setStrategy(strategyData);
         debugLog(`[useRouletteData] Estratégia atualizada para ${roletaNome} via evento`);
+        
+        // Log adicional para debug de eventos de estratégia
+        console.log(`[useRouletteData] Evento de estratégia recebido:`, {
+          roleta: roletaNome,
+          estado: event.estado,
+          terminais: event.terminais_gatilho,
+          message: event.sugestao_display
+        });
+      }
+    };
+    
+    // Manipulador específico para novos números via socket
+    const handleNewNumberEvent = (event: any) => {
+      // Verificar se é para a roleta atual
+      if (event && 
+          (event.roleta_id === roletaId || 
+           event.roleta_nome === roletaNome ||
+           event.id === roletaId)) {
+        // Extrair o número do evento - adaptando para diferentes formatos
+        const numero = event.numero || event.number;
+        if (numero) {
+          debugLog(`[useRouletteData] Novo número via socket para ${roletaNome}: ${numero}`);
+          processNewNumber(numero);
+        }
       }
     };
     
@@ -249,13 +273,32 @@ export function useRouletteData(
     debugLog(`[useRouletteData] Inscrevendo para eventos da roleta: ${roletaNome}`);
     eventService.subscribe(roletaNome, handleRouletteEvent as any);
     eventService.subscribe('*', handleRouletteEvent as any);
+    
+    // Subscrições específicas para o socket
     socketService.subscribe(roletaNome, handleRouletteEvent);
     socketService.subscribe('global_strategy_updates', handleRouletteEvent);
+    socketService.subscribe('new_number', handleNewNumberEvent);
+    
+    // Solicitar dados mais recentes ao servidor ao se conectar
+    const requestLatestData = () => {
+      if (socketService.isSocketConnected()) {
+        debugLog(`[useRouletteData] Solicitando dados mais recentes para ${roletaNome}`);
+        socketService.emit('request_latest_data', { 
+          roleta_id: roletaId, 
+          roleta_nome: roletaNome 
+        });
+      }
+    };
     
     // Verificar status da conexão
     const isSocketConnected = socketService.isSocketConnected();
     debugLog(`[useRouletteData] Status da conexão Socket.IO: ${isSocketConnected ? 'Conectado' : 'Desconectado'}`);
     setIsConnected(isSocketConnected);
+    
+    // Solicitar dados ao se conectar
+    if (isSocketConnected) {
+      requestLatestData();
+    }
     
     // Ouvir mudanças no status da conexão
     const connectionStatusListener = () => {
@@ -264,13 +307,29 @@ export function useRouletteData(
       setIsConnected(currentStatus);
       
       // Se ficarmos conectados novamente mas não temos dados, tentar recarregar
-      if (currentStatus && !hasData) {
-        debugLog(`[useRouletteData] Conectado mas sem dados, tentando refresh para ${roletaNome}`);
-        refreshNumbers();
+      if (currentStatus) {
+        debugLog(`[useRouletteData] Reconectado, solicitando dados para ${roletaNome}`);
+        // Tentar carregar números recentes ao reconectar
+        requestLatestData();
+        if (!hasData) {
+          refreshNumbers();
+        }
       }
     };
     
     socketService.onConnectionStatusChange(connectionStatusListener);
+    
+    // Configurar um intervalo para verificar dados periodicamente
+    const dataRefreshInterval = setInterval(() => {
+      // Verificar se estamos conectados e se temos dados
+      if (socketService.isSocketConnected() && hasData) {
+        // Atualizar números e estratégia a cada 30 segundos
+        debugLog(`[useRouletteData] Atualização periódica para ${roletaNome}`);
+        refreshNumbers().catch(err => {
+          debugLog(`[useRouletteData] Erro na atualização periódica: ${err.message}`);
+        });
+      }
+    }, 30000); // 30 segundos
     
     // Limpar inscrições ao desmontar
     return () => {
@@ -279,7 +338,11 @@ export function useRouletteData(
       eventService.unsubscribe('*', handleRouletteEvent as any);
       socketService.unsubscribe(roletaNome, handleRouletteEvent);
       socketService.unsubscribe('global_strategy_updates', handleRouletteEvent);
+      socketService.unsubscribe('new_number', handleNewNumberEvent);
       socketService.offConnectionStatusChange(connectionStatusListener);
+      
+      // Limpar o intervalo de atualização
+      clearInterval(dataRefreshInterval);
     };
   }, [roletaId, roletaNome, processNewNumber, refreshNumbers, hasData]);
   
