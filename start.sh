@@ -118,18 +118,7 @@ echo "Iniciando Scraper Direto (run_real_scraper.py)..."
 cd backend
 echo "Mudando para diretório de scraper..."
 cd scraper
-PYTHONPATH=/usr/local/lib/python3.10/dist-packages:/app/backend/scraper python3 -E <<EOF
-import sys
-sys.path.insert(0, '/usr/local/lib/python3.10/dist-packages')
-sys.path.insert(0, '/app/backend/scraper')
-print(f"Python path modificado: {sys.path}")
-try:
-    exec(open('run_real_scraper.py').read())
-except Exception as e:
-    import traceback
-    print(f"Erro ao executar o script: {e}")
-    traceback.print_exc()
-EOF
+PYTHONPATH=/usr/local/lib/python3.10/dist-packages:/app/backend/scraper python3 run_real_scraper.py &
 SCRAPER_PID=$!
 cd ../..
 
@@ -164,18 +153,7 @@ while true; do
     if ! ps -p $SCRAPER_PID > /dev/null; then
         echo "AVISO: Scraper parou. Tentando reiniciar..."
         cd backend/scraper
-        PYTHONPATH=/usr/local/lib/python3.10/dist-packages:/app/backend/scraper python3 -E <<EOF
-import sys
-sys.path.insert(0, '/usr/local/lib/python3.10/dist-packages')
-sys.path.insert(0, '/app/backend/scraper')
-print(f"Python path modificado: {sys.path}")
-try:
-    exec(open('run_real_scraper.py').read())
-except Exception as e:
-    import traceback
-    print(f"Erro ao executar o script: {e}")
-    traceback.print_exc()
-EOF
+        PYTHONPATH=/usr/local/lib/python3.10/dist-packages:/app/backend/scraper python3 run_real_scraper.py &
         SCRAPER_PID=$!
         cd ../..
     fi
