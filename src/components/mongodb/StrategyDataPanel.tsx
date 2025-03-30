@@ -81,7 +81,7 @@ export const StrategyDataPanel = ({ roletaId, roletaNome }: StrategyDataPanelPro
 
   if (loading) {
     return (
-      <div className="fixed bottom-4 right-4 w-64 bg-black/80 border-2 border-green-400 rounded-md p-3 shadow-lg z-50 animate-pulse">
+      <div className="w-full bg-black/80 border-2 border-green-400 rounded-md p-3 shadow-lg z-50 animate-pulse">
         <p className="text-white text-xs">Carregando dados...</p>
       </div>
     );
@@ -89,14 +89,14 @@ export const StrategyDataPanel = ({ roletaId, roletaNome }: StrategyDataPanelPro
 
   if (error) {
     return (
-      <div className="fixed bottom-4 right-4 w-64 bg-black/80 border-2 border-red-400 rounded-md p-3 shadow-lg z-50">
+      <div className="w-full bg-black/80 border-2 border-red-400 rounded-md p-3 shadow-lg z-50">
         <p className="text-red-400 text-xs">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="fixed bottom-4 right-4 w-64 bg-black/80 border-2 border-green-400 rounded-md p-3 shadow-lg z-50">
+    <div className="w-full bg-black/80 border-2 border-green-400 rounded-md p-3 shadow-lg z-50">
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-green-400 text-xs font-bold">DADOS MONGODB - {roletaNome}</h3>
       </div>

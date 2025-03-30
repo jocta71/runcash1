@@ -308,6 +308,19 @@ const Index = () => {
             </button>
           </div>
           
+          {/* Dados do MongoDB - Adicionado abaixo dos botões */}
+          {filteredRoulettes.length > 0 && (
+            <div className="mb-6">
+              <h2 className="text-lg md:text-xl font-semibold text-white mb-4">
+                Dados do MongoDB
+              </h2>
+              <StrategyDataPanel 
+                roletaId={filteredRoulettes[0].id} 
+                roletaNome={filteredRoulettes[0].name || filteredRoulettes[0].roleta_nome || filteredRoulettes[0].nome || "Roleta"}
+              />
+            </div>
+          )}
+          
           {/* Roletas */}
           <div className="mt-6">
             <h2 className="text-lg md:text-xl font-semibold text-white mb-4">
@@ -353,14 +366,7 @@ const Index = () => {
             )}
           </div>
           
-          {/* Adicionar o painel de dados do MongoDB */}
-          {filteredRoulettes.length > 0 && (
-            <StrategyDataPanel 
-              roletaId={filteredRoulettes[0].id} 
-              roletaNome={filteredRoulettes[0].name || filteredRoulettes[0].roleta_nome || filteredRoulettes[0].nome || "Roleta"}
-            />
-          )}
-          
+          {/* Remover o painel de dados do MongoDB da posição anterior */}
           {/* Mobile Footer Space (to avoid content being hidden behind fixed elements) */}
           <div className="h-16 md:h-0"></div>
         </main>
