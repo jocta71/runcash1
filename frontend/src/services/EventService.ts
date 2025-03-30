@@ -555,6 +555,44 @@ class EventService {
   public unsubscribeFromGlobalEvents(callback: RouletteEventCallback): void {
     this.unsubscribe('*', callback);
   }
+
+  // Método para emitir eventos de atualização de estratégia diretamente
+  public emitStrategyUpdate(data: any): void {
+    // Verificar se temos dados mínimos necessários
+    if (!data || (!data.roleta_id && !data.roleta_nome)) {
+      console.error('[EventService] Tentativa de emitir evento de estratégia sem identificador de roleta');
+      return;
+    }
+
+    try {
+      // Garantir que o evento tenha o tipo correto
+      const event: StrategyUpdateEvent = {
+        type: 'strategy_update',
+        roleta_id: data.roleta_id || 'unknown',
+        roleta_nome: data.roleta_nome || data.roleta_id || 'unknown',
+        estado: data.estado || 'NEUTRAL',
+        numero_gatilho: data.numero_gatilho !== undefined ? data.numero_gatilho : 0,
+        terminais_gatilho: data.terminais_gatilho || [],
+        // Garantir que vitórias e derrotas sejam números e nunca undefined/null
+        vitorias: data.vitorias !== undefined ? parseInt(data.vitorias) : 0,
+        derrotas: data.derrotas !== undefined ? parseInt(data.derrotas) : 0,
+        sugestao_display: data.sugestao_display || '',
+        timestamp: data.timestamp || new Date().toISOString()
+      };
+
+      console.log(`[EventService] Emitindo evento de estratégia para ${event.roleta_nome}:`, {
+        vitorias: event.vitorias,
+        derrotas: event.derrotas,
+        estado: event.estado,
+        timestamp: event.timestamp
+      });
+
+      // Notificar listeners sobre o evento de estratégia
+      this.notifyListeners(event);
+    } catch (error) {
+      console.error('[EventService] Erro ao processar evento de estratégia:', error);
+    }
+  }
 }
 
 export default EventService; 

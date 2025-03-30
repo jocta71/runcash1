@@ -213,30 +213,61 @@ const RouletteCard = memo(({
 
   // Efeito para atualizar dados ao receber eventos de estratégia
   useEffect(() => {
-    const handleStrategyUpdate = (event: StrategyUpdateEvent) => {
+    const eventService = EventService.getInstance();
+    
+    // Função para processar eventos de estratégia
+    const handleStrategyUpdate = (event: any) => {
+      // Verificar se é um evento relevante para esta roleta
       if (event.type !== 'strategy_update' || 
           (event.roleta_id !== roletaId && event.roleta_nome !== roletaNome)) {
         return;
       }
       
-      console.log(`[RouletteCard] Atualizando vitórias/derrotas para ${roletaNome}:`, {
-        vitorias: event.vitorias,
-        derrotas: event.derrotas,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Atualizar os estados com os valores recebidos do evento
-      setStrategyWins(event.vitorias || 0);
-      setStrategyLosses(event.derrotas || 0);
-      
-      // Atualizar também outros dados da estratégia
-      setStrategyState(event.estado || '');
-      setStrategyDisplay(event.sugestao_display || '');
-      setStrategyTerminals(event.terminais_gatilho || []);
+      // Verificar se temos dados de vitórias e derrotas
+      if (event.vitorias !== undefined || event.derrotas !== undefined) {
+        console.log(`[RouletteCard] Atualizando vitórias/derrotas para ${roletaNome}:`, {
+          vitorias: event.vitorias,
+          derrotas: event.derrotas,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Aplicar efeito visual de destaque por alguns segundos
+        setHighlightWins(true);
+        setHighlightLosses(true);
+        
+        // Remover classe após 2 segundos
+        setTimeout(() => {
+          setHighlightWins(false);
+          setHighlightLosses(false);
+        }, 2000);
+        
+        // Atualizar os estados com os valores recebidos do evento
+        if (event.vitorias !== undefined) {
+          setStrategyWins(parseInt(event.vitorias));
+        }
+        
+        if (event.derrotas !== undefined) {
+          setStrategyLosses(parseInt(event.derrotas));
+        }
+        
+        // Atualizar também outros dados da estratégia
+        if (event.estado !== undefined) {
+          setStrategyState(event.estado);
+        }
+        
+        if (event.sugestao_display !== undefined) {
+          setStrategyDisplay(event.sugestao_display);
+        }
+        
+        if (event.terminais_gatilho !== undefined) {
+          setStrategyTerminals(event.terminais_gatilho);
+        }
+      } else {
+        console.log(`[RouletteCard] Evento de estratégia sem dados de vitórias/derrotas para ${roletaNome}`);
+      }
     };
     
     // Registrar manipulador para eventos de estratégia
-    const eventService = EventService.getInstance();
     eventService.subscribeToEvent('strategy_update', handleStrategyUpdate);
     
     // Solicitar a estratégia atual ao montar o componente
@@ -262,6 +293,7 @@ const RouletteCard = memo(({
       }
     }, 15000); // Atualizar a cada 15 segundos
     
+    // Limpar ao desmontar
     return () => {
       eventService.unsubscribeFromEvent('strategy_update', handleStrategyUpdate);
       clearInterval(strategyRefreshInterval);
@@ -356,6 +388,10 @@ const RouletteCard = memo(({
     />
   ), [mappedNumbers, isLoading]);
 
+  // Estados para controlar efeito visual quando valores de vitórias/derrotas mudam
+  const [highlightWins, setHighlightWins] = useState(false);
+  const [highlightLosses, setHighlightLosses] = useState(false);
+
   return (
     <div 
       className="bg-[#17161e] border border-white/10 rounded-lg p-3 flex flex-col h-full w-full"
@@ -414,7 +450,7 @@ const RouletteCard = memo(({
             Vitórias: 
             <span 
               className={`font-medium text-green-400 transition-opacity duration-300 ${
-                strategy?.vitorias !== undefined ? 'animate-pulse-once' : ''
+                highlightWins ? 'animate-pulse text-green-300' : ''
               }`}
               data-testid="vitorias-counter"
               data-value={strategy?.vitorias ?? strategyWins ?? wins ?? 0}
@@ -426,7 +462,7 @@ const RouletteCard = memo(({
             Derrotas: 
             <span 
               className={`font-medium text-red-400 transition-opacity duration-300 ${
-                strategy?.derrotas !== undefined ? 'animate-pulse-once' : ''
+                highlightLosses ? 'animate-pulse text-red-300' : ''
               }`}
               data-testid="derrotas-counter"
               data-value={strategy?.derrotas ?? strategyLosses ?? losses ?? 0}

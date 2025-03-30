@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
-import { 
+import EventService, { 
   RouletteNumberEvent,
   RouletteEventCallback,
   StrategyUpdateEvent
@@ -402,7 +402,7 @@ class SocketService {
 
     // Registrar handlers para eventos do socket
     this.socket.on('connect', () => {
-      console.log(`[SocketService] Conectado ao servidor WebSocket: ${this.socketUrl}`);
+      console.log(`[SocketService] Conectado ao servidor WebSocket: ${this.getSocketUrl()}`);
       this.isConnected = true;
       this.notifyConnectionListeners();
     });
@@ -428,7 +428,7 @@ class SocketService {
           derrotas: data.derrotas,
           estado: data.estado
         });
-        this.eventService.emitStrategyUpdate(data);
+        this.processStrategyEvent(data);
       }
     });
 
@@ -441,7 +441,24 @@ class SocketService {
           ...data,
           type: 'strategy_update'
         };
-        this.eventService.emitStrategyUpdate(event);
+        this.processStrategyEvent(event);
+      }
+    });
+    
+    // Ouvir por evento específico de vitórias/derrotas
+    this.socket.on('wins_losses_update', (data: any) => {
+      console.log(`[SocketService] Evento wins_losses_update recebido:`, data);
+      if (data && (data.roleta_id || data.roleta_nome) && 
+          (data.vitorias !== undefined || data.derrotas !== undefined)) {
+        // Converter para formato de evento de estratégia
+        const event = {
+          ...data,
+          type: 'strategy_update',
+          estado: data.estado || 'NEUTRAL',
+          vitorias: data.vitorias !== undefined ? parseInt(data.vitorias) : 0,
+          derrotas: data.derrotas !== undefined ? parseInt(data.derrotas) : 0
+        };
+        this.processStrategyEvent(event);
       }
     });
 
@@ -453,11 +470,86 @@ class SocketService {
         // Converter para formato de evento de estratégia
         const event = {
           ...data,
-          type: 'strategy_update'
+          type: 'strategy_update',
+          vitorias: data.vitorias !== undefined ? parseInt(data.vitorias) : 0,
+          derrotas: data.derrotas !== undefined ? parseInt(data.derrotas) : 0
         };
-        this.eventService.emitStrategyUpdate(event);
+        this.processStrategyEvent(event);
       }
     });
+  }
+
+  // Método auxiliar para processar eventos de estratégia
+  private processStrategyEvent(data: any): void {
+    try {
+      if (!data || (!data.roleta_id && !data.roleta_nome)) {
+        console.warn('[SocketService] Evento de estratégia recebido sem identificador de roleta');
+        return;
+      }
+
+      // Garantir que os valores de vitórias e derrotas sejam números válidos
+      const vitorias = data.vitorias !== undefined ? parseInt(data.vitorias) : 0;
+      const derrotas = data.derrotas !== undefined ? parseInt(data.derrotas) : 0;
+
+      // Criar objeto de evento padronizado
+      const event: StrategyUpdateEvent = {
+        type: 'strategy_update',
+        roleta_id: data.roleta_id || 'unknown-id',
+        roleta_nome: data.roleta_nome || data.roleta_id || 'unknown',
+        estado: data.estado || 'NEUTRAL',
+        numero_gatilho: data.numero_gatilho || null,
+        terminais_gatilho: data.terminais_gatilho || [],
+        vitorias: vitorias,
+        derrotas: derrotas,
+        sugestao_display: data.sugestao_display || '',
+        timestamp: data.timestamp || new Date().toISOString()
+      };
+
+      console.log(`[SocketService] Processando evento de estratégia:`, {
+        roleta: event.roleta_nome,
+        vitorias: event.vitorias,
+        derrotas: event.derrotas,
+        timestamp: event.timestamp
+      });
+
+      // Usar o EventService para notificar listeners
+      const eventService = EventService.getInstance();
+      eventService.emitStrategyUpdate(event);
+
+      // Também notificar diretamente os callbacks específicos para esta roleta
+      this.notifyListeners(event);
+    } catch (error) {
+      console.error('[SocketService] Erro ao processar evento de estratégia:', error);
+    }
+  }
+
+  // Método para processar novos números
+  private processIncomingNumber(data: any): void {
+    try {
+      if (!data || !data.roleta_nome || data.numero === undefined) {
+        console.warn('[SocketService] Dados de número inválidos');
+        return;
+      }
+
+      // Converter para formato padronizado
+      const event: RouletteNumberEvent = {
+        type: 'new_number',
+        roleta_id: data.roleta_id || 'unknown-id',
+        roleta_nome: data.roleta_nome,
+        numero: parseInt(data.numero),
+        timestamp: data.timestamp || new Date().toISOString()
+      };
+
+      // Notificar listeners
+      this.notifyListeners(event);
+    } catch (error) {
+      console.error('[SocketService] Erro ao processar novo número:', error);
+    }
+  }
+
+  // Notifica os listeners sobre mudanças de conexão
+  private notifyConnectionListeners(): void {
+    // Implementação aqui
   }
 }
 
