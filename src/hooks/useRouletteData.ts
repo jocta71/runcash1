@@ -319,18 +319,6 @@ export function useRouletteData(
     
     socketService.onConnectionStatusChange(connectionStatusListener);
     
-    // Configurar um intervalo para verificar dados periodicamente
-    const dataRefreshInterval = setInterval(() => {
-      // Verificar se estamos conectados e se temos dados
-      if (socketService.isSocketConnected() && hasData) {
-        // Atualizar números e estratégia a cada 30 segundos
-        debugLog(`[useRouletteData] Atualização periódica para ${roletaNome}`);
-        refreshNumbers().catch(err => {
-          debugLog(`[useRouletteData] Erro na atualização periódica: ${err.message}`);
-        });
-      }
-    }, 30000); // 30 segundos
-    
     // Limpar inscrições ao desmontar
     return () => {
       debugLog(`[useRouletteData] Removendo inscrição para eventos da roleta: ${roletaNome}`);
@@ -340,9 +328,6 @@ export function useRouletteData(
       socketService.unsubscribe('global_strategy_updates', handleRouletteEvent);
       socketService.unsubscribe('new_number', handleNewNumberEvent);
       socketService.offConnectionStatusChange(connectionStatusListener);
-      
-      // Limpar o intervalo de atualização
-      clearInterval(dataRefreshInterval);
     };
   }, [roletaId, roletaNome, processNewNumber, refreshNumbers, hasData]);
   
