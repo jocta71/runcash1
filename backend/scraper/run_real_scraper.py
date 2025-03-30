@@ -29,6 +29,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Função para garantir que as mensagens apareçam na aba Deploy Logs do Railway
+def log_to_railway(message):
+    """Função que garante que os logs apareçam na aba Deploy Logs do Railway"""
+    print(message)  # Print direto para stdout
+    sys.stdout.flush()  # Forçar flush do buffer para garantir que os logs sejam exibidos imediatamente
+    logger.info(message)  # Também registrar usando o logger
+
 # Flag para controlar o heartbeat
 RUNNING = True
 
@@ -38,13 +45,14 @@ def heartbeat_thread():
     counter = 0
     while RUNNING:
         counter += 1
-        logger.info(f"❤️ HEARTBEAT #{counter} - Scraper em execução | {datetime.now().isoformat()}")
+        message = f"❤️ HEARTBEAT #{counter} - Scraper em execução | {datetime.now().isoformat()}"
+        log_to_railway(message)
         # Mostrar uso de memória, se disponível
         try:
             import psutil
             process = psutil.Process(os.getpid())
             mem_usage = process.memory_info().rss / 1024 / 1024  # em MB
-            logger.info(f"📊 Memória em uso: {mem_usage:.2f} MB")
+            log_to_railway(f"📊 Memória em uso: {mem_usage:.2f} MB")
         except:
             pass
         time.sleep(60)  # Heartbeat a cada 60 segundos
@@ -54,23 +62,25 @@ heartbeat = threading.Thread(target=heartbeat_thread)
 heartbeat.daemon = True
 heartbeat.start()
 
-# Adicionar mais logs para garantir visibilidade no console do Railway
-logger.info("\n\n")
-logger.info("*"*80)
-logger.info("*"*80)
-logger.info("*"*30 + " INICIANDO SCRAPER RUNCASH " + "*"*30)
-logger.info("*"*80)
-logger.info("*"*80)
-logger.info("\n")
-logger.info("🔄 Script run_real_scraper.py iniciando...")
-logger.info(f"📅 Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-logger.info(f"📂 Diretório: {os.getcwd()}")
-logger.info(f"🐍 Python: {sys.version}")
-logger.info(f"🔧 Variáveis de ambiente carregadas: {os.environ.get('MONGODB_URI') is not None}")
-logger.info(f"🔌 Railway URL: {os.environ.get('RAILWAY_URL', 'não definido')}")
-logger.info(f"📊 MongoDB habilitado: {os.environ.get('MONGODB_ENABLED', 'não definido')}")
-logger.info(f"🔍 Sistema operacional: {sys.platform}")
-logger.info("==================================================\n\n")
+# Adicionar logs visíveis para o Railway
+print("\n\n")
+print("*"*80)
+print("*"*80)
+print("*"*30 + " INICIANDO SCRAPER RUNCASH " + "*"*30)
+print("*"*80)
+print("*"*80)
+print("\n")
+
+# Usar a função log_to_railway para garantir visibilidade
+log_to_railway("🔄 Script run_real_scraper.py iniciando...")
+log_to_railway(f"📅 Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+log_to_railway(f"📂 Diretório: {os.getcwd()}")
+log_to_railway(f"🐍 Python: {sys.version}")
+log_to_railway(f"🔧 Variáveis de ambiente carregadas: {os.environ.get('MONGODB_URI') is not None}")
+log_to_railway(f"🔌 Railway URL: {os.environ.get('RAILWAY_URL', 'não definido')}")
+log_to_railway(f"📊 MongoDB habilitado: {os.environ.get('MONGODB_ENABLED', 'não definido')}")
+log_to_railway(f"🔍 Sistema operacional: {sys.platform}")
+print("==================================================\n\n")
 
 # Imports locais - reorganizados para evitar importação circular
 try:
@@ -96,11 +106,11 @@ MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb+srv://runcash:8867Jpp@runca
 MONGODB_ENABLED = os.environ.get('MONGODB_ENABLED', 'true').lower() in ('true', '1', 't')
 
 # Log da configuração
-logger.info('==== Configuração do Scraper ====')
-logger.info(f"🔌 WebSocket configurado para: {WEBSOCKET_SERVER_URL}")
-logger.info(f"📊 MongoDB habilitado: {MONGODB_ENABLED}")
-logger.info(f"📊 MongoDB URI: {MONGODB_URI.replace(':8867Jpp@', ':****@')}")
-logger.info('===============================')
+print('==== Configuração do Scraper ====')
+log_to_railway(f"🔌 WebSocket configurado para: {WEBSOCKET_SERVER_URL}")
+log_to_railway(f"📊 MongoDB habilitado: {MONGODB_ENABLED}")
+log_to_railway(f"📊 MongoDB URI: {MONGODB_URI.replace(':8867Jpp@', ':****@')}")
+print('===============================')
 
 def notify_websocket(event_type, data):
     """
@@ -112,17 +122,19 @@ def notify_websocket(event_type, data):
             "data": data
         }
         
-        logger.info(f"\n[WebSocket] Enviando evento {event_type}:")
-        logger.info(json.dumps(data, indent=2, ensure_ascii=False))
+        log_to_railway(f"\n[WebSocket] Enviando evento {event_type}:")
+        print(json.dumps(data, indent=2, ensure_ascii=False))
         
         response = requests.post(WEBSOCKET_SERVER_URL, json=payload)
         
         if response.status_code == 200:
-            logger.info(f"[WebSocket] ✅ Evento {event_type} enviado com sucesso")
+            log_to_railway(f"[WebSocket] ✅ Evento {event_type} enviado com sucesso")
         else:
+            print(f"[WebSocket] ❌ Falha ao enviar evento: {response.status_code} - {response.text}")
             logger.error(f"[WebSocket] ❌ Falha ao enviar evento: {response.status_code} - {response.text}")
     
     except Exception as e:
+        print(f"[WebSocket] ❌ Erro ao notificar WebSocket: {str(e)}")
         logger.error(f"[WebSocket] ❌ Erro ao notificar WebSocket: {str(e)}")
         traceback.print_exc()
 
@@ -168,17 +180,18 @@ def process_new_number(db, roleta_id, roleta_nome, numero):
     """
     Processa um novo número com o analisador de estratégia e atualiza no MongoDB
     """
-    logger.info(f"\n{'='*50}")
-    logger.info(f"🎲 NOVO NÚMERO DETECTADO")
-    logger.info(f"📍 Roleta: {roleta_nome}")
-    logger.info(f"🔢 Número: {numero}")
-    logger.info(f"{'='*50}")
+    print(f"\n{'='*50}")
+    print(f"🎲 NOVO NÚMERO DETECTADO")
+    print(f"📍 Roleta: {roleta_nome}")
+    print(f"🔢 Número: {numero}")
+    print(f"{'='*50}")
     
     try:
         # Obter o analisador para esta roleta
         analyzer = get_analyzer(roleta_id, roleta_nome)
         
         if not analyzer:
+            print(f"❌ Não foi possível obter analisador para roleta {roleta_nome}")
             logger.error(f"❌ Não foi possível obter analisador para roleta {roleta_nome}")
             return None
         
@@ -190,7 +203,7 @@ def process_new_number(db, roleta_id, roleta_nome, numero):
         estrategia = data.get("estrategia", {})
         
         # Atualizar no MongoDB
-        logger.info(f"\n[MongoDB] 💾 Atualizando estratégia para roleta {roleta_nome}")
+        log_to_railway(f"\n[MongoDB] 💾 Atualizando estratégia para roleta {roleta_nome}")
         
         atualizar_estrategia(
             roleta_id=roleta_id,
@@ -229,17 +242,18 @@ def process_new_number(db, roleta_id, roleta_nome, numero):
         notify_websocket("strategy_update", strategy_data)
         
         # Mostrar resumo da estratégia
-        logger.info(f"\n[Estratégia] 📊 Status Atual:")
-        logger.info(f"Estado: {estrategia.get('estado', 'NEUTRAL')}")
-        logger.info(f"Vitórias: {estrategia.get('vitorias', 0)}")
-        logger.info(f"Derrotas: {estrategia.get('derrotas', 0)}")
+        log_to_railway(f"\n[Estratégia] 📊 Status Atual:")
+        print(f"Estado: {estrategia.get('estado', 'NEUTRAL')}")
+        print(f"Vitórias: {estrategia.get('vitorias', 0)}")
+        print(f"Derrotas: {estrategia.get('derrotas', 0)}")
         if estrategia.get('terminais_gatilho'):
-            logger.info(f"Terminais: {estrategia.get('terminais_gatilho', [])}")
-        logger.info(f"{'='*50}\n")
+            print(f"Terminais: {estrategia.get('terminais_gatilho', [])}")
+        print(f"{'='*50}\n")
         
         return estrategia
     
     except Exception as e:
+        print(f"❌ Erro ao processar número {numero} para roleta {roleta_nome}: {str(e)}")
         logger.error(f"❌ Erro ao processar número {numero} para roleta {roleta_nome}: {str(e)}")
         traceback.print_exc()
         return None
@@ -248,13 +262,13 @@ def main():
     """
     Função principal para executar o scraper em modo real
     """
-    logger.info("\n🚀 Iniciando scraper REAL com integração de análise de estratégia...")
+    print("\n🚀 Iniciando scraper REAL com integração de análise de estratégia...")
     
     try:
         # Inicializar fonte de dados MongoDB
-        logger.info("Conectando ao MongoDB...")
+        print("Conectando ao MongoDB...")
         db = MongoDataSource()
-        logger.info("✅ Conexão ao MongoDB estabelecida com sucesso")
+        print("✅ Conexão ao MongoDB estabelecida com sucesso")
         
         # Importar scraper_mongodb aqui para evitar importação circular
         try:
@@ -271,13 +285,13 @@ def main():
             Hook chamado quando um novo número é detectado pelo scraper
             """
             # Processar o número com o analisador de estratégia
-            logger.info(f"📍 Processando número {numero} para roleta {roleta_nome}")
+            log_to_railway(f"📍 Processando número {numero} para roleta {roleta_nome}")
             status = process_new_number(db, roleta_id, roleta_nome, numero)
             
             if not status:
-                logger.error(f"❌ Falha ao processar número {numero} para estratégia")
+                print(f"❌ Falha ao processar número {numero} para estratégia")
         
-        logger.info("\n🎰 Executando em modo REAL - Acessando site da casa de apostas")
+        print("\n🎰 Executando em modo REAL - Acessando site da casa de apostas")
         
         # Executar o scraper real com o hook
         scrape_roletas(db, numero_hook=numero_hook)
@@ -285,18 +299,20 @@ def main():
         return 0
         
     except Exception as e:
-        logger.error(f"❌ Erro ao executar scraper: {str(e)}")
+        print(f"💥 Erro ao executar scraper: {str(e)}")
+        logger.error(f"💥 Erro ao executar scraper: {str(e)}")
         traceback.print_exc()
         return 1
 
 if __name__ == "__main__":
     try:
-        logger.info("🏁 Iniciando script run_real_scraper.py")
+        print("🏁 Iniciando script run_real_scraper.py")
         exit_code = main()
-        logger.info(f"🛑 Script encerrado com código: {exit_code}")
+        print(f"🛑 Script encerrado com código: {exit_code}")
         RUNNING = False  # Parar o heartbeat
         sys.exit(exit_code)
     except Exception as e:
+        print(f"💥 Erro crítico não tratado: {str(e)}")
         logger.critical(f"💥 Erro crítico não tratado: {str(e)}")
         traceback.print_exc()
         RUNNING = False  # Parar o heartbeat

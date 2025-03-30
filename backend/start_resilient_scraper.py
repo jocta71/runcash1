@@ -168,12 +168,12 @@ def monitor_scraper():
         # Loop de monitoramento - encaminhar a saída e verificar se o processo ainda está vivo
         while current_process.poll() is None and not forced_exit:
             try:
-                # Ler e encaminhar a saída do scraper
+                # Ler e encaminhar a saída do scraper imediatamente
                 output_line = current_process.stdout.readline()
                 if output_line:
-                    # Não modificar a saída, apenas encaminhá-la diretamente
-                    print(output_line.strip())
-                    sys.stdout.flush()
+                    # Não modificar a saída, apenas imprimir diretamente
+                    sys.stdout.write(output_line)  # Escrever diretamente no stdout sem modificações
+                    sys.stdout.flush()  # Garantir que a saída seja exibida imediatamente
                 else:
                     # Se não há saída, aguardar um pouco
                     time.sleep(0.1)
