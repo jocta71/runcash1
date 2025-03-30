@@ -325,14 +325,15 @@ const Index = () => {
             ) : filteredRoulettes.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredRoulettes.map((roulette) => (
-                  <RouletteCardRealtime
-                    key={roulette.id}
-                    roletaId={roulette.id}
-                    name={roulette.name}
-                    roleta_nome={roulette.roleta_nome}
-                    wins={roulette.wins}
-                    losses={roulette.losses}
-                  />
+                  <div key={roulette.id} className="w-full animate-fade-in">
+                    <RouletteCardRealtime
+                      roletaId={roulette.id}
+                      name={roulette.name}
+                      wins={roulette.wins}
+                      losses={roulette.losses}
+                      roleta_nome={roulette.roleta_nome}
+                    />
+                  </div>
                 ))}
               </div>
             ) : (
