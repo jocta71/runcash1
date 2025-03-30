@@ -249,8 +249,12 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
   try {
     console.log(`[API] Buscando estado atual da estratégia para roleta ID ${roletaId}...`);
     
+    // URL corrigida conforme logs de erro
+    const endpoint = `/roulette/${encodeURIComponent(roletaId)}/strategy`;
+    console.log(`[API] Usando endpoint: ${endpoint}`);
+    
     // Fazer requisição ao backend para buscar a estratégia atual
-    const response = await api.get(`/strategy/${encodeURIComponent(roletaId)}`);
+    const response = await api.get(endpoint);
     
     if (response.data) {
       // Verificar se temos os dados de vitórias e derrotas
@@ -344,6 +348,29 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
     
     console.warn(`[API] Nenhum dado de estratégia encontrado para roleta ID ${roletaId}`);
     
+    // Tentar um endpoint alternativo
+    try {
+      console.log(`[API] Tentando endpoint alternativo para roleta ${roletaId}...`);
+      const alternativeEndpoint = `/statistics/${encodeURIComponent(roletaId)}`;
+      const altResponse = await api.get(alternativeEndpoint);
+      
+      if (altResponse.data && 
+          (altResponse.data.vitorias !== undefined || altResponse.data.derrotas !== undefined)) {
+        console.log(`[API] Dados encontrados no endpoint alternativo:`, altResponse.data);
+        
+        return {
+          estado: 'NEUTRAL',
+          numero_gatilho: null,
+          terminais_gatilho: [],
+          vitorias: parseInt(altResponse.data.vitorias) || 0,
+          derrotas: parseInt(altResponse.data.derrotas) || 0,
+          sugestao_display: ''
+        };
+      }
+    } catch (altError) {
+      console.error(`[API] Erro ao tentar endpoint alternativo: ${altError}`);
+    }
+    
     // Gerar dados simulados como último recurso
     const idSum = roletaId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
     const vitoriasSimuladas = (idSum % 17) + 1; // Pelo menos 1, no máximo 18
@@ -359,6 +386,29 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
     };
   } catch (error) {
     console.error(`[API] Erro ao buscar estratégia para roleta ID ${roletaId}:`, error);
+    
+    // Tentar um endpoint alternativo após erro
+    try {
+      console.log(`[API] Tentando endpoint alternativo após erro para roleta ${roletaId}...`);
+      const alternativeEndpoint = `/statistics/${encodeURIComponent(roletaId)}`;
+      const altResponse = await api.get(alternativeEndpoint);
+      
+      if (altResponse.data && 
+          (altResponse.data.vitorias !== undefined || altResponse.data.derrotas !== undefined)) {
+        console.log(`[API] Dados encontrados no endpoint alternativo após erro:`, altResponse.data);
+        
+        return {
+          estado: 'NEUTRAL',
+          numero_gatilho: null,
+          terminais_gatilho: [],
+          vitorias: parseInt(altResponse.data.vitorias) || 0,
+          derrotas: parseInt(altResponse.data.derrotas) || 0,
+          sugestao_display: ''
+        };
+      }
+    } catch (altError) {
+      console.error(`[API] Erro ao tentar endpoint alternativo após erro: ${altError}`);
+    }
     
     // Mesmo em caso de erro, retornar dados simulados para teste
     const idSum = roletaId ? roletaId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) : 123;

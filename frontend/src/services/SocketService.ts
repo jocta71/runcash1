@@ -396,6 +396,69 @@ class SocketService {
       console.error(`[SocketService] Erro ao enviar mensagem:`, error);
     }
   }
+
+  private setupEventListeners(): void {
+    if (!this.socket) return;
+
+    // Registrar handlers para eventos do socket
+    this.socket.on('connect', () => {
+      console.log(`[SocketService] Conectado ao servidor WebSocket: ${this.socketUrl}`);
+      this.isConnected = true;
+      this.notifyConnectionListeners();
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      console.log(`[SocketService] Desconectado do servidor WebSocket. Motivo: ${reason}`);
+      this.isConnected = false;
+      this.notifyConnectionListeners();
+    });
+
+    this.socket.on('message', (data: any) => {
+      console.log(`[SocketService] Mensagem recebida:`, data);
+      
+      // Se temos dados de número, processar
+      if (data && data.type === 'new_number' && data.roleta_nome) {
+        this.processIncomingNumber(data);
+      }
+      
+      // Se temos dados de estratégia, processar
+      if (data && data.type === 'strategy_update') {
+        console.log(`[SocketService] Dados de estratégia recebidos para ${data.roleta_nome || data.roleta_id}:`, {
+          vitorias: data.vitorias,
+          derrotas: data.derrotas,
+          estado: data.estado
+        });
+        this.eventService.emitStrategyUpdate(data);
+      }
+    });
+
+    // Ouvir especificamente por eventos de estratégia
+    this.socket.on('strategy_update', (data: any) => {
+      console.log(`[SocketService] Evento strategy_update recebido:`, data);
+      if (data && (data.roleta_id || data.roleta_nome)) {
+        // Garantir que o evento tenha o tipo correto
+        const event = {
+          ...data,
+          type: 'strategy_update'
+        };
+        this.eventService.emitStrategyUpdate(event);
+      }
+    });
+
+    // Ouvir por eventos de estatísticas que também podem trazer vitórias/derrotas
+    this.socket.on('statistics', (data: any) => {
+      console.log(`[SocketService] Evento statistics recebido:`, data);
+      if (data && (data.roleta_id || data.roleta_nome) && 
+          (data.vitorias !== undefined || data.derrotas !== undefined)) {
+        // Converter para formato de evento de estratégia
+        const event = {
+          ...data,
+          type: 'strategy_update'
+        };
+        this.eventService.emitStrategyUpdate(event);
+      }
+    });
+  }
 }
 
 export default SocketService; 
