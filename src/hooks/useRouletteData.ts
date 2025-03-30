@@ -50,7 +50,7 @@ const getNumberColor = (numero: number): string => {
 
 // Hook para buscar e gerenciar dados de uma roleta específica
 export function useRouletteData(
-  roletaId: string,
+  roletaId: string, 
   roletaNome: string
 ): UseRouletteDataResult {
   // Estados para armazenar dados da roleta
@@ -90,8 +90,8 @@ export function useRouletteData(
       }
       
       debugLog(`[useRouletteData] Buscando números para ${roletaNome} (ID: ${roletaId})`);
-      setLoading(true);
-      
+        setLoading(true);
+        
       // Forçar um limite maior para garantir que tenhamos dados suficientes
       const numbersData = await fetchRouletteLatestNumbers(roletaId, 20);
       
@@ -102,13 +102,13 @@ export function useRouletteData(
           cor: getNumberColor(num),
           timestamp: new Date(Date.now() - index * 60000).toISOString() // Timestamp aproximado para fins de visualização
         }));
-        
-        setNumbers(formattedNumbers);
+          
+          setNumbers(formattedNumbers);
         setLastNumbers(numbersData);
         lastNumbersRef.current = numbersData;
-        setHasData(true);
+          setHasData(true);
         setError(null);
-        debugLog(`[useRouletteData] Carregados ${formattedNumbers.length} números iniciais para ${roletaNome}`);
+          debugLog(`[useRouletteData] Carregados ${formattedNumbers.length} números iniciais para ${roletaNome}`);
         setLoading(false);
         return true;
       } else if (retryCount < 3) {
@@ -118,18 +118,18 @@ export function useRouletteData(
         // Tentar novamente após um breve delay
         setTimeout(() => loadRouletteNumbers(), 2000);
         return false;
-      } else {
-        setHasData(false);
+        } else {
+          setHasData(false);
         setLoading(false);
         setError('Sem dados disponíveis para esta roleta.');
         return false;
       }
-    } catch (err: any) {
-      console.error(`[useRouletteData] Erro ao carregar dados iniciais: ${err.message}`);
-      setError(`Erro ao carregar dados: ${err.message}`);
+      } catch (err: any) {
+        console.error(`[useRouletteData] Erro ao carregar dados iniciais: ${err.message}`);
+        setError(`Erro ao carregar dados: ${err.message}`);
       setLoading(false);
-      setHasData(false);
-      
+        setHasData(false);
+        
       debugLog(`[useRouletteData] Gerando dados de fallback após erro para ${roletaNome}`);
       return false;
     }
@@ -162,12 +162,12 @@ export function useRouletteData(
     setHasData(true);
     
     // Notificar o usuário sobre o novo número com toast
-    toast({
+        toast({
       title: `Novo número: ${roletaNome}`,
       description: `Número ${numero} (${getNumberColor(numero)})`,
       variant: "default",
-      duration: 3000
-    });
+          duration: 3000
+        });
   }, [numbers, roletaNome]);
   
   // Função para atualizar os números manualmente
@@ -190,21 +190,21 @@ export function useRouletteData(
   const loadRouletteStrategy = useCallback(async () => {
     if (!roletaId) return;
     
-    try {
-      setStrategyLoading(true);
-      const strategyData = await fetchRouletteStrategy(roletaId);
-      
-      if (strategyData) {
-        setStrategy(strategyData);
-        debugLog(`[useRouletteData] Estado da estratégia carregado para ${roletaNome}`);
-      } else {
-        debugLog(`[useRouletteData] Nenhum dado de estratégia encontrado para ${roletaNome}`);
-        setStrategy(null);
-      }
-    } catch (err: any) {
-      console.error(`[useRouletteData] Erro ao carregar estratégia: ${err.message}`);
+      try {
+        setStrategyLoading(true);
+        const strategyData = await fetchRouletteStrategy(roletaId);
+        
+        if (strategyData) {
+          setStrategy(strategyData);
+          debugLog(`[useRouletteData] Estado da estratégia carregado para ${roletaNome}`);
+        } else {
+          debugLog(`[useRouletteData] Nenhum dado de estratégia encontrado para ${roletaNome}`);
+          setStrategy(null);
+        }
+      } catch (err: any) {
+        console.error(`[useRouletteData] Erro ao carregar estratégia: ${err.message}`);
     } finally {
-      setStrategyLoading(false);
+        setStrategyLoading(false);
     }
   }, [roletaId, roletaNome]);
   
