@@ -41,7 +41,8 @@ def roleta_permitida_por_id(roleta_id):
         roleta_id = roleta_id.split('_')[0]
     
     # TEMPORARIAMENTE: Permitir todas as roletas para diagnóstico
-    # return True
+    print(f"[DEBUG] IGNORANDO FILTRO: Permitindo todas as roletas para diagnóstico!")
+    return True
     
     # Verificar se a roleta está na lista de permitidas
     permitida = roleta_id in ALLOWED_ROULETTES
