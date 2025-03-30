@@ -1,35 +1,5 @@
-[33mcommit 55542700858a193cffc6e9bad073b24a24cb7cda[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+[33mcommit bb03f11437df76a178668f07fc31ca913668d08a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
 Author: Jocta <joctaxd@gmail.com>
-Date:   Sun Mar 30 01:13:28 2025 -0700
+Date:   Sun Mar 30 07:31:45 2025 -0700
 
-    Adicionar labels mais visíveis para terminais e estatísticas de vitórias/derrotas
-
-                   SSUUMMMMAARRYY OOFF LLEESSSS CCOOMMMMAANNDDSS
-
-      Commands marked with * may be preceded by a number, _N.
-      Notes in parentheses indicate the behavior if _N is given.
-      A key preceded by a caret indicates the Ctrl key; thus ^K is ctrl-K.
-
-  h  H                 Display this help.
-  q  :q  Q  :Q  ZZ     Exit.
- ---------------------------------------------------------------------------
-
-                           MMOOVVIINNGG
-
-  e  ^E  j  ^N  CR  *  Forward  one line   (or _N lines).
-  y  ^Y  k  ^K  ^P  *  Backward one line   (or _N lines).
-  f  ^F  ^V  SPACE  *  Forward  one window (or _N lines).
-  b  ^B  ESC-v      *  Backward one window (or _N lines).
-  z                 *  Forward  one window (and set window to _N).
-  w                 *  Backward one window (and set window to _N).
-  ESC-SPACE         *  Forward  one window, but don't stop at end-of-file.
-  d  ^D             *  Forward  one half-window (and set half-window to _N).
-  u  ^U             *  Backward one half-window (and set half-window to _N).
-  ESC-)  RightArrow *  Right one half screen width (or _N positions).
-  ESC-(  LeftArrow  *  Left  one half screen width (or _N positions).
-  ESC-}  ^RightArrow   Right to last column displayed.
-  ESC-{  ^LeftArrow    Left  to first column.
-  F                    Forward forever; like "tail -f".
-  ESC-F                Like F but stop when search pattern is found.
-  r  ^R  ^L            Repaint screen.
-  R                    Repaint screen, discarding buffered input.
+    Corrigido endpoints da API para buscar dados reais de vitórias e derrotas
