@@ -147,10 +147,10 @@ const SuggestionDisplay = ({
         }`}>
           <div className="flex flex-col">
             <div className="flex justify-between items-center">
-              <div className={`text-[12px] font-semibold ${displayColor} flex items-center gap-1.5`}>
-                <Target size={12} />
-                <span>Estado: {strategyState || "DESCONHECIDO"}</span>
-              </div>
+            <div className={`text-[12px] font-semibold ${displayColor} flex items-center gap-1.5`}>
+              <Target size={12} />
+              <span>Estado: {strategyState || "DESCONHECIDO"}</span>
+            </div>
             </div>
             
             {safeStrategyDisplay && (
@@ -171,29 +171,29 @@ const SuggestionDisplay = ({
             <span>terminais</span>
           </div>
           <div className="flex flex-wrap gap-1">
-            {displaySuggestion.map((num, i) => (
-              <TooltipProvider key={i}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <RouletteNumber
-                        number={num}
+        {displaySuggestion.map((num, i) => (
+          <TooltipProvider key={i}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <RouletteNumber
+                    number={num}
                         className={`w-7 h-7 text-[11px] font-bold border-2 ${useStrategyData ? `border-${displayColor.replace('text-', '')}` : 'border-[#00ff00]'} ${
-                          useStrategyData 
+                      useStrategyData 
                             ? (strategyState === 'TRIGGER' ? 'bg-green-500/20' : 
                               strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/20' :
                               'bg-blue-500/20') 
-                            : getSuggestionColor(num)
+                        : getSuggestionColor(num)
                         } ${isBlurred ? 'blur-sm' : (strategyState === 'TRIGGER' ? 'animate-pulse' : '')}`}
-                      />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
                     <p>Terminal {num}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ))}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ))}
           </div>
         </div>
         
