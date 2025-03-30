@@ -11,6 +11,7 @@ import pymongo
 from datetime import datetime
 import json
 from typing import List, Dict, Any, Optional
+import random
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, 
@@ -146,28 +147,12 @@ def process_new_number(db, id_roleta, roleta_nome, numero):
         except Exception as e:
             print(f"[DEBUG] Erro ao obter últimos números: {e}")
         
-        # Lógica básica de estratégia para demonstração
-        # Aqui você pode implementar sua estratégia específica
-        # Por enquanto, apenas uma lógica simples baseada no terminal
-        estado = "NEUTRAL"
-        terminais = []
-        vitorias = 0
-        derrotas = 0
+        # Configurar estado forçado como TRIGGER para teste
+        estado = "TRIGGER"
+        vitorias = random.randint(1, 5)
+        derrotas = random.randint(0, 3)
         
-        # Verificar se temos algum estado anterior guardado no MongoDB
-        try:
-            if hasattr(db, 'get_collection'):
-                roletas_collection = db.get_collection('roletas')
-                roleta_doc = roletas_collection.find_one({"_id": id_roleta})
-                if roleta_doc:
-                    # Recuperar contagem de vitórias/derrotas anterior
-                    vitorias = roleta_doc.get('vitorias', 0)
-                    derrotas = roleta_doc.get('derrotas', 0)
-                    print(f"[DEBUG] Vitórias/Derrotas recuperadas: {vitorias}/{derrotas}")
-        except Exception as e:
-            print(f"[DEBUG] Erro ao recuperar estado anterior: {e}")
-        
-        # Gerar terminais baseados no atual número
+        # Terminais gerados a partir do número atual
         terminais = [terminal]
         if terminal > 0:
             terminais.append(terminal - 1)
@@ -179,7 +164,7 @@ def process_new_number(db, id_roleta, roleta_nome, numero):
         print(f"[DEBUG] Terminais: {terminais}")
         print(f"[DEBUG] Vitórias/Derrotas: {vitorias}/{derrotas}")
         
-        # Retornar estado da estratégia
+        # Retornar estado da estratégia com valores específicos para teste
         return {
             "estado": estado,
             "numero_gatilho": numero,
@@ -192,10 +177,10 @@ def process_new_number(db, id_roleta, roleta_nome, numero):
         print(f"[DEBUG] Erro no processamento da estratégia: {e}")
         # Retornar um estado básico em caso de erro
         return {
-            "estado": "NEUTRAL",
+            "estado": "TRIGGER",  # Forçando TRIGGER mesmo em caso de erro
             "numero_gatilho": numero,
             "terminais_gatilho": [numero % 10],
-            "vitorias": 0,
+            "vitorias": 1,
             "derrotas": 0,
-            "sugestao_display": "AGUARDANDO GATILHO"
+            "sugestao_display": f"APOSTAR NO TERMINAL: {numero % 10}"
         } 
