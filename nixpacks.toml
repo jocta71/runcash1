@@ -4,7 +4,8 @@ aptPkgs = ["nodejs", "npm", "python3", "python3-pip", "python3-venv", "chromium-
 [phases.install]
 cmds = [
   "npm install --prefix backend",
-  "pip3 install -r requirements.txt"
+  "pip3 install -r requirements.txt",
+  "ln -sf /usr/bin/python3 /usr/bin/python"  # Create a symlink from python3 to python
 ]
 
 [phases.build]
@@ -16,4 +17,4 @@ cmds = [
 cmd = "sh start.sh"
 
 [phases.build.cache]
-directories = ["node_modules", "backend/node_modules", "venv"] 
+directories = ["node_modules", "backend/node_modules", "venv"]
