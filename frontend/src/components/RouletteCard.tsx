@@ -176,8 +176,11 @@ const RouletteCard = memo(({
     if (trend && trend.length > 0) {
       return trend;
     }
-    return generateTrendFromWinRate(strategyWins || wins, strategyLosses || losses);
-  }, [wins, losses, strategyWins, strategyLosses, trend]);
+    // Priorizar os dados do strategy (API) sobre as props
+    const currentWins = strategy?.vitorias ?? strategyWins ?? wins ?? 0;
+    const currentLosses = strategy?.derrotas ?? strategyLosses ?? losses ?? 0;
+    return generateTrendFromWinRate(currentWins, currentLosses);
+  }, [wins, losses, strategyWins, strategyLosses, strategy, trend]);
 
   // Callback memoizado para atualizar a estratégia
   const updateStrategy = useCallback((event: StrategyUpdateEvent) => {
@@ -198,11 +201,11 @@ const RouletteCard = memo(({
   useEffect(() => {
     if (strategy && !strategyLoading) {
       debugLog(`[RouletteCard] Inicializando estado da estratégia de ${roletaNome} com dados carregados:`, strategy);
-      setStrategyState(strategy.estado);
-      setStrategyDisplay(strategy.sugestao_display || "");
+      setStrategyState(strategy.estado || '');
+      setStrategyDisplay(strategy.sugestao_display || '');
       setStrategyTerminals(strategy.terminais_gatilho || []);
-      setStrategyWins(strategy.vitorias);
-      setStrategyLosses(strategy.derrotas);
+      setStrategyWins(strategy.vitorias || 0);
+      setStrategyLosses(strategy.derrotas || 0);
     }
   }, [strategy, strategyLoading, roletaNome]);
 
@@ -373,8 +376,8 @@ const RouletteCard = memo(({
       {/* Taxa de vitória */}
       <div className="mt-1 mb-2">
         <div className="flex justify-between text-xs text-gray-400">
-          <span>Vitórias: {strategyWins || wins}</span>
-          <span>Derrotas: {strategyLosses || losses}</span>
+          <span>Vitórias: {strategy?.vitorias ?? strategyWins ?? wins ?? 0}</span>
+          <span>Derrotas: {strategy?.derrotas ?? strategyLosses ?? losses ?? 0}</span>
         </div>
       </div>
       
@@ -407,8 +410,8 @@ const RouletteCard = memo(({
         onClose={setStatsOpen} 
         roletaNome={roletaNome}
         lastNumbers={mappedNumbers}
-        wins={strategyWins || wins}
-        losses={strategyLosses || losses}
+        wins={strategy?.vitorias ?? strategyWins ?? wins ?? 0}
+        losses={strategy?.derrotas ?? strategyLosses ?? losses ?? 0}
       />
     </div>
   );
