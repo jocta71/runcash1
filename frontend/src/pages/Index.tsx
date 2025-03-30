@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Wallet, Menu, MessageSquare, AlertCircle } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import RouletteCard from '@/components/RouletteCard';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import AnimatedInsights from '@/components/AnimatedInsights';
 import ProfileDropdown from '@/components/ProfileDropdown';
 import Layout from '@/components/Layout';
+import { fetchAllRoulettes, RouletteData } from '@/integrations/api/rouletteService';
 
 interface ChatMessage {
   id: string;
@@ -220,16 +221,43 @@ const Index = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
+  const [error, setError] = useState<string | null>(null);
   
-  const filteredRoulettes = mockRoulettes.filter(roulette => roulette.name.toLowerCase().includes(search.toLowerCase()));
+  // Buscar dados da API ao carregar a página
+  useEffect(() => {
+    const loadRoulettes = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchAllRoulettes();
+        console.log('Dados da API:', data);
+        setRoulettes(data);
+        setError(null);
+      } catch (err) {
+        console.error('Erro ao buscar dados da API:', err);
+        setError('Não foi possível carregar os dados das roletas. Por favor, tente novamente.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadRoulettes();
+  }, []);
+  
+  const filteredRoulettes = useMemo(() => {
+    return roulettes.filter(roulette => 
+      roulette.nome.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [roulettes, search]);
+  
   const topRoulettes = useMemo(() => {
-    return [...mockRoulettes].sort((a, b) => {
-      const aWinRate = a.wins / (a.wins + a.losses) * 100;
-      const bWinRate = b.wins / (b.wins + b.losses) * 100;
+    return [...roulettes].sort((a, b) => {
+      const aWinRate = a.vitorias / (a.vitorias + a.derrotas) * 100 || 0;
+      const bWinRate = b.vitorias / (b.vitorias + b.derrotas) * 100 || 0;
       return bWinRate - aWinRate;
     }).slice(0, 3);
-  }, []);
+  }, [roulettes]);
 
   return (
     <Layout>
@@ -248,56 +276,56 @@ const Index = () => {
               <input
                 type="text"
                 placeholder="Buscar roleta..."
-                className="bg-gray-800 text-white rounded-lg pl-10 pr-4 py-2 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="bg-[#1a1a1a] border border-gray-700 rounded-lg px-4 py-2 pl-10 w-full md:w-64 text-white"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
             </div>
           </div>
         </div>
-
-        {/* Grade de roletas com espaçamento adequado */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-5">
-          {isLoading ? (
-            // Esqueletos de carregamento
-            Array.from({ length: 8 }).map((_, index) => (
-              <div key={index} className="bg-gray-800 rounded-lg p-4 h-64 animate-pulse">
-                <div className="h-6 bg-gray-700 rounded w-3/4 mb-4"></div>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <div key={i} className="w-6 h-6 bg-gray-700 rounded-full"></div>
-                  ))}
-                </div>
-                <div className="h-4 bg-gray-700 rounded w-full mb-2"></div>
-                <div className="h-4 bg-gray-700 rounded w-full mb-4"></div>
-                <div className="mt-auto flex justify-between">
-                  <div className="h-8 bg-gray-700 rounded w-1/3"></div>
-                  <div className="h-8 bg-gray-700 rounded w-1/3"></div>
-                </div>
-              </div>
-            ))
-          ) : filteredRoulettes.length > 0 ? (
-            filteredRoulettes.map((roleta) => (
+        
+        {/* Mensagem de erro */}
+        {error && (
+          <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center">
+            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+            <p className="text-red-100">{error}</p>
+          </div>
+        )}
+        
+        {/* Estado de carregamento */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-[#1e1e24] animate-pulse rounded-xl h-64"></div>
+            ))}
+          </div>
+        ) : filteredRoulettes.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-400 text-lg mb-4">
+              {search ? `Nenhuma roleta encontrada com "${search}"` : "Nenhuma roleta disponível no momento"}
+            </p>
+            {search && (
+              <Button variant="outline" onClick={() => setSearch("")}>
+                Limpar busca
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredRoulettes.map((roulette) => (
               <RouletteCard
-                key={roleta.roletaId}
-                roletaId={roleta.roletaId}
-                roletaNome={roleta.name}
-                lastNumbers={roleta.lastNumbers}
-                estrategia={roleta.trend.map(t => t.value)}
-                trend={roleta.trend}
+                key={roulette.id}
+                roletaId={roulette.id}
+                name={roulette.nome}
+                roleta_nome={roulette.roleta_nome}
+                wins={roulette.vitorias}
+                losses={roulette.derrotas}
+                lastNumbers={roulette.numeros}
               />
-            ))
-          ) : (
-            <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
-              <AlertCircle size={48} className="text-gray-500 mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">Nenhuma roleta encontrada</h3>
-              <p className="text-gray-400 max-w-md">
-                Não encontramos roletas correspondentes à sua busca. Tente com outros termos ou verifique sua conexão.
-              </p>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </Layout>
   );
