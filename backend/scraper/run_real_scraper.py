@@ -23,15 +23,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Imports locais
+# Imports locais - reorganizados para evitar importação circular
 try:
     from data_source_mongo import MongoDataSource
-    from scraper_mongodb import scrape_roletas
     from strategy_analyzer import StrategyAnalyzer
     from strategy_helper import atualizar_estrategia
-    logger.info("✅ Módulos importados com sucesso")
+    # Import scraper_mongodb later to avoid circular imports
+    logger.info("✅ Módulos básicos importados com sucesso")
 except Exception as e:
-    logger.error(f"❌ Erro ao importar módulos: {str(e)}")
+    logger.error(f"❌ Erro ao importar módulos básicos: {str(e)}")
     traceback.print_exc()
     sys.exit(1)
 
@@ -84,12 +84,12 @@ def get_analyzer(roleta_id, roleta_nome):
     
     # Caso contrário, criar uma nova instância
     try:
-        print(f"\n[Estratégia] 🎲 Criando novo analisador para roleta: {roleta_nome}")
+        logger.info(f"\n[Estratégia] 🎲 Criando novo analisador para roleta: {roleta_nome}")
         analyzer = StrategyAnalyzer(table_name=roleta_nome)
         _strategy_analyzers[key] = analyzer
         return analyzer
     except Exception as e:
-        print(f"[Estratégia] ❌ Erro ao criar analisador: {str(e)}")
+        logger.error(f"[Estratégia] ❌ Erro ao criar analisador: {str(e)}")
         return None
 
 def generate_display_suggestion(estado, terminais):
@@ -111,18 +111,18 @@ def process_new_number(db, roleta_id, roleta_nome, numero):
     """
     Processa um novo número com o analisador de estratégia e atualiza no MongoDB
     """
-    print(f"\n{'='*50}")
-    print(f"🎲 NOVO NÚMERO DETECTADO")
-    print(f"📍 Roleta: {roleta_nome}")
-    print(f"🔢 Número: {numero}")
-    print(f"{'='*50}")
+    logger.info(f"\n{'='*50}")
+    logger.info(f"🎲 NOVO NÚMERO DETECTADO")
+    logger.info(f"📍 Roleta: {roleta_nome}")
+    logger.info(f"🔢 Número: {numero}")
+    logger.info(f"{'='*50}")
     
     try:
         # Obter o analisador para esta roleta
         analyzer = get_analyzer(roleta_id, roleta_nome)
         
         if not analyzer:
-            print(f"❌ Não foi possível obter analisador para roleta {roleta_nome}")
+            logger.error(f"❌ Não foi possível obter analisador para roleta {roleta_nome}")
             return None
         
         # Adicionar o novo número
@@ -133,7 +133,7 @@ def process_new_number(db, roleta_id, roleta_nome, numero):
         estrategia = data.get("estrategia", {})
         
         # Atualizar no MongoDB
-        print(f"\n[MongoDB] 💾 Atualizando estratégia para roleta {roleta_nome}")
+        logger.info(f"\n[MongoDB] 💾 Atualizando estratégia para roleta {roleta_nome}")
         
         atualizar_estrategia(
             roleta_id=roleta_id,
@@ -172,19 +172,18 @@ def process_new_number(db, roleta_id, roleta_nome, numero):
         notify_websocket("strategy_update", strategy_data)
         
         # Mostrar resumo da estratégia
-        print(f"\n[Estratégia] 📊 Status Atual:")
-        print(f"Estado: {estrategia.get('estado', 'NEUTRAL')}")
-        print(f"Vitórias: {estrategia.get('vitorias', 0)}")
-        print(f"Derrotas: {estrategia.get('derrotas', 0)}")
+        logger.info(f"\n[Estratégia] 📊 Status Atual:")
+        logger.info(f"Estado: {estrategia.get('estado', 'NEUTRAL')}")
+        logger.info(f"Vitórias: {estrategia.get('vitorias', 0)}")
+        logger.info(f"Derrotas: {estrategia.get('derrotas', 0)}")
         if estrategia.get('terminais_gatilho'):
-            print(f"Terminais: {estrategia.get('terminais_gatilho', [])}")
-        print(f"{'='*50}\n")
+            logger.info(f"Terminais: {estrategia.get('terminais_gatilho', [])}")
+        logger.info(f"{'='*50}\n")
         
         return estrategia
     
     except Exception as e:
-        print(f"❌ Erro ao processar número {numero} para roleta {roleta_nome}: {str(e)}")
-        import traceback
+        logger.error(f"❌ Erro ao processar número {numero} para roleta {roleta_nome}: {str(e)}")
         traceback.print_exc()
         return None
 
@@ -199,6 +198,15 @@ def main():
         logger.info("Conectando ao MongoDB...")
         db = MongoDataSource()
         logger.info("✅ Conexão ao MongoDB estabelecida com sucesso")
+        
+        # Importar scraper_mongodb aqui para evitar importação circular
+        try:
+            from scraper_mongodb import scrape_roletas
+            logger.info("✅ Módulo scraper_mongodb importado com sucesso")
+        except Exception as e:
+            logger.error(f"❌ Erro ao importar scraper_mongodb: {str(e)}")
+            traceback.print_exc()
+            return 1
         
         # Hook para processar números da roleta
         def numero_hook(roleta_id, roleta_nome, numero):
