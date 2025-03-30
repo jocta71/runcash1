@@ -529,7 +529,7 @@ const RouletteCardRealtime = ({
       toggleVisibility={toggleVisibility}
       numberGroups={numberGroups}
       strategyState={strategyState}
-      strategyDisplay={strategyTerminals && strategyTerminals.length > 0 ? strategyDisplay : "AGUARDANDO GATILHO"}
+      strategyDisplay={strategyDisplay || (strategyTerminals && strategyTerminals.length > 0 ? `APOSTAR NOS TERMINAIS: ${strategyTerminals.join(',')}` : "AGUARDANDO GATILHO")}
       strategyTerminals={strategyTerminals}
     />
   ), [suggestion, selectedGroup, isBlurred, strategyState, strategyDisplay, strategyTerminals]);
@@ -548,6 +548,18 @@ const RouletteCardRealtime = ({
       onPlayClick={handlePlayClick}
     />
   ), []);
+
+  // Adicionar efeito para garantir que os dados da estratégia estejam sempre atualizados
+  useEffect(() => {
+    if (strategyState === 'TRIGGER' && strategyTerminals && strategyTerminals.length > 0) {
+      // Se temos um gatilho com terminais, atualizar a sugestão local
+      setSuggestion(strategyTerminals);
+      
+      // Também registrar para depuração
+      debugLog(`[RouletteCardRealtime] Terminais atualizados para ${roletaNome}: ${strategyTerminals.join(',')}`);
+      debugLog(`[RouletteCardRealtime] Vitórias/Derrotas: ${strategyWins}/${strategyLosses}`);
+    }
+  }, [strategyState, strategyTerminals, roletaNome, strategyWins, strategyLosses]);
 
   return (
     <div 

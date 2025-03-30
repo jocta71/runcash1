@@ -1,5 +1,5 @@
 import React from 'react';
-import { WandSparkles, Eye, EyeOff, Target, AlertTriangle, Info } from 'lucide-react';
+import { WandSparkles, Eye, EyeOff, Target, AlertTriangle, Info, TrendingUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import RouletteNumber from './RouletteNumber';
 
@@ -30,10 +30,10 @@ const SuggestionDisplay = ({
     return numberGroups[groupKey].color;
   };
 
-  // Ajustar a verificação useStrategyData para sempre usar os dados de estratégia quando estratégia estiver disponível
+  // Sempre usar dados de estratégia quando disponíveis
   const useStrategyData = strategyState !== undefined && strategyState !== null && strategyState !== "";
   
-  // Determinar a sugestão a ser exibida
+  // Determinar a sugestão a ser exibida - priorizar terminais da estratégia
   const displaySuggestion = (useStrategyData && strategyTerminals && strategyTerminals.length > 0) 
     ? strategyTerminals 
     : suggestion;
@@ -61,6 +61,13 @@ const SuggestionDisplay = ({
   // Estado específico para TRIGGER ou POST_GALE_NEUTRAL
   const isActiveState = strategyState === 'TRIGGER' || strategyState === 'POST_GALE_NEUTRAL';
   
+  // Garantir que sugestão de display seja sempre visível
+  const safeStrategyDisplay = strategyDisplay || (
+    strategyTerminals && strategyTerminals.length > 0 
+      ? `APOSTAR NOS TERMINAIS: ${strategyTerminals.join(',')}` 
+      : "AGUARDANDO GATILHO"
+  );
+  
   return (
     <div className="space-y-0.5">
       {/* Exibir o estado da estratégia de forma mais proeminente */}
@@ -76,12 +83,14 @@ const SuggestionDisplay = ({
               <Target size={12} />
               <span>Estado: {strategyState || "DESCONHECIDO"}</span>
             </div>
-            {strategyDisplay && (
-              <div className={`text-[10px] ${displayColor}/90 font-medium`}>
-                {strategyDisplay}
-              </div>
-            )}
           </div>
+          
+          {/* Mostrar a sugestão de display de forma destacada */}
+          {safeStrategyDisplay && (
+            <div className={`text-[11px] ${displayColor} font-bold mt-1.5 px-1 py-0.5 rounded bg-black/30`}>
+              {safeStrategyDisplay}
+            </div>
+          )}
         </div>
       )}
       
@@ -114,7 +123,7 @@ const SuggestionDisplay = ({
       </div>
       
       {/* Exibir terminais mais claramente para estados TRIGGER ou POST_GALE_NEUTRAL */}
-      {useStrategyData && isActiveState && (
+      {useStrategyData && isActiveState && strategyTerminals && strategyTerminals.length > 0 && (
         <div className="mb-2 mt-2">
           <div className={`text-[11px] ${displayColor} font-medium flex items-center gap-1.5 bg-black/40 p-1.5 rounded-sm`}>
             <AlertTriangle size={11} />
@@ -151,7 +160,7 @@ const SuggestionDisplay = ({
                            strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/10' :
                            'bg-blue-500/10') 
                         : getSuggestionColor(num)
-                    } ${isBlurred ? 'blur-sm' : 'animate-pulse'}`}
+                    } ${isBlurred ? 'blur-sm' : (strategyState === 'TRIGGER' ? 'animate-pulse' : '')}`}
                   />
                 </div>
               </TooltipTrigger>

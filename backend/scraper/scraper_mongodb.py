@@ -369,8 +369,24 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
                 max_attempts = 3
                 for attempt in range(max_attempts):
                     try:
-                        event_manager.notify_clients(strategy_event, silent=True)
+                        # Importante: silent=False para garantir que os logs apareçam e o evento seja processado corretamente
+                        event_manager.notify_clients(strategy_event, silent=False)
                         print(f"[DEBUG] Evento de estratégia enviado com sucesso (tentativa {attempt+1})")
+                        
+                        # Salvar também no MongoDB para persistência
+                        try:
+                            atualizar_estrategia(
+                                id_roleta,
+                                roleta_nome,
+                                status["estado"],
+                                status["numero_gatilho"],
+                                status["terminais_gatilho"],
+                                status["vitorias"],
+                                status["derrotas"]
+                            )
+                        except Exception as update_error:
+                            print(f"[DEBUG] Erro ao atualizar estratégia no MongoDB: {str(update_error)}")
+                        
                         break
                     except Exception as notify_error:
                         print(f"[DEBUG] Erro ao notificar clientes (tentativa {attempt+1}): {str(notify_error)}")
