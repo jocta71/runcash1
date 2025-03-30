@@ -1,190 +1,233 @@
-/**
- * Tipos mock para substituir os tipos gerados pelo Supabase
- * Esta implementação não depende da API do Supabase
- */
-
 export type Json =
   | string
   | number
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[];
+  | Json[]
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
-      roletas: {
+      roleta_estatisticas_diarias: {
         Row: {
-          id: string;
-          created_at: string;
-          nome: string;
-          provider: string;
-          status: string;
-          ultima_atualizacao: string | null;
-        };
+          data: string
+          frequencia_maxima: number | null
+          id: number
+          numero_mais_frequente: number | null
+          numeros_impares: number | null
+          numeros_pares: number | null
+          numeros_pretos: number | null
+          numeros_vermelhos: number | null
+          roleta_id: string | null
+          total_numeros: number | null
+          zeros: number | null
+        }
         Insert: {
-          id?: string;
-          created_at?: string;
-          nome: string;
-          provider: string;
-          status?: string;
-          ultima_atualizacao?: string | null;
-        };
+          data: string
+          frequencia_maxima?: number | null
+          id?: number
+          numero_mais_frequente?: number | null
+          numeros_impares?: number | null
+          numeros_pares?: number | null
+          numeros_pretos?: number | null
+          numeros_vermelhos?: number | null
+          roleta_id?: string | null
+          total_numeros?: number | null
+          zeros?: number | null
+        }
         Update: {
-          id?: string;
-          created_at?: string;
-          nome?: string;
-          provider?: string;
-          status?: string;
-          ultima_atualizacao?: string | null;
-        };
-      };
+          data?: string
+          frequencia_maxima?: number | null
+          id?: number
+          numero_mais_frequente?: number | null
+          numeros_impares?: number | null
+          numeros_pares?: number | null
+          numeros_pretos?: number | null
+          numeros_vermelhos?: number | null
+          roleta_id?: string | null
+          total_numeros?: number | null
+          zeros?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roleta_estatisticas_diarias_roleta_id_fkey"
+            columns: ["roleta_id"]
+            isOneToOne: false
+            referencedRelation: "roletas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       roleta_numeros: {
         Row: {
-          id: string;
-          created_at: string;
-          roleta_id: string;
-          roleta_nome: string;
-          numero: number;
-          cor: 'vermelho' | 'preto' | 'verde';
-          timestamp: string;
-        };
+          cor: string | null
+          dezena: string | null
+          id: number
+          metade: string | null
+          numero: number
+          paridade: string | null
+          roleta_id: string | null
+          roleta_nome: string
+          timestamp: string | null
+        }
         Insert: {
-          id?: string;
-          created_at?: string;
-          roleta_id: string;
-          roleta_nome: string;
-          numero: number;
-          cor: 'vermelho' | 'preto' | 'verde';
-          timestamp?: string;
-        };
+          cor?: string | null
+          dezena?: string | null
+          id?: number
+          metade?: string | null
+          numero: number
+          paridade?: string | null
+          roleta_id?: string | null
+          roleta_nome: string
+          timestamp?: string | null
+        }
         Update: {
-          id?: string;
-          created_at?: string;
-          roleta_id?: string;
-          roleta_nome?: string;
-          numero?: number;
-          cor?: 'vermelho' | 'preto' | 'verde';
-          timestamp?: string;
-        };
-      };
-      planos: {
+          cor?: string | null
+          dezena?: string | null
+          id?: number
+          metade?: string | null
+          numero?: number
+          paridade?: string | null
+          roleta_id?: string | null
+          roleta_nome?: string
+          timestamp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roleta_numeros_roleta_id_fkey"
+            columns: ["roleta_id"]
+            isOneToOne: false
+            referencedRelation: "roletas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roleta_sequencias: {
         Row: {
-          id: string;
-          created_at: string;
-          nome: string;
-          descricao: string;
-          preco: number;
-          intervalo: string;
-          features: string[] | null;
-          stripe_price_id: string | null;
-          is_custom: boolean;
-        };
+          comprimento: number
+          fim_timestamp: string
+          id: number
+          inicio_timestamp: string
+          roleta_id: string | null
+          tipo: string
+          valor: string
+        }
         Insert: {
-          id?: string;
-          created_at?: string;
-          nome: string;
-          descricao: string;
-          preco: number;
-          intervalo: string;
-          features?: string[] | null;
-          stripe_price_id?: string | null;
-          is_custom?: boolean;
-        };
+          comprimento: number
+          fim_timestamp: string
+          id?: number
+          inicio_timestamp: string
+          roleta_id?: string | null
+          tipo: string
+          valor: string
+        }
         Update: {
-          id?: string;
-          created_at?: string;
-          nome?: string;
-          descricao?: string;
-          preco?: number;
-          intervalo?: string;
-          features?: string[] | null;
-          stripe_price_id?: string | null;
-          is_custom?: boolean;
-        };
-      };
-      perfis: {
+          comprimento?: number
+          fim_timestamp?: string
+          id?: number
+          inicio_timestamp?: string
+          roleta_id?: string | null
+          tipo?: string
+          valor?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roleta_sequencias_roleta_id_fkey"
+            columns: ["roleta_id"]
+            isOneToOne: false
+            referencedRelation: "roletas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roletas: {
         Row: {
-          id: string;
-          created_at: string;
-          user_id: string;
-          nome: string | null;
-          avatar_url: string | null;
-          email: string | null;
-        };
+          ativa: boolean | null
+          atualizado_em: string | null
+          criado_em: string | null
+          id: string
+          nome: string
+          provedor: string
+          tipo: string
+        }
         Insert: {
-          id?: string;
-          created_at?: string;
-          user_id: string;
-          nome?: string | null;
-          avatar_url?: string | null;
-          email?: string | null;
-        };
+          ativa?: boolean | null
+          atualizado_em?: string | null
+          criado_em?: string | null
+          id?: string
+          nome: string
+          provedor: string
+          tipo: string
+        }
         Update: {
-          id?: string;
-          created_at?: string;
-          user_id?: string;
-          nome?: string | null;
-          avatar_url?: string | null;
-          email?: string | null;
-        };
-      };
-      assinaturas: {
-        Row: {
-          id: string;
-          created_at: string;
-          user_id: string;
-          plano_id: string;
-          status: string;
-          inicio: string;
-          fim: string | null;
-          metodo_pagamento: string | null;
-          provedor_pagamento: string | null;
-          payment_id: string | null;
-          proxima_cobranca: string | null;
-        };
-        Insert: {
-          id?: string;
-          created_at?: string;
-          user_id: string;
-          plano_id: string;
-          status?: string;
-          inicio?: string;
-          fim?: string | null;
-          metodo_pagamento?: string | null;
-          provedor_pagamento?: string | null;
-          payment_id?: string | null;
-          proxima_cobranca?: string | null;
-        };
-        Update: {
-          id?: string;
-          created_at?: string;
-          user_id?: string;
-          plano_id?: string;
-          status?: string;
-          inicio?: string;
-          fim?: string | null;
-          metodo_pagamento?: string | null;
-          provedor_pagamento?: string | null;
-          payment_id?: string | null;
-          proxima_cobranca?: string | null;
-        };
-      };
-    };
+          ativa?: boolean | null
+          atualizado_em?: string | null
+          criado_em?: string | null
+          id?: string
+          nome?: string
+          provedor?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
+    }
     Views: {
-      [_ in never]: never;
-    };
+      [_ in never]: never
+    }
     Functions: {
-      [_ in never]: never;
-    };
+      get_color_distribution: {
+        Args: {
+          roleta_nome_param: string
+          limit_param: number
+        }
+        Returns: {
+          cor: string
+          total: number
+          porcentagem: number
+        }[]
+      }
+      get_current_streak: {
+        Args: {
+          roleta_nome_param: string
+        }
+        Returns: {
+          type: string
+          value: string
+          count: number
+        }[]
+      }
+      get_missing_dozens: {
+        Args: {
+          roleta_nome_param: string
+          limit_param: number
+        }
+        Returns: {
+          dezena: string
+          ultima_aparicao: number
+          ausencia: number
+        }[]
+      }
+      get_number_frequency: {
+        Args: {
+          roleta_nome_param: string
+          limit_param: number
+        }
+        Returns: {
+          numero: number
+          total: number
+          porcentagem: number
+          cor: string
+        }[]
+      }
+    }
     Enums: {
-      [_ in never]: never;
-    };
+      [_ in never]: never
+    }
     CompositeTypes: {
-      [_ in never]: never;
-    };
-  };
+      [_ in never]: never
+    }
+  }
 }
 
 type PublicSchema = Database[Extract<keyof Database, "public">]

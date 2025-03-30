@@ -6,6 +6,7 @@ import {
   RouletteEventCallback,
   StrategyUpdateEvent
 } from './EventService';
+import { v4 as uuidv4 } from 'uuid';
 
 // Nova interface para eventos recebidos pelo socket
 interface SocketEvent {
@@ -15,6 +16,15 @@ interface SocketEvent {
   [key: string]: any;
 }
 
+// Define event types
+type EventCallback = (data: any) => void;
+
+interface SocketEventHandler {
+  id: string;
+  event: string;
+  callback: EventCallback;
+}
+
 /**
  * Serviço que gerencia a conexão WebSocket via Socket.IO
  * para receber dados em tempo real do MongoDB
@@ -22,6 +32,14 @@ interface SocketEvent {
 class SocketService {
   private static instance: SocketService;
   private socket: Socket | null = null;
+  private socketUrl: string;
+  private eventHandlers: SocketEventHandler[] = [];
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 5;
+  private reconnectDelay: number = 2000; // Ms entre tentativas
+  private isConnecting: boolean = false;
+  private isManuallyDisconnected: boolean = false;
+  private connectionCheckTimer: number | null = null;
   private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
   private isConnected: boolean = false;
   private connectionAttempts: number = 0;
@@ -39,7 +57,17 @@ class SocketService {
       }
     });
     
+    // Determinar URL do Socket.IO baseado no ambiente
+    this.socketUrl = import.meta.env.VITE_SOCKET_URL || 
+                     window.location.protocol + '//' + window.location.hostname + ':3002';
+    
+    console.log('[SocketService] Initialized with URL:', this.socketUrl);
     this.connect();
+    
+    // Verificar conexão periodicamente
+    this.connectionCheckTimer = window.setInterval(() => {
+      this.checkConnection();
+    }, 30000); // Verificar a cada 30 segundos
   }
   
   public static getInstance(): SocketService {
@@ -55,171 +83,246 @@ class SocketService {
   }
   
   private connect(): void {
-    if (this.socket) {
-      console.log('[SocketService] Fechando conexão existente antes de reconectar');
-      this.socket.close();
-      this.socket = null;
+    if (this.socket && this.socket.connected) {
+      console.log('[SocketService] Already connected.');
+      return;
     }
     
+    if (this.isConnecting) {
+      console.log('[SocketService] Connection attempt already in progress.');
+      return;
+    }
+    
+    this.isConnecting = true;
+    
     try {
-      const socketUrl = this.getSocketUrl();
-      console.log(`[SocketService] Tentando conexão Socket.IO: ${socketUrl}`);
-      
-      // Conectar ao servidor Socket.IO
-      this.socket = io(socketUrl, {
-        reconnectionAttempts: 10,
-        reconnectionDelay: 3000,
-        timeout: 15000,
-        autoConnect: true,
-        transports: ['websocket', 'polling'], // Tentar WebSocket primeiro, depois polling
-        forceNew: true,
-        extraHeaders: {
-          'ngrok-skip-browser-warning': 'true',  // Adicionar para ignorar a proteção do ngrok
-          'bypass-tunnel-reminder': 'true',      // Contornar página de lembrete do localtunnel
-          'User-Agent': 'Mozilla/5.0 RunCash Custom Client' // User-Agent personalizado
-        },
-        auth: {
-          token: 'anonymous' // Permitir conexão anônima sem autenticação
-        }
+      // Criar nova conexão socket
+      this.socket = io(this.socketUrl, {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: this.maxReconnectAttempts,
+        reconnectionDelay: this.reconnectDelay,
+        timeout: 10000,
       });
       
-      // Evento de conexão estabelecida
-      this.socket.on('connect', () => {
-        console.log(`[SocketService] Conexão Socket.IO estabelecida! ID: ${this.socket?.id}`);
-        this.isConnected = true;
-        this.connectionAttempts = 0;
-        
-        toast({
-          title: "Conexão em tempo real estabelecida",
-          description: "Recebendo atualizações instantâneas das roletas via WebSocket",
-          variant: "default"
-        });
-      });
+      // Configurar event listeners para a conexão
+      this.socket.on('connect', this.handleConnect.bind(this));
+      this.socket.on('disconnect', this.handleDisconnect.bind(this));
+      this.socket.on('connect_error', this.handleError.bind(this));
+      this.socket.on('reconnect_attempt', this.handleReconnectAttempt.bind(this));
+      this.socket.on('reconnect_failed', this.handleReconnectFailed.bind(this));
       
-      // Evento de desconexão
-      this.socket.on('disconnect', (reason) => {
-        console.log(`[SocketService] Desconectado do Socket.IO: ${reason}`);
-        this.isConnected = false;
-        
-        // Mostrar toast apenas se for desconexão inesperada
-        if (reason !== 'io client disconnect') {
-          toast({
-            title: "Conexão em tempo real perdida",
-            description: "Tentando reconectar...",
-            variant: "destructive"
-          });
-        }
-      });
-      
-      // Evento de erro
-      this.socket.on('error', (error) => {
-        console.error('[SocketService] Erro na conexão Socket.IO:', error);
-      });
-      
-      // Evento de reconexão
-      this.socket.on('reconnect', (attempt) => {
-        console.log(`[SocketService] Reconectado após ${attempt} tentativas`);
-        this.isConnected = true;
-        
-        toast({
-          title: "Conexão restabelecida",
-          description: "Voltando a receber atualizações em tempo real",
-          variant: "default"
-        });
-      });
-      
-      // Evento de falha na reconexão
-      this.socket.on('reconnect_failed', () => {
-        console.error('[SocketService] Falha nas tentativas de reconexão');
-        
-        toast({
-          title: "Não foi possível reconectar",
-          description: "Por favor, recarregue a página para tentar novamente",
-          variant: "destructive"
-        });
-      });
-      
-      // Receber novo número
-      this.socket.on('new_number', (event: RouletteNumberEvent) => {
-        console.log(`[SocketService] Novo número recebido: ${event.roleta_nome} - ${event.numero}`);
-        this.notifyListeners(event);
-      });
-      
-      // Receber histórico recente
-      this.socket.on('recent_history', (numbers: any[]) => {
-        console.log(`[SocketService] Histórico recente recebido: ${numbers.length} números`);
-        
-        // Processar histórico recente (opcional, depende da lógica de negócio)
-        if (numbers && numbers.length > 0) {
-          // Ordenar por timestamp, mais recente primeiro
-          numbers.sort((a, b) => {
-            return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-          });
-          
-          // Notificar sobre cada número (pode ser opcional dependendo da UI)
-          numbers.forEach(number => {
-            // Certificar que o número tem o campo 'type' para compatibilidade
-            const formattedNumber: RouletteNumberEvent = {
-              type: 'new_number',
-              roleta_id: number.roleta_id,
-              roleta_nome: number.roleta_nome,
-              numero: number.numero,
-              timestamp: number.timestamp
-            };
-            
-            this.notifyListeners(formattedNumber);
-          });
-        }
-      });
-      
-      // Evento para atualizações de estratégia
-      this.socket.on('strategy_update', (data: any) => {
-        console.log(`[SocketService] Atualização de estratégia recebida para ${data.roleta_nome}`);
-        
-        // Formatar o evento de estratégia
-        const strategyEvent: StrategyUpdateEvent = {
-          type: 'strategy_update',
-          roleta_id: data.roleta_id,
-          roleta_nome: data.roleta_nome,
-          estado: data.estado,
-          numero_gatilho: data.numero_gatilho || 0,
-          terminais_gatilho: data.terminais_gatilho || [],
-          vitorias: data.vitorias || 0,
-          derrotas: data.derrotas || 0,
-          sugestao_display: data.sugestao_display || '',
-          timestamp: data.timestamp || new Date().toISOString()
-        };
-        
-        this.notifyListeners(strategyEvent as any);
-      });
-      
+      console.log('[SocketService] Connection attempt started.');
     } catch (error) {
-      console.error('[SocketService] Erro ao criar conexão Socket.IO:', error);
-      
-      // Tentar reconectar após um atraso
-      this.scheduleReconnect();
+      console.error('[SocketService] Error creating socket connection:', error);
+      this.isConnecting = false;
     }
   }
   
-  private scheduleReconnect(): void {
-    // Limpar timeout existente
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
+  /**
+   * Manipulador de evento de conexão
+   */
+  private handleConnect(): void {
+    console.log('[SocketService] Connected successfully');
+    this.isConnecting = false;
+    this.reconnectAttempts = 0;
+    this.resubscribeToEvents();
+  }
+  
+  /**
+   * Manipulador de evento de desconexão
+   */
+  private handleDisconnect(reason: string): void {
+    console.log(`[SocketService] Disconnected: ${reason}`);
+    this.isConnecting = false;
+    
+    // Não tentar reconectar se a desconexão foi manual
+    if (this.isManuallyDisconnected) {
+      console.log('[SocketService] Not attempting reconnection due to manual disconnect');
+      return;
     }
     
-    // Incrementar tentativas
-    this.connectionAttempts++;
+    // Tentar reconectar se desconexão foi por outros motivos
+    this.reconnect();
+  }
+  
+  /**
+   * Manipulador de erro de conexão
+   */
+  private handleError(error: Error): void {
+    console.error(`[SocketService] Connection error: ${error.message}`);
+    this.isConnecting = false;
     
-    // Calcular tempo de espera com backoff exponencial
-    const delay = Math.min(1000 * Math.pow(1.5, this.connectionAttempts), 30000);
-    console.log(`[SocketService] Tentando reconectar em ${Math.round(delay/1000)}s (tentativa ${this.connectionAttempts})`);
+    // Não tentar reconectar se a desconexão foi manual
+    if (this.isManuallyDisconnected) {
+      return;
+    }
     
-    // Agendar reconexão
-    this.reconnectTimeout = window.setTimeout(() => {
-      console.log('[SocketService] Executando reconexão agendada');
+    this.reconnect();
+  }
+  
+  /**
+   * Manipulador de tentativa de reconexão
+   */
+  private handleReconnectAttempt(attemptNumber: number): void {
+    console.log(`[SocketService] Reconnection attempt ${attemptNumber}`);
+    this.reconnectAttempts = attemptNumber;
+  }
+  
+  /**
+   * Manipulador de falha na reconexão
+   */
+  private handleReconnectFailed(): void {
+    console.error('[SocketService] Failed to reconnect after maximum attempts');
+    this.isConnecting = false;
+  }
+  
+  /**
+   * Tenta reconectar ao servidor
+   */
+  private reconnect(): void {
+    if (this.isConnecting || this.isManuallyDisconnected) {
+      return;
+    }
+    
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('[SocketService] Maximum reconnection attempts reached');
+      return;
+    }
+    
+    this.reconnectAttempts++;
+    
+    console.log(`[SocketService] Attempting reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    
+    // Tentar reconectar após o delay
+    setTimeout(() => {
       this.connect();
-    }, delay);
+    }, this.reconnectDelay);
+  }
+  
+  /**
+   * Reinscrever em eventos após reconexão
+   */
+  private resubscribeToEvents(): void {
+    console.log(`[SocketService] Resubscribing to ${this.eventHandlers.length} events`);
+    
+    // Para cada handler, reinscrever no socket
+    this.eventHandlers.forEach(handler => {
+      if (this.socket) {
+        console.log(`[SocketService] Resubscribing to event ${handler.event}`);
+        this.socket.on(handler.event, handler.callback);
+      }
+    });
+  }
+  
+  /**
+   * Verifica estado da conexão
+   */
+  private checkConnection(): void {
+    const isConnected = this.isSocketConnected();
+    
+    if (!isConnected && !this.isManuallyDisconnected && !this.isConnecting) {
+      console.log('[SocketService] Connection check failed, attempting reconnect');
+      this.connect();
+    }
+  }
+  
+  /**
+   * Verifica se o socket está conectado
+   */
+  public isSocketConnected(): boolean {
+    return !!(this.socket && this.socket.connected);
+  }
+  
+  /**
+   * Inscreve em um evento específico
+   */
+  public on(event: string, callback: EventCallback): string {
+    console.log(`[SocketService] Subscribing to event: ${event}`);
+    
+    // Gerar ID para o handler
+    const handlerId = uuidv4();
+    
+    // Registrar o handler
+    this.eventHandlers.push({
+      id: handlerId,
+      event,
+      callback
+    });
+    
+    // Inscrever no socket se estiver conectado
+    if (this.socket) {
+      this.socket.on(event, callback);
+    }
+    
+    return handlerId;
+  }
+  
+  /**
+   * Remove inscrição de um evento
+   */
+  public off(handlerId: string): void {
+    // Encontrar o handler pelo ID
+    const handler = this.eventHandlers.find(h => h.id === handlerId);
+    
+    if (handler) {
+      console.log(`[SocketService] Unsubscribing from event: ${handler.event}`);
+      
+      // Remover do socket se estiver conectado
+      if (this.socket) {
+        this.socket.off(handler.event, handler.callback);
+      }
+      
+      // Remover do array de handlers
+      this.eventHandlers = this.eventHandlers.filter(h => h.id !== handlerId);
+    }
+  }
+  
+  /**
+   * Emite um evento para o servidor
+   */
+  public emit(event: string, data: any): void {
+    if (this.socket && this.socket.connected) {
+      console.log(`[SocketService] Emitting event ${event}`);
+      this.socket.emit(event, data);
+    } else {
+      console.warn(`[SocketService] Cannot emit ${event}, socket not connected`);
+    }
+  }
+  
+  /**
+   * Desconecta o socket manualmente
+   */
+  public disconnect(): void {
+    console.log('[SocketService] Manual disconnect requested');
+    
+    this.isManuallyDisconnected = true;
+    
+    if (this.socket) {
+      this.socket.disconnect();
+    }
+    
+    if (this.connectionCheckTimer !== null) {
+      window.clearInterval(this.connectionCheckTimer);
+      this.connectionCheckTimer = null;
+    }
+  }
+  
+  /**
+   * Reconecta o socket após desconexão manual
+   */
+  public reconnectManually(): void {
+    console.log('[SocketService] Manual reconnect requested');
+    
+    this.isManuallyDisconnected = false;
+    this.connect();
+    
+    // Reiniciar timer de verificação se necessário
+    if (this.connectionCheckTimer === null) {
+      this.connectionCheckTimer = window.setInterval(() => {
+        this.checkConnection();
+      }, 30000);
+    }
   }
   
   // Adiciona um listener para eventos de uma roleta específica
@@ -314,23 +417,8 @@ class SocketService {
   }
   
   // Verifica se a conexão está ativa
-  public isSocketConnected(): boolean {
-    return this.isConnected && !!this.socket;
-  }
-  
-  // Alias para isSocketConnected para compatibilidade com o código existente
   public getConnectionStatus(): boolean {
     return this.isSocketConnected();
-  }
-  
-  // Método para emitir eventos para o servidor
-  public emit(eventName: string, data: any): void {
-    if (this.socket && this.isConnected) {
-      console.log(`[SocketService] Emitindo evento ${eventName}:`, data);
-      this.socket.emit(eventName, data);
-    } else {
-      console.warn(`[SocketService] Tentativa de emitir evento ${eventName} falhou: Socket não conectado`);
-    }
   }
   
   // Método para verificar se há dados reais disponíveis

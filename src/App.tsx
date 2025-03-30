@@ -1,81 +1,58 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import AuthPage from "./pages/AuthPage";
-import PaymentSuccess from "./pages/PaymentSuccess";
-import PaymentCanceled from "./pages/PaymentCanceled";
-import PlansPage from "./pages/PlansPage";
-import ProfilePage from "./pages/ProfilePage";
-import SeedPage from "./pages/SeedPage";
-import { SubscriptionProvider } from "./context/SubscriptionContext";
-import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
-import { useState } from "react";
+import { useState } from 'react';
+import RouletteCardRealtime from './components/RouletteCardRealtime';
 
-// Configuração melhorada do QueryClient para evitar recarregamentos desnecessários
-const createQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Aumentar o stale time para reduzir recarregamentos desnecessários
-      staleTime: 5 * 60 * 1000, // 5 minutos
-      // Manter dados no cache mesmo se não estiverem sendo usados (ex: quando você volta para a página)
-      gcTime: 10 * 60 * 1000, // 10 minutos (antes era cacheTime)
-      // Não refetch automaticamente quando a janela recupera o foco
-      refetchOnWindowFocus: false,
-      // Não refetch quando você volta para a página
-      refetchOnMount: false,
-      // Evita refetch ao reconectar
-      refetchOnReconnect: false,
-    },
-  },
-});
+// Mock data for roulettes
+const mockRoulettes = [
+  { id: 'roleta1', nome: 'Roleta Brasileira' },
+  { id: 'roleta2', nome: 'Roleta Europeia' },
+  { id: 'roleta3', nome: 'Roleta Americana' }
+];
 
-const App = () => {
-  // Criar uma única instância do QueryClient que seja mantida mesmo após re-renders
-  const [queryClient] = useState(createQueryClient);
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      <SubscriptionProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              {/* Rota de autenticação */}
-              <Route path="/auth" element={<AuthPage />} />
-              
-              {/* Página para popular números das roletas */}
-              <Route path="/seed-numbers" element={<SeedPage />} />
-              
-              {/* Rota principal (com dados reais do MongoDB) */}
-              <Route path="/" element={<Index />} />
-              
-              {/* Rotas relacionadas a planos e pagamentos */}
-              <Route path="/planos" element={<PlansPage />} />
-              <Route path="/payment-success" element={<PaymentSuccess />} />
-              <Route path="/payment-canceled" element={<PaymentCanceled />} />
-              
-              {/* Rota de perfil do usuário */}
-              <Route path="/profile" element={<ProfilePage />} />
-              
-              {/* Rota para página não encontrada */}
-              <Route path="*" element={<NotFound />} />
-
-              {/* Rota para página de análise */}
-              <Route path="/analise" element={<RouletteAnalysisPage />} />
-              
-              {/* Redirecionamento da antiga rota de tempo real para a página principal */}
-              <Route path="/realtime" element={<Navigate to="/" />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </SubscriptionProvider>
-    </QueryClientProvider>
+function App() {
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Filter roulettes based on search term
+  const filteredRoulettes = mockRoulettes.filter(roleta => 
+    roleta.nome.toLowerCase().includes(searchTerm.toLowerCase())
   );
-};
+  
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <header className="max-w-4xl mx-auto mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Roulette Tracker</h1>
+        <div className="flex">
+          <input
+            type="text"
+            placeholder="Buscar roletas..."
+            className="flex-1 p-2 border rounded-md"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+      </header>
+      
+      <main className="max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredRoulettes.length > 0 ? (
+            filteredRoulettes.map(roleta => (
+              <RouletteCardRealtime
+                key={roleta.id}
+                roletaId={roleta.id}
+                roletaNome={roleta.nome}
+                onNumberChange={(newNumber) => 
+                  console.log(`New number for ${roleta.nome}: ${newNumber}`)
+                }
+              />
+            ))
+          ) : (
+            <div className="col-span-full text-center p-8 bg-white rounded-lg shadow">
+              <p className="text-gray-500">Nenhuma roleta encontrada</p>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
 
 export default App;

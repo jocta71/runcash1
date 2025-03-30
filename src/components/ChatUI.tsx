@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import ChatHeader from './chat/ChatHeader';
 import ChatMessageList from './chat/ChatMessageList';
@@ -115,8 +116,8 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
 
   // Styles for mobile vs desktop
   const chatClasses = isMobile
-    ? "h-full w-full mobile-chat-inner animate-slide-left"
-    : "h-screen w-full flex flex-col bg-vegas-darkgray z-40 border-l border-[#33333359]";
+    ? "fixed inset-0 bg-vegas-darkgray z-50 flex flex-col"
+    : "fixed top-0 right-0 h-screen w-80 flex flex-col bg-vegas-darkgray z-50 border-l border-[#33333359] md:block hidden";
   
   // For mobile, if it's not open, don't render
   if (isMobile && !isOpen) return null;

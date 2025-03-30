@@ -2,6 +2,7 @@
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
 import SocketService from '@/services/SocketService';
+import { v4 as uuidv4 } from 'uuid';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -11,6 +12,49 @@ const debugLog = (...args: any[]) => {
   if (DEBUG_ENABLED) {
     console.log(...args);
   }
+};
+
+// Eventos que serão escutados
+type EventType = 
+  | 'numero.novo'            // Novo número adicionado (genérico, qualquer roleta)
+  | 'roleta.numero.novo'     // Novo número para uma roleta específica
+  | 'estrategia.atualizada'  // Atualização de estratégia (genérica)
+  | 'roleta.estrategia'      // Atualização de estratégia para uma roleta específica
+  | 'user.subscription'      // Eventos de assinatura do usuário
+  | string;                  // Outras strings para flexibilidade
+  
+export interface NumeroUpdateEvent {
+  evento?: string;
+  tipo?: string;
+  roleta_id: string;
+  roleta_nome: string;
+  numero: number;
+  timestamp: number;
+  cor?: string;
+}
+
+export interface StrategyUpdateEvent {
+  evento?: string;
+  tipo?: string;
+  roleta_id: string; 
+  roleta_nome: string;
+  estado: string;
+  estado_display: string; 
+  terminais_gatilho: number[];
+  vitorias: number;
+  derrotas: number;
+  timestamp: number;
+}
+
+interface EventCallback<T> {
+  (event: T): void;
+}
+
+type EventListener = {
+  id: string;
+  eventType: EventType;
+  roleta_id?: string;
+  callback: EventCallback<any>;
 };
 
 // Definição dos tipos de eventos
@@ -24,19 +68,6 @@ export interface RouletteNumberEvent {
   estado_estrategia?: string;
   sugestao_display?: string;
   terminais_gatilho?: number[];
-}
-
-export interface StrategyUpdateEvent {
-  type: 'strategy_update';
-  roleta_id: string;
-  roleta_nome: string;
-  estado: string;
-  numero_gatilho: number;
-  terminais_gatilho: number[];
-  vitorias: number;
-  derrotas: number;
-  sugestao_display?: string;
-  timestamp?: string;
 }
 
 export interface ConnectedEvent {
@@ -64,6 +95,7 @@ class EventService {
   private currentMethodIndex: number = 0;
   private usingSocketService: boolean = false;
   private socketServiceSubscriptions: Set<string> = new Set();
+  private eventListeners: EventListener[] = [];
 
   private constructor() {
     // Adicionar listener global para logging de todos os eventos
@@ -526,6 +558,135 @@ class EventService {
       });
       this.socketServiceSubscriptions.clear();
       this.usingSocketService = false;
+    }
+  }
+
+  /**
+   * Adiciona um listener para um tipo de evento específico
+   */
+  public subscribe<T>(
+    eventType: EventType, 
+    callback: EventCallback<T>,
+    roleta_id?: string
+  ): string {
+    const listenerId = uuidv4();
+    
+    this.eventListeners.push({
+      id: listenerId,
+      eventType,
+      roleta_id,
+      callback
+    });
+    
+    console.log(`[EventService] Subscribed to ${eventType}${roleta_id ? ` for roleta ${roleta_id}` : ''}`);
+    
+    return listenerId;
+  }
+  
+  /**
+   * Remove um listener específico pelo ID
+   */
+  public unsubscribe(listenerId: string): void {
+    const initialLength = this.eventListeners.length;
+    this.eventListeners = this.eventListeners.filter(
+      listener => listener.id !== listenerId
+    );
+    
+    if (initialLength !== this.eventListeners.length) {
+      console.log(`[EventService] Unsubscribed listener ${listenerId}`);
+    }
+  }
+  
+  /**
+   * Publica um evento para todos os listeners registrados
+   */
+  public publish<T>(eventType: EventType, event: T, roleta_id?: string): void {
+    // Filtrar listeners que correspondem ao tipo de evento
+    // Se for um evento específico de roleta, também filtra pelo ID da roleta
+    const matchingListeners = this.eventListeners.filter(listener => {
+      const typeMatches = listener.eventType === eventType;
+      
+      // Se não tiver roleta_id no evento, considera apenas o tipo
+      if (!roleta_id) return typeMatches;
+      
+      // Se tiver roleta_id, verifica se o listener está inscrito para essa roleta específica
+      // ou se está inscrito para todas as roletas desse tipo de evento (roleta_id não especificado)
+      return typeMatches && (!listener.roleta_id || listener.roleta_id === roleta_id);
+    });
+    
+    // Log para debug
+    if (matchingListeners.length > 0) {
+      console.log(`[EventService] Publishing ${eventType}${roleta_id ? ` for roleta ${roleta_id}` : ''} to ${matchingListeners.length} listeners`);
+    }
+    
+    // Notificar cada listener
+    matchingListeners.forEach(listener => {
+      try {
+        listener.callback(event);
+      } catch (error) {
+        console.error(`[EventService] Error in listener for ${eventType}:`, error);
+      }
+    });
+  }
+  
+  /**
+   * Atualiza dados de um novo número de roleta
+   */
+  public publishNumeroUpdate(eventData: NumeroUpdateEvent): void {
+    // Publicar como evento genérico (para qualquer número novo)
+    this.publish('numero.novo', eventData);
+    
+    // Publicar também como evento específico para essa roleta
+    this.publish('roleta.numero.novo', eventData, eventData.roleta_id);
+  }
+  
+  /**
+   * Atualiza estratégia de uma roleta específica
+   */
+  public publishStrategyUpdate(eventData: StrategyUpdateEvent): void {
+    // Publicar como evento genérico de estratégia
+    this.publish('estrategia.atualizada', eventData);
+    
+    // Publicar também como evento específico para essa roleta
+    this.publish('roleta.estrategia', eventData, eventData.roleta_id);
+  }
+  
+  /**
+   * Busca a estratégia atual
+   * (Placeholder - Em uma implementação real isso chamaria uma API)
+   */
+  public async fetchCurrentStrategy(roletaId: string): Promise<StrategyUpdateEvent | null> {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      
+      // Simula uma chamada de API
+      return fetch(`${apiUrl}/api/roletas/${roletaId}`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Não foi possível obter a estratégia atual');
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Formatar resultado para o formato esperado
+          if (data && data.strategy) {
+            const strategy = data.strategy;
+            return {
+              roleta_id: roletaId,
+              roleta_nome: data.nome || 'Roleta',
+              estado: strategy.estado || 'aguardando',
+              estado_display: strategy.estado_display || 'Aguardando',
+              terminais_gatilho: strategy.terminais_gatilho || [],
+              vitorias: strategy.vitorias || 0,
+              derrotas: strategy.derrotas || 0,
+              timestamp: Date.now()
+            };
+          }
+          return null;
+        });
+    } catch (error) {
+      console.error('[EventService] Error fetching strategy:', error);
+      return null;
     }
   }
 }

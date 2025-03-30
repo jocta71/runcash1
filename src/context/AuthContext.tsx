@@ -1,77 +1,177 @@
-import React, { createContext, useContext } from 'react';
 
-interface User {
-  id: string;
-  email: string;
-  user_metadata: {
-    name?: string;
-    avatar_url?: string;
-  };
-}
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Session, User } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
+  session: Session | null;
   user: User | null;
   loading: boolean;
-  signIn: () => Promise<{ error: any }>;
-  signUp: () => Promise<{ error: any }>;
+  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<void>;
   signInWithGitHub: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
-// Criar usuário mock
-const mockUser: User = {
-  id: 'mock-user-id',
-  email: 'user@example.com',
-  user_metadata: {
-    name: 'Usuário Demo',
-    avatar_url: 'https://ui-avatars.com/api/?name=User&background=random'
-  }
-};
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Criar contexto com valor padrão
-const AuthContext = createContext<AuthContextType>({
-  user: mockUser,
-  loading: false,
-  signIn: async () => ({ error: null }),
-  signUp: async () => ({ error: null }),
-  signInWithGoogle: async () => {},
-  signInWithGitHub: async () => {},
-  signOut: async () => {}
-});
-
-/**
- * Provedor de autenticação mock que não depende do Supabase
- * Sempre fornece um usuário autenticado
- */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Implementações mock dos métodos de autenticação
-  const signIn = async () => {
-    console.log('[MOCK] Simulando login com sucesso');
-    return { error: null };
-  };
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const signUp = async () => {
-    console.log('[MOCK] Simulando cadastro com sucesso');
-    return { error: null };
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signIn = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      console.error('Error signing in:', error);
+      toast({
+        title: "Login falhou",
+        description: error.message || "Não foi possível fazer login. Verifique suas credenciais.",
+        variant: "destructive"
+      });
+      return { error };
+    }
   };
 
   const signInWithGoogle = async () => {
-    console.log('[MOCK] Simulando login com Google');
+    try {
+      console.log("Iniciando login com Google...");
+      
+      // Certifique-se de que esta URL corresponde exatamente à URL de redirecionamento 
+      // configurada no console do Google Cloud
+      const redirectTo = `${window.location.origin}/auth`;
+      console.log("URL de redirecionamento configurada:", redirectTo);
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectTo,
+          queryParams: {
+            prompt: 'select_account',
+            access_type: 'offline',
+          }
+        }
+      });
+      
+      if (error) {
+        console.error("Erro na autenticação com Google:", error);
+        throw error;
+      }
+      
+      if (data?.url) {
+        console.log("Redirecionando para:", data.url);
+        // Opcional: forçar a navegação para a URL de redirecionamento
+        window.location.href = data.url;
+      } else {
+        console.warn("URL de redirecionamento não disponível");
+      }
+    } catch (error) {
+      console.error('Erro detalhado ao fazer login com Google:', error);
+      toast({
+        title: "Login com Google falhou",
+        description: error.message || "Não foi possível fazer login com Google. Verifique as configurações de OAuth.",
+        variant: "destructive"
+      });
+    }
   };
 
   const signInWithGitHub = async () => {
-    console.log('[MOCK] Simulando login com GitHub');
+    try {
+      console.log("Iniciando login com GitHub...");
+      
+      const redirectTo = `${window.location.origin}/auth`;
+      console.log("URL de redirecionamento configurada:", redirectTo);
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+          redirectTo: redirectTo
+        }
+      });
+      
+      if (error) {
+        console.error("Erro na autenticação com GitHub:", error);
+        throw error;
+      }
+      
+      if (data?.url) {
+        console.log("Redirecionando para:", data.url);
+        // Opcional: forçar a navegação para a URL de redirecionamento
+        window.location.href = data.url;
+      } else {
+        console.warn("URL de redirecionamento não disponível");
+      }
+    } catch (error) {
+      console.error('Erro detalhado ao fazer login com GitHub:', error);
+      toast({
+        title: "Login com GitHub falhou",
+        description: error.message || "Não foi possível fazer login com GitHub.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const signUp = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      toast({
+        title: "Cadastro realizado",
+        description: "Verifique seu email para confirmar a conta.",
+      });
+      return { error: null };
+    } catch (error) {
+      console.error('Error signing up:', error);
+      toast({
+        title: "Cadastro falhou",
+        description: error.message || "Não foi possível criar a conta.",
+        variant: "destructive"
+      });
+      return { error };
+    }
   };
 
   const signOut = async () => {
-    console.log('[MOCK] Simulando logout');
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast({
+        title: "Erro ao sair",
+        description: "Não foi possível encerrar a sessão.",
+        variant: "destructive"
+      });
+    }
   };
 
-  // Valor do contexto sempre fornece um usuário autenticado
   const value = {
-    user: mockUser,
-    loading: false,
+    session,
+    user,
+    loading,
     signIn,
     signUp,
     signInWithGoogle,
@@ -82,9 +182,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-/**
- * Hook para usar o contexto de autenticação mock
- */
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

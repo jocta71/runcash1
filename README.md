@@ -1,3 +1,73 @@
+# Roulette Real-time Tracker
+
+## Overview
+
+This project is a real-time tracker for roulette games, displaying live data about roulette numbers and victory statistics. It includes a robust real-time updating system with fallback mechanisms when real-time connections are not available.
+
+## Features
+
+- Real-time tracking of roulette numbers with WebSocket integration
+- Strategy tracking with win/loss statistics
+- Responsive UI with animated number displays
+- Offline mode with fallback data
+- Search functionality for filtering roulettes
+
+## Core Components
+
+### useRouletteData Hook
+
+The `useRouletteData` hook is the heart of the application's real-time functionality:
+
+- Connects to WebSocket for real-time updates
+- Handles data fetching with fallback mechanisms
+- Manages victory tracking and strategy states
+- Provides a simple interface for components to consume
+
+### RouletteCardRealtime Component
+
+The `RouletteCardRealtime` component provides a visual representation of roulette data:
+
+- Displays the current number with color-coding
+- Shows history of recent numbers
+- Visualizes win/loss statistics
+- Provides refresh functionality
+- Indicates connection status
+
+## Implementation Notes
+
+The implementation focuses on robustness and fallback mechanisms:
+
+1. The system first attempts to connect via WebSocket
+2. If real-time connections fail, it falls back to API requests
+3. If API requests fail, it uses mock data generation
+4. All state transitions are handled smoothly with loading indicators
+
+## Technical Stack
+
+- React with TypeScript
+- Custom WebSocket integration
+- Tailwind CSS for styling
+- Event-driven architecture for real-time updates
+
+## Usage
+
+Example usage of the RouletteCardRealtime component:
+
+```tsx
+<RouletteCardRealtime
+  roletaId="roleta1"
+  roletaNome="Roleta Brasileira"
+  onNumberChange={(newNumber) => console.log(`New number: ${newNumber}`)}
+/>
+```
+
+## Future Improvements
+
+- Add more advanced statistical analysis
+- Implement pattern recognition for strategy suggestions
+- Enhance offline mode with local storage caching
+- Add user authentication and personalized tracking
+
 # RunCash Frontend
 
 Interface de usuário para o sistema RunCash de rastreamento de roletas.

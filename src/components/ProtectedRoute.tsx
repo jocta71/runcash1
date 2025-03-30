@@ -1,15 +1,25 @@
-import React from 'react';
+
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
-/**
- * Componente mock que substitui a versão original de ProtectedRoute
- * Esta versão sempre permite o acesso às rotas protegidas
- */
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  // Permitir acesso direto ao conteúdo sem verificação
+const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
+  const { user, loading } = useAuth();
+
+  // Show nothing while checking authentication
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
+  }
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  // Show children if authenticated
   return <>{children}</>;
 };
 
