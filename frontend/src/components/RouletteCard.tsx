@@ -140,7 +140,8 @@ const RouletteCard = memo(({
     hasData = true, 
     strategy, 
     strategyLoading, 
-    refreshNumbers = () => {} 
+    refreshNumbers = () => {},
+    refreshStrategy = () => Promise.resolve(false)  // Usar a nova função
   } = roletaId ? useRouletteData(roletaId, roletaNome) : {
     numbers: lastNumbers.map(num => ({ numero: num })),
     loading: false,
@@ -149,7 +150,8 @@ const RouletteCard = memo(({
     hasData: lastNumbers && lastNumbers.length > 0,
     strategy: null,
     strategyLoading: false,
-    refreshNumbers: () => {}
+    refreshNumbers: () => {},
+    refreshStrategy: () => Promise.resolve(false)
   };
   
   // Converter os objetos RouletteNumber para números simples
@@ -219,7 +221,8 @@ const RouletteCard = memo(({
       
       console.log(`[RouletteCard] Atualizando vitórias/derrotas para ${roletaNome}:`, {
         vitorias: event.vitorias,
-        derrotas: event.derrotas
+        derrotas: event.derrotas,
+        timestamp: new Date().toISOString()
       });
       
       // Atualizar os estados com os valores recebidos do evento
@@ -239,6 +242,7 @@ const RouletteCard = memo(({
     // Solicitar a estratégia atual ao montar o componente
     const socketService = SocketService.getInstance();
     if (socketService.isSocketConnected() && roletaId) {
+      console.log(`[RouletteCard] Solicitando dados de estratégia para ${roletaNome}`, { roletaId });
       socketService.sendMessage({
         type: 'get_strategy',
         roleta_id: roletaId,
@@ -246,8 +250,21 @@ const RouletteCard = memo(({
       });
     }
     
+    // Configurar um intervalo para solicitar atualizações de estratégia periodicamente
+    const strategyRefreshInterval = setInterval(() => {
+      if (socketService.isSocketConnected() && roletaId) {
+        console.log(`[RouletteCard] Solicitando atualização periódica de estratégia para ${roletaNome}`);
+        socketService.sendMessage({
+          type: 'get_strategy',
+          roleta_id: roletaId,
+          roleta_nome: roletaNome
+        });
+      }
+    }, 15000); // Atualizar a cada 15 segundos
+    
     return () => {
       eventService.unsubscribeFromEvent('strategy_update', handleStrategyUpdate);
+      clearInterval(strategyRefreshInterval);
     };
   }, [roletaId, roletaNome]);
 
@@ -259,7 +276,27 @@ const RouletteCard = memo(({
       debugLog(`[RouletteCard] Sem números para ${roletaNome}, tentando refresh...`);
       refreshNumbers();
     }
+    
+    // Também atualizar a estratégia quando os números são atualizados
+    const socketService = SocketService.getInstance();
+    if (socketService.isSocketConnected() && roletaId && mappedNumbers.length > 0) {
+      console.log(`[RouletteCard] Atualizando estratégia após receber novos números para ${roletaNome}`);
+      socketService.sendMessage({
+        type: 'get_strategy',
+        roleta_id: roletaId,
+        roleta_nome: roletaNome
+      });
+    }
   }, [roletaId, roletaNome, isLoading, hasData, mappedNumbers.length, refreshNumbers]);
+
+  // Efeito para reagir a atualizações de números e solicitar dados de estratégia
+  useEffect(() => {
+    // Quando novos números são recebidos, solicitar atualização de estratégia
+    if (mappedNumbers.length > 0 && roletaId) {
+      console.log(`[RouletteCard] Atualizando estratégia após receber novos números para ${roletaNome}`);
+      refreshStrategy();
+    }
+  }, [mappedNumbers, roletaNome, roletaId, refreshStrategy]);
 
   const generateSuggestion = () => {
     const groupKeys = Object.keys(numberGroups);
@@ -298,10 +335,17 @@ const RouletteCard = memo(({
     });
   };
   
-  // Função para tentar recarregar os dados
+  // Implementar a função de reload mais completa
   const reloadData = (e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    console.log(`[RouletteCard] Recarregando todos os dados para ${roletaNome}`);
+    
+    // Recarregar números
     refreshNumbers();
+    
+    // Também recarregar dados de estratégia
+    refreshStrategy();
   };
 
   // Memoização do LastNumbers component para evitar re-renders
@@ -363,11 +407,33 @@ const RouletteCard = memo(({
         ))}
       </div>
       
-      {/* Taxa de vitória */}
+      {/* Taxa de vitória com indicador visual de atualização */}
       <div className="mt-1 mb-2">
         <div className="flex justify-between text-xs text-gray-400">
-          <span>Vitórias: <span className="font-medium text-green-400">{strategy?.vitorias ?? strategyWins ?? wins ?? 0}</span></span>
-          <span>Derrotas: <span className="font-medium text-red-400">{strategy?.derrotas ?? strategyLosses ?? losses ?? 0}</span></span>
+          <span className="relative">
+            Vitórias: 
+            <span 
+              className={`font-medium text-green-400 transition-opacity duration-300 ${
+                strategy?.vitorias !== undefined ? 'animate-pulse-once' : ''
+              }`}
+              data-testid="vitorias-counter"
+              data-value={strategy?.vitorias ?? strategyWins ?? wins ?? 0}
+            >
+              {strategy?.vitorias ?? strategyWins ?? wins ?? 0}
+            </span>
+          </span>
+          <span className="relative">
+            Derrotas: 
+            <span 
+              className={`font-medium text-red-400 transition-opacity duration-300 ${
+                strategy?.derrotas !== undefined ? 'animate-pulse-once' : ''
+              }`}
+              data-testid="derrotas-counter"
+              data-value={strategy?.derrotas ?? strategyLosses ?? losses ?? 0}
+            >
+              {strategy?.derrotas ?? strategyLosses ?? losses ?? 0}
+            </span>
+          </span>
         </div>
       </div>
       

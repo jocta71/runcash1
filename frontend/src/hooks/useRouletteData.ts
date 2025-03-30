@@ -34,6 +34,7 @@ export interface UseRouletteDataResult {
   strategy: RouletteStrategy | null;
   strategyLoading: boolean;
   refreshNumbers: () => Promise<boolean>;
+  refreshStrategy: () => Promise<boolean>;
 }
 
 /**
@@ -251,7 +252,7 @@ export function useRouletteData(
     loadStrategyData();
   }, [roletaId]);
   
-  // Subscrever para eventos da roleta
+  // Subscrever para eventos da roleta e configurar atualização periódica
   useEffect(() => {
     const socketService = SocketService.getInstance();
     
@@ -263,6 +264,29 @@ export function useRouletteData(
     const isSocketConnected = socketService.isSocketConnected();
     debugLog(`[useRouletteData] Status da conexão Socket.IO: ${isSocketConnected ? 'Conectado' : 'Desconectado'}`);
     setIsConnected(isSocketConnected);
+    
+    // Solicitar dados iniciais de estratégia
+    if (isSocketConnected && roletaId) {
+      console.log(`[useRouletteData] Solicitando estratégia inicial para ${roletaNome}`);
+      socketService.sendMessage({
+        type: 'get_strategy',
+        roleta_id: roletaId,
+        roleta_nome: roletaNome
+      });
+    }
+    
+    // Configurar atualização periódica de estratégia
+    const strategyUpdateInterval = setInterval(() => {
+      if (socketService.isSocketConnected() && roletaId) {
+        console.log(`[useRouletteData] Atualizando estratégia periodicamente para ${roletaNome}`);
+        socketService.sendMessage({
+          type: 'get_strategy',
+          roleta_id: roletaId,
+          roleta_nome: roletaNome,
+          forceUpdate: true
+        });
+      }
+    }, 30000); // Atualizar a cada 30 segundos
     
     // Função para verificar e atualizar status da conexão periodicamente
     const connectionCheckInterval = setInterval(() => {
@@ -276,6 +300,13 @@ export function useRouletteData(
       if (currentStatus && !hasData && !loading) {
         debugLog(`[useRouletteData] Conectado mas sem dados, tentando refresh para ${roletaNome}`);
         refreshNumbers();
+        
+        // Também solicitar dados de estratégia
+        socketService.sendMessage({
+          type: 'get_strategy',
+          roleta_id: roletaId,
+          roleta_nome: roletaNome
+        });
       }
     }, 10000);
     
@@ -284,8 +315,31 @@ export function useRouletteData(
       debugLog(`[useRouletteData] Removendo inscrição para eventos da roleta: ${roletaNome}`);
       socketService.unsubscribe(roletaNome, handleNewNumber);
       clearInterval(connectionCheckInterval);
+      clearInterval(strategyUpdateInterval);
     };
-  }, [roletaNome, handleNewNumber, hasData, loading, isConnected]);
+  }, [roletaNome, roletaId, handleNewNumber, hasData, loading, isConnected]);
+
+  // Função para atualizar manualmente a estratégia
+  const refreshStrategy = useCallback(async () => {
+    console.log(`[useRouletteData] Atualizando manualmente estratégia para ${roletaNome}`);
+    
+    try {
+      const strategyData = await fetchRouletteStrategy(roletaId);
+      if (strategyData) {
+        console.log(`[useRouletteData] Estratégia atualizada para ${roletaNome}:`, {
+          vitorias: strategyData.vitorias,
+          derrotas: strategyData.derrotas,
+          estado: strategyData.estado
+        });
+        setStrategy(strategyData);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error(`[useRouletteData] Erro ao atualizar estratégia: ${error}`);
+      return false;
+    }
+  }, [roletaId, roletaNome]);
   
   return {
     numbers,
@@ -295,6 +349,7 @@ export function useRouletteData(
     hasData,
     strategy,
     strategyLoading,
-    refreshNumbers
+    refreshNumbers,
+    refreshStrategy // Nova função para atualizar manualmente a estratégia
   };
 }

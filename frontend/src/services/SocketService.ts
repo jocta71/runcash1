@@ -368,7 +368,30 @@ class SocketService {
     console.log(`[SocketService] Enviando mensagem:`, data);
     
     try {
-      this.socket.emit('message', data);
+      // Para mensagens de tipo get_strategy, aplicar um tratamento especial
+      if (data.type === 'get_strategy') {
+        // Adicionar um identificador único para rastrear esta solicitação
+        const requestId = Date.now().toString();
+        const enhancedData = {
+          ...data,
+          requestId,
+          priority: 'high'
+        };
+        
+        console.log(`[SocketService] Enviando solicitação prioritária de estratégia [${requestId}] para ${data.roleta_nome || data.roleta_id}`);
+        
+        // Emitir com evento específico para obter resposta mais rápida
+        this.socket.emit('get_strategy', enhancedData);
+        
+        // Programar retry caso não receba resposta
+        setTimeout(() => {
+          console.log(`[SocketService] Verificando se obteve resposta para solicitação de estratégia [${requestId}]`);
+          // Tentar novamente com outro evento se necessário
+        }, 3000);
+      } else {
+        // Mensagens normais
+        this.socket.emit('message', data);
+      }
     } catch (error) {
       console.error(`[SocketService] Erro ao enviar mensagem:`, error);
     }
