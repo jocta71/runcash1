@@ -209,57 +209,47 @@ const RouletteCard = memo(({
     }
   }, [strategy, strategyLoading, roletaNome]);
 
-  // Efeito para subscrever eventos de estratégia do backend
+  // Efeito para atualizar dados ao receber eventos de estratégia
   useEffect(() => {
-    const eventService = EventService.getInstance();
-    
-    debugLog(`[RouletteCard] Montando componente para ${roletaNome} (ID: ${roletaId})`);
-    
     const handleStrategyUpdate = (event: StrategyUpdateEvent) => {
       if (event.type !== 'strategy_update' || 
           (event.roleta_id !== roletaId && event.roleta_nome !== roletaNome)) {
         return;
       }
       
-      updateStrategy(event);
+      console.log(`[RouletteCard] Atualizando vitórias/derrotas para ${roletaNome}:`, {
+        vitorias: event.vitorias,
+        derrotas: event.derrotas
+      });
+      
+      // Atualizar os estados com os valores recebidos do evento
+      setStrategyWins(event.vitorias || 0);
+      setStrategyLosses(event.derrotas || 0);
+      
+      // Atualizar também outros dados da estratégia
+      setStrategyState(event.estado || '');
+      setStrategyDisplay(event.sugestao_display || '');
+      setStrategyTerminals(event.terminais_gatilho || []);
     };
     
-    debugLog(`[RouletteCard] Inscrevendo para eventos de estratégia: ${roletaNome}`);
+    // Registrar manipulador para eventos de estratégia
+    const eventService = EventService.getInstance();
     eventService.subscribeToEvent('strategy_update', handleStrategyUpdate);
     
-    const globalHandler = (event: any) => {
-      if (event.roleta_id === roletaId || event.roleta_nome === roletaNome) {
-        debugLog(`[RouletteCard] Evento global recebido para ${roletaNome}:`, event);
-      }
-    };
-    
-    eventService.subscribeToGlobalEvents(globalHandler);
-    
-    const requestCurrentStrategy = () => {
-      const socketService = SocketService.getInstance();
-      
-      if (!socketService.isSocketConnected()) {
-        debugLog(`[RouletteCard] Socket.IO não conectado para ${roletaNome}`);
-        return;
-      }
-      
-      debugLog(`[RouletteCard] Solicitando estratégia atual para ${roletaNome}`);
-      
+    // Solicitar a estratégia atual ao montar o componente
+    const socketService = SocketService.getInstance();
+    if (socketService.isSocketConnected() && roletaId) {
       socketService.sendMessage({
         type: 'get_strategy',
         roleta_id: roletaId,
         roleta_nome: roletaNome
       });
-    };
-    
-    setTimeout(requestCurrentStrategy, 2000);
+    }
     
     return () => {
-      debugLog(`[RouletteCard] Desmontando componente para ${roletaNome}`);
       eventService.unsubscribeFromEvent('strategy_update', handleStrategyUpdate);
-      eventService.unsubscribeFromGlobalEvents(globalHandler);
     };
-  }, [roletaId, roletaNome, updateStrategy]);
+  }, [roletaId, roletaNome]);
 
   // Efeito para verificar dados ao montar
   useEffect(() => {
@@ -376,8 +366,8 @@ const RouletteCard = memo(({
       {/* Taxa de vitória */}
       <div className="mt-1 mb-2">
         <div className="flex justify-between text-xs text-gray-400">
-          <span>Vitórias: {strategy?.vitorias ?? strategyWins ?? wins ?? 0}</span>
-          <span>Derrotas: {strategy?.derrotas ?? strategyLosses ?? losses ?? 0}</span>
+          <span>Vitórias: <span className="font-medium text-green-400">{strategy?.vitorias ?? strategyWins ?? wins ?? 0}</span></span>
+          <span>Derrotas: <span className="font-medium text-red-400">{strategy?.derrotas ?? strategyLosses ?? losses ?? 0}</span></span>
         </div>
       </div>
       
