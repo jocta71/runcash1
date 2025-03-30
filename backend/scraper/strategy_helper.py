@@ -132,16 +132,70 @@ def process_new_number(db, id_roleta, roleta_nome, numero):
     Returns:
         dict: Estado atualizado da estratégia
     """
-    # Implementação simples para compatibilidade
-    # Esta função deve ser implementada com a lógica específica da estratégia
-    terminal = numero % 10
-    
-    # Retornar um estado básico para a estratégia
-    return {
-        "estado": "NEUTRAL",
-        "numero_gatilho": numero,
-        "terminais_gatilho": [terminal],
-        "vitorias": 0,
-        "derrotas": 0,
-        "sugestao_display": f"AGUARDANDO GATILHO (último: {numero})"
-    } 
+    try:
+        # Obter o terminal do número atual
+        terminal = numero % 10
+        
+        # Obter últimos números da roleta para análise
+        ultimos_numeros = []
+        try:
+            # Tentar obter a sequência de números mais recente da roleta do MongoDB
+            if hasattr(db, 'get_ultimos_numeros'):
+                ultimos_numeros = db.get_ultimos_numeros(id_roleta, 5) or []
+            print(f"[DEBUG] Últimos números para {roleta_nome}: {ultimos_numeros}")
+        except Exception as e:
+            print(f"[DEBUG] Erro ao obter últimos números: {e}")
+        
+        # Lógica básica de estratégia para demonstração
+        # Aqui você pode implementar sua estratégia específica
+        # Por enquanto, apenas uma lógica simples baseada no terminal
+        estado = "NEUTRAL"
+        terminais = []
+        vitorias = 0
+        derrotas = 0
+        
+        # Verificar se temos algum estado anterior guardado no MongoDB
+        try:
+            if hasattr(db, 'get_collection'):
+                roletas_collection = db.get_collection('roletas')
+                roleta_doc = roletas_collection.find_one({"_id": id_roleta})
+                if roleta_doc:
+                    # Recuperar contagem de vitórias/derrotas anterior
+                    vitorias = roleta_doc.get('vitorias', 0)
+                    derrotas = roleta_doc.get('derrotas', 0)
+                    print(f"[DEBUG] Vitórias/Derrotas recuperadas: {vitorias}/{derrotas}")
+        except Exception as e:
+            print(f"[DEBUG] Erro ao recuperar estado anterior: {e}")
+        
+        # Gerar terminais baseados no atual número
+        terminais = [terminal]
+        if terminal > 0:
+            terminais.append(terminal - 1)
+        if terminal < 9:
+            terminais.append(terminal + 1)
+        
+        # Gerar informações de exibição
+        print(f"[DEBUG] Resultado da estratégia: {estado}")
+        print(f"[DEBUG] Terminais: {terminais}")
+        print(f"[DEBUG] Vitórias/Derrotas: {vitorias}/{derrotas}")
+        
+        # Retornar estado da estratégia
+        return {
+            "estado": estado,
+            "numero_gatilho": numero,
+            "terminais_gatilho": terminais,
+            "vitorias": vitorias,
+            "derrotas": derrotas,
+            "sugestao_display": f"APOSTAR NOS TERMINAIS: {','.join(map(str, terminais))}"
+        }
+    except Exception as e:
+        print(f"[DEBUG] Erro no processamento da estratégia: {e}")
+        # Retornar um estado básico em caso de erro
+        return {
+            "estado": "NEUTRAL",
+            "numero_gatilho": numero,
+            "terminais_gatilho": [numero % 10],
+            "vitorias": 0,
+            "derrotas": 0,
+            "sugestao_display": "AGUARDANDO GATILHO"
+        } 
