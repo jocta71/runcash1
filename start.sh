@@ -104,17 +104,18 @@ echo "WebSocket Server iniciado com PID: $WEBSOCKET_PID"
 sleep 5
 
 # Iniciar o scraper resiliente em segundo plano
-echo "Iniciando Scraper Resiliente..."
+echo "Iniciando Scraper Direto (run_real_scraper.py)..."
 cd backend
-python start_resilient_scraper.py > scraper_resilient.log 2>&1 &
+echo "Mudando para diretório de scraper..."
+cd scraper
+python run_real_scraper.py &
 SCRAPER_PID=$!
-cd ..
+cd ../..
 
 # Verificar se o Scraper está rodando
 sleep 5
 if ! ps -p $SCRAPER_PID > /dev/null; then
-    echo "ERRO: Scraper falhou ao iniciar. Verificando logs:"
-    cat backend/scraper_resilient.log
+    echo "ERRO: Scraper falhou ao iniciar."
     exit 1
 fi
 
@@ -141,9 +142,9 @@ while true; do
     
     if ! ps -p $SCRAPER_PID > /dev/null; then
         echo "AVISO: Scraper parou. Tentando reiniciar..."
-        cd backend
-        python start_resilient_scraper.py > scraper_resilient.log 2>&1 &
+        cd backend/scraper
+        python run_real_scraper.py &
         SCRAPER_PID=$!
-        cd ..
+        cd ../..
     fi
 done
