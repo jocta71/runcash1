@@ -1,17 +1,12 @@
 [build]
-builder = "NIXPACKS"
+builder = "nixpacks"
 
 [deploy]
-startCommand = "node backend/websocket_server.js"
-restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 10
-healthcheckPath = "/socket-status"
-healthcheckTimeout = 10
-
-[http]
-forwardHeaders = ["Upgrade", "Connection"]
-websockets = true
-upgradeWebsockets = true
+startCommand = "sh start.sh"
+healthcheckPath = "/"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
 
 [phases]
 setup = { cmds = ["apt-get update", "apt-get install -y curl wget ca-certificates"] } 

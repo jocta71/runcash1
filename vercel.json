@@ -1,31 +1,17 @@
 {
   "version": 2,
-  "builds": [
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "cd frontend && npm install",
+  "framework": "vite",
+  "rewrites": [
     {
-      "src": "backend/api/index.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "backend/websocket_server.js",
-      "use": "@vercel/node"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
-  "routes": [
-    {
-      "src": "/socket.io/(.*)",
-      "dest": "backend/websocket_server.js",
-      "headers": {
-        "Connection": "upgrade",
-        "Upgrade": "$http_upgrade"
-      }
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "backend/api/index.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "backend/api/index.js"
-    }
-  ]
+  "env": {
+    "VITE_WS_URL": "http://10.0.0.114:5000",
+    "VITE_SSE_SERVER_URL": "http://10.0.0.114:5000/api/events"
+  }
 }
