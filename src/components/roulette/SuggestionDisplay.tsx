@@ -1,5 +1,5 @@
 import React from 'react';
-import { WandSparkles, Eye, EyeOff, Target, AlertTriangle, Info, TrendingUp, Trophy, CircleX } from 'lucide-react';
+import { WandSparkles, Eye, EyeOff, Target, AlertTriangle, Info, TrendingUp, Trophy, CircleX, Award } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import RouletteNumber from './RouletteNumber';
 
@@ -107,20 +107,39 @@ const SuggestionDisplay = ({
         </div>
       )}
       
-      {/* Seção de Vitórias e Derrotas */}
-      <div className="flex justify-between items-center mb-2 bg-black/20 p-1.5 rounded-md">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <Trophy size={14} className="text-green-500" />
-            <span className="text-green-400 text-xs font-bold">{wins}</span>
+      {/* Seção de Vitórias e Derrotas - Versão aprimorada com labels */}
+      <div className="flex flex-col mb-2 bg-gradient-to-r from-gray-900/80 to-black/60 p-2 rounded-md border border-gray-800">
+        <div className="text-white/80 text-xs font-bold mb-1.5 uppercase flex items-center justify-center gap-1.5 pb-1 border-b border-gray-800">
+          <Award size={12} className="text-yellow-500" />
+          <span>ESTATÍSTICAS</span>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-1">
+          {/* Coluna de Vitórias */}
+          <div className="flex flex-col items-center bg-green-950/30 p-1.5 rounded border border-green-900/50">
+            <div className="text-[10px] text-green-400 uppercase mb-1 font-medium">Vitórias</div>
+            <div className="flex items-center gap-1.5">
+              <Trophy size={14} className="text-green-500" />
+              <span className="text-green-400 text-lg font-bold">{wins}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <CircleX size={14} className="text-red-500" />
-            <span className="text-red-400 text-xs font-bold">{losses}</span>
+          
+          {/* Coluna de Derrotas */}
+          <div className="flex flex-col items-center bg-red-950/30 p-1.5 rounded border border-red-900/50">
+            <div className="text-[10px] text-red-400 uppercase mb-1 font-medium">Derrotas</div>
+            <div className="flex items-center gap-1.5">
+              <CircleX size={14} className="text-red-500" />
+              <span className="text-red-400 text-lg font-bold">{losses}</span>
+            </div>
           </div>
         </div>
-        <div className="text-[9px] text-gray-400">
-          Taxa: {wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0}%
+        
+        {/* Taxa de Acerto */}
+        <div className="mt-1.5 flex justify-center items-center gap-1.5 bg-blue-950/30 py-1 px-2 rounded border border-blue-900/50">
+          <div className="text-[10px] text-blue-400 uppercase font-medium">Taxa de Acerto:</div>
+          <div className="text-white font-bold">
+            {wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0}%
+          </div>
         </div>
       </div>
       
@@ -178,16 +197,36 @@ const SuggestionDisplay = ({
         </div>
       </div>
       
-      {/* Texto adicional para estados ativos - Mais claro e instrutivo */}
-      {useStrategyData && isActiveState && (
-        <div className="mt-1 bg-black/20 p-1 rounded">
-          <p className={`text-[10px] ${displayColor} font-semibold text-center`}>
+      {/* Status dos Terminais - Exibição adicional e mais clara */}
+      <div className="mt-2 bg-indigo-950/30 p-2 rounded border border-indigo-900/50">
+        <div className="text-indigo-400 text-xs font-bold uppercase flex items-center justify-center gap-1.5 mb-1.5 pb-1 border-b border-indigo-900/50">
+          <Target size={12} />
+          <span>TERMINAIS ATIVOS</span>
+        </div>
+        <div className="flex flex-wrap justify-center gap-2">
+          {displaySuggestion.map((num, i) => (
+            <div key={i} className="flex flex-col items-center">
+              <div className={`w-8 h-8 text-sm flex items-center justify-center font-bold rounded-full mb-0.5 ${
+                useStrategyData 
+                  ? (strategyState === 'TRIGGER' ? 'bg-green-500/30 text-green-300 border-2 border-green-500/60' : 
+                     strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/30 text-yellow-300 border-2 border-yellow-500/60' :
+                     'bg-blue-500/30 text-blue-300 border-2 border-blue-500/60') 
+                  : 'bg-indigo-500/30 text-indigo-300 border-2 border-indigo-500/60'
+              } ${isBlurred ? 'blur-sm' : (strategyState === 'TRIGGER' ? 'animate-pulse' : '')}`}>
+                {num}
+              </div>
+              <div className="text-[9px] text-white/70">Terminal</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-1.5 pt-1 border-t border-indigo-900/50 text-center">
+          <div className={`text-[10px] ${displayColor} font-semibold`}>
             {strategyState === 'TRIGGER' 
               ? '👉 APOSTAR NOS TERMINAIS ACIMA 👈' 
-              : '⚠️ OBSERVE OS TERMINAIS ACIMA ⚠️'}
-          </p>
+              : 'OBSERVE OS TERMINAIS ACIMA'}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
