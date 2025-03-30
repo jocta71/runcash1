@@ -21,12 +21,19 @@ load_dotenv()
 # Configurar logging para mostrar mais informações
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - [RUNCASH_SCRAPER] - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout)  # Ensure logs go to stdout for Railway
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Adicionar mais logs para garantir visibilidade no console do Railway
+logger.info("🔄 Script run_real_scraper.py iniciando...")
+logger.info(f"📅 Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+logger.info(f"📂 Diretório: {os.getcwd()}")
+logger.info(f"🐍 Python: {sys.version}")
+logger.info(f"🔧 Variáveis de ambiente carregadas: {os.environ.get('MONGODB_URI') is not None}")
 
 # Imports locais - reorganizados para evitar importação circular
 try:
