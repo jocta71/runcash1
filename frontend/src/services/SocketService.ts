@@ -175,7 +175,12 @@ class SocketService {
       
       // Evento para atualizações de estratégia
       this.socket.on('strategy_update', (data: any) => {
-        console.log(`[SocketService] Atualização de estratégia recebida para ${data.roleta_nome}`);
+        console.log(`[SocketService] Atualização de estratégia recebida para ${data.roleta_nome}`, {
+          vitorias: data.vitorias,
+          derrotas: data.derrotas,
+          estado: data.estado,
+          roleta_id: data.roleta_id
+        });
         
         // Formatar o evento de estratégia
         const strategyEvent: StrategyUpdateEvent = {
@@ -190,6 +195,8 @@ class SocketService {
           sugestao_display: data.sugestao_display || '',
           timestamp: data.timestamp || new Date().toISOString()
         };
+        
+        console.log(`[SocketService] Evento de estratégia formatado:`, strategyEvent);
         
         this.notifyListeners(strategyEvent as any);
       });
@@ -234,6 +241,12 @@ class SocketService {
       if (roletaNome !== '*' && this.socket && this.isConnected) {
         console.log(`[SocketService] Enviando subscrição para roleta: ${roletaNome}`);
         this.socket.emit('subscribe_to_roleta', roletaNome);
+        
+        // Também solicitar a estratégia atual
+        this.sendMessage({
+          type: 'get_strategy',
+          roleta_nome: roletaNome
+        });
       }
     }
     
@@ -348,15 +361,16 @@ class SocketService {
   // Método para enviar mensagens via socket
   public sendMessage(data: any): void {
     if (!this.socket || !this.isConnected) {
-      console.warn('[SocketService] Tentativa de enviar mensagem sem conexão ativa');
+      console.warn(`[SocketService] Tentativa de enviar mensagem sem conexão:`, data);
       return;
     }
     
+    console.log(`[SocketService] Enviando mensagem:`, data);
+    
     try {
-      console.log(`[SocketService] Enviando mensagem:`, data);
       this.socket.emit('message', data);
     } catch (error) {
-      console.error('[SocketService] Erro ao enviar mensagem:', error);
+      console.error(`[SocketService] Erro ao enviar mensagem:`, error);
     }
   }
 }

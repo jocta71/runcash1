@@ -253,13 +253,46 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
     const response = await api.get(`/strategy/${encodeURIComponent(roletaId)}`);
     
     if (response.data) {
+      // Verificar se temos os dados de vitórias e derrotas
+      const vitorias = response.data.vitorias !== undefined ? response.data.vitorias : 0;
+      const derrotas = response.data.derrotas !== undefined ? response.data.derrotas : 0;
+      
       console.log(`[API] Estratégia obtida para roleta ID ${roletaId}:`, response.data);
+      console.log(`[API] Vitórias: ${vitorias}, Derrotas: ${derrotas}`);
+      
+      // Se não temos valores explícitos de vitórias/derrotas, tentar buscar da roleta
+      if (vitorias === 0 && derrotas === 0) {
+        try {
+          console.log(`[API] Tentando buscar dados de vitórias/derrotas da roleta ${roletaId}...`);
+          const roletaResponse = await api.get(`/roulettes/${encodeURIComponent(roletaId)}`);
+          
+          if (roletaResponse.data && (roletaResponse.data.vitorias || roletaResponse.data.derrotas)) {
+            console.log(`[API] Dados encontrados na roleta:`, {
+              vitorias: roletaResponse.data.vitorias,
+              derrotas: roletaResponse.data.derrotas
+            });
+            
+            return {
+              estado: response.data.estado || 'NEUTRAL',
+              numero_gatilho: response.data.numero_gatilho || null,
+              terminais_gatilho: response.data.terminais_gatilho || [],
+              vitorias: roletaResponse.data.vitorias || 0,
+              derrotas: roletaResponse.data.derrotas || 0,
+              sugestao_display: response.data.sugestao_display || ''
+            };
+          }
+        } catch (subError) {
+          console.error(`[API] Erro ao buscar dados da roleta: ${subError}`);
+          // Continuar com os dados originais da estratégia
+        }
+      }
+      
       return {
         estado: response.data.estado || 'NEUTRAL',
         numero_gatilho: response.data.numero_gatilho || null,
         terminais_gatilho: response.data.terminais_gatilho || [],
-        vitorias: response.data.vitorias || 0,
-        derrotas: response.data.derrotas || 0,
+        vitorias: vitorias,
+        derrotas: derrotas,
         sugestao_display: response.data.sugestao_display || ''
       };
     }
