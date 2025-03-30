@@ -146,36 +146,51 @@ def process_new_number(db, id_roleta, roleta_nome, numero):
             print(f"[DEBUG] Últimos números para {roleta_nome}: {ultimos_numeros}")
         except Exception as e:
             print(f"[DEBUG] Erro ao obter últimos números: {e}")
+
+        # Determinar o estado da estratégia com base nos padrões de números
+        # Em uma implementação real, analisaríamos os últimos números e padrões
+        # Para fins de demonstração, estamos usando uma lógica simples baseada no número atual
         
-        # Análise real dos padrões de números (simplificado para demonstração)
-        # Aqui seria implementada a lógica real de estratégia
+        estados_possiveis = ["TRIGGER", "NEUTRAL", "POST_GALE_NEUTRAL", "MORTO"]
         
-        # Configurar estado forçado como TRIGGER para garantir visibilidade no RouletteCard
-        estado = "TRIGGER"
+        # O estado agora é determinado pelo valor do número:
+        # - Se for divisível por 5: TRIGGER (cerca de 20% dos casos)
+        # - Se for divisível por 3: POST_GALE_NEUTRAL (cerca de 33% dos casos)
+        # - Se for divisível por 7: MORTO (cerca de 14% dos casos)
+        # - Caso contrário: NEUTRAL (os demais casos)
         
+        if numero % 5 == 0:
+            estado = "TRIGGER"
+        elif numero % 3 == 0:
+            estado = "POST_GALE_NEUTRAL"
+        elif numero % 7 == 0:
+            estado = "MORTO"
+        else:
+            estado = "NEUTRAL"
+
         # Gerar número aleatório para vitorias, mas mantemos consistência com o ID da roleta
         # para que mesmas roletas tenham comportamento semelhante
         seed = sum(ord(c) for c in id_roleta) + numero
         random.seed(seed)
         vitorias = random.randint(2, 7)
         derrotas = random.randint(0, 2)
-        
+
         # Terminais gerados a partir do número atual
         terminais = [terminal]
         if terminal > 0:
             terminais.append(terminal - 1)
         if terminal < 9:
             terminais.append(terminal + 1)
-        
+
         # Gerar mensagem clara de sugestão para exibição
         sugestao_display = f"APOSTAR NOS TERMINAIS: {','.join(map(str, terminais))}"
-        
+
         # Gerar informações de exibição para logs de depuração
         print(f"[DEBUG] Resultado da estratégia: {estado}")
         print(f"[DEBUG] Terminais: {terminais}")
         print(f"[DEBUG] Vitórias/Derrotas: {vitorias}/{derrotas}")
         print(f"[DEBUG] Sugestão: {sugestao_display}")
-        
+
         # Retornar estado da estratégia com informações completas para teste
         return {
             "estado": estado,
@@ -187,9 +202,9 @@ def process_new_number(db, id_roleta, roleta_nome, numero):
         }
     except Exception as e:
         print(f"[DEBUG] Erro no processamento da estratégia: {e}")
-        # Retornar um estado básico em caso de erro
+        # Retornar um estado básico em caso de erro, mas não forçar mais como TRIGGER
         return {
-            "estado": "TRIGGER",  # Forçando TRIGGER mesmo em caso de erro
+            "estado": "NEUTRAL",  # Estado neutro em caso de erro
             "numero_gatilho": numero,
             "terminais_gatilho": [numero % 10],
             "vitorias": 1,
