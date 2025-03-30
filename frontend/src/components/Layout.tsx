@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Sidebar from './Sidebar';
 import ChatUI from './ChatUI';
-import { MessageSquare, Search, Wallet } from 'lucide-react';
+import { Search, Wallet } from 'lucide-react';
 import ProfileDropdown from './ProfileDropdown';
 import { Link } from 'react-router-dom';
 
@@ -10,7 +10,6 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [chatOpen, setChatOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
@@ -52,28 +51,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </nav>
       
       <div className="flex relative">
-        {/* Sidebar com z-index alto (30) para aparecer por cima da navbar */}
+        {/* Sidebar esquerdo fixo com z-index alto (30) */}
         <div className="hidden md:block w-64 min-h-screen fixed left-0 top-0 z-30">
           <Sidebar />
         </div>
         
-        {/* Área do conteúdo principal com padding à esquerda para compensar o sidebar fixo */}
-        <main className="flex-1 p-0 md:ml-64 relative">
+        {/* Chat fixo à direita com z-index alto (30) */}
+        <div className="hidden md:block w-80 min-h-screen fixed right-0 top-0 z-30 border-l border-[#2a2a2e]">
+          <ChatUI isOpen={true} />
+        </div>
+        
+        {/* Área do conteúdo principal com padding à esquerda e direita para compensar os sidebars fixos */}
+        <main className="flex-1 p-0 md:ml-64 md:mr-80 relative">
           {children}
-          
-          {/* Botão Chat Flutuante com z-index muito alto (50) para sempre aparecer */}
-          <button 
-            onClick={() => setChatOpen(!chatOpen)}
-            className="fixed bottom-6 right-6 bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700 z-50"
-            aria-label="Abrir chat"
-          >
-            <MessageSquare size={24} />
-          </button>
-          
-          {/* Chat UI com z-index alto (40) para aparecer por cima da navbar mas abaixo do botão de chat */}
-          <div className={`fixed top-0 right-0 h-full w-80 transform transition-transform duration-300 ease-in-out ${chatOpen ? 'translate-x-0' : 'translate-x-full'} z-40`}>
-            <ChatUI isOpen={chatOpen} onClose={() => setChatOpen(false)} />
-          </div>
         </main>
       </div>
     </div>
