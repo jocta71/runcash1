@@ -78,104 +78,83 @@ const SuggestionDisplay = ({
           strategyState === 'MORTO' ? 'bg-red-500/30 border border-red-400' : 
           'bg-blue-500/30 border border-blue-400'
         }`}>
-          <div className="flex items-center justify-between">
-            <div className={`text-[12px] font-semibold ${displayColor} flex items-center gap-1.5`}>
-              <Target size={12} />
-              <span>Estado: {strategyState || "DESCONHECIDO"}</span>
+          <div className="flex flex-col">
+            <div className="flex justify-between items-center">
+              <div className={`text-[12px] font-semibold ${displayColor} flex items-center gap-1.5`}>
+                <Target size={12} />
+                <span>Estado: {strategyState || "DESCONHECIDO"}</span>
+              </div>
+              
+              <button 
+                onClick={toggleVisibility} 
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                {isBlurred ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
             </div>
-          </div>
-          
-          {/* Mostrar a sugestão de display de forma destacada */}
-          {safeStrategyDisplay && (
-            <div className={`text-[11px] ${displayColor} font-bold mt-1.5 px-1 py-0.5 rounded bg-black/30`}>
-              {safeStrategyDisplay}
-            </div>
-          )}
-        </div>
-      )}
-      
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-0.5">
-          {useStrategyData ? (
-            <>
-              <Target size={10} className={displayColor} />
-              <span className={`text-[8px] ${displayColor} font-medium`}>{displayLabel}</span>
-              {!isActiveState && strategyState === 'NEUTRAL' && (
-                <span className={`text-[7px] text-blue-400/70`}>
-                  (Aguardando gatilho)
-                </span>
-              )}
-            </>
-          ) : (
-            <>
-              <WandSparkles size={10} className="text-[#00ff00]" />
-              <span className="text-[8px] text-[#00ff00] font-medium">Sugestão</span>
-              <span className="text-[7px] text-[#00ff00]/70">({numberGroups[selectedGroup as keyof typeof numberGroups].name})</span>
-            </>
-          )}
-        </div>
-        <button 
-          onClick={toggleVisibility} 
-          className="text-[#00ff00] hover:text-[#00ff00]/80 transition-colors"
-        >
-          {isBlurred ? <EyeOff size={10} /> : <Eye size={10} />}
-        </button>
-      </div>
-      
-      {/* Exibir terminais mais claramente para estados TRIGGER ou POST_GALE_NEUTRAL */}
-      {useStrategyData && isActiveState && strategyTerminals && strategyTerminals.length > 0 && (
-        <div className="mb-2 mt-2">
-          <div className={`text-[11px] ${displayColor} font-medium flex items-center gap-1.5 bg-black/40 p-1.5 rounded-sm`}>
-            <AlertTriangle size={11} />
-            <span>
-              {strategyState === 'TRIGGER' 
-                ? 'APOSTAR NOS TERMINAIS:'
-                : 'ACOMPANHE OS TERMINAIS:'}
-            </span>
+            
+            {/* Mostrar a sugestão de display de forma destacada */}
+            {safeStrategyDisplay && (
+              <div className={`text-[11px] ${displayColor} font-bold mt-1.5 px-1 py-0.5 rounded bg-black/30`}>
+                {safeStrategyDisplay}
+              </div>
+            )}
           </div>
         </div>
       )}
       
-      {/* Exibir mensagem caso não haja terminais em estado ativo */}
-      {useStrategyData && !isActiveState && strategyState === 'NEUTRAL' && (
-        <div className="mb-1">
-          <div className="text-[9px] text-blue-400 font-medium mt-1 mb-0.5 flex items-center gap-1">
-            <Info size={9} />
-            <span>Sugestão padrão (sem gatilho ativo)</span>
+      {/* Seção de Terminais e Estratégia */}
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        {/* Coluna de Terminais */}
+        <div>
+          <div className="text-red-500 text-xs font-medium mb-1">terminais aqui</div>
+          <div className="flex flex-wrap gap-1">
+            {displaySuggestion.map((num, i) => (
+              <TooltipProvider key={i}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <RouletteNumber
+                        number={num}
+                        className={`w-5 h-5 text-[9px] font-bold border ${useStrategyData ? `border-${displayColor.replace('text-', '')}` : 'border-[#00ff00]'} ${
+                          useStrategyData 
+                            ? (strategyState === 'TRIGGER' ? 'bg-green-500/10' : 
+                              strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/10' :
+                              'bg-blue-500/10') 
+                            : getSuggestionColor(num)
+                        } ${isBlurred ? 'blur-sm' : (strategyState === 'TRIGGER' ? 'animate-pulse' : '')}`}
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{useStrategyData && isActiveState ? `Terminal ${num}` : `Número ${num}`}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ))}
           </div>
         </div>
-      )}
-      
-      <div className="flex gap-0.5">
-        {displaySuggestion.map((num, i) => (
-          <TooltipProvider key={i}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <RouletteNumber
-                    number={num}
-                    className={`w-4 h-4 text-[7px] border ${useStrategyData ? `border-${displayColor.replace('text-', '')}` : 'border-[#00ff00]'} ${
-                      useStrategyData 
-                        ? (strategyState === 'TRIGGER' ? 'bg-green-500/10' : 
-                           strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/10' :
-                           'bg-blue-500/10') 
-                        : getSuggestionColor(num)
-                    } ${isBlurred ? 'blur-sm' : (strategyState === 'TRIGGER' ? 'animate-pulse' : '')}`}
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{useStrategyData && isActiveState ? `Terminal ${num}` : `Número ${num}`}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ))}
+        
+        {/* Coluna de Estratégia */}
+        <div>
+          <div className="text-red-500 text-xs font-medium mb-1">estrategia aqui</div>
+          <div className={`text-[10px] ${displayColor} font-medium bg-black/30 p-1.5 rounded-sm`}>
+            {isActiveState ? (
+              <div className="flex flex-col">
+                <span className="font-bold">{strategyState}</span>
+                <span className="text-[9px] mt-0.5">{safeStrategyDisplay}</span>
+              </div>
+            ) : (
+              <span>{safeStrategyDisplay || "Aguardando Padrão"}</span>
+            )}
+          </div>
+        </div>
       </div>
       
       {/* Texto adicional para estados ativos */}
       {useStrategyData && isActiveState && (
         <div className="mt-1">
-          <p className={`text-[7px] ${displayColor}/80`}>
+          <p className={`text-[8px] ${displayColor}/80`}>
             {strategyState === 'TRIGGER' 
               ? 'Números com terminais acima estão em alerta' 
               : 'Continue observando estes terminais'}
