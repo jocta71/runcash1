@@ -19,13 +19,14 @@ print(f"Current Directory: {os.getcwd()}", flush=True)
 print(f"Script Location: {__file__}", flush=True)
 print(f"Directory Contents: {os.listdir('.')}", flush=True)
 
+# Importações básicas
 try:
-    print("Tentando importar módulos essenciais...", flush=True)
-import time
-import logging
-import json
-import traceback
-from datetime import datetime
+    print("Importando módulos essenciais...", flush=True)
+    import time
+    import logging
+    import json
+    import traceback
+    from datetime import datetime
     import threading
     from dotenv import load_dotenv
     import subprocess
@@ -33,6 +34,7 @@ from datetime import datetime
     print("✅ Módulos básicos importados com sucesso", flush=True)
 except ImportError as e:
     print(f"⚠️ Erro ao importar módulos: {e}", flush=True)
+    import traceback
     traceback.print_exc()
     sys.exit(1)
 
