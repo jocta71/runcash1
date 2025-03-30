@@ -296,21 +296,33 @@ const RouletteCard = memo(({
 
   return (
     <div 
-      className="glass-card flex flex-col justify-between p-4"
+      className="bg-[#17161e]/90 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl p-3 md:p-4 space-y-2 md:space-y-3 animate-fade-in hover-scale cursor-pointer h-auto w-full overflow-hidden"
       data-roleta-id={roletaId}
       data-loading={isLoading ? 'true' : 'false'}
       data-connected={isConnected ? 'true' : 'false'}
+      onClick={handleDetailsClick}
     >
       {/* Header com nome da roleta e controles */}
-      <div className="flex justify-between items-start mb-2">
-        <div>
-          <h2 className="text-white/90 font-bold">{roletaNome}</h2>
-          <p className="text-[#00ff00] text-xs">{
-            strategyState === 'WAITING' ? 'Aguardando Padrão' :
-            strategyState === 'ACTIVE' ? (strategyDisplay || 'Padrão Ativo') :
-            strategyState === 'TRIGGER' ? 'Padrão Identificado' :
-            'Aguardando Padrão'
-          }</p>
+      <div className="flex justify-between items-start mb-2 border-b border-white/10 pb-2">
+        <div className="flex items-center gap-2">
+          <div className="text-lg font-bold text-white truncate max-w-[180px]">
+            {roletaNome}
+          </div>
+          
+          {/* Indicador de estado da estratégia - versão mais visível */}
+          {strategyState && (
+            <div className={`text-xs px-2 py-1 rounded-md font-semibold flex items-center gap-1.5 min-w-20 justify-center ${
+              strategyState === 'TRIGGER' ? 'bg-green-500/30 text-green-300 border border-green-500/50' : 
+              strategyState === 'POST_GALE_NEUTRAL' ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 
+              strategyState === 'MORTO' ? 'bg-red-500/30 text-red-300 border border-red-500/50' : 
+              'bg-blue-500/30 text-blue-300 border border-blue-500/50'
+            }`}>
+              {strategyState === 'WAITING' ? 'Aguardando' :
+               strategyState === 'ACTIVE' ? 'Ativo' :
+               strategyState === 'TRIGGER' ? 'Padrão' :
+               strategyState}
+            </div>
+          )}
         </div>
         
         <div className="flex items-center space-x-2">
@@ -322,7 +334,10 @@ const RouletteCard = memo(({
           <Star size={16} className="text-[#00ff00]" style={{opacity: 0.7}} />
           {showSuggestions && 
             <button 
-              onClick={() => setIsBlurred(!isBlurred)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsBlurred(!isBlurred);
+              }}
               className="text-[#00ff00] hover:text-[#00ff00]/90 transition-colors"
             >
               {isBlurred ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -380,8 +395,14 @@ const RouletteCard = memo(({
       
       {/* Botões de ação */}
       <RouletteActionButtons 
-        onDetailsClick={() => setStatsOpen(true)} 
-        onPlayClick={() => navigate(`/roleta/${roletaId}`)}
+        onDetailsClick={(e) => {
+          e.stopPropagation();
+          setStatsOpen(true);
+        }} 
+        onPlayClick={(e) => {
+          e.stopPropagation();
+          navigate(`/roleta/${roletaId}`);
+        }}
         isConnected={isConnected}
         hasData={hasData}
       />
