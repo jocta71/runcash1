@@ -3,6 +3,9 @@
 # Script para iniciar os serviços no Railway
 echo "===== RunCash - Iniciando Serviços no Railway ====="
 
+# Instalar pacotes críticos diretamente antes de iniciar
+pip3 install --no-cache-dir requests selenium webdriver-manager pymongo python-dotenv
+
 # Configurar variáveis de ambiente
 export PORT=${PORT:-5000}
 export RAILWAY_STATIC_URL=${RAILWAY_STATIC_URL}
