@@ -10,29 +10,40 @@ import time
 import logging
 import json
 import requests
+import traceback
 from datetime import datetime
 
 # Configurar logging para mostrar mais informações
-logging.basicConfig(level=logging.INFO, 
-                   format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)  # Ensure logs go to stdout for Railway
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # Imports locais
-from data_source_mongo import MongoDataSource
-from scraper_mongodb import scrape_roletas
-from strategy_analyzer import StrategyAnalyzer
-from strategy_helper import atualizar_estrategia
+try:
+    from data_source_mongo import MongoDataSource
+    from scraper_mongodb import scrape_roletas
+    from strategy_analyzer import StrategyAnalyzer
+    from strategy_helper import atualizar_estrategia
+    logger.info("✅ Módulos importados com sucesso")
+except Exception as e:
+    logger.error(f"❌ Erro ao importar módulos: {str(e)}")
+    traceback.print_exc()
+    sys.exit(1)
 
 # Dicionário global para armazenar instâncias de analisadores de estratégia
 _strategy_analyzers = {}
 
 # Configuração do WebSocket - ajustar conforme necessário
 # Esta URL deve apontar para o servidor WebSocket que você implantou
-# Exemplos:
-#  - Em desenvolvimento local: "http://localhost:5000/emit-event"
-#  - Com ngrok: "https://seu-tunnel-ngrok.ngrok-free.app/emit-event"
-#  - Servidor em produção: "https://seu-servidor-websocket.com/emit-event"
 WEBSOCKET_SERVER_URL = "http://localhost:5000/emit-event"  # URL local com protocolo http://
+
+# Log da configuração
+logger.info(f"🔌 WebSocket configurado para: {WEBSOCKET_SERVER_URL}")
 
 def notify_websocket(event_type, data):
     """
@@ -44,18 +55,19 @@ def notify_websocket(event_type, data):
             "data": data
         }
         
-        print(f"\n[WebSocket] Enviando evento {event_type}:")
-        print(json.dumps(data, indent=2, ensure_ascii=False))
+        logger.info(f"\n[WebSocket] Enviando evento {event_type}:")
+        logger.info(json.dumps(data, indent=2, ensure_ascii=False))
         
         response = requests.post(WEBSOCKET_SERVER_URL, json=payload)
         
         if response.status_code == 200:
-            print(f"[WebSocket] ✅ Evento {event_type} enviado com sucesso")
+            logger.info(f"[WebSocket] ✅ Evento {event_type} enviado com sucesso")
         else:
-            print(f"[WebSocket] ❌ Falha ao enviar evento: {response.status_code} - {response.text}")
+            logger.error(f"[WebSocket] ❌ Falha ao enviar evento: {response.status_code} - {response.text}")
     
     except Exception as e:
-        print(f"[WebSocket] ❌ Erro ao notificar WebSocket: {str(e)}")
+        logger.error(f"[WebSocket] ❌ Erro ao notificar WebSocket: {str(e)}")
+        traceback.print_exc()
 
 def get_analyzer(roleta_id, roleta_nome):
     """
@@ -180,12 +192,13 @@ def main():
     """
     Função principal para executar o scraper em modo real
     """
-    print("\n🚀 Iniciando scraper REAL com integração de análise de estratégia...")
+    logger.info("\n🚀 Iniciando scraper REAL com integração de análise de estratégia...")
     
     try:
         # Inicializar fonte de dados MongoDB
+        logger.info("Conectando ao MongoDB...")
         db = MongoDataSource()
-        print("✅ Conexão ao MongoDB estabelecida com sucesso")
+        logger.info("✅ Conexão ao MongoDB estabelecida com sucesso")
         
         # Hook para processar números da roleta
         def numero_hook(roleta_id, roleta_nome, numero):
@@ -193,12 +206,13 @@ def main():
             Hook chamado quando um novo número é detectado pelo scraper
             """
             # Processar o número com o analisador de estratégia
+            logger.info(f"📍 Processando número {numero} para roleta {roleta_nome}")
             status = process_new_number(db, roleta_id, roleta_nome, numero)
             
             if not status:
-                print(f"❌ Falha ao processar número {numero} para estratégia")
+                logger.error(f"❌ Falha ao processar número {numero} para estratégia")
         
-        print("\n🎰 Executando em modo REAL - Acessando site da casa de apostas")
+        logger.info("\n🎰 Executando em modo REAL - Acessando site da casa de apostas")
         
         # Executar o scraper real com o hook
         scrape_roletas(db, numero_hook=numero_hook)
@@ -206,8 +220,15 @@ def main():
         return 0
         
     except Exception as e:
-        print(f"❌ Erro ao executar scraper: {str(e)}")
+        logger.error(f"❌ Erro ao executar scraper: {str(e)}")
+        traceback.print_exc()
         return 1
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    try:
+        logger.info("🏁 Iniciando script run_real_scraper.py")
+        sys.exit(main())
+    except Exception as e:
+        logger.critical(f"💥 Erro crítico não tratado: {str(e)}")
+        traceback.print_exc()
+        sys.exit(1)
