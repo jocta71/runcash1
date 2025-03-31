@@ -23,7 +23,7 @@ const API_KEY = process.env.API_KEY || 'runcash-default-key';
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, ngrok-skip-browser-warning, bypass-tunnel-reminder');
   
   // Permitir credenciais
   res.header('Access-Control-Allow-Credentials', true);
@@ -475,6 +475,41 @@ app.use(errorHandler);
 // 404 handler for any routes not found
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
+});
+
+// Verificar se a API está funcionando
+app.get('/', (req, res) => {
+  res.json({ status: 'API online', version: '1.0.0' });
+});
+
+// Endpoint de diagnóstico para debbuging
+app.get('/api', (req, res) => {
+  res.json({ status: 'API routes accessible', routes: 'Available at /api/roulettes, /api/numbers, etc' });
+});
+
+// Garantir que a rota /api/roulettes funcione
+app.get('/api/roulettes', async (req, res) => {
+  try {
+    // Se temos um controlador de roletas, vamos usá-lo
+    if (typeof rouletteController !== 'undefined' && rouletteController.getAllRoulettes) {
+      return rouletteController.getAllRoulettes(req, res);
+    }
+    
+    // Caso contrário, tenta acessar o MongoDB diretamente
+    if (db) {
+      const roulettes = await db.collection('roulettes').find({}).toArray();
+      return res.json(roulettes);
+    }
+    
+    // Fallback para dados fictícios se não conseguir acessar o banco
+    res.json([
+      { id: 'dummy1', nome: 'Roleta Européia', numeros: [1,2,3,4,5], estado_estrategia: 'NEUTRAL', vitorias: 10, derrotas: 5 },
+      { id: 'dummy2', nome: 'Roleta Americana', numeros: [5,6,7,8,9], estado_estrategia: 'NEUTRAL', vitorias: 8, derrotas: 7 }
+    ]);
+  } catch (error) {
+    console.error('Erro ao buscar roletas:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar roletas', details: error.message });
+  }
 });
 
 // Iniciar o servidor
