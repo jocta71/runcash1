@@ -27,12 +27,12 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copiar arquivos do estágio anterior
-COPY --from=builder /tmp/runcash1/backend/scraper/requirements.txt .
+# Copiar apenas o necessário primeiro para aproveitar o cache de camadas
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar todo o código
-COPY --from=builder /tmp/runcash1/backend/scraper/ .
+COPY . .
 
 # Configurar variáveis de ambiente
 ENV PYTHONUNBUFFERED=1
