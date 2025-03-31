@@ -88,23 +88,23 @@ interface SubscriptionContextType {
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
-// Versão mock do SubscriptionProvider que sempre fornece acesso premium
+// Versão modificada do SubscriptionProvider que sempre fornece acesso premium sem autenticação
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Sempre usar o plano premium como padrão
   const premiumPlan = availablePlans.find(plan => plan.id === 'premium') || availablePlans[3];
   
   // Estado inicial com plano premium
   const [currentSubscription] = useState<UserSubscription | null>({
-    id: 'mock-subscription',
-    userId: 'mock-user',
+    id: 'free-premium-access',
+    userId: 'guest-user',
     planId: 'premium',
     planType: PlanType.PREMIUM,
     startDate: new Date(),
-    endDate: null,
+    endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // Acesso por 1 ano
     status: 'active',
-    paymentMethod: 'mock',
-    paymentProvider: 'manual',
-    nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    paymentMethod: 'free',
+    paymentProvider: 'none',
+    nextBillingDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
   });
   
   const [currentPlan] = useState<Plan | null>(premiumPlan);
@@ -112,23 +112,24 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Função mock para carregar assinatura (não faz nada)
   const loadUserSubscription = async (): Promise<void> => {
-    // Não faz nada, já que o estado inicial já inclui o plano premium
+    console.log('[SubscriptionContext] Acesso premium concedido para usuário livre');
     return Promise.resolve();
   };
 
-  // Sempre retorna true para qualquer recurso
+  // Sempre retorna true para qualquer recurso - acesso livre a todas funcionalidades
   const hasFeatureAccess = (featureId: string): boolean => {
+    console.log(`[SubscriptionContext] Acesso concedido para recurso: ${featureId}`);
     return true;
   };
 
   // Funções mock para upgrade e cancelamento (não fazem nada)
   const upgradePlan = async (planId: string): Promise<void> => {
-    console.log(`Upgrade para o plano ${planId} simulado com sucesso`);
+    console.log(`[SubscriptionContext] Upgrade para o plano ${planId} não necessário - já usando Premium`);
     return Promise.resolve();
   };
 
   const cancelSubscription = async (): Promise<void> => {
-    console.log('Cancelamento de assinatura simulado com sucesso');
+    console.log('[SubscriptionContext] Cancelamento não necessário - plano gratuito');
     return Promise.resolve();
   };
 
