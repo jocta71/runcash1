@@ -6,7 +6,8 @@
       "**/*.py",
       "requirements.txt",
       "Dockerfile"
-    ]
+    ],
+    "dockerfilePath": "backend/scraper/Dockerfile"
   },
   "deploy": {
     "numReplicas": 1,
