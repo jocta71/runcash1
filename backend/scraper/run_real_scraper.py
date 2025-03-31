@@ -239,6 +239,98 @@ def iniciar_chrome_railway():
         print(f"❌ Erro ao iniciar Chrome no Railway: {e}")
         return None
 
+# Adicionar suporte para acesso direto via API
+try:
+    print("Configurando acesso via API direta...")
+    import requests
+    import json
+    import time
+    import random
+    from datetime import datetime
+    
+    # Configurar sessão com headers adequados
+    def criar_sessao_api():
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://casino.com/',
+            'Origin': 'https://casino.com'
+        })
+        return session
+    
+    # Função para acessar API do Pragmatic Play
+    def acessar_api_pragmatic(session, endpoint="tables?limit=100"):
+        try:
+            base_url = config.DIRECT_API_ENDPOINTS.get("pragmatic")
+            url = f"{base_url}/{endpoint}"
+            print(f"Acessando API Pragmatic: {url}")
+            
+            response = session.get(url, timeout=30)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"Erro ao acessar API Pragmatic: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"Exceção ao acessar API Pragmatic: {e}")
+            return None
+    
+    # Função para processar dados de roleta da Pragmatic
+    def processar_dados_pragmatic(data):
+        if not data or "data" not in data:
+            return []
+            
+        roletas = []
+        for item in data.get("data", []):
+            if item.get("game") == "roulette":
+                nome_roleta = item.get("name", "")
+                if "roulette" in nome_roleta.lower():
+                    # Extrair informações da roleta
+                    roleta_id = item.get("id", "")
+                    numeros_recentes = item.get("statistics", {}).get("results", [])
+                    roletas.append({
+                        "nome": nome_roleta,
+                        "id": roleta_id,
+                        "numeros_recentes": numeros_recentes,
+                        "provider": "pragmatic"
+                    })
+        
+        print(f"Encontradas {len(roletas)} roletas Pragmatic via API direta")
+        return roletas
+    
+    # Função principal para obter dados via API direta
+    def obter_dados_via_api():
+        print("Iniciando coleta de dados via API direta...")
+        session = criar_sessao_api()
+        
+        # Coletar dados da Pragmatic
+        dados_pragmatic = acessar_api_pragmatic(session)
+        roletas_pragmatic = processar_dados_pragmatic(dados_pragmatic)
+        
+        # Aqui você pode adicionar outras APIs conforme necessário
+        
+        # Retornar todos os dados coletados
+        return roletas_pragmatic
+    
+    print("✅ Configuração de acesso via API direta concluída")
+except Exception as e:
+    print(f"⚠️ Erro ao configurar acesso via API direta: {e}")
+
+# Modificar a função principal para usar API direta quando configurado
+def coletar_dados_roletas():
+    """Coleta dados de roletas usando o método apropriado (API direta ou navegador)"""
+    if hasattr(config, 'USE_DIRECT_API') and config.USE_DIRECT_API:
+        # Usar método de API direta
+        print("Usando método de API direta para coletar dados...")
+        return obter_dados_via_api()
+    else:
+        # Usar método de automação com navegador (código existente)
+        print("Usando método de automação com navegador para coletar dados...")
+        # Chamar a função original de scraping aqui
+        return scrape_roletas()  # ou a função original que você usava
+
 def main():
     """
     Função principal para executar o scraper em modo real

@@ -65,7 +65,19 @@ from roletas_permitidas import roleta_permitida_por_id
 # Configuração de logging
 logger = logging.getLogger('runcash')
 
-# Configurações do Selenium e navegadores
+# Desabilitar uso de navegadores para este ambiente e preferir APIs diretas
+USE_DIRECT_API = True
+USE_BROWSER_AUTOMATION = False
+
+# API URLs para acesso direto (sem navegador)
+DIRECT_API_ENDPOINTS = {
+    "pragmatic": "https://api-sg0.pragmaticplaylive.net/api",
+    "evolution": "https://lobby.evolution.com/api",
+    "ezugi": "https://api.ezugi.com",
+    # Adicione outros endpoints conforme necessário
+}
+
+# Configurações do Selenium e navegadores (somente usados se USE_BROWSER_AUTOMATION=True)
 SELENIUM_HEADLESS = True  # Executar navegador em modo headless
 SELENIUM_OPTIONS = {
     'headless': True,       # Modo sem interface gráfica
@@ -76,13 +88,16 @@ SELENIUM_OPTIONS = {
 }
 
 # Configuração para usar o Xvfb em ambientes sem display
-USE_XVFB = True  # Usa servidor X virtual
+USE_XVFB = False  # Desativando pois não usaremos navegador
 
 # Tempo máximo de espera para elementos na página (em segundos)
 SELENIUM_TIMEOUT = 30
 
 # Flag para verificar se estamos em ambiente de produção (Railway)
 IS_RAILWAY = True  # Assume que estamos no Railway para usar configurações otimizadas
+
+# Usar requests em vez de Selenium para acessar APIs
+USE_REQUESTS_INSTEAD_OF_SELENIUM = True
 
 def configurar_logging():
     """Configura o sistema de logging"""
