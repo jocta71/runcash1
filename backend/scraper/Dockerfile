@@ -1,20 +1,4 @@
-FROM python:3.11 as builder
-
-# Configurar variáveis de ambiente para evitar interações durante a instalação
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Instalar git para clonar o repositório
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends git && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Clonar o repositório em um diretório temporário
-WORKDIR /tmp
-RUN git clone https://github.com/jocta71/runcash1.git
-
-# Segunda fase - construir a imagem final
-FROM python:3.11
+FROM python:3.11-slim
 
 WORKDIR /app
 
