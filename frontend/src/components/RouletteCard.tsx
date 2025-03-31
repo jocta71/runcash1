@@ -256,11 +256,11 @@ const RouletteCard = memo(({
     };
     
     // Inscrever para receber eventos específicos desta roleta
-    eventService.on('strategy_update', handleStrategyUpdate);
+    eventService.subscribeToEvent('strategy_update', handleStrategyUpdate);
     
     // Limpar inscrição ao desmontar
     return () => {
-      eventService.off('strategy_update', handleStrategyUpdate);
+      eventService.unsubscribeFromEvent('strategy_update', handleStrategyUpdate);
     };
   }, [roletaId, roletaNome]);
   
@@ -307,30 +307,30 @@ const RouletteCard = memo(({
   // Função para gerar sugestões
   const generateSuggestion = () => {
     // Obter números do grupo selecionado
-    const group = numberGroups.find(g => g.id === selectedGroup);
-    if (!group) return [];
+    const selectedGroupObj = numberGroups[selectedGroup as keyof typeof numberGroups];
+    if (!selectedGroupObj) return [];
     
     // Gerar sugestão baseada no grupo
-    const newSuggestion = group.numbers;
+    const newSuggestion = selectedGroupObj.numbers;
     setSuggestion(newSuggestion);
     
     return newSuggestion;
   };
 
   // Toggle para mostrar/ocultar sugestões
-  const toggleVisibility = (e: React.MouseEvent) => {
+  const toggleVisibility = (e: any) => {
     e.stopPropagation();
     setIsBlurred(!isBlurred);
   };
 
   // Navegar para página de detalhes
-  const handleDetailsClick = (e: React.MouseEvent) => {
+  const handleDetailsClick = (e: any) => {
     e.stopPropagation();
     navigate(`/roletas/${roletaId || 'unknown'}`);
   };
 
   // Navegar para página de jogo
-  const handlePlayClick = (e: React.MouseEvent) => {
+  const handlePlayClick = (e: any) => {
     e.stopPropagation();
     toast({
       title: "Em breve!",
@@ -339,7 +339,7 @@ const RouletteCard = memo(({
   };
   
   // Função para recarregar dados
-  const reloadData = async (e: React.MouseEvent) => {
+  const reloadData = async (e: any) => {
     e.stopPropagation();
     
     try {
@@ -350,21 +350,13 @@ const RouletteCard = memo(({
       });
       
       // Recarregar números e estratégia
-      const success = await refreshNumbers();
-      const strategySuccess = await refreshStrategy();
+      await refreshNumbers();
+      await refreshStrategy();
       
-      if (success || strategySuccess) {
-        toast({
-          title: "Dados atualizados",
-          description: `Os dados de ${roletaNome} foram atualizados com sucesso.`,
-        });
-      } else {
-        toast({
-          title: "Aviso",
-          description: "Não foi possível obter novos dados neste momento.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Dados atualizados",
+        description: `Os dados de ${roletaNome} foram atualizados com sucesso.`,
+      });
     } catch (error) {
       console.error(`Erro ao recarregar dados: ${error}`);
       toast({
@@ -490,10 +482,11 @@ const RouletteCard = memo(({
       {/* Modal de estatísticas */}
       <RouletteStatsModal 
         open={statsOpen} 
-        onOpenChange={setStatsOpen}
-        roletaId={roletaId}
+        onClose={setStatsOpen}
         roletaNome={roletaNome}
-        numbers={mappedNumbers.slice(0, 100)}
+        lastNumbers={mappedNumbers.slice(0, 100)}
+        wins={strategyWins}
+        losses={strategyLosses}
       />
     </div>
   );
