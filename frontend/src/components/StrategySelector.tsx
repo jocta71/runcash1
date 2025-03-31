@@ -37,23 +37,16 @@ const StrategySelector: React.FC<StrategySelectProps> = ({
         const availableStrategies = await StrategyService.getStrategies();
         setStrategies(availableStrategies);
 
-        // Verificar se a roleta já tem uma estratégia associada
-        const rouletteStrategy = await StrategyService.getRouletteStrategy(roletaId);
-        setCurrentRouletteStrategy(rouletteStrategy);
+        // Removida chamada à API getRouletteStrategy que estava causando erros
+        // Definindo diretamente como null
+        setCurrentRouletteStrategy(null);
         
-        if (rouletteStrategy) {
-          setSelectedStrategyId(rouletteStrategy.strategyId._id);
+        // Selecionar a estratégia do sistema como padrão, se disponível
+        const systemStrategy = availableStrategies.find(s => s.isSystem);
+        if (systemStrategy) {
+          setSelectedStrategyId(systemStrategy._id);
           if (onStrategyChange) {
-            onStrategyChange(rouletteStrategy.strategyId);
-          }
-        } else {
-          // Selecionar a estratégia do sistema como padrão, se disponível
-          const systemStrategy = availableStrategies.find(s => s.isSystem);
-          if (systemStrategy) {
-            setSelectedStrategyId(systemStrategy._id);
-            if (onStrategyChange) {
-              onStrategyChange(systemStrategy);
-            }
+            onStrategyChange(systemStrategy);
           }
         }
       } catch (error) {

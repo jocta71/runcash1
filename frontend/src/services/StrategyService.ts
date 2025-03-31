@@ -156,22 +156,9 @@ class StrategyService {
    * Obter a estratégia associada a uma roleta
    */
   async getRouletteStrategy(roletaId: string): Promise<RouletteStrategy | null> {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/roulette/${roletaId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      return response.data.data;
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        // Nenhuma estratégia associada, não é um erro
-        return null;
-      }
-      console.error(`Erro ao obter estratégia da roleta ${roletaId}:`, error);
-      return null;
-    }
+    // Método modificado para retornar null diretamente sem fazer chamada à API
+    console.log(`Chamada à API de estratégias desativada para roleta ${roletaId}`);
+    return null;
   }
 }
 
