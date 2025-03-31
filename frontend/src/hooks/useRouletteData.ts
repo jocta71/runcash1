@@ -97,9 +97,7 @@ export function useRouletteData(
   const [strategy, setStrategy] = useState<RouletteStrategy | null>(null);
   const [strategyLoading, setStrategyLoading] = useState<boolean>(true);
   
-  // Controles de inicialização e retry
-  const [retryCount, setRetryCount] = useState<number>(0);
-  const maxRetries = 1;
+  // Ref para controle de inicialização
   const initialLoadCompleted = useRef<boolean>(false);
   
   // ===== CARREGAMENTO DE DADOS INICIAIS =====
@@ -129,7 +127,6 @@ export function useRouletteData(
         // Atualizar estado
         setNumbers(processedNumbers);
         setHasData(true);
-        setRetryCount(0);
         initialLoadCompleted.current = true;
         
         debugLog(`[useRouletteData] Processados ${processedNumbers.length} números para ${roletaNome}`);
@@ -137,7 +134,6 @@ export function useRouletteData(
       } else {
         // Sem dados disponíveis
         setHasData(false);
-        // Marcar como completo mesmo sem dados, para não continuar tentando
         initialLoadCompleted.current = true;
         
         debugLog(`[useRouletteData] Sem dados disponíveis para ${roletaNome}`);
@@ -147,15 +143,13 @@ export function useRouletteData(
       console.error(`[useRouletteData] Erro ao carregar números: ${err.message}`);
       setError(`Erro ao carregar números: ${err.message}`);
       setHasData(false);
-      
-      // Marcar como completo mesmo com erro, para não continuar tentando
       initialLoadCompleted.current = true;
       return false;
     } finally {
       setLoading(false);
       setRefreshLoading(false);
     }
-  }, [roletaId, roletaNome, limit, retryCount, maxRetries]);
+  }, [roletaId, roletaNome, limit]);
   
   // Função para extrair e processar estratégia da API
   const loadStrategy = useCallback(async (): Promise<boolean> => {
@@ -315,19 +309,6 @@ export function useRouletteData(
       if (currentStatus !== isConnected) {
         debugLog(`[useRouletteData] Mudança no status da conexão: ${currentStatus}`);
         setIsConnected(currentStatus);
-      }
-      
-      // Se a conexão está OK mas não temos dados, tentar refresh
-      if (currentStatus && !hasData && !loading) {
-        debugLog(`[useRouletteData] Conectado mas sem dados, tentando refresh para ${roletaNome}`);
-        loadNumbers(true);
-        
-        // Também solicitar dados de estratégia
-        socketService.sendMessage({
-          type: 'get_strategy',
-          roleta_id: roletaId,
-          roleta_nome: roletaNome
-        });
       }
     }, 10000);
     
