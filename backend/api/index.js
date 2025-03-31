@@ -2,7 +2,29 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { MongoClient } = require('mongodb');
 require('dotenv').config();
+
+// Configuração MongoDB
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/runcash';
+let db = null;
+
+// Conectar ao MongoDB
+async function connectToMongoDB() {
+  try {
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    console.log('Conectado ao MongoDB com sucesso');
+    db = client.db();
+    return db;
+  } catch (error) {
+    console.error('Erro ao conectar ao MongoDB:', error);
+    return null;
+  }
+}
+
+// Iniciar conexão com MongoDB
+connectToMongoDB();
 
 // Import our REST API routes
 const restRoutes = require('./routes/restApi');
