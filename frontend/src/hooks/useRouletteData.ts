@@ -117,7 +117,13 @@ export function useRouletteData(
       
       // 1. EXTRAÇÃO: Obter números brutos da API
       debugLog(`[useRouletteData] Extraindo números para ${roletaNome} (ID: ${roletaId})`);
-      const numerosArray = await fetchRouletteLatestNumbers(roletaId, limit);
+      let numerosArray = await fetchRouletteLatestNumbers(roletaId, limit);
+      
+      // Tentar obter por nome como fallback se não conseguir por ID
+      if (!numerosArray || numerosArray.length === 0) {
+        debugLog(`[useRouletteData] Tentando obter números por nome da roleta: ${roletaNome}`);
+        numerosArray = await fetchRouletteLatestNumbersByName(roletaNome, limit);
+      }
       
       // 2. PROCESSAMENTO: Converter para formato RouletteNumber
       if (numerosArray && Array.isArray(numerosArray) && numerosArray.length > 0) {
@@ -160,7 +166,24 @@ export function useRouletteData(
     try {
       // 1. EXTRAÇÃO: Obter estratégia da API
       debugLog(`[useRouletteData] Extraindo estratégia para ${roletaNome}...`);
-      const strategyData = await fetchRouletteStrategy(roletaId);
+      let strategyData = await fetchRouletteStrategy(roletaId);
+      
+      // Se não tem dados de estratégia, tenta extrair da roleta por nome
+      if (!strategyData) {
+        debugLog(`[useRouletteData] Tentando extrair estratégia da roleta por nome: ${roletaNome}`);
+        const roletaData = await fetchRouletteById(roletaId);
+        
+        if (roletaData) {
+          strategyData = {
+            estado: roletaData.estado_estrategia || 'NEUTRAL',
+            numero_gatilho: roletaData.numero_gatilho || null,
+            terminais_gatilho: roletaData.terminais_gatilho || [],
+            vitorias: roletaData.vitorias || 0,
+            derrotas: roletaData.derrotas || 0,
+            sugestao_display: roletaData.sugestao_display || ''
+          };
+        }
+      }
       
       // 2. PROCESSAMENTO: Atualizar estado com dados obtidos
       if (strategyData) {

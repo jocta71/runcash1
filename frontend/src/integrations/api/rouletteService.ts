@@ -72,7 +72,7 @@ export interface RouletteStrategy {
 export const extractAvailableRoulettes = async (): Promise<any[]> => {
   try {
     console.log('[API] Extraindo roletas disponíveis...');
-    const response = await api.get('/roulettes');
+    const response = await api.get('/roletas');
     return response.data || [];
   } catch (error) {
     console.error('[API] Erro ao extrair roletas disponíveis:', error);
@@ -86,7 +86,7 @@ export const extractAvailableRoulettes = async (): Promise<any[]> => {
 export const extractAllRoulettes = async (): Promise<any[]> => {
   try {
     console.log('[API] Extraindo dados de todas as roletas...');
-    const response = await api.get('/roulettes');
+    const response = await api.get('/roletas');
     return response.data || [];
   } catch (error) {
     console.error('[API] Erro ao extrair dados de roletas:', error);
@@ -100,8 +100,8 @@ export const extractAllRoulettes = async (): Promise<any[]> => {
 export const extractRouletteNumbersByName = async (roletaNome: string, limit = 10): Promise<any> => {
   try {
     console.log(`[API] Extraindo números para roleta '${roletaNome}'...`);
-    const response = await api.get(`/numbers/${encodeURIComponent(roletaNome)}?limit=${limit}`);
-    return response.data;
+    const response = await api.get(`/roletas/${encodeURIComponent(roletaNome)}`);
+    return response.data?.numeros || [];
   } catch (error) {
     console.error(`[API] Erro ao extrair números para roleta '${roletaNome}':`, error);
     return null;
@@ -114,11 +114,19 @@ export const extractRouletteNumbersByName = async (roletaNome: string, limit = 1
 export const extractRouletteNumbersById = async (roletaId: string, limit = 10): Promise<any> => {
   try {
     console.log(`[API] Extraindo ${limit} números para roleta ID ${roletaId}...`);
-    const response = await api.get(`/numbers/byid/${encodeURIComponent(roletaId)}?limit=${limit}`);
+    const response = await api.get(`/numbers/byId/${encodeURIComponent(roletaId)}?limit=${limit}`);
     return response.data;
   } catch (error) {
     console.error(`[API] Erro ao extrair números para roleta ${roletaId}:`, error);
-    return null;
+    // Tentar obter os números da roleta diretamente, caso a rota /numbers/byId não exista
+    try {
+      console.log(`[API] Tentando rota alternativa para obter números da roleta ${roletaId}...`);
+      const response = await api.get(`/roletas/${encodeURIComponent(roletaId)}`);
+      return response.data?.numeros || [];
+    } catch (secondError) {
+      console.error(`[API] Falha também na rota alternativa:`, secondError);
+      return null;
+    }
   }
 };
 
@@ -128,9 +136,20 @@ export const extractRouletteNumbersById = async (roletaId: string, limit = 10): 
 export const extractRouletteStrategy = async (roletaId: string): Promise<any> => {
   try {
     console.log(`[API] Extraindo estratégia para roleta ID ${roletaId}...`);
-    const endpoint = `/roulette/${encodeURIComponent(roletaId)}/strategy`;
-    const response = await api.get(endpoint);
-    return response.data;
+    // Esta rota não existe no backend, vamos tentar obter diretamente da roleta
+    const response = await api.get(`/roletas/${encodeURIComponent(roletaId)}`);
+    if (response.data) {
+      // Construir um objeto de estratégia a partir dos dados da roleta
+      return {
+        estado: response.data.estado_estrategia || 'NEUTRAL',
+        numero_gatilho: response.data.numero_gatilho || null,
+        terminais_gatilho: response.data.terminais_gatilho || [],
+        vitorias: response.data.vitorias || 0,
+        derrotas: response.data.derrotas || 0,
+        sugestao_display: response.data.sugestao_display || ''
+      };
+    }
+    return null;
   } catch (error) {
     console.error(`[API] Erro ao extrair estratégia para roleta ${roletaId}:`, error);
     return null;
@@ -143,7 +162,7 @@ export const extractRouletteStrategy = async (roletaId: string): Promise<any> =>
 export const extractRouletteById = async (roletaId: string): Promise<any> => {
   try {
     console.log(`[API] Extraindo dados da roleta ${roletaId}...`);
-    const response = await api.get(`/roulettes/${encodeURIComponent(roletaId)}`);
+    const response = await api.get(`/roletas/${encodeURIComponent(roletaId)}`);
     return response.data;
   } catch (error) {
     console.error(`[API] Erro ao extrair dados da roleta ${roletaId}:`, error);
