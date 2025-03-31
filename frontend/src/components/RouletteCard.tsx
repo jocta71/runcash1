@@ -147,7 +147,12 @@ const RouletteCard = memo(({
   // Converter os objetos RouletteNumber para números simples
   const mappedNumbers = useMemo(() => {
     if (!Array.isArray(numbers) || numbers.length === 0) {
-      // Não usar lastNumbers como fallback, retornar array vazio
+      // Se não temos dados da API, usar os lastNumbers que vieram como prop
+      if (Array.isArray(lastNumbers) && lastNumbers.length > 0) {
+        console.log(`[RouletteCard] Usando números da prop lastNumbers para ${roletaNome}:`, lastNumbers.slice(0, 5));
+        return lastNumbers;
+      }
+      // Se não temos nem dados da API nem props, retornar array vazio
       return [];
     }
     
@@ -162,7 +167,7 @@ const RouletteCard = memo(({
     }
     
     return mapped;
-  }, [numbers, roletaNome]);
+  }, [numbers, lastNumbers, roletaNome]);
 
   // Otimizar trend com useMemo - não gerar dados simulados
   const trendData = useMemo(() => {
@@ -263,7 +268,7 @@ const RouletteCard = memo(({
       eventService.unsubscribeFromEvent('strategy_update', handleStrategyUpdate);
     };
   }, [roletaId, roletaNome]);
-  
+
   // Efeito para subscrever ao WebSocket diretamente
   useEffect(() => {
     if (!roletaId || !roletaNome) return;
@@ -289,8 +294,8 @@ const RouletteCard = memo(({
         console.log(`[RouletteCard] WebSocket: Atualização de estratégia para ${roletaNome}`);
         
         // Atualizar os dados via API ao receber atualização de estratégia
-        refreshStrategy();
-      }
+      refreshStrategy();
+    }
     };
     
     // Subscrever aos eventos da roleta
@@ -337,7 +342,7 @@ const RouletteCard = memo(({
       description: "Jogo para esta roleta estará disponível em breve.",
     });
   };
-  
+
   // Função para recarregar dados
   const reloadData = async (e: any) => {
     e.stopPropagation();
@@ -377,7 +382,7 @@ const RouletteCard = memo(({
   const insight = getInsightMessage(mappedNumbers.slice(0, 10), strategyWins, strategyLosses);
   
   // Verificar se temos dados para exibir
-  const hasDisplayableData = mappedNumbers.length > 0;
+  const hasDisplayableData = mappedNumbers.length > 0 || (Array.isArray(lastNumbers) && lastNumbers.length > 0);
 
   return (
     <div className="bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-zinc-800 hover:border-zinc-700 transition-all duration-300">
@@ -432,8 +437,8 @@ const RouletteCard = memo(({
               <div className="flex items-center">
                 <span className="text-zinc-400 mr-2">Derrotas:</span>
                 <span className={lossesClass}>{strategyLosses}</span>
-              </div>
-            </div>
+        </div>
+        </div>
             
             {/* Estado da estratégia */}
             {strategyState && (
@@ -446,8 +451,8 @@ const RouletteCard = memo(({
                     'text-zinc-300'
                   }`}>
                     {strategyState}
-                  </span>
-                </div>
+          </span>
+        </div>
                 {strategyDisplay && (
                   <div className="text-sm mt-1">
                     <span className="text-zinc-400">Sugestão: </span>
@@ -482,7 +487,7 @@ const RouletteCard = memo(({
       {/* Modal de estatísticas */}
       <RouletteStatsModal 
         open={statsOpen} 
-        onClose={setStatsOpen}
+        onClose={setStatsOpen} 
         roletaNome={roletaNome}
         lastNumbers={mappedNumbers.slice(0, 100)}
         wins={strategyWins}
