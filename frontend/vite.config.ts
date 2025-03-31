@@ -10,7 +10,29 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    port: 3000,
+    host: true,
+    // Configuração para o proxy de desenvolvimento
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_URL || 'http://localhost:3002/api',
+        changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
+  // Configuração para garantir que o HTML5 History API funcione
   build: {
     outDir: "dist",
+    assetsDir: "assets",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          ui: ['@/components/ui'], 
+        },
+      },
+    },
   }
 });

@@ -4,14 +4,27 @@
   "outputDirectory": "frontend/dist",
   "installCommand": "cd frontend && npm install",
   "framework": "vite",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
+  "routes": [
+    { 
+      "src": "/api/(.*)", 
+      "dest": "/api/$1" 
+    },
+    { 
+      "src": "/assets/(.*)", 
+      "dest": "/assets/$1" 
+    },
+    { 
+      "handle": "filesystem"
+    },
+    { 
+      "src": "/(.*)", 
+      "dest": "/index.html",
+      "status": 200
     }
   ],
   "env": {
     "VITE_WS_URL": "http://10.0.0.114:5000",
-    "VITE_SSE_SERVER_URL": "http://10.0.0.114:5000/api/events"
+    "VITE_SSE_SERVER_URL": "http://10.0.0.114:5000/api/events",
+    "VITE_API_URL": "https://runcash1.vercel.app/api"
   }
 }
