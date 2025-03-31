@@ -11,6 +11,7 @@ import PaymentCanceled from "./pages/PaymentCanceled";
 import PlansPage from "./pages/PlansPage";
 import ProfilePage from "./pages/ProfilePage";
 import SeedPage from "./pages/SeedPage";
+import StrategiesPage from "./pages/StrategiesPage";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
 import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
 import { useState, useEffect } from "react";
@@ -96,6 +97,9 @@ const App = () => {
 
               {/* Rota para página de análise */}
               <Route path="/analise" element={<RouletteAnalysisPage />} />
+              
+              {/* Rota para página de estratégias */}
+              <Route path="/strategies" element={<StrategiesPage />} />
               
               {/* Redirecionamento da antiga rota de tempo real para a página principal */}
               <Route path="/realtime" element={<Navigate to="/" />} />

@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { StrategyUpdateEvent } from '@/services/EventService';
 import EventService from '@/services/EventService';
 import SocketService from '@/services/SocketService';
+import StrategySelector from '@/components/StrategySelector';
+import { Strategy } from '@/services/StrategyService';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;
@@ -122,6 +124,9 @@ const RouletteCard = memo(({
   
   // Estado para armazenar números recebidos diretamente do WebSocket
   const [mappedNumbersOverride, setMappedNumbersOverride] = useState<number[]>([]);
+  
+  // Dentro do componente RouletteCard, adicionar state para estratégia selecionada
+  const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
   
   // Usar o hook personalizado para obter dados em tempo real, apenas se tivermos um roletaId
   const { 
@@ -498,6 +503,16 @@ const RouletteCard = memo(({
                 <span className="text-zinc-400 mr-2">Derrotas:</span>
                 <span className={lossesClass}>{strategyLosses}</span>
               </div>
+            </div>
+            
+            {/* Seletor de estratégia */}
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold mb-2">Estratégia</h3>
+              <StrategySelector 
+                roletaId={roletaId}
+                roletaNome={roletaNome}
+                onStrategyChange={setSelectedStrategy}
+              />
             </div>
             
             {/* Estado da estratégia */}

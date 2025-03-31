@@ -30,6 +30,8 @@ connectToMongoDB();
 const restRoutes = require('./routes/restApi');
 // Import our Events API routes
 const eventsRoutes = require('./routes/eventsApi');
+// Import strategies API routes
+const strategiesRoutes = require('./routes/strategies');
 // Import error handler middleware
 const errorHandler = require('./middleware/errorHandler');
 
@@ -100,6 +102,9 @@ app.use('/api/rest', restRoutes);
 
 // Use our Events API routes
 app.use('/api/events', eventsRoutes);
+
+// Use our Strategies API routes
+app.use('/api/strategies', strategiesRoutes);
 
 // Endpoint para obter dados das roletas
 app.get('/api/roletas', async (req, res) => {
