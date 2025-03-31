@@ -3,16 +3,16 @@
   "build": {
     "builder": "NIXPACKS",
     "watchPatterns": [
-      "backend/api/**/*.js",
-      "backend/api/package.json"
+      "**/*.js",
+      "package.json"
     ],
-    "buildCommand": "cd backend/api && npm install"
+    "buildCommand": "npm install"
   },
   "deploy": {
     "numReplicas": 1,
     "sleepApplication": false,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
-    "startCommand": "cd backend/api && node index.js"
+    "startCommand": "node index.js"
   }
 } 
