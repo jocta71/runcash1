@@ -115,6 +115,17 @@ class EventService {
     return EventService.instance;
   }
 
+  // Métodos estáticos para simplificar o uso do serviço nos componentes
+  public static subscribe(eventType: string, callback: RouletteEventCallback): void {
+    const instance = EventService.getInstance();
+    instance.subscribe(eventType, callback);
+  }
+
+  public static unsubscribe(eventType: string, callback: RouletteEventCallback): void {
+    const instance = EventService.getInstance();
+    instance.unsubscribe(eventType, callback);
+  }
+
   // Obtém a URL do servidor de eventos baseado no método atual
   private getServerUrl(method: string = 'direct'): string {
     const baseUrl = 'https://short-mammals-help.loca.lt/api/events';
