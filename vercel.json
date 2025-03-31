@@ -7,7 +7,7 @@
   "rewrites": [
     { 
       "source": "/api/(.*)", 
-      "destination": "https://backendscraper-production.up.railway.app/api/$1" 
+      "destination": "https://backendapi-production-36b5.up.railway.app/api/$1" 
     },
     { 
       "source": "/(.*)", 
@@ -17,6 +17,6 @@
   "env": {
     "VITE_WS_URL": "https://backendscraper-production.up.railway.app",
     "VITE_SSE_SERVER_URL": "https://backendscraper-production.up.railway.app/api/events",
-    "VITE_API_URL": "https://backendscraper-production.up.railway.app/api"
+    "VITE_API_URL": "https://backendapi-production-36b5.up.railway.app/api"
   }
 }
