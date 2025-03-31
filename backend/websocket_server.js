@@ -91,12 +91,22 @@ app.post('/emit-event', (req, res) => {
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO sem configurações de CORS
+// Inicializar Socket.IO com configurações de CORS adequadas
 const io = new Server(server, {
-  cors: false,
+  cors: {
+    origin: "*", // Permite qualquer origem
+    methods: ["GET", "POST"],
+    credentials: true,
+    allowedHeaders: ["*"]
+  },
   allowEIO3: true,
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000, // Aumentar timeout para 60s
+  pingInterval: 25000 // Verificar conexão a cada 25s
 });
+
+// Log para confirmar configuração
+console.log('Socket.IO configurado com CORS permitindo todas as origens');
 
 // Status e números das roletas
 let rouletteStatus = {};
