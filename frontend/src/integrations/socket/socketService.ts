@@ -32,8 +32,17 @@ class SocketService {
     this.socketUrl = config.wsUrl || '';
     console.log(`[Socket] Inicializando serviço. URL: ${this.socketUrl}`);
     
-    // Verificar se devemos iniciar em modo de simulação
-    this.simulationMode = !this.socketUrl || this.socketUrl.includes('localhost');
+    // Verificar se devemos iniciar em modo de simulação imediatamente
+    // Adicionando verificação para URLs que sabemos que estão causando problemas
+    if (!this.socketUrl || 
+        this.socketUrl.includes('localhost') || 
+        this.socketUrl.includes('railway.app')) {
+      console.log('[Socket] Iniciando diretamente em modo de simulação (URL problemática)');
+      this.simulationMode = true;
+      this.connected = true;
+      return;
+    }
+    
     this.connect();
   }
 

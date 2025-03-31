@@ -13,7 +13,7 @@ import ProfilePage from "./pages/ProfilePage";
 import SeedPage from "./pages/SeedPage";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
 import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // Configuração melhorada do QueryClient para evitar recarregamentos desnecessários
 const createQueryClient = () => new QueryClient({
@@ -36,6 +36,35 @@ const createQueryClient = () => new QueryClient({
 const App = () => {
   // Criar uma única instância do QueryClient que seja mantida mesmo após re-renders
   const [queryClient] = useState(createQueryClient);
+
+  // Adicionar este useEffect para lidar com erros de renderização
+  useEffect(() => {
+    // Resolver o erro de freeze/congelamento
+    const handleFreeze = () => {
+      try {
+        // Verificar se há erros de renderização pendentes
+        if (document.body && document.getElementById('root')) {
+          const freezeOverlay = document.getElementById('freeze-overlay');
+          if (freezeOverlay) {
+            console.log('[FREEZE] Removendo overlay de congelamento');
+            document.body.removeChild(freezeOverlay);
+          }
+        }
+      } catch (error) {
+        console.error('[FREEZE] Erro ao lidar com congelamento:', error);
+      }
+    };
+
+    // Executar verificação após o componente estar montado
+    handleFreeze();
+    
+    // Também executar quando a janela é redimensionada, o que pode ajudar a "descongelar"
+    window.addEventListener('resize', handleFreeze);
+    
+    return () => {
+      window.removeEventListener('resize', handleFreeze);
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
