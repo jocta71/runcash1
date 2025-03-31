@@ -186,51 +186,30 @@ export function useRouletteData(
     }
   }, [roletaId, roletaNome]);
   
-  // useEffect para inicialização e atualização periódica
+  // useEffect para inicialização - SIMPLIFICADO, REMOVIDO POLLING
   useEffect(() => {
     let isActive = true;
-    let intervalId: number | null = null;
     
-    // Função para carregar dados com verificação de component mounted
-    const safeLoadData = async () => {
+    // Função para carregar dados uma única vez
+    const loadInitialData = async () => {
       if (!isActive) return;
       
       try {
-        // Evitar carregamento se a inicialização já foi concluída e temos dados
-        if (initialLoadCompleted.current && hasData) return;
-        
         await loadNumbers();
+        await loadStrategy();
       } catch (error) {
         console.error('[useRouletteData] Erro ao carregar dados iniciais:', error);
       }
     };
     
-    // Função para atualizar estratégia com verificação de component mounted
-    const safeLoadStrategy = async () => {
-      if (!isActive) return;
-      await loadStrategy();
-    };
-    
-    // Carregar dados iniciais
-    safeLoadData();
-    safeLoadStrategy();
-    
-    // Configurar atualização periódica - aumentando o intervalo para 60 segundos
-    const refreshIntervalMs = 60 * 1000; // 60 segundos
-    intervalId = window.setInterval(() => {
-      // Atualizar apenas se o componente ainda estiver montado
-      if (isActive) {
-        loadNumbers(true);
-        loadStrategy();
-      }
-    }, refreshIntervalMs);
+    // Carregar dados apenas uma vez na inicialização
+    loadInitialData();
     
     // Cleanup
     return () => {
       isActive = false;
-      if (intervalId) window.clearInterval(intervalId);
     };
-  }, [loadNumbers, loadStrategy, hasData]);
+  }, [loadNumbers, loadStrategy]);
   
   // ===== EVENTOS E WEBSOCKETS =====
   
@@ -280,30 +259,7 @@ export function useRouletteData(
     debugLog(`[useRouletteData] Status da conexão Socket.IO: ${isSocketConnected ? 'Conectado' : 'Desconectado'}`);
     setIsConnected(isSocketConnected);
     
-    // Solicitar dados iniciais de estratégia
-    if (isSocketConnected && roletaId) {
-      console.log(`[useRouletteData] Solicitando estratégia inicial para ${roletaNome}`);
-      socketService.sendMessage({
-        type: 'get_strategy',
-        roleta_id: roletaId,
-        roleta_nome: roletaNome
-      });
-    }
-    
-    // Configurar atualização periódica de estratégia
-    const strategyUpdateInterval = setInterval(() => {
-      if (socketService.isSocketConnected() && roletaId) {
-        console.log(`[useRouletteData] Atualizando estratégia periodicamente para ${roletaNome}`);
-        socketService.sendMessage({
-          type: 'get_strategy',
-          roleta_id: roletaId,
-          roleta_nome: roletaNome,
-          forceUpdate: true
-        });
-      }
-    }, 30000); // Atualizar a cada 30 segundos
-    
-    // Função para verificar e atualizar status da conexão periodicamente
+    // Verificar conexão uma única vez - sem polling periódico
     const connectionCheckInterval = setInterval(() => {
       const currentStatus = socketService.isSocketConnected();
       if (currentStatus !== isConnected) {
@@ -317,9 +273,8 @@ export function useRouletteData(
       debugLog(`[useRouletteData] Removendo inscrição para eventos da roleta: ${roletaNome}`);
       socketService.unsubscribe(roletaNome, handleNewNumber);
       clearInterval(connectionCheckInterval);
-      clearInterval(strategyUpdateInterval);
     };
-  }, [roletaNome, roletaId, handleNewNumber, hasData, loading, isConnected, loadNumbers]);
+  }, [roletaNome, roletaId, handleNewNumber, isConnected]);
   
   // Eventos de atualização da estratégia
   useEffect(() => {
@@ -367,14 +322,6 @@ export function useRouletteData(
       eventService.unsubscribeFromEvent('strategy_update', handleStrategyEvent);
     };
   }, [roletaId, roletaNome, strategy]);
-  
-  // Solicitar estratégia assim que obtiver os primeiros números
-  useEffect(() => {
-    if (numbers.length > 0 && !strategyLoading && !strategy) {
-      console.log(`[useRouletteData] Números carregados, solicitando estratégia para ${roletaNome}`);
-      loadStrategy();
-    }
-  }, [numbers.length, strategyLoading, strategy, roletaNome, loadStrategy]);
   
   // ===== FUNÇÕES PÚBLICAS =====
   
