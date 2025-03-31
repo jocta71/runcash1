@@ -1,17 +1,13 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "watchPatterns": [
-      "**/*.js",
-      "package.json"
-    ]
+    "builder": "NIXPACKS"
   },
   "deploy": {
     "numReplicas": 1,
     "sleepApplication": false,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
-    "startCommand": "node find_websocket.js || true && ls -la && node websocket_server.js || echo 'Falha ao iniciar o servidor'"
+    "startCommand": "node websocket_server.js"
   }
 } 
