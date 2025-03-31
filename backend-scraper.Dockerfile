@@ -1,23 +1,27 @@
-FROM python:3.11
+FROM python:3.11-slim
 
+# Configurar variáveis de ambiente para evitar prompts durante a instalação
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Definir diretório de trabalho
 WORKDIR /app
 
-# Configurar variáveis de ambiente para evitar interações durante a instalação
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Instalar dependências do sistema com configurações adicionais
+# Instalar dependências do sistema
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends xvfb git && \
+    apt-get install -y xvfb && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Clonar o repositório
-RUN git clone https://github.com/jocta71/runcash1.git /tmp/repo && \
-    cp -r /tmp/repo/backend/scraper/* /app/ && \
-    rm -rf /tmp/repo
+# Copiar requirements primeiro para aproveitar o cache
+COPY scraper/requirements.txt .
 
 # Instalar dependências Python
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar código fonte
+COPY scraper/ .
 
 # Configurar variáveis de ambiente
 ENV PYTHONUNBUFFERED=1
