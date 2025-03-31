@@ -1,10 +1,11 @@
-import axios from 'axios';
+// Arquivo modificado para funcionar sem fazer requisições à API
 
-// Definição da URL da API usando apenas variáveis de ambiente
-const API_URL = `${import.meta.env.VITE_API_URL || ''}/api/strategies`;
+// Removidas importações de axios e definição de API_URL que não são mais necessárias
+// import axios from 'axios';
+// const API_URL = `${import.meta.env.VITE_API_URL || ''}/api/strategies`;
 
-// Log para depuração da URL da API
-console.log('API URL configurada:', API_URL);
+// Log de inicialização
+console.log('Serviço de estratégias inicializado em modo offline');
 
 interface Strategy {
   _id: string;
@@ -42,13 +43,34 @@ class StrategyService {
    */
   async getStrategies(): Promise<Strategy[]> {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(API_URL, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      return response.data.data;
+      // Método modificado para retornar uma estratégia de sistema simulada
+      // sem fazer requisição à API
+      console.log('Chamada à API de estratégias desativada, retornando estratégia de sistema simulada');
+      
+      // Criar uma estratégia de sistema padrão
+      const systemStrategy: Strategy = {
+        _id: 'system-strategy-default',
+        name: 'Estratégia Padrão do Sistema',
+        description: 'Estratégia padrão configurada para detecção de repetições e alternância de cores',
+        isPublic: true,
+        isSystem: true,
+        userId: 'system',
+        rules: {
+          detectRepetitions: true,
+          checkParity: true,
+          colorSequence: true,
+          detectDozens: false,
+          detectColumns: false
+        },
+        terminalsConfig: {
+          useDefaultTerminals: true,
+          customTerminals: []
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      return [systemStrategy];
     } catch (error) {
       console.error('Erro ao obter estratégias:', error);
       return [];
@@ -60,13 +82,15 @@ class StrategyService {
    */
   async getStrategy(id: string): Promise<Strategy | null> {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      return response.data.data;
+      // Método modificado para retornar uma estratégia simulada
+      console.log(`Chamada à API de estratégias desativada para ID ${id}`);
+      
+      // Obter a estratégia simulada do método getStrategies
+      const strategies = await this.getStrategies();
+      
+      // Retornar a estratégia se o ID corresponder, caso contrário retornar a primeira
+      const strategy = strategies.find(s => s._id === id) || strategies[0];
+      return strategy;
     } catch (error) {
       console.error(`Erro ao obter estratégia ${id}:`, error);
       return null;
@@ -78,14 +102,19 @@ class StrategyService {
    */
   async createStrategy(strategy: Omit<Strategy, '_id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<Strategy | null> {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(API_URL, strategy, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      return response.data.data;
+      // Método modificado para simular a criação de estratégia
+      console.log(`Chamada à API de estratégias desativada. Simulando criação de estratégia: ${strategy.name}`);
+      
+      // Criar uma nova estratégia simulada
+      const newStrategy: Strategy = {
+        _id: `custom-${Date.now()}`,
+        userId: 'user',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...strategy
+      };
+      
+      return newStrategy;
     } catch (error) {
       console.error('Erro ao criar estratégia:', error);
       return null;
@@ -97,14 +126,23 @@ class StrategyService {
    */
   async updateStrategy(id: string, strategy: Partial<Strategy>): Promise<Strategy | null> {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.put(`${API_URL}/${id}`, strategy, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      return response.data.data;
+      // Método modificado para simular a atualização de estratégia
+      console.log(`Chamada à API de estratégias desativada. Simulando atualização da estratégia ${id}`);
+      
+      // Obter a estratégia existente
+      const existingStrategy = await this.getStrategy(id);
+      if (!existingStrategy) {
+        return null;
+      }
+      
+      // Atualizar a estratégia
+      const updatedStrategy: Strategy = {
+        ...existingStrategy,
+        ...strategy,
+        updatedAt: new Date().toISOString()
+      };
+      
+      return updatedStrategy;
     } catch (error) {
       console.error(`Erro ao atualizar estratégia ${id}:`, error);
       return null;
@@ -116,12 +154,10 @@ class StrategyService {
    */
   async deleteStrategy(id: string): Promise<boolean> {
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      // Método modificado para simular a exclusão de estratégia
+      console.log(`Chamada à API de estratégias desativada. Simulando exclusão da estratégia ${id}`);
+      
+      // Simulando sucesso na exclusão
       return true;
     } catch (error) {
       console.error(`Erro ao excluir estratégia ${id}:`, error);
@@ -134,18 +170,26 @@ class StrategyService {
    */
   async assignStrategy(roletaId: string, roletaNome: string, strategyId: string): Promise<RouletteStrategy | null> {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(
-        `${API_URL}/assign`,
-        { roletaId, roletaNome, strategyId },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      return response.data.data;
+      // Método modificado para simular a associação de estratégia sem fazer requisição à API
+      console.log(`Chamada à API de estratégias desativada. Simulando associação da estratégia ${strategyId} à roleta ${roletaId}`);
+      
+      // Obter a estratégia do sistema simulada
+      const strategies = await this.getStrategies();
+      const strategy = strategies.find(s => s._id === strategyId) || strategies[0];
+      
+      // Criar um objeto de associação simulado
+      const rouletteStrategy: RouletteStrategy = {
+        _id: `rs-${roletaId}-${strategyId}`,
+        userId: 'system',
+        roletaId,
+        roletaNome,
+        strategyId: strategy,
+        active: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      return rouletteStrategy;
     } catch (error) {
       console.error(`Erro ao associar estratégia ${strategyId} à roleta ${roletaId}:`, error);
       return null;
