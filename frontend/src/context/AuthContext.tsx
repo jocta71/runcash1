@@ -19,7 +19,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
 }
 
-// Criar usuário mock que será usado automaticamente
+// Criar usuário mock
 const mockUser: User = {
   id: 'mock-user-id',
   email: 'user@example.com',
@@ -31,7 +31,7 @@ const mockUser: User = {
 
 // Criar contexto com valor padrão
 const AuthContext = createContext<AuthContextType>({
-  user: mockUser, // Sempre ter um usuário autenticado
+  user: mockUser,
   loading: false,
   signIn: async () => ({ error: null }),
   signUp: async () => ({ error: null }),
@@ -41,31 +41,31 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 /**
- * Provedor de autenticação que sempre fornece um usuário autenticado
- * Sem necessidade de login real
+ * Provedor de autenticação mock que não depende do Supabase
+ * Sempre fornece um usuário autenticado
  */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Implementações mock dos métodos de autenticação
   const signIn = async () => {
-    console.log('[MOCK] Login automático simulado');
+    console.log('[MOCK] Simulando login com sucesso');
     return { error: null };
   };
 
   const signUp = async () => {
-    console.log('[MOCK] Cadastro automático simulado');
+    console.log('[MOCK] Simulando cadastro com sucesso');
     return { error: null };
   };
 
   const signInWithGoogle = async () => {
-    console.log('[MOCK] Login com Google simulado');
+    console.log('[MOCK] Simulando login com Google');
   };
 
   const signInWithGitHub = async () => {
-    console.log('[MOCK] Login com GitHub simulado');
+    console.log('[MOCK] Simulando login com GitHub');
   };
 
   const signOut = async () => {
-    console.log('[MOCK] Logout simulado (usuário permanece autenticado)');
+    console.log('[MOCK] Simulando logout');
   };
 
   // Valor do contexto sempre fornece um usuário autenticado
@@ -83,8 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 /**
- * Hook para usar o contexto de autenticação
- * Sempre fornece um usuário autenticado
+ * Hook para usar o contexto de autenticação mock
  */
 export const useAuth = () => {
   const context = useContext(AuthContext);

@@ -16,7 +16,7 @@ import EventService from '@/services/EventService';
 import SocketService from '@/services/SocketService';
 
 // Debug flag - set to false to disable logs in production
-const DEBUG_ENABLED = true;
+const DEBUG_ENABLED = false;
 
 // Helper function for controlled logging
 const debugLog = (...args: any[]) => {
@@ -122,12 +122,13 @@ const RouletteCard = memo(({
     loading: isLoading, 
     error, 
     isConnected = true, 
-    hasData = false, 
+    hasData = false, // Não assumir que temos dados
     strategy, 
     strategyLoading, 
     refreshNumbers = () => {},
     refreshStrategy = () => Promise.resolve(false)
   } = roletaId ? useRouletteData(roletaId, roletaNome) : {
+    // Se não tivermos roletaId, não usar dados de fallback, mostrar como não disponível
     numbers: [],
     loading: true,
     error: "ID da roleta não informado",
@@ -142,6 +143,7 @@ const RouletteCard = memo(({
   // Converter os objetos RouletteNumber para números simples
   const mappedNumbers = useMemo(() => {
     if (!Array.isArray(numbers) || numbers.length === 0) {
+      // Não usar lastNumbers como fallback, retornar array vazio
       return [];
     }
     
@@ -151,7 +153,10 @@ const RouletteCard = memo(({
       return isNaN(num) ? 0 : num;
     });
     
-    debugLog(`[RouletteCard] Números mapeados para ${roletaNome}:`, mapped.slice(0, 5));
+    if (DEBUG_ENABLED) {
+      debugLog(`[RouletteCard] Números mapeados para ${roletaNome}:`, mapped.slice(0, 5));
+    }
+    
     return mapped;
   }, [numbers, roletaNome]);
 
@@ -194,250 +199,321 @@ const RouletteCard = memo(({
 
   // Efeito para atualizar dados ao receber eventos de estratégia
   useEffect(() => {
-    // Função para lidar com atualizações de estratégia do servidor
+    const eventService = EventService.getInstance();
+    
+    // Função para processar eventos de estratégia
     const handleStrategyUpdate = (event: any) => {
-      if (event.roleta_nome !== roletaNome) return;
+      // Verificar se é um evento relevante para esta roleta
+      if (event.type !== 'strategy_update' || 
+          (event.roleta_id !== roletaId && event.roleta_nome !== roletaNome)) {
+        return;
+      }
       
-      debugLog(`[RouletteCard] Evento de estratégia recebido para ${roletaNome}`);
-      updateStrategy({
-        roleta_id: event.roleta_id,
-        roleta_nome: event.roleta_nome,
-        estado: event.estado || 'NEUTRAL',
-        vitorias: event.vitorias || 0,
-        derrotas: event.derrotas || 0,
-        terminais_gatilho: event.terminais_gatilho || [],
-        sugestao_display: event.sugestao_display || '',
-        numero_gatilho: event.numero_gatilho
+      // Verificar se temos dados de vitórias e derrotas
+      if (event.vitorias !== undefined || event.derrotas !== undefined) {
+        console.log(`[RouletteCard] Atualizando vitórias/derrotas para ${roletaNome}:`, {
+          vitorias: event.vitorias,
+          derrotas: event.derrotas,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Aplicar efeito visual de destaque por alguns segundos
+        setHighlightWins(true);
+        setHighlightLosses(true);
+        
+        // Remover classe após 2 segundos
+        setTimeout(() => {
+          setHighlightWins(false);
+          setHighlightLosses(false);
+        }, 2000);
+        
+        // Atualizar os estados com os valores recebidos do evento
+        if (event.vitorias !== undefined) {
+          setStrategyWins(parseInt(event.vitorias));
+        }
+        
+        if (event.derrotas !== undefined) {
+          setStrategyLosses(parseInt(event.derrotas));
+        }
+        
+        // Atualizar também outros dados da estratégia
+        if (event.estado !== undefined) {
+          setStrategyState(event.estado);
+        }
+        
+        if (event.sugestao_display !== undefined) {
+          setStrategyDisplay(event.sugestao_display);
+        }
+        
+        if (event.terminais_gatilho !== undefined) {
+          setStrategyTerminals(event.terminais_gatilho);
+        }
+      } else {
+        console.log(`[RouletteCard] Evento de estratégia sem dados de vitórias/derrotas para ${roletaNome}`);
+      }
+    };
+    
+    // Registrar manipulador para eventos de estratégia
+    eventService.subscribeToEvent('strategy_update', handleStrategyUpdate);
+    
+    // Solicitar a estratégia atual ao montar o componente
+    const socketService = SocketService.getInstance();
+    if (socketService.isSocketConnected() && roletaId) {
+      console.log(`[RouletteCard] Solicitando dados de estratégia para ${roletaNome}`, { roletaId });
+      socketService.sendMessage({
+        type: 'get_strategy',
+        roleta_id: roletaId,
+        roleta_nome: roletaNome
       });
-    };
+    }
     
-    // Inscrever no serviço de eventos
-    EventService.subscribe('strategy_update', handleStrategyUpdate);
+    // Configurar um intervalo para solicitar atualizações de estratégia periodicamente
+    const strategyRefreshInterval = setInterval(() => {
+      if (socketService.isSocketConnected() && roletaId) {
+        console.log(`[RouletteCard] Solicitando atualização periódica de estratégia para ${roletaNome}`);
+        socketService.sendMessage({
+          type: 'get_strategy',
+          roleta_id: roletaId,
+          roleta_nome: roletaNome
+        });
+      }
+    }, 15000); // Atualizar a cada 15 segundos
     
+    // Limpar ao desmontar
     return () => {
-      // Limpar inscrição ao desmontar
-      EventService.unsubscribe('strategy_update', handleStrategyUpdate);
+      eventService.unsubscribeFromEvent('strategy_update', handleStrategyUpdate);
+      clearInterval(strategyRefreshInterval);
     };
-  }, [roletaNome, updateStrategy]);
-  
-  // Efeito para atualizar dados ao receber novos números
+  }, [roletaId, roletaNome]);
+
+  // Efeito para verificar dados ao montar
   useEffect(() => {
-    // Função para lidar com novos números recebidos
-    const handleNewNumber = (event: any) => {
-      if (event.roleta_nome !== roletaNome) return;
-      
-      // Registrar o evento e atualizar números se necessário
-      debugLog(`[RouletteCard] Novo número recebido para ${roletaNome}: ${event.numero}`);
-      
-      // Forçar atualização da estratégia quando novos números chegarem
-      refreshStrategy().catch(console.error);
-    };
+    debugLog(`[RouletteCard] Montado para ${roletaNome} (ID: ${roletaId})`);
     
-    // Inscrever no serviço de eventos
-    EventService.subscribe('new_number', handleNewNumber);
+    if (!isLoading && mappedNumbers.length === 0) {
+      debugLog(`[RouletteCard] Sem números para ${roletaNome}, tentando refresh...`);
+      refreshNumbers();
+    }
     
-    return () => {
-      // Limpar inscrição ao desmontar
-      EventService.unsubscribe('new_number', handleNewNumber);
-    };
-  }, [roletaNome, refreshStrategy]);
-  
-  // Gerar sugestão de números baseada no estado da estratégia
+    // Também atualizar a estratégia quando os números são atualizados
+    const socketService = SocketService.getInstance();
+    if (socketService.isSocketConnected() && roletaId && mappedNumbers.length > 0) {
+      console.log(`[RouletteCard] Atualizando estratégia após receber novos números para ${roletaNome}`);
+      socketService.sendMessage({
+        type: 'get_strategy',
+        roleta_id: roletaId,
+        roleta_nome: roletaNome
+      });
+    }
+  }, [roletaId, roletaNome, isLoading, hasData, mappedNumbers.length, refreshNumbers]);
+
+  // Efeito para reagir a atualizações de números e solicitar dados de estratégia
+  useEffect(() => {
+    // Quando novos números são recebidos, solicitar atualização de estratégia
+    if (mappedNumbers.length > 0 && roletaId) {
+      console.log(`[RouletteCard] Atualizando estratégia após receber novos números para ${roletaNome}`);
+      refreshStrategy();
+    }
+  }, [mappedNumbers, roletaNome, roletaId, refreshStrategy]);
+
   const generateSuggestion = () => {
-    if (!currentStrategy) return [];
+    const groupKeys = Object.keys(numberGroups);
+    const randomGroupKey = groupKeys[Math.floor(Math.random() * groupKeys.length)];
+    const selectedGroup = numberGroups[randomGroupKey as keyof typeof numberGroups];
     
-    // Pegar todos os números do grupo atual
-    const groupNumbers = numberGroups[selectedGroup] || [];
+    const relatedStrategy = strategies.find(s => s.name.includes(selectedGroup.numbers.join(',')));
+    setCurrentStrategy(relatedStrategy || strategies[0]);
     
-    // Filtrar aleatoriamente metade dos números
-    const shuffled = [...groupNumbers].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, Math.ceil(groupNumbers.length / 2));
+    setSuggestion([...selectedGroup.numbers]);
+    setSelectedGroup(randomGroupKey);
+    
+    toast({
+      title: "Sugestão Gerada",
+      description: `Grupo: ${selectedGroup.name}`,
+      variant: "default"
+    });
   };
-  
-  // Botão para alternar visualização de sugestões
+
   const toggleVisibility = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsBlurred(!isBlurred);
   };
-  
-  // Botão para ver detalhes da roleta
+
   const handleDetailsClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setStatsOpen(true);
   };
-  
-  // Botão para jogar (redirecionar para página de jogo)
+
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (roletaId) {
-      navigate(`/roleta/${roletaId}`);
-    } else {
-      toast({ title: "Ação indisponível", description: "Roleta sem identificador" });
-    }
+    toast({
+      title: "Roleta Aberta",
+      description: "Redirecionando para o jogo...",
+      variant: "default"
+    });
   };
-  
-  // Botão para recarregar dados
+
+  // Implementar a função de reload mais completa
   const reloadData = (e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // Garantir que temos um ID
-    if (!roletaId) {
-      toast({ title: "Erro", description: "ID da roleta não informado" });
-      return;
-    }
+    console.log(`[RouletteCard] Recarregando todos os dados para ${roletaNome}`);
     
-    // Atualizar números e estratégia
-    Promise.all([
-      refreshNumbers(),
-      refreshStrategy()
-    ]).then(([numbersSuccess, strategySuccess]) => {
-      const message = `Dados ${numbersSuccess ? 'atualizados' : 'não atualizados'}`;
-      toast({ 
-        title: numbersSuccess ? "Sucesso" : "Atenção", 
-        description: message, 
-        variant: numbersSuccess ? "default" : "destructive" 
-      });
-    }).catch(error => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-    });
+    // Recarregar números
+    refreshNumbers();
+    
+    // Também recarregar dados de estratégia
+    refreshStrategy();
   };
-    
-  // Preparar dados para o gráfico
-  const chartData = useMemo(() => ({
-    labels: mappedNumbers.slice(0, 15).map((_, i) => `${i + 1}`),
-    datasets: [{
-      label: 'Número',
-      data: mappedNumbers.slice(0, 15).map(n => n),
-      backgroundColor: 'rgba(75, 192, 192, 0.2)',
-      borderColor: 'rgba(75, 192, 192, 1)',
-      borderWidth: 1
-    }]
-  }), [mappedNumbers]);
-  
-  // Gerar insights sobre padrões nos números
-  const insightMessage = useMemo(() => 
-    getInsightMessage(mappedNumbers, strategyWins, strategyLosses),
-  [mappedNumbers, strategyWins, strategyLosses]);
-  
-  // Gerar sugestão apenas quando necessário
-  useEffect(() => {
-    if (showSuggestions) {
-      setSuggestion(generateSuggestion());
-    }
-  }, [currentStrategy, selectedGroup, showSuggestions]);
 
-  // Principal determinação se temos dados para exibir
-  const hasNumbersToShow = mappedNumbers.length > 0;
-  
+  // Memoização do LastNumbers component para evitar re-renders
+  const numbersDisplay = useMemo(() => (
+    <LastNumbers 
+      numbers={mappedNumbers} 
+      isLoading={isLoading && mappedNumbers.length === 0}
+    />
+  ), [mappedNumbers, isLoading]);
+
+  // Estados para controlar efeito visual quando valores de vitórias/derrotas mudam
+  const [highlightWins, setHighlightWins] = useState(false);
+  const [highlightLosses, setHighlightLosses] = useState(false);
+
   return (
-    <div className="bg-card rounded-xl overflow-hidden shadow-md border border-border h-full">
-      {/* Cabeçalho */}
-      <div className="bg-muted/80 p-2 flex justify-between items-center">
-        <h3 className="text-sm font-semibold truncate w-3/5">{roletaNome}</h3>
-        <div className="flex space-x-1">
+    <div 
+      className="bg-[#17161e] border border-white/10 rounded-lg p-3 flex flex-col h-full w-full"
+      data-roleta-id={roletaId}
+      data-loading={isLoading ? 'true' : 'false'}
+      data-connected={isConnected ? 'true' : 'false'}
+      onClick={handleDetailsClick}
+    >
+      {/* Header com nome da roleta e controles */}
+      <div className="flex justify-between items-center mb-2 border-b border-white/10 pb-2">
+        <div className="text-base font-bold text-white truncate max-w-[140px]">
+            {roletaNome}
+          </div>
+          
+        <div className="flex items-center space-x-2">
+          <TrendingUp
+            size={16}
+            className={isConnected ? "text-[#00ff00]" : "text-gray-500"}
+            aria-label={isConnected ? 'Conectado' : 'Desconectado'}
+          />
+          {showSuggestions && 
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsBlurred(!isBlurred);
+              }}
+              className="text-[#00ff00]"
+            >
+              {isBlurred ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          }
+          {/* Adicionar botão de refresh */}
           <button 
-            onClick={toggleVisibility}
-            className="p-1 hover:bg-muted rounded-full"
-            title={isBlurred ? "Mostrar dados" : "Esconder dados"}
-          >
-            {isBlurred ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-          <button 
-            onClick={reloadData} 
-            className="p-1 hover:bg-muted rounded-full"
-            title="Recarregar dados"
+            onClick={reloadData}
+            className="text-gray-400 hover:text-white"
+            aria-label="Recarregar dados"
           >
             <RefreshCw size={16} />
           </button>
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              setStatsOpen(true);
-            }}
-            className="p-1 hover:bg-muted rounded-full"
-            title="Ver estatísticas"
-          >
-            <TrendingUp size={16} />
-          </button>
         </div>
       </div>
       
-      {/* Corpo do cartão */}
-      <div className={`p-4 bg-card ${isBlurred ? 'blur-sm' : ''}`}>
-        {isLoading ? (
-          // Estado de carregamento
-          <div className="flex justify-center items-center h-24">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        ) : !hasNumbersToShow ? (
-          // Sem dados disponíveis
-          <div className="text-center py-4 text-sm text-muted-foreground">
-            Sem dados disponíveis
-          </div>
-        ) : (
-          // Dados disponíveis - mostrar informações
-          <div>
-            {/* Últimos números */}
-            {hasNumbersToShow && (
-              <LastNumbers numbers={mappedNumbers.slice(0, 10)} />
-            )}
-            
-            {/* Insight sobre padrões */}
-            <div className="mt-2 text-xs text-muted-foreground">
-              {insightMessage}
+      {/* Display de números - exibir mensagem se não há dados */}
+      {mappedNumbers.length > 0 ? (
+        <div className="flex flex-wrap gap-1 my-2">
+          {mappedNumbers.slice(0, 12).map((num, idx) => (
+            <div
+              key={`${num}-${idx}`}
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold 
+                ${num === 0 ? 'bg-green-600 text-white' : 
+                  [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num) ? 
+                  'bg-red-600 text-white' : 'bg-black text-white'
+                }
+              `}
+            >
+              {num}
             </div>
-          </div>
-        )}
+          ))}
+        </div>
+      ) : (
+        <div className="my-2 text-xs text-gray-400 text-center py-2">
+          {isLoading ? "Carregando números..." : "Sem dados disponíveis"}
+        </div>
+      )}
+      
+      {/* Taxa de vitória com indicador visual de atualização */}
+      <div className="mt-1 mb-2">
+        <div className="flex justify-between text-xs text-gray-400">
+          <span className="relative">
+            Vitórias: 
+            <span 
+              className={`font-medium text-green-400 transition-opacity duration-300 ${
+                highlightWins ? 'animate-pulse text-green-300' : ''
+              }`}
+              data-testid="vitorias-counter"
+              data-value={strategy?.vitorias ?? strategyWins ?? 0}
+            >
+              {strategy?.vitorias ?? strategyWins ?? 0}
+            </span>
+          </span>
+          <span className="relative">
+            Derrotas: 
+            <span 
+              className={`font-medium text-red-400 transition-opacity duration-300 ${
+                highlightLosses ? 'animate-pulse text-red-300' : ''
+              }`}
+              data-testid="derrotas-counter"
+              data-value={strategy?.derrotas ?? strategyLosses ?? 0}
+            >
+              {strategy?.derrotas ?? strategyLosses ?? 0}
+            </span>
+          </span>
+        </div>
       </div>
       
-      {/* Rodapé com estatísticas e ações */}
-      <div className="p-2 border-t border-border flex items-center justify-between">
-        <div className="flex space-x-4 text-xs">
-          <div className="flex items-center">
-            <span className="text-green-500 mr-1">Vitórias:</span>
-            <span>{strategyWins}</span>
-          </div>
-          <div className="flex items-center">
-            <span className="text-red-500 mr-1">Derrotas:</span>
-            <span>{strategyLosses}</span>
-          </div>
-        </div>
-        <Button 
-          onClick={handleDetailsClick}
-          variant="ghost" 
-          size="sm"
-          className="text-xs px-2 py-1"
+      {/* Botões de ação */}
+      <div className="mt-auto pt-2 flex justify-between">
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            setStatsOpen(true);
+          }}
+          className="px-2 py-1 text-xs bg-[#1A191F] text-gray-300 rounded hover:bg-[#22202a]"
         >
           Detalhes
-        </Button>
-        <Button 
-          onClick={handlePlayClick}
-          variant="default" 
-          size="sm"
-          className="text-xs px-2 py-1"
+        </button>
+        
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/roleta/${roletaId}`);
+          }}
+          className="px-2 py-1 text-xs bg-[#00ff00]/20 text-[#00ff00] rounded hover:bg-[#00ff00]/30"
+          disabled={!roletaId}
         >
           Jogar
-        </Button>
+        </button>
       </div>
       
       {/* Modal de estatísticas */}
-      <RouletteStatsModal
-        open={statsOpen}
-        onOpenChange={setStatsOpen}
-        roletaId={roletaId}
+      <RouletteStatsModal 
+        open={statsOpen} 
+        onClose={setStatsOpen} 
         roletaNome={roletaNome}
-        numbers={mappedNumbers}
-        chartData={chartData}
-        strategy={{
-          estado: strategyState,
-          wins: strategyWins,
-          losses: strategyLosses,
-          terminais: strategyTerminals,
-          display: strategyDisplay
-        }}
+        lastNumbers={mappedNumbers}
+        wins={strategy?.vitorias ?? strategyWins ?? 0}
+        losses={strategy?.derrotas ?? strategyLosses ?? 0}
       />
     </div>
   );
+}, (prevProps, nextProps) => {
+  // Função de comparação personalizada para React.memo
+  // Retorna true se o componente NÃO deve ser renderizado novamente
+  return prevProps.roletaId === nextProps.roletaId &&
+         prevProps.name === nextProps.name &&
+         prevProps.roleta_nome === nextProps.roleta_nome;
 });
 
 export default RouletteCard;

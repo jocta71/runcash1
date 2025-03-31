@@ -1,7 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
-import { AuthProvider } from './context/AuthContext.tsx'
 
 // Configuração global para requisições fetch
 const originalFetch = window.fetch;
@@ -21,8 +20,4 @@ window.fetch = function(input, init) {
   return originalFetch(input, newInit);
 };
 
-createRoot(document.getElementById("root")!).render(
-  <AuthProvider>
-    <App />
-  </AuthProvider>
-);
+createRoot(document.getElementById("root")!).render(<App />);
