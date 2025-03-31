@@ -5,11 +5,11 @@ interface ProtectedRouteProps {
 }
 
 /**
- * Componente mock que substitui a versão original de ProtectedRoute
- * Esta versão sempre permite o acesso às rotas protegidas
+ * Componente que substitui a proteção de rotas
+ * Sempre permite acesso sem verificação de autenticação ou assinatura
  */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  // Permitir acesso direto ao conteúdo sem verificação
+  // Retorna diretamente o conteúdo, sem verificações
   return <>{children}</>;
 };
 

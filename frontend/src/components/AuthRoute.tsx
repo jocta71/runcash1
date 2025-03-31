@@ -5,11 +5,11 @@ interface AuthRouteProps {
 }
 
 /**
- * Componente mock que substitui a versão original de AuthRoute
- * Esta versão sempre permite o acesso às rotas de autenticação
+ * Componente que substitui a verificação de autenticação
+ * Sempre permite acesso ao conteúdo sem verificação
  */
 const AuthRoute: React.FC<AuthRouteProps> = ({ children }) => {
-  // Permitir acesso direto ao conteúdo sem verificação
+  // Retorna diretamente o conteúdo, sem verificações
   return <>{children}</>;
 };
 
