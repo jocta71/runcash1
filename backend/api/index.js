@@ -472,11 +472,6 @@ app.post('/api/webhook', express.raw({type: 'application/json'}), async (req, re
 // Error handler middleware (must be after all routes)
 app.use(errorHandler);
 
-// 404 handler for any routes not found
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
 // Verificar se a API está funcionando
 app.get('/', (req, res) => {
   res.json({ status: 'API online', version: '1.0.0' });
@@ -510,6 +505,11 @@ app.get('/api/roulettes', async (req, res) => {
     console.error('Erro ao buscar roletas:', error);
     res.status(500).json({ error: 'Erro interno ao buscar roletas', details: error.message });
   }
+});
+
+// 404 handler for any routes not found
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
 });
 
 // Iniciar o servidor
