@@ -65,6 +65,25 @@ from roletas_permitidas import roleta_permitida_por_id
 # Configuração de logging
 logger = logging.getLogger('runcash')
 
+# Configurações do Selenium e navegadores
+SELENIUM_HEADLESS = True  # Executar navegador em modo headless
+SELENIUM_OPTIONS = {
+    'headless': True,       # Modo sem interface gráfica
+    'disable_gpu': True,    # Desabilitar aceleração de GPU
+    'no_sandbox': True,     # Necessário em ambientes containerizados
+    'disable_dev_shm_usage': True,  # Evitar problemas de memória compartilhada
+    'window-size': '1920,1080'      # Tamanho de janela padrão
+}
+
+# Configuração para usar o Xvfb em ambientes sem display
+USE_XVFB = True  # Usa servidor X virtual
+
+# Tempo máximo de espera para elementos na página (em segundos)
+SELENIUM_TIMEOUT = 30
+
+# Flag para verificar se estamos em ambiente de produção (Railway)
+IS_RAILWAY = True  # Assume que estamos no Railway para usar configurações otimizadas
+
 def configurar_logging():
     """Configura o sistema de logging"""
     # Configuração menos silenciosa para debug no Railway

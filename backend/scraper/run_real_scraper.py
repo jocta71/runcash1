@@ -143,6 +143,102 @@ print(f"MongoDB habilitado: {MONGODB_ENABLED}", flush=True)
 print(f"MongoDB URI: {MONGODB_URI.replace(':8867Jpp@', ':****@')}", flush=True)
 print('===============================', flush=True)
 
+## ADICIONANDO CONFIGURAÇÃO DO SELENIUM HEADLESS E XVFB
+
+# Importar módulos necessários para o Selenium headless
+try:
+    print("Configurando ambiente para Selenium headless...")
+    import os
+    from selenium import webdriver
+    from selenium.webdriver.firefox.options import Options as FirefoxOptions
+    from selenium.webdriver.chrome.options import Options as ChromeOptions
+    
+    # Verificar se devemos usar Xvfb
+    if hasattr(config, 'USE_XVFB') and config.USE_XVFB:
+        try:
+            print("Iniciando servidor X virtual (Xvfb)...")
+            from pyvirtualdisplay import Display
+            display = Display(visible=0, size=(1920, 1080))
+            display.start()
+            print("✅ Servidor X virtual iniciado com sucesso")
+        except Exception as e:
+            print(f"⚠️ Erro ao iniciar Xvfb: {e}")
+            print("Continuando sem Xvfb...")
+    
+    # Configurar opções do Firefox otimizadas para Railway
+    def configurar_firefox_railway():
+        print("Configurando Firefox otimizado para Railway...")
+        options = FirefoxOptions()
+        
+        # Aplicar opções do config
+        if hasattr(config, 'SELENIUM_OPTIONS'):
+            for key, value in config.SELENIUM_OPTIONS.items():
+                if key == 'headless':
+                    options.headless = value
+                else:
+                    options.add_argument(f"--{key}={value}" if value is not True else f"--{key}")
+        
+        # Adicionar argumentos essenciais para Railway
+        options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--remote-debugging-port=9222")
+        
+        return options
+    
+    # Configurar opções do Chrome otimizadas para Railway
+    def configurar_chrome_railway():
+        print("Configurando Chrome otimizado para Railway...")
+        options = ChromeOptions()
+        
+        # Aplicar opções do config
+        if hasattr(config, 'SELENIUM_OPTIONS'):
+            for key, value in config.SELENIUM_OPTIONS.items():
+                options.add_argument(f"--{key}={value}" if value is not True else f"--{key}")
+        
+        # Adicionar argumentos essenciais para Railway
+        options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--remote-debugging-port=9222")
+        
+        return options
+    
+    print("✅ Configuração do Selenium headless concluída")
+except Exception as e:
+    print(f"⚠️ Erro ao configurar ambiente Selenium headless: {e}")
+
+## FIM DA CONFIGURAÇÃO DO SELENIUM HEADLESS
+
+# Adicionar funções de inicialização do WebDriver modificadas
+def iniciar_firefox_railway():
+    try:
+        print("Iniciando Firefox otimizado para Railway...")
+        options = configurar_firefox_railway()
+        driver = webdriver.Firefox(options=options)
+        driver.set_page_load_timeout(60)
+        print("✅ Firefox iniciado com sucesso no Railway")
+        return driver
+    except Exception as e:
+        print(f"❌ Erro ao iniciar Firefox no Railway: {e}")
+        return None
+
+def iniciar_chrome_railway():
+    try:
+        print("Iniciando Chrome otimizado para Railway...")
+        options = configurar_chrome_railway()
+        driver = webdriver.Chrome(options=options)
+        driver.set_page_load_timeout(60)
+        print("✅ Chrome iniciado com sucesso no Railway")
+        return driver
+    except Exception as e:
+        print(f"❌ Erro ao iniciar Chrome no Railway: {e}")
+        return None
+
 def main():
     """
     Função principal para executar o scraper em modo real

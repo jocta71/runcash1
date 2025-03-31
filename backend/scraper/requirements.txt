@@ -24,6 +24,10 @@ gunicorn==20.1.0
 pandas==2.0.3
 numpy==1.24.4
 
+# Suporte para headless e display virtual
+pyvirtualdisplay>=3.0
+EasyProcess>=1.1
+
 # Novos pacotes
 beautifulsoup4>=4.9.3
 websocket-client>=1.2.1

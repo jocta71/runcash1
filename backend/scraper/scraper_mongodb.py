@@ -109,77 +109,61 @@ ultima_atividade_roleta = {}  # {id_roleta: timestamp}
 # Período de "castigo" para roletas com muito ruído (em segundos)
 periodo_castigo_roleta = 120
 
-def cfg_driver():
-    """Driver minimalista usando Firefox em vez de Chrome (para Railway)"""
+def configurar_firefox_para_railway():
+    """Configura o Firefox otimizado para o ambiente Railway."""
     try:
         print("Configurando driver Firefox para execução no Railway...")
         
-        # Configurar opções do Firefox
-        opts = FirefoxOptions()
-        opts.add_argument("--headless")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-gpu")
-        opts.add_argument("--window-size=1920,1080")
+        # Primeiro verifica se temos as funções otimizadas disponíveis
+        if 'iniciar_firefox_railway' in globals():
+            driver = iniciar_firefox_railway()
+            if driver:
+                return driver
         
-        # Configurações adicionais para reduzir erros
-        opts.add_argument("--disable-extensions")
-        opts.add_argument("--disable-notifications")
-        opts.add_argument("--disable-popup-blocking")
-        opts.set_preference("dom.webnotifications.enabled", False)
-        opts.set_preference("app.update.enabled", False)
+        # Se não encontrou as funções otimizadas, tenta o método padrão
+        from selenium import webdriver
+        from selenium.webdriver.firefox.options import Options
         
-        # Configuração para evitar detecção de automação
-        opts.set_preference("dom.webdriver.enabled", False)
-        opts.set_preference("useAutomationExtension", False)
+        options = Options()
+        options.headless = True
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
         
-        # Definir diretório de perfil único para evitar conflitos
-        unique_dir = os.path.join(tempfile.gettempdir(), f"firefox-profile-{os.getpid()}")
-        if not os.path.exists(unique_dir):
-            os.makedirs(unique_dir)
-        
-        # Configurar as preferências de log
-        opts.log.level = "fatal"  # Reduzir logs do Firefox
-        
-        print("Instalando GeckoDriver...")
-        service = FirefoxService(GeckoDriverManager().install())
-        
+        # Tenta executar sem instalar o GeckoDriver
         print("Iniciando driver Firefox...")
-        driver = webdriver.Firefox(service=service, options=opts)
-        
-        # Executar script para modificar o navigator.webdriver
-        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        
-        print("Driver Firefox iniciado com sucesso!")
+        driver = webdriver.Firefox(options=options)
         return driver
-    
     except Exception as e:
-        print(f"Erro ao configurar Firefox: {str(e)}")
+        print(f"Erro ao configurar Firefox: {e}")
+        return None
+
+def configurar_chrome_para_railway():
+    """Configura o Chrome otimizado para o ambiente Railway."""
+    try:
+        print("\nTentando fallback para Chrome...")
         
-        # Fallback para o Chrome como último recurso
-        try:
-            print("Tentando fallback para Chrome...")
-            opts = Options()
-            opts.add_argument("--headless=new")
-            opts.add_argument("--disable-dev-shm-usage")
-            opts.add_argument("--no-sandbox")
-            opts.add_argument("--disable-gpu")
-            opts.add_argument("--window-size=1920,1080")
-            
-            # Definir user-agent para evitar detecção como bot
-            opts.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
-            
-            # Configurações experimentais
-            opts.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
-            opts.add_experimental_option("useAutomationExtension", False)
-            
-            # Tentar criar driver sem webdriver-manager (caso esteja instalado globalmente)
-            driver = webdriver.Chrome(options=opts)
-            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            return driver
-        except Exception as chrome_error:
-            print(f"Erro no fallback para Chrome: {str(chrome_error)}")
-            raise
+        # Primeiro verifica se temos as funções otimizadas disponíveis
+        if 'iniciar_chrome_railway' in globals():
+            driver = iniciar_chrome_railway()
+            if driver:
+                return driver
+                
+        # Se não encontrou as funções otimizadas, tenta o método padrão
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        
+        options = Options()
+        options.headless = True
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        
+        driver = webdriver.Chrome(options=options)
+        return driver
+    except Exception as e:
+        print(f"Erro no fallback para Chrome: {e}")
+        return None
 
 def ext_numeros(driver, elemento):
     """Extrai números com abordagem adaptada à estrutura real das divs de roleta"""
@@ -581,7 +565,7 @@ def check_saude(driver):
         try:
             if driver:
                 driver.quit()
-            driver_global = cfg_driver()
+            driver_global = configurar_firefox_para_railway()
             driver_global.get(CASINO_URL)
             ultima_atividade = time.time()
             erros_consecutivos = 0
@@ -684,7 +668,7 @@ def scrape_roletas_sequencial(db, driver=None, numero_hook=None):
     try:
         drv = driver
         if drv is None:
-            drv = retry(cfg_driver)
+            drv = retry(configurar_firefox_para_railway)
             driver_global = drv
         
         def navegar():
@@ -759,7 +743,7 @@ def scrape_roletas_sequencial(db, driver=None, numero_hook=None):
                         print(f"[SEQUENCIAL] Reiniciando driver após {erros_consecutivos} erros consecutivos")
                         if drv:
                             drv.quit()
-                        drv = retry(cfg_driver)
+                        drv = retry(configurar_firefox_para_railway)
                         driver_global = drv
                         retry(navegar)
                         erros = 0
@@ -839,4 +823,4 @@ if hasattr(event_manager, 'notify_clients') and 'silent' not in event_manager.no
     event_manager.notify_clients = notify_clients_patched
 
 # Exports
-__all__ = ['scrape_roletas', 'simulate_roulette_data', 'check_saude', 'cfg_driver'] 
+__all__ = ['scrape_roletas', 'simulate_roulette_data', 'check_saude', 'configurar_firefox_para_railway', 'configurar_chrome_para_railway'] 
