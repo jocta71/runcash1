@@ -4,7 +4,7 @@ import config from '@/config/env';
 import SocketService from '@/services/SocketService';
 
 // Debug flag - set to false to disable logs in production
-const DEBUG_ENABLED = true;
+const DEBUG_ENABLED = false;
 
 // Helper function for controlled logging
 const debugLog = (...args: any[]) => {
@@ -49,7 +49,7 @@ export type EventData = RouletteNumberEvent | ConnectedEvent | StrategyUpdateEve
 // Tipo para callbacks de eventos
 export type RouletteEventCallback = (event: RouletteNumberEvent | StrategyUpdateEvent) => void;
 
-// Serviço de eventos - versão sem autenticação
+// Serviço de eventos
 class EventService {
   private static instance: EventService;
   private eventSource: EventSource | null = null;
@@ -115,22 +115,9 @@ class EventService {
     return EventService.instance;
   }
 
-  // Métodos estáticos para simplificar o uso do serviço nos componentes
-  // SEM verificação de autenticação
-  public static subscribe(eventType: string, callback: RouletteEventCallback): void {
-    const instance = EventService.getInstance();
-    instance.subscribe(eventType, callback);
-  }
-
-  public static unsubscribe(eventType: string, callback: RouletteEventCallback): void {
-    const instance = EventService.getInstance();
-    instance.unsubscribe(eventType, callback);
-  }
-
   // Obtém a URL do servidor de eventos baseado no método atual
   private getServerUrl(method: string = 'direct'): string {
-    // Usar URL do ambiente em vez de hardcoded
-    const baseUrl = config.sseServerUrl || 'https://backend-production-2f96.up.railway.app/api/events';
+    const baseUrl = 'https://short-mammals-help.loca.lt/api/events';
     
     switch (method) {
       case 'direct':
@@ -433,11 +420,8 @@ class EventService {
   }
 
   // Adiciona um listener para eventos de uma roleta específica
-  // SEM verificação de autenticação
   public subscribe(roletaNome: string, callback: RouletteEventCallback): void {
     debugLog(`[EventService] Inscrevendo para eventos: ${roletaNome}`);
-    
-    // Nenhuma verificação de autenticação ou permissões
     
     if (!this.listeners.has(roletaNome)) {
       this.listeners.set(roletaNome, new Set());
@@ -461,10 +445,7 @@ class EventService {
   }
 
   // Remove um listener
-  // SEM verificação de autenticação
   public unsubscribe(roletaNome: string, callback: RouletteEventCallback): void {
-    // Nenhuma verificação de autenticação ou permissões
-    
     const callbacks = this.listeners.get(roletaNome);
     if (callbacks) {
       callbacks.delete(callback);
