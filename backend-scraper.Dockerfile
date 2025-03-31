@@ -7,16 +7,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Instalar dependências do sistema com configurações adicionais
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends xvfb && \
+    apt-get install -y --no-install-recommends xvfb git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements e instalar dependências Python
-COPY backend/scraper/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Clonar o repositório
+RUN git clone https://github.com/jocta71/runcash1.git /tmp/repo && \
+    cp -r /tmp/repo/backend/scraper/* /app/ && \
+    rm -rf /tmp/repo
 
-# Copiar código fonte
-COPY backend/scraper/ .
+# Instalar dependências Python
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Configurar variáveis de ambiente
 ENV PYTHONUNBUFFERED=1
