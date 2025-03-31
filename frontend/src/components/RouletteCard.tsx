@@ -120,6 +120,9 @@ const RouletteCard = memo(({
   const [highlightWins, setHighlightWins] = useState(false);
   const [highlightLosses, setHighlightLosses] = useState(false);
   
+  // Estado para armazenar números recebidos diretamente do WebSocket
+  const [mappedNumbersOverride, setMappedNumbersOverride] = useState<number[]>([]);
+  
   // Usar o hook personalizado para obter dados em tempo real, apenas se tivermos um roletaId
   const { 
     numbers, 
@@ -146,28 +149,36 @@ const RouletteCard = memo(({
   
   // Converter os objetos RouletteNumber para números simples
   const mappedNumbers = useMemo(() => {
-    if (!Array.isArray(numbers) || numbers.length === 0) {
-      // Se não temos dados da API, usar os lastNumbers que vieram como prop
-      if (Array.isArray(lastNumbers) && lastNumbers.length > 0) {
-        console.log(`[RouletteCard] Usando números da prop lastNumbers para ${roletaNome}:`, lastNumbers.slice(0, 5));
-        return lastNumbers;
+    // Prioridade 1: Números recebidos diretamente do WebSocket
+    if (mappedNumbersOverride.length > 0) {
+      console.log(`[RouletteCard] Usando números do WebSocket direto para ${roletaNome}:`, mappedNumbersOverride.slice(0, 5));
+      return mappedNumbersOverride;
+    }
+
+    // Prioridade 2: Números da API
+    if (Array.isArray(numbers) && numbers.length > 0) {
+      const mapped = numbers.map(numObj => {
+        const num = typeof numObj.numero === 'number' ? numObj.numero : 
+                   typeof numObj.numero === 'string' ? parseInt(numObj.numero, 10) : 0;
+        return isNaN(num) ? 0 : num;
+      });
+      
+      if (DEBUG_ENABLED) {
+        debugLog(`[RouletteCard] Números mapeados da API para ${roletaNome}:`, mapped.slice(0, 5));
       }
-      // Se não temos nem dados da API nem props, retornar array vazio
-      return [];
+      
+      return mapped;
     }
     
-    const mapped = numbers.map(numObj => {
-      const num = typeof numObj.numero === 'number' ? numObj.numero : 
-                 typeof numObj.numero === 'string' ? parseInt(numObj.numero, 10) : 0;
-      return isNaN(num) ? 0 : num;
-    });
-    
-    if (DEBUG_ENABLED) {
-      debugLog(`[RouletteCard] Números mapeados para ${roletaNome}:`, mapped.slice(0, 5));
+    // Prioridade 3: Números da prop lastNumbers
+    if (Array.isArray(lastNumbers) && lastNumbers.length > 0) {
+      console.log(`[RouletteCard] Usando números da prop lastNumbers para ${roletaNome}:`, lastNumbers.slice(0, 5));
+      return lastNumbers;
     }
     
-    return mapped;
-  }, [numbers, lastNumbers, roletaNome]);
+    // Se não temos números de nenhuma fonte, retornar array vazio
+    return [];
+  }, [numbers, lastNumbers, roletaNome, mappedNumbersOverride]);
 
   // Otimizar trend com useMemo - não gerar dados simulados
   const trendData = useMemo(() => {
@@ -282,7 +293,16 @@ const RouletteCard = memo(({
           (event.roleta_id === roletaId || event.roleta_nome === roletaNome)) {
         console.log(`[RouletteCard] WebSocket: Número recebido para ${roletaNome}: ${event.numero}`);
         
-        // Atualizar os dados via API ao receber novo número
+        // Adicionar número diretamente ao estado local
+        if (typeof event.numero === 'number' || typeof event.numero === 'string') {
+          const newNumber = typeof event.numero === 'number' ? event.numero : parseInt(event.numero, 10);
+          if (!isNaN(newNumber)) {
+            // Atualizar mappedNumbers manualmente adicionando o novo número no início
+            setMappedNumbersOverride(prev => [newNumber, ...(prev || []).slice(0, 49)]);
+          }
+        }
+        
+        // Também atualiza via API para garantir consistência
         refreshNumbers();
       }
     };
