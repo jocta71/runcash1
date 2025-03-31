@@ -579,6 +579,80 @@ app.get('/api/roulettes', async (req, res) => {
   }
 });
 
+// Endpoint para obter números de uma roleta específica por ID
+app.get('/api/numbers/byId/:id', async (req, res) => {
+  try {
+    console.log(`[API] Requisição recebida para /api/numbers/byId/${req.params.id}`);
+    const { id } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 500;
+
+    // Verificar se MongoDB está conectado
+    if (!db) {
+      console.error('[API] Erro: db não está inicializado');
+      return res.status(500).json({ 
+        error: 'Erro interno ao buscar números', 
+        details: 'Conexão com MongoDB não foi estabelecida' 
+      });
+    }
+
+    try {
+      // Tentar buscar na coleção roleta_numeros
+      console.log(`[API] Buscando números para roleta ${id} no MongoDB...`);
+      const numeros = await db.collection('roleta_numeros')
+        .find({ roleta_id: id })
+        .sort({ timestamp: -1 })
+        .limit(limit)
+        .toArray();
+
+      if (numeros.length === 0) {
+        // Tentar com nome de coleção alternativo
+        console.log('[API] Nenhum número encontrado, tentando coleção alternativa...');
+        const altNumeros = await db.collection('roulette_numbers')
+          .find({ roulette_id: id })
+          .sort({ timestamp: -1 })
+          .limit(limit)
+          .toArray();
+
+        if (altNumeros.length > 0) {
+          console.log(`[API] Encontrados ${altNumeros.length} números na coleção alternativa`);
+          return res.json(altNumeros);
+        }
+
+        // Verificar se a roleta existe
+        const roleta = await db.collection('roletas').findOne({ _id: id });
+        if (!roleta) {
+          console.log(`[API] Roleta ID ${id} não encontrada`);
+          return res.status(404).json({ 
+            error: 'Roleta não encontrada', 
+            details: `Nenhuma roleta encontrada com ID ${id}` 
+          });
+        }
+
+        console.log(`[API] Nenhum número encontrado para roleta ${id}`);
+        return res.status(404).json({ 
+          error: 'Nenhum número encontrado', 
+          details: 'Esta roleta não possui números registrados ainda'
+        });
+      }
+
+      console.log(`[API] Encontrados ${numeros.length} números para roleta ${id}`);
+      return res.json(numeros);
+    } catch (dbError) {
+      console.error('[API] Erro ao consultar MongoDB:', dbError);
+      return res.status(500).json({ 
+        error: 'Erro ao consultar banco de dados', 
+        details: dbError.message 
+      });
+    }
+  } catch (error) {
+    console.error(`[API] Erro ao buscar números para roleta ${req.params.id}:`, error);
+    res.status(500).json({ 
+      error: 'Erro interno ao buscar números', 
+      details: error.message 
+    });
+  }
+});
+
 // 404 handler for any routes not found
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
