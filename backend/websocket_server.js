@@ -91,14 +91,9 @@ app.post('/emit-event', (req, res) => {
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO com configurações de CORS adequadas
+// Inicializar Socket.IO sem configurações de CORS, mas com timeouts aumentados
 const io = new Server(server, {
-  cors: {
-    origin: "*", // Permite qualquer origem
-    methods: ["GET", "POST"],
-    credentials: true,
-    allowedHeaders: ["*"]
-  },
+  cors: false,
   allowEIO3: true,
   transports: ['websocket', 'polling'],
   pingTimeout: 60000, // Aumentar timeout para 60s
@@ -106,7 +101,7 @@ const io = new Server(server, {
 });
 
 // Log para confirmar configuração
-console.log('Socket.IO configurado com CORS permitindo todas as origens');
+console.log('Socket.IO configurado SEM CORS e com timeouts aumentados');
 
 // Status e números das roletas
 let rouletteStatus = {};
@@ -180,12 +175,20 @@ async function broadcastAllStrategies() {
       const strategy = estrategiasPorRoleta[roleta_id];
       const roleta_nome = strategy.roleta_nome;
       
-      // Preparar o evento de estratégia
+      // Adicionar debug para mostrar detalhes da estratégia
+      console.log('\n=== DETALHES DA ESTRATÉGIA ===');
+      console.log(`Roleta: ${roleta_nome} (ID: ${roleta_id})`);
+      console.log(`Estado: ${strategy.estado || 'Nenhum'}`);
+      console.log(`Número gatilho: ${strategy.numero_gatilho}`);
+      console.log(`Terminais: ${JSON.stringify(strategy.terminais_gatilho)}`);
+      console.log(`Sugestão display: ${strategy.sugestao_display || 'Nenhuma'}`);
+      console.log('===========================\n');
+      
       const strategyEvent = {
         type: 'strategy_update',
-        roleta_id: roleta_id,
+        roleta_id,
         roleta_nome: roleta_nome,
-        estado: strategy.estado || 'NEUTRAL',
+        estado: strategy.estado,
         numero_gatilho: strategy.numero_gatilho || 0,
         terminais_gatilho: strategy.terminais_gatilho || [],
         vitorias: strategy.vitorias || 0,
@@ -193,13 +196,13 @@ async function broadcastAllStrategies() {
         sugestao_display: strategy.sugestao_display || ''
       };
       
-      // Enviar para clientes inscritos nesta roleta
-      io.to(roleta_nome).emit('strategy_update', strategyEvent);
+      // Log detalhado do evento que será enviado
+      console.log(`Enviando evento detalhado: ${JSON.stringify(strategyEvent)}`);
       
-      // Enviar para todos os clientes
+      io.to(roleta_nome).emit('strategy_update', strategyEvent);
       io.emit('global_strategy_update', strategyEvent);
       
-      console.log(`Enviado evento de estratégia para roleta ${roleta_nome}: estado ${strategyEvent.estado}`);
+      console.log(`Enviado evento de estratégia para roleta ${roleta_nome}: estado ${strategy.estado}`);
     }
     
     console.log(`Enviados eventos de estratégia para ${Object.keys(estrategiasPorRoleta).length} roletas`);
@@ -764,4 +767,4 @@ async function pollLastStrategies() {
   } catch (error) {
     console.error('Erro ao verificar estratégias:', error);
   }
-} 
+}
