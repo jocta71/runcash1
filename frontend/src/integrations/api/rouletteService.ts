@@ -63,271 +63,271 @@ export interface RouletteStrategy {
   sugestao_display?: string;
 }
 
-// Função para listar todas as roletas disponíveis 
-export const fetchAvailableRoulettesFromNumbers = async (): Promise<string[]> => {
+// ===== FUNÇÕES DE EXTRAÇÃO DE DADOS (PURAS) =====
+// Estas funções apenas extraem dados brutos da API sem processamento complexo
+
+/**
+ * Extrai lista de nomes de roletas disponíveis
+ */
+export const extractAvailableRoulettes = async (): Promise<any[]> => {
   try {
-    console.log('[API] Buscando roletas disponíveis no MongoDB...');
-    
-    // Fazer requisição ao backend para obter roletas disponíveis
+    console.log('[API] Extraindo roletas disponíveis...');
     const response = await api.get('/roulettes');
-    
-    if (response.data && Array.isArray(response.data)) {
-      const rouletteNames = response.data.map((roleta: any) => roleta.nome);
-      console.log('[API] Roletas disponíveis:', rouletteNames);
-      return rouletteNames;
-    }
-    
-    // Se não há dados ou resposta inválida, retornar array vazio
-    console.warn('[API] Formato de resposta inválido ou sem roletas');
-    return [];
+    return response.data || [];
   } catch (error) {
-    console.error('[API] Erro ao buscar roletas disponíveis:', error);
+    console.error('[API] Erro ao extrair roletas disponíveis:', error);
     return [];
   }
 };
 
-// Função para buscar todas as roletas
-export const fetchAllRoulettes = async (): Promise<RouletteData[]> => {
+/**
+ * Extrai informações de todas as roletas
+ */
+export const extractAllRoulettes = async (): Promise<any[]> => {
   try {
-    console.log('[API] Buscando todas as roletas no MongoDB...');
-    
-    // Fazer requisição ao backend para buscar todas as roletas
+    console.log('[API] Extraindo dados de todas as roletas...');
     const response = await api.get('/roulettes');
-    
-    if (response.data && Array.isArray(response.data)) {
-      // Formatar os dados para o tipo RouletteData
-      const formattedData: RouletteData[] = response.data.map((roleta: any) => ({
-        id: roleta.id || roleta._id,
-        nome: roleta.nome,
-        roleta_nome: roleta.roleta_nome || roleta.nome,
-        numeros: roleta.numeros || [],
-        updated_at: roleta.updated_at || new Date().toISOString(),
-        estado_estrategia: roleta.estado_estrategia || 'NEUTRAL',
-        numero_gatilho: roleta.numero_gatilho || 0,
-        numero_gatilho_anterior: roleta.numero_gatilho_anterior || 0,
-        terminais_gatilho: roleta.terminais_gatilho || [],
-        terminais_gatilho_anterior: roleta.terminais_gatilho_anterior || [],
-        vitorias: roleta.vitorias || 0,
-        derrotas: roleta.derrotas || 0,
-        sugestao_display: roleta.sugestao_display || ''
-      }));
-      
-      console.log(`[API] Processadas ${formattedData.length} roletas`);
-      return formattedData;
-    }
-    
-    console.warn('[API] Formato de resposta inválido ou sem roletas');
-    return [];
+    return response.data || [];
   } catch (error) {
-    console.error('[API] Erro ao buscar roletas:', error);
+    console.error('[API] Erro ao extrair dados de roletas:', error);
     return [];
   }
 };
 
-// Função para buscar números mais recentes por nome da roleta
-export const fetchRouletteLatestNumbersByName = async (roletaNome: string, limit = 10): Promise<number[]> => {
+/**
+ * Extrai números de uma roleta pelo nome
+ */
+export const extractRouletteNumbersByName = async (roletaNome: string, limit = 10): Promise<any> => {
   try {
-    console.log(`[API] Buscando números para roleta '${roletaNome}'...`);
-    
-    // Fazer requisição ao backend para buscar números por nome da roleta
+    console.log(`[API] Extraindo números para roleta '${roletaNome}'...`);
     const response = await api.get(`/numbers/${encodeURIComponent(roletaNome)}?limit=${limit}`);
-    
-    if (response.data && Array.isArray(response.data)) {
-      // Extrair apenas os números do array de objetos
-      const numbers = response.data.map((item: any) => item.numero);
-      console.log(`[API] Retornando ${numbers.length} números para roleta '${roletaNome}'`);
-      return numbers;
-    }
-    
-    console.warn(`[API] Nenhum número encontrado para roleta '${roletaNome}'`);
-    return [];
+    return response.data;
   } catch (error) {
-    console.error(`[API] Erro ao buscar números para roleta '${roletaNome}':`, error);
-    return [];
+    console.error(`[API] Erro ao extrair números para roleta '${roletaNome}':`, error);
+    return null;
   }
 };
 
-// Função para buscar últimos números de uma roleta pelo ID
-export const fetchRouletteLatestNumbers = async (roletaId: string, limit = 10): Promise<number[]> => {
+/**
+ * Extrai números de uma roleta pelo ID
+ */
+export const extractRouletteNumbersById = async (roletaId: string, limit = 10): Promise<any> => {
   try {
-    console.log(`[API] Buscando ${limit} números mais recentes para roleta ID ${roletaId}...`);
-    
-    // Fazer requisição ao backend para buscar números pelo ID da roleta
+    console.log(`[API] Extraindo ${limit} números para roleta ID ${roletaId}...`);
     const response = await api.get(`/numbers/byid/${encodeURIComponent(roletaId)}?limit=${limit}`);
-    
-    console.log(`[API] Resposta completa para roleta ID ${roletaId}:`, response);
-    
-    if (response.data && Array.isArray(response.data)) {
-      // Extrair apenas os números do array de objetos
-      const numbers = response.data.map((item: any) => {
-        console.log(`[API] Processando item:`, item);
-        return typeof item.numero === 'number' ? item.numero : parseInt(item.numero, 10);
-      });
-      console.log(`[API] Retornando ${numbers.length} números para roleta ID ${roletaId}:`, numbers);
-      return numbers;
-    }
-    
-    console.warn(`[API] Nenhum número encontrado para roleta ID ${roletaId}`);
-    return [];
+    return response.data;
   } catch (error) {
-    console.error(`[API] Erro ao buscar números para roleta ${roletaId}:`, error);
-    return [];
+    console.error(`[API] Erro ao extrair números para roleta ${roletaId}:`, error);
+    return null;
   }
 };
 
-// Função para buscar os últimos números de todas as roletas
-export const fetchLatestRouletteNumbers = async (): Promise<LatestRouletteNumber[]> => {
+/**
+ * Extrai informações da estratégia de uma roleta
+ */
+export const extractRouletteStrategy = async (roletaId: string): Promise<any> => {
   try {
-    console.log('[API] Buscando últimos números de todas as roletas...');
-
-    // Fazer requisição ao backend para obter os últimos números
-    const response = await api.get('/numbers/latest');
-    
-    if (response.data && Array.isArray(response.data)) {
-      // Formatar a resposta para o tipo LatestRouletteNumber
-      const formattedData: LatestRouletteNumber[] = response.data.map((item: any) => ({
-        id: item.id || item._id,
-        nome: item.nome,
-        numero_recente: item.numero_recente,
-        estado_estrategia: item.estado_estrategia || 'NEUTRAL',
-        numero_gatilho: item.numero_gatilho || 0,
-        vitorias: item.vitorias || 0,
-        derrotas: item.derrotas || 0,
-        sugestao_display: item.sugestao_display || '',
-        updated_at: item.updated_at || new Date().toISOString()
-      }));
-      
-      return formattedData;
-    }
-    
-    console.warn('[API] Formato de resposta inválido para últimos números');
-    return [];
-  } catch (error) {
-    console.error('[API] Falha ao buscar últimos números das roletas:', error);
-    return [];
-  }
-};
-
-// Função para buscar uma roleta pelo ID
-export const fetchRouletteById = async (id: string): Promise<RouletteData> => {
-  try {
-    console.log(`[API] Buscando roleta ${id}...`);
-    
-    // Fazer requisição ao backend para buscar uma roleta pelo ID
-    const response = await api.get(`/roulettes/${id}`);
-    
-    if (response.data) {
-      const roleta = response.data;
-      
-      // Formatar os dados para o tipo RouletteData
-      return {
-        id: roleta.id || roleta._id,
-        nome: roleta.nome,
-        roleta_nome: roleta.roleta_nome || roleta.nome,
-        numeros: roleta.numeros || [],
-        updated_at: roleta.updated_at || new Date().toISOString(),
-        estado_estrategia: roleta.estado_estrategia || 'NEUTRAL',
-        numero_gatilho: roleta.numero_gatilho || 0,
-        numero_gatilho_anterior: roleta.numero_gatilho_anterior || 0,
-        terminais_gatilho: roleta.terminais_gatilho || [],
-        terminais_gatilho_anterior: roleta.terminais_gatilho_anterior || [],
-        vitorias: roleta.vitorias || 0,
-        derrotas: roleta.derrotas || 0,
-        sugestao_display: roleta.sugestao_display || ''
-      };
-    }
-    
-    throw new Error(`Roleta com ID ${id} não encontrada`);
-  } catch (error) {
-    console.error(`[API] Erro ao buscar roleta ${id}:`, error);
-    throw error;
-  }
-};
-
-// Função para buscar o estado atual da estratégia para uma roleta específica
-export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteStrategy | null> => {
-  try {
-    console.log(`[API] Buscando estado atual da estratégia para roleta ID ${roletaId}...`);
-    
-    // URL corrigida para o endpoint principal da estratégia
+    console.log(`[API] Extraindo estratégia para roleta ID ${roletaId}...`);
     const endpoint = `/roulette/${encodeURIComponent(roletaId)}/strategy`;
-    console.log(`[API] Usando endpoint: ${endpoint}`);
-    
-    // Fazer requisição ao backend para buscar a estratégia atual
     const response = await api.get(endpoint);
-    
-    if (response.data) {
-      // Verificar se temos os dados de vitórias e derrotas
-      const vitorias = response.data.vitorias !== undefined ? parseInt(response.data.vitorias) : 0;
-      const derrotas = response.data.derrotas !== undefined ? parseInt(response.data.derrotas) : 0;
-      
-      console.log(`[API] Estratégia obtida para roleta ID ${roletaId}:`, response.data);
-      console.log(`[API] Vitórias: ${vitorias}, Derrotas: ${derrotas}`);
-      
-      // Se não temos valores válidos de vitórias/derrotas, tentar buscar diretamente da roleta
-      if ((vitorias === 0 && derrotas === 0) || vitorias === null || derrotas === null) {
-        try {
-          console.log(`[API] Tentando buscar dados da roleta ${roletaId}...`);
-          const roletaEndpoint = `/roulettes/${encodeURIComponent(roletaId)}`;
-          const roletaResponse = await api.get(roletaEndpoint);
-          
-          let vitoriasFinais = vitorias;
-          let derrotasFinais = derrotas;
-          
-          if (roletaResponse.data) {
-            // Verificar se há valores na resposta da roleta
-            if (roletaResponse.data.vitorias !== undefined && roletaResponse.data.vitorias !== null) {
-              vitoriasFinais = parseInt(roletaResponse.data.vitorias);
-            }
-            
-            if (roletaResponse.data.derrotas !== undefined && roletaResponse.data.derrotas !== null) {
-              derrotasFinais = parseInt(roletaResponse.data.derrotas);
-            }
-            
-            console.log(`[API] Dados encontrados na roleta:`, {
-              vitorias: vitoriasFinais,
-              derrotas: derrotasFinais
-            });
-          }
-          
-          return {
-            estado: response.data.estado || 'NEUTRAL',
-            numero_gatilho: response.data.numero_gatilho || null,
-            terminais_gatilho: response.data.terminais_gatilho || [],
-            vitorias: vitoriasFinais || 0,
-            derrotas: derrotasFinais || 0,
-            sugestao_display: response.data.sugestao_display || ''
-          };
-        } catch (subError) {
-          console.error(`[API] Erro ao buscar dados da roleta: ${subError}`);
-          // Retornar os dados originais sem simulação
-          return {
-            estado: response.data.estado || 'NEUTRAL',
-            numero_gatilho: response.data.numero_gatilho || null,
-            terminais_gatilho: response.data.terminais_gatilho || [],
-            vitorias: vitorias || 0,
-            derrotas: derrotas || 0,
-            sugestao_display: response.data.sugestao_display || ''
-          };
-        }
-      }
-      
-      return {
-        estado: response.data.estado || 'NEUTRAL',
-        numero_gatilho: response.data.numero_gatilho || null,
-        terminais_gatilho: response.data.terminais_gatilho || [],
-        vitorias: vitorias || 0,
-        derrotas: derrotas || 0,
-        sugestao_display: response.data.sugestao_display || ''
-      };
-    }
-    
-    console.warn(`[API] Nenhum dado de estratégia encontrado para roleta ID ${roletaId}`);
-    // Retornar null quando não há dados - sem tentar um endpoint alternativo que não existe
-    return null;
+    return response.data;
   } catch (error) {
-    console.error(`[API] Erro ao buscar estratégia para roleta ID ${roletaId}:`, error);
-    // Retornar null sem tentar um endpoint alternativo que não existe
+    console.error(`[API] Erro ao extrair estratégia para roleta ${roletaId}:`, error);
     return null;
   }
+};
+
+/**
+ * Extrai informações de uma roleta pelo ID
+ */
+export const extractRouletteById = async (roletaId: string): Promise<any> => {
+  try {
+    console.log(`[API] Extraindo dados da roleta ${roletaId}...`);
+    const response = await api.get(`/roulettes/${encodeURIComponent(roletaId)}`);
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Erro ao extrair dados da roleta ${roletaId}:`, error);
+    return null;
+  }
+};
+
+// ===== FUNÇÕES DE PROCESSAMENTO DE DADOS =====
+// Estas funções processam os dados extraídos e os formatam conforme necessário
+
+/**
+ * Processa a lista de nomes de roletas
+ */
+export const fetchAvailableRoulettesFromNumbers = async (): Promise<string[]> => {
+  const data = await extractAvailableRoulettes();
+  
+  if (Array.isArray(data)) {
+    const rouletteNames = data.map((roleta: any) => roleta.nome);
+    console.log('[API] Roletas disponíveis:', rouletteNames);
+    return rouletteNames;
+  }
+  
+  console.warn('[API] Formato de resposta inválido ou sem roletas');
+  return [];
+};
+
+/**
+ * Processa informações de todas as roletas
+ */
+export const fetchAllRoulettes = async (): Promise<RouletteData[]> => {
+  const data = await extractAllRoulettes();
+  
+  if (Array.isArray(data)) {
+    // Formatar os dados para o tipo RouletteData
+    const formattedData: RouletteData[] = data.map((roleta: any) => ({
+      id: roleta.id || roleta._id,
+      nome: roleta.nome,
+      roleta_nome: roleta.roleta_nome || roleta.nome,
+      numeros: roleta.numeros || [],
+      updated_at: roleta.updated_at || new Date().toISOString(),
+      estado_estrategia: roleta.estado_estrategia || 'NEUTRAL',
+      numero_gatilho: roleta.numero_gatilho || 0,
+      numero_gatilho_anterior: roleta.numero_gatilho_anterior || 0,
+      terminais_gatilho: roleta.terminais_gatilho || [],
+      terminais_gatilho_anterior: roleta.terminais_gatilho_anterior || [],
+      vitorias: roleta.vitorias || 0,
+      derrotas: roleta.derrotas || 0,
+      sugestao_display: roleta.sugestao_display || ''
+    }));
+    
+    console.log(`[API] Processadas ${formattedData.length} roletas`);
+    return formattedData;
+  }
+  
+  console.warn('[API] Formato de resposta inválido ou sem roletas');
+  return [];
+};
+
+/**
+ * Processa números de uma roleta por nome
+ */
+export const fetchRouletteLatestNumbersByName = async (roletaNome: string, limit = 10): Promise<number[]> => {
+  const data = await extractRouletteNumbersByName(roletaNome, limit);
+  
+  if (data && Array.isArray(data)) {
+    // Extrair apenas os números do array de objetos
+    const numbers = data.map((item: any) => item.numero);
+    console.log(`[API] Retornando ${numbers.length} números para roleta '${roletaNome}'`);
+    return numbers;
+  }
+  
+  console.warn(`[API] Nenhum número encontrado para roleta '${roletaNome}'`);
+  return [];
+};
+
+/**
+ * Processa números de uma roleta por ID
+ */
+export const fetchRouletteLatestNumbers = async (roletaId: string, limit = 10): Promise<number[]> => {
+  const data = await extractRouletteNumbersById(roletaId, limit);
+  
+  if (data && Array.isArray(data)) {
+    // Extrair apenas os números do array de objetos
+    const numbers = data.map((item: any) => {
+      return typeof item.numero === 'number' ? item.numero : parseInt(item.numero, 10);
+    });
+    console.log(`[API] Processados ${numbers.length} números para roleta ID ${roletaId}:`, numbers);
+    return numbers;
+  }
+  
+  console.warn(`[API] Nenhum número encontrado para roleta ID ${roletaId}`);
+  return [];
+};
+
+/**
+ * Processa informações de uma roleta pelo ID
+ */
+export const fetchRouletteById = async (id: string): Promise<RouletteData> => {
+  const roleta = await extractRouletteById(id);
+  
+  if (roleta) {
+    // Formatar os dados para o tipo RouletteData
+    return {
+      id: roleta.id || roleta._id,
+      nome: roleta.nome,
+      roleta_nome: roleta.roleta_nome || roleta.nome,
+      numeros: roleta.numeros || [],
+      updated_at: roleta.updated_at || new Date().toISOString(),
+      estado_estrategia: roleta.estado_estrategia || 'NEUTRAL',
+      numero_gatilho: roleta.numero_gatilho || 0,
+      numero_gatilho_anterior: roleta.numero_gatilho_anterior || 0,
+      terminais_gatilho: roleta.terminais_gatilho || [],
+      terminais_gatilho_anterior: roleta.terminais_gatilho_anterior || [],
+      vitorias: roleta.vitorias || 0,
+      derrotas: roleta.derrotas || 0,
+      sugestao_display: roleta.sugestao_display || ''
+    };
+  }
+  
+  throw new Error(`Roleta com ID ${id} não encontrada`);
+};
+
+/**
+ * Processa a estratégia de uma roleta
+ */
+export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteStrategy | null> => {
+  // Primeiro, tentar obter a estratégia principal
+  const strategyData = await extractRouletteStrategy(roletaId);
+  
+  if (strategyData) {
+    // Verificar se temos os dados de vitórias e derrotas
+    const vitorias = strategyData.vitorias !== undefined ? parseInt(strategyData.vitorias) : 0;
+    const derrotas = strategyData.derrotas !== undefined ? parseInt(strategyData.derrotas) : 0;
+    
+    console.log(`[API] Estratégia processada para roleta ID ${roletaId}:`, {
+      vitorias, 
+      derrotas, 
+      estado: strategyData.estado
+    });
+    
+    // Se não temos valores válidos de vitórias/derrotas, tentar obter da roleta
+    if ((vitorias === 0 && derrotas === 0) || vitorias === null || derrotas === null) {
+      const roletaData = await extractRouletteById(roletaId);
+      
+      if (roletaData) {
+        let vitoriasFinais = vitorias;
+        let derrotasFinais = derrotas;
+        
+        // Verificar se há valores na resposta da roleta
+        if (roletaData.vitorias !== undefined && roletaData.vitorias !== null) {
+          vitoriasFinais = parseInt(roletaData.vitorias);
+        }
+        
+        if (roletaData.derrotas !== undefined && roletaData.derrotas !== null) {
+          derrotasFinais = parseInt(roletaData.derrotas);
+        }
+        
+        console.log(`[API] Dados complementares processados da roleta:`, {
+          vitorias: vitoriasFinais,
+          derrotas: derrotasFinais
+        });
+        
+        return {
+          estado: strategyData.estado || 'NEUTRAL',
+          numero_gatilho: strategyData.numero_gatilho || null,
+          terminais_gatilho: strategyData.terminais_gatilho || [],
+          vitorias: vitoriasFinais || 0,
+          derrotas: derrotasFinais || 0,
+          sugestao_display: strategyData.sugestao_display || ''
+        };
+      }
+    }
+    
+    // Usar os dados originais
+    return {
+      estado: strategyData.estado || 'NEUTRAL',
+      numero_gatilho: strategyData.numero_gatilho || null,
+      terminais_gatilho: strategyData.terminais_gatilho || [],
+      vitorias: vitorias || 0,
+      derrotas: derrotas || 0,
+      sugestao_display: strategyData.sugestao_display || ''
+    };
+  }
+  
+  console.warn(`[API] Nenhum dado de estratégia encontrado para roleta ID ${roletaId}`);
+  return null;
 };

@@ -5,7 +5,7 @@ import EventService from '@/services/EventService';
 import { fetchRouletteLatestNumbers, fetchRouletteStrategy, RouletteStrategy as ApiRouletteStrategy } from '@/integrations/api/rouletteService';
 import { toast } from '@/components/ui/use-toast';
 
-// Debug flag - set to true para facilitar depuração durante desenvolvimento
+// Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;
 
 // Helper function for controlled logging
@@ -39,14 +39,38 @@ export interface UseRouletteDataResult {
 }
 
 /**
- * Função auxiliar para determinar a cor de um número da roleta
+ * Determina a cor de um número da roleta
  */
-const determinarCorNumero = (numero: number): string => {
+export const determinarCorNumero = (numero: number): string => {
   if (numero === 0) return 'verde';
   
   // Números vermelhos na roleta europeia
   const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
   return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
+};
+
+/**
+ * Converte um número bruto para o formato RouletteNumber
+ */
+export const processRouletteNumber = (numero: number, timestamp?: string): RouletteNumber => {
+  return {
+    numero,
+    cor: determinarCorNumero(numero),
+    timestamp: timestamp || new Date().toISOString()
+  };
+};
+
+/**
+ * Processa um array de números brutos para o formato RouletteNumber[]
+ */
+export const processRouletteNumbers = (numeros: number[], timestamps?: string[]): RouletteNumber[] => {
+  return numeros.map((numero, index) => {
+    const timestamp = timestamps && timestamps[index] 
+      ? timestamps[index] 
+      : new Date(new Date().getTime() - (index * 60000)).toISOString();
+    
+    return processRouletteNumber(numero, timestamp);
+  });
 };
 
 /**
@@ -61,163 +85,98 @@ export function useRouletteData(
   roletaNome: string, 
   limit: number = 500
 ): UseRouletteDataResult {
+  // Estado para dados de números
   const [numbers, setNumbers] = useState<RouletteNumber[]>([]);
-  const [loading, setLoading] = useState<boolean>(true); // Only for initial loading
-  const [refreshLoading, setRefreshLoading] = useState<boolean>(false); // For refresh operations
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshLoading, setRefreshLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [hasData, setHasData] = useState<boolean>(false);
+  
+  // Estado para dados de estratégia
   const [strategy, setStrategy] = useState<RouletteStrategy | null>(null);
   const [strategyLoading, setStrategyLoading] = useState<boolean>(true);
+  
+  // Controles de inicialização e retry
   const [retryCount, setRetryCount] = useState<number>(0);
   const maxRetries = 3;
   const initialLoadCompleted = useRef<boolean>(false);
   
-  // Carregar números iniciais da API - Somente na montagem inicial
-  useEffect(() => {
-    // Só carregamos dados iniciais uma vez
-    if (initialLoadCompleted.current) return;
-    
-    const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        if (!roletaId) {
-          debugLog(`[useRouletteData] ID de roleta inválido: ${roletaId}`);
-          setLoading(false);
-          setHasData(false);
-          return;
-        }
-        
-        debugLog(`[useRouletteData] Buscando números para ${roletaNome} (ID: ${roletaId})`);
-        const numerosArray = await fetchRouletteLatestNumbers(roletaId, limit);
-        
-        if (numerosArray && Array.isArray(numerosArray) && numerosArray.length > 0) {
-          const formattedNumbers: RouletteNumber[] = numerosArray.map((numero, index) => {
-            const now = new Date();
-            const timestamp = new Date(now.getTime() - (index * 60000)).toISOString();
-            
-            return {
-              numero,
-              cor: determinarCorNumero(numero),
-              timestamp
-            };
-          });
-          
-          setNumbers(formattedNumbers);
-          setHasData(true);
-          setRetryCount(0);
-          initialLoadCompleted.current = true;
-          debugLog(`[useRouletteData] Carregados ${formattedNumbers.length} números iniciais para ${roletaNome}`);
-        } else {
-          // Não usar dados de fallback, apenas indicar que não há dados
-          setHasData(false);
-          setRetryCount(prev => prev + 1);
-          
-          if (retryCount >= maxRetries) {
-            debugLog(`[useRouletteData] Sem dados disponíveis após ${retryCount} tentativas para ${roletaNome}`);
-            initialLoadCompleted.current = true;
-          }
-        }
-      } catch (err: any) {
-        console.error(`[useRouletteData] Erro ao carregar dados iniciais: ${err.message}`);
-        setError(`Erro ao carregar dados: ${err.message}`);
+  // ===== CARREGAMENTO DE DADOS INICIAIS =====
+  
+  // Função para extrair e processar números da API
+  const loadNumbers = useCallback(async (isRefresh = false): Promise<boolean> => {
+    try {
+      if (!isRefresh) setLoading(true);
+      setError(null);
+      
+      if (!roletaId) {
+        debugLog(`[useRouletteData] ID de roleta inválido: ${roletaId}`);
+        setLoading(false);
         setHasData(false);
+        return false;
+      }
+      
+      // 1. EXTRAÇÃO: Obter números brutos da API
+      debugLog(`[useRouletteData] Extraindo números para ${roletaNome} (ID: ${roletaId})`);
+      const numerosArray = await fetchRouletteLatestNumbers(roletaId, limit);
+      
+      // 2. PROCESSAMENTO: Converter para formato RouletteNumber
+      if (numerosArray && Array.isArray(numerosArray) && numerosArray.length > 0) {
+        // Processar os números em formato adequado
+        const processedNumbers = processRouletteNumbers(numerosArray);
+        
+        // Atualizar estado
+        setNumbers(processedNumbers);
+        setHasData(true);
+        setRetryCount(0);
+        initialLoadCompleted.current = true;
+        
+        debugLog(`[useRouletteData] Processados ${processedNumbers.length} números para ${roletaNome}`);
+        return true;
+      } else {
+        // Sem dados disponíveis
+        setHasData(false);
+        setRetryCount(prev => prev + 1);
         
         if (retryCount >= maxRetries) {
-          debugLog(`[useRouletteData] Máximo de tentativas atingido para ${roletaNome}`);
+          debugLog(`[useRouletteData] Sem dados disponíveis após ${retryCount} tentativas para ${roletaNome}`);
           initialLoadCompleted.current = true;
-        } else {
-          setRetryCount(prev => prev + 1);
         }
-      } finally {
-        setLoading(false);
+        return false;
       }
-    };
-    
-    loadInitialData();
-  }, [roletaId, roletaNome, limit, retryCount, maxRetries]);
-  
-  // Handler para novos números - Adiciona sem recarregar tudo
-  const handleNewNumber = useCallback((event: RouletteNumberEvent) => {
-    if (event.type !== 'new_number') return;
-    
-    const numero = typeof event.numero === 'string' ? parseInt(event.numero, 10) : event.numero;
-    debugLog(`[useRouletteData] Número recebido via evento para ${roletaNome}: ${numero}`);
-    
-    setNumbers(prev => {
-      const isDuplicate = prev.some(num => 
-        num.numero === numero && 
-        num.timestamp === event.timestamp
-      );
+    } catch (err: any) {
+      console.error(`[useRouletteData] Erro ao carregar números: ${err.message}`);
+      setError(`Erro ao carregar números: ${err.message}`);
+      setHasData(false);
       
-      if (isDuplicate) {
-        return prev;
+      if (retryCount >= maxRetries) {
+        debugLog(`[useRouletteData] Máximo de tentativas atingido para ${roletaNome}`);
+        initialLoadCompleted.current = true;
+      } else {
+        setRetryCount(prev => prev + 1);
       }
-      
-      const newNumber: RouletteNumber = {
-        numero,
-        cor: determinarCorNumero(numero),
-        timestamp: event.timestamp || new Date().toISOString()
-      };
-      
-      // Adicionar ao topo sem recarregar toda a lista
-      const updatedNumbers = [newNumber, ...prev].slice(0, limit);
-      return updatedNumbers;
-    });
-    
-    setHasData(true);
-    setIsConnected(true);
-  }, [roletaNome, limit]);
-  
-  // Função para atualizar manualmente os números - Não afeta o estado de loading principal
-  const refreshNumbers = useCallback(async () => {
-    debugLog(`[useRouletteData] Atualizando números em segundo plano para ${roletaNome}`);
-    setRefreshLoading(true);
-    
-    try {
-      const latestNumbers = await fetchRouletteLatestNumbers(roletaId, limit);
-      
-      if (latestNumbers && latestNumbers.length > 0) {
-        const formattedNumbers: RouletteNumber[] = latestNumbers.map((numero, index) => {
-          // Usar timestamps relativos baseados no índice (mais recente primeiro)
-          const now = new Date();
-          const timestamp = new Date(now.getTime() - (index * 60000)).toISOString();
-          
-          return {
-            numero,
-            cor: determinarCorNumero(numero),
-            timestamp
-          };
-        });
-        
-        // Atualizar sem disparar loading UI
-        setNumbers(formattedNumbers);
-        setHasData(true);
-        return true;
-      }
-      return false;
-    } catch (error: any) {
-      debugLog(`[useRouletteData] Erro ao atualizar números: ${error.message}`);
       return false;
     } finally {
+      setLoading(false);
       setRefreshLoading(false);
     }
-  }, [roletaId, roletaNome, limit]);
+  }, [roletaId, roletaNome, limit, retryCount, maxRetries]);
   
-  // Função para buscar e atualizar a estratégia
-  const fetchAndUpdateStrategy = useCallback(async () => {
+  // Função para extrair e processar estratégia da API
+  const loadStrategy = useCallback(async (): Promise<boolean> => {
     if (!roletaId) return false;
     
     setStrategyLoading(true);
     
     try {
-      debugLog(`[useRouletteData] Buscando estratégia para ${roletaNome}...`);
+      // 1. EXTRAÇÃO: Obter estratégia da API
+      debugLog(`[useRouletteData] Extraindo estratégia para ${roletaNome}...`);
       const strategyData = await fetchRouletteStrategy(roletaId);
       
+      // 2. PROCESSAMENTO: Atualizar estado com dados obtidos
       if (strategyData) {
-        debugLog(`[useRouletteData] Estratégia obtida para ${roletaNome}:`, {
+        debugLog(`[useRouletteData] Estratégia processada para ${roletaNome}:`, {
           estado: strategyData.estado,
           vitorias: strategyData.vitorias,
           derrotas: strategyData.derrotas
@@ -228,19 +187,62 @@ export function useRouletteData(
         return true;
       } else {
         debugLog(`[useRouletteData] Nenhuma estratégia encontrada para ${roletaNome}`);
-        // Definir estado para indicar que não temos dados, em vez de usar valores simulados
         setStrategy(null);
         setStrategyLoading(false);
         return false;
       }
     } catch (error) {
-      console.error(`[useRouletteData] Erro ao buscar estratégia: ${error}`);
+      console.error(`[useRouletteData] Erro ao extrair estratégia: ${error}`);
       setStrategyLoading(false);
       return false;
     }
   }, [roletaId, roletaNome]);
   
-  // Subscrever para eventos da roleta e configurar atualização periódica
+  // Iniciar carregamento de dados ao montar o componente
+  useEffect(() => {
+    if (initialLoadCompleted.current) return;
+    
+    // Carregar dados iniciais
+    loadNumbers();
+    loadStrategy();
+  }, [loadNumbers, loadStrategy]);
+  
+  // ===== EVENTOS E WEBSOCKETS =====
+  
+  // Processar novos números recebidos via WebSocket
+  const handleNewNumber = useCallback((event: RouletteNumberEvent) => {
+    if (event.type !== 'new_number') return;
+    
+    // 1. EXTRAÇÃO: Obter número do evento
+    const numeroRaw = event.numero;
+    const numeroFormatado = typeof numeroRaw === 'string' ? parseInt(numeroRaw, 10) : numeroRaw;
+    
+    debugLog(`[useRouletteData] Número recebido via evento para ${roletaNome}: ${numeroFormatado}`);
+    
+    // 2. PROCESSAMENTO: Atualizar estado com o novo número
+    setNumbers(prev => {
+      // Verificar se o número já existe
+      const isDuplicate = prev.some(num => 
+        num.numero === numeroFormatado && 
+        num.timestamp === event.timestamp
+      );
+      
+      if (isDuplicate) return prev;
+      
+      // Processar o novo número
+      const newNumber = processRouletteNumber(numeroFormatado, event.timestamp);
+      
+      // Adicionar ao início da lista e manter o limite
+      const updatedNumbers = [newNumber, ...prev].slice(0, limit);
+      return updatedNumbers;
+    });
+    
+    // Atualizar estado de conexão e dados
+    setHasData(true);
+    setIsConnected(true);
+  }, [roletaNome, limit]);
+  
+  // Subscrever para eventos via WebSocket
   useEffect(() => {
     const socketService = SocketService.getInstance();
     
@@ -287,7 +289,7 @@ export function useRouletteData(
       // Se a conexão está OK mas não temos dados, tentar refresh
       if (currentStatus && !hasData && !loading) {
         debugLog(`[useRouletteData] Conectado mas sem dados, tentando refresh para ${roletaNome}`);
-        refreshNumbers();
+        loadNumbers(true);
         
         // Também solicitar dados de estratégia
         socketService.sendMessage({
@@ -305,65 +307,47 @@ export function useRouletteData(
       clearInterval(connectionCheckInterval);
       clearInterval(strategyUpdateInterval);
     };
-  }, [roletaNome, roletaId, handleNewNumber, hasData, loading, isConnected]);
-
-  // Função para atualizar manualmente a estratégia
-  const refreshStrategy = useCallback(async () => {
-    console.log(`[useRouletteData] Atualizando manualmente estratégia para ${roletaNome}`);
-    
-    try {
-      const strategyData = await fetchRouletteStrategy(roletaId);
-      if (strategyData) {
-        console.log(`[useRouletteData] Estratégia atualizada para ${roletaNome}:`, {
-          vitorias: strategyData.vitorias,
-          derrotas: strategyData.derrotas,
-          estado: strategyData.estado
-        });
-        setStrategy(strategyData);
-        return true;
-      }
-      // Se não há dados, definir strategy como null para indicar ausência de dados
-      setStrategy(null);
-      return false;
-    } catch (error) {
-      console.error(`[useRouletteData] Erro ao atualizar estratégia: ${error}`);
-      return false;
-    }
-  }, [roletaId, roletaNome]);
+  }, [roletaNome, roletaId, handleNewNumber, hasData, loading, isConnected, loadNumbers]);
   
   // Eventos de atualização da estratégia
   useEffect(() => {
+    const eventService = EventService.getInstance();
+    
+    // Função para processar eventos de estratégia
     const handleStrategyEvent = (event: any) => {
-      // Verificar se é um evento para a roleta atual
-      if (event.type === 'strategy_update' && 
-          (event.roleta_id === roletaId || event.roleta_nome === roletaNome)) {
-        
+      // Verificar se é um evento relevante para esta roleta
+      if (event.type !== 'strategy_update' || 
+          (event.roleta_id !== roletaId && event.roleta_nome !== roletaNome)) {
+        return;
+      }
+      
+      // Verificar se temos dados de vitórias e derrotas
+      if (event.vitorias !== undefined || event.derrotas !== undefined) {
         console.log(`[useRouletteData] Recebido evento de estratégia para ${roletaNome}:`, {
           vitorias: event.vitorias,
           derrotas: event.derrotas,
           estado: event.estado
         });
         
-        if (event.vitorias !== undefined || event.derrotas !== undefined) {
-          // Criar uma versão atualizada da estratégia atual
-          const updatedStrategy: RouletteStrategy = {
-            ...strategy, // Manter valores existentes que podem não estar no evento
-            estado: event.estado || (strategy?.estado || 'NEUTRAL'),
-            numero_gatilho: event.numero_gatilho || strategy?.numero_gatilho || null,
-            terminais_gatilho: event.terminais_gatilho || strategy?.terminais_gatilho || [],
-            vitorias: event.vitorias !== undefined ? event.vitorias : (strategy?.vitorias || 0),
-            derrotas: event.derrotas !== undefined ? event.derrotas : (strategy?.derrotas || 0),
-            sugestao_display: event.sugestao_display || strategy?.sugestao_display || '',
-          };
-          
-          console.log(`[useRouletteData] Atualizando estratégia para ${roletaNome}:`, updatedStrategy);
-          setStrategy(updatedStrategy);
-        }
+        // Criar uma versão atualizada da estratégia atual
+        const updatedStrategy: RouletteStrategy = {
+          ...strategy, // Manter valores existentes que podem não estar no evento
+          estado: event.estado || (strategy?.estado || 'NEUTRAL'),
+          numero_gatilho: event.numero_gatilho || strategy?.numero_gatilho || null,
+          terminais_gatilho: event.terminais_gatilho || strategy?.terminais_gatilho || [],
+          vitorias: event.vitorias !== undefined ? event.vitorias : (strategy?.vitorias || 0),
+          derrotas: event.derrotas !== undefined ? event.derrotas : (strategy?.derrotas || 0),
+          sugestao_display: event.sugestao_display || strategy?.sugestao_display || '',
+        };
+        
+        console.log(`[useRouletteData] Atualizando estratégia para ${roletaNome}:`, updatedStrategy);
+        setStrategy(updatedStrategy);
+      } else {
+        console.log(`[useRouletteData] Evento de estratégia sem dados de vitórias/derrotas para ${roletaNome}`);
       }
     };
     
     // Registrar o handler para eventos de estratégia
-    const eventService = EventService.getInstance();
     eventService.subscribeToEvent('strategy_update', handleStrategyEvent);
     
     return () => {
@@ -371,15 +355,30 @@ export function useRouletteData(
       eventService.unsubscribeFromEvent('strategy_update', handleStrategyEvent);
     };
   }, [roletaId, roletaNome, strategy]);
-
+  
   // Solicitar estratégia assim que obtiver os primeiros números
   useEffect(() => {
     if (numbers.length > 0 && !strategyLoading && !strategy) {
       console.log(`[useRouletteData] Números carregados, solicitando estratégia para ${roletaNome}`);
-      fetchAndUpdateStrategy();
+      loadStrategy();
     }
-  }, [numbers.length, strategyLoading, strategy, roletaNome, fetchAndUpdateStrategy]);
+  }, [numbers.length, strategyLoading, strategy, roletaNome, loadStrategy]);
   
+  // ===== FUNÇÕES PÚBLICAS =====
+  
+  // Função para atualizar manualmente os números
+  const refreshNumbers = useCallback(async (): Promise<boolean> => {
+    setRefreshLoading(true);
+    return await loadNumbers(true);
+  }, [loadNumbers]);
+  
+  // Função para atualizar manualmente a estratégia
+  const refreshStrategy = useCallback(async (): Promise<boolean> => {
+    console.log(`[useRouletteData] Atualizando manualmente estratégia para ${roletaNome}`);
+    return await loadStrategy();
+  }, [roletaNome, loadStrategy]);
+  
+  // Retornar o resultado processado
   return {
     numbers,
     loading, // This will only be true during initial loading
@@ -389,6 +388,6 @@ export function useRouletteData(
     strategy,
     strategyLoading,
     refreshNumbers,
-    refreshStrategy // Nova função para atualizar manualmente a estratégia
+    refreshStrategy
   };
 }
