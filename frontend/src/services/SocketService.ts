@@ -90,6 +90,12 @@ class SocketService {
         this.isConnected = true;
         this.connectionAttempts = 0;
         
+        // Solicitar números recentes imediatamente após a conexão
+        this.requestRecentNumbers();
+        
+        // Configurar os listeners de eventos
+        this.setupEventListeners();
+        
         toast({
           title: "Conexão em tempo real estabelecida",
           description: "Recebendo atualizações instantâneas das roletas via WebSocket",
@@ -122,6 +128,9 @@ class SocketService {
         console.log(`[SocketService] Reconectado após ${attempt} tentativas`);
         this.isConnected = true;
         
+        // Solicitar dados novamente após reconexão
+        this.requestRecentNumbers();
+        
         toast({
           title: "Conexão restabelecida",
           description: "Voltando a receber atualizações em tempo real",
@@ -141,64 +150,53 @@ class SocketService {
       });
       
       // Receber novo número
-      this.socket.on('new_number', (event: RouletteNumberEvent) => {
-        console.log(`[SocketService] Novo número recebido: ${event.roleta_nome} - ${event.numero}`);
-        this.notifyListeners(event);
+      this.socket.on('new_number', (event: any) => {
+        console.log(`[SocketService] Raw new_number: ${JSON.stringify(event)}`);
+        
+        // Garantir que o evento tenha a estrutura correta
+        const formattedEvent: RouletteNumberEvent = {
+          type: 'new_number',
+          roleta_id: event.roleta_id || event.id || 'unknown-id',
+          roleta_nome: event.roleta_nome || 'Desconhecida',
+          numero: typeof event.numero === 'number' ? event.numero : 
+                 typeof event.numero === 'string' ? parseInt(event.numero, 10) : 0,
+          timestamp: event.timestamp || new Date().toISOString()
+        };
+        
+        console.log(`[SocketService] Novo número processado: ${formattedEvent.roleta_nome} - ${formattedEvent.numero}`);
+        this.notifyListeners(formattedEvent);
       });
       
-      // Receber histórico recente
-      this.socket.on('recent_history', (numbers: any[]) => {
-        console.log(`[SocketService] Histórico recente recebido: ${numbers.length} números`);
+      // Receber qualquer tipo de mensagem do socket
+      this.socket.on('message', (message: any) => {
+        console.log(`[SocketService] Mensagem genérica recebida:`, message);
         
-        // Processar histórico recente (opcional, depende da lógica de negócio)
-        if (numbers && numbers.length > 0) {
-          // Ordenar por timestamp, mais recente primeiro
-          numbers.sort((a, b) => {
-            return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-          });
+        // Tentar processar como número se tiver dados relevantes
+        if (message && message.roleta_nome && message.numero !== undefined) {
+          const numberEvent: RouletteNumberEvent = {
+            type: 'new_number',
+            roleta_id: message.roleta_id || 'unknown-id',
+            roleta_nome: message.roleta_nome,
+            numero: typeof message.numero === 'number' ? message.numero : 
+                   typeof message.numero === 'string' ? parseInt(message.numero, 10) : 0,
+            timestamp: message.timestamp || new Date().toISOString()
+          };
           
-          // Notificar sobre cada número (pode ser opcional dependendo da UI)
-          numbers.forEach(number => {
-            // Certificar que o número tem o campo 'type' para compatibilidade
-            const formattedNumber: RouletteNumberEvent = {
-              type: 'new_number',
-              roleta_id: number.roleta_id,
-              roleta_nome: number.roleta_nome,
-              numero: number.numero,
-              timestamp: number.timestamp
-            };
-            
-            this.notifyListeners(formattedNumber);
-          });
+          console.log(`[SocketService] Convertendo mensagem genérica para evento de número: ${numberEvent.roleta_nome} - ${numberEvent.numero}`);
+          this.notifyListeners(numberEvent);
         }
       });
       
-      // Evento para atualizações de estratégia
-      this.socket.on('strategy_update', (data: any) => {
-        console.log(`[SocketService] Atualização de estratégia recebida para ${data.roleta_nome}`, {
-          vitorias: data.vitorias,
-          derrotas: data.derrotas,
-          estado: data.estado,
-          roleta_id: data.roleta_id
+      // Adicionar handler para evento de teste (útil para debugging)
+      this.socket.on('test_event', (data: any) => {
+        console.log(`[SocketService] Evento de teste recebido:`, data);
+        
+        // Enviar uma resposta para confirmar recepção
+        this.socket?.emit('test_response', { 
+          received: true, 
+          clientTime: new Date().toISOString(),
+          message: "Evento de teste recebido com sucesso"
         });
-        
-        // Formatar o evento de estratégia
-        const strategyEvent: StrategyUpdateEvent = {
-          type: 'strategy_update',
-          roleta_id: data.roleta_id,
-          roleta_nome: data.roleta_nome,
-          estado: data.estado,
-          numero_gatilho: data.numero_gatilho || 0,
-          terminais_gatilho: data.terminais_gatilho || [],
-          vitorias: data.vitorias || 0,
-          derrotas: data.derrotas || 0,
-          sugestao_display: data.sugestao_display || '',
-          timestamp: data.timestamp || new Date().toISOString()
-        };
-        
-        console.log(`[SocketService] Evento de estratégia formatado:`, strategyEvent);
-        
-        this.notifyListeners(strategyEvent as any);
       });
       
     } catch (error) {
@@ -588,6 +586,62 @@ class SocketService {
   // Notifica os listeners sobre mudanças de conexão
   private notifyConnectionListeners(): void {
     // Implementação aqui
+  }
+
+  // Método para solicitar números recentes de todas as roletas
+  public requestRecentNumbers(): void {
+    if (!this.socket || !this.isConnected) {
+      console.warn('[SocketService] Não é possível solicitar números recentes: socket não conectado');
+      return;
+    }
+    
+    console.log('[SocketService] Solicitando números recentes de todas as roletas');
+    
+    // Emitir evento para solicitar números recentes
+    this.socket.emit('get_recent_numbers', { count: 20 });
+    
+    // Também emitir evento de teste para verificar a conexão
+    this.socket.emit('test_connection', { 
+      timestamp: new Date().toISOString(),
+      clientId: this.socket.id
+    });
+    
+    // Subscrever para todas as roletas conhecidas
+    const knownRoulettes = [
+      'Brazilian Mega Roulette',
+      'Speed Auto Roulette',
+      'Bucharest Auto-Roulette',
+      'Auto-Roulette',
+      'Auto-Roulette VIP',
+      'Immersive Roulette'
+    ];
+    
+    knownRoulettes.forEach(roleta => {
+      console.log(`[SocketService] Subscrevendo para roleta: ${roleta}`);
+      this.socket?.emit('subscribe_to_roleta', roleta);
+    });
+  }
+
+  // Adicionando um evento artificial para teste (deve ser removido em produção)
+  public injectTestEvent(roleta: string, numero: number): void {
+    if (!this.isConnected) {
+      console.warn('[SocketService] Não é possível injetar evento de teste: socket não conectado');
+      return;
+    }
+    
+    console.log(`[SocketService] Injetando evento de teste para ${roleta}: número ${numero}`);
+    
+    // Criar evento de teste
+    const testEvent: RouletteNumberEvent = {
+      type: 'new_number',
+      roleta_id: 'test-id',
+      roleta_nome: roleta,
+      numero: numero,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Processar evento como se tivesse vindo do socket
+    this.notifyListeners(testEvent);
   }
 }
 

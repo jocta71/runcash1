@@ -535,6 +535,32 @@ const RouletteCard = memo(({
           Detalhes
         </Button>
         
+        {DEBUG_ENABLED && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              // Gerar um número aleatório entre 0 e 36
+              const randomNumber = Math.floor(Math.random() * 37);
+              console.log(`[RouletteCard] Injetando número de teste ${randomNumber} para ${roletaNome}`);
+              
+              // Injetar evento de teste usando o SocketService
+              const socketService = SocketService.getInstance();
+              socketService.injectTestEvent(roletaNome, randomNumber);
+              
+              toast({
+                title: "Número de teste",
+                description: `Injetado número ${randomNumber} para ${roletaNome}`,
+                variant: "default"
+              });
+            }}
+            className="text-xs bg-amber-800 hover:bg-amber-700 text-white"
+          >
+            Testar
+          </Button>
+        )}
+        
         <Button 
           variant="default" 
           size="sm" 
