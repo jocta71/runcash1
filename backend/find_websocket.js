@@ -1,7 +1,6 @@
 // Script de diagnóstico para localizar o arquivo websocket_server.js
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 
 console.log("=== RunCash Websocket File Finder ===");
 console.log("Diretório atual:", process.cwd());
@@ -33,55 +32,56 @@ try {
   console.error("Erro ao listar diretório /app:", err);
 }
 
-// Tentar encontrar o arquivo no sistema
-try {
-  console.log("\n=== Busca pelo websocket_server.js ===");
-  console.log("Tentando executar find...");
-  
-  let findResult;
+// Buscar manualmente nos diretórios comuns
+console.log("\n=== Busca pelo websocket_server.js ===");
+let websocketFilePath = null;
+
+const commonDirs = [
+  process.cwd(),
+  path.join(process.cwd(), '..'),
+  '/app',
+  '/app/backend',
+  '/usr/src/app'
+];
+
+for (const dir of commonDirs) {
   try {
-    // Tenta usar find para localizar o arquivo
-    findResult = execSync('find / -name "websocket_server.js" -type f 2>/dev/null').toString();
-    console.log("Resultados do find:", findResult);
-  } catch (error) {
-    console.log("Comando find não disponível ou erro ao executar:", error.message);
+    console.log(`Verificando em ${dir}...`);
     
-    // Se o find não estiver disponível, tentamos outra abordagem
-    console.log("Tentando localizar manualmente em diretórios comuns...");
-    
-    const commonDirs = [
-      process.cwd(),
-      path.join(process.cwd(), '..'),
-      '/app',
-      '/app/backend',
-      '/usr/src/app'
-    ];
-    
-    for (const dir of commonDirs) {
-      try {
-        console.log(`Verificando em ${dir}...`);
-        
-        // Verifica se o diretório existe
-        if (fs.existsSync(dir)) {
-          const dirFiles = fs.readdirSync(dir);
-          console.log(`Conteúdo de ${dir}:`, dirFiles);
-          
-          // Verificar se o arquivo existe neste diretório
-          if (dirFiles.includes('websocket_server.js')) {
-            console.log(`>>> ENCONTRADO: ${path.join(dir, 'websocket_server.js')}`);
-          }
-        } else {
-          console.log(`Diretório ${dir} não existe`);
-        }
-      } catch (err) {
-        console.error(`Erro ao verificar ${dir}:`, err.message);
+    // Verifica se o diretório existe
+    if (fs.existsSync(dir)) {
+      const dirFiles = fs.readdirSync(dir);
+      console.log(`Conteúdo de ${dir}:`, dirFiles);
+      
+      // Verificar se o arquivo existe neste diretório
+      if (dirFiles.includes('websocket_server.js')) {
+        websocketFilePath = path.join(dir, 'websocket_server.js');
+        console.log(`>>> ENCONTRADO: ${websocketFilePath}`);
       }
+    } else {
+      console.log(`Diretório ${dir} não existe`);
     }
+  } catch (err) {
+    console.error(`Erro ao verificar ${dir}:`, err.message);
   }
-} catch (err) {
-  console.error("Erro na busca:", err);
 }
 
-// Exibir variáveis de ambiente para diagnóstico
-console.log("\n=== Variáveis de ambiente ===");
-console.log(process.env); 
+// Resumo dos resultados
+console.log("\n=== RESULTADO DA BUSCA ===");
+if (websocketFilePath) {
+  console.log(`Arquivo encontrado em: ${websocketFilePath}`);
+} else {
+  console.log("Nenhuma instância de websocket_server.js foi encontrada nos diretórios comuns");
+}
+
+// Exibir algumas variáveis de ambiente para diagnóstico (apenas as seguras)
+console.log("\n=== Variáveis de ambiente relevantes ===");
+console.log({
+  NODE_ENV: process.env.NODE_ENV,
+  PORT: process.env.PORT,
+  PATH: process.env.PATH,
+  PWD: process.env.PWD,
+  HOME: process.env.HOME,
+  RAILWAY_SERVICE_NAME: process.env.RAILWAY_SERVICE_NAME,
+  RAILWAY_PROJECT_NAME: process.env.RAILWAY_PROJECT_NAME
+}); 
