@@ -3,7 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync, spawn } = require('child_process');
+const { spawn } = require('child_process');
 
 console.log("=== RunCash Websocket Server ===");
 console.log("Iniciando o serviço de websocket...");
@@ -21,11 +21,7 @@ try {
 let websocketFile = null;
 const possiblePaths = [
   'websocket_server.js',
-  path.join('..', 'websocket_server.js'),
-  path.join('/app', 'websocket_server.js'),
-  path.join('/app', 'backend', 'websocket_server.js'),
-  path.join(process.cwd(), 'websocket_server.js'),
-  path.join(process.cwd(), '..', 'websocket_server.js')
+  path.join(process.cwd(), 'websocket_server.js')
 ];
 
 for (const filePath of possiblePaths) {
@@ -45,14 +41,9 @@ if (!websocketFile) {
   console.log("Buscando em diretórios comuns...");
   
   try {
-    // No Linux/Unix
-    const searchResult = execSync('find / -name "websocket_server.js" -type f 2>/dev/null').toString();
-    console.log("Resultados da busca:", searchResult);
-    
-    if (searchResult.trim()) {
-      websocketFile = searchResult.split('\n')[0].trim();
-      console.log(`Arquivo encontrado via busca: ${websocketFile}`);
-    }
+    // No Railway, o arquivo geralmente está no diretório atual
+    websocketFile = 'websocket_server.js';
+    console.log("Usando caminho padrão:", websocketFile);
   } catch (err) {
     console.log("Erro na busca:", err.message);
   }
