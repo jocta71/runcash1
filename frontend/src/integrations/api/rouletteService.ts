@@ -63,17 +63,45 @@ export interface RouletteStrategy {
   sugestao_display?: string;
 }
 
-// ===== FUNÇÕES DE EXTRAÇÃO DE DADOS (PURAS) =====
-// Estas funções apenas extraem dados brutos da API sem processamento complexo
+// Manter o cache de roletas para evitar múltiplas chamadas
+let cachedRoulettes: any[] = [];
+let lastCacheTime = 0;
+const CACHE_DURATION = 10 * 1000; // 10 segundos
+
+/**
+ * Função auxiliar para obter e cachear todas as roletas
+ */
+const getAllRoulettesWithCache = async (forceRefresh = false): Promise<any[]> => {
+  const now = Date.now();
+  // Usar cache se disponível e não expirado
+  if (!forceRefresh && cachedRoulettes.length > 0 && (now - lastCacheTime) < CACHE_DURATION) {
+    console.log('[API] Usando dados em cache para roletas');
+    return cachedRoulettes;
+  }
+  
+  try {
+    console.log('[API] Extraindo dados de todas as roletas...');
+    const response = await api.get('/roulettes');
+    if (response.data && Array.isArray(response.data)) {
+      cachedRoulettes = response.data;
+      lastCacheTime = now;
+      console.log(`[API] Atualizando cache com ${cachedRoulettes.length} roletas`);
+      return cachedRoulettes;
+    }
+    return [];
+  } catch (error) {
+    console.error('[API] Erro ao extrair dados de roletas:', error);
+    return cachedRoulettes.length > 0 ? cachedRoulettes : []; // Usar cache mesmo expirado em caso de erro
+  }
+};
 
 /**
  * Extrai lista de nomes de roletas disponíveis
  */
 export const extractAvailableRoulettes = async (): Promise<any[]> => {
   try {
-    console.log('[API] Extraindo roletas disponíveis...');
-    const response = await api.get('/roulettes');
-    return response.data || [];
+    const allRoulettes = await getAllRoulettesWithCache();
+    return allRoulettes;
   } catch (error) {
     console.error('[API] Erro ao extrair roletas disponíveis:', error);
     return [];
@@ -84,14 +112,7 @@ export const extractAvailableRoulettes = async (): Promise<any[]> => {
  * Extrai informações de todas as roletas
  */
 export const extractAllRoulettes = async (): Promise<any[]> => {
-  try {
-    console.log('[API] Extraindo dados de todas as roletas...');
-    const response = await api.get('/roulettes');
-    return response.data || [];
-  } catch (error) {
-    console.error('[API] Erro ao extrair dados de roletas:', error);
-    return [];
-  }
+  return await getAllRoulettesWithCache();
 };
 
 /**
@@ -100,11 +121,21 @@ export const extractAllRoulettes = async (): Promise<any[]> => {
 export const extractRouletteNumbersByName = async (roletaNome: string, limit = 10): Promise<any> => {
   try {
     console.log(`[API] Extraindo números para roleta '${roletaNome}'...`);
-    const response = await api.get(`/roulettes/${encodeURIComponent(roletaNome)}`);
-    return response.data?.numeros || [];
+    const allRoulettes = await getAllRoulettesWithCache();
+    const roleta = allRoulettes.find(r => r.nome === roletaNome);
+    
+    if (roleta && roleta.numeros) {
+      // Limitar a quantidade de números retornados
+      const numeros = Array.isArray(roleta.numeros) ? roleta.numeros.slice(0, limit) : [];
+      console.log(`[API] Encontrados ${numeros.length} números para roleta ${roletaNome}`);
+      return numeros;
+    }
+    
+    console.warn(`[API] Roleta '${roletaNome}' não encontrada ou sem números`);
+    return [];
   } catch (error) {
     console.error(`[API] Erro ao extrair números para roleta '${roletaNome}':`, error);
-    return null;
+    return [];
   }
 };
 
@@ -114,19 +145,26 @@ export const extractRouletteNumbersByName = async (roletaNome: string, limit = 1
 export const extractRouletteNumbersById = async (roletaId: string, limit = 10): Promise<any> => {
   try {
     console.log(`[API] Extraindo ${limit} números para roleta ID ${roletaId}...`);
-    const response = await api.get(`/numbers/byId/${encodeURIComponent(roletaId)}?limit=${limit}`);
-    return response.data;
+    const allRoulettes = await getAllRoulettesWithCache();
+    const roleta = allRoulettes.find(r => r.id === roletaId);
+    
+    if (roleta && roleta.numeros) {
+      // Transformar para formato esperado pela aplicação
+      const numeros = Array.isArray(roleta.numeros) ? roleta.numeros.slice(0, limit).map(n => ({
+        numero: n,
+        roleta_id: roletaId,
+        roleta_nome: roleta.nome
+      })) : [];
+      
+      console.log(`[API] Encontrados ${numeros.length} números para roleta ID ${roletaId}`);
+      return numeros;
+    }
+    
+    console.warn(`[API] Roleta ID ${roletaId} não encontrada ou sem números`);
+    return [];
   } catch (error) {
     console.error(`[API] Erro ao extrair números para roleta ${roletaId}:`, error);
-    // Tentar obter os números da roleta diretamente, caso a rota /numbers/byId não exista
-    try {
-      console.log(`[API] Tentando rota alternativa para obter números da roleta ${roletaId}...`);
-      const response = await api.get(`/roulettes/${encodeURIComponent(roletaId)}`);
-      return response.data?.numeros || [];
-    } catch (secondError) {
-      console.error(`[API] Falha também na rota alternativa:`, secondError);
-      return null;
-    }
+    return [];
   }
 };
 
@@ -136,19 +174,22 @@ export const extractRouletteNumbersById = async (roletaId: string, limit = 10): 
 export const extractRouletteStrategy = async (roletaId: string): Promise<any> => {
   try {
     console.log(`[API] Extraindo estratégia para roleta ID ${roletaId}...`);
-    // Esta rota não existe no backend, vamos tentar obter diretamente da roleta
-    const response = await api.get(`/roulettes/${encodeURIComponent(roletaId)}`);
-    if (response.data) {
+    const allRoulettes = await getAllRoulettesWithCache();
+    const roleta = allRoulettes.find(r => r.id === roletaId);
+    
+    if (roleta) {
       // Construir um objeto de estratégia a partir dos dados da roleta
       return {
-        estado: response.data.estado_estrategia || 'NEUTRAL',
-        numero_gatilho: response.data.numero_gatilho || null,
-        terminais_gatilho: response.data.terminais_gatilho || [],
-        vitorias: response.data.vitorias || 0,
-        derrotas: response.data.derrotas || 0,
-        sugestao_display: response.data.sugestao_display || ''
+        estado: roleta.estado_estrategia || 'NEUTRAL',
+        numero_gatilho: roleta.numero_gatilho || null,
+        terminais_gatilho: roleta.terminais_gatilho || [],
+        vitorias: roleta.vitorias || 0,
+        derrotas: roleta.derrotas || 0,
+        sugestao_display: roleta.sugestao_display || ''
       };
     }
+    
+    console.warn(`[API] Roleta ID ${roletaId} não encontrada`);
     return null;
   } catch (error) {
     console.error(`[API] Erro ao extrair estratégia para roleta ${roletaId}:`, error);
@@ -162,8 +203,15 @@ export const extractRouletteStrategy = async (roletaId: string): Promise<any> =>
 export const extractRouletteById = async (roletaId: string): Promise<any> => {
   try {
     console.log(`[API] Extraindo dados da roleta ${roletaId}...`);
-    const response = await api.get(`/roulettes/${encodeURIComponent(roletaId)}`);
-    return response.data;
+    const allRoulettes = await getAllRoulettesWithCache();
+    const roleta = allRoulettes.find(r => r.id === roletaId);
+    
+    if (roleta) {
+      return roleta;
+    }
+    
+    console.warn(`[API] Roleta ID ${roletaId} não encontrada`);
+    return null;
   } catch (error) {
     console.error(`[API] Erro ao extrair dados da roleta ${roletaId}:`, error);
     return null;

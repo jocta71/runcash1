@@ -1,29 +1,57 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import SocketService from '@/services/SocketService';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RouletteNumberEvent } from '@/services/EventService';
 import EventService from '@/services/EventService';
-import { fetchRouletteLatestNumbers, fetchRouletteStrategy, RouletteStrategy as ApiRouletteStrategy } from '@/integrations/api/rouletteService';
+import { 
+  fetchRouletteLatestNumbers, 
+  fetchRouletteLatestNumbersByName, 
+  fetchRouletteStrategy,
+  fetchRouletteById,
+  RouletteStrategy as ApiRouletteStrategy 
+} from '@/integrations/api/rouletteService';
 import { toast } from '@/components/ui/use-toast';
+import SocketService from '@/integrations/socket/socketService';
 
 // Debug flag - set to false to disable logs in production
-const DEBUG_ENABLED = true;
+const DEBUG = false;
 
-// Helper function for controlled logging
+// Função auxiliar para debug
 const debugLog = (...args: any[]) => {
-  if (DEBUG_ENABLED) {
+  if (DEBUG) {
     console.log(...args);
   }
 };
 
-// Interface para número da roleta
-export interface RouletteNumber {
+// Tipos locais para simplificar o uso
+interface RouletteNumber {
   numero: number;
-  cor: string;
-  timestamp: string;
+  timestamp?: string;
 }
 
-// Interface para o estado da estratégia - usando a mesma definição da API
-export type RouletteStrategy = ApiRouletteStrategy;
+type RouletteStrategy = ApiRouletteStrategy;
+
+/**
+ * Processa números brutos em formato RouletteNumber
+ */
+const processRouletteNumbers = (numbers: number[] | any[]): RouletteNumber[] => {
+  if (!Array.isArray(numbers)) return [];
+  
+  // Mapear para formato padrão
+  return numbers.map((item) => {
+    // Verificar se o item já é um objeto com número
+    if (typeof item === 'object' && item !== null) {
+      return {
+        numero: typeof item.numero === 'number' ? item.numero : parseInt(item.numero, 10),
+        timestamp: item.timestamp || new Date().toISOString()
+      };
+    }
+    
+    // Se for direto um número
+    return {
+      numero: typeof item === 'number' ? item : parseInt(item, 10),
+      timestamp: new Date().toISOString()
+    };
+  });
+};
 
 // Interface para o resultado do hook
 export interface UseRouletteDataResult {
@@ -58,19 +86,6 @@ export const processRouletteNumber = (numero: number, timestamp?: string): Roule
     cor: determinarCorNumero(numero),
     timestamp: timestamp || new Date().toISOString()
   };
-};
-
-/**
- * Processa um array de números brutos para o formato RouletteNumber[]
- */
-export const processRouletteNumbers = (numeros: number[], timestamps?: string[]): RouletteNumber[] => {
-  return numeros.map((numero, index) => {
-    const timestamp = timestamps && timestamps[index] 
-      ? timestamps[index] 
-      : new Date(new Date().getTime() - (index * 60000)).toISOString();
-    
-    return processRouletteNumber(numero, timestamp);
-  });
 };
 
 /**
