@@ -116,7 +116,7 @@ export const extractAllRoulettes = async (): Promise<any[]> => {
 };
 
 /**
- * Extrai números de uma roleta pelo nome (em modo de simulação gera números fictícios)
+ * Extrai números de uma roleta pelo nome (sem simulação)
  */
 export const extractRouletteNumbersByName = async (roletaNome: string, limit = 10): Promise<any> => {
   try {
@@ -131,18 +131,16 @@ export const extractRouletteNumbersByName = async (roletaNome: string, limit = 1
       return numeros;
     }
     
-    // Modo de simulação: gerar números fictícios quando não há dados
-    console.warn(`[API] Roleta '${roletaNome}' sem números reais. Gerando dados simulados.`);
-    return gerarNumerosFicticios(limit);
+    console.warn(`[API] Roleta '${roletaNome}' sem números reais. Retornando array vazio.`);
+    return [];
   } catch (error) {
     console.error(`[API] Erro ao extrair números para roleta '${roletaNome}':`, error);
-    // Em caso de erro, retornar números fictícios como fallback
-    return gerarNumerosFicticios(limit);
+    return [];
   }
 };
 
 /**
- * Extrai números de uma roleta pelo ID (em modo de simulação gera números fictícios)
+ * Extrai números de uma roleta pelo ID (sem simulação)
  */
 export const extractRouletteNumbersById = async (roletaId: string, limit = 10): Promise<any> => {
   try {
@@ -162,39 +160,12 @@ export const extractRouletteNumbersById = async (roletaId: string, limit = 10): 
       return numeros;
     }
     
-    // Modo de simulação: gerar números fictícios quando não há dados
-    console.warn(`[API] Roleta ID ${roletaId} sem números reais. Gerando dados simulados.`);
-    const numerosFicticios = gerarNumerosFicticios(limit);
-    
-    return numerosFicticios.map(n => ({
-      numero: n,
-      roleta_id: roletaId,
-      roleta_nome: roleta ? roleta.nome : 'Roleta Simulada'
-    }));
+    console.warn(`[API] Roleta ID ${roletaId} sem números reais. Retornando array vazio.`);
+    return [];
   } catch (error) {
     console.error(`[API] Erro ao extrair números para roleta ${roletaId}:`, error);
-    // Em caso de erro, retornar números fictícios como fallback
-    const numerosFicticios = gerarNumerosFicticios(limit);
-    
-    return numerosFicticios.map(n => ({
-      numero: n,
-      roleta_id: roletaId,
-      roleta_nome: 'Roleta Simulada'
-    }));
+    return [];
   }
-};
-
-/**
- * Gera números aleatórios para roletas em modo de simulação
- */
-const gerarNumerosFicticios = (quantidade: number): number[] => {
-  console.log(`[API] Gerando ${quantidade} números fictícios para simulação`);
-  const numeros: number[] = [];
-  for (let i = 0; i < quantidade; i++) {
-    // Gerar números aleatórios entre 0 e 36 (roleta europeia)
-    numeros.push(Math.floor(Math.random() * 37));
-  }
-  return numeros;
 };
 
 /**
@@ -388,26 +359,11 @@ export const extractRouletteStrategy = async (roletaId: string): Promise<any> =>
       };
     }
     
-    // Criar uma estratégia simulada quando não há dados
-    console.warn(`[API] Roleta ID ${roletaId} não encontrada. Criando estratégia fictícia.`);
-    return {
-      estado: 'NEUTRAL',
-      numero_gatilho: Math.floor(Math.random() * 37),
-      terminais_gatilho: [],
-      vitorias: Math.floor(Math.random() * 10),
-      derrotas: Math.floor(Math.random() * 5),
-      sugestao_display: ''
-    };
+    console.warn(`[API] Roleta ID ${roletaId} não encontrada.`);
+    return null;
   } catch (error) {
     console.error(`[API] Erro ao extrair estratégia para roleta ${roletaId}:`, error);
-    return {
-      estado: 'NEUTRAL',
-      numero_gatilho: null,
-      terminais_gatilho: [],
-      vitorias: 0,
-      derrotas: 0,
-      sugestao_display: ''
-    };
+    return null;
   }
 };
 
@@ -424,19 +380,8 @@ export const extractRouletteById = async (roletaId: string): Promise<any> => {
       return roleta;
     }
     
-    // Criar uma roleta simulada quando não há dados
-    console.warn(`[API] Roleta ID ${roletaId} não encontrada. Criando roleta fictícia.`);
-    return {
-      id: roletaId,
-      nome: `Roleta Simulada ${roletaId.substring(0, 4)}`,
-      numeros: gerarNumerosFicticios(20),
-      updated_at: new Date().toISOString(),
-      estado_estrategia: 'NEUTRAL',
-      numero_gatilho: Math.floor(Math.random() * 37),
-      terminais_gatilho: [],
-      vitorias: Math.floor(Math.random() * 10),
-      derrotas: Math.floor(Math.random() * 5)
-    };
+    console.warn(`[API] Roleta ID ${roletaId} não encontrada.`);
+    return null;
   } catch (error) {
     console.error(`[API] Erro ao extrair dados da roleta ${roletaId}:`, error);
     return null;
