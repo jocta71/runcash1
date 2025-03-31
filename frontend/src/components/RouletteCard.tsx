@@ -10,6 +10,7 @@ import SuggestionDisplay from './roulette/SuggestionDisplay';
 import RouletteActionButtons from './roulette/RouletteActionButtons';
 import RouletteStatsModal from './RouletteStatsModal';
 import { useRouletteData } from '@/hooks/useRouletteData';
+import useCardRouletteData from '@/hooks/useCardRouletteData';
 import { Button } from '@/components/ui/button';
 import { StrategyUpdateEvent } from '@/services/EventService';
 import EventService from '@/services/EventService';
@@ -116,19 +117,21 @@ const RouletteCard = memo(({
   // Verificar se o nome da roleta é válido, com fallback para roleta_nome
   const roletaNome = name || roleta_nome || "Roleta Desconhecida";
   
+  // Usar o hook de dados do card se tivermos um roletaId
+  const cardRouletteData = roletaId ? useCardRouletteData(roletaId) : null;
+  
   // Usar o hook personalizado para obter dados em tempo real, apenas se tivermos um roletaId
   const { 
     numbers, 
     loading: isLoading, 
     error, 
     isConnected = true, 
-    hasData = false, // Não assumir que temos dados
+    hasData = false, 
     strategy, 
     strategyLoading, 
     refreshNumbers = () => {},
     refreshStrategy = () => Promise.resolve(false)
   } = roletaId ? useRouletteData(roletaId, roletaNome) : {
-    // Se não tivermos roletaId, não usar dados de fallback, mostrar como não disponível
     numbers: [],
     loading: true,
     error: "ID da roleta não informado",
@@ -142,8 +145,13 @@ const RouletteCard = memo(({
   
   // Converter os objetos RouletteNumber para números simples
   const mappedNumbers = useMemo(() => {
+    // Primeiro verificar se temos dados do cardRouletteData
+    if (cardRouletteData?.data?.numeros && cardRouletteData.data.numeros.length > 0) {
+      return cardRouletteData.data.numeros.map(num => typeof num === 'number' ? num : 0);
+    }
+    
+    // Caso contrário, usar os dados do hook padrão
     if (!Array.isArray(numbers) || numbers.length === 0) {
-      // Não usar lastNumbers como fallback, retornar array vazio
       return [];
     }
     
@@ -158,17 +166,32 @@ const RouletteCard = memo(({
     }
     
     return mapped;
-  }, [numbers, roletaNome]);
+  }, [numbers, roletaNome, cardRouletteData]);
 
-  // Otimizar trend com useMemo - não gerar dados simulados
+  // Otimizar trend com useMemo - usar dados do cardRouletteData se disponíveis
   const trendData = useMemo(() => {
-    // Usar apenas dados reais, não gerar simulados
+    // Primeiro verificar se temos tendência nos dados do cardRouletteData
+    if (cardRouletteData?.data?.tendencia && cardRouletteData.data.tendencia.length > 0) {
+      return cardRouletteData.data.tendencia;
+    }
+    
+    // Caso contrário, usar tendência fornecida como prop
     if (trend && trend.length > 0) {
       return trend;
     }
-    // Retornar array vazio em vez de gerar dados
+    
+    // Sem dados de tendência disponíveis
     return [];
-  }, [trend]);
+  }, [trend, cardRouletteData]);
+
+  // Vitórias e Derrotas - usar dados do cardRouletteData se disponíveis
+  const currentWins = useMemo(() => {
+    return cardRouletteData?.data?.vitorias !== undefined ? cardRouletteData.data.vitorias : wins;
+  }, [cardRouletteData, wins]);
+  
+  const currentLosses = useMemo(() => {
+    return cardRouletteData?.data?.derrotas !== undefined ? cardRouletteData.data.derrotas : losses;
+  }, [cardRouletteData, losses]);
 
   // Callback memoizado para atualizar a estratégia
   const updateStrategy = useCallback((event: StrategyUpdateEvent) => {
@@ -353,17 +376,24 @@ const RouletteCard = memo(({
     });
   };
 
-  // Implementar a função de reload mais completa
+  // Atualizar a função reloadData para usar o refresh do cardRouletteData
   const reloadData = (e: React.MouseEvent) => {
     e.stopPropagation();
     
-    console.log(`[RouletteCard] Recarregando todos os dados para ${roletaNome}`);
+    toast({
+      title: "Atualizando dados",
+      description: `Buscando dados mais recentes para ${roletaNome}...`,
+      duration: 3000
+    });
     
-    // Recarregar números
+    // Atualizar dados do card se disponível
+    if (cardRouletteData && typeof cardRouletteData.refresh === 'function') {
+      cardRouletteData.refresh().catch(console.error);
+    }
+    
+    // Manter a atualização original também
     refreshNumbers();
-    
-    // Também recarregar dados de estratégia
-    refreshStrategy();
+    refreshStrategy().catch(console.error);
   };
 
   // Memoização do LastNumbers component para evitar re-renders
