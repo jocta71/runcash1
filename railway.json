@@ -7,7 +7,8 @@
       "requirements.txt",
       "Dockerfile"
     ],
-    "dockerfilePath": "backend/scraper/Dockerfile"
+    "dockerfilePath": "backend-scraper.Dockerfile",
+    "rootDirectory": "backend/scraper"
   },
   "deploy": {
     "numReplicas": 1,
