@@ -2,11 +2,11 @@ FROM node:18-slim
 
 WORKDIR /app
 
-COPY api/package*.json ./
+COPY package*.json ./
 
 RUN npm install --omit=dev
 
-COPY api/ ./
+COPY api/ ./api/
 COPY websocket_server.js ./
 
 ENV PORT=3000
