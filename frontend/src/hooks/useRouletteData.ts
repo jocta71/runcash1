@@ -99,7 +99,7 @@ export function useRouletteData(
   
   // Controles de inicialização e retry
   const [retryCount, setRetryCount] = useState<number>(0);
-  const maxRetries = 3;
+  const maxRetries = 1;
   const initialLoadCompleted = useRef<boolean>(false);
   
   // ===== CARREGAMENTO DE DADOS INICIAIS =====
@@ -137,12 +137,10 @@ export function useRouletteData(
       } else {
         // Sem dados disponíveis
         setHasData(false);
-        setRetryCount(prev => prev + 1);
+        // Marcar como completo mesmo sem dados, para não continuar tentando
+        initialLoadCompleted.current = true;
         
-        if (retryCount >= maxRetries) {
-          debugLog(`[useRouletteData] Sem dados disponíveis após ${retryCount} tentativas para ${roletaNome}`);
-          initialLoadCompleted.current = true;
-        }
+        debugLog(`[useRouletteData] Sem dados disponíveis para ${roletaNome}`);
         return false;
       }
     } catch (err: any) {
@@ -150,12 +148,8 @@ export function useRouletteData(
       setError(`Erro ao carregar números: ${err.message}`);
       setHasData(false);
       
-      if (retryCount >= maxRetries) {
-        debugLog(`[useRouletteData] Máximo de tentativas atingido para ${roletaNome}`);
-        initialLoadCompleted.current = true;
-      } else {
-        setRetryCount(prev => prev + 1);
-      }
+      // Marcar como completo mesmo com erro, para não continuar tentando
+      initialLoadCompleted.current = true;
       return false;
     } finally {
       setLoading(false);
@@ -198,14 +192,51 @@ export function useRouletteData(
     }
   }, [roletaId, roletaNome]);
   
-  // Iniciar carregamento de dados ao montar o componente
+  // useEffect para inicialização e atualização periódica
   useEffect(() => {
-    if (initialLoadCompleted.current) return;
+    let isActive = true;
+    let intervalId: number | null = null;
+    
+    // Função para carregar dados com verificação de component mounted
+    const safeLoadData = async () => {
+      if (!isActive) return;
+      
+      try {
+        // Evitar carregamento se a inicialização já foi concluída e temos dados
+        if (initialLoadCompleted.current && hasData) return;
+        
+        await loadNumbers();
+      } catch (error) {
+        console.error('[useRouletteData] Erro ao carregar dados iniciais:', error);
+      }
+    };
+    
+    // Função para atualizar estratégia com verificação de component mounted
+    const safeLoadStrategy = async () => {
+      if (!isActive) return;
+      await loadStrategy();
+    };
     
     // Carregar dados iniciais
-    loadNumbers();
-    loadStrategy();
-  }, [loadNumbers, loadStrategy]);
+    safeLoadData();
+    safeLoadStrategy();
+    
+    // Configurar atualização periódica - aumentando o intervalo para 60 segundos
+    const refreshIntervalMs = 60 * 1000; // 60 segundos
+    intervalId = window.setInterval(() => {
+      // Atualizar apenas se o componente ainda estiver montado
+      if (isActive) {
+        loadNumbers(true);
+        loadStrategy();
+      }
+    }, refreshIntervalMs);
+    
+    // Cleanup
+    return () => {
+      isActive = false;
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [loadNumbers, loadStrategy, hasData]);
   
   // ===== EVENTOS E WEBSOCKETS =====
   
