@@ -249,7 +249,7 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
   try {
     console.log(`[API] Buscando estado atual da estratégia para roleta ID ${roletaId}...`);
     
-    // URL corrigida conforme logs de erro
+    // URL corrigida para o endpoint principal da estratégia
     const endpoint = `/roulette/${encodeURIComponent(roletaId)}/strategy`;
     console.log(`[API] Usando endpoint: ${endpoint}`);
     
@@ -264,11 +264,12 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
       console.log(`[API] Estratégia obtida para roleta ID ${roletaId}:`, response.data);
       console.log(`[API] Vitórias: ${vitorias}, Derrotas: ${derrotas}`);
       
-      // Se não temos valores válidos de vitórias/derrotas, tentar buscar dados complementares
+      // Se não temos valores válidos de vitórias/derrotas, tentar buscar diretamente da roleta
       if ((vitorias === 0 && derrotas === 0) || vitorias === null || derrotas === null) {
         try {
-          console.log(`[API] Tentando buscar dados complementares da roleta ${roletaId}...`);
-          const roletaResponse = await api.get(`/roulettes/${encodeURIComponent(roletaId)}`);
+          console.log(`[API] Tentando buscar dados da roleta ${roletaId}...`);
+          const roletaEndpoint = `/roulettes/${encodeURIComponent(roletaId)}`;
+          const roletaResponse = await api.get(roletaEndpoint);
           
           let vitoriasFinais = vitorias;
           let derrotasFinais = derrotas;
@@ -283,7 +284,7 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
               derrotasFinais = parseInt(roletaResponse.data.derrotas);
             }
             
-            console.log(`[API] Dados complementares encontrados na roleta:`, {
+            console.log(`[API] Dados encontrados na roleta:`, {
               vitorias: vitoriasFinais,
               derrotas: derrotasFinais
             });
@@ -298,7 +299,7 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
             sugestao_display: response.data.sugestao_display || ''
           };
         } catch (subError) {
-          console.error(`[API] Erro ao buscar dados complementares da roleta: ${subError}`);
+          console.error(`[API] Erro ao buscar dados da roleta: ${subError}`);
           // Retornar os dados originais sem simulação
           return {
             estado: response.data.estado || 'NEUTRAL',
@@ -322,59 +323,11 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
     }
     
     console.warn(`[API] Nenhum dado de estratégia encontrado para roleta ID ${roletaId}`);
-    
-    // Tentar um endpoint alternativo
-    try {
-      console.log(`[API] Tentando endpoint alternativo para roleta ${roletaId}...`);
-      const alternativeEndpoint = `/statistics/${encodeURIComponent(roletaId)}`;
-      const altResponse = await api.get(alternativeEndpoint);
-      
-      if (altResponse.data && 
-          (altResponse.data.vitorias !== undefined || altResponse.data.derrotas !== undefined)) {
-        console.log(`[API] Dados encontrados no endpoint alternativo:`, altResponse.data);
-        
-        return {
-          estado: 'NEUTRAL',
-          numero_gatilho: null,
-          terminais_gatilho: [],
-          vitorias: parseInt(altResponse.data.vitorias) || 0,
-          derrotas: parseInt(altResponse.data.derrotas) || 0,
-          sugestao_display: ''
-        };
-      }
-    } catch (altError) {
-      console.error(`[API] Erro ao tentar endpoint alternativo: ${altError}`);
-    }
-    
-    // Retornar null para indicar que não há dados disponíveis
+    // Retornar null quando não há dados - sem tentar um endpoint alternativo que não existe
     return null;
   } catch (error) {
     console.error(`[API] Erro ao buscar estratégia para roleta ID ${roletaId}:`, error);
-    
-    // Tentar um endpoint alternativo após erro
-    try {
-      console.log(`[API] Tentando endpoint alternativo após erro para roleta ${roletaId}...`);
-      const alternativeEndpoint = `/statistics/${encodeURIComponent(roletaId)}`;
-      const altResponse = await api.get(alternativeEndpoint);
-      
-      if (altResponse.data && 
-          (altResponse.data.vitorias !== undefined || altResponse.data.derrotas !== undefined)) {
-        console.log(`[API] Dados encontrados no endpoint alternativo após erro:`, altResponse.data);
-        
-        return {
-          estado: 'NEUTRAL',
-          numero_gatilho: null,
-          terminais_gatilho: [],
-          vitorias: parseInt(altResponse.data.vitorias) || 0,
-          derrotas: parseInt(altResponse.data.derrotas) || 0,
-          sugestao_display: ''
-        };
-      }
-    } catch (altError) {
-      console.error(`[API] Erro ao tentar endpoint alternativo após erro: ${altError}`);
-    }
-    
-    // Retornar null se não foi possível obter dados
+    // Retornar null sem tentar um endpoint alternativo que não existe
     return null;
   }
 };

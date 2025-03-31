@@ -49,22 +49,6 @@ const determinarCorNumero = (numero: number): string => {
   return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
 };
 
-// Generate fallback numbers for UI testing/display
-const generateFallbackNumbers = (amount: number = 12): RouletteNumber[] => {
-  const now = new Date();
-  // Some predefined numbers for a consistent display
-  const predefinedNumbers = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 8, 5, 13];
-  
-  return Array(amount).fill(0).map((_, index) => {
-    const numero = predefinedNumbers[index % predefinedNumbers.length];
-    return {
-      numero,
-      cor: determinarCorNumero(numero),
-      timestamp: new Date(now.getTime() - (index * 60000)).toISOString()
-    };
-  });
-};
-
 /**
  * Hook para obter e atualizar dados da roleta em tempo real
  * @param roletaId - ID da roleta
@@ -127,26 +111,22 @@ export function useRouletteData(
           initialLoadCompleted.current = true;
           debugLog(`[useRouletteData] Carregados ${formattedNumbers.length} números iniciais para ${roletaNome}`);
         } else {
+          // Não usar dados de fallback, apenas indicar que não há dados
+          setHasData(false);
+          setRetryCount(prev => prev + 1);
+          
           if (retryCount >= maxRetries) {
-            debugLog(`[useRouletteData] Gerando dados de fallback para ${roletaNome} após ${retryCount} tentativas`);
-            const fallbackNumbers = generateFallbackNumbers(12);
-            setNumbers(fallbackNumbers);
-            setHasData(true);
+            debugLog(`[useRouletteData] Sem dados disponíveis após ${retryCount} tentativas para ${roletaNome}`);
             initialLoadCompleted.current = true;
-          } else {
-            setHasData(false);
-            setRetryCount(prev => prev + 1);
           }
         }
       } catch (err: any) {
         console.error(`[useRouletteData] Erro ao carregar dados iniciais: ${err.message}`);
         setError(`Erro ao carregar dados: ${err.message}`);
+        setHasData(false);
         
         if (retryCount >= maxRetries) {
-          debugLog(`[useRouletteData] Gerando dados de fallback após erro para ${roletaNome}`);
-          const fallbackNumbers = generateFallbackNumbers(12);
-          setNumbers(fallbackNumbers);
-          setHasData(true);
+          debugLog(`[useRouletteData] Máximo de tentativas atingido para ${roletaNome}`);
           initialLoadCompleted.current = true;
         } else {
           setRetryCount(prev => prev + 1);
