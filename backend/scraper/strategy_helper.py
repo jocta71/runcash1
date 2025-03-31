@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Funções auxiliares para a integração da estratégia com o MongoDB
+Funções auxiliares para registro de números das roletas sem aplicar estratégias
 """
 
 import os
@@ -28,19 +28,20 @@ def atualizar_estrategia(
     derrotas: int
 ) -> bool:
     """
-    Função simplificada para atualizar dados de estratégia no MongoDB
+    Função para registrar dados sobre números extraídos no MongoDB
+    sem aplicar lógica de estratégia
     
     Args:
         roleta_id: ID da roleta (string)
         roleta_nome: Nome da roleta (string)
-        estado: Estado atual da estratégia (string)
-        numero_gatilho: Número gatilho (int)
-        terminais_gatilho: Lista de terminais (list)
-        vitorias: Contagem de vitórias (int)
-        derrotas: Contagem de derrotas (int)
+        estado: Estado atual (string) - será sempre NEUTRAL
+        numero_gatilho: Último número extraído (int)
+        terminais_gatilho: Lista vazia de terminais (list)
+        vitorias: Não utilizado (int)
+        derrotas: Não utilizado (int)
         
     Returns:
-        bool: True se atualizado com sucesso, False caso contrário
+        bool: True se registrado com sucesso, False caso contrário
     """
     try:
         # Conectar ao MongoDB
@@ -52,162 +53,88 @@ def atualizar_estrategia(
         
         # Garantir que os tipos de dados estão corretos
         roleta_nome_str = str(roleta_nome) if roleta_nome is not None else "Roleta Desconhecida"
-        estado_str = str(estado) if estado is not None else "NEUTRAL"
         numero_gatilho_int = int(numero_gatilho) if numero_gatilho is not None else -1
-        terminais_list = list(terminais_gatilho) if terminais_gatilho is not None else []
-        vitorias_int = int(vitorias) if vitorias is not None else 0
-        derrotas_int = int(derrotas) if derrotas is not None else 0
         
-        # Criar documento para atualização na coleção roletas
+        # Criar documento para atualização na coleção roletas - sem dados de estratégia
         dados_roleta = {
-            'estado_estrategia': estado_str,
-            'numero_gatilho': numero_gatilho_int,
-            'terminais_gatilho': terminais_list,
-            'vitorias': vitorias_int,
-            'derrotas': derrotas_int,
+            'ultimo_numero': numero_gatilho_int,
             'updated_at': datetime.now().isoformat(),
             'nome': roleta_nome_str
         }
         
         # Atualizar a coleção de roletas (principal)
-        logger.info(f"Atualizando roleta {roleta_nome_str} (ID: {roleta_id}) com estado: {estado_str}")
+        logger.info(f"Registrando número {numero_gatilho_int} para roleta {roleta_nome_str} (ID: {roleta_id})")
         resultado_roleta = db.roletas.update_one(
             {'_id': roleta_id},
             {'$set': dados_roleta},
             upsert=True
         )
         
-        # Criar documento para coleção de histórico
+        # Criar documento para coleção de histórico - apenas números, sem estratégia
         dados_historico = {
             'roleta_id': roleta_id,
             'roleta_nome': roleta_nome_str,
-            'estado_estrategia': estado_str,
-            'numero_gatilho': numero_gatilho_int,
-            'terminais_gatilho': terminais_list,
-            'vitorias': vitorias_int,
-            'derrotas': derrotas_int,
+            'numero': numero_gatilho_int,
             'timestamp': datetime.now().isoformat()
         }
         
-        # Inserir na coleção de histórico nova (que criamos sem validação)
+        # Inserir na coleção de histórico 
         logger.info(f"Salvando histórico para roleta {roleta_nome_str}")
         resultado_historico = db.estrategia_historico_novo.insert_one(dados_historico)
         
         return bool(resultado_roleta.acknowledged)
     
     except Exception as e:
-        logger.error(f"Erro ao atualizar estratégia: {str(e)}")
+        logger.error(f"Erro ao registrar número: {str(e)}")
         return False
 
 def generate_display_suggestion(estado, terminais):
     """
-    Gera uma sugestão de exibição com base no estado da estratégia
+    Função vazia que não gera mais sugestões de estratégia
     
     Args:
-        estado (str): Estado atual da estratégia (NEUTRAL, TRIGGER, POST_GALE_NEUTRAL, MORTO)
-        terminais (list): Lista de terminais para apostar
+        estado (str): Estado (ignorado)
+        terminais (list): Lista de terminais (ignorada)
         
     Returns:
-        str: Texto a ser exibido para o usuário
+        str: String vazia
     """
-    if estado == "NEUTRAL":
-        return "AGUARDANDO GATILHO"
-    elif estado == "TRIGGER" and terminais:
-        return f"APOSTAR EM: {','.join(map(str, terminais))}"
-    elif estado == "POST_GALE_NEUTRAL" and terminais:
-        return f"GALE EM: {','.join(map(str, terminais))}"
-    elif estado == "MORTO":
-        return "AGUARDANDO PRÓXIMO CICLO"
     return ""
 
 def process_new_number(db, id_roleta, roleta_nome, numero):
     """
-    Processa um novo número para a estratégia
+    Processa um novo número - apenas registrando-o sem aplicar estratégia
     
     Args:
         db: Objeto da fonte de dados (MongoDataSource)
         id_roleta (str): ID da roleta
         roleta_nome (str): Nome da roleta
-        numero (int): Novo número a ser processado
+        numero (int): Novo número a ser registrado
         
     Returns:
-        dict: Estado atualizado da estratégia
+        dict: Estado neutro com informações básicas
     """
     try:
-        # Obter o terminal do número atual
-        terminal = numero % 10
+        # Registrar o novo número
+        logger.info(f"Novo número extraído: Roleta {roleta_nome} (ID: {id_roleta}) - Número: {numero}")
         
-        # Obter últimos números da roleta para análise
-        ultimos_numeros = []
-        try:
-            # Tentar obter a sequência de números mais recente da roleta do MongoDB
-            if hasattr(db, 'get_ultimos_numeros'):
-                ultimos_numeros = db.get_ultimos_numeros(id_roleta, 5) or []
-            print(f"[DEBUG] Últimos números para {roleta_nome}: {ultimos_numeros}")
-        except Exception as e:
-            print(f"[DEBUG] Erro ao obter últimos números: {e}")
-
-        # Determinar o estado da estratégia com base nos padrões de números
-        # Em uma implementação real, analisaríamos os últimos números e padrões
-        # Para fins de demonstração, estamos usando uma lógica simples baseada no número atual
-        
-        estados_possiveis = ["TRIGGER", "NEUTRAL", "POST_GALE_NEUTRAL", "MORTO"]
-        
-        # O estado agora é determinado pelo valor do número:
-        # - Se for divisível por 5: TRIGGER (cerca de 20% dos casos)
-        # - Se for divisível por 3: POST_GALE_NEUTRAL (cerca de 33% dos casos)
-        # - Se for divisível por 7: MORTO (cerca de 14% dos casos)
-        # - Caso contrário: NEUTRAL (os demais casos)
-        
-        if numero % 5 == 0:
-            estado = "TRIGGER"
-        elif numero % 3 == 0:
-            estado = "POST_GALE_NEUTRAL"
-        elif numero % 7 == 0:
-            estado = "MORTO"
-        else:
-            estado = "NEUTRAL"
-
-        # Gerar número aleatório para vitorias, mas mantemos consistência com o ID da roleta
-        # para que mesmas roletas tenham comportamento semelhante
-        seed = sum(ord(c) for c in id_roleta) + numero
-        random.seed(seed)
-        vitorias = random.randint(2, 7)
-        derrotas = random.randint(0, 2)
-
-        # Terminais gerados a partir do número atual
-        terminais = [terminal]
-        if terminal > 0:
-            terminais.append(terminal - 1)
-        if terminal < 9:
-            terminais.append(terminal + 1)
-
-        # Gerar mensagem clara de sugestão para exibição
-        sugestao_display = f"APOSTAR NOS TERMINAIS: {','.join(map(str, terminais))}"
-
-        # Gerar informações de exibição para logs de depuração
-        print(f"[DEBUG] Resultado da estratégia: {estado}")
-        print(f"[DEBUG] Terminais: {terminais}")
-        print(f"[DEBUG] Vitórias/Derrotas: {vitorias}/{derrotas}")
-        print(f"[DEBUG] Sugestão: {sugestao_display}")
-
-        # Retornar estado da estratégia com informações completas para teste
+        # Retornar objeto minimalista apenas com o número
         return {
-            "estado": estado,
+            "estado": "NEUTRAL",
             "numero_gatilho": numero,
-            "terminais_gatilho": terminais,
-            "vitorias": vitorias,
-            "derrotas": derrotas,
-            "sugestao_display": sugestao_display
-        }
-    except Exception as e:
-        print(f"[DEBUG] Erro no processamento da estratégia: {e}")
-        # Retornar um estado básico em caso de erro, mas não forçar mais como TRIGGER
-        return {
-            "estado": "NEUTRAL",  # Estado neutro em caso de erro
-            "numero_gatilho": numero,
-            "terminais_gatilho": [numero % 10],
-            "vitorias": 1,
+            "terminais_gatilho": [],
+            "vitorias": 0,
             "derrotas": 0,
-            "sugestao_display": f"APOSTAR NO TERMINAL: {numero % 10}"
+            "sugestao_display": ""
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro ao processar novo número: {str(e)}")
+        return {
+            "estado": "NEUTRAL",
+            "numero_gatilho": numero,
+            "terminais_gatilho": [],
+            "vitorias": 0,
+            "derrotas": 0,
+            "sugestao_display": ""
         } 
