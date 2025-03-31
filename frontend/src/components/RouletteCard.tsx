@@ -76,21 +76,6 @@ const getInsightMessage = (numbers: number[], wins: number, losses: number) => {
   return "Padrão normal, observe mais alguns números";
 };
 
-// Gera dados de tendência baseados na taxa de vitória e derrota
-const generateTrendFromWinRate = (wins: number, losses: number) => {
-  const total = wins + losses;
-  if (total === 0) {
-    return Array.from({ length: 20 }, () => ({ value: Math.random() * 100 }));
-  }
-  
-  const winRate = wins / total;
-  
-  return Array.from({ length: 20 }, (_, i) => {
-    const randomVariation = (Math.random() - 0.5) * 30;
-    return { value: winRate * 100 + randomVariation };
-  });
-};
-
 interface RouletteCardProps {
   roletaId?: string;
   name?: string;
@@ -137,27 +122,29 @@ const RouletteCard = memo(({
     loading: isLoading, 
     error, 
     isConnected = true, 
-    hasData = true, 
+    hasData = false, // Não assumir que temos dados
     strategy, 
     strategyLoading, 
     refreshNumbers = () => {},
-    refreshStrategy = () => Promise.resolve(false)  // Usar a nova função
+    refreshStrategy = () => Promise.resolve(false)
   } = roletaId ? useRouletteData(roletaId, roletaNome) : {
-    numbers: lastNumbers.map(num => ({ numero: num })),
-    loading: false,
-    error: null,
-    isConnected: true,
-    hasData: lastNumbers && lastNumbers.length > 0,
+    // Se não tivermos roletaId, não usar dados de fallback, mostrar como não disponível
+    numbers: [],
+    loading: true,
+    error: "ID da roleta não informado",
+    isConnected: false,
+    hasData: false,
     strategy: null,
-    strategyLoading: false,
+    strategyLoading: true,
     refreshNumbers: () => {},
     refreshStrategy: () => Promise.resolve(false)
   };
   
   // Converter os objetos RouletteNumber para números simples
   const mappedNumbers = useMemo(() => {
-    if (!Array.isArray(numbers)) {
-      return lastNumbers || [];
+    if (!Array.isArray(numbers) || numbers.length === 0) {
+      // Não usar lastNumbers como fallback, retornar array vazio
+      return [];
     }
     
     const mapped = numbers.map(numObj => {
@@ -171,18 +158,17 @@ const RouletteCard = memo(({
     }
     
     return mapped;
-  }, [numbers, roletaNome, lastNumbers]);
+  }, [numbers, roletaNome]);
 
-  // Otimizar trend com useMemo para evitar recálculos desnecessários
+  // Otimizar trend com useMemo - não gerar dados simulados
   const trendData = useMemo(() => {
+    // Usar apenas dados reais, não gerar simulados
     if (trend && trend.length > 0) {
       return trend;
     }
-    // Priorizar os dados do strategy (API) sobre as props
-    const currentWins = strategy?.vitorias ?? strategyWins ?? wins ?? 0;
-    const currentLosses = strategy?.derrotas ?? strategyLosses ?? losses ?? 0;
-    return generateTrendFromWinRate(currentWins, currentLosses);
-  }, [wins, losses, strategyWins, strategyLosses, strategy, trend]);
+    // Retornar array vazio em vez de gerar dados
+    return [];
+  }, [trend]);
 
   // Callback memoizado para atualizar a estratégia
   const updateStrategy = useCallback((event: StrategyUpdateEvent) => {
@@ -409,7 +395,7 @@ const RouletteCard = memo(({
         <div className="flex items-center space-x-2">
           <TrendingUp
             size={16}
-            className="text-[#00ff00]"
+            className={isConnected ? "text-[#00ff00]" : "text-gray-500"}
             aria-label={isConnected ? 'Conectado' : 'Desconectado'}
           />
           {showSuggestions && 
@@ -423,25 +409,39 @@ const RouletteCard = memo(({
               {isBlurred ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           }
+          {/* Adicionar botão de refresh */}
+          <button 
+            onClick={reloadData}
+            className="text-gray-400 hover:text-white"
+            aria-label="Recarregar dados"
+          >
+            <RefreshCw size={16} />
+          </button>
         </div>
       </div>
       
-      {/* Display de números */}
-      <div className="flex flex-wrap gap-1 my-2">
-        {mappedNumbers.slice(0, 12).map((num, idx) => (
-          <div
-            key={`${num}-${idx}`}
-            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold 
-              ${num === 0 ? 'bg-green-600 text-white' : 
-                [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num) ? 
-                'bg-red-600 text-white' : 'bg-black text-white'
-              }
-            `}
-          >
-            {num}
-          </div>
-        ))}
-      </div>
+      {/* Display de números - exibir mensagem se não há dados */}
+      {mappedNumbers.length > 0 ? (
+        <div className="flex flex-wrap gap-1 my-2">
+          {mappedNumbers.slice(0, 12).map((num, idx) => (
+            <div
+              key={`${num}-${idx}`}
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold 
+                ${num === 0 ? 'bg-green-600 text-white' : 
+                  [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num) ? 
+                  'bg-red-600 text-white' : 'bg-black text-white'
+                }
+              `}
+            >
+              {num}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="my-2 text-xs text-gray-400 text-center py-2">
+          {isLoading ? "Carregando números..." : "Sem dados disponíveis"}
+        </div>
+      )}
       
       {/* Taxa de vitória com indicador visual de atualização */}
       <div className="mt-1 mb-2">
@@ -453,9 +453,9 @@ const RouletteCard = memo(({
                 highlightWins ? 'animate-pulse text-green-300' : ''
               }`}
               data-testid="vitorias-counter"
-              data-value={strategy?.vitorias ?? strategyWins ?? wins ?? 0}
+              data-value={strategy?.vitorias ?? strategyWins ?? 0}
             >
-              {strategy?.vitorias ?? strategyWins ?? wins ?? 0}
+              {strategy?.vitorias ?? strategyWins ?? 0}
             </span>
           </span>
           <span className="relative">
@@ -465,9 +465,9 @@ const RouletteCard = memo(({
                 highlightLosses ? 'animate-pulse text-red-300' : ''
               }`}
               data-testid="derrotas-counter"
-              data-value={strategy?.derrotas ?? strategyLosses ?? losses ?? 0}
+              data-value={strategy?.derrotas ?? strategyLosses ?? 0}
             >
-              {strategy?.derrotas ?? strategyLosses ?? losses ?? 0}
+              {strategy?.derrotas ?? strategyLosses ?? 0}
             </span>
           </span>
         </div>
@@ -491,6 +491,7 @@ const RouletteCard = memo(({
             navigate(`/roleta/${roletaId}`);
           }}
           className="px-2 py-1 text-xs bg-[#00ff00]/20 text-[#00ff00] rounded hover:bg-[#00ff00]/30"
+          disabled={!roletaId}
         >
           Jogar
         </button>
@@ -502,8 +503,8 @@ const RouletteCard = memo(({
         onClose={setStatsOpen} 
         roletaNome={roletaNome}
         lastNumbers={mappedNumbers}
-        wins={strategy?.vitorias ?? strategyWins ?? wins ?? 0}
-        losses={strategy?.derrotas ?? strategyLosses ?? losses ?? 0}
+        wins={strategy?.vitorias ?? strategyWins ?? 0}
+        losses={strategy?.derrotas ?? strategyLosses ?? 0}
       />
     </div>
   );

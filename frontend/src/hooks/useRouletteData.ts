@@ -226,32 +226,39 @@ export function useRouletteData(
     }
   }, [roletaId, roletaNome, limit]);
   
-  // Carregar o estado da estratégia
-  useEffect(() => {
-    const loadStrategyData = async () => {
-      try {
-        setStrategyLoading(true);
-        
-        // Obter estado da estratégia da API
-        const strategyData = await fetchRouletteStrategy(roletaId);
-        
-        if (strategyData) {
-          setStrategy(strategyData);
-          debugLog(`[useRouletteData] Estado da estratégia carregado para ${roletaNome}`);
-        } else {
-          debugLog(`[useRouletteData] Nenhum dado de estratégia encontrado para ${roletaNome}`);
-          setStrategy(null);
-        }
-      } catch (err: any) {
-        console.error(`[useRouletteData] Erro ao carregar estratégia: ${err.message}`);
-        setStrategy(null);
-      } finally {
-        setStrategyLoading(false);
-      }
-    };
+  // Função para buscar e atualizar a estratégia
+  const fetchAndUpdateStrategy = useCallback(async () => {
+    if (!roletaId) return false;
     
-    loadStrategyData();
-  }, [roletaId]);
+    setStrategyLoading(true);
+    
+    try {
+      debugLog(`[useRouletteData] Buscando estratégia para ${roletaNome}...`);
+      const strategyData = await fetchRouletteStrategy(roletaId);
+      
+      if (strategyData) {
+        debugLog(`[useRouletteData] Estratégia obtida para ${roletaNome}:`, {
+          estado: strategyData.estado,
+          vitorias: strategyData.vitorias,
+          derrotas: strategyData.derrotas
+        });
+        
+        setStrategy(strategyData);
+        setStrategyLoading(false);
+        return true;
+      } else {
+        debugLog(`[useRouletteData] Nenhuma estratégia encontrada para ${roletaNome}`);
+        // Definir estado para indicar que não temos dados, em vez de usar valores simulados
+        setStrategy(null);
+        setStrategyLoading(false);
+        return false;
+      }
+    } catch (error) {
+      console.error(`[useRouletteData] Erro ao buscar estratégia: ${error}`);
+      setStrategyLoading(false);
+      return false;
+    }
+  }, [roletaId, roletaNome]);
   
   // Subscrever para eventos da roleta e configurar atualização periódica
   useEffect(() => {
@@ -335,6 +342,8 @@ export function useRouletteData(
         setStrategy(strategyData);
         return true;
       }
+      // Se não há dados, definir strategy como null para indicar ausência de dados
+      setStrategy(null);
       return false;
     } catch (error) {
       console.error(`[useRouletteData] Erro ao atualizar estratégia: ${error}`);
@@ -387,9 +396,9 @@ export function useRouletteData(
   useEffect(() => {
     if (numbers.length > 0 && !strategyLoading && !strategy) {
       console.log(`[useRouletteData] Números carregados, solicitando estratégia para ${roletaNome}`);
-      refreshStrategy();
+      fetchAndUpdateStrategy();
     }
-  }, [numbers.length, strategyLoading, strategy, roletaNome, refreshStrategy]);
+  }, [numbers.length, strategyLoading, strategy, roletaNome, fetchAndUpdateStrategy]);
   
   return {
     numbers,
