@@ -1,6 +1,10 @@
 import axios from 'axios';
 
+// Restaurar a URL correta da API
 const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:3002'}/api/strategies`;
+
+// Log para depuração da URL da API
+console.log('API URL configurada:', API_URL);
 
 interface Strategy {
   _id: string;

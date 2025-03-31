@@ -4,27 +4,19 @@
   "outputDirectory": "frontend/dist",
   "installCommand": "cd frontend && npm install",
   "framework": "vite",
-  "routes": [
+  "rewrites": [
     { 
-      "src": "/api/(.*)", 
-      "dest": "/api/$1" 
+      "source": "/api/(.*)", 
+      "destination": "https://backendscraper-production.up.railway.app/api/$1" 
     },
     { 
-      "src": "/assets/(.*)", 
-      "dest": "/assets/$1" 
-    },
-    { 
-      "handle": "filesystem"
-    },
-    { 
-      "src": "/(.*)", 
-      "dest": "/index.html",
-      "status": 200
+      "source": "/(.*)", 
+      "destination": "/index.html"
     }
   ],
   "env": {
-    "VITE_WS_URL": "http://10.0.0.114:5000",
-    "VITE_SSE_SERVER_URL": "http://10.0.0.114:5000/api/events",
-    "VITE_API_URL": "https://runcash1.vercel.app/api"
+    "VITE_WS_URL": "https://backendscraper-production.up.railway.app",
+    "VITE_SSE_SERVER_URL": "https://backendscraper-production.up.railway.app/api/events",
+    "VITE_API_URL": "https://backendscraper-production.up.railway.app/api"
   }
 }
