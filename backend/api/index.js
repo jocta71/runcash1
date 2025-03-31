@@ -19,20 +19,16 @@ const CORS_ORIGIN = '*';
 // Mantendo a constante API_KEY para uso futuro
 const API_KEY = process.env.API_KEY || 'runcash-default-key';
 
-// Configuração de CORS simplificada
-app.use(cors({
-  origin: CORS_ORIGIN, // Permite todas as origens
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'ngrok-skip-browser-warning']
-}));
-
-// Adicionar cabeçalhos CORS manualmente para garantir compatibilidade
+// Configuração de CORS - DESABILITADO
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-Key, ngrok-skip-browser-warning');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
-  // Lidar com solicitações OPTIONS (para CORS preflight)
+  // Permitir credenciais
+  res.header('Access-Control-Allow-Credentials', true);
+  
+  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
