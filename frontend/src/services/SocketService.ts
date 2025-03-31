@@ -390,7 +390,7 @@ class SocketService {
         }, 3000);
       } else {
         // Mensagens normais
-        this.socket.emit('message', data);
+      this.socket.emit('message', data);
       }
     } catch (error) {
       console.error(`[SocketService] Erro ao enviar mensagem:`, error);

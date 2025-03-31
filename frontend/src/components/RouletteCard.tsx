@@ -352,7 +352,7 @@ const RouletteCard = memo(({
       variant: "default"
     });
   };
-  
+
   // Implementar a função de reload mais completa
   const reloadData = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -389,9 +389,9 @@ const RouletteCard = memo(({
       {/* Header com nome da roleta e controles */}
       <div className="flex justify-between items-center mb-2 border-b border-white/10 pb-2">
         <div className="text-base font-bold text-white truncate max-w-[140px]">
-          {roletaNome}
-        </div>
-        
+            {roletaNome}
+          </div>
+          
         <div className="flex items-center space-x-2">
           <TrendingUp
             size={16}
