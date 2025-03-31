@@ -83,7 +83,6 @@ export const determinarCorNumero = (numero: number): string => {
 export const processRouletteNumber = (numero: number, timestamp?: string): RouletteNumber => {
   return {
     numero,
-    cor: determinarCorNumero(numero),
     timestamp: timestamp || new Date().toISOString()
   };
 };

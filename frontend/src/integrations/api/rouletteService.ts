@@ -276,8 +276,16 @@ export const fetchRouletteLatestNumbersByName = async (roletaNome: string, limit
   const data = await extractRouletteNumbersByName(roletaNome, limit);
   
   if (data && Array.isArray(data)) {
-    // Extrair apenas os números do array de objetos
-    const numbers = data.map((item: any) => item.numero);
+    // Extrair apenas os números 
+    const numbers = data.map((item: any) => {
+      // Se for um objeto, extrair o número
+      if (typeof item === 'object' && item !== null && item.numero !== undefined) {
+        return typeof item.numero === 'number' ? item.numero : parseInt(item.numero, 10);
+      }
+      // Se for direto um número
+      return typeof item === 'number' ? item : parseInt(item, 10);
+    }).filter(n => !isNaN(n));
+    
     console.log(`[API] Retornando ${numbers.length} números para roleta '${roletaNome}'`);
     return numbers;
   }
