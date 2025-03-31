@@ -276,37 +276,75 @@ class SocketService {
   
   // Notifica os listeners sobre um novo evento
   private notifyListeners(event: RouletteNumberEvent | StrategyUpdateEvent): void {
-    // Verificar o tipo de evento para log
-    if (event.type === 'new_number') {
-      const numEvent = event as RouletteNumberEvent;
-      console.log(`[SocketService] Notificando sobre novo número: ${numEvent.roleta_nome} - ${numEvent.numero}`);
-    } else if (event.type === 'strategy_update') {
-      const stratEvent = event as StrategyUpdateEvent;
-      console.log(`[SocketService] Notificando sobre estratégia: ${stratEvent.roleta_nome} - ${stratEvent.estado}`);
-    }
-    
-    // Notificar listeners da roleta específica
-    const roletaListeners = this.listeners.get(event.roleta_nome);
-    if (roletaListeners && roletaListeners.size > 0) {
-      roletaListeners.forEach(callback => {
-        try {
-          callback(event);
-        } catch (error) {
-          console.error(`[SocketService] Erro ao notificar listener para ${event.roleta_nome}:`, error);
+    try {
+      // Verificar se é um evento de novo número ou de estratégia
+      const eventType = event.type;
+      const roletaNome = event.roleta_nome;
+      
+      // Log detalhado para debug
+      console.log(`[SocketService] Notificando listeners para evento ${eventType} da roleta ${roletaNome}`);
+      
+      // Notificar os listeners específicos para esta roleta
+      if (this.listeners.has(roletaNome)) {
+        const roletaListeners = this.listeners.get(roletaNome);
+        if (roletaListeners) {
+          console.log(`[SocketService] Notificando ${roletaListeners.size} listeners específicos para ${roletaNome}`);
+          roletaListeners.forEach(callback => {
+            try {
+              callback(event);
+            } catch (error) {
+              console.error(`[SocketService] Erro ao chamar callback para ${roletaNome}:`, error);
+            }
+          });
         }
-      });
-    }
-    
-    // Notificar listeners globais (*)
-    const globalListeners = this.listeners.get('*');
-    if (globalListeners && globalListeners.size > 0) {
-      globalListeners.forEach(callback => {
-        try {
-          callback(event);
-        } catch (error) {
-          console.error('[SocketService] Erro ao notificar listener global:', error);
+      }
+      
+      // Notificar também os listeners globais
+      if (this.listeners.has('*')) {
+        const globalListeners = this.listeners.get('*');
+        if (globalListeners) {
+          console.log(`[SocketService] Notificando ${globalListeners.size} listeners globais`);
+          globalListeners.forEach(callback => {
+            try {
+              callback(event);
+            } catch (error) {
+              console.error('[SocketService] Erro ao chamar callback global:', error);
+            }
+          });
         }
-      });
+      }
+      
+      // Se for um evento de novo número, também notificar através dos listeners de números específicos
+      if (eventType === 'new_number' && this.listeners.has('new_number')) {
+        const numberListeners = this.listeners.get('new_number');
+        if (numberListeners) {
+          console.log(`[SocketService] Notificando ${numberListeners.size} listeners de números`);
+          numberListeners.forEach(callback => {
+            try {
+              callback(event);
+            } catch (error) {
+              console.error('[SocketService] Erro ao chamar callback de número:', error);
+            }
+          });
+        }
+      }
+      
+      // Se for um evento de estratégia, também notificar através dos listeners de estratégia
+      if (eventType === 'strategy_update' && this.listeners.has('strategy_update')) {
+        const strategyListeners = this.listeners.get('strategy_update');
+        if (strategyListeners) {
+          console.log(`[SocketService] Notificando ${strategyListeners.size} listeners de estratégia`);
+          strategyListeners.forEach(callback => {
+            try {
+              callback(event);
+            } catch (error) {
+              console.error('[SocketService] Erro ao chamar callback de estratégia:', error);
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[SocketService] Erro ao notificar listeners:', error);
     }
   }
   

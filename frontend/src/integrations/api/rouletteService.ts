@@ -34,18 +34,6 @@ export interface RouletteData {
   sugestao_display?: string;
 }
 
-// Nova interface para dados do card de roleta
-export interface CardRouletteData {
-  id: string;
-  nome: string;
-  numeros: number[];
-  vitorias: number;
-  derrotas: number;
-  tendencia?: { value: number }[];
-  estado_estrategia: string;
-  sugestao_display?: string;
-}
-
 export interface LatestRouletteNumber {
   id: string;
   nome: string;
@@ -417,63 +405,4 @@ export const fetchAvailableRoulettesFromNumbers = async (): Promise<string[]> =>
   
   console.warn('[API] Formato de resposta inválido ou sem roletas');
   return [];
-};
-
-/**
- * Nova função para buscar dados específicos para o componente de card de roleta
- * Consome a API e formata os dados no formato esperado pelo componente
- */
-export const fetchCardRouletteData = async (roletaId: string): Promise<CardRouletteData | null> => {
-  try {
-    console.log(`[API] Buscando dados para card da roleta ID ${roletaId}...`);
-    
-    // Usar dados em cache para evitar múltiplas chamadas
-    const allRoulettes = await getAllRoulettesWithCache();
-    let roleta = allRoulettes.find(r => r.id === roletaId);
-    
-    if (!roleta) {
-      console.warn(`[API] Roleta ID ${roletaId} não encontrada. Tentando buscar diretamente...`);
-      
-      // Tentar buscar diretamente se não estiver no cache
-      try {
-        const response = await api.get(`/roulettes/${roletaId}`);
-        if (response.data) {
-          roleta = response.data;
-        }
-      } catch (err) {
-        console.error(`[API] Erro ao buscar roleta diretamente: ${err}`);
-        return null;
-      }
-    }
-    
-    if (roleta) {
-      // Formatar os dados para o formato do CardRouletteData
-      const formattedData: CardRouletteData = {
-        id: roleta.id || roleta._id,
-        nome: roleta.nome,
-        numeros: Array.isArray(roleta.numeros) ? roleta.numeros.slice(0, 20) : [],
-        vitorias: roleta.vitorias || 0,
-        derrotas: roleta.derrotas || 0,
-        estado_estrategia: roleta.estado_estrategia || 'NEUTRAL',
-        sugestao_display: roleta.sugestao_display || ''
-      };
-      
-      // Criar dados de tendência a partir dos números
-      if (formattedData.numeros.length > 0) {
-        formattedData.tendencia = formattedData.numeros
-          .slice(0, 10)
-          .map(num => ({ value: num }))
-          .reverse(); // Inverter para ordem cronológica
-      }
-      
-      console.log(`[API] Dados do card da roleta ${roleta.nome} obtidos com sucesso`);
-      return formattedData;
-    }
-    
-    console.warn(`[API] Dados para card da roleta ID ${roletaId} não disponíveis`);
-    return null;
-  } catch (error) {
-    console.error(`[API] Erro ao buscar dados para card da roleta ${roletaId}:`, error);
-    return null;
-  }
 };

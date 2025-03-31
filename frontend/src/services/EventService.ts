@@ -309,30 +309,53 @@ class EventService {
   
   // Handler para eventos do SocketService
   private handleSocketEvent = (event: any) => {
-    // Verificar se é um evento válido
-    if (!event || !event.roleta_nome) return;
-    
-    // Converter formato do SocketService para o formato do EventService
-    let convertedEvent: EventData;
-    
-    if (event.type === 'strategy_update') {
-      // Evento de atualização de estratégia
-      convertedEvent = event as StrategyUpdateEvent;
-    } else if (event.numero !== undefined) {
-      // Evento de novo número
-      convertedEvent = {
-        type: 'new_number',
-        roleta_id: event.roleta_id || 'unknown-id',
-        roleta_nome: event.roleta_nome,
-        numero: Number(event.numero),
-        timestamp: event.timestamp || new Date().toISOString()
-      };
-    } else {
-      return; // Evento desconhecido
+    if (!event || !event.type) {
+      console.error('[EventService] Evento inválido recebido do SocketService:', event);
+      return;
     }
     
-    // Notificar listeners usando o mesmo sistema
-    this.notifyListeners(convertedEvent as any);
+    console.log(`[EventService] Evento recebido do SocketService: ${event.type} para ${event.roleta_nome}`);
+    
+    // Formatar evento (garantir compatibilidade completa)
+    let formattedEvent: RouletteNumberEvent | StrategyUpdateEvent;
+    
+    if (event.type === 'new_number') {
+      formattedEvent = {
+        type: 'new_number',
+        roleta_id: event.roleta_id || '',
+        roleta_nome: event.roleta_nome || 'Desconhecida',
+        numero: typeof event.numero === 'number' ? event.numero : 
+                typeof event.numero === 'string' ? parseInt(event.numero, 10) : 0,
+        timestamp: event.timestamp || new Date().toISOString(),
+        // Incluir campos opcionais de estratégia, se presentes
+        estado_estrategia: event.estado_estrategia,
+        sugestao_display: event.sugestao_display,
+        terminais_gatilho: event.terminais_gatilho
+      };
+      
+      console.log(`[EventService] Novo número formatado: ${formattedEvent.roleta_nome} - ${formattedEvent.numero}`);
+    } else if (event.type === 'strategy_update') {
+      formattedEvent = {
+        type: 'strategy_update',
+        roleta_id: event.roleta_id || '',
+        roleta_nome: event.roleta_nome || 'Desconhecida',
+        estado: event.estado || 'UNKNOWN',
+        numero_gatilho: event.numero_gatilho || 0,
+        terminais_gatilho: event.terminais_gatilho || [],
+        vitorias: event.vitorias !== undefined ? event.vitorias : 0,
+        derrotas: event.derrotas !== undefined ? event.derrotas : 0,
+        sugestao_display: event.sugestao_display,
+        timestamp: event.timestamp || new Date().toISOString()
+      };
+      
+      console.log(`[EventService] Estratégia formatada: ${formattedEvent.roleta_nome} - ${formattedEvent.estado}`);
+    } else {
+      console.warn(`[EventService] Tipo de evento desconhecido: ${event.type}`);
+      return;
+    }
+    
+    // Notificar todos os ouvintes registrados
+    this.notifyListeners(formattedEvent);
   }
   
   // Método alternativo de polling para quando SSE falhar

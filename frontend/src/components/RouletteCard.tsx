@@ -279,6 +279,8 @@ const RouletteCard = memo(({
   useEffect(() => {
     if (!roletaId || !roletaNome) return;
     
+    console.log(`[RouletteCard] Iniciando subscrição ao WebSocket para ${roletaNome} (ID: ${roletaId})`);
+    
     // Instância do serviço de socket
     const socketService = SocketService.getInstance();
     
@@ -286,19 +288,37 @@ const RouletteCard = memo(({
     const handleNumberEvent = (event: any) => {
       if (event.type === 'new_number' && 
           (event.roleta_id === roletaId || event.roleta_nome === roletaNome)) {
-        console.log(`[RouletteCard] WebSocket: Número recebido para ${roletaNome}: ${event.numero}`);
+        
+        console.log(`[RouletteCard] WebSocket: Número recebido para ${roletaNome}: ${event.numero}, tipo: ${typeof event.numero}`);
         
         // Adicionar número diretamente ao estado local
         if (typeof event.numero === 'number' || typeof event.numero === 'string') {
           const newNumber = typeof event.numero === 'number' ? event.numero : parseInt(event.numero, 10);
+          
           if (!isNaN(newNumber)) {
-            // Atualizar mappedNumbers manualmente adicionando o novo número no início
-            setMappedNumbersOverride(prev => [newNumber, ...(prev || []).slice(0, 49)]);
+            // Verificar se já temos este número como o mais recente para evitar duplicações
+            setMappedNumbersOverride(prev => {
+              const isNewNumber = prev.length === 0 || prev[0] !== newNumber;
+              
+              if (isNewNumber) {
+                console.log(`[RouletteCard] Adicionando novo número ${newNumber} ao estado local para ${roletaNome}`);
+                const newNumbers = [newNumber, ...prev.slice(0, 49)];
+                console.log(`[RouletteCard] Estado atualizado: ${newNumbers.length} números, os primeiros são:`, 
+                            newNumbers.slice(0, 5));
+                return newNumbers;
+              } else {
+                console.log(`[RouletteCard] Número ${newNumber} já é o mais recente para ${roletaNome}, ignorando`);
+                return prev;
+              }
+            });
+            
+            // Forçar atualização visual
+            setHighlightWins(true);
+            setTimeout(() => setHighlightWins(false), 1000);
+          } else {
+            console.warn(`[RouletteCard] Número inválido recebido via WebSocket: ${event.numero}`);
           }
         }
-        
-        // Também atualiza via API para garantir consistência
-        refreshNumbers();
       }
     };
     
@@ -306,23 +326,32 @@ const RouletteCard = memo(({
     const handleStrategyEvent = (event: any) => {
       if (event.type === 'strategy_update' && 
           (event.roleta_id === roletaId || event.roleta_nome === roletaNome)) {
-        console.log(`[RouletteCard] WebSocket: Atualização de estratégia para ${roletaNome}`);
+        console.log(`[RouletteCard] WebSocket: Atualização de estratégia para ${roletaNome}: ${event.estado}`);
         
-        // Atualizar os dados via API ao receber atualização de estratégia
-      refreshStrategy();
-    }
+        // Atualizar diretamente os estados locais
+        updateStrategy(event);
+      }
     };
     
     // Subscrever aos eventos da roleta
     socketService.subscribe(roletaNome, handleNumberEvent);
     socketService.subscribe(roletaNome, handleStrategyEvent);
     
+    // Também subscrever aos eventos específicos por tipo
+    socketService.subscribe('new_number', handleNumberEvent);
+    socketService.subscribe('strategy_update', handleStrategyEvent);
+    
+    console.log(`[RouletteCard] Listeners registrados para roleta: ${roletaNome} (ID: ${roletaId})`);
+    
     // Limpar inscrição ao desmontar
     return () => {
+      console.log(`[RouletteCard] Limpando listeners para roleta: ${roletaNome}`);
       socketService.unsubscribe(roletaNome, handleNumberEvent);
       socketService.unsubscribe(roletaNome, handleStrategyEvent);
+      socketService.unsubscribe('new_number', handleNumberEvent);
+      socketService.unsubscribe('strategy_update', handleStrategyEvent);
     };
-  }, [roletaId, roletaNome, refreshNumbers, refreshStrategy]);
+  }, [roletaId, roletaNome, updateStrategy]);
 
   // Função para gerar sugestões
   const generateSuggestion = () => {
@@ -398,6 +427,17 @@ const RouletteCard = memo(({
   
   // Verificar se temos dados reais para exibir (apenas do WebSocket ou API)
   const hasDisplayableData = mappedNumbers.length > 0;
+  
+  // Mostrar logs para depuração
+  useEffect(() => {
+    console.log(`[RouletteCard] Estado do card para ${roletaNome}:`, {
+      hasNumbers: mappedNumbers.length > 0,
+      numbersCount: mappedNumbers.length,
+      isLoading,
+      hasError: !!error,
+      numbersSource: mappedNumbersOverride.length > 0 ? 'WebSocket' : (numbers.length > 0 ? 'API' : 'Nenhum')
+    });
+  }, [mappedNumbers, mappedNumbersOverride, numbers, isLoading, error, roletaNome]);
 
   return (
     <div className="bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-zinc-800 hover:border-zinc-700 transition-all duration-300">
@@ -406,9 +446,14 @@ const RouletteCard = memo(({
         <h3 className="font-bold text-white truncate">{roletaNome}</h3>
         <div className="flex space-x-2 items-center">
           <TrendingUp className="h-4 w-4 text-emerald-500" />
-          <button onClick={(e) => { e.stopPropagation(); refreshStrategy(); }} 
-                  className="p-1 rounded-full hover:bg-zinc-800" 
-                  title="Atualizar dados">
+          <button onClick={(e) => { 
+              e.stopPropagation(); 
+              // Forçar atualização através do API
+              refreshNumbers();
+              refreshStrategy();
+            }} 
+            className="p-1 rounded-full hover:bg-zinc-800" 
+            title="Atualizar dados">
             <RefreshCw className="h-4 w-4 text-zinc-400 hover:text-white transition-colors" />
           </button>
         </div>
@@ -452,8 +497,8 @@ const RouletteCard = memo(({
               <div className="flex items-center">
                 <span className="text-zinc-400 mr-2">Derrotas:</span>
                 <span className={lossesClass}>{strategyLosses}</span>
-        </div>
-        </div>
+              </div>
+            </div>
             
             {/* Estado da estratégia */}
             {strategyState && (
@@ -466,8 +511,8 @@ const RouletteCard = memo(({
                     'text-zinc-300'
                   }`}>
                     {strategyState}
-          </span>
-        </div>
+                  </span>
+                </div>
                 {strategyDisplay && (
                   <div className="text-sm mt-1">
                     <span className="text-zinc-400">Sugestão: </span>
