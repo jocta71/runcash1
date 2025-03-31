@@ -94,8 +94,9 @@ def main():
         if simulation_mode:
             logger.info("🧪 MODO DE SIMULAÇÃO ATIVADO - Gerando dados fictícios")
         
-        # Inicializar a fonte de dados
-        data_source = MongoDataSource(mongodb_uri, db_name)
+        # Inicializar a fonte de dados - corrigido para não passar argumentos
+        # O MongoDataSource já lê as variáveis de ambiente internamente
+        data_source = MongoDataSource()
         
         # Contador de ciclos e erros
         cycle_count = 0
