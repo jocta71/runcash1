@@ -204,6 +204,46 @@ class StrategyService {
     console.log(`Chamada à API de estratégias desativada para roleta ${roletaId}`);
     return null;
   }
+
+  // Novo método para obter a estratégia do sistema (simulada offline)
+  static async getSystemStrategy(): Promise<Strategy | null> {
+    console.log('[StrategyService] Obtendo estratégia do sistema simulada (modo offline)');
+    
+    // Criar uma estratégia de sistema simulada
+    const systemStrategy: Strategy = {
+      _id: 'system-strategy',
+      name: 'Estratégia do Sistema',
+      description: 'Estratégia padrão do sistema (modo offline)',
+      isPublic: true,
+      isSystem: true,
+      userId: 'system',
+      rules: [
+        {
+          type: 'repetition',
+          value: 2,
+          active: true
+        },
+        {
+          type: 'parity_alternation',
+          value: 3,
+          active: true
+        },
+        {
+          type: 'color_sequence',
+          value: 3,
+          active: true
+        }
+      ],
+      terminalsConfig: {
+        useDefaultTerminals: true,
+        customTerminals: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    return systemStrategy;
+  }
 }
 
 export default new StrategyService();

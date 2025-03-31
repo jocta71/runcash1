@@ -6,6 +6,10 @@ import EventService, {
   RouletteEventCallback,
   StrategyUpdateEvent
 } from './EventService';
+import { getRequiredEnvVar, isProduction } from '../config/env';
+
+// Importando o serviço de estratégia para simular respostas
+import { StrategyService } from './StrategyService';
 
 // Nova interface para eventos recebidos pelo socket
 interface SocketEvent {
@@ -26,6 +30,8 @@ class SocketService {
   private isConnected: boolean = false;
   private connectionAttempts: number = 0;
   private reconnectTimeout: number | null = null;
+  private timerId: NodeJS.Timeout | null = null;
+  private eventHandlers: Record<string, (data: any) => void> = {};
   
   private constructor() {
     console.log('[SocketService] Inicializando serviço Socket.IO');
@@ -50,45 +56,40 @@ class SocketService {
   }
   
   private getSocketUrl(): string {
-    // URL do servidor WebSocket (ajustar conforme necessário)
-    // Em ambiente de produção, deve apontar para a URL real do servidor
-    const socketUrl = config.wsUrl;
-    console.log(`[SocketService] URL do servidor Socket.IO: ${socketUrl}`);
-    return socketUrl;
+    let wsUrl = getRequiredEnvVar('VITE_WS_URL');
+    
+    // Em produção, garantir que usamos uma URL segura (não localhost)
+    if (isProduction && (wsUrl.includes('localhost') || wsUrl.includes('127.0.0.1'))) {
+      console.warn('[SocketService] Detectada URL inválida para WebSocket em produção. Usando origem atual.');
+      wsUrl = window.location.origin;
+    }
+    
+    console.log('[SocketService] Usando URL de WebSocket:', wsUrl);
+    return wsUrl;
   }
   
   private connect(): void {
     if (this.socket) {
-      console.log('[SocketService] Fechando conexão existente antes de reconectar');
-      this.socket.close();
-      this.socket = null;
+      console.log('[SocketService] Socket já conectado');
+      return;
     }
-    
+
     try {
-      const socketUrl = this.getSocketUrl();
-      console.log(`[SocketService] Tentando conexão Socket.IO: ${socketUrl}`);
+      const wsUrl = this.getSocketUrl();
+      console.log('[SocketService] Conectando ao servidor WebSocket:', wsUrl);
       
-      // Conectar ao servidor Socket.IO
-      this.socket = io(socketUrl, {
-        reconnectionAttempts: 10,
-        reconnectionDelay: 3000,
-        timeout: 15000,
+      this.socket = io(wsUrl, {
+        transports: ['websocket'],
         autoConnect: true,
-        transports: ['websocket', 'polling'], // Tentar WebSocket primeiro, depois polling
-        forceNew: true,
-        extraHeaders: {
-          'ngrok-skip-browser-warning': 'true'  // Adicionar para ignorar a proteção do ngrok
-        },
-        auth: {
-          token: 'anonymous' // Permitir conexão anônima sem autenticação
-        }
+        reconnection: true,
+        reconnectionAttempts: 10
       });
-      
-      // Evento de conexão estabelecida
+
       this.socket.on('connect', () => {
-        console.log(`[SocketService] Conexão Socket.IO estabelecida! ID: ${this.socket?.id}`);
+        console.log('[SocketService] Conectado ao servidor WebSocket');
         this.isConnected = true;
         this.connectionAttempts = 0;
+        this.setupPing();
         
         // Solicitar números recentes imediatamente após a conexão
         this.requestRecentNumbers();
@@ -102,31 +103,12 @@ class SocketService {
           variant: "default"
         });
       });
-      
-      // Evento de desconexão
-      this.socket.on('disconnect', (reason) => {
-        console.log(`[SocketService] Desconectado do Socket.IO: ${reason}`);
-        this.isConnected = false;
-        
-        // Mostrar toast apenas se for desconexão inesperada
-        if (reason !== 'io client disconnect') {
-          toast({
-            title: "Conexão em tempo real perdida",
-            description: "Tentando reconectar...",
-            variant: "destructive"
-          });
-        }
-      });
-      
-      // Evento de erro
-      this.socket.on('error', (error) => {
-        console.error('[SocketService] Erro na conexão Socket.IO:', error);
-      });
-      
-      // Evento de reconexão
+
       this.socket.on('reconnect', (attempt) => {
-        console.log(`[SocketService] Reconectado após ${attempt} tentativas`);
+        console.log(`[SocketService] Reconectado ao servidor WebSocket após ${attempt} tentativas`);
         this.isConnected = true;
+        this.connectionAttempts = 0;
+        this.setupPing();
         
         // Solicitar dados novamente após reconexão
         this.requestRecentNumbers();
@@ -137,70 +119,40 @@ class SocketService {
           variant: "default"
         });
       });
-      
-      // Evento de falha na reconexão
-      this.socket.on('reconnect_failed', () => {
-        console.error('[SocketService] Falha nas tentativas de reconexão');
+
+      this.socket.on('disconnect', (reason) => {
+        console.log(`[SocketService] Desconectado do servidor WebSocket: ${reason}`);
+        this.isConnected = false;
+        if (this.timerId) {
+          clearInterval(this.timerId);
+          this.timerId = null;
+        }
         
-        toast({
-          title: "Não foi possível reconectar",
-          description: "Por favor, recarregue a página para tentar novamente",
-          variant: "destructive"
-        });
-      });
-      
-      // Receber novo número
-      this.socket.on('new_number', (event: any) => {
-        console.log(`[SocketService] Raw new_number: ${JSON.stringify(event)}`);
-        
-        // Garantir que o evento tenha a estrutura correta
-        const formattedEvent: RouletteNumberEvent = {
-          type: 'new_number',
-          roleta_id: event.roleta_id || event.id || 'unknown-id',
-          roleta_nome: event.roleta_nome || 'Desconhecida',
-          numero: typeof event.numero === 'number' ? event.numero : 
-                 typeof event.numero === 'string' ? parseInt(event.numero, 10) : 0,
-          timestamp: event.timestamp || new Date().toISOString()
-        };
-        
-        console.log(`[SocketService] Novo número processado: ${formattedEvent.roleta_nome} - ${formattedEvent.numero}`);
-        this.notifyListeners(formattedEvent);
-      });
-      
-      // Receber qualquer tipo de mensagem do socket
-      this.socket.on('message', (message: any) => {
-        console.log(`[SocketService] Mensagem genérica recebida:`, message);
-        
-        // Tentar processar como número se tiver dados relevantes
-        if (message && message.roleta_nome && message.numero !== undefined) {
-          const numberEvent: RouletteNumberEvent = {
-            type: 'new_number',
-            roleta_id: message.roleta_id || 'unknown-id',
-            roleta_nome: message.roleta_nome,
-            numero: typeof message.numero === 'number' ? message.numero : 
-                   typeof message.numero === 'string' ? parseInt(message.numero, 10) : 0,
-            timestamp: message.timestamp || new Date().toISOString()
-          };
-          
-          console.log(`[SocketService] Convertendo mensagem genérica para evento de número: ${numberEvent.roleta_nome} - ${numberEvent.numero}`);
-          this.notifyListeners(numberEvent);
+        // Mostrar toast apenas se for desconexão inesperada
+        if (reason !== 'io client disconnect') {
+          toast({
+            title: "Conexão em tempo real perdida",
+            description: "Tentando reconectar...",
+            variant: "destructive"
+          });
         }
       });
-      
-      // Adicionar handler para evento de teste (útil para debugging)
-      this.socket.on('test_event', (data: any) => {
-        console.log(`[SocketService] Evento de teste recebido:`, data);
-        
-        // Enviar uma resposta para confirmar recepção
-        this.socket?.emit('test_response', { 
-          received: true, 
-          clientTime: new Date().toISOString(),
-          message: "Evento de teste recebido com sucesso"
-        });
+
+      this.socket.on('error', (error) => {
+        console.error('[SocketService] Erro na conexão WebSocket:', error);
       });
-      
+
+      // Configurar handler genérico de eventos
+      this.socket.onAny((event, ...args) => {
+        console.log(`[SocketService] Evento recebido: ${event}`, args);
+        
+        if (this.eventHandlers[event]) {
+          this.eventHandlers[event](args[0]);
+        }
+      });
+
     } catch (error) {
-      console.error('[SocketService] Erro ao criar conexão Socket.IO:', error);
+      console.error('[SocketService] Erro ao conectar ao servidor WebSocket:', error);
       
       // Tentar reconectar após um atraso
       this.scheduleReconnect();
@@ -348,7 +300,7 @@ class SocketService {
   
   // Fecha a conexão - chamar quando o aplicativo for encerrado
   public disconnect(): void {
-    console.log('[SocketService] Desconectando Socket.IO');
+    console.log('[SocketService] Desconectando do servidor WebSocket');
     
     if (this.socket) {
       this.socket.disconnect();
@@ -358,6 +310,11 @@ class SocketService {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
+    }
+    
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
     }
     
     this.isConnected = false;
@@ -396,6 +353,29 @@ class SocketService {
   
   // Método para enviar mensagens via socket
   public sendMessage(data: any): void {
+    // Verificar se é uma mensagem relacionada a estratégia
+    if (data && (data.type === 'get_strategy' || data.path?.includes('/api/strategies'))) {
+      console.log(`[SocketService] Interceptando requisição de estratégia:`, data);
+      
+      // Se tiver roleta_id e roleta_nome, chamar o método requestStrategy
+      if (data.roleta_id && data.roleta_nome) {
+        this.requestStrategy(data.roleta_id, data.roleta_nome);
+        return;
+      }
+      
+      // Se tiver apenas roletaId ou params.roletaId
+      const roletaId = data.roletaId || (data.params && data.params.roletaId);
+      if (roletaId) {
+        const roletaNome = data.roleta_nome || 'Desconhecida';
+        this.requestStrategy(roletaId, roletaNome);
+        return;
+      }
+      
+      // Não fazer a requisição para estratégias
+      console.log(`[SocketService] Bloqueando requisição de estratégia`);
+      return;
+    }
+    
     if (!this.socket || !this.isConnected) {
       console.warn(`[SocketService] Tentativa de enviar mensagem sem conexão:`, data);
       return;
@@ -642,6 +622,52 @@ class SocketService {
     
     // Processar evento como se tivesse vindo do socket
     this.notifyListeners(testEvent);
+  }
+
+  // Método para enviar solicitação de estratégia para um roleta
+  public requestStrategy(roletaId: string, roletaNome: string): void {
+    // ⚠️ IMPORTANTE: Modificado para não fazer requisições HTTP diretas
+    console.log(`[SocketService] Solicitação de estratégia para ${roletaNome} interceptada e redirecionada para simulação local`);
+    
+    // Importar StrategyService de forma assíncrona para evitar referência circular
+    import('./StrategyService').then(({ default: StrategyService }) => {
+      // Usar o StrategyService local que foi modificado para funcionar offline
+      StrategyService.getSystemStrategy().then(strategy => {
+        // Criar um evento simulado com a estratégia do sistema
+        const event: StrategyUpdateEvent = {
+          type: 'strategy_update',
+          roleta_id: roletaId,
+          roleta_nome: roletaNome,
+          estado: 'NEUTRAL',
+          numero_gatilho: null,
+          terminais_gatilho: [],
+          vitorias: 0,
+          derrotas: 0,
+          sugestao_display: 'Simulação modo offline',
+          timestamp: new Date().toISOString()
+        };
+        
+        console.log(`[SocketService] Enviando evento simulado de estratégia para ${roletaNome}`);
+        
+        // Notificar os ouvintes sobre essa estratégia
+        this.notifyListeners(event);
+      });
+    });
+    
+    // Não enviar requisição para o servidor
+    return;
+  }
+
+  setupPing() {
+    if (this.timerId) {
+      clearInterval(this.timerId);
+    }
+
+    this.timerId = setInterval(() => {
+      if (this.socket && this.isConnected) {
+        this.socket.emit('ping');
+      }
+    }, 30000);
   }
 }
 
