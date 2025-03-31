@@ -6,7 +6,7 @@
       "**/*.py",
       "requirements.txt"
     ],
-    "buildCommand": "apt-get update && apt-get install -y wget gnupg software-properties-common xvfb && add-apt-repository -y ppa:mozillateam/ppa && apt-get update && apt-get install -y firefox && pip install -r requirements.txt"
+    "buildCommand": "apt-get update && apt-get install -y chromium-browser xvfb && pip install -r requirements.txt"
   },
   "deploy": {
     "numReplicas": 1,
