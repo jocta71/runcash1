@@ -72,7 +72,7 @@ export interface RouletteStrategy {
 export const extractAvailableRoulettes = async (): Promise<any[]> => {
   try {
     console.log('[API] Extraindo roletas disponíveis...');
-    const response = await api.get('/roletas');
+    const response = await api.get('/roulettes');
     return response.data || [];
   } catch (error) {
     console.error('[API] Erro ao extrair roletas disponíveis:', error);
@@ -86,7 +86,7 @@ export const extractAvailableRoulettes = async (): Promise<any[]> => {
 export const extractAllRoulettes = async (): Promise<any[]> => {
   try {
     console.log('[API] Extraindo dados de todas as roletas...');
-    const response = await api.get('/roletas');
+    const response = await api.get('/roulettes');
     return response.data || [];
   } catch (error) {
     console.error('[API] Erro ao extrair dados de roletas:', error);
@@ -100,7 +100,7 @@ export const extractAllRoulettes = async (): Promise<any[]> => {
 export const extractRouletteNumbersByName = async (roletaNome: string, limit = 10): Promise<any> => {
   try {
     console.log(`[API] Extraindo números para roleta '${roletaNome}'...`);
-    const response = await api.get(`/roletas/${encodeURIComponent(roletaNome)}`);
+    const response = await api.get(`/roulettes/${encodeURIComponent(roletaNome)}`);
     return response.data?.numeros || [];
   } catch (error) {
     console.error(`[API] Erro ao extrair números para roleta '${roletaNome}':`, error);
@@ -121,7 +121,7 @@ export const extractRouletteNumbersById = async (roletaId: string, limit = 10): 
     // Tentar obter os números da roleta diretamente, caso a rota /numbers/byId não exista
     try {
       console.log(`[API] Tentando rota alternativa para obter números da roleta ${roletaId}...`);
-      const response = await api.get(`/roletas/${encodeURIComponent(roletaId)}`);
+      const response = await api.get(`/roulettes/${encodeURIComponent(roletaId)}`);
       return response.data?.numeros || [];
     } catch (secondError) {
       console.error(`[API] Falha também na rota alternativa:`, secondError);
@@ -137,7 +137,7 @@ export const extractRouletteStrategy = async (roletaId: string): Promise<any> =>
   try {
     console.log(`[API] Extraindo estratégia para roleta ID ${roletaId}...`);
     // Esta rota não existe no backend, vamos tentar obter diretamente da roleta
-    const response = await api.get(`/roletas/${encodeURIComponent(roletaId)}`);
+    const response = await api.get(`/roulettes/${encodeURIComponent(roletaId)}`);
     if (response.data) {
       // Construir um objeto de estratégia a partir dos dados da roleta
       return {
@@ -162,7 +162,7 @@ export const extractRouletteStrategy = async (roletaId: string): Promise<any> =>
 export const extractRouletteById = async (roletaId: string): Promise<any> => {
   try {
     console.log(`[API] Extraindo dados da roleta ${roletaId}...`);
-    const response = await api.get(`/roletas/${encodeURIComponent(roletaId)}`);
+    const response = await api.get(`/roulettes/${encodeURIComponent(roletaId)}`);
     return response.data;
   } catch (error) {
     console.error(`[API] Erro ao extrair dados da roleta ${roletaId}:`, error);
