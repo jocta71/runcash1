@@ -4,7 +4,8 @@ FROM python:3.11-slim
 # Configurar variáveis de ambiente
 ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    MOZ_HEADLESS=1
 
 WORKDIR /app
 
@@ -12,9 +13,18 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     xvfb \
+    firefox-esr \
+    wget \
+    gnupg \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/*
+
+# Configurar geckodriver para Firefox
+RUN wget -q https://github.com/mozilla/geckodriver/releases/download/v0.33.0/geckodriver-v0.33.0-linux64.tar.gz && \
+    tar -xzf geckodriver-v0.33.0-linux64.tar.gz -C /usr/local/bin && \
+    rm geckodriver-v0.33.0-linux64.tar.gz && \
+    chmod +x /usr/local/bin/geckodriver
 
 # Copiar e instalar dependências Python primeiro para melhor cache
 COPY requirements.txt .
