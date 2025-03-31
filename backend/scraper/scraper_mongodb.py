@@ -41,21 +41,10 @@ from event_manager import event_manager
 
 # Importar funções para processar estratégias
 try:
-    from strategy_helper import generate_display_suggestion, process_new_number, atualizar_estrategia
-    print("[DEBUG] ✅ Módulos de estratégia importados com sucesso")
+    # Nenhuma importação de estratégia - sistema operando em modo de extração simples
+    print("[DEBUG] ⚠️ Modo de extração simples ativado - sem processamento de estratégia")
 except ImportError as e:
-    print(f"[DEBUG] ⚠️ Erro ao importar módulos de estratégia: {str(e)}")
-    # Fallback simples caso o módulo não esteja disponível
-    def generate_display_suggestion(estado, terminais):
-        if estado == "NEUTRAL":
-            return "AGUARDANDO GATILHO"
-        elif estado == "TRIGGER" and terminais:
-            return f"APOSTAR EM: {','.join(map(str, terminais))}"
-        elif estado == "POST_GALE_NEUTRAL" and terminais:
-            return f"GALE EM: {','.join(map(str, terminais))}"
-        elif estado == "MORTO":
-            return "AGUARDANDO PRÓXIMO CICLO"
-        return ""
+    print(f"[DEBUG] ⚠️ {str(e)}")
 
 # Configurar logging para diagnóstico no Railway
 logging.basicConfig(

@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 from data_source_mongo import MongoDataSource
 from scraper_mongodb import scrape_roletas
 from integrated_simulator import simular_roletas
-from run_real_scraper import process_new_number
+# Desativando o processamento de estratégia
+# from run_real_scraper import process_new_number
 from config import MODO_SIMULACAO
 
 def main():
@@ -41,13 +42,14 @@ def main():
             """
             logger.info(f"Novo número detectado: {numero} para roleta {roleta_nome}")
             
-            # Processar o número com o analisador de estratégia
-            status = process_new_number(db, roleta_id, roleta_nome, numero)
+            # Desativado: não processar com analisador de estratégia
+            # status = process_new_number(db, roleta_id, roleta_nome, numero)
+            logger.info(f"Modo de extração simples: Número {numero} registrado para {roleta_nome} sem processamento de estratégia")
             
-            if status:
-                logger.info(f"Estratégia atualizada: {status['estado']} - Vitórias: {status['vitorias']}, Derrotas: {status['derrotas']}")
-            else:
-                logger.error(f"Falha ao processar número {numero} para estratégia")
+            # if status:
+            #     logger.info(f"Estratégia atualizada: {status['estado']} - Vitórias: {status['vitorias']}, Derrotas: {status['derrotas']}")
+            # else:
+            #     logger.error(f"Falha ao processar número {numero} para estratégia")
         
         # Verificar modo de simulação
         if MODO_SIMULACAO:
