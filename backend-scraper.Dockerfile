@@ -8,11 +8,12 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copiar conteúdo da pasta backend/scraper
-COPY backend/scraper/ .
-
-# Instalar dependências Python
+# Copiar requirements e instalar dependências Python
+COPY backend/scraper/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar código fonte
+COPY backend/scraper/ .
 
 # Configurar variáveis de ambiente
 ENV PYTHONUNBUFFERED=1
