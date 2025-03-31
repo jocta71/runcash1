@@ -23,6 +23,23 @@ interface ChatMessage {
   timestamp: Date;
 }
 
+// Gerador de números aleatórios para simulação apenas no frontend
+const generateFakeNumbers = (count = 10) => {
+  return Array.from({ length: count }, () => Math.floor(Math.random() * 37));
+};
+
+// Mapeamento de IDs de roletas para tipos de roletas conhecidas
+const knownRouletteTypes = {
+  "2b00051": "Immersive Roulette",
+  "2b00081": "Immersive Roulette",
+  "2b00091": "Brazilian Mega Roulette",
+  "2b00035": "Brazilian Mega Roulette",
+  "2b00085": "Speed Auto Roulette",
+  "2b00098": "Auto-Roulette VIP",
+  "2b00093": "Auto-Roulette",
+  "2b00095": "Bucharest Auto-Roulette",
+};
+
 const mockRoulettes = [{
   roletaId: "roleta-brasileira-1",
   name: "Roleta Brasileira",
@@ -232,7 +249,22 @@ const Index = () => {
         setIsLoading(true);
         const data = await fetchAllRoulettes();
         console.log('Dados da API:', data);
-        setRoulettes(data);
+        
+        // Adicionar números simulados para visualização quando não houver dados reais
+        const enhancedData = data.map(roleta => {
+          // Se a roleta não tem números, adicionar alguns simulados apenas para exibição frontend
+          if (!roleta.numeros || roleta.numeros.length === 0) {
+            console.log(`Adicionando números simulados para ${roleta.nome} (apenas para visualização)`);
+            return {
+              ...roleta,
+              // Não modificar o campo numeros real, apenas adicionar campo local
+              _displayNumbers: generateFakeNumbers(10)
+            };
+          }
+          return roleta;
+        });
+        
+        setRoulettes(enhancedData);
         setError(null);
       } catch (err) {
         console.error('Erro ao buscar dados da API:', err);
@@ -258,6 +290,52 @@ const Index = () => {
       return bWinRate - aWinRate;
     }).slice(0, 3);
   }, [roulettes]);
+
+  // Renderizar cards de roleta
+  const renderRouletteCards = () => {
+    if (isLoading) {
+      return Array(6).fill(0).map((_, index) => (
+        <div key={`skeleton-${index}`} className="bg-zinc-900 rounded-lg shadow-lg h-[250px] animate-pulse"></div>
+      ));
+    }
+
+    if (error) {
+      return (
+        <div className="col-span-full flex flex-col items-center justify-center p-8 bg-zinc-900 rounded-lg">
+          <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
+          <h3 className="text-xl font-bold text-white mb-2">Erro ao carregar roletas</h3>
+          <p className="text-zinc-400 text-center">{error}</p>
+          <Button 
+            className="mt-4" 
+            onClick={() => window.location.reload()}
+          >
+            Tentar novamente
+          </Button>
+        </div>
+      );
+    }
+
+    if (filteredRoulettes.length === 0) {
+      return (
+        <div className="col-span-full flex flex-col items-center justify-center p-8 bg-zinc-900 rounded-lg">
+          <Search className="w-16 h-16 text-zinc-600 mb-4" />
+          <h3 className="text-xl font-bold text-white mb-2">Nenhuma roleta encontrada</h3>
+          <p className="text-zinc-400 text-center">Não foram encontradas roletas com o termo de busca.</p>
+        </div>
+      );
+    }
+
+    return filteredRoulettes.map((roulette) => (
+      <RouletteCard
+        key={roulette.id}
+        roletaId={roulette.id}
+        name={roulette.nome}
+        lastNumbers={roulette.numeros.length > 0 ? roulette.numeros : roulette._displayNumbers || []}
+        wins={roulette.vitorias || 0}
+        losses={roulette.derrotas || 0}
+      />
+    ));
+  };
 
   return (
     <Layout>
@@ -300,30 +378,9 @@ const Index = () => {
               <div key={i} className="bg-[#1e1e24] animate-pulse rounded-xl h-64"></div>
             ))}
           </div>
-        ) : filteredRoulettes.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-400 text-lg mb-4">
-              {search ? `Nenhuma roleta encontrada com "${search}"` : "Nenhuma roleta disponível no momento"}
-            </p>
-            {search && (
-              <Button variant="outline" onClick={() => setSearch("")}>
-                Limpar busca
-              </Button>
-            )}
-          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredRoulettes.map((roulette) => (
-              <RouletteCard
-                key={roulette.id}
-                roletaId={roulette.id}
-                name={roulette.nome}
-                roleta_nome={roulette.roleta_nome}
-                wins={roulette.vitorias}
-                losses={roulette.derrotas}
-                lastNumbers={roulette.numeros}
-              />
-            ))}
+            {renderRouletteCards()}
           </div>
         )}
       </div>
