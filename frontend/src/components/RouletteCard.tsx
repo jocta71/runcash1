@@ -170,15 +170,10 @@ const RouletteCard = memo(({
       return mapped;
     }
     
-    // Prioridade 3: Números da prop lastNumbers
-    if (Array.isArray(lastNumbers) && lastNumbers.length > 0) {
-      console.log(`[RouletteCard] Usando números da prop lastNumbers para ${roletaNome}:`, lastNumbers.slice(0, 5));
-      return lastNumbers;
-    }
-    
-    // Se não temos números de nenhuma fonte, retornar array vazio
+    // Sem dados reais, retornar array vazio
+    console.log(`[RouletteCard] Sem números reais para ${roletaNome}. Retornando array vazio.`);
     return [];
-  }, [numbers, lastNumbers, roletaNome, mappedNumbersOverride]);
+  }, [numbers, roletaNome, mappedNumbersOverride]);
 
   // Otimizar trend com useMemo - não gerar dados simulados
   const trendData = useMemo(() => {
@@ -401,8 +396,8 @@ const RouletteCard = memo(({
   // Determinar o insight baseado nos números disponíveis
   const insight = getInsightMessage(mappedNumbers.slice(0, 10), strategyWins, strategyLosses);
   
-  // Verificar se temos dados para exibir
-  const hasDisplayableData = mappedNumbers.length > 0 || (Array.isArray(lastNumbers) && lastNumbers.length > 0);
+  // Verificar se temos dados reais para exibir (apenas do WebSocket ou API)
+  const hasDisplayableData = mappedNumbers.length > 0;
 
   return (
     <div className="bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-zinc-800 hover:border-zinc-700 transition-all duration-300">
