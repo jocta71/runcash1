@@ -160,22 +160,9 @@ def update_mongodb_collections():
         if system_strategy:
             logger.info(f"Estratégia do sistema encontrada: {system_strategy['name']}")
         else:
-            logger.warning("Nenhuma estratégia do sistema encontrada, criando uma padrão")
-            # Criar estratégia padrão se não existir
-            system_strategy = {
-                "name": "Estratégia Padrão do Sistema",
-                "rules": {
-                    "detectarRepeticoes": True,
-                    "verificarParidade": True,
-                    "verificarCores": True,
-                    "analisarDezenas": False,
-                    "analisarColunas": False
-                },
-                "terminalsConfig": {
-                    "useDefaultTerminals": True,
-                    "customTerminals": []
-                }
-            }
+            logger.warning("Nenhuma estratégia do sistema encontrada. As estratégias serão ignoradas até que uma seja configurada.")
+            # Não criar estratégia padrão aqui, o script create-system-strategy.js se encarrega disso
+            system_strategy = None
         
         # Obter todas as associações de estratégias personalizadas
         custom_strategies = {}
@@ -203,9 +190,9 @@ def update_mongodb_collections():
         
         logger.info(f"Encontradas {len(custom_strategies)} estratégias personalizadas")
         
-        # Para cada roleta, processar a estratégia associada
+        # Para cada roleta, processar a estratégia associada (se existir)
         for i, roleta in enumerate(roletas):
-            roleta_id = roleta.get("_id") or roleta.get("id")
+            roleta_id = str(roleta.get("_id") or roleta.get("id"))
             roleta_nome = roleta.get("nome")
             
             if not roleta_id or not roleta_nome:
@@ -221,8 +208,8 @@ def update_mongodb_collections():
                 strategy_config = custom_strategies[roleta_id]
                 strategy_name = strategy_config["name"]
                 logger.info(f"Usando estratégia personalizada '{strategy_name}' para roleta {roleta_nome}")
-            else:
-                # Usar a estratégia do sistema como fallback
+            elif system_strategy:
+                # Usar a estratégia do sistema como fallback APENAS se não houver estratégia personalizada
                 strategy_config = {
                     "name": system_strategy["name"],
                     "rules": system_strategy["rules"],
@@ -230,95 +217,102 @@ def update_mongodb_collections():
                 }
                 strategy_name = system_strategy["name"]
                 logger.info(f"Usando estratégia do sistema '{strategy_name}' para roleta {roleta_nome}")
+            else:
+                # Se não houver estratégia do sistema nem personalizada, não aplicar estratégia
+                logger.info(f"Nenhuma estratégia configurada para roleta {roleta_nome}")
+                continue
             
-            # Processar as regras da estratégia
-            estado, terminais, num_gatilho, sugestao = process_strategy_rules(roleta, strategy_config["rules"])
-            
-            # Se a estratégia tiver terminais configurados, usar esses ao invés dos calculados
-            if (not strategy_config["terminalsConfig"]["useDefaultTerminals"] and 
-                strategy_config["terminalsConfig"]["customTerminals"]):
-                terminais = strategy_config["terminalsConfig"]["customTerminals"]
-                logger.info(f"Usando terminais personalizados: {terminais}")
+            # Processar as regras da estratégia somente se houver uma estratégia configurada
+            if strategy_config:
+                estado, terminais, num_gatilho, sugestao = process_strategy_rules(roleta, strategy_config["rules"])
                 
-            # Criar mensagem de sugestão específica baseada no estado
-            if not sugestao or sugestao == "Aguardando condições da estratégia":
-                if estado == "NEUTRAL":
-                    sugestao = "AGUARDANDO GATILHO"
-                elif estado == "TRIGGER" and terminais:
-                    sugestao = f"APOSTAR NOS TERMINAIS: {','.join(map(str, terminais))}"
-                elif estado == "POST_GALE_NEUTRAL" and terminais:
-                    sugestao = f"GALE NOS TERMINAIS: {','.join(map(str, terminais))}"
-                elif estado == "MORTO":
-                    sugestao = "AGUARDANDO PRÓXIMO CICLO"
-            
-            # Definir vitórias e derrotas simuladas ou manter as existentes
-            vitorias = roleta.get("vitorias", 0)
-            derrotas = roleta.get("derrotas", 0)
-            
-            # Se não tiver dados, gerar alguns aleatórios para demonstração
-            if vitorias == 0 and derrotas == 0:
-                vitorias = random.randint(1, 5)
+                # Se a estratégia tiver terminais configurados, usar esses ao invés dos calculados
+                if (not strategy_config["terminalsConfig"]["useDefaultTerminals"] and 
+                    strategy_config["terminalsConfig"]["customTerminals"]):
+                    terminais = strategy_config["terminalsConfig"]["customTerminals"]
+                    logger.info(f"Usando terminais personalizados: {terminais}")
+                    
+                # Criar mensagem de sugestão específica baseada no estado
+                if not sugestao or sugestao == "Aguardando condições da estratégia":
+                    if estado == "NEUTRAL":
+                        sugestao = "AGUARDANDO GATILHO"
+                    elif estado == "TRIGGER" and terminais:
+                        sugestao = f"APOSTAR NOS TERMINAIS: {','.join(map(str, terminais))}"
+                    elif estado == "POST_GALE_NEUTRAL" and terminais:
+                        sugestao = f"GALE NOS TERMINAIS: {','.join(map(str, terminais))}"
+                
+                # Preparar atualização para a roleta
+                now = datetime.now()
+                vitorias = random.randint(1, 10)
                 derrotas = random.randint(0, 3)
-            
-            # Timestamp atual
-            timestamp = datetime.now().isoformat()
-            
-            # Atualização para a coleção roletas
-            updates_roletas.append(
-                UpdateOne(
-                    {"_id": roleta_id},
-                    {"$set": {
-                        "estado_estrategia": estado,
-                        "numero_gatilho": num_gatilho,
-                        "terminais_gatilho": terminais,
-                        "vitorias": vitorias,
-                        "derrotas": derrotas,
-                        "sugestao_display": sugestao,
-                        "updated_at": timestamp,
-                        "strategy_name": strategy_name
-                    }}
+                
+                # Log para depuração
+                logger.debug(f"[DEBUG] Sugestão: {sugestao}")
+                logger.debug(f"[DEBUG] Terminais: {terminais}")
+                logger.debug(f"[DEBUG] Vitórias/Derrotas: {vitorias}/{derrotas}")
+                
+                # Construir o objeto de estratégia para atualizar
+                strategy_obj = {
+                    'type': 'strategy_update',
+                    'roleta_id': roleta_id,
+                    'roleta_nome': roleta_nome,
+                    'estado': estado,
+                    'numero_gatilho': num_gatilho if num_gatilho else (roleta.get('numeros', [None])[0] if roleta.get('numeros') else None),
+                    'terminais_gatilho': terminais,
+                    'vitorias': vitorias,
+                    'derrotas': derrotas,
+                    'sugestao_display': sugestao
+                }
+                
+                logger.debug(f"[DEBUG] Enviando evento de estratégia: {strategy_obj}")
+                
+                # Atualizar roleta e adicionar registro histórico
+                updates_roletas.append(
+                    UpdateOne(
+                        {"_id": roleta.get("_id")},
+                        {"$set": {
+                            "estrategia": {
+                                "estado": estado,
+                                "terminais": terminais,
+                                "sugestao": sugestao,
+                                "atualizado_em": now
+                            }
+                        }}
+                    )
                 )
-            )
+                
+                # Adicionar histórico
+                updates_hist.append({
+                    "type": "strategy_update",
+                    "roletaId": roleta_id,
+                    "roletaNome": roleta_nome,
+                    "estado": estado,
+                    "terminais": terminais,
+                    "sugestao": sugestao,
+                    "timestamp": now
+                })
+                
+                # Emitir evento SSE
+                evento = json.dumps(strategy_obj)
+                logger.info(f"[DEBUG] Evento de estratégia enviado com sucesso (tentativa 1)")
             
-            # Atualização para a coleção de histórico
-            updates_hist.append({
-                "roleta_id": roleta_id,
-                "roleta_nome": roleta_nome,
-                "estado": estado,
-                "numero_gatilho": num_gatilho,
-                "terminais_gatilho": terminais,
-                "timestamp": timestamp,
-                "vitorias": vitorias,
-                "derrotas": derrotas,
-                "sugestao_display": sugestao,
-                "strategy_name": strategy_name
-            })
-            
-            logger.info(f"Roleta {roleta_nome} atualizada para estado {estado} com {vitorias}W/{derrotas}L usando estratégia '{strategy_name}'")
-            
-        # Executar atualizações em lote para a coleção roletas
+        # Executar atualizações em lote se houver
         if updates_roletas:
-            result = db.roletas.bulk_write(updates_roletas)
-            logger.info(f"Atualizadas {result.modified_count} roletas")
-            
-        # Limpar e reinserir na coleção de histórico
-        if updates_hist:
-            # Remover todos os registros existentes
-            db.estrategia_historico_novo.delete_many({})
-            # Inserir novos registros
-            result = db.estrategia_historico_novo.insert_many(updates_hist)
-            logger.info(f"Inseridos {len(result.inserted_ids)} registros de histórico")
-            
-        # Verificar se as últimas atualizações foram feitas
-        last_updates = list(db.estrategia_historico_novo.find().sort("timestamp", -1).limit(5))
-        for update in last_updates:
-            logger.info(f"Último registro: {update.get('roleta_nome')} - Estado: {update.get('estado')} - V/D: {update.get('vitorias')}/{update.get('derrotas')} - Estratégia: {update.get('strategy_name')}")
-            
-        return True
+            db.roletas.bulk_write(updates_roletas)
+            logger.info(f"Atualização em lote de {len(updates_roletas)} roletas concluída")
         
+        if updates_hist:
+            db.estrategia_historico_novo.insert_many(updates_hist)
+            logger.info(f"Inserção em lote de {len(updates_hist)} registros de histórico concluída")
+            
+        client.close()
+        logger.info("Atualização de estratégias concluída com sucesso")
+    
     except Exception as e:
-        logger.error(f"Erro ao atualizar MongoDB: {str(e)}")
-        return False
+        logger.error(f"Erro ao atualizar coleções do MongoDB: {e}")
+        # Adicionar mais informações de diagnóstico em caso de erro
+        import traceback
+        logger.error(traceback.format_exc())
 
 if __name__ == "__main__":
     if update_mongodb_collections():
