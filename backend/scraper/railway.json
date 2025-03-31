@@ -7,7 +7,7 @@
       "requirements.txt",
       "Dockerfile"
     ],
-    "dockerfilePath": "Dockerfile"
+    "dockerfilePath": "./Dockerfile"
   },
   "deploy": {
     "numReplicas": 1,
