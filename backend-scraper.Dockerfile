@@ -1,30 +1,22 @@
-FROM python:3.11-slim
+FROM node:18-slim
 
-# Configurar variáveis de ambiente para evitar prompts durante a instalação
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
-# Definir diretório de trabalho
 WORKDIR /app
 
-# Instalar dependências do sistema
-RUN apt-get update && \
-    apt-get install -y xvfb && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# Copiar arquivos de dependência primeiro (melhora o caching)
+COPY backend/api/package*.json ./
+COPY backend/api/package-lock.json* ./
 
-# Copiar requirements primeiro para aproveitar o cache
-COPY scraper/requirements.txt .
+# Instalar dependências
+RUN npm install
 
-# Instalar dependências Python
-RUN pip install --no-cache-dir -r requirements.txt
+# Garantir que o mongoose seja instalado
+RUN npm install mongoose@8.1.1
 
-# Copiar código fonte
-COPY scraper/ .
+# Copiar o resto do código
+COPY backend/api/ ./
 
-# Configurar variáveis de ambiente
-ENV PYTHONUNBUFFERED=1
+# Porta que o serviço usará
+EXPOSE 3002
 
-# Comando para iniciar o scraper
-CMD ["python", "run_real_scraper.py"] 
+# Iniciar serviço
+CMD ["node", "index.js"] 
