@@ -16,7 +16,7 @@ export default defineConfig({
     // Configuração para o proxy de desenvolvimento
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'http://localhost:3002/api',
+        target: process.env.VITE_API_URL || '',
         changeOrigin: true,
         rewrite: (path: string) => path.replace(/^\/api/, ''),
       },
