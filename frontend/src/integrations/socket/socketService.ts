@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
-import config from '@/config/env';
+import { getApiBaseUrl, isProduction } from '../../config/env';
+import { RouletteNumberEvent } from '../../types/events';
 
 // Tipos de eventos
 export interface RouletteEvent {
@@ -16,9 +17,11 @@ export type RouletteEventCallback = (event: RouletteEvent) => void;
  * para funcionar mesmo quando o servidor WebSocket não está disponível
  */
 class SocketService {
-  private static instance: SocketService;
+  private static instance: SocketService | null = null;
   private socket: Socket | null = null;
-  private connected: boolean = false;
+  private isConnected: boolean = false;
+  private reconnectAttempts: number = 0;
+  private listeners: Map<string, Array<(data: any) => void>> = new Map();
   private simulationMode: boolean = false;
   private socketUrl: string;
   private eventListeners: Record<string, RouletteEventCallback[]> = {
@@ -29,7 +32,8 @@ class SocketService {
   private routeSubscriptions: Map<string, Set<RouletteEventCallback>> = new Map();
 
   private constructor() {
-    this.socketUrl = config.wsUrl || '';
+    console.log('[SocketService] Inicializando serviço de socket');
+    this.socketUrl = this.getSocketUrl();
     console.log(`[Socket] Inicializando serviço. URL: ${this.socketUrl}`);
     
     // Verificar se devemos iniciar em modo de simulação imediatamente
@@ -39,11 +43,14 @@ class SocketService {
         this.socketUrl.includes('railway.app')) {
       console.log('[Socket] Iniciando diretamente em modo de simulação (URL problemática)');
       this.simulationMode = true;
-      this.connected = true;
+      this.isConnected = true;
       return;
     }
     
     this.connect();
+    
+    // Carregar dados históricos imediatamente
+    this.loadHistoricalRouletteNumbers();
   }
 
   public static getInstance(): SocketService {
@@ -65,7 +72,7 @@ class SocketService {
         if (!this.socketUrl || this.socketUrl.includes('localhost') || this.simulationMode) {
           console.log('[Socket] Usando modo de simulação para WebSocket');
           this.simulationMode = true;
-          this.connected = true;
+          this.isConnected = true;
           
           // Emitir evento de conexão para os listeners
           this.eventListeners['connect']?.forEach(listener => listener({
@@ -91,18 +98,22 @@ class SocketService {
         // Tratamento de eventos
         this.socket.on('connect', () => {
           console.log('[Socket] Conectado ao servidor');
-          this.connected = true;
+          this.isConnected = true;
+          this.reconnectAttempts = 0;
           this.eventListeners['connect']?.forEach(listener => listener({
             type: 'connect',
             roleta_id: '',
             roleta_nome: '',
             message: 'Conectado ao servidor'
           }));
+          
+          // Solicitar dados recentes ao conectar
+          this.requestRecentNumbers();
         });
         
         this.socket.on('disconnect', (reason) => {
           console.log(`[Socket] Desconectado do servidor. Motivo: ${reason}`);
-          this.connected = false;
+          this.isConnected = false;
           this.eventListeners['disconnect']?.forEach(listener => listener({
             type: 'disconnect',
             roleta_id: '',
@@ -113,7 +124,7 @@ class SocketService {
         
         this.socket.on('connect_error', (error) => {
           console.error(`[Socket] Erro de conexão: ${error.message}`);
-          this.connected = false;
+          this.isConnected = false;
           
           // Após várias tentativas, ativar modo de simulação
           if (this.socket?.io?.reconnectionAttempts === 0) {
@@ -121,7 +132,7 @@ class SocketService {
             this.socket.disconnect();
             this.socket = null;
             this.simulationMode = true;
-            this.connected = true;
+            this.isConnected = true;
             
             // Emitir evento de conexão para os listeners
             this.eventListeners['connect']?.forEach(listener => listener({
@@ -139,7 +150,7 @@ class SocketService {
       } catch (error) {
         console.error(`[Socket] Erro ao conectar ao websocket: ${error}`);
         this.simulationMode = true;
-        this.connected = true;
+        this.isConnected = true;
         
         // Emitir evento de conexão para os listeners
         this.eventListeners['connect']?.forEach(listener => listener({
@@ -262,7 +273,7 @@ class SocketService {
     // No modo de simulação, sempre retornar conectado
     if (this.simulationMode) return true;
     
-    return this.connected;
+    return this.isConnected;
   }
   
   /**
@@ -275,7 +286,7 @@ class SocketService {
       this.socket = null;
     }
     
-    this.connected = false;
+    this.isConnected = false;
     
     // Notificar listeners de desconexão
     this.eventListeners['disconnect']?.forEach(listener => listener({
@@ -284,6 +295,126 @@ class SocketService {
       roleta_nome: '',
       reason: 'manual_disconnect'
     }));
+  }
+
+  private getSocketUrl(): string {
+    // Obter URL base da API
+    let socketUrl = getApiBaseUrl().replace('/api', '');
+    
+    // Em produção, garantir que não estamos usando localhost
+    if (isProduction && (socketUrl.includes('localhost') || socketUrl.includes('127.0.0.1'))) {
+      console.warn('[SocketService] Detectada URL localhost em produção, usando origem atual');
+      socketUrl = window.location.origin;
+    }
+    
+    console.log(`[SocketService] URL do socket: ${socketUrl}`);
+    return socketUrl;
+  }
+
+  // Método para solicitar números recentes ao servidor
+  requestRecentNumbers(): void {
+    if (this.socket && this.isConnected) {
+      console.log('[SocketService] Solicitando números recentes');
+      this.socket.emit('get_recent_numbers', { limit: 50 });
+    } else {
+      console.warn('[SocketService] Não é possível solicitar números recentes: socket não conectado');
+    }
+  }
+  
+  // Método para carregar dados históricos via REST API
+  async loadHistoricalRouletteNumbers(): Promise<void> {
+    try {
+      const apiBaseUrl = getApiBaseUrl();
+      console.log(`[SocketService] Buscando dados históricos via REST API: ${apiBaseUrl}/roulettes/numbers`);
+      
+      // Realizar requisição HTTP para obter os números históricos
+      const response = await fetch(`${apiBaseUrl}/roulettes/numbers?limit=50`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar dados históricos: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && Array.isArray(data.roulettes)) {
+        console.log(`[SocketService] Recebidos dados históricos para ${data.roulettes.length} roletas`);
+        
+        // Processar os dados históricos de cada roleta
+        data.roulettes.forEach((roulette: any) => {
+          if (roulette && roulette.name && Array.isArray(roulette.numbers)) {
+            console.log(`[SocketService] Processando ${roulette.numbers.length} números para ${roulette.name}`);
+            
+            // Converter cada número em um evento e notificar os listeners
+            roulette.numbers.forEach((number: number) => {
+              const event: RouletteNumberEvent = {
+                type: 'new_number',
+                roleta_id: roulette.id || 'unknown-id',
+                roleta_nome: roulette.name,
+                numero: number,
+                timestamp: new Date().toISOString()
+              };
+              
+              this.notifyListeners('new_number', event);
+            });
+          }
+        });
+      } else {
+        console.warn('[SocketService] Formato de resposta histórica inválido:', data);
+        
+        // Se falhar e estiver em desenvolvimento, carregar dados mock
+        if (!isProduction) {
+          this.loadMockData();
+        }
+      }
+    } catch (error) {
+      console.error('[SocketService] Erro ao carregar dados históricos:', error);
+      
+      // Se falhar e estiver em desenvolvimento, carregar dados mock
+      if (!isProduction) {
+        this.loadMockData();
+      }
+    }
+  }
+  
+  // Método para carregar dados simulados em desenvolvimento
+  private loadMockData(): void {
+    console.log('[SocketService] Carregando dados simulados para desenvolvimento');
+    
+    const mockRoulettes = [
+      { id: 'roulette-1', name: 'Brazilian Mega Roulette', numbers: [1, 7, 13, 36, 24, 17, 32, 11] },
+      { id: 'roulette-2', name: 'Speed Auto Roulette', numbers: [0, 32, 15, 19, 4, 21, 36, 7] },
+      { id: 'roulette-3', name: 'Bucharest Auto-Roulette', numbers: [26, 3, 35, 12, 28, 5, 14, 19] }
+    ];
+    
+    // Processar os dados mock
+    mockRoulettes.forEach(roulette => {
+      console.log(`[SocketService] Processando dados mock para ${roulette.name}`);
+      
+      roulette.numbers.forEach(number => {
+        const event: RouletteNumberEvent = {
+          type: 'new_number',
+          roleta_id: roulette.id,
+          roleta_nome: roulette.name,
+          numero: number,
+          timestamp: new Date().toISOString()
+        };
+        
+        this.notifyListeners('new_number', event);
+      });
+    });
+  }
+
+  private notifyListeners(event: string, data: any): void {
+    if (this.listeners.has(event)) {
+      const callbacks = this.listeners.get(event) || [];
+      callbacks.forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`[SocketService] Erro ao notificar listener de ${event}:`, error);
+        }
+      });
+    }
   }
 }
 
