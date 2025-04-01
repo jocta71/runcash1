@@ -573,7 +573,7 @@ class SocketService {
     console.log('[SocketService] Solicitando números recentes de todas as roletas');
     
     // Primeiro tenta carregar os dados históricos via REST API
-    this.loadHistoricalNumbers();
+    this.loadHistoricalRouletteNumbers();
     
     // Emitir evento para solicitar números recentes via WebSocket
     if (this.socket && this.isConnected) {
@@ -584,56 +584,127 @@ class SocketService {
   }
   
   // Método para carregar os números históricos via REST API
-  private async loadHistoricalNumbers(): Promise<void> {
+  private async loadHistoricalRouletteNumbers(): Promise<void> {
     try {
       const apiBaseUrl = getRequiredEnvVar('VITE_API_BASE_URL');
-      console.log(`[SocketService] Carregando números históricos de ${apiBaseUrl}/roulettes/numbers`);
+      console.log(`[SocketService] Carregando dados históricos das roletas`);
       
-      // Fazer a requisição HTTP para buscar os números históricos
-      const response = await fetch(`${apiBaseUrl}/roulettes/numbers?limit=50`);
+      // Primeiro, buscar a lista de roletas disponíveis
+      const rouletteResponse = await fetch(`${apiBaseUrl}/roulettes`);
+      
+      if (!rouletteResponse.ok) {
+        throw new Error(`Falha ao buscar lista de roletas: ${rouletteResponse.status}`);
+      }
+      
+      const roulettes = await rouletteResponse.json();
+      
+      if (Array.isArray(roulettes)) {
+        console.log(`[SocketService] Processando dados históricos para ${roulettes.length} roletas`);
+        
+        // Para cada roleta, buscar seus números recentes
+        for (const roulette of roulettes) {
+          try {
+            console.log(`[SocketService] Carregando números para roleta ${roulette.nome || roulette.name}`);
+            
+            // Buscar os últimos números desta roleta
+            const numbersResponse = await fetch(`${apiBaseUrl}/numeros?roletaId=${roulette._id}&limit=50`);
+            
+            if (!numbersResponse.ok) {
+              console.warn(`[SocketService] Falha ao buscar números para roleta ${roulette._id}: ${numbersResponse.status}`);
+              continue;
+            }
+            
+            const numbersData = await numbersResponse.json();
+            
+            if (Array.isArray(numbersData)) {
+              console.log(`[SocketService] Carregados ${numbersData.length} números para roleta ${roulette.nome || roulette.name}`);
+              
+              // Converter cada número para o formato de evento
+              numbersData.forEach(num => {
+                // Verificar se o número é válido
+                if (num && (typeof num === 'number' || typeof num.numero === 'number')) {
+                  const numero = typeof num === 'number' ? num : num.numero;
+                  
+                  const event: RouletteNumberEvent = {
+                    type: 'new_number',
+                    roleta_id: roulette._id,
+                    roleta_nome: roulette.nome || roulette.name,
+                    numero: numero,
+                    timestamp: (num && num.timestamp) ? num.timestamp : new Date().toISOString()
+                  };
+                  
+                  // Notificar os listeners sobre este número
+                  this.notifyListeners(event);
+                }
+              });
+            }
+          } catch (error) {
+            console.error(`[SocketService] Erro ao processar números para roleta ${roulette._id}:`, error);
+          }
+        }
+        
+        console.log('[SocketService] Carregamento de todos os dados históricos concluído');
+      } else {
+        console.warn('[SocketService] Resposta inválida ao buscar roletas:', roulettes);
+        // Tentar endpoints alternativos
+        this.tryAlternativeHistoricalEndpoints();
+      }
+    } catch (error) {
+      console.error('[SocketService] Erro ao carregar dados históricos:', error);
+      // Tentar endpoints alternativos se o principal falhar
+      this.tryAlternativeHistoricalEndpoints();
+    }
+  }
+  
+  // Método para tentar endpoints alternativos
+  private async tryAlternativeHistoricalEndpoints(): Promise<void> {
+    try {
+      const apiBaseUrl = getRequiredEnvVar('VITE_API_BASE_URL');
+      console.log(`[SocketService] Tentando endpoints alternativos para dados históricos`);
+      
+      // Endpoint alternativo que retorna todas as roletas com seus números
+      const response = await fetch(`${apiBaseUrl}/roletas-com-numeros`);
       
       if (!response.ok) {
-        throw new Error(`Falha ao buscar dados históricos: ${response.status}`);
+        throw new Error(`Falha ao buscar dados históricos alternativos: ${response.status}`);
       }
       
       const data = await response.json();
       
-      if (data && Array.isArray(data.roulettes)) {
-        console.log(`[SocketService] Dados históricos carregados para ${data.roulettes.length} roletas`);
-        
-        // Processar os dados de cada roleta
-        data.roulettes.forEach((roulette: any) => {
-          if (roulette && roulette.name && Array.isArray(roulette.numbers)) {
-            console.log(`[SocketService] Processando ${roulette.numbers.length} números históricos para ${roulette.name}`);
-            
-            // Enviar cada número como um evento separado para os listeners
-            roulette.numbers.forEach((num: number) => {
+      if (data && Array.isArray(data)) {
+        data.forEach(roulette => {
+          if (roulette && roulette.nome && Array.isArray(roulette.numeros)) {
+            roulette.numeros.forEach(numero => {
               const event: RouletteNumberEvent = {
                 type: 'new_number',
-                roleta_id: roulette.id || 'unknown-id',
-                roleta_nome: roulette.name,
-                numero: num,
+                roleta_id: roulette._id || 'unknown',
+                roleta_nome: roulette.nome,
+                numero: numero,
                 timestamp: new Date().toISOString()
               };
               
-              // Notificar os listeners sobre este número histórico
               this.notifyListeners(event);
             });
           }
         });
-        
-        console.log('[SocketService] Carregamento de dados históricos concluído');
       } else {
-        console.warn('[SocketService] Resposta de dados históricos inválida:', data);
+        console.warn('[SocketService] Resposta alternativa inválida:', data);
+        
+        // Se estamos em desenvolvimento, usar dados simulados como último recurso
+        if (!isProduction) {
+          this.loadMockDataInDevelopment();
+        }
       }
     } catch (error) {
-      console.error('[SocketService] Erro ao carregar números históricos:', error);
+      console.error('[SocketService] Erro ao tentar endpoints alternativos:', error);
       
-      // Usar dados simulados de forma alternativa
-      this.loadMockDataInDevelopment();
+      // Em último caso, usar dados simulados em desenvolvimento
+      if (!isProduction) {
+        this.loadMockDataInDevelopment();
+      }
     }
   }
-  
+
   // Carregar dados simulados apenas em desenvolvimento se tudo falhar
   private loadMockDataInDevelopment(): void {
     if (!isProduction) {
