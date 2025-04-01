@@ -1,0 +1,125 @@
+{
+  "timestamp": "2025-04-01T00:54:43.987125",
+  "tables": [
+    {
+      "id": 2010154,
+      "name": "Auto Lightning Roulette",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 37,
+      "last_numbers": []
+    },
+    {
+      "id": 2010172,
+      "name": "Ruleta Bola Rapida en Vivo",
+      "dealer": "Jhon",
+      "is_open": true,
+      "players": 23,
+      "last_numbers": []
+    },
+    {
+      "id": 2010017,
+      "name": "Ruleta Autom\u00e1tica",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 37,
+      "last_numbers": []
+    },
+    {
+      "id": 2010045,
+      "name": "Ruleta en Vivo",
+      "dealer": "Diana",
+      "is_open": true,
+      "players": 56,
+      "last_numbers": []
+    },
+    {
+      "id": 2010168,
+      "name": "888 Ruleta en Vivo",
+      "dealer": "Jero",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": []
+    },
+    {
+      "id": 2010143,
+      "name": "Ruleta Rel\u00e1mpago en Vivo",
+      "dealer": "Eva",
+      "is_open": true,
+      "players": 133,
+      "last_numbers": []
+    },
+    {
+      "id": 2010103,
+      "name": "Ruleta Auto Francesa",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 37,
+      "last_numbers": []
+    },
+    {
+      "id": 2010181,
+      "name": "Ruleta Francesa en Vivo",
+      "dealer": "Diana",
+      "is_open": true,
+      "players": 56,
+      "last_numbers": []
+    },
+    {
+      "id": 2010548,
+      "name": "Ruleta Dual Play",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": []
+    },
+    {
+      "id": 2330145,
+      "name": "Ruleta Express",
+      "dealer": "Ramon",
+      "is_open": true,
+      "players": 25,
+      "last_numbers": []
+    },
+    {
+      "id": 2330146,
+      "name": "Slingshot Ruleta",
+      "dealer": "Slingshot",
+      "is_open": true,
+      "players": 12,
+      "last_numbers": []
+    },
+    {
+      "id": 2330143,
+      "name": "Casiopea Ruleta",
+      "dealer": "Lain",
+      "is_open": true,
+      "players": 72,
+      "last_numbers": []
+    },
+    {
+      "id": 2330142,
+      "name": "Casiopea Francesa Ruleta",
+      "dealer": "Lain",
+      "is_open": true,
+      "players": 72,
+      "last_numbers": []
+    },
+    {
+      "id": 2330144,
+      "name": "Quantum Ruleta",
+      "dealer": "Gorka",
+      "is_open": true,
+      "players": 39,
+      "last_numbers": []
+    },
+    {
+      "id": 2330208,
+      "name": "Mega Fire Blaze Ruleta",
+      "dealer": "Ruben",
+      "is_open": true,
+      "players": 506,
+      "last_numbers": []
+    }
+  ]
+}
