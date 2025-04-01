@@ -570,36 +570,100 @@ class SocketService {
 
   // Método para solicitar números recentes de todas as roletas
   public requestRecentNumbers(): void {
-    if (!this.socket || !this.isConnected) {
-      console.warn('[SocketService] Não é possível solicitar números recentes: socket não conectado');
-      return;
-    }
-    
     console.log('[SocketService] Solicitando números recentes de todas as roletas');
     
-    // Emitir evento para solicitar números recentes
-    this.socket.emit('get_recent_numbers', { count: 20 });
+    // Primeiro tenta carregar os dados históricos via REST API
+    this.loadHistoricalNumbers();
     
-    // Também emitir evento de teste para verificar a conexão
-    this.socket.emit('test_connection', { 
-      timestamp: new Date().toISOString(),
-      clientId: this.socket.id
-    });
-    
-    // Subscrever para todas as roletas conhecidas
-    const knownRoulettes = [
-      'Brazilian Mega Roulette',
-      'Speed Auto Roulette',
-      'Bucharest Auto-Roulette',
-      'Auto-Roulette',
-      'Auto-Roulette VIP',
-      'Immersive Roulette'
-    ];
-    
-    knownRoulettes.forEach(roleta => {
-      console.log(`[SocketService] Subscrevendo para roleta: ${roleta}`);
-      this.socket?.emit('subscribe_to_roleta', roleta);
-    });
+    // Emitir evento para solicitar números recentes via WebSocket
+    if (this.socket && this.isConnected) {
+      this.socket.emit('get_recent_numbers', { count: 50 });
+    } else {
+      console.warn('[SocketService] Não é possível solicitar números recentes: socket não conectado');
+    }
+  }
+  
+  // Método para carregar os números históricos via REST API
+  private async loadHistoricalNumbers(): Promise<void> {
+    try {
+      const apiBaseUrl = getRequiredEnvVar('VITE_API_BASE_URL');
+      console.log(`[SocketService] Carregando números históricos de ${apiBaseUrl}/roulettes/numbers`);
+      
+      // Fazer a requisição HTTP para buscar os números históricos
+      const response = await fetch(`${apiBaseUrl}/roulettes/numbers?limit=50`);
+      
+      if (!response.ok) {
+        throw new Error(`Falha ao buscar dados históricos: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && Array.isArray(data.roulettes)) {
+        console.log(`[SocketService] Dados históricos carregados para ${data.roulettes.length} roletas`);
+        
+        // Processar os dados de cada roleta
+        data.roulettes.forEach((roulette: any) => {
+          if (roulette && roulette.name && Array.isArray(roulette.numbers)) {
+            console.log(`[SocketService] Processando ${roulette.numbers.length} números históricos para ${roulette.name}`);
+            
+            // Enviar cada número como um evento separado para os listeners
+            roulette.numbers.forEach((num: number) => {
+              const event: RouletteNumberEvent = {
+                type: 'new_number',
+                roleta_id: roulette.id || 'unknown-id',
+                roleta_nome: roulette.name,
+                numero: num,
+                timestamp: new Date().toISOString()
+              };
+              
+              // Notificar os listeners sobre este número histórico
+              this.notifyListeners(event);
+            });
+          }
+        });
+        
+        console.log('[SocketService] Carregamento de dados históricos concluído');
+      } else {
+        console.warn('[SocketService] Resposta de dados históricos inválida:', data);
+      }
+    } catch (error) {
+      console.error('[SocketService] Erro ao carregar números históricos:', error);
+      
+      // Usar dados simulados de forma alternativa
+      this.loadMockDataInDevelopment();
+    }
+  }
+  
+  // Carregar dados simulados apenas em desenvolvimento se tudo falhar
+  private loadMockDataInDevelopment(): void {
+    if (!isProduction) {
+      console.log('[SocketService] Carregando dados simulados para ambiente de desenvolvimento');
+      
+      const mockRoulettes = [
+        { id: 'roulette-1', name: 'Brazilian Mega Roulette', numbers: [1, 7, 13, 36, 24, 17] },
+        { id: 'roulette-2', name: 'Speed Auto Roulette', numbers: [0, 32, 15, 19, 4, 21] },
+        { id: 'roulette-3', name: 'Bucharest Auto-Roulette', numbers: [26, 3, 35, 12, 28, 5] }
+      ];
+      
+      // Processar os dados simulados
+      mockRoulettes.forEach(roulette => {
+        console.log(`[SocketService] Processando dados simulados para ${roulette.name}`);
+        
+        // Enviar cada número como um evento separado
+        roulette.numbers.forEach(num => {
+          const event: RouletteNumberEvent = {
+            type: 'new_number',
+            roleta_id: roulette.id,
+            roleta_nome: roulette.name,
+            numero: num,
+            timestamp: new Date().toISOString()
+          };
+          
+          // Notificar os listeners
+          this.notifyListeners(event);
+        });
+      });
+    }
   }
 
   // Adicionando um evento artificial para teste (deve ser removido em produção)
