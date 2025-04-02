@@ -606,10 +606,16 @@ class SocketService {
         
         // Filtrar roletas sem ID válido
         const validRoulettes = roulettes.filter(roulette => {
-          if (!roulette._id) {
+          // Verificar vários campos possíveis de ID
+          const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.table_id || roulette.tableId;
+          
+          if (!roletaId) {
             console.warn(`[SocketService] Ignorando roleta sem ID válido: ${roulette.nome || roulette.name || 'desconhecida'}`);
             return false;
           }
+          
+          // Adicionar o ID encontrado ao objeto da roleta para garantir que '_id' exista
+          roulette._id = roletaId;
           return true;
         });
         
@@ -705,18 +711,24 @@ class SocketService {
         
         data.forEach(roulette => {
           // Verificar se a roleta tem ID válido e números
-          if (!roulette._id) {
-            console.warn(`[SocketService] Ignorando roleta alternativa sem ID válido: ${roulette.nome || 'desconhecida'}`);
+          // Verificar vários campos possíveis de ID
+          const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.table_id || roulette.tableId;
+          
+          if (!roletaId) {
+            console.warn(`[SocketService] Ignorando roleta alternativa sem ID válido: ${roulette.nome || roulette.name || 'desconhecida'}`);
             return;
           }
           
-          if (roulette && roulette.nome && Array.isArray(roulette.numeros)) {
+          // Adicionar o ID encontrado ao objeto da roleta para garantir que '_id' exista
+          roulette._id = roletaId;
+          
+          if (roulette && (roulette.nome || roulette.name) && Array.isArray(roulette.numeros)) {
             validRoulettesCount++;
             roulette.numeros.forEach(numero => {
               const event: RouletteNumberEvent = {
                 type: 'new_number',
                 roleta_id: roulette._id,
-                roleta_nome: roulette.nome,
+                roleta_nome: roulette.nome || roulette.name,
                 numero: numero,
                 timestamp: new Date().toISOString()
               };
