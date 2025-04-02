@@ -605,11 +605,21 @@ class SocketService {
     
     // Verificar se temos listeners para esta roleta
     const roletaNome = roulette.nome || roulette.name;
+    const roletaId = roulette._id || roulette.id;
+    
     if (!this.listeners.has(roletaNome) && !this.listeners.has('*')) {
       console.log(`[SocketService] Nenhum listener encontrado para a roleta: ${roletaNome}. Criando inscrição automática`);
       // Criar um set vazio para garantir que podemos adicionar listeners depois
       this.listeners.set(roletaNome, new Set());
     }
+    
+    // Log detalhado sobre listeners
+    console.log(`[SocketService] Status dos listeners:
+      - Global (*): ${this.listeners.has('*') ? 'Sim' : 'Não'}
+      - Específico (${roletaNome}): ${this.listeners.has(roletaNome) ? 'Sim' : 'Não'}
+      - Total listeners globais: ${this.listeners.get('*')?.size || 0}
+      - Total listeners específicos: ${this.listeners.get(roletaNome)?.size || 0}
+    `);
     
     // Processar cada número individualmente
     numbersData.forEach((num, index) => {
@@ -641,7 +651,7 @@ class SocketService {
       // Criar o evento
       const event: RouletteNumberEvent = {
         type: 'new_number',
-        roleta_id: roulette._id || roulette.id || 'unknown-id',
+        roleta_id: roletaId || 'unknown-id',
         roleta_nome: roletaNome,
         numero: numero,
         timestamp: (num && num.timestamp) ? num.timestamp : new Date().toISOString()
@@ -650,18 +660,22 @@ class SocketService {
       // Log detalhado para debug
       console.log(`[SocketService] Enviando evento para ${roletaNome}: número ${numero}`);
       
-      // Notificar através do EventService também (para garantir que todos recebam)
+      // Usar o EventService diretamente, sem chamar o método que não existe
+      const eventService = EventService.getInstance();
+      
+      // Enviar também como evento global para garantir
       EventService.emitGlobalEvent('new_number', event);
       
-      // Notificar os listeners sobre este número
+      // Notificar diretamente os listeners locais sobre este número
       this.notifyListeners(event);
     });
     
     // Log final
     console.log(`[SocketService] Concluído o processamento de ${numbersData.length} números para ${roletaNome}`);
     
-    // Garantir que a interface seja atualizada
+    // Garantir que a interface seja atualizada enviando um evento global
     EventService.emitGlobalEvent('numbers_processed', { 
+      roleta_id: roletaId,
       roleta_nome: roletaNome, 
       count: numbersData.length 
     });
@@ -748,10 +762,12 @@ class SocketService {
   // Método para gerar números simulados para uma roleta específica
   private generateSimulatedNumbersForRoulette(roulette: any): void {
     const roletaNome = roulette.nome || roulette.name || 'Roleta Desconhecida';
-    console.log(`[SocketService] Gerando números simulados para ${roletaNome}`);
+    const roletaId = roulette._id || roulette.id || 'unknown-id';
     
-    // Número de números históricos a gerar (entre 10 e 20)
-    const count = 10 + Math.floor(Math.random() * 11);
+    console.log(`[SocketService] Gerando números simulados para ${roletaNome} (ID: ${roletaId})`);
+    
+    // Número de números históricos a gerar (entre 20 e 30)
+    const count = 20 + Math.floor(Math.random() * 11);
     
     // Gerar números aleatórios da roleta (0-36)
     const simulatedNumbers = [];
@@ -761,8 +777,38 @@ class SocketService {
     
     console.log(`[SocketService] Gerados ${simulatedNumbers.length} números para ${roletaNome}:`, simulatedNumbers);
     
-    // Processar os números simulados
-    this.processNumbersData(simulatedNumbers, roulette);
+    // Processar os números simulados um por um, com delay para simular chegada em tempo real
+    simulatedNumbers.forEach((num, index) => {
+      // Enviar diretamente, sem usar processNumbersData
+      setTimeout(() => {
+        // Criar o evento
+        const event: RouletteNumberEvent = {
+          type: 'new_number',
+          roleta_id: roletaId,
+          roleta_nome: roletaNome,
+          numero: num,
+          timestamp: new Date().toISOString()
+        };
+        
+        console.log(`[SocketService] Enviando número simulado ${num} para ${roletaNome}`);
+        
+        // Enviar via EventService global
+        EventService.emitGlobalEvent('new_number', event);
+        
+        // Notificar também via notifyListeners
+        this.notifyListeners(event);
+        
+        // Se for o último número, enviar sinal de que todos foram processados
+        if (index === simulatedNumbers.length - 1) {
+          console.log(`[SocketService] Todos os números simulados enviados para ${roletaNome}`);
+          EventService.emitGlobalEvent('numbers_processed', { 
+            roleta_id: roletaId,
+            roleta_nome: roletaNome, 
+            count: simulatedNumbers.length 
+          });
+        }
+      }, index * 50); // Delay crescente para simular chegada em sequência
+    });
   }
   
   // Carregar dados simulados apenas em desenvolvimento se tudo falhar

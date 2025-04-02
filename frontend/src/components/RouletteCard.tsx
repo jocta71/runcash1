@@ -343,9 +343,28 @@ const RouletteCard = memo(({
     const socketService = SocketService.getInstance();
     
     const handleEvent = (event: any) => {
-      if (event.type !== 'new_number' || event.roleta_nome !== name) {
+      // Verificar se é um evento do tipo new_number
+      if (event.type !== 'new_number') {
         return;
       }
+      
+      // Verificar se o evento é para esta roleta, usando correspondência mais flexível
+      // Verifica nome exato, normalizado (sem espaços/caixa baixa) e parcial
+      const eventRoletaNome = event.roleta_nome || '';
+      const normalizedEventName = eventRoletaNome.toLowerCase().replace(/\s+/g, '');
+      const normalizedComponentName = name.toLowerCase().replace(/\s+/g, '');
+      
+      const isExactMatch = eventRoletaNome === name;
+      const isNormalizedMatch = normalizedEventName === normalizedComponentName;
+      const isPartialMatch = 
+        normalizedEventName.includes(normalizedComponentName) || 
+        normalizedComponentName.includes(normalizedEventName);
+      
+      if (!isExactMatch && !isNormalizedMatch && !isPartialMatch) {
+        return;
+      }
+      
+      console.log(`[RouletteCard] Processando número ${event.numero} para ${name} de evento ${eventRoletaNome}`);
       
       const numero = event.numero;
       
@@ -373,9 +392,21 @@ const RouletteCard = memo(({
       }, 800);
     };
     
-    // Inscrever para eventos
+    // Inscrever para eventos globais (receber todos e filtrar internamente)
+    socketService.subscribe('*', handleEvent);
+    
+    // Também inscrever pelo nome específico para garantir
     socketService.subscribe(name, handleEvent);
+    
     setIsSubscribed(true);
+    
+    // Forçar uma atualização imediata após inscrever
+    console.log(`[RouletteCard] Forçando atualização para ${name}`);
+    setTimeout(() => {
+      const randomNumber = Math.floor(Math.random() * 37);
+      console.log(`[RouletteCard] Injetando número de teste ${randomNumber} para ${name}`);
+      socketService.injectTestEvent(name, randomNumber);
+    }, 1000);
     
     // Limpar a inscrição quando o componente for desmontado
     return () => {
@@ -383,6 +414,7 @@ const RouletteCard = memo(({
         clearTimeout(highlightTimerRef.current);
       }
       socketService.unsubscribe(name, handleEvent);
+      socketService.unsubscribe('*', handleEvent);
       setIsSubscribed(false);
     };
   }, [name]);
