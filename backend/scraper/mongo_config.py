@@ -7,6 +7,7 @@ Módulo de configuração e utilitários para MongoDB
 
 import os
 import logging
+import ssl
 from datetime import datetime
 from typing import Dict, Any, Tuple, Dict
 from pymongo import MongoClient, ASCENDING, DESCENDING
@@ -23,14 +24,30 @@ def conectar_mongodb() -> Tuple[MongoClient, Database]:
         Tuple[MongoClient, Database]: Cliente MongoDB e objeto de banco de dados
     """
     try:
-        # Conectar ao MongoDB sem configuração de pool
-        client = MongoClient(MONGODB_URI)
+        # Criar contexto SSL personalizado
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        # Criar cliente com opções melhoradas
+        client = MongoClient(
+            MONGODB_URI,
+            ssl=True,
+            ssl_cert_reqs=ssl.CERT_NONE,
+            tls=True,
+            tlsAllowInvalidCertificates=True,
+            retryWrites=True,
+            w='majority',
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            serverSelectionTimeoutMS=30000
+        )
+        
+        # Teste de conexão
         db = client[MONGODB_DB_NAME]
-        
-        # Verificar conexão
         db.command('ping')
-        logger.info(f"Conexão MongoDB estabelecida com sucesso: {MONGODB_URI}")
         
+        logger.info(f"Conexão MongoDB estabelecida com sucesso: {MONGODB_URI}")
         return client, db
     except Exception as e:
         logger.error(f"Erro ao conectar ao MongoDB: {str(e)}")
