@@ -823,11 +823,11 @@ class SocketService {
       // Define a URL base para as APIs
       const baseUrl = this.getApiBaseUrl();
       
-      // Lista de endpoints para tentar buscar dados de roletas
+      // Lista de endpoints para tentar buscar dados de roletas (corrigindo a duplicação de /api)
       const endpoints = [
-        `${baseUrl}/api/roulettes`,
-        `${baseUrl}/api/ROULETTES`,
-        `${baseUrl}/api/tables`
+        `${baseUrl}/roulettes`,
+        `${baseUrl}/ROULETTES`,
+        `${baseUrl}/tables`
       ];
       
       // Tentar cada endpoint até encontrar um que funcione
@@ -866,9 +866,9 @@ class SocketService {
     try {
       const baseUrl = this.getApiBaseUrl();
       const endpoints = [
-        `${baseUrl}/api/roulettes/${roulette._id}/numbers`,
-        `${baseUrl}/api/ROULETTES/${roulette._id}/numbers`,
-        `${baseUrl}/api/numbers/${roulette._id}`
+        `${baseUrl}/roulettes/${roulette._id}/numbers`,
+        `${baseUrl}/ROULETTES/${roulette._id}/numbers`,
+        `${baseUrl}/numbers/${roulette._id}`
       ];
       
       for (const endpoint of endpoints) {
@@ -903,11 +903,13 @@ class SocketService {
   private getApiBaseUrl(): string {
     // Verificar se estamos em produção ou desenvolvimento
     if (import.meta.env.VITE_API_URL) {
-      return import.meta.env.VITE_API_URL;
+      // Se a URL já termina com /api, não adicionar novamente
+      const baseUrl = import.meta.env.VITE_API_URL;
+      return baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
     }
     
-    // URL padrão para desenvolvimento local
-    return 'http://localhost:3004';
+    // URL padrão para desenvolvimento local com /api incluído
+    return 'http://localhost:3004/api';
   }
 
   // Adicionando um evento artificial para teste (deve ser removido em produção)
