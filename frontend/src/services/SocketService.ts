@@ -34,7 +34,7 @@ class SocketService {
   private static instance: SocketService;
   private socket: Socket | null = null;
   private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
-  private isConnected: boolean = false;
+  private connectionActive: boolean = false;
   private connectionAttempts: number = 0;
   private reconnectTimeout: number | null = null;
   private timerId: NodeJS.Timeout | null = null;
@@ -97,7 +97,7 @@ class SocketService {
 
       this.socket.on('connect', () => {
         console.log('[SocketService] Conectado ao servidor WebSocket');
-        this.isConnected = true;
+        this.connectionActive = true;
         this.connectionAttempts = 0;
         this.setupPing();
         
@@ -116,7 +116,7 @@ class SocketService {
 
       this.socket.on('reconnect', (attempt) => {
         console.log(`[SocketService] Reconectado ao servidor WebSocket após ${attempt} tentativas`);
-        this.isConnected = true;
+        this.connectionActive = true;
         this.connectionAttempts = 0;
         this.setupPing();
         
@@ -132,7 +132,7 @@ class SocketService {
 
       this.socket.on('disconnect', (reason) => {
         console.log(`[SocketService] Desconectado do servidor WebSocket: ${reason}`);
-        this.isConnected = false;
+        this.connectionActive = false;
         if (this.timerId) {
           clearInterval(this.timerId);
           this.timerId = null;
@@ -198,7 +198,7 @@ class SocketService {
       this.listeners.set(roletaNome, new Set());
       
       // Se for uma roleta específica (não o global '*')
-      if (roletaNome !== '*' && this.socket && this.isConnected) {
+      if (roletaNome !== '*' && this.socket && this.connectionActive) {
         console.log(`[SocketService] Enviando subscrição para roleta: ${roletaNome}`);
         this.socket.emit('subscribe_to_roleta', roletaNome);
         
@@ -217,7 +217,7 @@ class SocketService {
     console.log(`[SocketService] Total de listeners para ${roletaNome}: ${count}`);
     
     // Verificar conexão ao inscrever um novo listener
-    if (!this.isConnected || !this.socket) {
+    if (!this.connectionActive || !this.socket) {
       console.log('[SocketService] Conexão Socket.IO não ativa, reconectando...');
       this.connect();
     }
@@ -327,12 +327,12 @@ class SocketService {
       this.timerId = null;
     }
     
-    this.isConnected = false;
+    this.connectionActive = false;
   }
   
   // Verifica se a conexão está ativa
   public isSocketConnected(): boolean {
-    return this.isConnected && !!this.socket;
+    return this.connectionActive && !!this.socket;
   }
   
   // Alias para isSocketConnected para compatibilidade com o código existente
@@ -342,7 +342,7 @@ class SocketService {
   
   // Método para emitir eventos para o servidor
   public emit(eventName: string, data: any): void {
-    if (this.socket && this.isConnected) {
+    if (this.socket && this.connectionActive) {
       console.log(`[SocketService] Emitindo evento ${eventName}:`, data);
       this.socket.emit(eventName, data);
     } else {
@@ -353,7 +353,7 @@ class SocketService {
   // Método para verificar se há dados reais disponíveis
   public hasRealData(): boolean {
     // Se não há conexão, não pode haver dados reais
-    if (!this.isConnected || !this.socket) {
+    if (!this.connectionActive || !this.socket) {
       return false;
     }
     
@@ -386,7 +386,7 @@ class SocketService {
       return;
     }
     
-    if (!this.socket || !this.isConnected) {
+    if (!this.socket || !this.connectionActive) {
       console.warn(`[SocketService] Tentativa de enviar mensagem sem conexão:`, data);
       return;
     }
@@ -429,13 +429,13 @@ class SocketService {
     // Registrar handlers para eventos do socket
     this.socket.on('connect', () => {
       console.log(`[SocketService] Conectado ao servidor WebSocket: ${this.getSocketUrl()}`);
-      this.isConnected = true;
+      this.connectionActive = true;
       this.notifyConnectionListeners();
     });
 
     this.socket.on('disconnect', (reason) => {
       console.log(`[SocketService] Desconectado do servidor WebSocket. Motivo: ${reason}`);
-      this.isConnected = false;
+      this.connectionActive = false;
       this.notifyConnectionListeners();
     });
 
@@ -586,7 +586,7 @@ class SocketService {
     this.loadHistoricalRouletteNumbers();
     
     // Emitir evento para solicitar números recentes via WebSocket
-    if (this.socket && this.isConnected) {
+    if (this.socket && this.connectionActive) {
       this.socket.emit('get_recent_numbers', { count: 50 });
     } else {
       console.warn('[SocketService] Não é possível solicitar números recentes: socket não conectado');
@@ -755,7 +755,7 @@ class SocketService {
 
   // Adicionando um evento artificial para teste (deve ser removido em produção)
   public injectTestEvent(roleta: string, numero: number): void {
-    if (!this.isConnected) {
+    if (!this.connectionActive) {
       console.warn('[SocketService] Não é possível injetar evento de teste: socket não conectado');
       return;
     }
@@ -815,7 +815,7 @@ class SocketService {
     }
 
     this.timerId = setInterval(() => {
-      if (this.socket && this.isConnected) {
+      if (this.socket && this.connectionActive) {
         this.socket.emit('ping');
       }
     }, 30000);
@@ -823,12 +823,12 @@ class SocketService {
 
   // Adicionar um método para verificar a conexão
   public isConnectionActive(): boolean {
-    return this.isConnected;
+    return this.connectionActive;
   }
 
   // Verifica se temos conexão ativa
   private checkSocketConnection(): boolean {
-    return this.isConnected && !!this.socket;
+    return this.connectionActive && !!this.socket;
   }
 
   // Métodos adicionais para compatibilidade com qualquer código antigo
@@ -838,9 +838,9 @@ class SocketService {
     // Implementação recomendada para verificar a conexão no MongoDB moderno
     if (this.client && this.client.topology && this.client.topology.isConnected()) {
       return true;
-    } else if (this.isConnected) {
-      // Fallback para a propriedade local isConnected
-      return this.isConnected;
+    } else if (this.connectionActive) {
+      // Fallback para a propriedade local connectionActive
+      return this.connectionActive;
     }
     return false;
   }
