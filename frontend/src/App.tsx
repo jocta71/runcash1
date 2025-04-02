@@ -11,15 +11,15 @@ import LoadingScreen from './components/LoadingScreen';
 
 // Importação de componentes principais
 const Index = lazy(() => import("@/pages/Index"));
-const StrategiesPage = lazy(() => import("@/pages/strategies/StrategiesPage"));
-const StrategyFormPage = lazy(() => import("@/pages/strategies/StrategyFormPage"));
+const StrategiesPage = lazy(() => import("@/pages/StrategiesPage"));
+const StrategyFormPage = lazy(() => import("@/pages/StrategyFormPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
 const SeedPage = lazy(() => import("@/pages/SeedPage"));
 const PlansPage = lazy(() => import("@/pages/PlansPage"));
-const PaymentSuccess = lazy(() => import("@/pages/payment/PaymentSuccess"));
-const PaymentCanceled = lazy(() => import("@/pages/payment/PaymentCanceled"));
+const PaymentSuccess = lazy(() => import("@/pages/PaymentSuccess"));
+const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
