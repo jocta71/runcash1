@@ -1,4 +1,4 @@
-import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw } from 'lucide-react';
+import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, QuestionMarkIcon } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +16,7 @@ import EventService from '@/services/EventService';
 import SocketService from '@/services/SocketService';
 import StrategySelector from '@/components/StrategySelector';
 import { Strategy } from '@/services/StrategyService';
+import RouletteNumber from '@/components/RouletteNumber';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;
@@ -539,24 +540,55 @@ const RouletteCard = memo(({
     });
   }, [mappedNumbers, mappedNumbersOverride, apiNumbers, isLoading, error, roletaNome]);
 
+  // Renderização apenas quando props são alteradas ou estados específicos mudam
   return (
-    <div className="bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-zinc-800 hover:border-zinc-700 transition-all duration-300">
-      {/* Cabeçalho do Card */}
-      <div className="p-4 bg-zinc-950 flex items-center justify-between border-b border-zinc-800">
-        <h3 className="font-bold text-white truncate">{roletaNome}</h3>
-        <div className="flex space-x-2 items-center">
-          <TrendingUp className="h-4 w-4 text-emerald-500" />
-          <button onClick={(e) => { 
-              e.stopPropagation(); 
-              // Forçar atualização através do API
-              refreshNumbers();
-              refreshStrategy();
-            }} 
-            className="p-1 rounded-full hover:bg-zinc-800" 
-            title="Atualizar dados">
-            <RefreshCw className="h-4 w-4 text-zinc-400 hover:text-white transition-colors" />
+    <div 
+      ref={cardRef}
+      className={`rounded-lg border bg-zinc-900 border-zinc-800 overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-200 relative ${highlight ? 'ring-2 ring-green-500' : ''}`}
+    >
+      {/* Barra superior com título */}
+      <div className="bg-zinc-950 px-4 py-2 border-b border-zinc-800 flex justify-between items-center">
+        <div className="flex items-center space-x-2">
+          <h3 className="font-semibold text-white">{roletaNome}</h3>
+          
+          {/* Indicadores visuais */}
+          {isConnected && (
+            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+          )}
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          {/* Tendência */}
+          {trend > 0 && <ArrowUp className="w-4 h-4 text-green-500" />}
+          {trend < 0 && <ArrowDown className="w-4 h-4 text-red-500" />}
+          
+          {/* Botão de refresh */}
+          <button 
+            onClick={handleRefresh}
+            className="text-zinc-400 hover:text-white transition-colors duration-200"
+          >
+            <RefreshCw className="w-4 h-4" />
           </button>
         </div>
+      </div>
+      
+      {/* Último número */}
+      <div className={`flex justify-center items-center p-2 ${highlight ? 'bg-green-500/10' : 'bg-transparent'} transition-colors duration-300`}>
+        {isLoading ? (
+          <div className="w-12 h-12 flex items-center justify-center">
+            <Loader2 className="animate-spin w-6 h-6 text-zinc-500" />
+          </div>
+        ) : lastNumber !== null ? (
+          <RouletteNumber 
+            number={lastNumber} 
+            size="lg" 
+            isBlurred={isBlurred}
+          />
+        ) : (
+          <div className="w-12 h-12 flex items-center justify-center">
+            <QuestionMarkIcon className="w-6 h-6 text-zinc-500" />
+          </div>
+        )}
       </div>
       
       {/* Corpo do Card */}
@@ -582,6 +614,11 @@ const RouletteCard = memo(({
               className="mb-4" 
               isBlurred={isBlurred}
             />
+            
+            {/* Debug - Remover em produção */}
+            <div className="mb-2 text-xs text-zinc-500">
+              {name} - Eventos: {numbers.length} | API: {mappedNumbers.length} | Override: {mappedNumbersOverride.length}
+            </div>
             
             {/* Insights */}
             <div className="mb-4 text-sm text-zinc-400 italic">

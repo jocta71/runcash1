@@ -457,6 +457,28 @@ class SocketService {
         this.processStrategyEvent(data);
       }
     });
+    
+    // Processador de evento global_update
+    this.socket.on('global_update', (data: any) => {
+      console.log(`[SocketService] Evento global_update recebido:`, data);
+      
+      // Verificar se o objeto contém dados de número
+      if (data && data.numero !== undefined && (data.roleta_nome || data.mesa)) {
+        // Criar um evento de número a partir do global_update
+        const numberEvent = {
+          type: 'new_number',
+          roleta_id: data.roleta_id || data.id || 'unknown-id',
+          roleta_nome: data.roleta_nome || data.mesa || 'Roleta Desconhecida',
+          numero: typeof data.numero === 'number' ? data.numero : parseInt(String(data.numero), 10),
+          timestamp: data.timestamp || new Date().toISOString()
+        };
+        
+        console.log(`[SocketService] Convertendo global_update para new_number: ${numberEvent.numero} para ${numberEvent.roleta_nome}`);
+        
+        // Processar como um evento de número normal
+        this.processIncomingNumber(numberEvent);
+      }
+    });
 
     // Ouvir especificamente por eventos de estratégia
     this.socket.on('strategy_update', (data: any) => {
