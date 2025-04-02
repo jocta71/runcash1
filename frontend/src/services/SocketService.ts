@@ -604,10 +604,27 @@ class SocketService {
         // Notificar o EventService sobre o carregamento de dados históricos
         EventService.emitGlobalEvent('historical_data_loading', { count: roulettes.length });
         
+        // Filtrar roletas sem ID válido
+        const validRoulettes = roulettes.filter(roulette => {
+          if (!roulette._id) {
+            console.warn(`[SocketService] Ignorando roleta sem ID válido: ${roulette.nome || roulette.name || 'desconhecida'}`);
+            return false;
+          }
+          return true;
+        });
+        
+        console.log(`[SocketService] Roletas válidas com ID: ${validRoulettes.length}/${roulettes.length}`);
+        
         // Para cada roleta, buscar seus números recentes
-        const promises = roulettes.map(async (roulette) => {
+        const promises = validRoulettes.map(async (roulette) => {
           try {
-            console.log(`[SocketService] Carregando números para roleta ${roulette.nome || roulette.name}`);
+            console.log(`[SocketService] Carregando números para roleta ${roulette.nome || roulette.name} (ID: ${roulette._id})`);
+            
+            // Verificar se o ID é válido antes de fazer a requisição
+            if (!roulette._id || roulette._id === 'undefined' || roulette._id === 'null') {
+              console.warn(`[SocketService] Pulando roleta com ID inválido: ${roulette.nome || roulette.name}`);
+              return;
+            }
             
             // Buscar os últimos números desta roleta
             const numbersResponse = await fetch(`${apiBaseUrl}/numeros?roletaId=${roulette._id}&limit=100`);
@@ -653,7 +670,7 @@ class SocketService {
         EventService.emitGlobalEvent('historical_data_loaded', { success: true });
         toast({
           title: "Dados históricos carregados",
-          description: `Carregados dados de ${roulettes.length} roletas do MongoDB`,
+          description: `Carregados dados de ${validRoulettes.length} roletas do MongoDB`,
           variant: "default"
         });
       } else {
@@ -684,12 +701,21 @@ class SocketService {
       const data = await response.json();
       
       if (data && Array.isArray(data)) {
+        let validRoulettesCount = 0;
+        
         data.forEach(roulette => {
+          // Verificar se a roleta tem ID válido e números
+          if (!roulette._id) {
+            console.warn(`[SocketService] Ignorando roleta alternativa sem ID válido: ${roulette.nome || 'desconhecida'}`);
+            return;
+          }
+          
           if (roulette && roulette.nome && Array.isArray(roulette.numeros)) {
+            validRoulettesCount++;
             roulette.numeros.forEach(numero => {
               const event: RouletteNumberEvent = {
                 type: 'new_number',
-                roleta_id: roulette._id || 'unknown',
+                roleta_id: roulette._id,
                 roleta_nome: roulette.nome,
                 numero: numero,
                 timestamp: new Date().toISOString()
@@ -699,6 +725,8 @@ class SocketService {
             });
           }
         });
+        
+        console.log(`[SocketService] Processadas ${validRoulettesCount} roletas válidas de fonte alternativa`);
       } else {
         console.warn('[SocketService] Resposta alternativa inválida:', data);
         
@@ -815,6 +843,11 @@ class SocketService {
         this.socket.emit('ping');
       }
     }, 30000);
+  }
+
+  // Adicionar um método para verificar a conexão
+  public isConnected(): boolean {
+    return this.isConnected;
   }
 }
 
