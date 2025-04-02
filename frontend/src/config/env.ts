@@ -12,14 +12,47 @@ const defaultValues: Record<string, Record<string, string>> = {
   development: {
     VITE_WS_URL: 'https://backendscraper-production.up.railway.app',
     VITE_SSE_SERVER_URL: 'https://backendscraper-production.up.railway.app/api/events',
-    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api'
+    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
+    VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   },
   production: {
     VITE_WS_URL: 'https://backendscraper-production.up.railway.app',
     VITE_SSE_SERVER_URL: 'https://backendscraper-production.up.railway.app/api/events',
-    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api'
+    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
+    VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   }
 };
+
+/**
+ * Obtém a URL base da API
+ * @returns URL base da API
+ */
+export function getApiBaseUrl(): string {
+  // Primeiro tentar obter VITE_API_BASE_URL
+  try {
+    const apiUrl = getRequiredEnvVar('VITE_API_BASE_URL');
+    return apiUrl;
+  } catch (error) {
+    // Se não encontrar, tentar VITE_API_URL
+    try {
+      const apiUrl = getRequiredEnvVar('VITE_API_URL');
+      return apiUrl;
+    } catch (error) {
+      console.warn('[ENV] Não foi possível encontrar URL da API nas variáveis de ambiente');
+      
+      // Em produção, usar a origem da página
+      if (isProduction) {
+        const origin = window.location.origin;
+        console.log(`[ENV] Usando origem da página como URL da API: ${origin}/api`);
+        return `${origin}/api`;
+      }
+      
+      // Em desenvolvimento, retornar URL padrão
+      console.log('[ENV] Usando URL padrão da API para desenvolvimento');
+      return 'https://backendapi-production-36b5.up.railway.app/api';
+    }
+  }
+}
 
 /**
  * Obtém uma variável de ambiente obrigatória
@@ -31,8 +64,9 @@ export function getRequiredEnvVar(name: string): string {
   // Primeiro, tentar obter do import.meta.env (Vite)
   const value = import.meta.env[name];
   
-  if (value) {
-    return value;
+  if (value !== undefined) {
+    // Converter para string se for boolean
+    return typeof value === 'boolean' ? String(value) : value as string;
   }
   
   // Fallback para valores padrão baseados no ambiente
@@ -82,9 +116,11 @@ export default {
   isProduction,
   getRequiredEnvVar,
   getEnvVar,
+  getApiBaseUrl,
   
   // Atalhos para as principais URLs
   wsUrl: getRequiredEnvVar('VITE_WS_URL'),
   apiUrl: getRequiredEnvVar('VITE_API_URL') || getRequiredEnvVar('VITE_API_BASE_URL'),
-  sseUrl: getRequiredEnvVar('VITE_SSE_SERVER_URL')
+  sseUrl: getRequiredEnvVar('VITE_SSE_SERVER_URL'),
+  apiBaseUrl: getApiBaseUrl()
 }; 
