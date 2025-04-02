@@ -196,8 +196,7 @@ class Casino888API:
                         }
                 
                 print(f"Encontradas {len(all_tables)} mesas de roleta até o momento")
-    
-    except Exception as e:
+            except Exception as e:
                 print(f"Erro ao processar regulation_id={regulation_id}: {str(e)}")
         
         return all_tables
