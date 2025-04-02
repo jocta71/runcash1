@@ -24,6 +24,8 @@ const debugLog = (...args: any[]) => {
 // Tipos locais para simplificar o uso
 interface RouletteNumber {
   numero: number;
+  roleta_id?: string;
+  roleta_nome?: string;
   timestamp?: string;
 }
 
@@ -41,6 +43,8 @@ const processRouletteNumbers = (numbers: number[] | any[]): RouletteNumber[] => 
     if (typeof item === 'object' && item !== null) {
       return {
         numero: typeof item.numero === 'number' ? item.numero : parseInt(item.numero, 10),
+        roleta_id: item.roleta_id,
+        roleta_nome: item.roleta_nome,
         timestamp: item.timestamp || new Date().toISOString()
       };
     }
@@ -48,6 +52,8 @@ const processRouletteNumbers = (numbers: number[] | any[]): RouletteNumber[] => 
     // Se for direto um número
     return {
       numero: typeof item === 'number' ? item : parseInt(item, 10),
+      roleta_id: undefined,
+      roleta_nome: undefined,
       timestamp: new Date().toISOString()
     };
   });
@@ -83,6 +89,8 @@ export const determinarCorNumero = (numero: number): string => {
 export const processRouletteNumber = (numero: number, timestamp?: string): RouletteNumber => {
   return {
     numero,
+    roleta_id: undefined,
+    roleta_nome: undefined,
     timestamp: timestamp || new Date().toISOString()
   };
 };

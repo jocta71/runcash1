@@ -557,23 +557,64 @@ class SocketService {
         return;
       }
 
+      // Normalizar nome da roleta
+      const roletaNome = data.roleta_nome;
+      const roletaId = data.roleta_id || 'unknown-id';
+      
+      // Extrair o número (garantir que é um número)
+      const numeroRaw = data.numero;
+      const numero = typeof numeroRaw === 'number' 
+        ? numeroRaw 
+        : typeof numeroRaw === 'string' 
+          ? parseInt(numeroRaw, 10) 
+          : 0;
+          
+      if (isNaN(numero) || numero < 0 || numero > 36) {
+        console.warn(`[SocketService] Número inválido recebido: ${numeroRaw}`);
+        return;
+      }
+
       // Converter para formato padronizado
       const event: RouletteNumberEvent = {
         type: 'new_number',
-        roleta_id: data.roleta_id || 'unknown-id',
-        roleta_nome: data.roleta_nome,
-        numero: parseInt(data.numero),
+        roleta_id: roletaId,
+        roleta_nome: roletaNome,
+        numero: numero,
         timestamp: data.timestamp || new Date().toISOString()
       };
 
       // Log detalhado para debug
-      console.log(`[SocketService] Enviando evento para ${data.roleta_nome}: número ${data.numero}`);
+      console.log(`[SocketService] Processando número real ${numero} para ${roletaNome}`);
       
-      // Notificar através do EventService também (para garantir que todos recebam)
+      // Notificar através do EventService (para garantir que todos recebam)
       EventService.emitGlobalEvent('new_number', event);
       
       // Notificar os listeners sobre este número
       this.notifyListeners(event);
+      
+      // Atualizar estado global para indicar que dados foram carregados
+      EventService.emitGlobalEvent('numbers_processed', {
+        roleta_id: roletaId,
+        roleta_nome: roletaNome,
+        count: 1,
+        numero: numero,
+        isRealData: true
+      });
+      
+      // Enviar também em formato separado para facilitar processamento no frontend
+      if (this.listeners.has(roletaNome)) {
+        console.log(`[SocketService] Emitindo número ${numero} diretamente para listeners de ${roletaNome}`);
+        const listeners = this.listeners.get(roletaNome);
+        if (listeners) {
+          listeners.forEach(callback => {
+            try {
+              callback(event);
+            } catch (error) {
+              console.error(`[SocketService] Erro ao chamar callback para ${roletaNome}:`, error);
+            }
+          });
+        }
+      }
     } catch (error) {
       console.error('[SocketService] Erro ao processar novo número:', error);
     }

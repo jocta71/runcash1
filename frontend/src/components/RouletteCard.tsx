@@ -345,6 +345,7 @@ const RouletteCard = memo(({
     const handleEvent = (event: any) => {
       // Verificar se é um evento do tipo new_number
       if (event.type !== 'new_number') {
+        console.log(`[RouletteCard] Ignorando evento de tipo não suportado: ${event.type}`);
         return;
       }
       
@@ -360,13 +361,28 @@ const RouletteCard = memo(({
         normalizedEventName.includes(normalizedComponentName) || 
         normalizedComponentName.includes(normalizedEventName);
       
+      // Se não houver nenhuma correspondência, ignorar o evento
       if (!isExactMatch && !isNormalizedMatch && !isPartialMatch) {
         return;
       }
       
       console.log(`[RouletteCard] Processando número ${event.numero} para ${name} de evento ${eventRoletaNome}`);
       
-      const numero = event.numero;
+      // Garantir que o número é um número válido
+      let numero: number;
+      if (typeof event.numero === 'number') {
+        numero = event.numero;
+      } else if (typeof event.numero === 'string') {
+        numero = parseInt(event.numero, 10);
+      } else {
+        console.warn(`[RouletteCard] Número inválido recebido: ${event.numero}`);
+        return;
+      }
+      
+      if (isNaN(numero) || numero < 0 || numero > 36) {
+        console.warn(`[RouletteCard] Número fora do intervalo válido: ${numero}`);
+        return;
+      }
       
       // Definir último número
       setLastNumber(numero);
@@ -381,11 +397,14 @@ const RouletteCard = memo(({
       setIsLoading(false);
       
       // Atualizar o estado de dados disponíveis no array com override
-      if (!mappedNumbersOverride.includes(numero)) {
-        setMappedNumbersOverride(prevNumbers => {
-          return [numero, ...prevNumbers].slice(0, 20);
-        });
-      }
+      setMappedNumbersOverride(prevNumbers => {
+        // Se o número já existe no array, não duplicar
+        if (prevNumbers.includes(numero)) {
+          return prevNumbers;
+        }
+        // Adicionar o número no início do array e manter apenas os 20 últimos
+        return [numero, ...prevNumbers].slice(0, 20);
+      });
       
       // Acionar o destaque visual
       setHighlight(true);
@@ -408,6 +427,18 @@ const RouletteCard = memo(({
     // Também inscrever pelo nome específico para garantir
     socketService.subscribe(name, handleEvent);
     
+    // Escutar eventos do EventService também
+    const eventService = EventService.getInstance();
+    const handleNumberEvent = (event: any) => {
+      // Se for new_number, processar como outros eventos
+      if (event.type === 'new_number') {
+        handleEvent(event);
+      }
+    };
+    
+    // Inscrever para eventos do EventService também
+    eventService.subscribeToEvent('new_number', handleNumberEvent);
+    
     setIsSubscribed(true);
     
     // Limpar a inscrição quando o componente for desmontado
@@ -417,9 +448,10 @@ const RouletteCard = memo(({
       }
       socketService.unsubscribe(name, handleEvent);
       socketService.unsubscribe('*', handleEvent);
+      eventService.unsubscribeFromEvent('new_number', handleNumberEvent);
       setIsSubscribed(false);
     };
-  }, [name, mappedNumbersOverride]);
+  }, [name]);
 
   // Função para gerar sugestões
   const generateSuggestion = () => {
