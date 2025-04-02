@@ -11,6 +11,13 @@ import { getRequiredEnvVar, isProduction } from '../config/env';
 // Importando o serviço de estratégia para simular respostas
 import { StrategyService } from './StrategyService';
 
+// Interface para o cliente MongoDB
+interface MongoClient {
+  topology?: {
+    isConnected?: () => boolean;
+  };
+}
+
 // Nova interface para eventos recebidos pelo socket
 interface SocketEvent {
   type: string;
@@ -32,6 +39,9 @@ class SocketService {
   private reconnectTimeout: number | null = null;
   private timerId: NodeJS.Timeout | null = null;
   private eventHandlers: Record<string, (data: any) => void> = {};
+  
+  // Propriedade para o cliente MongoDB (pode ser undefined em alguns contextos)
+  public client?: MongoClient;
   
   private constructor() {
     console.log('[SocketService] Inicializando serviço Socket.IO');
@@ -822,9 +832,17 @@ class SocketService {
   }
 
   // Métodos adicionais para compatibilidade com qualquer código antigo
-  public getIsConnectedStatusDeprecated(): boolean {
-    console.warn('[SocketService] Método obsoleto isConnected() chamado. Use isConnectionActive() ou checkSocketConnection() em vez disso.');
-    return this.isConnected;
+  public isConnected(): boolean {
+    console.warn('[SocketService] Método isConnected() chamado. Usando verificação de topologia recomendada.');
+    
+    // Implementação recomendada para verificar a conexão no MongoDB moderno
+    if (this.client && this.client.topology && this.client.topology.isConnected()) {
+      return true;
+    } else if (this.isConnected) {
+      // Fallback para a propriedade local isConnected
+      return this.isConnected;
+    }
+    return false;
   }
 }
 
