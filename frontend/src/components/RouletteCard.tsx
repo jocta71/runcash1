@@ -1,4 +1,4 @@
-import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, QuestionMarkIcon } from 'lucide-react';
+import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -148,6 +148,9 @@ const RouletteCard = memo(({
     vitorias: 0,
     derrotas: 0
   });
+  
+  // Referência ao elemento do card
+  const cardRef = useRef<HTMLDivElement>(null);
   
   // Usar o hook personalizado para obter dados em tempo real, apenas se tivermos um roletaId
   const { 
@@ -559,12 +562,12 @@ const RouletteCard = memo(({
         
         <div className="flex items-center space-x-2">
           {/* Tendência */}
-          {trend > 0 && <ArrowUp className="w-4 h-4 text-green-500" />}
-          {trend < 0 && <ArrowDown className="w-4 h-4 text-red-500" />}
+          {Array.isArray(trend) && trend.length > 0 && trend[0]?.value > 0 && <ArrowUp className="w-4 h-4 text-green-500" />}
+          {Array.isArray(trend) && trend.length > 0 && trend[0]?.value < 0 && <ArrowDown className="w-4 h-4 text-red-500" />}
           
           {/* Botão de refresh */}
           <button 
-            onClick={handleRefresh}
+            onClick={reloadData}
             className="text-zinc-400 hover:text-white transition-colors duration-200"
           >
             <RefreshCw className="w-4 h-4" />
@@ -586,7 +589,7 @@ const RouletteCard = memo(({
           />
         ) : (
           <div className="w-12 h-12 flex items-center justify-center">
-            <QuestionMarkIcon className="w-6 h-6 text-zinc-500" />
+            <HelpCircle className="w-6 h-6 text-zinc-500" />
           </div>
         )}
       </div>
