@@ -631,6 +631,8 @@ class SocketService {
       let rouletteEndpoint;
       // Testar diferentes endpoints possíveis
       const possibleEndpoints = [
+        `${testUrl}/ROULETTES`, // Endpoint correto com maiúsculas (prioridade máxima)
+        `${apiBaseUrl}/ROULETTES`, // Endpoint correto com maiúsculas
         `${apiBaseUrl}/roulettes`,
         `${apiBaseUrl}/roletas`,
         `${apiBaseUrl}/tables`,
@@ -708,6 +710,8 @@ class SocketService {
           
           // Lista de possíveis endpoints para buscar números
           const numbersEndpoints = [
+            `${testUrl}/NUMEROS?roletaId=${roulette._id}&limit=100`, // Maiúsculas (prioridade alta)
+            `${apiBaseUrl}/NUMEROS?roletaId=${roulette._id}&limit=100`, // Maiúsculas
             `${apiBaseUrl}/numeros?roletaId=${roulette._id}&limit=100`,
             `${apiBaseUrl}/roulette-numbers?roletaId=${roulette._id}&limit=100`,
             `${apiBaseUrl}/numeros/${roulette._id}?limit=100`,
