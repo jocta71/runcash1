@@ -128,15 +128,35 @@ const RouletteCard = memo(({
   // Dentro do componente RouletteCard, adicionar state para estratégia selecionada
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
   
+  // Estados locais
+  const [numbers, setNumbers] = useState<number[]>([]);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [lastNumber, setLastNumber] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Referência ao timer de destaque
+  const highlightTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Estado para controlar o destaque visual após um novo número
+  const [highlight, setHighlight] = useState(false);
+  
+  // Estado para estratégia atual
+  const [currentStrategyState, setCurrentStrategyState] = useState<any>({
+    estado: 'NEUTRAL',
+    sugestao_display: '',
+    vitorias: 0,
+    derrotas: 0
+  });
+  
   // Usar o hook personalizado para obter dados em tempo real, apenas se tivermos um roletaId
   const { 
-    numbers, 
-    loading: isLoading, 
+    numbers: apiNumbers, 
+    loading: isLoadingApi, 
     error, 
     isConnected = true, 
     hasData = false, // Não assumir que temos dados
-    strategy, 
-    strategyLoading, 
+    strategy: apiStrategy, 
+    strategyLoading: isLoadingApiStrategy, 
     refreshNumbers = () => {},
     refreshStrategy = () => Promise.resolve(false)
   } = roletaId ? useRouletteData(roletaId, roletaNome) : {
@@ -161,8 +181,8 @@ const RouletteCard = memo(({
     }
 
     // Prioridade 2: Números da API
-    if (Array.isArray(numbers) && numbers.length > 0) {
-      const mapped = numbers.map(numObj => {
+    if (Array.isArray(apiNumbers) && apiNumbers.length > 0) {
+      const mapped = apiNumbers.map(numObj => {
         const num = typeof numObj.numero === 'number' ? numObj.numero : 
                    typeof numObj.numero === 'string' ? parseInt(numObj.numero, 10) : 0;
         return isNaN(num) ? 0 : num;
@@ -178,7 +198,7 @@ const RouletteCard = memo(({
     // Sem dados reais, retornar array vazio
     console.log(`[RouletteCard] Sem números reais para ${roletaNome}. Retornando array vazio.`);
     return [];
-  }, [numbers, roletaNome, mappedNumbersOverride]);
+  }, [apiNumbers, roletaNome, mappedNumbersOverride]);
 
   // Otimizar trend com useMemo - não gerar dados simulados
   const trendData = useMemo(() => {
@@ -207,15 +227,15 @@ const RouletteCard = memo(({
 
   // Efeito para inicializar os dados da estratégia a partir do hook
   useEffect(() => {
-    if (strategy && !strategyLoading) {
-      debugLog(`[RouletteCard] Inicializando estado da estratégia de ${roletaNome} com dados carregados:`, strategy);
-      setStrategyState(strategy.estado || '');
-      setStrategyDisplay(strategy.sugestao_display || '');
-      setStrategyTerminals(strategy.terminais_gatilho || []);
-      setStrategyWins(strategy.vitorias || 0);
-      setStrategyLosses(strategy.derrotas || 0);
+    if (apiStrategy && !isLoadingApiStrategy) {
+      debugLog(`[RouletteCard] Inicializando estado da estratégia de ${roletaNome} com dados carregados:`, apiStrategy);
+      setStrategyState(apiStrategy.estado || '');
+      setStrategyDisplay(apiStrategy.sugestao_display || '');
+      setStrategyTerminals(apiStrategy.terminais_gatilho || []);
+      setStrategyWins(apiStrategy.vitorias || 0);
+      setStrategyLosses(apiStrategy.derrotas || 0);
     }
-  }, [strategy, strategyLoading, roletaNome]);
+  }, [apiStrategy, isLoadingApiStrategy, roletaNome]);
 
   // Efeito para atualizar dados ao receber eventos de estratégia
   useEffect(() => {
@@ -280,83 +300,92 @@ const RouletteCard = memo(({
     };
   }, [roletaId, roletaNome]);
 
-  // Efeito para subscrever ao WebSocket diretamente
+  // Efeito para escutar eventos de atualização de estratégia
   useEffect(() => {
-    if (!roletaId || !roletaNome) return;
-    
-    console.log(`[RouletteCard] Iniciando subscrição ao WebSocket para ${roletaNome} (ID: ${roletaId})`);
-    
-    // Instância do serviço de socket
     const socketService = SocketService.getInstance();
     
-    // Callback para números em tempo real
-    const handleNumberEvent = (event: any) => {
-      if (event.type === 'new_number' && 
-          (event.roleta_id === roletaId || event.roleta_nome === roletaNome)) {
-        
-        console.log(`[RouletteCard] WebSocket: Número recebido para ${roletaNome}: ${event.numero}, tipo: ${typeof event.numero}`);
-        
-        // Adicionar número diretamente ao estado local
-        if (typeof event.numero === 'number' || typeof event.numero === 'string') {
-          const newNumber = typeof event.numero === 'number' ? event.numero : parseInt(event.numero, 10);
-          
-          if (!isNaN(newNumber)) {
-            // Verificar se já temos este número como o mais recente para evitar duplicações
-            setMappedNumbersOverride(prev => {
-              const isNewNumber = prev.length === 0 || prev[0] !== newNumber;
-              
-              if (isNewNumber) {
-                console.log(`[RouletteCard] Adicionando novo número ${newNumber} ao estado local para ${roletaNome}`);
-                const newNumbers = [newNumber, ...prev.slice(0, 49)];
-                console.log(`[RouletteCard] Estado atualizado: ${newNumbers.length} números, os primeiros são:`, 
-                            newNumbers.slice(0, 5));
-                return newNumbers;
-              } else {
-                console.log(`[RouletteCard] Número ${newNumber} já é o mais recente para ${roletaNome}, ignorando`);
-                return prev;
-              }
-            });
-            
-            // Forçar atualização visual
-            setHighlightWins(true);
-            setTimeout(() => setHighlightWins(false), 1000);
-          } else {
-            console.warn(`[RouletteCard] Número inválido recebido via WebSocket: ${event.numero}`);
-          }
-        }
+    // Função para lidar com atualizações de estratégia
+    const handleStrategyUpdate = (event: any) => {
+      if (event.type === 'strategy_update' && event.roleta_nome === name) {
+        setCurrentStrategyState({
+          estado: event.estado,
+          sugestao_display: event.sugestao_display || '',
+          vitorias: event.vitorias,
+          derrotas: event.derrotas
+        });
       }
     };
     
-    // Callback para atualizações de estratégia
-    const handleStrategyEvent = (event: any) => {
-      if (event.type === 'strategy_update' && 
-          (event.roleta_id === roletaId || event.roleta_nome === roletaNome)) {
-        console.log(`[RouletteCard] WebSocket: Atualização de estratégia para ${roletaNome}: ${event.estado}`);
-        
-        // Atualizar diretamente os estados locais
-        updateStrategy(event);
+    // Função para lidar com eventos de carregamento de dados históricos
+    const handleHistoricalDataEvents = (event: any) => {
+      if (event.type === 'historical_data_loading') {
+        setIsLoading(true);
+      } else if (event.type === 'historical_data_loaded') {
+        setIsLoading(false);
       }
     };
     
-    // Subscrever aos eventos da roleta
-    socketService.subscribe(roletaNome, handleNumberEvent);
-    socketService.subscribe(roletaNome, handleStrategyEvent);
+    // Inscrever para atualizações de estratégia
+    socketService.subscribe(name, handleStrategyUpdate);
     
-    // Também subscrever aos eventos específicos por tipo
-    socketService.subscribe('new_number', handleNumberEvent);
-    socketService.subscribe('strategy_update', handleStrategyEvent);
+    // Inscrever para eventos globais de carregamento
+    socketService.subscribe('*', handleHistoricalDataEvents);
     
-    console.log(`[RouletteCard] Listeners registrados para roleta: ${roletaNome} (ID: ${roletaId})`);
-    
-    // Limpar inscrição ao desmontar
+    // Limpeza
     return () => {
-      console.log(`[RouletteCard] Limpando listeners para roleta: ${roletaNome}`);
-      socketService.unsubscribe(roletaNome, handleNumberEvent);
-      socketService.unsubscribe(roletaNome, handleStrategyEvent);
-      socketService.unsubscribe('new_number', handleNumberEvent);
-      socketService.unsubscribe('strategy_update', handleStrategyEvent);
+      socketService.unsubscribe(name, handleStrategyUpdate);
+      socketService.unsubscribe('*', handleHistoricalDataEvents);
     };
-  }, [roletaId, roletaNome, updateStrategy]);
+  }, [name]);
+
+  // Efeito para escutar eventos do websocket
+  useEffect(() => {
+    const socketService = SocketService.getInstance();
+    
+    const handleEvent = (event: any) => {
+      if (event.type !== 'new_number' || event.roleta_nome !== name) {
+        return;
+      }
+      
+      const numero = event.numero;
+      
+      // Definir último número
+      setLastNumber(numero);
+      
+      // Adicionar número à lista e manter apenas os últimos N
+      setNumbers(prevNumbers => {
+        const newNumbers = [numero, ...prevNumbers];
+        return newNumbers.slice(0, 20); // Manter apenas os últimos 20 números
+      });
+      
+      // Acionar o destaque visual
+      setHighlight(true);
+      
+      // Limpar o timer anterior se existir
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+      }
+      
+      // Configurar o novo timer para remover o destaque
+      highlightTimerRef.current = setTimeout(() => {
+        setHighlight(false);
+        highlightTimerRef.current = null;
+      }, 800);
+    };
+    
+    // Inscrever para eventos
+    socketService.subscribe(name, handleEvent);
+    setIsSubscribed(true);
+    
+    // Limpar a inscrição quando o componente for desmontado
+    return () => {
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+      }
+      socketService.unsubscribe(name, handleEvent);
+      setIsSubscribed(false);
+    };
+  }, [name]);
 
   // Função para gerar sugestões
   const generateSuggestion = () => {
@@ -440,9 +469,9 @@ const RouletteCard = memo(({
       numbersCount: mappedNumbers.length,
       isLoading,
       hasError: !!error,
-      numbersSource: mappedNumbersOverride.length > 0 ? 'WebSocket' : (numbers.length > 0 ? 'API' : 'Nenhum')
+      numbersSource: mappedNumbersOverride.length > 0 ? 'WebSocket' : (apiNumbers.length > 0 ? 'API' : 'Nenhum')
     });
-  }, [mappedNumbers, mappedNumbersOverride, numbers, isLoading, error, roletaNome]);
+  }, [mappedNumbers, mappedNumbersOverride, apiNumbers, isLoading, error, roletaNome]);
 
   return (
     <div className="bg-zinc-900 rounded-lg shadow-lg overflow-hidden border border-zinc-800 hover:border-zinc-700 transition-all duration-300">

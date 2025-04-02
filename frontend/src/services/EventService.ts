@@ -581,40 +581,43 @@ class EventService {
 
   // Método para emitir eventos de atualização de estratégia diretamente
   public emitStrategyUpdate(data: any): void {
-    // Verificar se temos dados mínimos necessários
-    if (!data || (!data.roleta_id && !data.roleta_nome)) {
-      console.error('[EventService] Tentativa de emitir evento de estratégia sem identificador de roleta');
+    if (!data || !data.roleta_nome) {
+      debugLog('[EventService] Dados inválidos para emitir atualização de estratégia');
       return;
     }
+    
+    debugLog(`[EventService] Emitindo atualização de estratégia para ${data.roleta_nome}`);
+    
+    const event: StrategyUpdateEvent = {
+      type: 'strategy_update',
+      roleta_id: data.roleta_id || 'unknown-id',
+      roleta_nome: data.roleta_nome,
+      estado: data.estado || 'desconhecido',
+      numero_gatilho: data.numero_gatilho || 0,
+      terminais_gatilho: data.terminais_gatilho || [],
+      vitorias: data.vitorias || 0,
+      derrotas: data.derrotas || 0,
+      sugestao_display: data.sugestao_display || '',
+      timestamp: new Date().toISOString()
+    };
+    
+    this.notifyListeners(event);
+  }
 
-    try {
-      // Garantir que o evento tenha o tipo correto
-      const event: StrategyUpdateEvent = {
-        type: 'strategy_update',
-        roleta_id: data.roleta_id || 'unknown',
-        roleta_nome: data.roleta_nome || data.roleta_id || 'unknown',
-        estado: data.estado || 'NEUTRAL',
-        numero_gatilho: data.numero_gatilho !== undefined ? data.numero_gatilho : 0,
-        terminais_gatilho: data.terminais_gatilho || [],
-        // Garantir que vitórias e derrotas sejam números e nunca undefined/null
-        vitorias: data.vitorias !== undefined ? parseInt(data.vitorias) : 0,
-        derrotas: data.derrotas !== undefined ? parseInt(data.derrotas) : 0,
-        sugestao_display: data.sugestao_display || '',
-        timestamp: data.timestamp || new Date().toISOString()
-      };
-
-      console.log(`[EventService] Emitindo evento de estratégia para ${event.roleta_nome}:`, {
-        vitorias: event.vitorias,
-        derrotas: event.derrotas,
-        estado: event.estado,
-        timestamp: event.timestamp
-      });
-
-      // Notificar listeners sobre o evento de estratégia
-      this.notifyListeners(event);
-    } catch (error) {
-      console.error('[EventService] Erro ao processar evento de estratégia:', error);
-    }
+  // Método para emitir eventos globais do sistema
+  public static emitGlobalEvent(eventType: string, payload: any): void {
+    const instance = EventService.getInstance();
+    debugLog(`[EventService] Emitindo evento global: ${eventType}`, payload);
+    
+    // Criar um objeto de evento genérico
+    const event: any = {
+      type: eventType,
+      ...payload,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Notificar listeners globais
+    instance.notifyListeners(event as any);
   }
 }
 

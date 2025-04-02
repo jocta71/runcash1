@@ -584,7 +584,7 @@ class SocketService {
   }
   
   // Método para carregar os números históricos via REST API
-  private async loadHistoricalRouletteNumbers(): Promise<void> {
+  public async loadHistoricalRouletteNumbers(): Promise<void> {
     try {
       const apiBaseUrl = getRequiredEnvVar('VITE_API_BASE_URL');
       console.log(`[SocketService] Carregando dados históricos das roletas`);
@@ -601,17 +601,20 @@ class SocketService {
       if (Array.isArray(roulettes)) {
         console.log(`[SocketService] Processando dados históricos para ${roulettes.length} roletas`);
         
+        // Notificar o EventService sobre o carregamento de dados históricos
+        EventService.emitGlobalEvent('historical_data_loading', { count: roulettes.length });
+        
         // Para cada roleta, buscar seus números recentes
-        for (const roulette of roulettes) {
+        const promises = roulettes.map(async (roulette) => {
           try {
             console.log(`[SocketService] Carregando números para roleta ${roulette.nome || roulette.name}`);
             
             // Buscar os últimos números desta roleta
-            const numbersResponse = await fetch(`${apiBaseUrl}/numeros?roletaId=${roulette._id}&limit=50`);
+            const numbersResponse = await fetch(`${apiBaseUrl}/numeros?roletaId=${roulette._id}&limit=100`);
             
             if (!numbersResponse.ok) {
               console.warn(`[SocketService] Falha ao buscar números para roleta ${roulette._id}: ${numbersResponse.status}`);
-              continue;
+              return;
             }
             
             const numbersData = await numbersResponse.json();
@@ -641,9 +644,18 @@ class SocketService {
           } catch (error) {
             console.error(`[SocketService] Erro ao processar números para roleta ${roulette._id}:`, error);
           }
-        }
+        });
+        
+        // Aguardar todas as roletas serem processadas
+        await Promise.all(promises);
         
         console.log('[SocketService] Carregamento de todos os dados históricos concluído');
+        EventService.emitGlobalEvent('historical_data_loaded', { success: true });
+        toast({
+          title: "Dados históricos carregados",
+          description: `Carregados dados de ${roulettes.length} roletas do MongoDB`,
+          variant: "default"
+        });
       } else {
         console.warn('[SocketService] Resposta inválida ao buscar roletas:', roulettes);
         // Tentar endpoints alternativos

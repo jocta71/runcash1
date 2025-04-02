@@ -15,7 +15,9 @@ import StrategiesPage from "./pages/StrategiesPage";
 import StrategyFormPage from "./pages/StrategyFormPage";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
 import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
+import SocketService from '@/services/SocketService';
+import LoadingScreen from './components/LoadingScreen';
 
 // Configuração melhorada do QueryClient para evitar recarregamentos desnecessários
 const createQueryClient = () => new QueryClient({
@@ -75,44 +77,78 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Routes>
-              {/* Rota de autenticação */}
-              <Route path="/auth" element={<AuthPage />} />
-              
-              {/* Página para popular números das roletas */}
-              <Route path="/seed-numbers" element={<SeedPage />} />
-              
-              {/* Rota principal (com dados reais do MongoDB) */}
-              <Route path="/" element={<Index />} />
-              
-              {/* Rotas relacionadas a planos e pagamentos */}
-              <Route path="/planos" element={<PlansPage />} />
-              <Route path="/payment-success" element={<PaymentSuccess />} />
-              <Route path="/payment-canceled" element={<PaymentCanceled />} />
-              
-              {/* Rota de perfil do usuário */}
-              <Route path="/profile" element={<ProfilePage />} />
-              
-              {/* Rota para página não encontrada */}
-              <Route path="*" element={<NotFound />} />
+            {/* Adiciona o loader de dados aqui para que seja carregado em qualquer rota */}
+            <DataLoader />
+            
+            <Suspense fallback={<LoadingScreen />}>
+              <Routes>
+                {/* Rota de autenticação */}
+                <Route path="/auth" element={<AuthPage />} />
+                
+                {/* Página para popular números das roletas */}
+                <Route path="/seed-numbers" element={<SeedPage />} />
+                
+                {/* Rota principal (com dados reais do MongoDB) */}
+                <Route path="/" element={<Index />} />
+                
+                {/* Rotas relacionadas a planos e pagamentos */}
+                <Route path="/planos" element={<PlansPage />} />
+                <Route path="/payment-success" element={<PaymentSuccess />} />
+                <Route path="/payment-canceled" element={<PaymentCanceled />} />
+                
+                {/* Rota de perfil do usuário */}
+                <Route path="/profile" element={<ProfilePage />} />
+                
+                {/* Rota para página não encontrada */}
+                <Route path="*" element={<NotFound />} />
 
-              {/* Rota para página de análise */}
-              <Route path="/analise" element={<RouletteAnalysisPage />} />
-              
-              {/* Rotas para estratégias */}
-              <Route path="/strategies" element={<StrategiesPage />} />
-              <Route path="/strategies/create" element={<StrategyFormPage />} />
-              <Route path="/strategies/edit/:id" element={<StrategyFormPage />} />
-              <Route path="/strategies/view/:id" element={<StrategiesPage />} />
-              
-              {/* Redirecionamento da antiga rota de tempo real para a página principal */}
-              <Route path="/realtime" element={<Navigate to="/" />} />
-            </Routes>
+                {/* Rota para página de análise */}
+                <Route path="/analise" element={<RouletteAnalysisPage />} />
+                
+                {/* Rotas para estratégias */}
+                <Route path="/strategies" element={<StrategiesPage />} />
+                <Route path="/strategies/create" element={<StrategyFormPage />} />
+                <Route path="/strategies/edit/:id" element={<StrategyFormPage />} />
+                <Route path="/strategies/view/:id" element={<StrategiesPage />} />
+                
+                {/* Redirecionamento da antiga rota de tempo real para a página principal */}
+                <Route path="/realtime" element={<Navigate to="/" />} />
+              </Routes>
+            </Suspense>
           </BrowserRouter>
         </TooltipProvider>
       </SubscriptionProvider>
     </QueryClientProvider>
   );
+};
+
+// Componente de inicialização para carregar dados históricos
+const DataLoader = () => {
+  useEffect(() => {
+    // Inicializar o SocketService e carregar dados históricos
+    const socketService = SocketService.getInstance();
+    
+    // Tempo curto para garantir que o DOM está carregado
+    const timer = setTimeout(() => {
+      console.log('[DataLoader] Carregando dados históricos...');
+      
+      // Conectar ao WebSocket e carregar dados históricos
+      if (!socketService.isConnected()) {
+        socketService.connect();
+      }
+      
+      // Forçar a carga de dados históricos mesmo que já esteja conectado
+      socketService.loadHistoricalRouletteNumbers().then(() => {
+        console.log('[DataLoader] Dados históricos carregados com sucesso');
+      }).catch(error => {
+        console.error('[DataLoader] Erro ao carregar dados históricos:', error);
+      });
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  return null; // Componente não renderiza nada
 };
 
 export default App;
