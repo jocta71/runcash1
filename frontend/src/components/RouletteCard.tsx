@@ -16,7 +16,7 @@ import EventService from '@/services/EventService';
 import SocketService from '@/services/SocketService';
 import StrategySelector from '@/components/StrategySelector';
 import { Strategy } from '@/services/StrategyService';
-import RouletteNumber from '@/components/RouletteNumber';
+import RouletteNumber from './roulette/RouletteNumber';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;
