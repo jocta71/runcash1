@@ -858,7 +858,7 @@ class SocketService {
   }
 
   // Adicionar um método para verificar a conexão
-  public isConnected(): boolean {
+  public isConnectionActive(): boolean {
     return this.isConnected;
   }
 }
