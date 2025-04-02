@@ -566,7 +566,13 @@ class SocketService {
         timestamp: data.timestamp || new Date().toISOString()
       };
 
-      // Notificar listeners
+      // Log detalhado para debug
+      console.log(`[SocketService] Enviando evento para ${data.roleta_nome}: número ${data.numero}`);
+      
+      // Notificar através do EventService também (para garantir que todos recebam)
+      EventService.emitGlobalEvent('new_number', event);
+      
+      // Notificar os listeners sobre este número
       this.notifyListeners(event);
     } catch (error) {
       console.error('[SocketService] Erro ao processar novo número:', error);
@@ -593,26 +599,73 @@ class SocketService {
     }
   }
   
-  // Método auxiliar para processar dados de números
+  // Método para processar dados de números
   private processNumbersData(numbersData: any[], roulette: any): void {
-              numbersData.forEach(num => {
-                // Verificar se o número é válido
-                if (num && (typeof num === 'number' || typeof num.numero === 'number')) {
-                  const numero = typeof num === 'number' ? num : num.numero;
-                  
-                  const event: RouletteNumberEvent = {
-                    type: 'new_number',
-                    roleta_id: roulette._id,
-                    roleta_nome: roulette.nome || roulette.name,
-                    numero: numero,
-                    timestamp: (num && num.timestamp) ? num.timestamp : new Date().toISOString()
-                  };
-                  
-                  // Notificar os listeners sobre este número
-                  this.notifyListeners(event);
-                }
-              });
-            }
+    console.log(`[SocketService] Processando ${numbersData.length} números para roleta ${roulette.nome || roulette.name}`);
+    
+    // Verificar se temos listeners para esta roleta
+    const roletaNome = roulette.nome || roulette.name;
+    if (!this.listeners.has(roletaNome) && !this.listeners.has('*')) {
+      console.log(`[SocketService] Nenhum listener encontrado para a roleta: ${roletaNome}. Criando inscrição automática`);
+      // Criar um set vazio para garantir que podemos adicionar listeners depois
+      this.listeners.set(roletaNome, new Set());
+    }
+    
+    // Processar cada número individualmente
+    numbersData.forEach((num, index) => {
+      // Verificar se o número é válido
+      if (num === null || num === undefined) {
+        console.warn(`[SocketService] Número inválido na posição ${index} para ${roletaNome}`);
+        return;
+      }
+      
+      // Extrair o número conforme o tipo
+      let numero: number;
+      if (typeof num === 'number') {
+        numero = num;
+      } else if (typeof num === 'object' && num !== null && num.numero !== undefined) {
+        numero = typeof num.numero === 'number' ? num.numero : parseInt(String(num.numero), 10);
+      } else if (typeof num === 'string') {
+        numero = parseInt(num, 10);
+      } else {
+        console.warn(`[SocketService] Formato de número não suportado: ${typeof num}`);
+        return;
+      }
+      
+      // Verificar se o número é válido após conversão
+      if (isNaN(numero) || numero < 0 || numero > 36) {
+        console.warn(`[SocketService] Número fora do intervalo válido: ${numero}`);
+        return;
+      }
+      
+      // Criar o evento
+      const event: RouletteNumberEvent = {
+        type: 'new_number',
+        roleta_id: roulette._id || roulette.id || 'unknown-id',
+        roleta_nome: roletaNome,
+        numero: numero,
+        timestamp: (num && num.timestamp) ? num.timestamp : new Date().toISOString()
+      };
+      
+      // Log detalhado para debug
+      console.log(`[SocketService] Enviando evento para ${roletaNome}: número ${numero}`);
+      
+      // Notificar através do EventService também (para garantir que todos recebam)
+      EventService.emitGlobalEvent('new_number', event);
+      
+      // Notificar os listeners sobre este número
+      this.notifyListeners(event);
+    });
+    
+    // Log final
+    console.log(`[SocketService] Concluído o processamento de ${numbersData.length} números para ${roletaNome}`);
+    
+    // Garantir que a interface seja atualizada
+    EventService.emitGlobalEvent('numbers_processed', { 
+      roleta_nome: roletaNome, 
+      count: numbersData.length 
+    });
+  }
 
   // Método para carregar os números históricos via REST API
   public async loadHistoricalRouletteNumbers(): Promise<void> {
