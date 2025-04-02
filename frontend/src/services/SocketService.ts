@@ -610,91 +610,154 @@ class SocketService {
       const apiBaseUrl = getRequiredEnvVar('VITE_API_BASE_URL');
       console.log(`[SocketService] Carregando dados históricos das roletas. API Base URL: ${apiBaseUrl}`);
       
+      // Verificar estrutura da URL base da API
+      if (!apiBaseUrl) {
+        console.error("[SocketService] URL base da API não definida");
+        return;
+      }
+      
+      // Testar URL direta do servidor (verificando disponibilidade)
+      const testUrl = "https://backendapi-production-36b5.up.railway.app/api";
+      console.log(`[SocketService] Testando disponibilidade do servidor: ${testUrl}`);
+      
+      try {
+        const testResponse = await fetch(`${testUrl}/health`);
+        console.log(`[SocketService] Teste de servidor: ${testResponse.status} ${testResponse.statusText}`);
+      } catch (error) {
+        console.warn(`[SocketService] Erro ao testar servidor: ${error}`);
+      }
+      
       // Primeiro, buscar a lista de roletas disponíveis
-      const rouletteEndpoint = `${apiBaseUrl}/roulettes`;
-      console.log(`[SocketService] Buscando roletas em: ${rouletteEndpoint}`);
+      let rouletteEndpoint;
+      // Testar diferentes endpoints possíveis
+      const possibleEndpoints = [
+        `${apiBaseUrl}/roulettes`,
+        `${apiBaseUrl}/roletas`,
+        `${apiBaseUrl}/tables`,
+        `${testUrl}/roulettes`,
+        `${testUrl}/roletas`
+      ];
       
-      const rouletteResponse = await fetch(rouletteEndpoint);
+      console.log(`[SocketService] Tentando obter roletas de múltiplos endpoints`);
       
-      if (!rouletteResponse.ok) {
-        console.warn(`[SocketService] Falha ao buscar lista de roletas: ${rouletteResponse.status}. URL: ${rouletteEndpoint}`);
-        throw new Error(`Falha ao buscar lista de roletas: ${rouletteResponse.status}`);
+      // Tentativa de cada endpoint possível
+      let rouletteResponse = null;
+      let roulettes = null;
+      
+      for (const endpoint of possibleEndpoints) {
+        try {
+          console.log(`[SocketService] Tentando endpoint: ${endpoint}`);
+          const response = await fetch(endpoint);
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+              console.log(`[SocketService] Sucesso! Endpoint ${endpoint} retornou ${data.length} roletas`);
+              rouletteResponse = response;
+              roulettes = data;
+              rouletteEndpoint = endpoint;
+              break;
+            } else {
+              console.warn(`[SocketService] Endpoint ${endpoint} retornou resposta vazia ou inválida`);
+            }
+          } else {
+            console.warn(`[SocketService] Falha no endpoint ${endpoint}: ${response.status}`);
+          }
+        } catch (error) {
+          console.warn(`[SocketService] Erro ao acessar ${endpoint}: ${error}`);
+        }
       }
       
-      const roulettes = await rouletteResponse.json();
-      
-      if (Array.isArray(roulettes)) {
-        console.log(`[SocketService] Processando dados históricos para ${roulettes.length} roletas`);
-        
-        // Notificar o EventService sobre o carregamento de dados históricos
-        EventService.emitGlobalEvent('historical_data_loading', { count: roulettes.length });
-        
-        // Filtrar roletas sem ID válido
-        const validRoulettes = roulettes.filter(roulette => {
-          // Verificar vários campos possíveis de ID
-          const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.table_id || roulette.tableId;
-          
-          if (!roletaId) {
-            console.warn(`[SocketService] Ignorando roleta sem ID válido: ${roulette.nome || roulette.name || 'desconhecida'}`);
-            return false;
-          }
-          
-          // Adicionar o ID encontrado ao objeto da roleta para garantir que '_id' exista
-          roulette._id = roletaId;
-          return true;
-        });
-        
-        console.log(`[SocketService] Roletas válidas com ID: ${validRoulettes.length}/${roulettes.length}`);
-        
-        // Para cada roleta, buscar seus números recentes
-        const promises = validRoulettes.map(async (roulette) => {
-          try {
-            console.log(`[SocketService] Carregando números para roleta ${roulette.nome || roulette.name} (ID: ${roulette._id})`);
-            
-            // Verificar se o ID é válido antes de fazer a requisição
-            if (!roulette._id || roulette._id === 'undefined' || roulette._id === 'null') {
-              console.warn(`[SocketService] Pulando roleta com ID inválido: ${roulette.nome || roulette.name}`);
-              return;
-            }
-            
-            // Corrigir URL do endpoint - tentar endpoint correto na API
-            const numbersEndpoint = `${apiBaseUrl}/numeros?roletaId=${roulette._id}&limit=100`;
-            console.log(`[SocketService] Buscando números no endpoint: ${numbersEndpoint}`);
-            
-            // Buscar os últimos números desta roleta
-            const numbersResponse = await fetch(numbersEndpoint);
-            
-            if (!numbersResponse.ok) {
-              console.warn(`[SocketService] Falha ao buscar números para roleta ${roulette._id}: ${numbersResponse.status}, URL: ${numbersEndpoint}`);
-              return;
-            }
-            
-            const numbersData = await numbersResponse.json();
-            
-            if (Array.isArray(numbersData)) {
-              console.log(`[SocketService] Carregados ${numbersData.length} números para roleta ${roulette.nome || roulette.name}`);
-              this.processNumbersData(numbersData, roulette);
-            }
-          } catch (error) {
-            console.error(`[SocketService] Erro ao processar números para roleta ${roulette._id}:`, error);
-          }
-        });
-        
-        // Aguardar todas as roletas serem processadas
-        await Promise.all(promises);
-        
-        console.log('[SocketService] Carregamento de todos os dados históricos concluído');
-        EventService.emitGlobalEvent('historical_data_loaded', { success: true });
-        toast({
-          title: "Dados históricos carregados",
-          description: `Carregados dados de ${validRoulettes.length} roletas do MongoDB`,
-          variant: "default"
-        });
-      } else {
-        console.warn('[SocketService] Resposta inválida ao buscar roletas:', roulettes);
-        // Tentar endpoints alternativos
-        this.tryAlternativeHistoricalEndpoints();
+      if (!roulettes || !Array.isArray(roulettes)) {
+        console.warn(`[SocketService] Não foi possível obter roletas de nenhum endpoint`);
+        throw new Error("Falha ao obter lista de roletas");
       }
+      
+      console.log(`[SocketService] Processando dados históricos para ${roulettes.length} roletas`);
+      
+      // Notificar o EventService sobre o carregamento de dados históricos
+      EventService.emitGlobalEvent('historical_data_loading', { count: roulettes.length });
+      
+      // Filtrar roletas sem ID válido
+      const validRoulettes = roulettes.filter(roulette => {
+        // Verificar vários campos possíveis de ID
+        const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.table_id || roulette.tableId;
+        
+        if (!roletaId) {
+          console.warn(`[SocketService] Ignorando roleta sem ID válido: ${roulette.nome || roulette.name || 'desconhecida'}`);
+          return false;
+        }
+        
+        // Adicionar o ID encontrado ao objeto da roleta para garantir que '_id' exista
+        roulette._id = roletaId;
+        return true;
+      });
+      
+      console.log(`[SocketService] Roletas válidas com ID: ${validRoulettes.length}/${roulettes.length}`);
+      
+      // Para cada roleta, buscar seus números recentes em múltiplos endpoints possíveis
+      const promises = validRoulettes.map(async (roulette) => {
+        try {
+          console.log(`[SocketService] Carregando números para roleta ${roulette.nome || roulette.name} (ID: ${roulette._id})`);
+          
+          // Verificar se o ID é válido antes de fazer a requisição
+          if (!roulette._id || roulette._id === 'undefined' || roulette._id === 'null') {
+            console.warn(`[SocketService] Pulando roleta com ID inválido: ${roulette.nome || roulette.name}`);
+            return;
+          }
+          
+          // Lista de possíveis endpoints para buscar números
+          const numbersEndpoints = [
+            `${apiBaseUrl}/numeros?roletaId=${roulette._id}&limit=100`,
+            `${apiBaseUrl}/roulette-numbers?roletaId=${roulette._id}&limit=100`,
+            `${apiBaseUrl}/numeros/${roulette._id}?limit=100`,
+            `${apiBaseUrl}/roulette/${roulette._id}/numbers?limit=100`,
+            `${testUrl}/numeros?roletaId=${roulette._id}&limit=100`,
+            `${testUrl}/roulette-numbers?roletaId=${roulette._id}&limit=100`
+          ];
+          
+          // Tenta cada endpoint até encontrar um que funcione
+          for (const endpoint of numbersEndpoints) {
+            try {
+              console.log(`[SocketService] Tentando buscar números em: ${endpoint}`);
+              
+              const numbersResponse = await fetch(endpoint);
+              
+              if (numbersResponse.ok) {
+                const numbersData = await numbersResponse.json();
+                
+                if (Array.isArray(numbersData) && numbersData.length > 0) {
+                  console.log(`[SocketService] Sucesso! Carregados ${numbersData.length} números para roleta ${roulette.nome || roulette.name} de ${endpoint}`);
+                  this.processNumbersData(numbersData, roulette);
+                  // Endpoint encontrado, sair do loop
+                  return;
+                } else {
+                  console.warn(`[SocketService] Endpoint ${endpoint} retornou array vazio ou dados inválidos`);
+                }
+              } else {
+                console.warn(`[SocketService] Falha ao buscar números em ${endpoint}: ${numbersResponse.status}`);
+              }
+            } catch (error) {
+              console.error(`[SocketService] Erro ao buscar números em ${endpoint}:`, error);
+            }
+          }
+          
+          console.warn(`[SocketService] Não foi possível carregar números para roleta ${roulette.nome || roulette.name} de nenhum endpoint`);
+        } catch (error) {
+          console.error(`[SocketService] Erro ao processar números para roleta ${roulette._id}:`, error);
+        }
+      });
+      
+      // Aguardar todas as roletas serem processadas
+      await Promise.all(promises);
+      
+      console.log('[SocketService] Carregamento de todos os dados históricos concluído');
+      EventService.emitGlobalEvent('historical_data_loaded', { success: true });
+      toast({
+        title: "Dados históricos carregados",
+        description: `Carregados dados de ${validRoulettes.length} roletas do MongoDB`,
+        variant: "default"
+      });
     } catch (error) {
       console.error('[SocketService] Erro ao carregar dados históricos:', error);
       // Tentar endpoints alternativos se o principal falhar
@@ -870,6 +933,17 @@ class SocketService {
 
   // Adicionar um método para verificar a conexão
   public isConnectionActive(): boolean {
+    return this.isConnected;
+  }
+
+  // Verifica se temos conexão ativa
+  private checkSocketConnection(): boolean {
+    return this.isConnected && !!this.socket;
+  }
+
+  // Métodos adicionais para compatibilidade com qualquer código antigo
+  public getIsConnectedStatusDeprecated(): boolean {
+    console.warn('[SocketService] Método obsoleto isConnected() chamado. Use isConnectionActive() ou checkSocketConnection() em vez disso.');
     return this.isConnected;
   }
 }
