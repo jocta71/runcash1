@@ -410,14 +410,6 @@ const RouletteCard = memo(({
     
     setIsSubscribed(true);
     
-    // Forçar uma atualização imediata após inscrever
-    console.log(`[RouletteCard] Forçando atualização para ${name}`);
-    setTimeout(() => {
-      const randomNumber = Math.floor(Math.random() * 37);
-      console.log(`[RouletteCard] Injetando número de teste ${randomNumber} para ${name}`);
-      socketService.injectTestEvent(name, randomNumber);
-    }, 1000);
-    
     // Limpar a inscrição quando o componente for desmontado
     return () => {
       if (highlightTimerRef.current) {
