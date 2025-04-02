@@ -2,60 +2,64 @@
 # -*- coding: utf-8 -*-
 
 """
-Scraper roletas MongoDB - Versão API 888Casino
+SCRAPER RunCash - Versão MongoDB
+Extrai números de roletas em tempo real
 """
 
+import os
+import json
 import time
 import random
-import re
-import os
 import logging
-import hashlib
-from datetime import datetime
-import threading
-import queue
-import sys
-import tempfile
-import traceback
-import json
-import uuid
 import requests
-from urllib.parse import quote
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple, Union
+from pymongo import MongoClient, UpdateOne
+from pymongo.errors import BulkWriteError
+from bson import ObjectId
 
-# Logs de inicialização do scraper
-print("\n\n" + "*" * 80)
-print("* MÓDULO SCRAPER_MONGODB SENDO CARREGADO (VERSÃO COM API 888CASINO)")
+import logging
+# Configurar o logger
+logger = logging.getLogger('runcash')
+
+# Verificação e setup de diretórios
+diretorio_atual = os.getcwd()
+print(f"\n\n********************************************************************************")
+print(f"* MÓDULO SCRAPER_MONGODB SENDO CARREGADO (VERSÃO COM API 888CASINO)")
 print(f"* Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-print(f"* Diretório atual: {os.getcwd()}")
-print(f"* Python versão: {sys.version}")
-print("*" * 80 + "\n")
+print(f"* Diretório atual: {diretorio_atual}")
+print(f"* Python versão: {os.sys.version}")
+print(f"********************************************************************************\n")
 
+# Imports internos
 try:
-from config import CASINO_URL, roleta_permitida_por_id, MAX_CICLOS, MAX_ERROS_CONSECUTIVOS
-from event_manager import event_manager
-    MODULOS_CORE_DISPONÍVEIS = True
+    from config import CASINO_URL, roleta_permitida_por_id, MAX_CICLOS, MAX_ERROS_CONSECUTIVOS
+    from roletas_permitidas import ALLOWED_ROULETTES
 except ImportError as e:
-    print(f"Aviso: {e}")
-    print("Executando em modo standalone - sem integração com o resto do sistema")
-    MODULOS_CORE_DISPONÍVEIS = False
-    # Valores padrão para uso standalone
-    CASINO_URL = "https://es.888casino.com/live-casino/#filters=live-roulette"
-    MAX_CICLOS = 0  # 0 = infinito
+    print(f"Erro ao importar configurações: {e}")
+    # Definições padrão em caso de falha na importação
+    CASINO_URL = "https://spectate-web.888casino.com/SpectateWebApp2022/common/configuration-files/LobbyV2/configuraciones.lobbyv2.spectate.json"
+    MAX_CICLOS = 100
     MAX_ERROS_CONSECUTIVOS = 5
+    ALLOWED_ROULETTES = [
+        "2010016",  # Immersive Roulette
+        "2380335",  # Brazilian Mega Roulette
+        "2010065",  # Bucharest Auto-Roulette
+        "2010096",  # Speed Auto Roulette
+        "2010017",  # Auto-Roulette
+        "2010098"   # Auto-Roulette VIP
+    ]
     
-    # Mock do event_manager
-    class EventManagerMock:
-        def __init__(self):
-            self.event_queue = queue.Queue()
-            self.clients = []
-        
-        def notify_clients(self, event_data, silent=True):
-            print(f"[MOCK] Evento enviado: {event_data['type']} - {event_data.get('roleta_nome', '')}")
-    
-    event_manager = EventManagerMock()
-    
-    def roleta_permitida_por_id(id_roleta):
-        return True  # Permitir todas as roletas em modo standalone
+    def roleta_permitida_por_id(roleta_id):
+        return roleta_id in ALLOWED_ROULETTES
+
+# Importação de APIs específicas
+try:
+    from api_888casino import API888Casino
+    print("API 888Casino inicializada")
+except Exception as e:
+    print(f"Erro ao inicializar API 888Casino: {e}")
+    raise
 
 # Configura o logging
 logging.basicConfig(
@@ -226,9 +230,9 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         
         # Interação com o banco de dados
         if hasattr(db, 'garantir_roleta_existe'):
-        db.garantir_roleta_existe(id_roleta, roleta_nome)
+            db.garantir_roleta_existe(id_roleta, roleta_nome)
         if hasattr(db, 'inserir_numero'):
-        db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
+            db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
         
         # Log
         print(f"{roleta_nome}:{num_int}:{cor}")
@@ -242,7 +246,7 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
             "timestamp": ts
         }
         if hasattr(event_manager, 'notify_clients'):
-        event_manager.notify_clients(event_data, silent=True)
+            event_manager.notify_clients(event_data, silent=True)
         
         # Hook personalizado
         if numero_hook:
