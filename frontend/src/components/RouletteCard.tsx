@@ -377,6 +377,16 @@ const RouletteCard = memo(({
         return newNumbers.slice(0, 20); // Manter apenas os últimos 20 números
       });
       
+      // Importante: Desativar estado de carregamento quando recebemos o primeiro número
+      setIsLoading(false);
+      
+      // Atualizar o estado de dados disponíveis no array com override
+      if (!mappedNumbersOverride.includes(numero)) {
+        setMappedNumbersOverride(prevNumbers => {
+          return [numero, ...prevNumbers].slice(0, 20);
+        });
+      }
+      
       // Acionar o destaque visual
       setHighlight(true);
       
@@ -417,7 +427,7 @@ const RouletteCard = memo(({
       socketService.unsubscribe('*', handleEvent);
       setIsSubscribed(false);
     };
-  }, [name]);
+  }, [name, mappedNumbersOverride]);
 
   // Função para gerar sugestões
   const generateSuggestion = () => {
@@ -527,7 +537,7 @@ const RouletteCard = memo(({
       
       {/* Corpo do Card */}
       <div className="p-4">
-        {isLoading ? (
+        {isLoading && numbers.length === 0 && mappedNumbers.length === 0 && mappedNumbersOverride.length === 0 ? (
           <div className="flex items-center justify-center h-12">
             <span className="text-zinc-500">Carregando dados...</span>
           </div>
@@ -535,7 +545,7 @@ const RouletteCard = memo(({
           <div className="flex items-center justify-center h-12 text-red-500">
             <span>Erro ao carregar dados</span>
           </div>
-        ) : !hasDisplayableData ? (
+        ) : numbers.length === 0 && mappedNumbers.length === 0 && mappedNumbersOverride.length === 0 ? (
           <div className="flex items-center justify-center h-12">
             <span className="text-zinc-500">Sem dados disponíveis</span>
           </div>
@@ -544,7 +554,7 @@ const RouletteCard = memo(({
           <div>
             {/* Últimos números */}
             <LastNumbers 
-              numbers={mappedNumbers.slice(0, 18)} 
+              numbers={numbers.length > 0 ? numbers : mappedNumbersOverride.length > 0 ? mappedNumbersOverride : mappedNumbers.slice(0, 18)} 
               className="mb-4" 
               isBlurred={isBlurred}
             />
