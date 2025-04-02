@@ -748,6 +748,16 @@ class SocketService {
   public async loadHistoricalRouletteNumbers(): Promise<void> {
     console.log('[SocketService] Iniciando carregamento de números históricos...');
     
+    // Lista de IDs permitidos - apenas estas roletas serão processadas
+    const ALLOWED_ROULETTES = [
+      "2010016",  // Immersive Roulette
+      "2380335",  // Brazilian Mega Roulette
+      "2010065",  // Bucharest Auto-Roulette
+      "2010096",  // Speed Auto Roulette
+      "2010017",  // Auto-Roulette
+      "2010098"   // Auto-Roulette VIP
+    ];
+    
     // Notificar que o carregamento começou
     EventService.emitGlobalEvent('historical_data_loading', { started: true });
     
@@ -765,6 +775,13 @@ class SocketService {
           const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.table_id;
           if (!roletaId) {
             console.warn('[SocketService] Roleta sem ID válido:', roulette);
+            continue;
+          }
+          
+          // Verificar se o ID está na lista de permitidos
+          const stringId = String(roletaId);
+          if (!ALLOWED_ROULETTES.includes(stringId)) {
+            console.log(`[SocketService] Roleta não permitida: ${roulette.nome || roulette.name || 'Sem Nome'} (ID: ${stringId})`);
             continue;
           }
           
@@ -841,6 +858,16 @@ class SocketService {
   private async fetchRealRoulettes(): Promise<any[]> {
     console.log('[SocketService] Buscando lista de roletas reais...');
     
+    // Lista de IDs permitidos - apenas estas roletas serão processadas
+    const ALLOWED_ROULETTES = [
+      "2010016",  // Immersive Roulette
+      "2380335",  // Brazilian Mega Roulette
+      "2010065",  // Bucharest Auto-Roulette
+      "2010096",  // Speed Auto Roulette
+      "2010017",  // Auto-Roulette
+      "2010098"   // Auto-Roulette VIP
+    ];
+    
     try {
       // Define a URL base para as APIs
       const baseUrl = this.getApiBaseUrl();
@@ -861,8 +888,27 @@ class SocketService {
           if (response.ok) {
             const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
-              console.log(`[SocketService] Encontradas ${data.length} roletas em ${endpoint}`);
-              return data;
+              // Filtrar apenas as roletas permitidas
+              const filteredRoulettes = data.filter(roulette => {
+                // Obter o ID da roleta considerando diferentes campos possíveis
+                const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.GameID || '';
+                
+                // Converter para string para garantir consistência na comparação
+                const stringId = String(roletaId);
+                
+                // Verificar se o ID está na lista de permitidos
+                const isAllowed = ALLOWED_ROULETTES.includes(stringId);
+                
+                // Log para depuração
+                if (isAllowed) {
+                  console.log(`[SocketService] Roleta permitida: ${roulette.nome || roulette.name || 'Sem Nome'} (ID: ${stringId})`);
+                }
+                
+                return isAllowed;
+              });
+              
+              console.log(`[SocketService] Encontradas ${data.length} roletas, filtradas para ${filteredRoulettes.length} permitidas`);
+              return filteredRoulettes;
             }
           }
         } catch (e) {
