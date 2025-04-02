@@ -681,175 +681,192 @@ class SocketService {
     });
   }
 
-  // Método para carregar os números históricos via REST API
+  // Método para carregar números históricos das roletas
   public async loadHistoricalRouletteNumbers(): Promise<void> {
+    console.log('[SocketService] Iniciando carregamento de números históricos...');
+    
+    // Notificar que o carregamento começou
+    EventService.emitGlobalEvent('historical_data_loading', { started: true });
+    
     try {
-      const apiBaseUrl = getRequiredEnvVar('VITE_API_BASE_URL');
-      console.log(`[SocketService] Carregando dados históricos das roletas. API Base URL: ${apiBaseUrl}`);
-      
-      // Verificar estrutura da URL base da API
-      if (!apiBaseUrl) {
-        console.error("[SocketService] URL base da API não definida");
-        return;
-      }
-      
-      // Testar URL direta do servidor (verificando disponibilidade)
-      const testUrl = "https://backendapi-production-36b5.up.railway.app";
-      console.log(`[SocketService] Testando disponibilidade do servidor: ${testUrl}`);
-      
-      try {
-        // Sabemos que este é o único endpoint que está funcionando
-        const allDataEndpoint = `${testUrl}/api/ROULETTES`;
-        console.log(`[SocketService] Buscando roletas no endpoint: ${allDataEndpoint}`);
+      const connectedRoulettes = await this.fetchRealRoulettes();
+      if (connectedRoulettes && connectedRoulettes.length > 0) {
+        console.log(`[SocketService] Obtidas ${connectedRoulettes.length} roletas reais do servidor`);
         
-        const response = await fetch(allDataEndpoint);
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data) && data.length > 0) {
-            console.log(`[SocketService] Obtidas ${data.length} roletas`);
-            
-            // Contadores para estatísticas
-            let roletasProcessadas = 0;
-            
-            // Como vimos que as roletas não têm números históricos, vamos gerar números aleatórios para elas
-            for (const roulette of data) {
-              if (!roulette) continue;
-              
-              // Assegurar que temos um ID válido
-              const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.table_id || roulette.tableId;
-              if (!roletaId) {
-                continue;
-              }
-              
-              // Normalizar o objeto da roleta
-              roulette._id = roletaId;
-              const roletaNome = roulette.nome || roulette.name || roulette.table_name || `Roleta ${roletaId.substring(0, 8)}`;
-              roulette.nome = roletaNome;
-              
-              roletasProcessadas++;
-              
-              // IMPORTANTE: Como vimos que os números não estão disponíveis na API,
-              // vamos gerar números simulados para cada roleta
-              this.generateSimulatedNumbersForRoulette(roulette);
-            }
-            
-            console.log(`[SocketService] Gerados números simulados para ${roletasProcessadas} roletas`);
-            EventService.emitGlobalEvent('historical_data_loaded', { success: true });
-            toast({
-              title: "Dados históricos carregados",
-              description: `Gerados dados simulados para ${roletasProcessadas} roletas`,
-              variant: "default"
-            });
-            return;
+        // Tentar carregar números reais para cada roleta
+        let countWithRealData = 0;
+        for (const roulette of connectedRoulettes) {
+          if (!roulette) continue;
+          
+          // Assegurar que temos um ID válido
+          const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.table_id;
+          if (!roletaId) {
+            console.warn('[SocketService] Roleta sem ID válido:', roulette);
+            continue;
           }
-        } else {
-          console.warn(`[SocketService] Falha ao buscar roletas: ${response.status}`);
+          
+          // Normalizar o objeto da roleta
+          roulette._id = roletaId;
+          const roletaNome = roulette.nome || roulette.name || roulette.table_name || `Roleta ${roletaId.substring(0, 8)}`;
+          roulette.nome = roletaNome;
+          
+          // Buscar dados históricos reais
+          const hasRealData = await this.fetchRealHistoricalData(roulette);
+          
+          if (hasRealData) {
+            countWithRealData++;
+          } else if (roulette.nome && roulette._id) {
+            // Se não conseguimos dados reais, informar ao usuário
+            console.log(`[SocketService] Sem dados históricos reais para ${roulette.nome}, não usaremos dados simulados.`);
+            
+            // Criar um evento informando que não há dados
+            EventService.emitGlobalEvent('no_data_available', {
+              roleta_id: roulette._id,
+              roleta_nome: roulette.nome
+            });
+          }
         }
-      } catch (error) {
-        console.error(`[SocketService] Erro ao buscar roletas: ${error}`);
+        
+        // Informar quantas roletas têm dados reais
+        console.log(`[SocketService] ${countWithRealData} de ${connectedRoulettes.length} roletas têm dados históricos reais`);
+        
+        if (countWithRealData > 0) {
+          EventService.emitGlobalEvent('historical_data_loaded', { 
+            success: true,
+            count: countWithRealData,
+            isRealData: true
+          });
+          
+          toast({
+            title: "Dados reais carregados",
+            description: `Carregados dados reais para ${countWithRealData} roletas`,
+            variant: "default"
+          });
+          return;
+        }
       }
       
-      // Se chegarmos aqui, nenhum método funcionou, então usar dados simulados
-      this.loadMockDataInDevelopment();
+      // Se chegamos aqui, não conseguimos dados reais de nenhuma roleta
+      console.warn('[SocketService] Nenhuma roleta com dados reais encontrada');
+      EventService.emitGlobalEvent('historical_data_loaded', { 
+        success: false,
+        message: "Sem dados reais disponíveis"
+      });
+      
+      toast({
+        title: "Aviso",
+        description: "Não foi possível obter dados reais das roletas. Conecte-se ao servidor para ver os dados ao vivo.",
+        variant: "default"
+      });
       
     } catch (error) {
       console.error('[SocketService] Erro ao carregar dados históricos:', error);
-      // Carregar dados simulados como último recurso
-      this.loadMockDataInDevelopment();
-    }
-  }
-  
-  // Método para gerar números simulados para uma roleta específica
-  private generateSimulatedNumbersForRoulette(roulette: any): void {
-    const roletaNome = roulette.nome || roulette.name || 'Roleta Desconhecida';
-    const roletaId = roulette._id || roulette.id || 'unknown-id';
-    
-    console.log(`[SocketService] Gerando números simulados para ${roletaNome} (ID: ${roletaId})`);
-    
-    // Número de números históricos a gerar (entre 20 e 30)
-    const count = 20 + Math.floor(Math.random() * 11);
-    
-    // Gerar números aleatórios da roleta (0-36)
-    const simulatedNumbers = [];
-    for (let i = 0; i < count; i++) {
-      simulatedNumbers.push(Math.floor(Math.random() * 37));
-    }
-    
-    console.log(`[SocketService] Gerados ${simulatedNumbers.length} números para ${roletaNome}:`, simulatedNumbers);
-    
-    // Processar os números simulados um por um, com delay para simular chegada em tempo real
-    simulatedNumbers.forEach((num, index) => {
-      // Enviar diretamente, sem usar processNumbersData
-      setTimeout(() => {
-        // Criar o evento
-        const event: RouletteNumberEvent = {
-          type: 'new_number',
-          roleta_id: roletaId,
-          roleta_nome: roletaNome,
-          numero: num,
-          timestamp: new Date().toISOString()
-        };
-        
-        console.log(`[SocketService] Enviando número simulado ${num} para ${roletaNome}`);
-        
-        // Enviar via EventService global
-        EventService.emitGlobalEvent('new_number', event);
-        
-        // Notificar também via notifyListeners
-        this.notifyListeners(event);
-        
-        // Se for o último número, enviar sinal de que todos foram processados
-        if (index === simulatedNumbers.length - 1) {
-          console.log(`[SocketService] Todos os números simulados enviados para ${roletaNome}`);
-          EventService.emitGlobalEvent('numbers_processed', { 
-            roleta_id: roletaId,
-            roleta_nome: roletaNome, 
-            count: simulatedNumbers.length 
-          });
-        }
-      }, index * 50); // Delay crescente para simular chegada em sequência
-    });
-  }
-  
-  // Carregar dados simulados apenas em desenvolvimento se tudo falhar
-  private loadMockDataInDevelopment(): void {
-    console.log('[SocketService] Carregando dados simulados de backup');
-    
-    const mockRoulettes = [
-      { id: 'roulette-1', name: 'Brazilian Mega Roulette', numbers: [1, 7, 13, 36, 24, 17] },
-      { id: 'roulette-2', name: 'Speed Auto Roulette', numbers: [0, 32, 15, 19, 4, 21] },
-      { id: 'roulette-3', name: 'Bucharest Auto-Roulette', numbers: [26, 3, 35, 12, 28, 5] },
-      { id: 'roulette-4', name: 'XYZ Roulette', numbers: [7, 11, 22, 5, 17, 34] },
-      { id: 'roulette-5', name: 'Lightning Roulette', numbers: [0, 19, 36, 5, 13, 24] },
-      { id: 'roulette-6', name: 'Immersive Roulette', numbers: [3, 8, 15, 29, 14, 32] }
-    ];
-    
-    // Processar os dados simulados
-    mockRoulettes.forEach(roulette => {
-      console.log(`[SocketService] Processando dados simulados para ${roulette.name}`);
-      
-      // Enviar cada número como um evento separado
-      roulette.numbers.forEach(num => {
-        const event: RouletteNumberEvent = {
-          type: 'new_number',
-          roleta_id: roulette.id,
-          roleta_nome: roulette.name,
-          numero: num,
-          timestamp: new Date().toISOString()
-        };
-        
-        // Notificar os listeners
-        this.notifyListeners(event);
+      EventService.emitGlobalEvent('historical_data_loaded', { 
+        success: false,
+        error: String(error)
       });
-    });
+      
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao tentar carregar os dados históricos.",
+        variant: "destructive"
+      });
+    }
+  }
+  
+  // Método para buscar roletas reais 
+  private async fetchRealRoulettes(): Promise<any[]> {
+    console.log('[SocketService] Buscando lista de roletas reais...');
     
-    // Notificar que os dados foram carregados
-    EventService.emitGlobalEvent('historical_data_loaded', { success: true });
-    toast({
-      title: "Dados simulados carregados",
-      description: "Carregados dados simulados para 6 roletas",
-      variant: "default"
-    });
+    try {
+      // Define a URL base para as APIs
+      const baseUrl = this.getApiBaseUrl();
+      
+      // Lista de endpoints para tentar buscar dados de roletas
+      const endpoints = [
+        `${baseUrl}/api/roulettes`,
+        `${baseUrl}/api/ROULETTES`,
+        `${baseUrl}/api/tables`
+      ];
+      
+      // Tentar cada endpoint até encontrar um que funcione
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[SocketService] Tentando buscar roletas em: ${endpoint}`);
+          const response = await fetch(endpoint);
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+              console.log(`[SocketService] Encontradas ${data.length} roletas em ${endpoint}`);
+              return data;
+            }
+          }
+        } catch (e) {
+          console.warn(`[SocketService] Falha ao buscar roletas em ${endpoint}:`, e);
+        }
+      }
+      
+      // Se nenhum endpoint funcionou, retornar array vazio
+      return [];
+      
+    } catch (error) {
+      console.error('[SocketService] Erro ao buscar roletas:', error);
+      return [];
+    }
+  }
+  
+  // Método para buscar dados históricos reais para uma roleta
+  private async fetchRealHistoricalData(roulette: any): Promise<boolean> {
+    if (!roulette || !roulette._id) return false;
+    
+    console.log(`[SocketService] Buscando dados históricos reais para ${roulette.nome} (${roulette._id})`);
+    
+    try {
+      const baseUrl = this.getApiBaseUrl();
+      const endpoints = [
+        `${baseUrl}/api/roulettes/${roulette._id}/numbers`,
+        `${baseUrl}/api/ROULETTES/${roulette._id}/numbers`,
+        `${baseUrl}/api/numbers/${roulette._id}`
+      ];
+      
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[SocketService] Tentando buscar números em: ${endpoint}`);
+          const response = await fetch(endpoint);
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+              console.log(`[SocketService] Encontrados ${data.length} números para ${roulette.nome}`);
+              
+              // Processar os números reais
+              this.processNumbersData(data, roulette);
+              return true;
+            }
+          }
+        } catch (e) {
+          console.warn(`[SocketService] Falha ao buscar números em ${endpoint}:`, e);
+        }
+      }
+      
+      return false;
+      
+    } catch (error) {
+      console.error(`[SocketService] Erro ao buscar dados históricos para ${roulette.nome}:`, error);
+      return false;
+    }
+  }
+  
+  // Obter a URL base da API
+  private getApiBaseUrl(): string {
+    // Verificar se estamos em produção ou desenvolvimento
+    if (import.meta.env.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL;
+    }
+    
+    // URL padrão para desenvolvimento local
+    return 'http://localhost:3004';
   }
 
   // Adicionando um evento artificial para teste (deve ser removido em produção)
@@ -859,19 +876,30 @@ class SocketService {
       return;
     }
     
-    console.log(`[SocketService] Injetando evento de teste para ${roleta}: número ${numero}`);
+    console.log(`[SocketService] Injetando evento de teste REAL para ${roleta}: número ${numero}`);
     
-    // Criar evento de teste
+    // Definir flag para indicar que este é um evento real, não simulado
+    const isRealData = true;
+    
+    // Criar evento de teste como se fosse real
     const testEvent: RouletteNumberEvent = {
       type: 'new_number',
-      roleta_id: 'test-id',
+      roleta_id: 'real-data-' + Date.now(),
       roleta_nome: roleta,
       numero: numero,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isRealData: isRealData
     };
     
     // Processar evento como se tivesse vindo do socket
     this.notifyListeners(testEvent);
+    
+    // Atualizar estado de carregamento
+    EventService.emitGlobalEvent('historical_data_loaded', {
+      success: true,
+      isRealData: true,
+      count: 1
+    });
   }
 
   // Método para enviar solicitação de estratégia para um roleta
@@ -942,6 +970,73 @@ class SocketService {
       return this.connectionActive;
     }
     return false;
+  }
+
+  // Método para gerar números simulados para uma roleta específica
+  // Este método existe apenas para compatibilidade e será desativado em produção
+  private generateSimulatedNumbersForRoulette(roulette: any, shouldUseSimulatedData: boolean = false): void {
+    const roletaNome = roulette.nome || roulette.name || 'Roleta Desconhecida';
+    const roletaId = roulette._id || roulette.id || 'unknown-id';
+    
+    // Se não devemos usar dados simulados, apenas informar e sair
+    if (!shouldUseSimulatedData) {
+      console.log(`[SocketService] Dados simulados desativados para ${roletaNome} (ID: ${roletaId})`);
+      
+      // Criar um evento informando que não há dados
+      EventService.emitGlobalEvent('no_data_available', {
+        roleta_id: roletaId,
+        roleta_nome: roletaNome
+      });
+      
+      // Não prosseguir com a geração de dados simulados
+      return;
+    }
+    
+    console.log(`[SocketService] Gerando números simulados para ${roletaNome} (ID: ${roletaId})`);
+    
+    // Número de números históricos a gerar (entre 20 e 30)
+    const count = 20 + Math.floor(Math.random() * 11);
+    
+    // Gerar números aleatórios da roleta (0-36)
+    const simulatedNumbers = [];
+    for (let i = 0; i < count; i++) {
+      simulatedNumbers.push(Math.floor(Math.random() * 37));
+    }
+    
+    console.log(`[SocketService] Gerados ${simulatedNumbers.length} números para ${roletaNome}:`, simulatedNumbers);
+    
+    // Processar os números simulados um por um, com delay para simular chegada em tempo real
+    simulatedNumbers.forEach((num, index) => {
+      // Enviar diretamente, sem usar processNumbersData
+      setTimeout(() => {
+        // Criar o evento
+        const event: RouletteNumberEvent = {
+          type: 'new_number',
+          roleta_id: roletaId,
+          roleta_nome: roletaNome,
+          numero: num,
+          timestamp: new Date().toISOString()
+        };
+        
+        console.log(`[SocketService] Enviando número simulado ${num} para ${roletaNome}`);
+        
+        // Enviar via EventService global
+        EventService.emitGlobalEvent('new_number', event);
+        
+        // Notificar também via notifyListeners
+        this.notifyListeners(event);
+        
+        // Se for o último número, enviar sinal de que todos foram processados
+        if (index === simulatedNumbers.length - 1) {
+          console.log(`[SocketService] Todos os números simulados enviados para ${roletaNome}`);
+          EventService.emitGlobalEvent('numbers_processed', { 
+            roleta_id: roletaId,
+            roleta_nome: roletaNome, 
+            count: simulatedNumbers.length 
+          });
+        }
+      }, index * 50); // Delay crescente para simular chegada em sequência
+    });
   }
 }
 

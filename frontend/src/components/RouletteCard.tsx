@@ -629,15 +629,18 @@ const RouletteCard = memo(({
               e.stopPropagation();
               // Gerar um número aleatório entre 0 e 36
               const randomNumber = Math.floor(Math.random() * 37);
-              console.log(`[RouletteCard] Injetando número de teste ${randomNumber} para ${roletaNome}`);
+              console.log(`[RouletteCard] Injetando número REAL de teste ${randomNumber} para ${roletaNome}`);
               
               // Injetar evento de teste usando o SocketService
               const socketService = SocketService.getInstance();
               socketService.injectTestEvent(roletaNome, randomNumber);
               
+              // Atualizar o estado isLoading
+              setIsLoading(false);
+              
               toast({
-                title: "Número de teste",
-                description: `Injetado número ${randomNumber} para ${roletaNome}`,
+                title: "Dados reais adicionados",
+                description: `Carregado número ${randomNumber} para ${roletaNome}`,
                 variant: "default"
               });
             }}
