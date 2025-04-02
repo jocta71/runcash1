@@ -1,6 +1,6 @@
 import axios from 'axios';
 import config from '@/config/env';
-import { filterAllowedRoulettes } from '@/config/allowedRoulettes';
+import { filterAllowedRoulettes, isRouletteAllowed } from '@/config/allowedRoulettes';
 
 // Usar a variável de ambiente centralizada do config
 const API_URL = config.apiBaseUrl;
@@ -84,9 +84,17 @@ const getAllRoulettesWithCache = async (forceRefresh = false): Promise<any[]> =>
     console.log('[API] Extraindo dados de todas as roletas...');
     const response = await api.get('/roulettes');
     if (response.data && Array.isArray(response.data)) {
-      cachedRoulettes = response.data;
+      // Filtrar apenas as roletas permitidas antes de armazenar em cache
+      const allRoulettes = response.data;
+      const filteredRoulettes = allRoulettes.filter(roulette => {
+        const rouletteId = String(roulette.id || roulette._id || '');
+        return isRouletteAllowed(rouletteId);
+      });
+      
+      console.log(`[API] Filtradas ${filteredRoulettes.length} roletas permitidas de um total de ${allRoulettes.length}`);
+      
+      cachedRoulettes = filteredRoulettes;
       lastCacheTime = now;
-      console.log(`[API] Atualizando cache com ${cachedRoulettes.length} roletas`);
       return cachedRoulettes;
     }
     return [];
@@ -193,11 +201,9 @@ export const fetchAllRoulettes = async (): Promise<RouletteData[]> => {
       sugestao_display: roleta.sugestao_display || ''
     }));
     
-    // Filtrar apenas as roletas permitidas
-    const filteredData = filterAllowedRoulettes(formattedData);
-    
-    console.log(`[API] Processadas ${formattedData.length} roletas, filtradas para ${filteredData.length} permitidas`);
-    return filteredData;
+    // Os dados já foram filtrados anteriormente no getAllRoulettesWithCache
+    console.log(`[API] Processadas ${formattedData.length} roletas permitidas`);
+    return formattedData;
   }
   
   console.warn('[API] Formato de resposta inválido ou sem roletas');
