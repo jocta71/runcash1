@@ -712,14 +712,14 @@ class SocketService {
       }
       
       // Criar o evento
-      const event: RouletteNumberEvent = {
-        type: 'new_number',
+                  const event: RouletteNumberEvent = {
+                    type: 'new_number',
         roleta_id: roletaId || 'unknown-id',
         roleta_nome: roletaNome,
-        numero: numero,
-        timestamp: (num && num.timestamp) ? num.timestamp : new Date().toISOString()
-      };
-      
+                    numero: numero,
+                    timestamp: (num && num.timestamp) ? num.timestamp : new Date().toISOString()
+                  };
+                  
       // Log detalhado para debug
       console.log(`[SocketService] Enviando evento para ${roletaNome}: número ${numero}`);
       
@@ -730,7 +730,7 @@ class SocketService {
       EventService.emitGlobalEvent('new_number', event);
       
       // Notificar diretamente os listeners locais sobre este número
-      this.notifyListeners(event);
+                  this.notifyListeners(event);
     });
     
     // Log final
@@ -886,7 +886,7 @@ class SocketService {
           const response = await fetch(endpoint);
           
           if (response.ok) {
-            const data = await response.json();
+      const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
               // Filtrar apenas as roletas permitidas
               const filteredRoulettes = data.filter(roulette => {

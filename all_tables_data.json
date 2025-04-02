@@ -1,0 +1,6980 @@
+{
+  "timestamp": "2025-04-02T13:28:53.946966",
+  "tables": [
+    {
+      "id": 2010011,
+      "name": "Deutsches Roulette",
+      "dealer": "Eva",
+      "is_open": true,
+      "players": 24,
+      "last_numbers": [
+        "21",
+        "8",
+        "16",
+        "24",
+        "4"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010012,
+      "name": "American Roulette",
+      "dealer": "Aleksandre",
+      "is_open": true,
+      "players": 82,
+      "last_numbers": [
+        "00",
+        "25",
+        "6",
+        "27",
+        "14"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010013,
+      "name": "888 Roulette",
+      "dealer": "\u0145ikita",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [
+        "12",
+        "22",
+        "15",
+        "31",
+        "18"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010014,
+      "name": "777 Roulette",
+      "dealer": "Kaspars",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [
+        "30",
+        "35",
+        "15",
+        "4",
+        "34"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010016,
+      "name": "Immersive Roulette",
+      "dealer": "Laura",
+      "is_open": true,
+      "players": 1112,
+      "last_numbers": [
+        "1",
+        "14",
+        "27",
+        "21",
+        "8"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010017,
+      "name": "Ruleta Autom\u00e1tica",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 74,
+      "last_numbers": [
+        "9",
+        "28",
+        "8",
+        "6",
+        "17"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2010018,
+      "name": "Speed Roulette",
+      "dealer": "Ignas",
+      "is_open": true,
+      "players": 193,
+      "last_numbers": [
+        "16",
+        "23",
+        "28",
+        "18",
+        "27"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010031,
+      "name": "Jawhara Roulette",
+      "dealer": "Noura",
+      "is_open": true,
+      "players": 28,
+      "last_numbers": [
+        "11",
+        "32",
+        "36",
+        "25",
+        "19"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010033,
+      "name": "Lightning Roulette",
+      "dealer": "Roberts",
+      "is_open": true,
+      "players": 2119,
+      "last_numbers": [
+        "36",
+        "3",
+        "18",
+        "35",
+        "9"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010045,
+      "name": "Ruleta en Vivo",
+      "dealer": "Vanessa",
+      "is_open": true,
+      "players": 162,
+      "last_numbers": [
+        "0",
+        "13",
+        "27",
+        "4",
+        "29"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2010047,
+      "name": "Svensk Roulette",
+      "dealer": "Marlon",
+      "is_open": true,
+      "players": 19,
+      "last_numbers": [
+        "16",
+        "21",
+        "11",
+        "21",
+        "15"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010048,
+      "name": "Dansk Roulette",
+      "dealer": "Nikoline",
+      "is_open": true,
+      "players": 17,
+      "last_numbers": [
+        "20",
+        "22",
+        "30",
+        "27",
+        "18"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010049,
+      "name": "Ruletka Live",
+      "dealer": "Feliks",
+      "is_open": true,
+      "players": 24,
+      "last_numbers": [
+        "16",
+        "14",
+        "29",
+        "14",
+        "21"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010050,
+      "name": "Super Sic Bo",
+      "dealer": "Milena",
+      "is_open": true,
+      "players": 791,
+      "last_numbers": [
+        "{\r\n  \"value\": \"2|3|4\"\r\n}",
+        "{\r\n  \"value\": \"1|2|3\"\r\n}",
+        "{\r\n  \"value\": \"3|6|6\"\r\n}",
+        "{\r\n  \"value\": \"1|6|6\"\r\n}",
+        "{\r\n  \"value\": \"1|5|6\"\r\n}"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010051,
+      "name": "MONOPOLY Live",
+      "dealer": "Sandis",
+      "is_open": true,
+      "players": 1792,
+      "last_numbers": [
+        "2",
+        "1",
+        "2",
+        "1",
+        "ch"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010059,
+      "name": "Bucharest Roulette",
+      "dealer": "Alexandru",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [
+        "8",
+        "31",
+        "35",
+        "13",
+        "4"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010065,
+      "name": "Bucharest Auto-Roulette",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 116,
+      "last_numbers": [
+        "3",
+        "30",
+        "7",
+        "1",
+        "14"
+      ],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010071,
+      "name": "Double Ball Roulette",
+      "dealer": "Augustinas",
+      "is_open": true,
+      "players": 46,
+      "last_numbers": [
+        "19|30",
+        "17|24",
+        "27|29",
+        "9|28",
+        "13|19"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010072,
+      "name": "Lightning Dice",
+      "dealer": "Cristi",
+      "is_open": true,
+      "players": 608,
+      "last_numbers": [
+        "{\r\n  \"value\": \"2|3|4\"\r\n}",
+        "{\r\n  \"value\": \"2|6|6\"\r\n}",
+        "{\r\n  \"value\": \"2|4|6\"\r\n}",
+        "{\r\n  \"value\": \"1|2|4\"\r\n}",
+        "{\r\n  \"value\": \"1|2|5\"\r\n}"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010075,
+      "name": "Dream Catcher",
+      "dealer": "Chad",
+      "is_open": true,
+      "players": 346,
+      "last_numbers": [
+        "05",
+        "02",
+        "05",
+        "01",
+        "05"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010096,
+      "name": "Speed Auto Roulette",
+      "dealer": "SpeedAuto",
+      "is_open": true,
+      "players": 379,
+      "last_numbers": [
+        "17",
+        "16",
+        "26",
+        "26",
+        "0"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010097,
+      "name": "VIP Roulette",
+      "dealer": "Andrea",
+      "is_open": true,
+      "players": 132,
+      "last_numbers": [
+        "19",
+        "30",
+        "13",
+        "36",
+        "11"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010098,
+      "name": "Auto-Roulette VIP",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 266,
+      "last_numbers": [
+        "28",
+        "28",
+        "17",
+        "17",
+        "1"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010099,
+      "name": "Football Studio Roulette",
+      "dealer": "Charlie",
+      "is_open": true,
+      "players": 60,
+      "last_numbers": [
+        "28",
+        "11",
+        "16",
+        "27",
+        "24"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010100,
+      "name": "Venezia Roulette",
+      "dealer": "Amelia",
+      "is_open": true,
+      "players": 77,
+      "last_numbers": [
+        "6",
+        "9",
+        "26",
+        "1",
+        "33"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010103,
+      "name": "Ruleta Auto Francesa",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 74,
+      "last_numbers": [
+        "9",
+        "28",
+        "8",
+        "6",
+        "17"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2010106,
+      "name": "T\u00fcrk\u00e7e Rulet",
+      "dealer": "Mustafa",
+      "is_open": true,
+      "players": 130,
+      "last_numbers": [
+        "35",
+        "29",
+        "2",
+        "36",
+        "34"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010108,
+      "name": "Dragonara Roulette",
+      "dealer": "Dealer R",
+      "is_open": true,
+      "players": 26,
+      "last_numbers": [
+        "17",
+        "28",
+        "32",
+        "27",
+        "23"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010109,
+      "name": "Grand Casino Roulette",
+      "dealer": "Dealer R",
+      "is_open": true,
+      "players": 28,
+      "last_numbers": [
+        "4",
+        "13",
+        "9",
+        "9",
+        "35"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010110,
+      "name": "Hippodrome Grand Casino",
+      "dealer": "Hippodrome",
+      "is_open": true,
+      "players": 20,
+      "last_numbers": [
+        "27",
+        "15",
+        "31",
+        "25",
+        "27"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010113,
+      "name": "Casino Malta Roulette",
+      "dealer": "Dealer",
+      "is_open": true,
+      "players": 21,
+      "last_numbers": [
+        "2",
+        "7",
+        "21",
+        "28",
+        "14"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010143,
+      "name": "Ruleta Rel\u00e1mpago en Vivo",
+      "dealer": "Angel",
+      "is_open": true,
+      "players": 321,
+      "last_numbers": [
+        "25",
+        "3",
+        "29",
+        "22",
+        "32"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2010151,
+      "name": "Mega Ball",
+      "dealer": "Vlad",
+      "is_open": true,
+      "players": 682,
+      "last_numbers": [
+        "[\r\n  {\r\n    \"value\": \"45\",\r\n    \"multiplier\": 10\r\n  }\r\n]",
+        "[\r\n  {\r\n    \"value\": \"2\",\r\n    \"multiplier\": 10\r\n  }\r\n]",
+        "[\r\n  {\r\n    \"value\": \"36\",\r\n    \"multiplier\": 5\r\n  }\r\n]",
+        "[\r\n  {\r\n    \"value\": \"16\",\r\n    \"multiplier\": 5\r\n  }\r\n]",
+        "[\r\n  {\r\n    \"value\": \"35\",\r\n    \"multiplier\": 10\r\n  }\r\n]"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010154,
+      "name": "Auto Lightning Roulette",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 74,
+      "last_numbers": [
+        "9",
+        "28",
+        "8",
+        "6",
+        "17"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2010161,
+      "name": "La Partage Roulette",
+      "dealer": "Amelia",
+      "is_open": true,
+      "players": 77,
+      "last_numbers": [
+        "6",
+        "9",
+        "26",
+        "1",
+        "33"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010163,
+      "name": "Crazy Time",
+      "dealer": "Elina",
+      "is_open": true,
+      "players": 12455,
+      "last_numbers": [
+        "1",
+        "1",
+        "pa",
+        "2",
+        "5"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010165,
+      "name": "Roulette",
+      "dealer": "Nia",
+      "is_open": true,
+      "players": 476,
+      "last_numbers": [
+        "27",
+        "11",
+        "27",
+        "6",
+        "32"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010166,
+      "name": "Craps",
+      "dealer": "Dafoe",
+      "is_open": true,
+      "players": 190,
+      "last_numbers": [
+        "10",
+        "12",
+        "7",
+        "7",
+        "11"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010168,
+      "name": "888 Ruleta en Vivo",
+      "dealer": "Pedro",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [
+        "3",
+        "34",
+        "7",
+        "8",
+        "28"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2010170,
+      "name": "Lightning Roulette Italia",
+      "dealer": "Zaira",
+      "is_open": true,
+      "players": 27,
+      "last_numbers": [
+        "9",
+        "15",
+        "34",
+        "26",
+        "7"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010172,
+      "name": "Ruleta Bola Rapida en Vivo",
+      "dealer": "Naomi",
+      "is_open": true,
+      "players": 62,
+      "last_numbers": [
+        "5",
+        "14",
+        "23",
+        "9",
+        "18"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2010176,
+      "name": "Fan Tan",
+      "dealer": "Marija",
+      "is_open": true,
+      "players": 383,
+      "last_numbers": [
+        "4",
+        "3",
+        "3",
+        "1",
+        "2"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010177,
+      "name": "Cash or Crash",
+      "dealer": "Anderson",
+      "is_open": true,
+      "players": 62,
+      "last_numbers": [
+        "{\r\n  \"payoutLevel\": 2,\r\n  \"shield\": false\r\n}",
+        "{\r\n  \"payoutLevel\": 2,\r\n  \"shield\": false\r\n}",
+        "{\r\n  \"payoutLevel\": 9,\r\n  \"shield\": true\r\n}",
+        "{\r\n  \"payoutLevel\": 0,\r\n  \"shield\": false\r\n}",
+        "{\r\n  \"payoutLevel\": 1,\r\n  \"shield\": true\r\n}"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010181,
+      "name": "Ruleta Francesa en Vivo",
+      "dealer": "Vanessa",
+      "is_open": true,
+      "players": 162,
+      "last_numbers": [
+        "0",
+        "13",
+        "27",
+        "4",
+        "29"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2010336,
+      "name": "T\u00fcrk\u00e7e Lightning Rulet",
+      "dealer": "Mert",
+      "is_open": true,
+      "players": 694,
+      "last_numbers": [
+        "17",
+        "0",
+        "26",
+        "6",
+        "23"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010337,
+      "name": "Suomalainen Ruletti",
+      "dealer": "Ilona",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [
+        "7",
+        "1",
+        "8",
+        "8",
+        "6"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010339,
+      "name": "Norsk Roulette",
+      "dealer": "Rhay",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [
+        "23",
+        "20",
+        "17",
+        "8",
+        "26"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010340,
+      "name": "Japanese Roulette",
+      "dealer": "Makoto",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [
+        "20",
+        "19",
+        "27",
+        "24",
+        "0"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010341,
+      "name": "Greek Roulette",
+      "dealer": "Kimonas",
+      "is_open": true,
+      "players": 14,
+      "last_numbers": [
+        "12",
+        "3",
+        "8",
+        "36",
+        "29"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010439,
+      "name": "Super Andar Bahar",
+      "dealer": "K\u0101rlis",
+      "is_open": true,
+      "players": 311,
+      "last_numbers": [
+        "A",
+        "B",
+        "B",
+        "A",
+        "B"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010440,
+      "name": "XXXtreme Lightning Roulette",
+      "dealer": "Lelde",
+      "is_open": true,
+      "players": 1835,
+      "last_numbers": [
+        "9",
+        "27",
+        "24",
+        "31",
+        "0"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010478,
+      "name": "Salon Priv\u00e9 Roulette",
+      "dealer": "Julija",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [
+        "8",
+        "25",
+        "10",
+        "31",
+        "5"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010512,
+      "name": "Dead or Alive: Saloon",
+      "dealer": "Kuro",
+      "is_open": true,
+      "players": 69,
+      "last_numbers": [
+        "{\r\n  \"card\": \"3D\",\r\n  \"numberOfCards\": 1,\r\n  \"multiplier\": 20\r\n}",
+        "{\r\n  \"card\": \"8H\",\r\n  \"numberOfCards\": 1,\r\n  \"multiplier\": 20\r\n}",
+        "{\r\n  \"card\": \"AC\",\r\n  \"numberOfCards\": 1,\r\n  \"multiplier\": 20\r\n}",
+        "{\r\n  \"card\": \"7C\",\r\n  \"numberOfCards\": 1,\r\n  \"multiplier\": 20\r\n}",
+        "{\r\n  \"card\": \"AS\",\r\n  \"numberOfCards\": 7,\r\n  \"multiplier\": 170\r\n}"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010527,
+      "name": "Mr Green Roulette",
+      "dealer": "Amanda",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [
+        "0",
+        "24",
+        "8",
+        "8",
+        "9"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010548,
+      "name": "Ruleta Dual Play",
+      "dealer": "Dealer 1",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [
+        "14",
+        "24",
+        "3",
+        "20",
+        "36"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2010565,
+      "name": "Gold Vault Roulette",
+      "dealer": "Marius",
+      "is_open": true,
+      "players": 259,
+      "last_numbers": [
+        "1",
+        "19",
+        "34",
+        "30",
+        "30"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010582,
+      "name": "Vegas Sports Roulette",
+      "dealer": "Marcus",
+      "is_open": true,
+      "players": 24,
+      "last_numbers": [
+        "25",
+        "19",
+        "10",
+        "3",
+        "9"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010680,
+      "name": "Red Door Roulette",
+      "dealer": "Mira",
+      "is_open": true,
+      "players": 868,
+      "last_numbers": [
+        "{\r\n  \"value\": 23\r\n}",
+        "{\r\n  \"value\": 19\r\n}",
+        "{\r\n  \"value\": 11\r\n}",
+        "{\r\n  \"value\": 1\r\n}",
+        "{\r\n  \"value\": 21\r\n}"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010685,
+      "name": "Speed Super Sic Bo",
+      "dealer": "Luna",
+      "is_open": true,
+      "players": 139,
+      "last_numbers": [
+        "{\r\n  \"value\": \"1|3|6\"\r\n}",
+        "{\r\n  \"value\": \"1|4|5\"\r\n}",
+        "{\r\n  \"value\": \"1|4|4\"\r\n}",
+        "{\r\n  \"value\": \"2|2|3\"\r\n}",
+        "{\r\n  \"value\": \"1|2|2\"\r\n}"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010708,
+      "name": "Stock Market",
+      "dealer": "Duke",
+      "is_open": true,
+      "players": 296,
+      "last_numbers": [
+        "20",
+        "60",
+        "-82",
+        "-34",
+        "-87"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010714,
+      "name": "Lightning Storm",
+      "dealer": "Linards",
+      "is_open": true,
+      "players": 2023,
+      "last_numbers": [
+        "{\r\n  \"sector\": \"EvoLeaf\"\r\n}",
+        "{\r\n  \"sector\": \"Number10\",\r\n  \"bonus\": \"MonsterMash\"\r\n}",
+        "{\r\n  \"sector\": \"EvoLeaf\"\r\n}",
+        "{\r\n  \"sector\": \"EvoLeaf\"\r\n}",
+        "{\r\n  \"sector\": \"Number8\",\r\n  \"bonus\": \"BatteryCharger\"\r\n}"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010727,
+      "name": "WH Vegas Roulette",
+      "dealer": "Keerthivasan",
+      "is_open": true,
+      "players": 15,
+      "last_numbers": [
+        "36",
+        "26",
+        "0",
+        "1",
+        "17"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010734,
+      "name": "Crazy Time Italia",
+      "dealer": "Andrea",
+      "is_open": true,
+      "players": 487,
+      "last_numbers": [
+        "1",
+        "2",
+        "1",
+        "2",
+        "2"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330017,
+      "name": "Quantum Roulette Live",
+      "dealer": "Osias",
+      "is_open": true,
+      "players": 226,
+      "last_numbers": [
+        "17",
+        "3",
+        "19",
+        "18",
+        "16"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330046,
+      "name": "Speed Auto Roulette",
+      "dealer": "Speed Auto Roulette",
+      "is_open": true,
+      "players": 18,
+      "last_numbers": [
+        "12",
+        "5",
+        "34",
+        "19",
+        "18"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330131,
+      "name": "Bucharest French Roulette",
+      "dealer": "Moris",
+      "is_open": true,
+      "players": 13,
+      "last_numbers": [
+        "33",
+        "34",
+        "14",
+        "5",
+        "33"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330134,
+      "name": "Turkish Speed Roulette",
+      "dealer": "Fathima",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [
+        "3",
+        "23",
+        "30",
+        "28",
+        "24"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330145,
+      "name": "Ruleta Express",
+      "dealer": "Joel",
+      "is_open": true,
+      "players": 35,
+      "last_numbers": [
+        "22",
+        "31",
+        "25",
+        "21",
+        "8"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2330146,
+      "name": "Slingshot Ruleta",
+      "dealer": "Slingshot",
+      "is_open": true,
+      "players": 16,
+      "last_numbers": [
+        "27",
+        "28",
+        "17",
+        "36",
+        "12"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2330173,
+      "name": "Quantum Autom\u00e1tica",
+      "dealer": "Quantum Automatica",
+      "is_open": true,
+      "players": 22,
+      "last_numbers": [
+        "9",
+        "29",
+        "23",
+        "30",
+        "35"
+      ],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2330272,
+      "name": "Auto Roulette 2",
+      "dealer": "Auto Roulette 2",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [
+        "34",
+        "13",
+        "36",
+        "25",
+        "21"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330448,
+      "name": "MGM Grand Live Roulette",
+      "dealer": "Live from Las Vegas",
+      "is_open": true,
+      "players": 22,
+      "last_numbers": [
+        "14",
+        "1",
+        "25",
+        "31",
+        "18"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330489,
+      "name": "Club Aurora Roulette",
+      "dealer": "Rota",
+      "is_open": true,
+      "players": 17,
+      "last_numbers": [
+        "19",
+        "36",
+        "33",
+        "8",
+        "24"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380010,
+      "name": "Speed Roulette 1",
+      "dealer": "Koby",
+      "is_open": true,
+      "players": 191,
+      "last_numbers": [
+        "28",
+        "22",
+        "12",
+        "16",
+        "5"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380013,
+      "name": "Roulette 2",
+      "dealer": "Ivory",
+      "is_open": true,
+      "players": 94,
+      "last_numbers": [
+        "36",
+        "5",
+        "3",
+        "22",
+        "15"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380032,
+      "name": "Russian Roulette",
+      "dealer": "Kirill",
+      "is_open": true,
+      "players": 80,
+      "last_numbers": [
+        "35",
+        "11",
+        "11",
+        "33",
+        "19"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380033,
+      "name": "German Roulette",
+      "dealer": "Bertha",
+      "is_open": true,
+      "players": 42,
+      "last_numbers": [
+        "36",
+        "27",
+        "29",
+        "2",
+        "0"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380034,
+      "name": "Roulette Italia Tricolore",
+      "dealer": "Kindra",
+      "is_open": true,
+      "players": 35,
+      "last_numbers": [
+        "20",
+        "21",
+        "10",
+        "26",
+        "13"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2380038,
+      "name": "Roulette Macao",
+      "dealer": "Alexa",
+      "is_open": true,
+      "players": 142,
+      "last_numbers": [
+        "8",
+        "30",
+        "2",
+        "18",
+        "35"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380039,
+      "name": "Turkish Roulette",
+      "dealer": "Erdal",
+      "is_open": true,
+      "players": 181,
+      "last_numbers": [
+        "15",
+        "9",
+        "18",
+        "3",
+        "5"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380049,
+      "name": "Mega Roulette",
+      "dealer": "Elyna",
+      "is_open": true,
+      "players": 871,
+      "last_numbers": [
+        "17",
+        "1",
+        "0",
+        "35",
+        "25"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380064,
+      "name": "Roulette 1",
+      "dealer": "Zahra",
+      "is_open": true,
+      "players": 531,
+      "last_numbers": [
+        "11",
+        "5",
+        "16",
+        "16",
+        "0"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380117,
+      "name": "VIP Roulette",
+      "dealer": "Buster",
+      "is_open": true,
+      "players": 61,
+      "last_numbers": [
+        "6",
+        "5",
+        "2",
+        "8",
+        "29"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380125,
+      "name": "888 Rooftop Roulette",
+      "dealer": "Ivona",
+      "is_open": true,
+      "players": 268,
+      "last_numbers": [
+        "36",
+        "28",
+        "12",
+        "18",
+        "36"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380148,
+      "name": "PowerUp Roulette",
+      "dealer": "Britney",
+      "is_open": true,
+      "players": 397,
+      "last_numbers": [
+        "24",
+        "35",
+        "5",
+        "15",
+        "35"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2380159,
+      "name": "Romanian Roulette",
+      "dealer": "Stefan",
+      "is_open": true,
+      "players": 39,
+      "last_numbers": [
+        "23",
+        "34",
+        "24",
+        "4",
+        "25"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380174,
+      "name": "SPEED ROULETTE 2",
+      "dealer": "Levan",
+      "is_open": true,
+      "players": 67,
+      "last_numbers": [
+        "3",
+        "31",
+        "16",
+        "27",
+        "16"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380201,
+      "name": "888 Auto Mega Roulette",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 165,
+      "last_numbers": [
+        "2",
+        "33",
+        "2",
+        "10",
+        "3"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380225,
+      "name": "Lucky 6 Roulette",
+      "dealer": "Yasin",
+      "is_open": true,
+      "players": 428,
+      "last_numbers": [
+        "15",
+        "3",
+        "26",
+        "9",
+        "23"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380335,
+      "name": "Brazilian Mega Roulette",
+      "dealer": "Filipa",
+      "is_open": true,
+      "players": 65,
+      "last_numbers": [
+        "29",
+        "26",
+        "8",
+        "14",
+        "2"
+      ],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2380346,
+      "name": "VIP Auto Roulette",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 19,
+      "last_numbers": [
+        "22",
+        "6",
+        "13",
+        "12",
+        "29"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380358,
+      "name": "888 Italian Roulette",
+      "dealer": "Kindra",
+      "is_open": true,
+      "players": 35,
+      "last_numbers": [
+        "20",
+        "21",
+        "10",
+        "26",
+        "13"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380360,
+      "name": "MRG Swedish Roulette",
+      "dealer": "Ragnvald",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [
+        "12",
+        "14",
+        "8",
+        "31",
+        "34"
+      ],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2380373,
+      "name": "Fortune Roulette",
+      "dealer": "Manole",
+      "is_open": true,
+      "players": 477,
+      "last_numbers": [
+        "11",
+        "29",
+        "18",
+        "21",
+        "4"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380390,
+      "name": "Immersive Roulette Deluxe",
+      "dealer": "Deria",
+      "is_open": true,
+      "players": 214,
+      "last_numbers": [
+        "29",
+        "9",
+        "35",
+        "19",
+        "15"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380391,
+      "name": "888 Speed Auto Roulette",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 106,
+      "last_numbers": [
+        "27",
+        "21",
+        "36",
+        "24",
+        "22"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380392,
+      "name": "888 Auto Roulette",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 467,
+      "last_numbers": [
+        "33",
+        "35",
+        "33",
+        "17",
+        "6"
+      ],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010005,
+      "name": "Casino Hold'em",
+      "dealer": "Maksims",
+      "is_open": true,
+      "players": 216,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010006,
+      "name": "Three Card Poker",
+      "dealer": "Maksis",
+      "is_open": true,
+      "players": 32,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010007,
+      "name": "Caribbean Stud Poker",
+      "dealer": "Aleksandrs",
+      "is_open": true,
+      "players": 20,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010008,
+      "name": "Ultimate Texas Hold'em",
+      "dealer": "Tejes",
+      "is_open": true,
+      "players": 75,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010020,
+      "name": "Speed Baccarat A",
+      "dealer": "Aurora",
+      "is_open": true,
+      "players": 900,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010021,
+      "name": "Baccarat Control Squeeze",
+      "dealer": "Ilze",
+      "is_open": true,
+      "players": 79,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010022,
+      "name": "Baccarat Squeeze",
+      "dealer": "Kamila",
+      "is_open": true,
+      "players": 61,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010023,
+      "name": "Baccarat A",
+      "dealer": "Lisa",
+      "is_open": true,
+      "players": 108,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010026,
+      "name": "888 VIP",
+      "dealer": "Asja",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010027,
+      "name": "888 XTRA",
+      "dealer": "Jessica",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010030,
+      "name": "888 PLAY",
+      "dealer": "Archi",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010032,
+      "name": "Texas Hold'em Bonus Poker",
+      "dealer": "Mikaela",
+      "is_open": true,
+      "players": 62,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010034,
+      "name": "Dragon Tiger",
+      "dealer": "Anna",
+      "is_open": true,
+      "players": 500,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010036,
+      "name": "Football Studio",
+      "dealer": "Boris",
+      "is_open": true,
+      "players": 586,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010038,
+      "name": "888 CLASSIC",
+      "dealer": "Kate",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010040,
+      "name": "888 START",
+      "dealer": "Tija",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010041,
+      "name": "888 FIVER",
+      "dealer": "Max",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010044,
+      "name": "888 Blackjack Italia",
+      "dealer": "Leonita",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010046,
+      "name": "Infinite Blackjack",
+      "dealer": "Tina",
+      "is_open": true,
+      "players": 239,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010053,
+      "name": "2 Hand Casino Hold'em",
+      "dealer": "Jhon",
+      "is_open": true,
+      "players": 33,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010055,
+      "name": "Infinite Free Bet Blackjack",
+      "dealer": "Guntis",
+      "is_open": true,
+      "players": 197,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010056,
+      "name": "777",
+      "dealer": "Sebastian",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010058,
+      "name": "Bucharest Blackjack A",
+      "dealer": "Alexandru",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010060,
+      "name": "Bucharest Blackjack B",
+      "dealer": "Catalin",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010062,
+      "name": "Blackjack White 1",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010063,
+      "name": "Blackjack White 2",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010064,
+      "name": "Blackjack White 3",
+      "dealer": "Jerry",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010067,
+      "name": "Speed Blackjack G",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010068,
+      "name": "Speed Blackjack H",
+      "dealer": "Katherine",
+      "is_open": true,
+      "players": 12,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010069,
+      "name": "Speed Blackjack J",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010070,
+      "name": "Speed Blackjack I",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010083,
+      "name": "Lightning Baccarat",
+      "dealer": "Alina",
+      "is_open": true,
+      "players": 256,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010084,
+      "name": "Speed Baccarat B",
+      "dealer": "Lisa",
+      "is_open": true,
+      "players": 121,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010085,
+      "name": "Speed Baccarat C",
+      "dealer": "Christen",
+      "is_open": true,
+      "players": 121,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010086,
+      "name": "Speed Baccarat D",
+      "dealer": "Elizabete",
+      "is_open": true,
+      "players": 89,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010087,
+      "name": "Speed Baccarat E",
+      "dealer": "Viktorija",
+      "is_open": true,
+      "players": 55,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010088,
+      "name": "Speed Baccarat F",
+      "dealer": "Genoveva",
+      "is_open": true,
+      "players": 57,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010089,
+      "name": "Baccarat B",
+      "dealer": "Kristina",
+      "is_open": true,
+      "players": 47,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010090,
+      "name": "Baccarat C",
+      "dealer": "Anny",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010091,
+      "name": "Speed Baccarat G",
+      "dealer": "Marta",
+      "is_open": true,
+      "players": 52,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010092,
+      "name": "Punto Banco",
+      "dealer": "Anna",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010093,
+      "name": "Salon Priv\u00e9 Baccarat A",
+      "dealer": "Daniela",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010094,
+      "name": "No Commission Baccarat",
+      "dealer": "Kiara",
+      "is_open": true,
+      "players": 330,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010095,
+      "name": "No Commission Speed Baccarat A",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010104,
+      "name": "Blackjack VIP A",
+      "dealer": "Sabrina",
+      "is_open": true,
+      "players": 14,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010105,
+      "name": "Blackjack VIP B",
+      "dealer": "Nyla",
+      "is_open": true,
+      "players": 11,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010116,
+      "name": "888",
+      "dealer": "Kate",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010118,
+      "name": "Salon Priv\u00e9 Blackjack A",
+      "dealer": "Cristian",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010119,
+      "name": "Salon Priv\u00e9 Blackjack B",
+      "dealer": "Pavels",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010120,
+      "name": "Salon Priv\u00e9 Blackjack C",
+      "dealer": "Janis",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010121,
+      "name": "Blackjack Platinum VIP",
+      "dealer": "Vita",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010122,
+      "name": "Blackjack Fortune VIP",
+      "dealer": "Karolina",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010123,
+      "name": "Blackjack Grand VIP",
+      "dealer": "Gibo",
+      "is_open": true,
+      "players": 17,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010124,
+      "name": "Blackjack Diamond VIP",
+      "dealer": "Roberta",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010125,
+      "name": "Blackjack Silver 1",
+      "dealer": "Ani",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010126,
+      "name": "Blackjack Silver 2",
+      "dealer": "Ana",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010127,
+      "name": "Blackjack Silver 3",
+      "dealer": "Kato",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010128,
+      "name": "Blackjack Silver 4",
+      "dealer": "Dachi",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010129,
+      "name": "Blackjack Silver 5",
+      "dealer": "Kote",
+      "is_open": true,
+      "players": 11,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010130,
+      "name": "Blackjack Silver 6",
+      "dealer": "Koko",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010131,
+      "name": "Blackjack Silver 7",
+      "dealer": "Mia",
+      "is_open": true,
+      "players": 8,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010132,
+      "name": "Blackjack Party",
+      "dealer": "Iryna",
+      "is_open": true,
+      "players": 60,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010133,
+      "name": "Blackjack A",
+      "dealer": "Sandro",
+      "is_open": true,
+      "players": 32,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010134,
+      "name": "Blackjack B",
+      "dealer": "Mimi",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010135,
+      "name": "Blackjack C",
+      "dealer": "Mathilda",
+      "is_open": true,
+      "players": 11,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010136,
+      "name": "Speed Blackjack D",
+      "dealer": "Andrew",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010137,
+      "name": "Speed Blackjack E",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010138,
+      "name": "Speed Blackjack A",
+      "dealer": "Saad",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010139,
+      "name": "Speed Blackjack B",
+      "dealer": "Tim",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010140,
+      "name": "Speed Blackjack C",
+      "dealer": "Aayusha",
+      "is_open": true,
+      "players": 12,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010141,
+      "name": "Speed Blackjack D",
+      "dealer": "Fathima",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010145,
+      "name": "888 HIT",
+      "dealer": "Arturs",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010153,
+      "name": "Power Blackjack",
+      "dealer": "Antons",
+      "is_open": true,
+      "players": 53,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010159,
+      "name": "Ventuno Capri",
+      "dealer": "Matteo",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010160,
+      "name": "Ventuno Positano",
+      "dealer": "Jacopo",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010162,
+      "name": "Casino Hold'em Italia",
+      "dealer": "Andrea",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010164,
+      "name": "Instant Roulette",
+      "dealer": "Auto",
+      "is_open": true,
+      "players": 175,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010173,
+      "name": "Gonzo's Treasure Map",
+      "dealer": "Anna",
+      "is_open": true,
+      "players": 54,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010178,
+      "name": "888 Azzurri",
+      "dealer": "Daniela",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010179,
+      "name": "888 Vittoria",
+      "dealer": "Monica",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010180,
+      "name": "Golden Wealth Baccarat",
+      "dealer": "Karina",
+      "is_open": true,
+      "players": 263,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010182,
+      "name": "Lightning Blackjack",
+      "dealer": "Janis",
+      "is_open": true,
+      "players": 45,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010183,
+      "name": "Salon Priv\u00e9 Blackjack D",
+      "dealer": "Ksenija",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010184,
+      "name": "Salon Priv\u00e9 Blackjack E",
+      "dealer": "Lize",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010185,
+      "name": "Salon Priv\u00e9 Blackjack F",
+      "dealer": "Kamilla",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010186,
+      "name": "Blackjack VIP Gamma",
+      "dealer": "Serhii",
+      "is_open": true,
+      "players": 8,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010187,
+      "name": "Blackjack VIP Beta",
+      "dealer": "Deimant\u0117",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010188,
+      "name": "Blackjack VIP Alpha",
+      "dealer": "Archejas",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010189,
+      "name": "Blackjack VIP H",
+      "dealer": "Peter",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010190,
+      "name": "Blackjack VIP I",
+      "dealer": "Polina",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010191,
+      "name": "Blackjack VIP K",
+      "dealer": "Beate",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010192,
+      "name": "Blackjack VIP L",
+      "dealer": "Ellia",
+      "is_open": true,
+      "players": 8,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010193,
+      "name": "Blackjack VIP M",
+      "dealer": "Sarah",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010194,
+      "name": "Blackjack VIP N",
+      "dealer": "Alice",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010195,
+      "name": "Blackjack VIP O",
+      "dealer": "Laura",
+      "is_open": true,
+      "players": 8,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010196,
+      "name": "Blackjack VIP P",
+      "dealer": "Glebs",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010197,
+      "name": "Blackjack VIP Q",
+      "dealer": "Daria",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010198,
+      "name": "Blackjack VIP R",
+      "dealer": "Gabby",
+      "is_open": true,
+      "players": 20,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010199,
+      "name": "Blackjack VIP S",
+      "dealer": "Daniel",
+      "is_open": true,
+      "players": 12,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010200,
+      "name": "Blackjack VIP T",
+      "dealer": "Melissa",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010201,
+      "name": "Blackjack VIP Z",
+      "dealer": "Alex",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010202,
+      "name": "Blackjack VIP X",
+      "dealer": "Pavel",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010203,
+      "name": "Blackjack VIP G",
+      "dealer": "Acema",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010204,
+      "name": "Blackjack VIP F",
+      "dealer": "Aria",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010205,
+      "name": "Blackjack VIP E",
+      "dealer": "Just\u0117",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010206,
+      "name": "Blackjack VIP D",
+      "dealer": "Renjitha",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010207,
+      "name": "Blackjack VIP C",
+      "dealer": "Tania",
+      "is_open": true,
+      "players": 11,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010208,
+      "name": "Blackjack VIP 1",
+      "dealer": "Mary",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010209,
+      "name": "Blackjack VIP 2",
+      "dealer": "Jack",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010210,
+      "name": "Blackjack VIP 3",
+      "dealer": "Saba",
+      "is_open": true,
+      "players": 8,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010211,
+      "name": "Blackjack VIP 4",
+      "dealer": "Ri\u010dards",
+      "is_open": true,
+      "players": 8,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010212,
+      "name": "Blackjack VIP 5",
+      "dealer": "Jenny",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010213,
+      "name": "Blackjack VIP 6",
+      "dealer": "Luna",
+      "is_open": true,
+      "players": 8,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010214,
+      "name": "Blackjack VIP 7",
+      "dealer": "Vita",
+      "is_open": true,
+      "players": 8,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010215,
+      "name": "Blackjack VIP 8",
+      "dealer": "Auks\u0117",
+      "is_open": true,
+      "players": 8,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010216,
+      "name": "Blackjack VIP 9",
+      "dealer": "Shanaya",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010217,
+      "name": "Blackjack VIP 10",
+      "dealer": "Nick",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010218,
+      "name": "Blackjack VIP 11",
+      "dealer": "Jessica",
+      "is_open": true,
+      "players": 8,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010219,
+      "name": "Blackjack VIP 12",
+      "dealer": "Mia",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010220,
+      "name": "Blackjack VIP 13",
+      "dealer": "Levani",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010221,
+      "name": "Blackjack VIP 14",
+      "dealer": "Lucy",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010222,
+      "name": "Blackjack VIP 15",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010223,
+      "name": "Blackjack VIP 16",
+      "dealer": "Patricija",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010345,
+      "name": "No Commission Speed Baccarat B",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010346,
+      "name": "No Commission Speed Baccarat C",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010347,
+      "name": "Bac Bo",
+      "dealer": "Anna",
+      "is_open": true,
+      "players": 2183,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010349,
+      "name": "Peek Baccarat",
+      "dealer": "Nikola",
+      "is_open": true,
+      "players": 25,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010442,
+      "name": "Teen Patti",
+      "dealer": "Bradley",
+      "is_open": true,
+      "players": 29,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010443,
+      "name": "Salon Priv\u00e9 Baccarat B",
+      "dealer": "Aka",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010444,
+      "name": "Salon Priv\u00e9 Baccarat C",
+      "dealer": "Ansis",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010445,
+      "name": "Salon Priv\u00e9 Baccarat D",
+      "dealer": "Madars",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010446,
+      "name": "Salon Priv\u00e9 Baccarat E",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010447,
+      "name": "Salon Priv\u00e9 Baccarat F",
+      "dealer": "Alina",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010448,
+      "name": "Salon Priv\u00e9 Baccarat G",
+      "dealer": "Gerda",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010449,
+      "name": "Speed Baccarat H",
+      "dealer": "Nick",
+      "is_open": true,
+      "players": 50,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010450,
+      "name": "Speed Baccarat I",
+      "dealer": "Nikolajs",
+      "is_open": true,
+      "players": 78,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010451,
+      "name": "Speed Baccarat J",
+      "dealer": "Amanda",
+      "is_open": true,
+      "players": 36,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010452,
+      "name": "Speed Baccarat K",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010453,
+      "name": "Speed Baccarat L",
+      "dealer": "Mia",
+      "is_open": true,
+      "players": 18,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010454,
+      "name": "Speed Baccarat M",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010455,
+      "name": "Speed Baccarat N",
+      "dealer": "Ani",
+      "is_open": true,
+      "players": 71,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010456,
+      "name": "Speed Baccarat O",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010457,
+      "name": "Speed Baccarat P",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010458,
+      "name": "Speed Baccarat Q",
+      "dealer": "Vika",
+      "is_open": true,
+      "players": 27,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010459,
+      "name": "Speed Baccarat R",
+      "dealer": "Helene",
+      "is_open": true,
+      "players": 54,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010460,
+      "name": "Speed Baccarat S",
+      "dealer": "Jane",
+      "is_open": true,
+      "players": 53,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010461,
+      "name": "Blackjack VIP 17",
+      "dealer": "Mate",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010462,
+      "name": "Blackjack VIP 18",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010463,
+      "name": "Blackjack VIP 19",
+      "dealer": "Pikria",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010464,
+      "name": "Blackjack VIP 20",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010465,
+      "name": "Blackjack VIP 21",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010466,
+      "name": "Blackjack VIP 22",
+      "dealer": "Luka",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010467,
+      "name": "Blackjack VIP J",
+      "dealer": "Stela",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010468,
+      "name": "Blackjack VIP U",
+      "dealer": "Hitik Ravi",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010469,
+      "name": "Blackjack VIP V",
+      "dealer": "Denis",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010471,
+      "name": "Salon Priv\u00e9 Blackjack G",
+      "dealer": "Kimmy",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010472,
+      "name": "Speed VIP Blackjack E",
+      "dealer": "Slava",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010473,
+      "name": "Speed VIP Blackjack F",
+      "dealer": "A\u013cona",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010474,
+      "name": "Speed VIP Blackjack G",
+      "dealer": "Alex",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010475,
+      "name": "Speed VIP Blackjack H",
+      "dealer": "Muhammed Roshan",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010476,
+      "name": "Speed VIP Blackjack I",
+      "dealer": "Lauris",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010477,
+      "name": "Speed VIP Blackjack J",
+      "dealer": "Lika",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010481,
+      "name": "MONOPOLY Big Baller",
+      "dealer": "Casper",
+      "is_open": true,
+      "players": 7186,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010506,
+      "name": "Football Studio Dice",
+      "dealer": "Colin",
+      "is_open": true,
+      "players": 119,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010513,
+      "name": "Blackjack VIP 25",
+      "dealer": "Sophio",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010514,
+      "name": "Blackjack VIP 26",
+      "dealer": "Danyl",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010515,
+      "name": "Blackjack VIP 27",
+      "dealer": "Maksimilian",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010516,
+      "name": "Salon Priv\u00e9 Baccarat H",
+      "dealer": "Stacy",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010517,
+      "name": "Salon Priv\u00e9 Baccarat I",
+      "dealer": "Aliaksandr",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010518,
+      "name": "Salon Priv\u00e9 Baccarat J",
+      "dealer": "Mike",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010519,
+      "name": "Salon Priv\u00e9 Blackjack H",
+      "dealer": "Val\u0113rija",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010520,
+      "name": "Salon Priv\u00e9 Blackjack I",
+      "dealer": "Nataliia",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010521,
+      "name": "Salon Priv\u00e9 Blackjack J",
+      "dealer": "Henrijs",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010522,
+      "name": "Mr Green Club Blackjack 1",
+      "dealer": "Vito",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010523,
+      "name": "Mr Green Club Blackjack 2",
+      "dealer": "Sesili",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010524,
+      "name": "Mr Green Exclusive Blackjack",
+      "dealer": "Angelika",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010525,
+      "name": "Mr Green Exclusive Blackjack 2",
+      "dealer": "Henry",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010528,
+      "name": "Mr Green VIP Blackjack",
+      "dealer": "Jack",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010549,
+      "name": "Vegas Free bet BJ1",
+      "dealer": "Lilu",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010562,
+      "name": "Extra Chilli Epic Spins",
+      "dealer": "Nox",
+      "is_open": true,
+      "players": 137,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010567,
+      "name": "Funky Time",
+      "dealer": "Kristina",
+      "is_open": true,
+      "players": 6972,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010576,
+      "name": "Vegas Sports Blackjack 1",
+      "dealer": "Mia",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010577,
+      "name": "Vegas Sports Blackjack 2",
+      "dealer": "Gustavo",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010578,
+      "name": "Vegas Sports Blackjack 3",
+      "dealer": "Febz",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010579,
+      "name": "Vegas Sports Blackjack 4",
+      "dealer": "Alex",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010580,
+      "name": "Vegas Sports Infinite Blackjack",
+      "dealer": "Edgars",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010581,
+      "name": "Vegas Sports Free Bet Blackjack 1",
+      "dealer": "Vadim",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010589,
+      "name": "Blackjack 1",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010592,
+      "name": "Blackjack da sorte",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010593,
+      "name": "Gold Blackjack 1",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010594,
+      "name": "Gold Blackjack 3\u00a0",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010595,
+      "name": "Gold Blackjack 4",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010596,
+      "name": "Gold Blackjack 5",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010599,
+      "name": "Platinum Blackjack 1\u00a0",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010601,
+      "name": "Rumba Blackjack 1",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010602,
+      "name": "Rumba Blackjack 4",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010603,
+      "name": "Russian Blackjack 1",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010604,
+      "name": "Russian Blackjack 2",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010605,
+      "name": "Turkish Blackjack 1",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010606,
+      "name": "Turkish Blackjack 2",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010607,
+      "name": "Turkish Blackjack",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010608,
+      "name": "VIP Diamond Blackjack\u00a0",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010609,
+      "name": "VIP Surrender Blackjack",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010610,
+      "name": "Unlimited Blackjack",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010611,
+      "name": "Turkish Unlimited Blackjack\u00a0",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010612,
+      "name": "Spanish Unlimited Blackjack\u00a0",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010613,
+      "name": "Video Blackjack",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010614,
+      "name": "EZ Salon Prive Blackjack",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010615,
+      "name": "Diamond Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010616,
+      "name": "Fiesta Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010617,
+      "name": "Italian Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010618,
+      "name": "Namaste Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010619,
+      "name": "Roleta da sorte",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010621,
+      "name": "EZ Russian Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010622,
+      "name": "Spanish Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010623,
+      "name": "EZ Speed Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010624,
+      "name": "EZ Turkish Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010625,
+      "name": "EZ Auto Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010626,
+      "name": "EZ Speed Auto Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010627,
+      "name": "Prestige Auto Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010628,
+      "name": "Portomaso Roulette 2",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010629,
+      "name": "Oracle Roulette 2",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010630,
+      "name": "Oracle 360 Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010631,
+      "name": "Casino Marina Roulette 1",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010632,
+      "name": "Casino Marina Roulette 2",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010633,
+      "name": "Ruleta del Sol",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010634,
+      "name": "Ultimate Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010640,
+      "name": "EZ Casino Hold'em\u00a0",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010642,
+      "name": "Bet on Teen Patti",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010643,
+      "name": "One Day Teen Patti\u00a0",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010644,
+      "name": "Russian Poker",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010645,
+      "name": "Andar Bahar",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010646,
+      "name": "Casino Marina Andar Bahar\u00a0",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010647,
+      "name": "Ultimate Andar Bahar",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010648,
+      "name": "Lucky 7",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010649,
+      "name": "32 Cards",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010650,
+      "name": "Baccarat A",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010653,
+      "name": "Baccarat B",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010654,
+      "name": "Baccarat C",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010655,
+      "name": "Baccarat D",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010657,
+      "name": "Casino Marina Baccarat A",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010658,
+      "name": "Casino Marina Baccarat B",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010659,
+      "name": "Casino Marina Baccarat C",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010660,
+      "name": "Casino Marina Baccarat D",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010661,
+      "name": "Knockout Baccarat",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010662,
+      "name": "Super 6 Baccarat",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010663,
+      "name": "No Commission Baccarat E",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010665,
+      "name": "Sic Bo",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010666,
+      "name": "Ultimate Sic Bo",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010667,
+      "name": "EZ Dragon Tiger",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010668,
+      "name": "Dragon Tiger da sorte",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010669,
+      "name": "Cricket War",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010670,
+      "name": "Bet On Numbers HD",
+      "dealer": "N/A",
+      "is_open": false,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010672,
+      "name": "Video Poker",
+      "dealer": "Kaspars",
+      "is_open": true,
+      "players": 34,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010673,
+      "name": "Ventuno Portofino",
+      "dealer": "Pippo",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010676,
+      "name": "Prosperity Tree Baccarat",
+      "dealer": "Josselyn",
+      "is_open": true,
+      "players": 165,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010693,
+      "name": "Crazy Pachinko",
+      "dealer": "Bob",
+      "is_open": true,
+      "players": 122,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010705,
+      "name": "Ventuno Amalfi",
+      "dealer": "Anthony",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010706,
+      "name": "Ventuno Taormina",
+      "dealer": "Jessica",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010712,
+      "name": "Lightning Dragon Tiger",
+      "dealer": "Margarita",
+      "is_open": true,
+      "players": 223,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010713,
+      "name": "Balloon Race",
+      "dealer": "Astrid",
+      "is_open": true,
+      "players": 121,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010715,
+      "name": "Ventuno Ischia",
+      "dealer": "Piero",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010716,
+      "name": "Ventuno Bellagio",
+      "dealer": "Emma",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010717,
+      "name": "Ventuno Ortigia",
+      "dealer": "Carletto",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010718,
+      "name": "Ventuno Tropea",
+      "dealer": "Emua",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010719,
+      "name": "Lightning Ball",
+      "dealer": "Vlad",
+      "is_open": true,
+      "players": 128,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010720,
+      "name": "Ventuno Diamante",
+      "dealer": "Princi",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010721,
+      "name": "Ventuno Smeraldo",
+      "dealer": "Morgana",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010722,
+      "name": "Ventuno Rubino",
+      "dealer": "Ubaldo",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010724,
+      "name": "777 Free Bet Blackjack",
+      "dealer": "Sandis",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010725,
+      "name": "888 Free Bet Blackjack",
+      "dealer": "Edvards",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010726,
+      "name": "Mr Green Free Bet Blackjack",
+      "dealer": "Kenny",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010728,
+      "name": "Vegas Blackjack A",
+      "dealer": "Igors",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010729,
+      "name": "Vegas Blackjack B",
+      "dealer": "K\u0101rlis",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010730,
+      "name": "Vegas Blackjack C",
+      "dealer": "Dmitrijs",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010731,
+      "name": "Vegas Blackjack E",
+      "dealer": "Yuna",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010732,
+      "name": "Vegas Blackjack F",
+      "dealer": "Armand",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010735,
+      "name": "Mr Green Dansk Blackjack 1",
+      "dealer": "Sami",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010736,
+      "name": "Infinite Fun Fun 21 Blackjack",
+      "dealer": "Ayrton",
+      "is_open": true,
+      "players": 58,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010742,
+      "name": "Super Speed Baccarat",
+      "dealer": "Inna",
+      "is_open": true,
+      "players": 90,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010743,
+      "name": "Crazy Balls",
+      "dealer": "Arnas",
+      "is_open": true,
+      "players": 2987,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010744,
+      "name": "888 Freebet Italia",
+      "dealer": "Chiara",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010746,
+      "name": "Ventuno Panarea",
+      "dealer": "Giuseppe",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010747,
+      "name": "Ventuno Sorrento",
+      "dealer": "Deborah",
+      "is_open": true,
+      "players": 12,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010748,
+      "name": "Ventuno Perla",
+      "dealer": "Danilo",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010749,
+      "name": "Ventuno Cristallo",
+      "dealer": "Dando",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010750,
+      "name": "Ventuno Corallo",
+      "dealer": "Davide",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010754,
+      "name": "Infinite Bet Stacker Blackjack",
+      "dealer": "Simonis",
+      "is_open": true,
+      "players": 84,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2010755,
+      "name": "Easy Blackjack",
+      "dealer": "Jay",
+      "is_open": true,
+      "players": 45,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010756,
+      "name": "Ventuno Camogli",
+      "dealer": "Beppi",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010766,
+      "name": "Always 8 Baccarat",
+      "dealer": "Anna",
+      "is_open": true,
+      "players": 112,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010767,
+      "name": "Ventuno Ponza",
+      "dealer": "Mada",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010768,
+      "name": "Ventuno Partenope",
+      "dealer": "Pietro",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010769,
+      "name": "Ventuno Lerici",
+      "dealer": "Michael",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010770,
+      "name": "Ventuno Murano",
+      "dealer": "Niko",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010771,
+      "name": "Race Track",
+      "dealer": "Tim",
+      "is_open": true,
+      "players": 183,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2010773,
+      "name": "Horse Racing Auto Roulette",
+      "dealer": "N/A",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2010774,
+      "name": "War",
+      "dealer": "Biorn",
+      "is_open": true,
+      "players": 120,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330002,
+      "name": "Speed Baccarat",
+      "dealer": "Karola",
+      "is_open": true,
+      "players": 64,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330005,
+      "name": "Buffalo Blitz Live Slots",
+      "dealer": "Kori",
+      "is_open": true,
+      "players": 147,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330006,
+      "name": "3 Card Brag",
+      "dealer": "Shelby",
+      "is_open": true,
+      "players": 18,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330011,
+      "name": "Spin a Win",
+      "dealer": "Bree",
+      "is_open": true,
+      "players": 168,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330015,
+      "name": "Sicbo Deluxe",
+      "dealer": "Amella",
+      "is_open": true,
+      "players": 51,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330018,
+      "name": "Quantum Blackjack Plus",
+      "dealer": "Marcel",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330025,
+      "name": "The Money Drop Live",
+      "dealer": "Merrick",
+      "is_open": true,
+      "players": 47,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330030,
+      "name": "Age Of The Gods Bonus  Roulette",
+      "dealer": "Haralds",
+      "is_open": true,
+      "players": 18,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330032,
+      "name": "All Bets Blackjack",
+      "dealer": "Felicity",
+      "is_open": true,
+      "players": 151,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330033,
+      "name": "Soir\u00e9e Elite VIP Blackjack 2",
+      "dealer": "Rihanna",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330034,
+      "name": "Bet On Dragon Tiger",
+      "dealer": "Orchid",
+      "is_open": true,
+      "players": 28,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330035,
+      "name": "French Roulette",
+      "dealer": "Tija",
+      "is_open": true,
+      "players": 275,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330036,
+      "name": "Football French Roulette",
+      "dealer": "Denzel",
+      "is_open": true,
+      "players": 20,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330044,
+      "name": "Majority Rules Speed Blackjack",
+      "dealer": "Garrick",
+      "is_open": true,
+      "players": 65,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330045,
+      "name": "Prestige Roulette",
+      "dealer": "Shivani",
+      "is_open": true,
+      "players": 33,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330047,
+      "name": "Roulette",
+      "dealer": "Tija",
+      "is_open": true,
+      "players": 275,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330048,
+      "name": "Royale Blackjack 1",
+      "dealer": "Branson",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330049,
+      "name": "Royale Blackjack 2",
+      "dealer": "Nile",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330051,
+      "name": "Royale Blackjack 4",
+      "dealer": "Fadel",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330053,
+      "name": "Auto Roulette",
+      "dealer": "Auto Roulette",
+      "is_open": true,
+      "players": 27,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330057,
+      "name": "Soir\u00e9e Elite VIP Blackjack",
+      "dealer": "Rihanna",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330058,
+      "name": "Unlimited Blackjack",
+      "dealer": "Finneas",
+      "is_open": true,
+      "players": 46,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330059,
+      "name": "Blackjack Italiano 1",
+      "dealer": "Niccolo",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330060,
+      "name": "Blackjack Italiano 2",
+      "dealer": "Niccolo",
+      "is_open": true,
+      "players": 10,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330061,
+      "name": "Blackjack Italiano VIP",
+      "dealer": "Fiero",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330062,
+      "name": "Deutsches Blackjack",
+      "dealer": "Arnold",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330063,
+      "name": "Soho All Bets Blackjack",
+      "dealer": "Isco",
+      "is_open": true,
+      "players": 30,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330064,
+      "name": "Colombia Blackjack",
+      "dealer": "Maeva",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330065,
+      "name": "Grand Blackjack",
+      "dealer": "Joslyn",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330066,
+      "name": "Deutsches Speed Roulette",
+      "dealer": "Clifford",
+      "is_open": true,
+      "players": 29,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330067,
+      "name": "Spread Bet Roulette",
+      "dealer": "Sebastian",
+      "is_open": true,
+      "players": 12,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330069,
+      "name": "Roulette Italiana",
+      "dealer": "Palmiro",
+      "is_open": true,
+      "players": 31,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330071,
+      "name": "Bucharest Quantum Roulette",
+      "dealer": "Celio",
+      "is_open": true,
+      "players": 17,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330072,
+      "name": "Speed Baccarat NC",
+      "dealer": "Karola",
+      "is_open": true,
+      "players": 64,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330073,
+      "name": "Football Roulette",
+      "dealer": "Denzel",
+      "is_open": true,
+      "players": 20,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330074,
+      "name": "Speed 6 Scanner Baccarat NC",
+      "dealer": "Amella",
+      "is_open": true,
+      "players": 23,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330075,
+      "name": "Grand Baccarat",
+      "dealer": "Tija",
+      "is_open": true,
+      "players": 117,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330076,
+      "name": "Grand Baccarat NC",
+      "dealer": "Paradise",
+      "is_open": true,
+      "players": 97,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330083,
+      "name": "American Speed Roulette",
+      "dealer": "Branson",
+      "is_open": true,
+      "players": 23,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330084,
+      "name": "Dragon Tiger",
+      "dealer": "Orchid",
+      "is_open": true,
+      "players": 27,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330085,
+      "name": "Casino Stud Poker",
+      "dealer": "Yero",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330087,
+      "name": "Casino Hold\u2019em",
+      "dealer": "Shelby",
+      "is_open": true,
+      "players": 68,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330088,
+      "name": "Speed 6 Scanner Baccarat",
+      "dealer": "Beta",
+      "is_open": true,
+      "players": 21,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330089,
+      "name": "Sette E Mezzo",
+      "dealer": "Lulbelle",
+      "is_open": true,
+      "players": 24,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330092,
+      "name": "Italian Cashback Blackjack",
+      "dealer": "Emir",
+      "is_open": true,
+      "players": 18,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330093,
+      "name": "Adventures Beyond Wonderland Live",
+      "dealer": "Freyja",
+      "is_open": true,
+      "players": 2291,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330097,
+      "name": "Bet On Baccarat",
+      "dealer": "Tasia",
+      "is_open": true,
+      "players": 32,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330130,
+      "name": "Bucharest Roulette",
+      "dealer": "Cleibson",
+      "is_open": true,
+      "players": 20,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330135,
+      "name": "Roleta Brasileira",
+      "dealer": "Vinicius",
+      "is_open": true,
+      "players": 1204,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330136,
+      "name": "Greek Speed Roulette",
+      "dealer": "Joyce",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330142,
+      "name": "Casiopea Francesa Ruleta",
+      "dealer": "Gala",
+      "is_open": true,
+      "players": 114,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2330143,
+      "name": "Casiopea Ruleta",
+      "dealer": "Gala",
+      "is_open": true,
+      "players": 114,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2330144,
+      "name": "Quantum Ruleta",
+      "dealer": "Bella",
+      "is_open": true,
+      "players": 71,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2330154,
+      "name": "Deal or No Deal The Big Draw",
+      "dealer": "Ailija",
+      "is_open": true,
+      "players": 55,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330162,
+      "name": "Mega Fire Blaze Roulette Live",
+      "dealer": "Hattie",
+      "is_open": true,
+      "players": 930,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330163,
+      "name": "Buffalo Blitz Show",
+      "dealer": "Diliana",
+      "is_open": true,
+      "players": 35,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2330164,
+      "name": "Baccarat",
+      "dealer": "Tasia",
+      "is_open": true,
+      "players": 32,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330165,
+      "name": "Greek Quantum Roulette",
+      "dealer": "Amedea",
+      "is_open": true,
+      "players": 25,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330168,
+      "name": "Andar Bahar",
+      "dealer": "Jia",
+      "is_open": true,
+      "players": 58,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330175,
+      "name": "Bet On Poker",
+      "dealer": "Gwenevere",
+      "is_open": true,
+      "players": 18,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330186,
+      "name": "Who Wants To Be a Millionaire? Roulette",
+      "dealer": "Hektors",
+      "is_open": true,
+      "players": 60,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330190,
+      "name": "Fashion TV Baccarat",
+      "dealer": "Tito",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330191,
+      "name": "Fashion TV Baccarat NC",
+      "dealer": "Haziran",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330208,
+      "name": "Mega Fire Blaze Ruleta",
+      "dealer": "Emi",
+      "is_open": true,
+      "players": 897,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 2
+    },
+    {
+      "id": 2330223,
+      "name": "Baccarat NC",
+      "dealer": "Tasia",
+      "is_open": true,
+      "players": 32,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330233,
+      "name": "x1000 Quantum Roulette",
+      "dealer": "Kristian",
+      "is_open": true,
+      "players": 31,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330251,
+      "name": "Arabic Roulette",
+      "dealer": "Omer",
+      "is_open": true,
+      "players": 22,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330253,
+      "name": "Mega Fire Blaze Blackjack Live",
+      "dealer": "Regina",
+      "is_open": true,
+      "players": 75,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330255,
+      "name": "Spin A Win Wild Brasileiro",
+      "dealer": "Helder",
+      "is_open": true,
+      "players": 63,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330256,
+      "name": "Teen Patti Live",
+      "dealer": "Zian",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330263,
+      "name": "Baccarat Squeeze \u65e5\u672c\u8a9e",
+      "dealer": "Keneth",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330264,
+      "name": "Baccarat Squeeze \u65e5\u672c\u8a9e NC",
+      "dealer": "Frederico",
+      "is_open": true,
+      "players": 8,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330265,
+      "name": "Speed Baccarat \u666e\u901a\u8bdd",
+      "dealer": "Meimei",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330266,
+      "name": "Speed Baccarat \u666e\u901a\u8bdd NC",
+      "dealer": "Liling",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330267,
+      "name": "Speed Baccarat \ud55c\uad6d\uc5b4 2",
+      "dealer": "Hangyul",
+      "is_open": true,
+      "players": 12,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330268,
+      "name": "Speed Baccarat \ud55c\uad6d\uc5b4 2 NC",
+      "dealer": "Hangyul",
+      "is_open": true,
+      "players": 12,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330269,
+      "name": "Baccarat Brasileira",
+      "dealer": "Betsabe",
+      "is_open": true,
+      "players": 18,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330270,
+      "name": "Baccarat Brasileira NC",
+      "dealer": "Betsabe",
+      "is_open": true,
+      "players": 18,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330271,
+      "name": "Speed Sic Bo",
+      "dealer": "Corine",
+      "is_open": true,
+      "players": 9,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330273,
+      "name": "The Greatest Cards Show Live",
+      "dealer": "Lochlan",
+      "is_open": true,
+      "players": 35,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330299,
+      "name": "Jumanji: The Bonus Level Live",
+      "dealer": "Howard",
+      "is_open": true,
+      "players": 45,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330312,
+      "name": "Mega Fire Blaze Lucky Ball Live",
+      "dealer": "Madeline",
+      "is_open": true,
+      "players": 495,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330314,
+      "name": "Jade Baccarat",
+      "dealer": "Gerda",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330315,
+      "name": "Jade Baccarat NC",
+      "dealer": "Gerda",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330316,
+      "name": "Big Bad Wolf Live",
+      "dealer": "Chessa",
+      "is_open": true,
+      "players": 13,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330323,
+      "name": "Jade Blackjack",
+      "dealer": "Nellija",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330325,
+      "name": "Blackjack 8",
+      "dealer": "Niele",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330339,
+      "name": "Speed Baccarat Emperor",
+      "dealer": "Corine",
+      "is_open": true,
+      "players": 11,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330340,
+      "name": "Speed Baccarat Emperor NC",
+      "dealer": "Luanna",
+      "is_open": true,
+      "players": 17,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330341,
+      "name": "K-Pop Roulette Live",
+      "dealer": "Slingshot",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330342,
+      "name": "Lucky Ball Roulette Live",
+      "dealer": "Izel",
+      "is_open": true,
+      "players": 45,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330350,
+      "name": "Blackjack 1",
+      "dealer": "Cheryl",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330351,
+      "name": "Blackjack 2",
+      "dealer": "Idara",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330352,
+      "name": "Blackjack 3",
+      "dealer": "Julianne",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330353,
+      "name": "Blackjack 4",
+      "dealer": "Maya",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330354,
+      "name": "Blackjack 5",
+      "dealer": "Julianne",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330355,
+      "name": "Blackjack 6",
+      "dealer": "Amaru",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330356,
+      "name": "Blackjack 7",
+      "dealer": "Kenai",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330357,
+      "name": "Blackjack 9",
+      "dealer": "Hally",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330363,
+      "name": "Millionaire Video Poker",
+      "dealer": "Mariana",
+      "is_open": true,
+      "players": 14,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330364,
+      "name": "Blackjack Soir\u00e9e 1",
+      "dealer": "Tori",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330365,
+      "name": "Blackjack Soir\u00e9e 2",
+      "dealer": "Bridgette",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330366,
+      "name": "Blackjack Soir\u00e9e 3",
+      "dealer": "Emija",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330367,
+      "name": "Soir\u00e9e Priv\u00e9e Blackjack",
+      "dealer": "Vanessa",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330368,
+      "name": "Baccarat Soir\u00e9e",
+      "dealer": "Tifanny",
+      "is_open": true,
+      "players": 23,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330369,
+      "name": "Blackjack Soir\u00e9e Gold 1",
+      "dealer": "Jaci",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330370,
+      "name": "Blackjack Soir\u00e9e Gold 2",
+      "dealer": "Stephan",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330371,
+      "name": "Blackjack Soir\u00e9e Gold 3",
+      "dealer": "Tyrion",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330372,
+      "name": "Blackjack Soir\u00e9e Gold 4",
+      "dealer": "Cleia",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330373,
+      "name": "Punto Banco Soir\u00e9e Gold",
+      "dealer": "Solei",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330375,
+      "name": "Baccarat Soir\u00e9e NC",
+      "dealer": "Vanessa",
+      "is_open": true,
+      "players": 20,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330385,
+      "name": "Fashion TV Mega Party",
+      "dealer": "Omarion",
+      "is_open": true,
+      "players": 22,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330388,
+      "name": "888 Jewel",
+      "dealer": "Lenox",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330389,
+      "name": "888 Destiny",
+      "dealer": "Athanasia",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330390,
+      "name": "888 Hot Seat",
+      "dealer": "Heber",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330391,
+      "name": "888 Oasis",
+      "dealer": "Lenox",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330392,
+      "name": "888 Discover",
+      "dealer": "Ainsley",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330393,
+      "name": "888 Tropic",
+      "dealer": "Guinevere",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330397,
+      "name": "All Bets Blackjack Brasileiro",
+      "dealer": "Jhonatas",
+      "is_open": true,
+      "players": 16,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330407,
+      "name": "Sticky Bandits Roulette Live",
+      "dealer": "Nicholas",
+      "is_open": true,
+      "players": 86,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330421,
+      "name": "Cash Collect Roulette Live",
+      "dealer": "Kai",
+      "is_open": true,
+      "players": 114,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330423,
+      "name": "888 | WH BJ1",
+      "dealer": "Lebron",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330424,
+      "name": "888 | WH BJ2",
+      "dealer": "Hoyt",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330425,
+      "name": "888 | WH BJ3",
+      "dealer": "Fallyn",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330426,
+      "name": "888 | WH Italia BJ1",
+      "dealer": "Beniamino",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330427,
+      "name": "888 | WH Italia BJ2",
+      "dealer": "Ethen",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330428,
+      "name": "888 | WH Mega Fire Blaze Blackjack",
+      "dealer": "Hadlee",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330429,
+      "name": "888 | WH Mega Fire Blaze Roulette",
+      "dealer": "Haziel",
+      "is_open": true,
+      "players": 13,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330449,
+      "name": "MGM Grand Live American Roulette",
+      "dealer": "Live from Las Vegas",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330450,
+      "name": "MGM Grand Live Baccarat",
+      "dealer": "Live from Las Vegas",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330451,
+      "name": "Bellagio Live Roulette",
+      "dealer": "Live from Las Vegas",
+      "is_open": true,
+      "players": 22,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330452,
+      "name": "Bellagio Live Baccarat",
+      "dealer": "Live from Las Vegas",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330469,
+      "name": "Hi-Lo Western Live",
+      "dealer": "Ishani",
+      "is_open": true,
+      "players": 17,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330480,
+      "name": "Mega Fire Blaze Roulette Italiana",
+      "dealer": "Leone",
+      "is_open": true,
+      "players": 66,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330481,
+      "name": "Busted Or Bailed",
+      "dealer": "Bennett",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330482,
+      "name": "Speed Blackjack 1",
+      "dealer": "Kennen",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330483,
+      "name": "Speed Blackjack 2",
+      "dealer": "Stiiv",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330484,
+      "name": "Speed Blackjack 3",
+      "dealer": "Sergey",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2330485,
+      "name": "Sakura Fortune Live",
+      "dealer": "Tommy",
+      "is_open": true,
+      "players": 28,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2330490,
+      "name": "Club Aurora BJ 1",
+      "dealer": "Ivija",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330491,
+      "name": "Club Aurora BJ 2",
+      "dealer": "Cayson",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330492,
+      "name": "Club Aurora BJ 3",
+      "dealer": "Raj",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330493,
+      "name": "Club Aurora BJ 4",
+      "dealer": "Aron",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330494,
+      "name": "Club Aurora BJ 5",
+      "dealer": "Aron",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330495,
+      "name": "Club Aurora Italia BJ 1",
+      "dealer": "Beniamino",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2330504,
+      "name": "Royale Baccarat",
+      "dealer": "Oday",
+      "is_open": true,
+      "players": 12,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380011,
+      "name": "Baccarat 1",
+      "dealer": "Adonia",
+      "is_open": true,
+      "players": 355,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380012,
+      "name": "Blackjack 11",
+      "dealer": "Hauxley",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380028,
+      "name": "Blackjack 14",
+      "dealer": "Waylan",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380035,
+      "name": "Blackjack 12",
+      "dealer": "Kalin",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380036,
+      "name": "Blackjack 15",
+      "dealer": "Tyler",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380037,
+      "name": "Blackjack 16",
+      "dealer": "Lyle",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380040,
+      "name": "Baccarat 2",
+      "dealer": "Andreea",
+      "is_open": true,
+      "players": 255,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380041,
+      "name": "Speed Baccarat 14",
+      "dealer": "Elfriede",
+      "is_open": true,
+      "players": 164,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380042,
+      "name": "Mega Wheel",
+      "dealer": "Tallon",
+      "is_open": true,
+      "players": 5265,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380043,
+      "name": "Speed Baccarat 1",
+      "dealer": "Abelina",
+      "is_open": true,
+      "players": 614,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380044,
+      "name": "Speed Baccarat 2",
+      "dealer": "Brandi",
+      "is_open": true,
+      "players": 303,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380045,
+      "name": "Mega Sic Bo",
+      "dealer": "Aileen",
+      "is_open": true,
+      "players": 453,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380054,
+      "name": "Blackjack 3",
+      "dealer": "Gladys",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380055,
+      "name": "Blackjack 6",
+      "dealer": "Levy",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380056,
+      "name": "Blackjack 7",
+      "dealer": "Blade",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380057,
+      "name": "Blackjack 4",
+      "dealer": "Merrick",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380058,
+      "name": "Blackjack 1",
+      "dealer": "Montgomery",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380059,
+      "name": "Blackjack 9",
+      "dealer": "Lucka",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380060,
+      "name": "Blackjack 10",
+      "dealer": "Albertina",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380061,
+      "name": "Blackjack 5",
+      "dealer": "Rich",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380062,
+      "name": "Blackjack 2",
+      "dealer": "Verra",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380063,
+      "name": "Blackjack 8",
+      "dealer": "Flynn",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380071,
+      "name": "ONE Blackjack 1",
+      "dealer": "Jenice",
+      "is_open": true,
+      "players": 267,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380077,
+      "name": "Dragon Tiger",
+      "dealer": "Clarine",
+      "is_open": true,
+      "players": 220,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380085,
+      "name": "Blackjack 22",
+      "dealer": "Hellen",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380086,
+      "name": "Blackjack 23",
+      "dealer": "Tamer",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380087,
+      "name": "Blackjack 24",
+      "dealer": "Blayne",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380088,
+      "name": "Blackjack 25",
+      "dealer": "Brennen",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380089,
+      "name": "Blackjack 26",
+      "dealer": "Hezekiah",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380094,
+      "name": "Blackjack 30",
+      "dealer": "Gatlan",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380095,
+      "name": "Blackjack 31",
+      "dealer": "Wilbur",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380097,
+      "name": "Andar Bahar",
+      "dealer": "Winfield",
+      "is_open": true,
+      "players": 31,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380101,
+      "name": "Blackjack 32",
+      "dealer": "Fowler",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380102,
+      "name": "Speed Baccarat 3",
+      "dealer": "Han",
+      "is_open": true,
+      "players": 175,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380103,
+      "name": "Speed Baccarat 5",
+      "dealer": "Kacey",
+      "is_open": true,
+      "players": 181,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380104,
+      "name": "Speed Baccarat 6",
+      "dealer": "Emely",
+      "is_open": true,
+      "players": 174,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380105,
+      "name": "Baccarat 5",
+      "dealer": "Layana",
+      "is_open": true,
+      "players": 168,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380106,
+      "name": "Baccarat 6",
+      "dealer": "Nia",
+      "is_open": true,
+      "players": 176,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380107,
+      "name": "Sweet Bonanza CandyLand",
+      "dealer": "Daneli",
+      "is_open": true,
+      "players": 3729,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380112,
+      "name": "Blackjack 33",
+      "dealer": "Eriana",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380113,
+      "name": "Blackjack 34",
+      "dealer": "Endrick",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380114,
+      "name": "Blackjack 35",
+      "dealer": "Foster",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380115,
+      "name": "Blackjack 36",
+      "dealer": "Anette",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380118,
+      "name": "Baccarat 7",
+      "dealer": "Kami",
+      "is_open": true,
+      "players": 149,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380119,
+      "name": "Turbo Baccarat",
+      "dealer": "Corra",
+      "is_open": true,
+      "players": 118,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380120,
+      "name": "Speed Baccarat 15",
+      "dealer": "Lucey",
+      "is_open": true,
+      "players": 131,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380122,
+      "name": "Speed Baccarat 7",
+      "dealer": "Gala",
+      "is_open": true,
+      "players": 174,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380123,
+      "name": "Speed Baccarat 8",
+      "dealer": "Laurene",
+      "is_open": true,
+      "players": 159,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380124,
+      "name": "Speed Baccarat 9",
+      "dealer": "Klara",
+      "is_open": true,
+      "players": 144,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380127,
+      "name": "Baccarat 3",
+      "dealer": "Aiana",
+      "is_open": true,
+      "players": 246,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380129,
+      "name": "Speed Baccarat 11",
+      "dealer": "Halina",
+      "is_open": true,
+      "players": 189,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380131,
+      "name": "888 Manhattan Blackjack",
+      "dealer": "Felton",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380133,
+      "name": "888 Cosmopolitan Blackjack",
+      "dealer": "Harland",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380139,
+      "name": "VIP Blackjack 1",
+      "dealer": "Andersen",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380140,
+      "name": "VIP Blackjack 2",
+      "dealer": "Gracie",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380141,
+      "name": "VIP Blackjack 3",
+      "dealer": "Julio",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2380142,
+      "name": "VIP Blackjack 4",
+      "dealer": "Caledon",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2380143,
+      "name": "VIP Blackjack 5",
+      "dealer": "Vien",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2380146,
+      "name": "Speed Baccarat 10",
+      "dealer": "Julianna",
+      "is_open": true,
+      "players": 124,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380147,
+      "name": "Speed Baccarat 13",
+      "dealer": "Kendrah",
+      "is_open": true,
+      "players": 144,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380150,
+      "name": "Speed Blackjack 3",
+      "dealer": "Madison",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 15
+    },
+    {
+      "id": 2380151,
+      "name": "Blackjack 77",
+      "dealer": "Rodrick",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380152,
+      "name": "Super 8 Baccarat",
+      "dealer": "Emerly",
+      "is_open": true,
+      "players": 59,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380157,
+      "name": "Fortune 6 Baccarat",
+      "dealer": "Isaura",
+      "is_open": true,
+      "players": 56,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380162,
+      "name": "Speed Baccarat 16",
+      "dealer": "Aleiah",
+      "is_open": true,
+      "players": 163,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380163,
+      "name": "Speed Baccarat 17",
+      "dealer": "Larisa",
+      "is_open": true,
+      "players": 136,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380164,
+      "name": "Baccarat 9",
+      "dealer": "Alya",
+      "is_open": true,
+      "players": 39,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380178,
+      "name": "Snakes & Ladders Live",
+      "dealer": "Torrin",
+      "is_open": true,
+      "players": 237,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380179,
+      "name": "Spaceman",
+      "dealer": "spaceman",
+      "is_open": true,
+      "players": 3774,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380181,
+      "name": "MEGA BACCARAT",
+      "dealer": "Ena",
+      "is_open": true,
+      "players": 150,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380200,
+      "name": "Vegas Ball Bonanza",
+      "dealer": "Marita",
+      "is_open": true,
+      "players": 111,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380214,
+      "name": "Big Bass Crash",
+      "dealer": "BigBassDealer",
+      "is_open": true,
+      "players": 477,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380215,
+      "name": "Treasure Island",
+      "dealer": "Renesme",
+      "is_open": true,
+      "players": 613,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380260,
+      "name": "Blackjack 70",
+      "dealer": "Collin",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380261,
+      "name": "Blackjack 73",
+      "dealer": "Hanz",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380262,
+      "name": "Blackjack 74",
+      "dealer": "Depp",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380263,
+      "name": "VIP Blackjack 8",
+      "dealer": "Hendrik",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380264,
+      "name": "VIP Blackjack 7",
+      "dealer": "Nilo",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380265,
+      "name": "VIP Blackjack 6",
+      "dealer": "Andrews",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380268,
+      "name": "Blackjack 75",
+      "dealer": "Marvis",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380269,
+      "name": "Blackjack 76",
+      "dealer": "Therin",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380272,
+      "name": "Blackjack 78",
+      "dealer": "Chiron",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380287,
+      "name": "Blackjack 79",
+      "dealer": "Umut",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380288,
+      "name": "Blackjack 80",
+      "dealer": "Tuck",
+      "is_open": true,
+      "players": 1,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380289,
+      "name": "Blackjack 81",
+      "dealer": "Nani",
+      "is_open": true,
+      "players": 3,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380290,
+      "name": "Blackjack Italia Tricolore 1",
+      "dealer": "Giovanni",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380291,
+      "name": "Blackjack Italia Tricolore 2",
+      "dealer": "Ignazio",
+      "is_open": true,
+      "players": 6,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380292,
+      "name": "Blackjack Italia Tricolore 3",
+      "dealer": "Orsini",
+      "is_open": true,
+      "players": 0,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380300,
+      "name": "Blackjack 82",
+      "dealer": "Xayn",
+      "is_open": true,
+      "players": 5,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380301,
+      "name": "Blackjack 83",
+      "dealer": "Frieda",
+      "is_open": true,
+      "players": 4,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380302,
+      "name": "Blackjack 84",
+      "dealer": "Cristal",
+      "is_open": true,
+      "players": 2,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380306,
+      "name": "Football Blitz Top Card",
+      "dealer": "Sergio",
+      "is_open": true,
+      "players": 54,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 16
+    },
+    {
+      "id": 2380311,
+      "name": "Punto Banco Italia Tricolore",
+      "dealer": "Elettra",
+      "is_open": true,
+      "players": 20,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380323,
+      "name": "Mega Sic Bac",
+      "dealer": "Becka",
+      "is_open": true,
+      "players": 192,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380344,
+      "name": "High Flyer",
+      "dealer": "HighFlyer",
+      "is_open": true,
+      "players": 2444,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380356,
+      "name": "Bet Behind Pro Blackjack",
+      "dealer": "Briant",
+      "is_open": true,
+      "players": 7,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380361,
+      "name": "MRG ONE Blackjack",
+      "dealer": "Rami",
+      "is_open": true,
+      "players": 101,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    },
+    {
+      "id": 2380362,
+      "name": "888 Speed Baccarat",
+      "dealer": "Blanche",
+      "is_open": true,
+      "players": 167,
+      "last_numbers": [],
+      "game_type": "",
+      "regulation_id": 1
+    }
+  ],
+  "count": 639,
+  "total_with_numbers": 97,
+  "total_requests": 4
+}
