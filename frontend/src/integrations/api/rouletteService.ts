@@ -1,5 +1,6 @@
 import axios from 'axios';
 import config from '@/config/env';
+import { filterAllowedRoulettes } from '@/config/allowedRoulettes';
 
 // Usar a variável de ambiente centralizada do config
 const API_URL = config.apiBaseUrl;
@@ -192,8 +193,11 @@ export const fetchAllRoulettes = async (): Promise<RouletteData[]> => {
       sugestao_display: roleta.sugestao_display || ''
     }));
     
-    console.log(`[API] Processadas ${formattedData.length} roletas`);
-    return formattedData;
+    // Filtrar apenas as roletas permitidas
+    const filteredData = filterAllowedRoulettes(formattedData);
+    
+    console.log(`[API] Processadas ${formattedData.length} roletas, filtradas para ${filteredData.length} permitidas`);
+    return filteredData;
   }
   
   console.warn('[API] Formato de resposta inválido ou sem roletas');

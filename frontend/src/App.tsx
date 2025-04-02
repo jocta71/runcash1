@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
-import { Sonner } from "./components/ui/sonner";
+import { Toaster as SonnerToaster } from "./components/ui/sonner";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
 import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
@@ -70,7 +70,7 @@ const App = () => {
       <SubscriptionProvider>
         <TooltipProvider>
           <Toaster />
-          <Sonner />
+          <SonnerToaster />
           <BrowserRouter>
             <Suspense fallback={<LoadingScreen />}>
               <Routes>
