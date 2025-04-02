@@ -583,16 +583,41 @@ class SocketService {
     }
   }
   
+  // Método auxiliar para processar dados de números
+  private processNumbersData(numbersData: any[], roulette: any): void {
+    numbersData.forEach(num => {
+      // Verificar se o número é válido
+      if (num && (typeof num === 'number' || typeof num.numero === 'number')) {
+        const numero = typeof num === 'number' ? num : num.numero;
+        
+        const event: RouletteNumberEvent = {
+          type: 'new_number',
+          roleta_id: roulette._id,
+          roleta_nome: roulette.nome || roulette.name,
+          numero: numero,
+          timestamp: (num && num.timestamp) ? num.timestamp : new Date().toISOString()
+        };
+        
+        // Notificar os listeners sobre este número
+        this.notifyListeners(event);
+      }
+    });
+  }
+
   // Método para carregar os números históricos via REST API
   public async loadHistoricalRouletteNumbers(): Promise<void> {
     try {
       const apiBaseUrl = getRequiredEnvVar('VITE_API_BASE_URL');
-      console.log(`[SocketService] Carregando dados históricos das roletas`);
+      console.log(`[SocketService] Carregando dados históricos das roletas. API Base URL: ${apiBaseUrl}`);
       
       // Primeiro, buscar a lista de roletas disponíveis
-      const rouletteResponse = await fetch(`${apiBaseUrl}/roulettes`);
+      const rouletteEndpoint = `${apiBaseUrl}/roulettes`;
+      console.log(`[SocketService] Buscando roletas em: ${rouletteEndpoint}`);
+      
+      const rouletteResponse = await fetch(rouletteEndpoint);
       
       if (!rouletteResponse.ok) {
+        console.warn(`[SocketService] Falha ao buscar lista de roletas: ${rouletteResponse.status}. URL: ${rouletteEndpoint}`);
         throw new Error(`Falha ao buscar lista de roletas: ${rouletteResponse.status}`);
       }
       
@@ -632,11 +657,15 @@ class SocketService {
               return;
             }
             
+            // Corrigir URL do endpoint - tentar endpoint correto na API
+            const numbersEndpoint = `${apiBaseUrl}/numeros?roletaId=${roulette._id}&limit=100`;
+            console.log(`[SocketService] Buscando números no endpoint: ${numbersEndpoint}`);
+            
             // Buscar os últimos números desta roleta
-            const numbersResponse = await fetch(`${apiBaseUrl}/numeros?roletaId=${roulette._id}&limit=100`);
+            const numbersResponse = await fetch(numbersEndpoint);
             
             if (!numbersResponse.ok) {
-              console.warn(`[SocketService] Falha ao buscar números para roleta ${roulette._id}: ${numbersResponse.status}`);
+              console.warn(`[SocketService] Falha ao buscar números para roleta ${roulette._id}: ${numbersResponse.status}, URL: ${numbersEndpoint}`);
               return;
             }
             
@@ -644,25 +673,7 @@ class SocketService {
             
             if (Array.isArray(numbersData)) {
               console.log(`[SocketService] Carregados ${numbersData.length} números para roleta ${roulette.nome || roulette.name}`);
-              
-              // Converter cada número para o formato de evento
-              numbersData.forEach(num => {
-                // Verificar se o número é válido
-                if (num && (typeof num === 'number' || typeof num.numero === 'number')) {
-                  const numero = typeof num === 'number' ? num : num.numero;
-                  
-                  const event: RouletteNumberEvent = {
-                    type: 'new_number',
-                    roleta_id: roulette._id,
-                    roleta_nome: roulette.nome || roulette.name,
-                    numero: numero,
-                    timestamp: (num && num.timestamp) ? num.timestamp : new Date().toISOString()
-                  };
-                  
-                  // Notificar os listeners sobre este número
-                  this.notifyListeners(event);
-                }
-              });
+              this.processNumbersData(numbersData, roulette);
             }
           } catch (error) {
             console.error(`[SocketService] Erro ao processar números para roleta ${roulette._id}:`, error);
