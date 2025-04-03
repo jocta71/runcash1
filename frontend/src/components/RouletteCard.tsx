@@ -381,7 +381,7 @@ const RouletteCard = memo(({
         numero = event.numero;
       } else if (typeof event.numero === 'string') {
         numero = parseInt(event.numero, 10);
-      } else {
+              } else {
         console.warn(`[RouletteCard] Número inválido recebido: ${event.numero}`);
         return;
       }
