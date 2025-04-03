@@ -648,9 +648,19 @@ class EventService {
     // Definir o tipo de evento no payload
     payload.type = eventType;
     
+    console.log(`[EventService] Emitindo evento global: ${eventType}`, payload);
+    
+    // Para roleta_exists, adicionar log detalhado
+    if (eventType === 'roleta_exists') {
+      console.log(`[EventService] Emitindo evento roleta_exists para: ${payload.nome || 'Sem nome'} (ID: ${payload.id || 'Sem ID'})`);
+    }
+    
     // Notificar listeners globais que escutam todos os eventos
     if (instance.listeners.has(globalKey)) {
       const allCallbacks = instance.listeners.get(globalKey);
+      const callbackCount = allCallbacks.size;
+      console.log(`[EventService] Notificando ${callbackCount} listeners globais (*) sobre evento ${eventType}`);
+      
       allCallbacks.forEach(callback => {
         try {
           callback(payload);
@@ -658,11 +668,16 @@ class EventService {
           debugLog(`[EventService] Erro ao chamar callback global: ${error}`);
         }
       });
+    } else {
+      console.log(`[EventService] Nenhum listener global (*) registrado para evento ${eventType}`);
     }
     
     // Notificar listeners específicos para este tipo de evento
     if (instance.listeners.has(specificKey)) {
       const specificCallbacks = instance.listeners.get(specificKey);
+      const callbackCount = specificCallbacks.size;
+      console.log(`[EventService] Notificando ${callbackCount} listeners específicos (${specificKey}) sobre evento ${eventType}`);
+      
       specificCallbacks.forEach(callback => {
         try {
           callback(payload);
@@ -670,6 +685,25 @@ class EventService {
           debugLog(`[EventService] Erro ao chamar callback específico para ${eventType}: ${error}`);
         }
       });
+    } else {
+      console.log(`[EventService] Nenhum listener específico registrado para evento ${eventType}`);
+    }
+    
+    // Notificar listeners do tipo específico de evento (para compatibilidade com código antigo)
+    if (instance.listeners.has(eventType)) {
+      const typeCallbacks = instance.listeners.get(eventType);
+      const callbackCount = typeCallbacks.size;
+      console.log(`[EventService] Notificando ${callbackCount} listeners diretos (${eventType}) sobre evento ${eventType}`);
+      
+      typeCallbacks.forEach(callback => {
+        try {
+          callback(payload);
+        } catch (error) {
+          debugLog(`[EventService] Erro ao chamar callback direto para ${eventType}: ${error}`);
+        }
+      });
+    } else {
+      console.log(`[EventService] Nenhum listener direto registrado para evento ${eventType}`);
     }
     
     debugLog(`[EventService] Evento global emitido: ${eventType}`, payload);

@@ -140,7 +140,7 @@ class Casino888API:
             tables = self.api.get_tables(regulation_id)
             logger.info(f"Obtidas {len(tables)} mesas para regulation_id={regulation_id}")
             return tables
-        except Exception as e:
+    except Exception as e:
             logger.error(f"Erro ao obter mesas: {e}")
             return {}
     
@@ -182,8 +182,8 @@ class Casino888API:
                         }
                 
                 logger.info(f"Encontradas {len(all_tables)} mesas de roleta até o momento")
-                
-            except Exception as e:
+    
+    except Exception as e:
                 logger.error(f"Erro ao processar regulation_id={regulation_id}: {e}")
         
         return all_tables
@@ -219,13 +219,13 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         
         # Garantir que a roleta existe
         if hasattr(db, 'garantir_roleta_existe'):
-            db.garantir_roleta_existe(id_roleta, roleta_nome)
+        db.garantir_roleta_existe(id_roleta, roleta_nome)
         elif MODULOS_CORE_DISPONÍVEIS:
             garantir_roleta_existe(db, id_roleta, roleta_nome)
             
         # Inserir número
         if hasattr(db, 'inserir_numero'):
-            db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
+        db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
         elif MODULOS_CORE_DISPONÍVEIS:
             inserir_numero(db, id_roleta, roleta_nome, num_int, cor, ts)
         
@@ -242,7 +242,7 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         }
         
         if hasattr(event_manager, 'notify_clients'):
-            event_manager.notify_clients(event_data, silent=True)
+        event_manager.notify_clients(event_data, silent=True)
         
         # Hook personalizado
         if numero_hook:
@@ -277,7 +277,7 @@ def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=Non
         try:
             # Validar formato
             if isinstance(num_str, list) and num_str:
-                num_str = num_str[0]
+                    num_str = num_str[0]
             
             # Converter para inteiro
             if isinstance(num_str, str):
@@ -352,7 +352,7 @@ def scrape_roletas_api(db, numero_hook=None):
                         if last_numbers and len(last_numbers) > 0:
                             if processar_numeros(db, table_id, roleta_nome, last_numbers, numero_hook):
                                 roletas_com_numeros += 1
-                    
+                        
                     except Exception as e:
                         logger.error(f"Erro ao processar roleta {table_id}: {str(e)}")
                 
@@ -401,49 +401,49 @@ def simulate_roulette_data(db):
     logger.info(f"Simulando roletas: {','.join([r['nome'] for r in roletas])}")
     
     try:
-        while True:
-            try:
-                roleta = random.choice(roletas)
-                rid = roleta["id"]
-                nome = roleta["nome"]
-                
-                num = random.randint(0, 36)
-                cor = cor_numero(num)
-                
+    while True:
+        try:
+            roleta = random.choice(roletas)
+            rid = roleta["id"]
+            nome = roleta["nome"]
+            
+            num = random.randint(0, 36)
+            cor = cor_numero(num)
+            
                 logger.info(f"Simulação: {nome} - {num} ({cor})")
-                
+            
                 # Garantir que a roleta existe
                 if hasattr(db, 'garantir_roleta_existe'):
-                    db.garantir_roleta_existe(rid, nome)
+            db.garantir_roleta_existe(rid, nome)
                 elif MODULOS_CORE_DISPONÍVEIS:
                     garantir_roleta_existe(db, rid, nome)
                 
-                ts = datetime.now().isoformat()
+            ts = datetime.now().isoformat()
                 
                 # Inserir número
                 if hasattr(db, 'inserir_numero'):
-                    db.inserir_numero(rid, nome, num, cor, ts)
+            db.inserir_numero(rid, nome, num, cor, ts)
                 elif MODULOS_CORE_DISPONÍVEIS:
                     inserir_numero(db, rid, nome, num, cor, ts)
-                
+            
                 # Notificação de eventos
-                event_data = {
-                    "type": "new_number",
-                    "roleta_id": rid,
-                    "roleta_nome": nome,
-                    "numero": num,
-                    "timestamp": ts,
-                    "simulado": True
-                }
+            event_data = {
+                "type": "new_number",
+                "roleta_id": rid,
+                "roleta_nome": nome,
+                "numero": num,
+                "timestamp": ts,
+                "simulado": True
+            }
                 
                 if hasattr(event_manager, 'notify_clients'):
-                    event_manager.notify_clients(event_data, silent=True)
-                
-                time.sleep(random.randint(1, 3))
-                
+            event_manager.notify_clients(event_data, silent=True)
+            
+            time.sleep(random.randint(1, 3))
+            
             except Exception as e:
                 logger.error(f"Erro no simulador: {str(e)}")
-                time.sleep(5)
+            time.sleep(5)
     except KeyboardInterrupt:
         logger.info("Simulação interrompida pelo usuário")
 

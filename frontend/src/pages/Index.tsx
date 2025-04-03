@@ -55,23 +55,33 @@ const Index = () => {
   
   // Escutar eventos de roletas existentes para persistência
   useEffect(() => {
-    const handleRouletteExists = (data: KnownRoulette) => {
-      if (!data || !data.id) return;
+    const handleRouletteExists = (data: any) => {
+      if (!data || !data.id) {
+        console.log('[Index] Evento roleta_exists recebido sem ID válido:', data);
+        return;
+      }
       
-      setKnownRoulettes(prev => ({
-        ...prev,
-        [data.id]: data
-      }));
+      console.log(`[Index] Evento roleta_exists recebido para: ${data.nome} (ID: ${data.id})`);
       
-      console.log(`[Index] Roleta registrada como conhecida: ${data.nome} (ID: ${data.id})`);
+      setKnownRoulettes(prev => {
+        const updated = {
+          ...prev,
+          [data.id]: data
+        };
+        console.log(`[Index] Atualizado registro de roletas conhecidas. Total: ${Object.keys(updated).length}`);
+        return updated;
+      });
     };
     
-    // Registrar o listener de evento
-    EventService.addGlobalListener('roleta_exists', handleRouletteExists);
+    // Registrar o listener de evento diretamente (sem usar addGlobalListener que pode não estar registrado corretamente)
+    EventService.getInstance().subscribe('roleta_exists', handleRouletteExists);
+    
+    console.log('[Index] Listener para evento roleta_exists registrado');
     
     return () => {
       // Remover o listener ao desmontar o componente
-      EventService.removeGlobalListener('roleta_exists', handleRouletteExists);
+      EventService.getInstance().unsubscribe('roleta_exists', handleRouletteExists);
+      console.log('[Index] Listener para evento roleta_exists removido');
     };
   }, []);
   
@@ -87,7 +97,12 @@ const Index = () => {
     // Depois, adicionar ou atualizar com roletas conhecidas
     Object.values(knownRoulettes).forEach(known => {
       // Se a roleta já existe na lista da API, não precisamos fazer nada
-      if (merged[known.id]) return;
+      if (merged[known.id]) {
+        console.log(`[Index] Roleta já existe na API: ${known.nome} (ID: ${known.id})`);
+        return;
+      }
+      
+      console.log(`[Index] Adicionando roleta conhecida ausente na API: ${known.nome} (ID: ${known.id})`);
       
       // Criar uma roleta a partir da roleta conhecida
       merged[known.id] = {
@@ -107,7 +122,10 @@ const Index = () => {
       };
     });
     
-    return Object.values(merged);
+    const result = Object.values(merged);
+    console.log(`[Index] Total após mesclagem: ${result.length} roletas (API: ${apiRoulettes.length}, Conhecidas: ${Object.keys(knownRoulettes).length})`);
+    
+    return result;
   }, [knownRoulettes]);
   
   // Buscar dados da API ao carregar a página

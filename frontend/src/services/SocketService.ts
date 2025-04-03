@@ -1156,12 +1156,15 @@ class SocketService {
 
   // Enviar as roletas conhecidas periodicamente
   private scheduleKnownRoulettesSync() {
+    console.log(`[SocketService] Iniciando sincronização periódica de ${this.knownRoulettes.size} roletas conhecidas`);
+    
     // A cada 30 segundos, emitir eventos para todas as roletas conhecidas
     setInterval(() => {
       if (this.knownRoulettes.size > 0) {
         console.log(`[SocketService] Sincronizando ${this.knownRoulettes.size} roletas conhecidas`);
         
         this.knownRoulettes.forEach((roulette) => {
+          console.log(`[SocketService] Emitindo evento roleta_exists para: ${roulette.nome} (ID: ${roulette.id})`);
           this.emitRouletteExistsEvent(roulette.id, roulette.nome);
         });
       }
