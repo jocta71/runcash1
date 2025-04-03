@@ -31,8 +31,8 @@ print(f"* Python versão: {sys.version}")
 print("*" * 80 + "\n")
 
 try:
-from config import CASINO_URL, roleta_permitida_por_id, MAX_CICLOS, MAX_ERROS_CONSECUTIVOS
-from event_manager import event_manager
+    from config import CASINO_URL, roleta_permitida_por_id, MAX_CICLOS, MAX_ERROS_CONSECUTIVOS
+    from event_manager import event_manager
     MODULOS_CORE_DISPONÍVEIS = True
 except ImportError as e:
     print(f"Aviso: {e}")
@@ -192,8 +192,8 @@ class Casino888API:
                         }
                 
                 print(f"Encontradas {len(all_tables)} mesas de roleta até o momento")
-    
-    except Exception as e:
+            
+            except Exception as e:
                 print(f"Erro ao processar regulation_id={regulation_id}: {str(e)}")
         
         return all_tables
@@ -226,9 +226,9 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         
         # Interação com o banco de dados
         if hasattr(db, 'garantir_roleta_existe'):
-        db.garantir_roleta_existe(id_roleta, roleta_nome)
+            db.garantir_roleta_existe(id_roleta, roleta_nome)
         if hasattr(db, 'inserir_numero'):
-        db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
+            db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
         
         # Log
         print(f"{roleta_nome}:{num_int}:{cor}")
@@ -242,7 +242,7 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
             "timestamp": ts
         }
         if hasattr(event_manager, 'notify_clients'):
-        event_manager.notify_clients(event_data, silent=True)
+            event_manager.notify_clients(event_data, silent=True)
         
         # Hook personalizado
         if numero_hook:
@@ -358,9 +358,9 @@ def scrape_roletas_api(db, numero_hook=None):
     
     print("[API] Iniciando scraping via API 888Casino")
         
-        ciclo = 1
-        erros = 0
-        max_erros = 3
+    ciclo = 1
+    erros = 0
+    max_erros = 3
     
     # Roletas permitidas
     ids_permitidos = os.environ.get('ALLOWED_ROULETTES', '').split(',')
@@ -370,8 +370,8 @@ def scrape_roletas_api(db, numero_hook=None):
     # Intervalo entre consultas
     intervalo_consulta = 5
         
-        while ciclo <= MAX_CICLOS or MAX_CICLOS == 0:
-            try:
+    while ciclo <= MAX_CICLOS or MAX_CICLOS == 0:
+        try:
             # Buscar todas as mesas
             tables = casino_api.get_all_roulette_tables()
             print(f"[API] Ciclo {ciclo}: Encontradas {len(tables)} mesas de roleta")
@@ -382,46 +382,50 @@ def scrape_roletas_api(db, numero_hook=None):
             # Processar cada mesa
             for table_id, table_info in tables.items():
                 try:
-                        # Verificar se a roleta está permitida
+                    # Verificar se a roleta está permitida
                     if ids_permitidos and ids_permitidos[0].strip():
                         if not roleta_permitida_por_id(table_id):
                             continue
-                        
-                    roleta_nome = table_info['name']
+                    
+                    # Obter dados da mesa
+                    roleta_nome = table_info.get('name', f"Roleta {table_id}")
                     last_numbers = table_info.get('last_numbers', [])
                     
                     # Processar números
                     if last_numbers:
                         numero_recente = last_numbers[0] if last_numbers else None
                         
-                        if numero_recente:
-                            if processar_numeros(db, table_id, roleta_nome, [numero_recente], numero_hook):
-                                roletas_com_numeros += 1
-                        
-                    except Exception as e:
+                        if processar_numeros(db, table_id, roleta_nome, last_numbers, numero_hook):
+                            roletas_com_numeros += 1
+                
+                except Exception as e:
                     print(f"[API] Erro ao processar mesa {table_id}: {str(e)}")
-            
-            # Atualizar controles
-            ultima_atividade = time.time()
-            erros_consecutivos = 0
+                    continue
             
             # Log
             print(f"[API] Ciclo {ciclo} completo: {roletas_com_numeros} roletas com novos números")
             
             # Intervalo
             time.sleep(intervalo_consulta)
-                ciclo += 1
-                
-            except Exception as e:
+            
+            # Incrementar ciclo
+            ciclo += 1
+            
+            # Resetar erros
+            erros = 0
+            
+        except Exception as e:
+            erros += 1
             print(f"[API] Erro no ciclo {ciclo}: {str(e)}")
-                erros += 1
-                erros_consecutivos += 1
-                
-            time.sleep(intervalo_consulta * 2)
             
             if erros >= max_erros:
-                print(f"[API] Muitos erros consecutivos ({erros}), reiniciando ciclo")
-                        erros = 0
+                print(f"[API] Número máximo de erros ({max_erros}) atingido. Encerrando scraping...")
+                break
+            
+            # Aguardar antes de tentar novamente
+            time.sleep(intervalo_consulta)
+    
+    print("[API] Scraping finalizado")
 
 # Funções de compatibilidade
 def scrape_roletas(db, driver=None, numero_hook=None):
@@ -430,70 +434,37 @@ def scrape_roletas(db, driver=None, numero_hook=None):
     return scrape_roletas_api(db, numero_hook)
 
 def simulate_roulette_data(db):
-    """Simulador minimalista para testes"""
+    """Simula dados de roleta para testes"""
+    print("🧪 Simulando dados de roleta...")
     roletas = [
-        {"id": "2010154", "nome": "Auto Lightning Roulette"},
-        {"id": "2010045", "nome": "Ruleta en Vivo"},
-        {"id": "2010168", "nome": "888 Ruleta en Vivo"}
+        {"id": "2010016", "nome": "Immersive Roulette"},
+        {"id": "2380335", "nome": "Brazilian Mega Roulette"},
+        {"id": "2010065", "nome": "Bucharest Auto-Roulette"},
+        {"id": "2010096", "nome": "Speed Auto Roulette"},
+        {"id": "2010017", "nome": "Auto-Roulette"},
+        {"id": "2010098", "nome": "Auto-Roulette VIP"}
     ]
     
-    print(f"Simulando: {','.join([r['nome'] for r in roletas])}")
-    
-    while True:
-        try:
-            roleta = random.choice(roletas)
-            rid = roleta["id"]
-            nome = roleta["nome"]
-            
-            num = random.randint(0, 36)
-            cor = cor_numero(num)
-            
-            print(f"{nome}:{num}:{cor}")
-            
-            if hasattr(db, 'garantir_roleta_existe'):
-            db.garantir_roleta_existe(rid, nome)
-            
-            ts = datetime.now().isoformat()
-            
-            if hasattr(db, 'inserir_numero'):
-            db.inserir_numero(rid, nome, num, cor, ts)
-            
-            event_data = {
-                "type": "new_number",
-                "roleta_id": rid,
-                "roleta_nome": nome,
-                "numero": num,
-                "timestamp": ts,
-                "simulado": True
-            }
-            
-            if hasattr(event_manager, 'notify_clients'):
-            event_manager.notify_clients(event_data, silent=True)
-            
-            time.sleep(random.randint(1, 3))
-            
-        except Exception as e:
-            print(f"Erro no simulador: {str(e)}")
-            time.sleep(5)
+    for roleta in roletas:
+        numero = random.randint(0, 36)
+        novo_numero(db, roleta["id"], roleta["nome"], numero)
+        print(f"[SIMULAÇÃO] Gerado número {numero} para {roleta['nome']}")
+        time.sleep(5)
 
 # Testes básicos
 if __name__ == "__main__":
     print("\nTeste básico da API 888Casino...")
     try:
         # Testar API
-        tables = casino_api.get_roulette_tables(2)
-        print(f"Encontradas {len(tables)} mesas para regulation_id=2")
+        api = Casino888API()
+        tables = api.get_all_roulette_tables()
         
-        # Mostrar primeiras 3 mesas (exemplo)
-        for i, (table_id, table_info) in enumerate(list(tables.items())[:3]):
-            print(f"\nMesa #{i+1}: {table_info.get('Name', 'Unknown')}")
+        print(f"Encontradas {len(tables)} mesas de roleta:")
+        for table_id, table_info in list(tables.items())[:5]:  # Mostrar até 5 roletas
+            print(f"\n- {table_info.get('name', 'Sem nome')}")
             print(f"  ID: {table_id}")
             print(f"  Dealer: {table_info.get('Dealer', 'Auto')}")
             print(f"  Últimos números: {table_info.get('RouletteLast5Numbers', [])}")
     
     except Exception as e:
-        print(f"ERRO no teste: {str(e)}")
-        traceback.print_exc()
-
-# Exports
-__all__ = ['scrape_roletas', 'simulate_roulette_data'] 
+        print(f"Erro nos testes: {str(e)}") 
