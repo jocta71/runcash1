@@ -321,24 +321,24 @@ const RouletteCard = memo(({
     };
     
     // Função para lidar com eventos de carregamento de dados históricos
-    const handleHistoricalDataEvents = (event: any) => {
-      if (event.type === 'historical_data_loading') {
-        setIsLoading(true);
-      } else if (event.type === 'historical_data_loaded') {
-        setIsLoading(false);
-      }
+    const handleHistoricalDataEvent = (event: any) => {
+      if (event.type !== 'historical_data_loaded') return;
+      
+      // Desativar estado de carregamento após carregar dados históricos, independente do resultado
+      console.log(`[RouletteCard] Evento historical_data_loaded recebido, atualizando estado de carregamento`);
+      setIsLoading(false);
     };
     
     // Inscrever para atualizações de estratégia
     socketService.subscribe(name, handleStrategyUpdate);
     
     // Inscrever para eventos globais de carregamento
-    socketService.subscribe('*', handleHistoricalDataEvents);
+    socketService.subscribe('*', handleHistoricalDataEvent);
     
     // Limpeza
     return () => {
       socketService.unsubscribe(name, handleStrategyUpdate);
-      socketService.unsubscribe('*', handleHistoricalDataEvents);
+      socketService.unsubscribe('*', handleHistoricalDataEvent);
     };
   }, [name]);
 
@@ -492,6 +492,31 @@ const RouletteCard = memo(({
       setIsLoading(false);
     }
   }, [numbers, lastNumber, roletaNome]);
+
+  // Efeito para escutar eventos relacionados à falta de dados
+  useEffect(() => {
+    const eventService = EventService.getInstance();
+    
+    // Handler para eventos de falta de dados
+    const handleNoDataEvent = (event: any) => {
+      if (event.type !== 'no_data_available') return;
+      
+      // Verificar se o evento é para esta roleta
+      if ((event.roleta_id === roletaId || event.roleta_nome === roletaNome)) {
+        console.log(`[RouletteCard] Evento no_data_available recebido para ${roletaNome}`);
+        // Desativar estado de carregamento mesmo sem dados
+        setIsLoading(false);
+      }
+    };
+    
+    // Inscrever para eventos de falta de dados
+    eventService.subscribeToEvent('no_data_available', handleNoDataEvent);
+    
+    // Limpar inscrição ao desmontar
+    return () => {
+      eventService.unsubscribeFromEvent('no_data_available', handleNoDataEvent);
+    };
+  }, [roletaId, roletaNome]);
 
   // Função para gerar sugestões
   const generateSuggestion = () => {
