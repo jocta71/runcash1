@@ -1,4 +1,4 @@
-import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle } from 'lucide-react';
+import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, AlertCircle, InformationCircle } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -658,16 +658,27 @@ const RouletteCard = memo(({
       {/* Corpo do Card */}
       <div className="p-4">
         {isLoading && numbers.length === 0 && mappedNumbers.length === 0 && mappedNumbersOverride.length === 0 ? (
-          <div className="flex items-center justify-center h-12">
-            <span className="text-zinc-500">Carregando dados...</span>
+          <div className="flex flex-col items-center justify-center h-24 px-4">
+            <Loader2 className="animate-spin w-6 h-6 text-zinc-500 mb-2" />
+            <span className="text-zinc-500 text-center text-sm">Carregando dados...</span>
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center h-12 text-red-500">
-            <span>Erro ao carregar dados</span>
+          <div className="flex flex-col items-center justify-center h-24 px-4">
+            <AlertCircle className="w-6 h-6 text-red-500 mb-2" />
+            <span className="text-red-500 text-center text-sm">Erro ao carregar dados</span>
           </div>
         ) : numbers.length === 0 && mappedNumbers.length === 0 && mappedNumbersOverride.length === 0 ? (
-          <div className="flex items-center justify-center h-12">
-            <span className="text-zinc-500">Sem dados disponíveis</span>
+          <div className="flex flex-col items-center justify-center h-24 px-4">
+            <InformationCircle className="w-6 h-6 text-amber-500 mb-2" />
+            <span className="text-zinc-400 text-center text-sm">Sem dados de números disponíveis no momento. O sistema está sendo sincronizado.</span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={reloadData}
+              className="mt-3 text-xs"
+            >
+              Tentar novamente
+            </Button>
           </div>
         ) : (
           /* Exibir dados quando disponíveis */

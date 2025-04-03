@@ -902,38 +902,81 @@ class SocketService {
     
     console.log(`[SocketService] Buscando dados históricos reais para ${roulette.nome} (${roulette._id})`);
     
+    // IMPORTANTE: Se a roleta já tem um array numeros (mesmo que vazio), não fazer nova requisição
+    if (Array.isArray(roulette.numeros)) {
+      console.log(`[SocketService] Roleta ${roulette.nome} já tem propriedade numeros definida (${roulette.numeros.length} números). Usando dados existentes.`);
+      
+      // Se o array tiver números, processar; caso contrário, informar que não há dados
+      if (roulette.numeros.length > 0) {
+        // Processar os números existentes
+        this.processNumbersData(roulette.numeros, roulette);
+        return true;
+      } else {
+        // Informar que não há dados para esta roleta
+        console.log(`[SocketService] Roleta ${roulette.nome} tem array numeros vazio. Não serão feitas requisições adicionais.`);
+        EventService.emitGlobalEvent('no_data_available', {
+          roleta_id: roulette._id,
+          roleta_nome: roulette.nome,
+          type: 'no_data_available'
+        });
+        return false;
+      }
+    }
+    
+    // Lista curta de endpoints para tentar apenas uma vez (evitar múltiplas requisições 404)
     try {
       const baseUrl = this.getApiBaseUrl();
-      const endpoints = [
-        `${baseUrl}/roulettes/${roulette._id}/numbers`,
-        `${baseUrl}/ROULETTES/${roulette._id}/numbers`,
-        `${baseUrl}/numbers/${roulette._id}`
-      ];
+      // Tentar apenas um endpoint principal para evitar múltiplas requisições que falham
+      const endpoint = `${baseUrl}/roulettes/${roulette._id}/numbers`;
       
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`[SocketService] Tentando buscar números em: ${endpoint}`);
-          const response = await fetch(endpoint);
-          
-          if (response.ok) {
-            const data = await response.json();
-            if (Array.isArray(data) && data.length > 0) {
-              console.log(`[SocketService] Encontrados ${data.length} números para ${roulette.nome}`);
-              
-              // Processar os números reais
-              this.processNumbersData(data, roulette);
-              return true;
-            }
+      try {
+        console.log(`[SocketService] Tentando buscar números em: ${endpoint}`);
+        const response = await fetch(endpoint);
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data) && data.length > 0) {
+            console.log(`[SocketService] Encontrados ${data.length} números para ${roulette.nome}`);
+            
+            // Processar os números reais
+            this.processNumbersData(data, roulette);
+            return true;
           }
-        } catch (e) {
-          console.warn(`[SocketService] Falha ao buscar números em ${endpoint}:`, e);
+        } else {
+          // Se a resposta não for OK, não tentar outros endpoints
+          console.log(`[SocketService] Endpoint ${endpoint} retornou status ${response.status}. Não serão feitas mais requisições.`);
+          
+          // Emitir evento indicando que não há dados disponíveis
+          EventService.emitGlobalEvent('no_data_available', {
+            roleta_id: roulette._id,
+            roleta_nome: roulette.nome,
+            type: 'no_data_available'
+          });
+          return false;
         }
+      } catch (e) {
+        console.warn(`[SocketService] Falha ao buscar números em ${endpoint}:`, e);
+        
+        // Emitir evento indicando que não há dados disponíveis
+        EventService.emitGlobalEvent('no_data_available', {
+          roleta_id: roulette._id,
+          roleta_nome: roulette.nome,
+          type: 'no_data_available'
+        });
       }
       
       return false;
       
     } catch (error) {
       console.error(`[SocketService] Erro ao buscar dados históricos para ${roulette.nome}:`, error);
+      
+      // Emitir evento indicando que não há dados disponíveis
+      EventService.emitGlobalEvent('no_data_available', {
+        roleta_id: roulette._id,
+        roleta_nome: roulette.nome,
+        type: 'no_data_available'
+      });
+      
       return false;
     }
   }
