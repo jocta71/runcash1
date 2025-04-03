@@ -3,7 +3,7 @@
 
 """
 Script de inicialização do scraper real - Versão sem estratégia
-Este script também inicia um servidor Flask para fornecer a API
+Este script apenas extrai números das roletas sem aplicar estratégias
 """
 
 import time
@@ -18,8 +18,6 @@ import pymongo
 import random
 from datetime import datetime, timedelta
 import traceback
-from flask import Flask, jsonify, request, Response
-from flask_cors import CORS
 
 # Configurar logging
 logging.basicConfig(
@@ -51,98 +49,11 @@ except ImportError as e:
     print(f"[ERRO CRÍTICO] ❌ Erro ao importar módulos do scraper: {str(e)}")
     sys.exit(1)
 
-# Criar a aplicação Flask
-app = Flask(__name__)
-
-# Configurar CORS para permitir solicitações do frontend
-allowed_origins = os.environ.get('ALLOWED_ORIGINS', 'https://runcashnew-frontend-nu.vercel.app,https://runcashnew.vercel.app,https://seu-projeto.vercel.app,http://localhost:3000,http://localhost:5173,https://788b-146-235-26-230.ngrok-free.app,https://new-run-zeta.vercel.app')
-CORS(app, resources={r"/api/*": {"origins": allowed_origins.split(','), "supports_credentials": True}})
-
 # Flag para controle de início/parada
 executing = True
 
 # Flag para indicar se está executando em modo de simulação
 simulation_mode = False
-
-# Definir endpoints da API
-@app.route('/api/status')
-def api_status():
-    """Endpoint para verificar se a API está online"""
-    return jsonify({
-        "status": "online",
-        "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0"
-    })
-
-@app.route('/api/allowed-roulettes', methods=['GET'])
-def get_allowed_roulettes():
-    """Retorna a lista de IDs de roletas permitidas"""
-    try:
-        # Obter roletas permitidas da variável de ambiente
-        allowed_ids = os.environ.get('ALLOWED_ROULETTES', '').split(',')
-        allowed_ids = [r.strip() for r in allowed_ids if r.strip()]
-        
-        # Se não houver nada configurado, usar valores padrão
-        if not allowed_ids:
-            try:
-                # Tentar importar de roletas_permitidas se disponível
-                import importlib
-                if importlib.util.find_spec("roletas_permitidas") is not None:
-                    roletas_module = importlib.import_module("roletas_permitidas")
-                    if hasattr(roletas_module, "ALLOWED_ROULETTES"):
-                        allowed_ids = roletas_module.ALLOWED_ROULETTES
-                else:
-                    # Lista padrão de roletas
-                    allowed_ids = [
-                        "2010016",  # Immersive Roulette
-                        "2380335",  # Brazilian Mega Roulette
-                        "2010065",  # Bucharest Auto-Roulette
-                        "2010096",  # Speed Auto Roulette
-                        "2010017",  # Auto-Roulette
-                        "2010098"   # Auto-Roulette VIP
-                    ]
-            except Exception as import_error:
-                print(f"[ERRO] Falha ao importar roletas_permitidas: {import_error}")
-                # Lista padrão de roletas
-                allowed_ids = [
-                    "2010016",  # Immersive Roulette
-                    "2380335",  # Brazilian Mega Roulette
-                    "2010065",  # Bucharest Auto-Roulette
-                    "2010096",  # Speed Auto Roulette
-                    "2010017",  # Auto-Roulette
-                    "2010098"   # Auto-Roulette VIP
-                ]
-        
-        # Adicionar informações de nome, se disponíveis
-        roulette_names = {
-            "2010016": "Immersive Roulette",
-            "2380335": "Brazilian Mega Roulette",
-            "2010065": "Bucharest Auto-Roulette",
-            "2010096": "Speed Auto Roulette",
-            "2010017": "Auto-Roulette",
-            "2010098": "Auto-Roulette VIP"
-        }
-        
-        # Criar lista de objetos com id e nome
-        roulettes = []
-        for id in allowed_ids:
-            name = roulette_names.get(id, f"Roleta {id}")
-            roulettes.append({"id": id, "name": name})
-        
-        print(f"[API] Retornando {len(allowed_ids)} roletas permitidas")
-        return jsonify({
-            "success": True,
-            "allowed_ids": allowed_ids,
-            "roulettes": roulettes
-        })
-    except Exception as e:
-        print(f"[ERRO] Erro ao obter roletas permitidas: {e}")
-        traceback.print_exc()
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "allowed_ids": []
-        }), 500
 
 def signal_handler(sig, frame):
     """
@@ -152,32 +63,6 @@ def signal_handler(sig, frame):
     print("\n[INFO] 🛑 Recebido sinal de interrupção. Encerrando scraper...")
     executing = False
     sys.exit(0)
-
-def iniciar_servidor_flask():
-    """
-    Inicia o servidor Flask em uma thread separada
-    """
-    try:
-        print("[INFO] 🌐 Iniciando servidor Flask para API...")
-        
-        # Configurar host e porta a partir das variáveis de ambiente
-        host = os.environ.get('HOST', '0.0.0.0')
-        port = int(os.environ.get('PORT', 8080))
-        debug = False  # Sempre falso para evitar problemas com o Flask em thread
-        
-        # Iniciar servidor em uma thread
-        flask_thread = threading.Thread(
-            target=lambda: app.run(host=host, port=port, debug=debug, use_reloader=False, threaded=True),
-            daemon=True
-        )
-        flask_thread.start()
-        
-        print(f"[INFO] ✅ Servidor Flask iniciado em {host}:{port}")
-        return flask_thread
-    except Exception as e:
-        print(f"[ERRO] ❌ Falha ao iniciar servidor Flask: {str(e)}")
-        traceback.print_exc()
-        return None
 
 def main():
     """
@@ -212,11 +97,6 @@ def main():
         # Inicializar a fonte de dados - corrigido para não passar argumentos
         # O MongoDataSource já lê as variáveis de ambiente internamente
         data_source = MongoDataSource()
-        
-        # Iniciar o servidor Flask em uma thread separada
-        flask_thread = iniciar_servidor_flask()
-        if not flask_thread:
-            logger.warning("⚠️ Servidor Flask não pôde ser iniciado, continuando apenas com o scraper")
         
         # Contador de ciclos e erros
         cycle_count = 0

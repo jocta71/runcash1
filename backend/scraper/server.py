@@ -17,16 +17,11 @@ from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 import hashlib
 import uuid
-import sys
-import traceback
 
 # Importações locais
 from data_source_mongo import MongoDataSource
 from event_manager import event_manager, EventManager
 from config import DEFAULT_HOST, DEFAULT_PORT, API_VERSION
-
-# Adicionar caminhos para importação de módulos
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 # Configurar logger
 logger = logging.getLogger('runcash_api')
@@ -41,16 +36,6 @@ CORS(app, resources={r"/api/*": {"origins": allowed_origins.split(','), "support
 
 # Fonte de dados
 data_source = MongoDataSource()
-
-# Importar e registrar rotas adicionais da API
-try:
-    from routes.api import register_routes
-    register_routes(app)
-    print("[INFO] Rotas adicionais da API registradas com sucesso")
-except ImportError as e:
-    print(f"[ERRO] Não foi possível importar rotas adicionais: {e}")
-    print(f"[ERRO] Detalhes: {str(e)}")
-    traceback.print_exc()
 
 @app.route('/api/status')
 def api_status():
