@@ -372,6 +372,9 @@ const RouletteCard = memo(({
       
       console.log(`[RouletteCard] Processando número ${event.numero} para ${name} de evento ${eventRoletaNome}`);
       
+      // Importante: Desativar estado de carregamento quando recebemos qualquer evento válido
+      setIsLoading(false);
+      
       // Garantir que o número é um número válido
       let numero: number;
       if (typeof event.numero === 'number') {
@@ -396,9 +399,6 @@ const RouletteCard = memo(({
         const newNumbers = [numero, ...prevNumbers];
         return newNumbers.slice(0, 20); // Manter apenas os últimos 20 números
       });
-      
-      // Importante: Desativar estado de carregamento quando recebemos o primeiro número
-      setIsLoading(false);
       
       // Atualizar o estado de dados disponíveis no array com override
       setMappedNumbersOverride(prevNumbers => {
@@ -443,6 +443,21 @@ const RouletteCard = memo(({
     // Inscrever para eventos do EventService também
     eventService.subscribeToEvent('new_number', handleNumberEvent);
     
+    // Importante: Forçar atualização injetando um evento de teste após inscrição
+    // para verificar se já existem dados disponíveis
+    setTimeout(() => {
+      console.log(`[RouletteCard] Verificando dados existentes para ${name}...`);
+      
+      // Se ainda estiver carregando e tiver dados da API, usar esses dados
+      if (isLoading && apiNumbers.length > 0) {
+        console.log(`[RouletteCard] Dados da API encontrados para ${name}, atualizando interface`);
+        setIsLoading(false);
+        if (apiNumbers[0] !== undefined) {
+          setLastNumber(apiNumbers[0]);
+        }
+      }
+    }, 500);
+    
     setIsSubscribed(true);
     
     // Limpar a inscrição quando o componente for desmontado
@@ -455,7 +470,7 @@ const RouletteCard = memo(({
       eventService.unsubscribeFromEvent('new_number', handleNumberEvent);
       setIsSubscribed(false);
     };
-  }, [name]);
+  }, [name, apiNumbers, isLoading]);
 
   // Função para gerar sugestões
   const generateSuggestion = () => {
@@ -596,7 +611,7 @@ const RouletteCard = memo(({
       
       {/* Corpo do Card */}
       <div className="p-4">
-        {isLoading && numbers.length === 0 && mappedNumbers.length === 0 && mappedNumbersOverride.length === 0 ? (
+        {isLoading ? (
           <div className="flex items-center justify-center h-12">
             <span className="text-zinc-500">Carregando dados...</span>
           </div>
