@@ -1,4 +1,4 @@
-import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, AlertCircle, Info } from 'lucide-react';
+import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -321,24 +321,24 @@ const RouletteCard = memo(({
     };
     
     // Função para lidar com eventos de carregamento de dados históricos
-    const handleHistoricalDataEvent = (event: any) => {
-      if (event.type !== 'historical_data_loaded') return;
-      
-      // Desativar estado de carregamento após carregar dados históricos, independente do resultado
-      console.log(`[RouletteCard] Evento historical_data_loaded recebido, atualizando estado de carregamento`);
-      setIsLoading(false);
+    const handleHistoricalDataEvents = (event: any) => {
+      if (event.type === 'historical_data_loading') {
+        setIsLoading(true);
+      } else if (event.type === 'historical_data_loaded') {
+        setIsLoading(false);
+      }
     };
     
     // Inscrever para atualizações de estratégia
     socketService.subscribe(name, handleStrategyUpdate);
     
     // Inscrever para eventos globais de carregamento
-    socketService.subscribe('*', handleHistoricalDataEvent);
+    socketService.subscribe('*', handleHistoricalDataEvents);
     
     // Limpeza
     return () => {
       socketService.unsubscribe(name, handleStrategyUpdate);
-      socketService.unsubscribe('*', handleHistoricalDataEvent);
+      socketService.unsubscribe('*', handleHistoricalDataEvents);
     };
   }, [name]);
 
@@ -378,7 +378,7 @@ const RouletteCard = memo(({
         numero = event.numero;
       } else if (typeof event.numero === 'string') {
         numero = parseInt(event.numero, 10);
-              } else {
+      } else {
         console.warn(`[RouletteCard] Número inválido recebido: ${event.numero}`);
         return;
       }
@@ -456,67 +456,6 @@ const RouletteCard = memo(({
       setIsSubscribed(false);
     };
   }, [name]);
-
-  // Efeito para inicializar números do mappedNumbers para números
-  useEffect(() => {
-    if (mappedNumbers.length > 0 && isLoading) {
-      console.log(`[RouletteCard] Inicializando com dados de API para ${roletaNome}: ${mappedNumbers.length} números`);
-      setNumbers(mappedNumbers);
-      // Importante: Desativar estado de carregamento quando temos dados da API
-      setIsLoading(false);
-    }
-  }, [mappedNumbers, isLoading, roletaNome]);
-
-  // Efeito para atualizar com dados quando números da API estiverem disponíveis
-  useEffect(() => {
-    if (apiNumbers.length > 0 && mappedNumbers.length === 0) {
-      const newNumbers = apiNumbers.map(n => 
-        typeof n.numero === 'number' ? n.numero : parseInt(n.numero, 10)
-      ).filter(n => !isNaN(n));
-      
-      if (newNumbers.length > 0) {
-        console.log(`[RouletteCard] Atualizando números de ${roletaNome} com dados da API:`, newNumbers.slice(0, 5));
-        setNumbers(newNumbers);
-        // Importante: Desativar estado de carregamento quando recebemos dados da API
-        setIsLoading(false);
-      }
-    }
-  }, [apiNumbers, mappedNumbers, roletaNome]);
-
-  // Efeito para definir o último número quando temos dados
-  useEffect(() => {
-    if (numbers.length > 0 && lastNumber === null) {
-      console.log(`[RouletteCard] Definindo último número para ${roletaNome}: ${numbers[0]}`);
-      setLastNumber(numbers[0]);
-      // Importante: Desativar estado de carregamento quando temos dados locais
-      setIsLoading(false);
-    }
-  }, [numbers, lastNumber, roletaNome]);
-
-  // Efeito para escutar eventos relacionados à falta de dados
-  useEffect(() => {
-    const eventService = EventService.getInstance();
-    
-    // Handler para eventos de falta de dados
-    const handleNoDataEvent = (event: any) => {
-      if (event.type !== 'no_data_available') return;
-      
-      // Verificar se o evento é para esta roleta
-      if ((event.roleta_id === roletaId || event.roleta_nome === roletaNome)) {
-        console.log(`[RouletteCard] Evento no_data_available recebido para ${roletaNome}`);
-        // Desativar estado de carregamento mesmo sem dados
-        setIsLoading(false);
-      }
-    };
-    
-    // Inscrever para eventos de falta de dados
-    eventService.subscribeToEvent('no_data_available', handleNoDataEvent);
-    
-    // Limpar inscrição ao desmontar
-    return () => {
-      eventService.unsubscribeFromEvent('no_data_available', handleNoDataEvent);
-    };
-  }, [roletaId, roletaNome]);
 
   // Função para gerar sugestões
   const generateSuggestion = () => {
@@ -658,27 +597,16 @@ const RouletteCard = memo(({
       {/* Corpo do Card */}
       <div className="p-4">
         {isLoading && numbers.length === 0 && mappedNumbers.length === 0 && mappedNumbersOverride.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-24 px-4">
-            <Loader2 className="animate-spin w-6 h-6 text-zinc-500 mb-2" />
-            <span className="text-zinc-500 text-center text-sm">Carregando dados...</span>
+          <div className="flex items-center justify-center h-12">
+            <span className="text-zinc-500">Carregando dados...</span>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center h-24 px-4">
-            <AlertCircle className="w-6 h-6 text-red-500 mb-2" />
-            <span className="text-red-500 text-center text-sm">Erro ao carregar dados</span>
+          <div className="flex items-center justify-center h-12 text-red-500">
+            <span>Erro ao carregar dados</span>
           </div>
         ) : numbers.length === 0 && mappedNumbers.length === 0 && mappedNumbersOverride.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-24 px-4">
-            <Info className="w-6 h-6 text-amber-500 mb-2" />
-            <span className="text-zinc-400 text-center text-sm">Sem dados de números disponíveis no momento. O sistema está sendo sincronizado.</span>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={reloadData}
-              className="mt-3 text-xs"
-            >
-              Tentar novamente
-            </Button>
+          <div className="flex items-center justify-center h-12">
+            <span className="text-zinc-500">Sem dados disponíveis</span>
           </div>
         ) : (
           /* Exibir dados quando disponíveis */

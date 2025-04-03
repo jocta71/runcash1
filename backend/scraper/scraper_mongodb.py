@@ -2,130 +2,60 @@
 # -*- coding: utf-8 -*-
 
 """
-SCRAPER RunCash - Versão MongoDB
-Extrai números de roletas em tempo real
+Scraper roletas MongoDB - Versão API 888Casino
 """
 
-import os
-import json
 import time
 import random
+import re
+import os
 import logging
-import requests
+import hashlib
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple, Union
-from pymongo import MongoClient, UpdateOne
-from pymongo.errors import BulkWriteError
-from bson import ObjectId
+import threading
+import queue
 import sys
-import pymongo
+import tempfile
+import traceback
+import json
+import uuid
+import requests
+from urllib.parse import quote
 
-# Configurar o logger
-logger = logging.getLogger('runcash')
-
-# Verificação e setup de diretórios
-diretorio_atual = os.getcwd()
-print(f"\n\n********************************************************************************")
-print(f"* MÓDULO SCRAPER_MONGODB SENDO CARREGADO (VERSÃO COM API 888CASINO)")
+# Logs de inicialização do scraper
+print("\n\n" + "*" * 80)
+print("* MÓDULO SCRAPER_MONGODB SENDO CARREGADO (VERSÃO COM API 888CASINO)")
 print(f"* Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-print(f"* Diretório atual: {diretorio_atual}")
-print(f"* Python versão: {os.sys.version}")
-print(f"********************************************************************************\n")
+print(f"* Diretório atual: {os.getcwd()}")
+print(f"* Python versão: {sys.version}")
+print("*" * 80 + "\n")
 
-# Imports internos
 try:
-    from config import CASINO_URL, roleta_permitida_por_id, MAX_CICLOS, MAX_ERROS_CONSECUTIVOS
-    from roletas_permitidas import ALLOWED_ROULETTES
+from config import CASINO_URL, roleta_permitida_por_id, MAX_CICLOS, MAX_ERROS_CONSECUTIVOS
+from event_manager import event_manager
+    MODULOS_CORE_DISPONÍVEIS = True
 except ImportError as e:
-    print(f"Erro ao importar configurações: {e}")
-    # Definições padrão em caso de falha na importação
-    CASINO_URL = "https://spectate-web.888casino.com/SpectateWebApp2022/common/configuration-files/LobbyV2/configuraciones.lobbyv2.spectate.json"
-    MAX_CICLOS = 100
+    print(f"Aviso: {e}")
+    print("Executando em modo standalone - sem integração com o resto do sistema")
+    MODULOS_CORE_DISPONÍVEIS = False
+    # Valores padrão para uso standalone
+    CASINO_URL = "https://es.888casino.com/live-casino/#filters=live-roulette"
+    MAX_CICLOS = 0  # 0 = infinito
     MAX_ERROS_CONSECUTIVOS = 5
-    ALLOWED_ROULETTES = [
-        "2010016",  # Immersive Roulette
-        "2380335",  # Brazilian Mega Roulette
-        "2010065",  # Bucharest Auto-Roulette
-        "2010096",  # Speed Auto Roulette
-        "2010017",  # Auto-Roulette
-        "2010098"   # Auto-Roulette VIP
-    ]
     
-    def roleta_permitida_por_id(roleta_id):
-        return roleta_id in ALLOWED_ROULETTES
-
-# Importar API 888Casino com tratamento de erros mais robusto
-try:
-    # Tenta primeiro importar como módulo regular
-    try:
-        import api_888casino
-        logger.info("Módulo api_888casino importado com sucesso como módulo principal")
-    except ImportError:
-        # Tenta importar do diretório atual
-        try:
-            from . import api_888casino
-            logger.info("Módulo api_888casino importado com sucesso do pacote atual")
-        except ImportError:
-            # Tenta importar do diretório pai
-            try:
-                sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                import api_888casino
-                logger.info("Módulo api_888casino importado com sucesso do diretório pai")
-            except ImportError as e:
-                # Se falhar todas as tentativas, tenta criar um simulador interno
-                logger.warning(f"Erro ao importar api_888casino: {e}")
-                logger.warning("Criando simulador interno como fallback...")
-                
-                # Criar um módulo simulado de api_888casino
-                class DummyCasino888API:
-                    def __init__(self, base_url=None):
-                        self.base_url = base_url or "https://simulator.dummy"
-                        logger.info(f"API Dummy 888Casino inicializada com URL: {self.base_url}")
-                        self.roulettes = {
-                            "2010016": {"name": "Immersive Roulette", "last_numbers": []},
-                            "2380335": {"name": "Brazilian Mega Roulette", "last_numbers": []},
-                            "2010065": {"name": "Bucharest Auto-Roulette", "last_numbers": []},
-                            "2010096": {"name": "Speed Auto Roulette", "last_numbers": []},
-                            "2010017": {"name": "Auto-Roulette", "last_numbers": []},
-                            "2010098": {"name": "Auto-Roulette VIP", "last_numbers": []}
-                        }
-                        for roleta_id in self.roulettes:
-                            self.roulettes[roleta_id]["last_numbers"] = [
-                                random.randint(0, 36) for _ in range(random.randint(5, 10))
-                            ]
-                    
-                    def get_roulette_tables(self, regulation_id=None):
-                        return self.roulettes
-                    
-                    def get_all_roulette_tables(self):
-                        return self.roulettes
-                    
-                    def get_table_info(self, table_id):
-                        return self.roulettes.get(table_id)
-                
-                # Criar um módulo simulado
-                class api_888casino_module:
-                    Casino888API = DummyCasino888API
-                    
-                    @staticmethod
-                    def create_api_client(base_url=None):
-                        return DummyCasino888API(base_url)
-                    
-                    @staticmethod
-                    def check_api_status():
-                        return True
-                
-                # Substituir o módulo
-                api_888casino = api_888casino_module
-                logger.info("Usando simulador interno de api_888casino como fallback")
+    # Mock do event_manager
+    class EventManagerMock:
+        def __init__(self):
+            self.event_queue = queue.Queue()
+            self.clients = []
+        
+        def notify_clients(self, event_data, silent=True):
+            print(f"[MOCK] Evento enviado: {event_data['type']} - {event_data.get('roleta_nome', '')}")
     
-    # Inicializar API 888Casino
-    api_client = api_888casino.create_api_client()
-    logger.info("Cliente API 888Casino inicializado com sucesso")
+    event_manager = EventManagerMock()
     
-except Exception as e:
-    logger.error(f"Erro ao inicializar API 888Casino: {e}")
-    raise ImportError(f"Erro ao importar módulos do scraper: {e}")
+    def roleta_permitida_por_id(id_roleta):
+        return True  # Permitir todas as roletas em modo standalone
 
 # Configura o logging
 logging.basicConfig(
@@ -262,7 +192,8 @@ class Casino888API:
                         }
                 
                 print(f"Encontradas {len(all_tables)} mesas de roleta até o momento")
-            except Exception as e:
+    
+    except Exception as e:
                 print(f"Erro ao processar regulation_id={regulation_id}: {str(e)}")
         
         return all_tables
@@ -295,9 +226,9 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         
         # Interação com o banco de dados
         if hasattr(db, 'garantir_roleta_existe'):
-            db.garantir_roleta_existe(id_roleta, roleta_nome)
+        db.garantir_roleta_existe(id_roleta, roleta_nome)
         if hasattr(db, 'inserir_numero'):
-            db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
+        db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
         
         # Log
         print(f"{roleta_nome}:{num_int}:{cor}")
@@ -311,7 +242,7 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
             "timestamp": ts
         }
         if hasattr(event_manager, 'notify_clients'):
-            event_manager.notify_clients(event_data, silent=True)
+        event_manager.notify_clients(event_data, silent=True)
         
         # Hook personalizado
         if numero_hook:
@@ -426,10 +357,10 @@ def scrape_roletas_api(db, numero_hook=None):
     global ultima_atividade, erros_consecutivos
     
     print("[API] Iniciando scraping via API 888Casino")
-    
-    ciclo = 1
-    erros = 0
-    max_erros = 3
+        
+        ciclo = 1
+        erros = 0
+        max_erros = 3
     
     # Roletas permitidas
     ids_permitidos = os.environ.get('ALLOWED_ROULETTES', '').split(',')
@@ -438,9 +369,9 @@ def scrape_roletas_api(db, numero_hook=None):
     
     # Intervalo entre consultas
     intervalo_consulta = 5
-    
-    while ciclo <= MAX_CICLOS or MAX_CICLOS == 0:
-        try:
+        
+        while ciclo <= MAX_CICLOS or MAX_CICLOS == 0:
+            try:
             # Buscar todas as mesas
             tables = casino_api.get_all_roulette_tables()
             print(f"[API] Ciclo {ciclo}: Encontradas {len(tables)} mesas de roleta")
@@ -451,53 +382,46 @@ def scrape_roletas_api(db, numero_hook=None):
             # Processar cada mesa
             for table_id, table_info in tables.items():
                 try:
-                    # Verificar se a roleta está permitida
-                    if not roleta_permitida_por_id(table_id):
-                        print(f"[API] Roleta {table_id} não está na lista de permitidas. Ignorando.")
-                        continue
-                    
-                    # Extrair informações
-                    roleta_nome = table_info.get('name', f"Roleta {table_id}")
-                    numeros = table_info.get('last_numbers', [])
-                    
-                    # Garantir que temos números
-                    if not numeros or len(numeros) == 0:
-                        print(f"[API] Roleta {roleta_nome} sem números. Ignorando.")
-                        continue
+                        # Verificar se a roleta está permitida
+                    if ids_permitidos and ids_permitidos[0].strip():
+                        if not roleta_permitida_por_id(table_id):
+                            continue
+                        
+                    roleta_nome = table_info['name']
+                    last_numbers = table_info.get('last_numbers', [])
                     
                     # Processar números
-                    print(f"[API] Roleta {roleta_nome}: {len(numeros)} números encontrados")
-                    if processar_numeros(db, table_id, roleta_nome, numeros, numero_hook):
-                        roletas_com_numeros += 1
+                    if last_numbers:
+                        numero_recente = last_numbers[0] if last_numbers else None
                         
-                except Exception as e:
-                    print(f"[API] Erro ao processar roleta {table_id}: {str(e)}")
+                        if numero_recente:
+                            if processar_numeros(db, table_id, roleta_nome, [numero_recente], numero_hook):
+                                roletas_com_numeros += 1
+                        
+                    except Exception as e:
+                    print(f"[API] Erro ao processar mesa {table_id}: {str(e)}")
             
-            # Log do resultado
-            print(f"[API] Ciclo {ciclo}: {roletas_com_numeros} roletas com números processados")
-            
-            # Atualizar estado
+            # Atualizar controles
             ultima_atividade = time.time()
             erros_consecutivos = 0
-            ciclo += 1
             
-            # Aguardar intervalo para próximo ciclo
+            # Log
+            print(f"[API] Ciclo {ciclo} completo: {roletas_com_numeros} roletas com novos números")
+            
+            # Intervalo
             time.sleep(intervalo_consulta)
-        
-        except Exception as e:
-            erros += 1
-            erros_consecutivos += 1
-            print(f"[API] Erro no ciclo {ciclo}: {str(e)}")
-            
-            if erros_consecutivos >= MAX_ERROS_CONSECUTIVOS:
-                print(f"[API] Máximo de erros consecutivos atingido ({erros_consecutivos}). Encerrando.")
-                break
+                ciclo += 1
                 
-            # Esperar antes de tentar novamente
+            except Exception as e:
+            print(f"[API] Erro no ciclo {ciclo}: {str(e)}")
+                erros += 1
+                erros_consecutivos += 1
+                
             time.sleep(intervalo_consulta * 2)
-    
-    print("[API] Scraping finalizado")
-    return True
+            
+            if erros >= max_erros:
+                print(f"[API] Muitos erros consecutivos ({erros}), reiniciando ciclo")
+                        erros = 0
 
 # Funções de compatibilidade
 def scrape_roletas(db, driver=None, numero_hook=None):
@@ -505,18 +429,12 @@ def scrape_roletas(db, driver=None, numero_hook=None):
     print("🚀 Usando scraper com API 888Casino")
     return scrape_roletas_api(db, numero_hook)
 
-def simulate_roulette_data(db, event_manager=None):
-    """
-    Simula dados de roleta para testes
-    
-    Args:
-        db: Classe MongoDataSource para acesso ao DB
-        event_manager: Gerenciador de eventos para notificar clientes
-    """
+def simulate_roulette_data(db):
+    """Simulador minimalista para testes"""
     roletas = [
-        {"id": "simulated-1", "nome": "Roleta Simulada 1"},
-        {"id": "simulated-2", "nome": "Roleta Simulada 2"},
-        {"id": "simulated-3", "nome": "Roleta Simulada 3"}
+        {"id": "2010154", "nome": "Auto Lightning Roulette"},
+        {"id": "2010045", "nome": "Ruleta en Vivo"},
+        {"id": "2010168", "nome": "888 Ruleta en Vivo"}
     ]
     
     print(f"Simulando: {','.join([r['nome'] for r in roletas])}")
@@ -533,12 +451,12 @@ def simulate_roulette_data(db, event_manager=None):
             print(f"{nome}:{num}:{cor}")
             
             if hasattr(db, 'garantir_roleta_existe'):
-                db.garantir_roleta_existe(rid, nome)
+            db.garantir_roleta_existe(rid, nome)
             
             ts = datetime.now().isoformat()
             
             if hasattr(db, 'inserir_numero'):
-                db.inserir_numero(rid, nome, num, cor, ts)
+            db.inserir_numero(rid, nome, num, cor, ts)
             
             event_data = {
                 "type": "new_number",
@@ -550,7 +468,7 @@ def simulate_roulette_data(db, event_manager=None):
             }
             
             if hasattr(event_manager, 'notify_clients'):
-                event_manager.notify_clients(event_data, silent=True)
+            event_manager.notify_clients(event_data, silent=True)
             
             time.sleep(random.randint(1, 3))
             

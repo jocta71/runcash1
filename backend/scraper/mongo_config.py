@@ -7,7 +7,6 @@ Módulo de configuração e utilitários para MongoDB
 
 import os
 import logging
-import ssl
 from datetime import datetime
 from typing import Dict, Any, Tuple, Dict
 from pymongo import MongoClient, ASCENDING, DESCENDING
@@ -24,29 +23,14 @@ def conectar_mongodb() -> Tuple[MongoClient, Database]:
         Tuple[MongoClient, Database]: Cliente MongoDB e objeto de banco de dados
     """
     try:
-        # Criar contexto SSL personalizado
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        
-        # Criar cliente com opções melhoradas
-        client = MongoClient(
-            MONGODB_URI,
-            ssl=True,
-            tls=True,
-            tlsAllowInvalidCertificates=True,
-            retryWrites=True,
-            w='majority',
-            connectTimeoutMS=30000,
-            socketTimeoutMS=30000,
-            serverSelectionTimeoutMS=30000
-        )
-        
-        # Teste de conexão
+        # Conectar ao MongoDB sem configuração de pool
+        client = MongoClient(MONGODB_URI)
         db = client[MONGODB_DB_NAME]
-        db.command('ping')
         
+        # Verificar conexão
+        db.command('ping')
         logger.info(f"Conexão MongoDB estabelecida com sucesso: {MONGODB_URI}")
+        
         return client, db
     except Exception as e:
         logger.error(f"Erro ao conectar ao MongoDB: {str(e)}")
@@ -251,87 +235,6 @@ def sequencia_para_documento(roleta_id: str, tipo: str, valor: str,
         documento["fim_timestamp"] = fim
         
     return documento
-
-def garantir_roleta_existe(db, roleta_id: str, roleta_nome: str) -> bool:
-    """
-    Garante que uma roleta existe no banco de dados, criando-a se necessário
-    
-    Args:
-        db: Objeto de banco de dados ou conexão
-        roleta_id (str): ID da roleta
-        roleta_nome (str): Nome da roleta
-        
-    Returns:
-        bool: True se a operação foi bem-sucedida
-    """
-    try:
-        # Verificar se temos acesso direto à coleção
-        if hasattr(db, 'roletas'):
-            colecao = db.roletas
-        else:
-            # Caso contrário, assume que db é o objeto de banco de dados
-            colecao = db['roletas']
-        
-        # Verifica se a roleta já existe
-        roleta = colecao.find_one({"_id": roleta_id})
-        
-        if not roleta:
-            # Criar documento da roleta
-            documento = roleta_para_documento(roleta_id, roleta_nome)
-            
-            # Inserir no banco de dados
-            colecao.insert_one(documento)
-            logger.info(f"Roleta criada: {roleta_nome} (ID: {roleta_id})")
-        else:
-            # Atualizar nome se necessário
-            if roleta.get('nome') != roleta_nome:
-                colecao.update_one(
-                    {"_id": roleta_id},
-                    {"$set": {"nome": roleta_nome, "atualizado_em": datetime.now()}}
-                )
-                logger.info(f"Roleta atualizada: {roleta_nome} (ID: {roleta_id})")
-                
-        return True
-        
-    except Exception as e:
-        logger.error(f"Erro ao garantir que a roleta existe: {str(e)}")
-        return False
-
-def inserir_numero(db, roleta_id: str, roleta_nome: str, numero: int, cor: str = None, timestamp: str = None) -> bool:
-    """
-    Insere um novo número na coleção roleta_numeros
-    
-    Args:
-        db: Objeto de banco de dados ou conexão
-        roleta_id (str): ID da roleta
-        roleta_nome (str): Nome da roleta
-        numero (int): Número sorteado
-        cor (str, optional): Cor do número. Defaults to None.
-        timestamp (str, optional): Timestamp ISO do evento. Defaults to None.
-        
-    Returns:
-        bool: True se a operação foi bem-sucedida
-    """
-    try:
-        # Verificar se temos acesso direto à coleção
-        if hasattr(db, 'roleta_numeros'):
-            colecao = db.roleta_numeros
-        else:
-            # Caso contrário, assume que db é o objeto de banco de dados
-            colecao = db['roleta_numeros']
-        
-        # Criar documento do número
-        documento = numero_para_documento(roleta_id, roleta_nome, numero, cor, timestamp)
-        
-        # Inserir no banco de dados
-        colecao.insert_one(documento)
-        logger.info(f"Número inserido: {roleta_nome} - {numero} ({cor})")
-        
-        return True
-        
-    except Exception as e:
-        logger.error(f"Erro ao inserir número: {str(e)}")
-        return False
 
 # Inicializar conexão quando o módulo é importado
 if __name__ != "__main__":

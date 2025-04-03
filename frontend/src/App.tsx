@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
-import { Toaster as SonnerToaster } from "./components/ui/sonner";
+import { Sonner } from "./components/ui/sonner";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
 import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
@@ -11,15 +11,15 @@ import LoadingScreen from './components/LoadingScreen';
 
 // Importação de componentes principais
 const Index = lazy(() => import("@/pages/Index"));
-const StrategiesPage = lazy(() => import("@/pages/StrategiesPage"));
-const StrategyFormPage = lazy(() => import("@/pages/StrategyFormPage"));
+const StrategiesPage = lazy(() => import("@/pages/strategies/StrategiesPage"));
+const StrategyFormPage = lazy(() => import("@/pages/strategies/StrategyFormPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
 const SeedPage = lazy(() => import("@/pages/SeedPage"));
 const PlansPage = lazy(() => import("@/pages/PlansPage"));
-const PaymentSuccess = lazy(() => import("@/pages/PaymentSuccess"));
-const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
+const PaymentSuccess = lazy(() => import("@/pages/payment/PaymentSuccess"));
+const PaymentCanceled = lazy(() => import("@/pages/payment/PaymentCanceled"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -70,7 +70,7 @@ const App = () => {
       <SubscriptionProvider>
         <TooltipProvider>
           <Toaster />
-          <SonnerToaster />
+          <Sonner />
           <BrowserRouter>
             <Suspense fallback={<LoadingScreen />}>
               <Routes>
