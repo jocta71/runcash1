@@ -1,4 +1,4 @@
-import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, AlertCircle, InformationCircle } from 'lucide-react';
+import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, AlertCircle, Info } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -669,7 +669,7 @@ const RouletteCard = memo(({
           </div>
         ) : numbers.length === 0 && mappedNumbers.length === 0 && mappedNumbersOverride.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-24 px-4">
-            <InformationCircle className="w-6 h-6 text-amber-500 mb-2" />
+            <Info className="w-6 h-6 text-amber-500 mb-2" />
             <span className="text-zinc-400 text-center text-sm">Sem dados de números disponíveis no momento. O sistema está sendo sincronizado.</span>
             <Button 
               variant="outline" 
