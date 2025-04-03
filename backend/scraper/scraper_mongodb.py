@@ -43,15 +43,24 @@ except ImportError as e:
     MAX_CICLOS = 0  # 0 = infinito
     MAX_ERROS_CONSECUTIVOS = 5
     
-    # Lista de roletas permitidas
-    ROLETAS_PERMITIDAS = [
-        "2010016",  # Immersive Roulette
-        "2380335",  # Brazilian Mega Roulette
-        "2010065",  # Bucharest Auto-Roulette
-        "2010096",  # Speed Auto Roulette
-        "2010017",  # Auto-Roulette
-        "2010098"   # Auto-Roulette VIP
-    ]
+    # Obter roletas permitidas da variável de ambiente
+    ALLOWED_ROULETTES = os.environ.get('ALLOWED_ROULETTES', '').split(',')
+    # Remover espaços em branco e filtrar valores vazios
+    ALLOWED_ROULETTES = [r.strip() for r in ALLOWED_ROULETTES if r.strip()]
+    
+    # Caso a variável de ambiente não esteja configurada, usar valores padrão
+    if not ALLOWED_ROULETTES:
+        ALLOWED_ROULETTES = [
+            "2010016",  # Immersive Roulette
+            "2380335",  # Brazilian Mega Roulette
+            "2010065",  # Bucharest Auto-Roulette
+            "2010096",  # Speed Auto Roulette
+            "2010017",  # Auto-Roulette
+            "2010098"   # Auto-Roulette VIP
+        ]
+        print(f"[DEBUG] Roletas permitidas padrão: {ALLOWED_ROULETTES}")
+    else:
+        print(f"[DEBUG] Roletas permitidas configuradas: {ALLOWED_ROULETTES}")
     
     # Mock do event_manager
     class EventManagerMock:
@@ -65,8 +74,8 @@ except ImportError as e:
     event_manager = EventManagerMock()
     
     def roleta_permitida_por_id(id_roleta):
-        # Permitir apenas as roletas na lista de ROLETAS_PERMITIDAS
-        return id_roleta in ROLETAS_PERMITIDAS
+        # Verificar se o ID está na lista de roletas permitidas
+        return id_roleta in ALLOWED_ROULETTES
 
 # Configura o logging
 logging.basicConfig(

@@ -7,6 +7,7 @@ import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import SocketService from '@/services/SocketService';
 import LoadingScreen from './components/LoadingScreen';
+import { carregarRoletasPermitidas } from '@/config/allowedRoulettes';
 
 // Importação de componentes principais
 const Index = lazy(() => import("@/pages/Index"));
@@ -58,6 +59,11 @@ const App = () => {
     
     // Também executar quando a janela é redimensionada, o que pode ajudar a "descongelar"
     window.addEventListener('resize', handleFreeze);
+    
+    // Carregar a lista de roletas permitidas ao iniciar
+    carregarRoletasPermitidas()
+      .then(roletas => console.log('[App] Roletas permitidas carregadas:', roletas.length))
+      .catch(error => console.error('[App] Erro ao carregar roletas permitidas:', error));
     
     return () => {
       window.removeEventListener('resize', handleFreeze);
