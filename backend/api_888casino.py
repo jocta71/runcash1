@@ -25,7 +25,7 @@ class Casino888API:
             base_url (str, optional): URL base da API. Não é usado na versão simulada.
         """
         self.initialized = True
-        self.base_url = base_url or "https://simulator.casino888.com"
+        self.base_url = base_url or "https://888casino.com/live-casino/#filters=live-roulette"
         logger.info(f"API 888Casino Simulator inicializada com URL: {self.base_url}")
         
         # Roletas simuladas (usar IDs que estão nas listas de permitidas)
