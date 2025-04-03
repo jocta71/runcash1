@@ -41,7 +41,7 @@ IS_PRODUCTION = os.environ.get('PRODUCTION', False)
 
 # Importar os módulos do scraper
 try:
-    from scraper_mongodb import scrape_roletas, simulate_roulette_data
+    from scraper_mongodb import scrape_roletas
     from data_source_mongo import MongoDataSource
     import mongo_config
     print("[INFO] ✅ Módulos do scraper importados com sucesso")
@@ -51,9 +51,6 @@ except ImportError as e:
 
 # Flag para controle de início/parada
 executing = True
-
-# Flag para indicar se está executando em modo de simulação
-simulation_mode = False
 
 def signal_handler(sig, frame):
     """
@@ -68,7 +65,7 @@ def main():
     """
     Função principal do scraper
     """
-    global executing, simulation_mode
+    global executing
     
     # Registrar manipulador de sinal para CTRL+C
     signal.signal(signal.SIGINT, signal_handler)
@@ -89,11 +86,6 @@ def main():
         logger.info(f"📊 Nome do banco de dados: {db_name}")
         logger.info(f"⏱️ Tempo mínimo entre ciclos: {min_cycle_time} segundos")
         
-        # Verificar modo de simulação
-        simulation_mode = os.environ.get('SIMULATION_MODE', '').lower() in ('true', '1', 'yes')
-        if simulation_mode:
-            logger.info("🧪 MODO DE SIMULAÇÃO ATIVADO - Gerando dados fictícios")
-        
         # Inicializar a fonte de dados - corrigido para não passar argumentos
         # O MongoDataSource já lê as variáveis de ambiente internamente
         data_source = MongoDataSource()
@@ -112,14 +104,9 @@ def main():
                 # Log do início do ciclo
                 logger.info(f"🔄 Iniciando ciclo #{cycle_count} de extração")
                 
-                if simulation_mode:
-                    # Modo de simulação - gerar dados fictícios
-                    simulate_roulette_data(data_source)
-                    logger.info("🎲 Dados de simulação gerados com sucesso")
-                else:
-                    # Modo real - extrair dados das roletas
-                    scrape_roletas(data_source)
-                    logger.info("✅ Extração de números concluída com sucesso")
+                # Modo real - extrair dados das roletas
+                scrape_roletas(data_source)
+                logger.info("✅ Extração de números concluída com sucesso")
                 
                 # Resetar contador de erros após ciclo bem-sucedido
                 consecutive_errors = 0
