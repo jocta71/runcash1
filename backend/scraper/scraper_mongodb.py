@@ -364,8 +364,12 @@ def scrape_roletas_api(db, numero_hook=None):
     
     # Roletas permitidas
     ids_permitidos = os.environ.get('ALLOWED_ROULETTES', '').split(',')
-    if ids_permitidos and ids_permitidos[0].strip():
-        print(f"[API] Monitorando roletas específicas: {','.join([i[:5] for i in ids_permitidos if i.strip()])}")
+    if not ids_permitidos or not ids_permitidos[0].strip():
+        # Se não tiver no ambiente, usar a lista fixa do módulo roletas_permitidas
+        from roletas_permitidas import ALLOWED_ROULETTES
+        ids_permitidos = ALLOWED_ROULETTES
+        
+    print(f"[API] Monitorando APENAS roletas específicas: {','.join(ids_permitidos)}")
     
     # Rastreamento de números recentes para cada roleta
     numeros_ja_processados = {}
@@ -378,17 +382,29 @@ def scrape_roletas_api(db, numero_hook=None):
             
             # Contador de atualizações
             roletas_com_numeros = 0
+            roletas_permitidas_encontradas = 0
+            roletas_ignoradas = 0
             
             # Processar cada mesa
             for table_id, table_info in tables.items():
                 try:
-                    # Verificar se a roleta está permitida
-                    if ids_permitidos and ids_permitidos[0].strip():
-                        if not roleta_permitida_por_id(table_id):
-                            continue
-                        
+                    # Limpar ID para verificação (remover prefixos/sufixos)
+                    clean_id = table_id
+                    if '_' in clean_id:
+                        clean_id = clean_id.split('_')[0]
+                    
+                    # Verificação estrita se o ID está na lista de permitidos
+                    if clean_id not in ids_permitidos:
+                        roletas_ignoradas += 1
+                        continue
+                    
+                    # Se chegou aqui, a roleta está na lista de permitidos
+                    roletas_permitidas_encontradas += 1
+                    
                     roleta_nome = table_info['name']
                     last_numbers = table_info.get('last_numbers', [])
+                    
+                    print(f"[API] Processando roleta permitida: {roleta_nome} (ID: {table_id}, Clean ID: {clean_id})")
                     
                     # Processar apenas o número mais recente (posição 0)
                     if last_numbers and len(last_numbers) > 0:
@@ -398,9 +414,12 @@ def scrape_roletas_api(db, numero_hook=None):
                         numero_anterior = numeros_ja_processados.get(table_id)
                         if numero_anterior != numero_recente:
                             # Novo número detectado
+                            print(f"[API] Novo número para {roleta_nome}: {numero_recente} (anterior: {numero_anterior})")
                             if processar_numeros(db, table_id, roleta_nome, [numero_recente], numero_hook):
                                 roletas_com_numeros += 1
                                 numeros_ja_processados[table_id] = numero_recente
+                        else:
+                            print(f"[API] Número já processado para {roleta_nome}: {numero_recente}")
                         
                 except Exception as e:
                     print(f"[API] Erro ao processar mesa {table_id}: {str(e)}")
@@ -410,7 +429,7 @@ def scrape_roletas_api(db, numero_hook=None):
             erros_consecutivos = 0
             
             # Log
-            print(f"[API] Ciclo {ciclo} completo: {roletas_com_numeros} roletas com novos números")
+            print(f"[API] Ciclo {ciclo} completo: Encontradas {len(tables)} roletas, {roletas_permitidas_encontradas} permitidas, {roletas_ignoradas} ignoradas, {roletas_com_numeros} com novos números")
             
             # Pausa curta para não sobrecarregar CPU, mas sem intervalo fixo entre requisições
             time.sleep(0.1)
