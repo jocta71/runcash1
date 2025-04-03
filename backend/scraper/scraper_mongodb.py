@@ -140,7 +140,7 @@ class Casino888API:
             tables = self.api.get_tables(regulation_id)
             logger.info(f"Obtidas {len(tables)} mesas para regulation_id={regulation_id}")
             return tables
-    except Exception as e:
+        except Exception as e:
             logger.error(f"Erro ao obter mesas: {e}")
             return {}
     
