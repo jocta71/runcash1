@@ -43,6 +43,16 @@ except ImportError as e:
     MAX_CICLOS = 0  # 0 = infinito
     MAX_ERROS_CONSECUTIVOS = 5
     
+    # Lista de roletas permitidas
+    ROLETAS_PERMITIDAS = [
+        "2010016",  # Immersive Roulette
+        "2380335",  # Brazilian Mega Roulette
+        "2010065",  # Bucharest Auto-Roulette
+        "2010096",  # Speed Auto Roulette
+        "2010017",  # Auto-Roulette
+        "2010098"   # Auto-Roulette VIP
+    ]
+    
     # Mock do event_manager
     class EventManagerMock:
         def __init__(self):
@@ -55,7 +65,8 @@ except ImportError as e:
     event_manager = EventManagerMock()
     
     def roleta_permitida_por_id(id_roleta):
-        return True  # Permitir todas as roletas em modo standalone
+        # Permitir apenas as roletas na lista de ROLETAS_PERMITIDAS
+        return id_roleta in ROLETAS_PERMITIDAS
 
 # Configura o logging
 logging.basicConfig(
