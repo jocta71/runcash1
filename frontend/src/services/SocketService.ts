@@ -4,11 +4,9 @@ import config from '@/config/env';
 import EventService, { 
   RouletteNumberEvent,
   RouletteEventCallback,
-  StrategyUpdateEvent,
-  HistoricalDataLoadedEvent
+  StrategyUpdateEvent
 } from './EventService';
 import { getRequiredEnvVar, isProduction } from '../config/env';
-import { isRouletteAllowed, normalizeRouletteId } from '@/config/allowedRoulettes';
 
 // Importando o serviço de estratégia para simular respostas
 import { StrategyService } from './StrategyService';
@@ -44,9 +42,6 @@ class SocketService {
   
   // Propriedade para o cliente MongoDB (pode ser undefined em alguns contextos)
   public client?: MongoClient;
-  
-  // Armazenar roletas conhecidas que receberam eventos
-  private knownRoulettes: Map<string, {id: string, nome: string, lastUpdate: Date}> = new Map();
   
   private constructor() {
     console.log('[SocketService] Inicializando serviço Socket.IO');
@@ -530,93 +525,74 @@ class SocketService {
         this.processStrategyEvent(event);
       }
     });
-
-    // Ao reconectar, enviar roletas conhecidas
-    this.socket.on('connect', () => {
-      console.log('[SocketService] Conexão estabelecida/restabelecida, sincronizando roletas conhecidas');
-      
-      // Aguardar um pouco para o sistema estabilizar
-      setTimeout(() => {
-        this.knownRoulettes.forEach((roulette) => {
-          this.emitRouletteExistsEvent(roulette.id, roulette.nome);
-        });
-      }, 2000);
-    });
   }
 
-  // Método para processar estratégias recebidas do servidor
+  // Método auxiliar para processar eventos de estratégia
   private processStrategyEvent(data: any): void {
-    // Validação do evento
-    if (!data) return;
-    
-    // Extrair dados principais
-    const roletaId = data.roleta_id;
-    const roletaNome = data.roleta_nome || 'Roleta';
-    
-    // Verificar se roleta está permitida
-    if (!isRouletteAllowed(roletaId)) {
-      console.log(`[SocketService] Ignorando estratégia para roleta não permitida: ${roletaNome} (ID: ${roletaId})`);
-      return;
+    try {
+      if (!data || (!data.roleta_id && !data.roleta_nome)) {
+        console.warn('[SocketService] Evento de estratégia recebido sem identificador de roleta');
+        return;
+      }
+
+      // Garantir que os valores de vitórias e derrotas sejam números válidos
+      const vitorias = data.vitorias !== undefined ? parseInt(data.vitorias) : 0;
+      const derrotas = data.derrotas !== undefined ? parseInt(data.derrotas) : 0;
+
+      // Criar objeto de evento padronizado
+      const event: StrategyUpdateEvent = {
+        type: 'strategy_update',
+        roleta_id: data.roleta_id || 'unknown-id',
+        roleta_nome: data.roleta_nome || data.roleta_id || 'unknown',
+        estado: data.estado || 'NEUTRAL',
+        numero_gatilho: data.numero_gatilho || null,
+        terminais_gatilho: data.terminais_gatilho || [],
+        vitorias: vitorias,
+        derrotas: derrotas,
+        sugestao_display: data.sugestao_display || '',
+        timestamp: data.timestamp || new Date().toISOString()
+      };
+
+      console.log(`[SocketService] Processando evento de estratégia:`, {
+        roleta: event.roleta_nome,
+        vitorias: event.vitorias,
+        derrotas: event.derrotas,
+        timestamp: event.timestamp
+      });
+
+      // Usar o EventService para notificar listeners
+      const eventService = EventService.getInstance();
+      eventService.emitStrategyUpdate(event);
+
+      // Também notificar diretamente os callbacks específicos para esta roleta
+      this.notifyListeners(event);
+    } catch (error) {
+      console.error('[SocketService] Erro ao processar evento de estratégia:', error);
     }
-
-    // Garantir que os valores de vitórias e derrotas sejam números válidos
-    const vitorias = data.vitorias !== undefined ? parseInt(data.vitorias) : 0;
-    const derrotas = data.derrotas !== undefined ? parseInt(data.derrotas) : 0;
-
-    // Criar objeto de evento padronizado
-    const event: StrategyUpdateEvent = {
-      type: 'strategy_update',
-      roleta_id: roletaId || 'unknown-id',
-      roleta_nome: roletaNome,
-      estado: data.estado || 'NEUTRAL',
-      numero_gatilho: data.numero_gatilho || null,
-      terminais_gatilho: data.terminais_gatilho || [],
-      vitorias: vitorias,
-      derrotas: derrotas,
-      sugestao_display: data.sugestao_display || '',
-      timestamp: data.timestamp || new Date().toISOString()
-    };
-
-    console.log(`[SocketService] Processando evento de estratégia:`, {
-      roleta: event.roleta_nome,
-      vitorias: event.vitorias,
-      derrotas: event.derrotas,
-      timestamp: event.timestamp
-    });
-
-    // Usar o EventService para notificar listeners
-    const eventService = EventService.getInstance();
-    eventService.emitStrategyUpdate(event);
-
-    // Também notificar diretamente os callbacks específicos para esta roleta
-    this.notifyListeners(event);
   }
 
-  // Método para processar números recebidos
+  // Método para processar novos números
   private processIncomingNumber(data: any): void {
     try {
-      // Validação básica do evento
-      if (!data || !data.roleta_id || data.numero === undefined) {
-        console.warn('[SocketService] Evento de número inválido:', data);
+      if (!data || !data.roleta_nome || data.numero === undefined) {
+        console.warn('[SocketService] Dados de número inválidos');
         return;
       }
+
+      // Normalizar nome da roleta
+      const roletaNome = data.roleta_nome;
+      const roletaId = data.roleta_id || 'unknown-id';
       
-      // Extrair dados principais
-      const roletaId = data.roleta_id;
-      const roletaNome = data.roleta_nome || 'Roleta';
-      const numero = parseInt(data.numero);
-      
-      // Verificar se roleta está permitida
-      if (!isRouletteAllowed(roletaId)) {
-        console.log(`[SocketService] Ignorando número para roleta não permitida: ${roletaNome} (ID: ${roletaId})`);
-        return;
-      }
-      
-      // Registrar roleta como conhecida para persistência
-      this.registerKnownRoulette(roletaId, roletaNome);
-      
+      // Extrair o número (garantir que é um número)
+      const numeroRaw = data.numero;
+      const numero = typeof numeroRaw === 'number' 
+        ? numeroRaw 
+        : typeof numeroRaw === 'string' 
+          ? parseInt(numeroRaw, 10) 
+          : 0;
+          
       if (isNaN(numero) || numero < 0 || numero > 36) {
-        console.warn(`[SocketService] Número inválido recebido: ${numero}`);
+        console.warn(`[SocketService] Número inválido recebido: ${numeroRaw}`);
         return;
       }
 
@@ -662,7 +638,7 @@ class SocketService {
         }
       }
     } catch (error) {
-      console.error('[SocketService] Erro ao processar número recebido:', error);
+      console.error('[SocketService] Erro ao processar novo número:', error);
     }
   }
 
@@ -772,16 +748,6 @@ class SocketService {
   public async loadHistoricalRouletteNumbers(): Promise<void> {
     console.log('[SocketService] Iniciando carregamento de números históricos...');
     
-    // Lista de IDs permitidos - apenas estas roletas serão processadas
-    const ALLOWED_ROULETTES = [
-      "2010016",  // Immersive Roulette
-      "2380335",  // Brazilian Mega Roulette
-      "2010065",  // Bucharest Auto-Roulette
-      "2010096",  // Speed Auto Roulette
-      "2010017",  // Auto-Roulette
-      "2010098"   // Auto-Roulette VIP
-    ];
-    
     // Notificar que o carregamento começou
     EventService.emitGlobalEvent('historical_data_loading', { started: true });
     
@@ -802,17 +768,12 @@ class SocketService {
             continue;
           }
           
-          // Verificar se o ID está na lista de permitidos
-          const stringId = String(roletaId);
-          if (!ALLOWED_ROULETTES.includes(stringId)) {
-            console.log(`[SocketService] Roleta não permitida: ${roulette.nome || roulette.name || 'Sem Nome'} (ID: ${stringId})`);
-            continue;
-          }
-          
           // Normalizar o objeto da roleta
           roulette._id = roletaId;
-          const roletaNome = roulette.nome || roulette.name || roulette.table_name || `Roleta ${roletaId.substring(0, 8)}`;
+          const roletaNome = roulette.nome || roulette.name || roulette.table_name || `Roleta ${String(roletaId).substring(0, 8)}`;
           roulette.nome = roletaNome;
+          
+          console.log(`[SocketService] Processando roleta: ${roletaNome} (ID: ${roletaId})`);
           
           // Buscar dados históricos reais
           const hasRealData = await this.fetchRealHistoricalData(roulette);
@@ -902,36 +863,23 @@ class SocketService {
           if (response.ok) {
             const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
-              // Filtrar apenas as roletas permitidas usando a função melhorada
-              const filteredRoulettes = data.filter(roulette => {
-                // Obter o ID da roleta considerando diferentes campos possíveis
+              // Não filtrar, usar todas as roletas disponíveis
+              console.log(`[SocketService] Encontradas ${data.length} roletas, usando todas`);
+              
+              // Normalizar os objetos para garantir que tenham propriedades consistentes
+              return data.map(roulette => {
+                // Usar os IDs originais sem normalização
                 const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.GameID || '';
+                const roletaNome = roulette.nome || roulette.name || roulette.table_name || `Roleta ${String(roletaId).substring(0, 8)}`;
                 
-                // Usar a função isRouletteAllowed otimizada que normaliza IDs
-                const isAllowed = isRouletteAllowed(roletaId);
-                
-                // Log para depuração
-                if (isAllowed) {
-                  console.log(`[SocketService] Roleta permitida: ${roulette.nome || roulette.name || 'Sem Nome'} (ID: ${roletaId})`);
-                } else {
-                  console.log(`[SocketService] Roleta ignorada: ${roulette.nome || roulette.name || 'Sem Nome'} (ID: ${roletaId})`);
-                }
-                
-                return isAllowed;
+                return {
+                  ...roulette,
+                  _id: roletaId,
+                  id: roletaId,
+                  nome: roletaNome,
+                  name: roletaNome
+                };
               });
-              
-              console.log(`[SocketService] Encontradas ${data.length} roletas, filtradas para ${filteredRoulettes.length} permitidas`);
-              
-              // Se não encontrou nenhuma roleta permitida, tentar mapear melhor os IDs para diagnóstico
-              if (filteredRoulettes.length === 0 && data.length > 0) {
-                console.warn('[SocketService] Nenhuma roleta permitida encontrada. Verificando IDs recebidos:');
-                data.forEach((roulette: any) => {
-                  const id = roulette._id || roulette.id || roulette.gameId || roulette.GameID || '';
-                  console.log(`[SocketService] Verificando ID da roleta ${roulette.nome || roulette.name || 'Sem Nome'}: ${id}`);
-                });
-              }
-              
-              return filteredRoulettes;
             }
           }
         } catch (e) {
@@ -950,34 +898,16 @@ class SocketService {
   
   // Método para buscar dados históricos reais para uma roleta
   private async fetchRealHistoricalData(roulette: any): Promise<boolean> {
-    if (!roulette) return false;
+    if (!roulette || !roulette._id) return false;
     
-    // Obter ID usando diferentes possíveis propriedades
-    const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.GameID || '';
-    const roletaNome = roulette.nome || roulette.name || 'Roleta';
-    
-    // Verificar se a roleta está permitida
-    if (!isRouletteAllowed(roletaId)) {
-      console.log(`[SocketService] Ignorando busca de histórico para roleta não permitida: ${roletaNome} (ID: ${roletaId})`);
-      return false;
-    }
-    
-    // Registrar roleta como conhecida para persistência
-    this.registerKnownRoulette(roletaId, roletaNome);
-    
-    console.log(`[SocketService] Buscando dados históricos reais para ${roletaNome} (${roletaId})`);
+    console.log(`[SocketService] Buscando dados históricos reais para ${roulette.nome} (${roulette._id})`);
     
     try {
       const baseUrl = this.getApiBaseUrl();
-      const normalizedId = normalizeRouletteId(roletaId);
-      
-      // Tentar vários formatos de endpoint para maior compatibilidade
       const endpoints = [
-        `${baseUrl}/roulettes/${roletaId}/numbers`,
-        `${baseUrl}/roulettes/${normalizedId}/numbers`,
-        `${baseUrl}/ROULETTES/${roletaId}/numbers`,
-        `${baseUrl}/numbers/${roletaId}`,
-        `${baseUrl}/numbers/${normalizedId}`
+        `${baseUrl}/roulettes/${roulette._id}/numbers`,
+        `${baseUrl}/ROULETTES/${roulette._id}/numbers`,
+        `${baseUrl}/numbers/${roulette._id}`
       ];
       
       for (const endpoint of endpoints) {
@@ -988,27 +918,22 @@ class SocketService {
           if (response.ok) {
             const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
-              console.log(`[SocketService] Encontrados ${data.length} números para ${roletaNome}`);
+              console.log(`[SocketService] Encontrados ${data.length} números para ${roulette.nome}`);
               
               // Processar os números reais
               this.processNumbersData(data, roulette);
               return true;
-            } else {
-              console.log(`[SocketService] Resposta vazia ou inválida de ${endpoint}`);
             }
-          } else {
-            console.log(`[SocketService] Falha na resposta de ${endpoint}: ${response.status}`);
           }
         } catch (e) {
           console.warn(`[SocketService] Falha ao buscar números em ${endpoint}:`, e);
         }
       }
       
-      console.log(`[SocketService] Não foi possível obter dados históricos para ${roletaNome} após tentar todos os endpoints`);
       return false;
       
     } catch (error) {
-      console.error(`[SocketService] Erro ao buscar dados históricos para ${roletaNome}:`, error);
+      console.error(`[SocketService] Erro ao buscar dados históricos para ${roulette.nome}:`, error);
       return false;
     }
   }
@@ -1123,88 +1048,6 @@ class SocketService {
       return this.connectionActive;
     }
     return false;
-  }
-
-  // Métodos adicionais para persistência de roletas
-  private registerKnownRoulette(roletaId: string, roletaNome: string) {
-    if (!roletaId || !isRouletteAllowed(roletaId)) return;
-    
-    // Normalizar o ID para consistência
-    const normalizedId = normalizeRouletteId(roletaId);
-    
-    // Registrar ou atualizar a roleta conhecida
-    this.knownRoulettes.set(normalizedId, {
-      id: roletaId, 
-      nome: roletaNome || `Roleta ${normalizedId}`,
-      lastUpdate: new Date()
-    });
-    
-    console.log(`[SocketService] Roleta registrada como conhecida: ${roletaNome} (ID: ${roletaId})`);
-    
-    // Notificar o sistema que esta roleta existe
-    this.emitRouletteExistsEvent(roletaId, roletaNome);
-  }
-
-  // Emitir evento para garantir que a roleta permaneça na lista
-  private emitRouletteExistsEvent(roletaId: string, roletaNome: string) {
-    EventService.emitGlobalEvent('roleta_exists', {
-      id: roletaId,
-      nome: roletaNome,
-      ultima_atualizacao: new Date().toISOString()
-    });
-  }
-
-  // Enviar as roletas conhecidas periodicamente
-  private scheduleKnownRoulettesSync() {
-    console.log(`[SocketService] Iniciando sincronização periódica de ${this.knownRoulettes.size} roletas conhecidas`);
-    
-    // A cada 30 segundos, emitir eventos para todas as roletas conhecidas
-    setInterval(() => {
-      if (this.knownRoulettes.size > 0) {
-        console.log(`[SocketService] Sincronizando ${this.knownRoulettes.size} roletas conhecidas`);
-        
-        this.knownRoulettes.forEach((roulette) => {
-          console.log(`[SocketService] Emitindo evento roleta_exists para: ${roulette.nome} (ID: ${roulette.id})`);
-          this.emitRouletteExistsEvent(roulette.id, roulette.nome);
-        });
-      }
-    }, 30000); // 30 segundos
-  }
-
-  // Método principal para inicializar a conexão WebSocket
-  async initialize(): Promise<boolean> {
-    try {
-      if (this.initialized) {
-        console.log('[SocketService] Serviço já inicializado, ignorando nova inicialização');
-        return true;
-      }
-      
-      console.log('[SocketService] Inicializando serviço Socket.IO');
-      
-      // Atualizar flag de inicialização
-      this.initialized = true;
-      
-      // Configurar conexão com o servidor WebSocket
-      this.setupWebSocketConnection();
-      
-      // Configurar listeners de eventos
-      this.setupEventListeners();
-      
-      // Iniciar sincronização periódica de roletas conhecidas
-      this.scheduleKnownRoulettesSync();
-      
-      // Configurar ping periódico para manter a conexão ativa
-      this.setupPing();
-      
-      // Carregar dados iniciais
-      await this.loadInitialData();
-      
-      console.log('[SocketService] Serviço inicializado com sucesso');
-      return true;
-    } catch (e) {
-      console.error('[SocketService] Erro ao inicializar serviço:', e);
-      return false;
-    }
   }
 }
 
