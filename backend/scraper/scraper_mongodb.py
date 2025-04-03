@@ -434,53 +434,6 @@ def scrape_roletas(db, driver=None, numero_hook=None):
     print("🚀 Usando scraper com API 888Casino")
     return scrape_roletas_api(db, numero_hook)
 
-def simulate_roulette_data(db):
-    """Simulador minimalista para testes"""
-    roletas = [
-        {"id": "2010154", "nome": "Auto Lightning Roulette"},
-        {"id": "2010045", "nome": "Ruleta en Vivo"},
-        {"id": "2010168", "nome": "888 Ruleta en Vivo"}
-    ]
-    
-    print(f"Simulando: {','.join([r['nome'] for r in roletas])}")
-    
-    while True:
-        try:
-            roleta = random.choice(roletas)
-            rid = roleta["id"]
-            nome = roleta["nome"]
-            
-            num = random.randint(0, 36)
-            cor = cor_numero(num)
-            
-            print(f"{nome}:{num}:{cor}")
-            
-            if hasattr(db, 'garantir_roleta_existe'):
-                db.garantir_roleta_existe(rid, nome)
-            
-            ts = datetime.now().isoformat()
-            
-            if hasattr(db, 'inserir_numero'):
-                db.inserir_numero(rid, nome, num, cor, ts)
-            
-            event_data = {
-                "type": "new_number",
-                "roleta_id": rid,
-                "roleta_nome": nome,
-                "numero": num,
-                "timestamp": ts,
-                "simulado": True
-            }
-            
-            if hasattr(event_manager, 'notify_clients'):
-                event_manager.notify_clients(event_data, silent=True)
-            
-            time.sleep(random.randint(1, 3))
-            
-        except Exception as e:
-            print(f"Erro no simulador: {str(e)}")
-            time.sleep(5)
-
 # Testes básicos
 if __name__ == "__main__":
     print("\nTeste básico da API 888Casino...")
@@ -501,4 +454,4 @@ if __name__ == "__main__":
         traceback.print_exc()
 
 # Exports
-__all__ = ['scrape_roletas', 'simulate_roulette_data'] 
+__all__ = ['scrape_roletas'] 
