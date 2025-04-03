@@ -64,6 +64,35 @@ def signal_handler(sig, frame):
     executing = False
     sys.exit(0)
 
+def iniciar_servidor_flask():
+    """
+    Inicia o servidor Flask em uma thread separada
+    """
+    try:
+        # Importar o módulo server que contém a aplicação Flask
+        from server import app, start_server
+        
+        print("[INFO] 🌐 Iniciando servidor Flask para API...")
+        
+        # Configurar host e porta a partir das variáveis de ambiente
+        host = os.environ.get('HOST', '0.0.0.0')
+        port = int(os.environ.get('PORT', 8080))
+        debug = False  # Sempre falso para evitar problemas com o Flask em thread
+        
+        # Iniciar servidor em uma thread
+        flask_thread = threading.Thread(
+            target=lambda: app.run(host=host, port=port, debug=debug, use_reloader=False, threaded=True),
+            daemon=True
+        )
+        flask_thread.start()
+        
+        print(f"[INFO] ✅ Servidor Flask iniciado em {host}:{port}")
+        return flask_thread
+    except Exception as e:
+        print(f"[ERRO] ❌ Falha ao iniciar servidor Flask: {str(e)}")
+        traceback.print_exc()
+        return None
+
 def main():
     """
     Função principal do scraper
@@ -97,6 +126,11 @@ def main():
         # Inicializar a fonte de dados - corrigido para não passar argumentos
         # O MongoDataSource já lê as variáveis de ambiente internamente
         data_source = MongoDataSource()
+        
+        # Iniciar o servidor Flask em uma thread separada
+        flask_thread = iniciar_servidor_flask()
+        if not flask_thread:
+            logger.warning("⚠️ Servidor Flask não pôde ser iniciado, continuando apenas com o scraper")
         
         # Contador de ciclos e erros
         cycle_count = 0
