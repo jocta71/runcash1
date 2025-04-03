@@ -439,12 +439,18 @@ def scrape_roletas(db, driver=None, numero_hook=None):
     print("🚀 Usando scraper com API 888Casino")
     return scrape_roletas_api(db, numero_hook)
 
-def simulate_roulette_data(db):
-    """Simulador minimalista para testes"""
+def simulate_roulette_data(db, event_manager=None):
+    """
+    Simula dados de roleta para testes
+    
+    Args:
+        db: Classe MongoDataSource para acesso ao DB
+        event_manager: Gerenciador de eventos para notificar clientes
+    """
     roletas = [
-        {"id": "2010154", "nome": "Auto Lightning Roulette"},
-        {"id": "2010045", "nome": "Ruleta en Vivo"},
-        {"id": "2010168", "nome": "888 Ruleta en Vivo"}
+        {"id": "simulated-1", "nome": "Roleta Simulada 1"},
+        {"id": "simulated-2", "nome": "Roleta Simulada 2"},
+        {"id": "simulated-3", "nome": "Roleta Simulada 3"}
     ]
     
     print(f"Simulando: {','.join([r['nome'] for r in roletas])}")
@@ -461,12 +467,12 @@ def simulate_roulette_data(db):
             print(f"{nome}:{num}:{cor}")
             
             if hasattr(db, 'garantir_roleta_existe'):
-            db.garantir_roleta_existe(rid, nome)
+                db.garantir_roleta_existe(rid, nome)
             
             ts = datetime.now().isoformat()
             
             if hasattr(db, 'inserir_numero'):
-            db.inserir_numero(rid, nome, num, cor, ts)
+                db.inserir_numero(rid, nome, num, cor, ts)
             
             event_data = {
                 "type": "new_number",
@@ -478,7 +484,7 @@ def simulate_roulette_data(db):
             }
             
             if hasattr(event_manager, 'notify_clients'):
-            event_manager.notify_clients(event_data, silent=True)
+                event_manager.notify_clients(event_data, silent=True)
             
             time.sleep(random.randint(1, 3))
             
