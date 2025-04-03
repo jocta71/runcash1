@@ -426,103 +426,62 @@ class SocketService {
   private setupEventListeners(): void {
     if (!this.socket) return;
 
-    // Registrar handlers para eventos do socket
+    // Eventos padrão do socket
     this.socket.on('connect', () => {
-      console.log(`[SocketService] Conectado ao servidor WebSocket: ${this.getSocketUrl()}`);
+      console.log('[SocketService] Conectado ao servidor');
       this.connectionActive = true;
-      this.notifyConnectionListeners();
+      
+      EventService.emitGlobalEvent('socket_connected', { connected: true });
+      
+      // Buscar roletas reais ao conectar
+      this.fetchRealRoulettes();
     });
 
-    this.socket.on('disconnect', (reason) => {
-      console.log(`[SocketService] Desconectado do servidor WebSocket. Motivo: ${reason}`);
+    this.socket.on('disconnect', () => {
+      console.log('[SocketService] Desconectado do servidor');
       this.connectionActive = false;
-      this.notifyConnectionListeners();
+      EventService.emitGlobalEvent('socket_disconnected', { connected: false });
     });
 
     this.socket.on('message', (data: any) => {
-      console.log(`[SocketService] Mensagem recebida:`, data);
-      
-      // Se temos dados de número, processar
-      if (data && data.type === 'new_number' && data.roleta_nome) {
-        this.processIncomingNumber(data);
-      }
-      
-      // Se temos dados de estratégia, processar
-      if (data && data.type === 'strategy_update') {
-        console.log(`[SocketService] Dados de estratégia recebidos para ${data.roleta_nome || data.roleta_id}:`, {
-          vitorias: data.vitorias,
-          derrotas: data.derrotas,
-          estado: data.estado
-        });
-        this.processStrategyEvent(data);
-      }
+      console.log('[SocketService] Mensagem recebida:', data);
     });
     
-    // Processador de evento global_update
+    // Ouvir eventos global_update para extrair números e estratégias
     this.socket.on('global_update', (data: any) => {
-      console.log(`[SocketService] Evento global_update recebido:`, data);
+      console.log('[SocketService] global_update recebido:', data);
       
-      // Verificar se o objeto contém dados de número
-      if (data && data.numero !== undefined && (data.roleta_nome || data.mesa)) {
-        // Criar um evento de número a partir do global_update
-        const numberEvent = {
-          type: 'new_number',
-          roleta_id: data.roleta_id || data.id || 'unknown-id',
-          roleta_nome: data.roleta_nome || data.mesa || 'Roleta Desconhecida',
-          numero: typeof data.numero === 'number' ? data.numero : parseInt(String(data.numero), 10),
-          timestamp: data.timestamp || new Date().toISOString()
-        };
+      try {
+        // Verificar se existe roleta_id e número no evento
+        if (data && data.roleta_id && (data.numero !== undefined || data.number !== undefined)) {
+          const numero = data.numero !== undefined ? data.numero : data.number;
+          
+          // Criar um evento de número no formato esperado
+          const numberEvent = {
+            roleta_id: data.roleta_id,
+            roleta_nome: data.roleta_nome || data.name || 'Roleta',
+            numero: numero,
+            timestamp: data.timestamp || new Date().toISOString(),
+            type: 'new_number'
+          };
+          
+          console.log(`[SocketService] Convertendo global_update para evento de número: ${JSON.stringify(numberEvent)}`);
+          
+          // Processar o número como se fosse um evento new_number
+          this.processIncomingNumber(numberEvent);
+        }
         
-        console.log(`[SocketService] Convertendo global_update para new_number: ${numberEvent.numero} para ${numberEvent.roleta_nome}`);
-        
-        // Processar como um evento de número normal
-        this.processIncomingNumber(numberEvent);
-      }
-    });
-
-    // Ouvir especificamente por eventos de estratégia
-    this.socket.on('strategy_update', (data: any) => {
-      console.log(`[SocketService] Evento strategy_update recebido:`, data);
-      if (data && (data.roleta_id || data.roleta_nome)) {
-        // Garantir que o evento tenha o tipo correto
-        const event = {
-          ...data,
-          type: 'strategy_update'
-        };
-        this.processStrategyEvent(event);
-      }
-    });
-    
-    // Ouvir por evento específico de vitórias/derrotas
-    this.socket.on('wins_losses_update', (data: any) => {
-      console.log(`[SocketService] Evento wins_losses_update recebido:`, data);
-      if (data && (data.roleta_id || data.roleta_nome) && 
-          (data.vitorias !== undefined || data.derrotas !== undefined)) {
-        // Converter para formato de evento de estratégia
-        const event = {
-          ...data,
-          type: 'strategy_update',
-          estado: data.estado || 'NEUTRAL',
-          vitorias: data.vitorias !== undefined ? parseInt(data.vitorias) : 0,
-          derrotas: data.derrotas !== undefined ? parseInt(data.derrotas) : 0
-        };
-        this.processStrategyEvent(event);
-      }
-    });
-
-    // Ouvir por eventos de estatísticas que também podem trazer vitórias/derrotas
-    this.socket.on('statistics', (data: any) => {
-      console.log(`[SocketService] Evento statistics recebido:`, data);
-      if (data && (data.roleta_id || data.roleta_nome) && 
-          (data.vitorias !== undefined || data.derrotas !== undefined)) {
-        // Converter para formato de evento de estratégia
-        const event = {
-          ...data,
-          type: 'strategy_update',
-          vitorias: data.vitorias !== undefined ? parseInt(data.vitorias) : 0,
-          derrotas: data.derrotas !== undefined ? parseInt(data.derrotas) : 0
-        };
-        this.processStrategyEvent(event);
+        // Verificar se há dados de estratégia no evento
+        if (data && data.estrategia && data.roleta_id) {
+          // Emitir evento de estratégia
+          EventService.emitGlobalEvent('strategy_update', {
+            roleta_id: data.roleta_id,
+            strategy: data.estrategia,
+            type: 'strategy_update'
+          });
+        }
+      } catch (error) {
+        console.error('[SocketService] Erro ao processar global_update:', error);
       }
     });
   }
