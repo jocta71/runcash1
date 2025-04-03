@@ -457,6 +457,42 @@ const RouletteCard = memo(({
     };
   }, [name]);
 
+  // Efeito para inicializar números do mappedNumbers para números
+  useEffect(() => {
+    if (mappedNumbers.length > 0 && isLoading) {
+      console.log(`[RouletteCard] Inicializando com dados de API para ${roletaNome}: ${mappedNumbers.length} números`);
+      setNumbers(mappedNumbers);
+      // Importante: Desativar estado de carregamento quando temos dados da API
+      setIsLoading(false);
+    }
+  }, [mappedNumbers, isLoading, roletaNome]);
+
+  // Efeito para atualizar com dados quando números da API estiverem disponíveis
+  useEffect(() => {
+    if (apiNumbers.length > 0 && mappedNumbers.length === 0) {
+      const newNumbers = apiNumbers.map(n => 
+        typeof n.numero === 'number' ? n.numero : parseInt(n.numero, 10)
+      ).filter(n => !isNaN(n));
+      
+      if (newNumbers.length > 0) {
+        console.log(`[RouletteCard] Atualizando números de ${roletaNome} com dados da API:`, newNumbers.slice(0, 5));
+        setNumbers(newNumbers);
+        // Importante: Desativar estado de carregamento quando recebemos dados da API
+        setIsLoading(false);
+      }
+    }
+  }, [apiNumbers, mappedNumbers, roletaNome]);
+
+  // Efeito para definir o último número quando temos dados
+  useEffect(() => {
+    if (numbers.length > 0 && lastNumber === null) {
+      console.log(`[RouletteCard] Definindo último número para ${roletaNome}: ${numbers[0]}`);
+      setLastNumber(numbers[0]);
+      // Importante: Desativar estado de carregamento quando temos dados locais
+      setIsLoading(false);
+    }
+  }, [numbers, lastNumber, roletaNome]);
+
   // Função para gerar sugestões
   const generateSuggestion = () => {
     // Obter números do grupo selecionado
