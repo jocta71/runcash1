@@ -45,6 +45,9 @@ class SocketService {
   // Propriedade para o cliente MongoDB (pode ser undefined em alguns contextos)
   public client?: MongoClient;
   
+  // Armazenar roletas conhecidas que receberam eventos
+  private knownRoulettes: Map<string, {id: string, nome: string, lastUpdate: Date}> = new Map();
+  
   private constructor() {
     console.log('[SocketService] Inicializando serviço Socket.IO');
     
@@ -527,6 +530,18 @@ class SocketService {
         this.processStrategyEvent(event);
       }
     });
+
+    // Ao reconectar, enviar roletas conhecidas
+    this.socket.on('connect', () => {
+      console.log('[SocketService] Conexão estabelecida/restabelecida, sincronizando roletas conhecidas');
+      
+      // Aguardar um pouco para o sistema estabilizar
+      setTimeout(() => {
+        this.knownRoulettes.forEach((roulette) => {
+          this.emitRouletteExistsEvent(roulette.id, roulette.nome);
+        });
+      }, 2000);
+    });
   }
 
   // Método para processar estratégias recebidas do servidor
@@ -596,6 +611,9 @@ class SocketService {
         console.log(`[SocketService] Ignorando número para roleta não permitida: ${roletaNome} (ID: ${roletaId})`);
         return;
       }
+      
+      // Registrar roleta como conhecida para persistência
+      this.registerKnownRoulette(roletaId, roletaNome);
       
       if (isNaN(numero) || numero < 0 || numero > 36) {
         console.warn(`[SocketService] Número inválido recebido: ${numero}`);
@@ -944,6 +962,9 @@ class SocketService {
       return false;
     }
     
+    // Registrar roleta como conhecida para persistência
+    this.registerKnownRoulette(roletaId, roletaNome);
+    
     console.log(`[SocketService] Buscando dados históricos reais para ${roletaNome} (${roletaId})`);
     
     try {
@@ -1102,6 +1123,85 @@ class SocketService {
       return this.connectionActive;
     }
     return false;
+  }
+
+  // Métodos adicionais para persistência de roletas
+  private registerKnownRoulette(roletaId: string, roletaNome: string) {
+    if (!roletaId || !isRouletteAllowed(roletaId)) return;
+    
+    // Normalizar o ID para consistência
+    const normalizedId = normalizeRouletteId(roletaId);
+    
+    // Registrar ou atualizar a roleta conhecida
+    this.knownRoulettes.set(normalizedId, {
+      id: roletaId, 
+      nome: roletaNome || `Roleta ${normalizedId}`,
+      lastUpdate: new Date()
+    });
+    
+    console.log(`[SocketService] Roleta registrada como conhecida: ${roletaNome} (ID: ${roletaId})`);
+    
+    // Notificar o sistema que esta roleta existe
+    this.emitRouletteExistsEvent(roletaId, roletaNome);
+  }
+
+  // Emitir evento para garantir que a roleta permaneça na lista
+  private emitRouletteExistsEvent(roletaId: string, roletaNome: string) {
+    EventService.emitGlobalEvent('roleta_exists', {
+      id: roletaId,
+      nome: roletaNome,
+      ultima_atualizacao: new Date().toISOString()
+    });
+  }
+
+  // Enviar as roletas conhecidas periodicamente
+  private scheduleKnownRoulettesSync() {
+    // A cada 30 segundos, emitir eventos para todas as roletas conhecidas
+    setInterval(() => {
+      if (this.knownRoulettes.size > 0) {
+        console.log(`[SocketService] Sincronizando ${this.knownRoulettes.size} roletas conhecidas`);
+        
+        this.knownRoulettes.forEach((roulette) => {
+          this.emitRouletteExistsEvent(roulette.id, roulette.nome);
+        });
+      }
+    }, 30000); // 30 segundos
+  }
+
+  // Método principal para inicializar a conexão WebSocket
+  async initialize(): Promise<boolean> {
+    try {
+      if (this.initialized) {
+        console.log('[SocketService] Serviço já inicializado, ignorando nova inicialização');
+        return true;
+      }
+      
+      console.log('[SocketService] Inicializando serviço Socket.IO');
+      
+      // Atualizar flag de inicialização
+      this.initialized = true;
+      
+      // Configurar conexão com o servidor WebSocket
+      this.setupWebSocketConnection();
+      
+      // Configurar listeners de eventos
+      this.setupEventListeners();
+      
+      // Iniciar sincronização periódica de roletas conhecidas
+      this.scheduleKnownRoulettesSync();
+      
+      // Configurar ping periódico para manter a conexão ativa
+      this.setupPing();
+      
+      // Carregar dados iniciais
+      await this.loadInitialData();
+      
+      console.log('[SocketService] Serviço inicializado com sucesso');
+      return true;
+    } catch (e) {
+      console.error('[SocketService] Erro ao inicializar serviço:', e);
+      return false;
+    }
   }
 }
 
