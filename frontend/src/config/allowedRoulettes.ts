@@ -13,11 +13,16 @@ export const ROLETAS_PERMITIDAS = [
 
 /**
  * Verifica se uma roleta está na lista de roletas permitidas
+ * Modificado para permitir todas as roletas que tenham um ID válido
  * @param rouletteId ID da roleta a ser verificada
  * @returns boolean indicando se a roleta está permitida
  */
 export const isRouletteAllowed = (rouletteId: string): boolean => {
-  return ROLETAS_PERMITIDAS.includes(rouletteId);
+  // Permitir qualquer roleta que tenha um ID não vazio
+  return rouletteId !== undefined && rouletteId !== null && rouletteId.trim() !== '';
+  
+  // Código original que filtra apenas as roletas específicas:
+  // return ROLETAS_PERMITIDAS.includes(rouletteId);
 };
 
 /**
