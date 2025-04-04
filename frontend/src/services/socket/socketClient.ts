@@ -1,11 +1,62 @@
 import { io, Socket } from 'socket.io-client';
-import { EventEmitter } from 'events';
 import { mapToCanonicalId } from '../data/rouletteTransformer';
+
+/**
+ * Implementação simples de EventEmitter compatível com navegadores
+ */
+class BrowserEventEmitter {
+  private events: { [key: string]: Array<(...args: any[]) => void> } = {};
+
+  on(event: string, listener: (...args: any[]) => void): this {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    this.events[event].push(listener);
+    return this;
+  }
+
+  off(event: string, listener?: (...args: any[]) => void): this {
+    if (!this.events[event]) return this;
+    
+    if (!listener) {
+      delete this.events[event];
+    } else {
+      this.events[event] = this.events[event].filter(l => l !== listener);
+    }
+    return this;
+  }
+
+  emit(event: string, ...args: any[]): boolean {
+    if (!this.events[event]) return false;
+    
+    this.events[event].forEach(listener => {
+      listener(...args);
+    });
+    return true;
+  }
+
+  once(event: string, listener: (...args: any[]) => void): this {
+    const onceWrapper = (...args: any[]) => {
+      listener(...args);
+      this.off(event, onceWrapper);
+    };
+    return this.on(event, onceWrapper);
+  }
+
+  removeAllListeners(event?: string): this {
+    if (event) {
+      delete this.events[event];
+    } else {
+      this.events = {};
+    }
+    return this;
+  }
+}
 
 /**
  * Cliente WebSocket para comunicação em tempo real
  */
-class SocketClient extends EventEmitter {
+class SocketClient extends BrowserEventEmitter {
   private socket: Socket | null = null;
   private url: string;
   private isConnected: boolean = false;
@@ -113,7 +164,7 @@ class SocketClient extends EventEmitter {
 
   /**
    * Emite um evento para o servidor
-   * Sobrescreve o método da classe EventEmitter
+   * Sobrescreve o método da classe BrowserEventEmitter
    */
   emit(event: string, ...args: any[]): boolean {
     // Eventos específicos do socket que devem ser enviados ao servidor
@@ -128,7 +179,7 @@ class SocketClient extends EventEmitter {
       return false;
     } 
     
-    // Outros eventos são tratados localmente pela classe EventEmitter
+    // Outros eventos são tratados localmente pela classe BrowserEventEmitter
     return super.emit(event, ...args);
   }
 
