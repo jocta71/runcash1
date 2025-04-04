@@ -481,50 +481,33 @@ export function useRouletteData(
     const numeroRaw = event.numero;
     const numeroFormatado = typeof numeroRaw === 'string' ? parseInt(numeroRaw, 10) : numeroRaw;
     
-    debugLog(`[useRouletteData] Número recebido via evento para ${roletaNome}: ${numeroFormatado}, preserve_existing: ${event.preserve_existing}`);
+    console.log(`[useRouletteData] Número recebido via evento para ${roletaNome}: ${numeroFormatado}`);
     
-    // 2. PROCESSAMENTO: Atualizar estado com o novo número (SEMPRE PRESERVANDO OS DADOS INICIAIS)
+    // 2. PROCESSAMENTO: Atualizar estado com o novo número, PRESERVANDO TODOS OS DADOS ANTERIORES
     setNumbers(prev => {
       // Verificar se o número já existe
       const isDuplicate = prev.some(num => 
-        num.numero === numeroFormatado && 
-        num.timestamp === event.timestamp
+        num.numero === numeroFormatado
       );
       
-      if (isDuplicate) return prev;
+      // Se for duplicado, não modificar o estado
+      if (isDuplicate) {
+        console.log(`[useRouletteData] Número duplicado ${numeroFormatado} ignorado para ${roletaNome}`);
+        return prev;
+      }
+      
+      // SOLUÇÃO: Carregar os números iniciais salvos (ou usar os atuais se não tivermos dados iniciais)
+      // e adicionar o novo número apenas no início
       
       // Processar o novo número
       const newNumber = processRouletteNumber(numeroFormatado, event.timestamp);
       
-      // Verificar se este é um dado completamente novo
-      const isNewData = prev.length === 0 || prev[0].numero !== numeroFormatado;
+      // IMPORTANTE: Criar um array totalmente novo combinando o novo número com TODOS os existentes
+      // Isso garante que não perdemos nenhum dado
+      const combinedNumbers = [newNumber, ...prev];
       
-      if (isNewData) {
-        console.log(`[useRouletteData] Novo número ${numeroFormatado} adicionado para ${roletaNome}`);
-        
-        // GARANTIR que os dados iniciais sempre permaneçam
-        // Pegar os dados iniciais da referência ou usar os dados atuais se não tivermos dados iniciais
-        const initialData = initialDataRef.current.length > 0 ? 
-                            [...initialDataRef.current] : 
-                            [...prev];
-        
-        // Adicionar o novo número apenas se for realmente novo
-        let combinedData = [];
-        
-        // Se o primeiro número do initialData já for igual ao novo, não adicioná-lo novamente
-        if (initialData.length > 0 && initialData[0].numero === numeroFormatado) {
-          combinedData = [...initialData];
-        } else {
-          // Adicionar o novo número no início da lista
-          combinedData = [newNumber, ...initialData];
-        }
-        
-        console.log(`[useRouletteData] Dados combinados para ${roletaNome}: ${combinedData.length} números totais`);
-        return combinedData;
-      }
-      
-      // Se não é um dado novo, manter os dados atuais
-      return prev;
+      console.log(`[useRouletteData] Preservando todos os ${prev.length} números existentes e adicionando ${numeroFormatado} no início para ${roletaNome}`);
+      return combinedNumbers;
     });
     
     // Atualizar estado de conexão e dados
