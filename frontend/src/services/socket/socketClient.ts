@@ -1,6 +1,41 @@
 import io from 'socket.io-client';
-import { EventEmitter } from 'events';
 import { getNumericId } from '../data/rouletteTransformer';
+
+/**
+ * Implementação simplificada de EventEmitter para browser
+ */
+class BrowserEventEmitter {
+  private events: Record<string, Array<(...args: any[]) => void>> = {};
+
+  on(event: string, callback: (...args: any[]) => void): void {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    this.events[event].push(callback);
+  }
+
+  emit(event: string, ...args: any[]): void {
+    const callbacks = this.events[event];
+    if (callbacks) {
+      callbacks.forEach(callback => callback(...args));
+    }
+  }
+
+  removeListener(event: string, callback: (...args: any[]) => void): void {
+    const callbacks = this.events[event];
+    if (callbacks) {
+      this.events[event] = callbacks.filter(cb => cb !== callback);
+    }
+  }
+
+  removeAllListeners(event?: string): void {
+    if (event) {
+      delete this.events[event];
+    } else {
+      this.events = {};
+    }
+  }
+}
 
 /**
  * Cliente WebSocket para comunicação em tempo real
@@ -9,7 +44,7 @@ import { getNumericId } from '../data/rouletteTransformer';
 class SocketClient {
   private static instance: SocketClient;
   private socket: any = null;
-  private eventEmitter = new EventEmitter();
+  private eventEmitter = new BrowserEventEmitter();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 5000; // 5 segundos
