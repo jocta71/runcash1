@@ -258,17 +258,26 @@ async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Pro
     // Buscar dados da coleção roleta_numeros
     console.log(`[API] Buscando números para ${roletaNome} (ID MongoDB: ${mongoId})`);
     
-    // Este é um exemplo de como você pode construir a URL para buscar do MongoDB
-    // Substitua pela URL correta para seu banco de dados
-    const url = `https://backendapi-production-36b5.up.railway.app/api/roulette-numero/${mongoId}?limit=20`;
+    // Usar o endpoint único /api/ROULETTES e filtrar a roleta desejada
+    const url = `https://backendapi-production-36b5.up.railway.app/api/ROULETTES`;
     
     const response = await axios.get(url);
     
     if (response.data && Array.isArray(response.data)) {
-      return response.data;
+      // Encontrar a roleta específica pelo ID canônico
+      const targetRoulette = response.data.find((roleta: any) => {
+        const roletaCanonicalId = roleta.canonical_id || mapToCanonicalRouletteId(roleta.id || '');
+        return roletaCanonicalId === mongoId || roleta.id === mongoId;
+      });
+      
+      if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+        console.log(`[API] ✅ Extraídos ${targetRoulette.numero.length} números para roleta ${mongoId}`);
+        return targetRoulette.numero;
+      }
     }
     
     // Se não houver dados, retornar array vazio
+    console.warn(`[API] Roleta ${mongoId} não encontrada nos dados retornados`);
     return [];
   } catch (error) {
     console.error(`[API] Erro ao buscar números do MongoDB para ${roletaNome}:`, error);

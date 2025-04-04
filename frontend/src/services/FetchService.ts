@@ -153,31 +153,45 @@ class FetchService {
    */
   private async fetchRouletteNumbers(roletaId: string): Promise<number[]> {
     try {
-      // Tentar o endpoint específico primeiro (o mais rápido)
+      // Usar o endpoint único /api/ROULETTES e filtrar a roleta desejada
       try {
-        const response = await axios.get(`${this.apiBaseUrl}/roulette-numero/${roletaId}?limit=10`);
+        const response = await axios.get(`${this.apiBaseUrl}/ROULETTES`);
         
         if (response.status === 200 && Array.isArray(response.data)) {
-          // Extrair apenas os números numéricos do array de objetos
-          return response.data.map((item: any) => {
-            // Verificar se o item.numero é válido
-            if (typeof item.numero === 'number' && !isNaN(item.numero)) {
-              return item.numero;
-            } else if (typeof item.numero === 'string' && item.numero.trim() !== '') {
-              const parsedValue = parseInt(item.numero, 10);
-              if (!isNaN(parsedValue)) return parsedValue;
-            }
-            
-            // Se chegou aqui, é um valor inválido, retornar 0
-            console.warn(`[FetchService] Valor inválido de número: ${item.numero}, usando 0`);
-            return 0;
+          // Encontrar a roleta específica pelo ID canônico
+          const targetRoulette = response.data.find((roleta: any) => {
+            const roletaCanonicalId = roleta.canonical_id || this.getCanonicalId(roleta.id || '', roleta.nome);
+            return roletaCanonicalId === roletaId || roleta.id === roletaId;
           });
+          
+          if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+            // Extrair apenas os números numéricos do array de objetos
+            return targetRoulette.numero.map((item: any) => {
+              // Verificar se o item é um objeto com propriedade numero
+              if (typeof item === 'object' && item !== null && 'numero' in item) {
+                if (typeof item.numero === 'number' && !isNaN(item.numero)) {
+                  return item.numero;
+                } else if (typeof item.numero === 'string' && item.numero.trim() !== '') {
+                  const parsedValue = parseInt(item.numero, 10);
+                  if (!isNaN(parsedValue)) return parsedValue;
+                }
+              } 
+              // Caso o item seja diretamente um número
+              else if (typeof item === 'number' && !isNaN(item)) {
+                return item;
+              }
+              
+              // Se chegou aqui, é um valor inválido, retornar 0
+              console.warn(`[FetchService] Valor inválido de número para ${roletaId}: ${JSON.stringify(item)}, usando 0`);
+              return 0;
+            });
+          }
         }
       } catch (error) {
-        console.warn(`[FetchService] Erro no endpoint rápido para ${roletaId}, tentando fallback:`, error);
+        console.warn(`[FetchService] Erro no endpoint principal para ${roletaId}, tentando fallback:`, error);
       }
       
-      // Se falhar, tentar o endpoint de roletas (mais lento)
+      // Se falhar, tentar o endpoint de roletas legado (mais lento)
       const response = await axios.get(`${this.apiBaseUrl}/roulettes/${roletaId}`);
       
       if (response.status === 200 && response.data && Array.isArray(response.data.numeros)) {

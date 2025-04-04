@@ -34,22 +34,31 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
           // Obter o ID canônico da roleta para buscar os números
           const canonicalId = mapToCanonicalRouletteId(roleta.id);
           
-          // Buscar os números mais recentes para esta roleta
-          const numbersResponse = await axios.get(`/api/roulette-numero/${canonicalId}?limit=${limit}`);
+          // Verificar se a roleta já tem números incluídos
+          if (roleta.numero && Array.isArray(roleta.numero)) {
+            console.log(`[API] ✅ Roleta: ${roleta.nome}, ID: ${canonicalId}, Números já incluídos: ${roleta.numero.length}`);
+            
+            // Limitar a quantidade de números retornados
+            const limitedNumbers = roleta.numero.slice(0, limit);
+            
+            // Retornar a roleta com os números já incluídos
+            return {
+              ...roleta,
+              canonicalId,
+              numero: limitedNumbers
+            };
+          }
           
-          // Verificar se a resposta contém dados válidos
-          const numbers = Array.isArray(numbersResponse.data) ? numbersResponse.data : [];
+          console.log(`[API] ✅ Roleta: ${roleta.nome}, ID: ${canonicalId}, Sem números incluídos`);
           
-          console.log(`[API] ✅ Roleta: ${roleta.nome}, ID: ${canonicalId}, Números obtidos: ${numbers.length}`);
-          
-          // Retornar a roleta com os números incluídos
+          // A roleta não tem números, retornar com array vazio
           return {
             ...roleta,
             canonicalId,
-            numero: numbers
+            numero: []
           };
         } catch (error) {
-          console.error(`[API] Erro ao buscar números para roleta ${roleta.nome}:`, error);
+          console.error(`[API] Erro ao processar números para roleta ${roleta.nome}:`, error);
           
           // Mesmo em caso de erro, retornar a roleta, mas com array de números vazio
           return {
@@ -90,7 +99,7 @@ export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Pr
     // Obter o ID canônico para garantir que buscamos os dados corretos
     const canonicalId = mapToCanonicalRouletteId(roletaId);
     
-    // Passo 1: Buscar todas as roletas para encontrar a desejada
+    // Buscar todas as roletas para encontrar a desejada
     const roulettesResponse = await axios.get('/api/ROULETTES');
     
     if (!roulettesResponse.data || !Array.isArray(roulettesResponse.data)) {
@@ -109,38 +118,28 @@ export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Pr
       return null;
     }
     
-    // Passo 2: Buscar os números mais recentes para esta roleta
-    try {
-      const numbersResponse = await axios.get(`/api/roulette-numero/${canonicalId}?limit=${limit}`);
-      
-      // Verificar se a resposta contém dados válidos
-      const numbers = Array.isArray(numbersResponse.data) ? numbersResponse.data : [];
-      
-      // Montar o objeto final
-      const roletaWithNumbers = {
-        ...roleta,
-        canonicalId,
-        numero: numbers
-      };
-      
-      // Armazenar em cache para requisições futuras
-      cache[cacheKey] = {
-        data: roletaWithNumbers,
-        timestamp: Date.now()
-      };
-      
-      console.log(`[API] ✅ Roleta: ${roleta.nome}, ID: ${canonicalId}, Números obtidos: ${numbers.length}`);
-      return roletaWithNumbers;
-    } catch (error) {
-      console.error(`[API] Erro ao buscar números para roleta ${roleta.nome}:`, error);
-      
-      // Mesmo em caso de erro, retornar a roleta, mas com array de números vazio
-      return {
-        ...roleta,
-        canonicalId,
-        numero: []
-      };
+    // Verificar se a roleta já tem números incluídos
+    let numbers = [];
+    if (roleta.numero && Array.isArray(roleta.numero)) {
+      // Limitar a quantidade de números retornados
+      numbers = roleta.numero.slice(0, limit);
     }
+    
+    // Montar o objeto final
+    const roletaWithNumbers = {
+      ...roleta,
+      canonicalId,
+      numero: numbers
+    };
+    
+    // Armazenar em cache para requisições futuras
+    cache[cacheKey] = {
+      data: roletaWithNumbers,
+      timestamp: Date.now()
+    };
+    
+    console.log(`[API] ✅ Roleta: ${roleta.nome}, ID: ${canonicalId}, Números obtidos: ${numbers.length}`);
+    return roletaWithNumbers;
   } catch (error) {
     console.error(`[API] Erro ao buscar roleta ${roletaId} com números:`, error);
     return null;

@@ -52,7 +52,19 @@
           // Criar um overlay transparente para impedir interações durante transição
           const overlay = document.createElement('div');
           overlay.id = 'freeze-overlay';
-          document.body.appendChild(overlay);
+          
+          // Verificar se document.body existe antes de adicionar o filho
+          if (document.body) {
+            document.body.appendChild(overlay);
+          } else {
+            console.warn('[FREEZE] document.body não existe ainda, overlay não foi criado');
+            // Adicionar evento para tentar novamente quando o DOM estiver pronto
+            document.addEventListener('DOMContentLoaded', () => {
+              if (document.body && !document.getElementById('freeze-overlay')) {
+                document.body.appendChild(overlay);
+              }
+            });
+          }
           
           return overlay;
         };
