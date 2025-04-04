@@ -12,6 +12,7 @@ import { toast } from '@/components/ui/use-toast';
 import SocketService from '@/services/SocketService';
 import axios from 'axios';
 import config from '@/config/env';
+import FetchService from '@/services/FetchService';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG = false;
@@ -543,6 +544,23 @@ export function useRouletteData(
     console.log(`[useRouletteData] Atualizando manualmente estratégia para ${roletaNome}`);
     return await loadStrategy();
   }, [roletaNome, loadStrategy]);
+  
+  // Inicializar o FetchService no início do hook para garantir a conexão em tempo real
+  useEffect(() => {
+    // Iniciar o polling quando o componente é montado
+    console.log(`[useRouletteData] Iniciando polling para roleta ${roletaId}`);
+    const fetchService = FetchService.getInstance();
+    fetchService.startPolling();
+    
+    // Forçar uma atualização imediata
+    fetchService.forceUpdate();
+    
+    // Cleanup: parar polling quando o componente é desmontado
+    return () => {
+      // Não desligar o polling no cleanup para permitir que outros componentes continuem recebendo atualizações
+      console.log(`[useRouletteData] Componente desmontado, mas mantendo polling ativo`);
+    };
+  }, [roletaId]);
   
   // Retornar o resultado processado
   return {
