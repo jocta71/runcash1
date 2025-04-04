@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import AnimatedInsights from '@/components/AnimatedInsights';
 import ProfileDropdown from '@/components/ProfileDropdown';
 import Layout from '@/components/Layout';
-import { fetchAllRoulettes, RouletteData } from '@/integrations/api/rouletteService';
+import { RouletteRepository } from '../services/data/rouletteRepository';
+import { RouletteData } from '../services/data/rouletteTransformer';
 import EventService from '@/services/EventService';
 
 interface ChatMessage {
@@ -125,8 +126,8 @@ const Index = () => {
         setIsLoading(true);
         setDataFullyLoaded(false);
         
-        // Buscar todas as roletas da API
-        const data = await fetchAllRoulettes();
+        // Buscar todas as roletas da API usando o novo repositório
+        const data = await RouletteRepository.fetchAllRoulettesWithNumbers();
         console.log('Dados da API:', data);
         
         // Verificar se os dados são válidos
@@ -149,19 +150,33 @@ const Index = () => {
             // Se a roleta já existe, preservar os números e apenas atualizar outros dados
             if (existingRoulette) {
               // Se não há números no objeto novo ou a lista está vazia, manter os números existentes
-              const shouldKeepExistingNumbers = !newRoulette.numeros || newRoulette.numeros.length === 0;
+              const shouldKeepExistingNumbers = !newRoulette.numbers || newRoulette.numbers.length === 0;
               
               return {
                 ...newRoulette,
-                numeros: shouldKeepExistingNumbers ? existingRoulette.numeros : newRoulette.numeros,
+                numeros: shouldKeepExistingNumbers ? existingRoulette.numeros : newRoulette.numbers,
                 // Preservar dados de vitórias/derrotas se eles não mudaram
-                vitorias: newRoulette.vitorias || existingRoulette.vitorias,
-                derrotas: newRoulette.derrotas || existingRoulette.derrotas
+                vitorias: newRoulette.wins || existingRoulette.vitorias,
+                derrotas: newRoulette.losses || existingRoulette.derrotas
               };
             }
             
-            // Se é uma nova roleta, usá-la como está
-            return newRoulette;
+            // Se é uma nova roleta, usá-la como está e mapear para o formato antigo
+            return {
+              id: newRoulette.id,
+              nome: newRoulette.name,
+              roleta_nome: newRoulette.name,
+              numeros: newRoulette.numbers,
+              updated_at: new Date().toISOString(),
+              estado_estrategia: newRoulette.strategyState,
+              numero_gatilho: 0,
+              numero_gatilho_anterior: 0,
+              terminais_gatilho: [],
+              terminais_gatilho_anterior: [],
+              vitorias: newRoulette.wins,
+              derrotas: newRoulette.losses,
+              sugestao_display: ''
+            };
           });
           
           // Mesclar com roletas conhecidas também
@@ -200,7 +215,7 @@ const Index = () => {
         if (!dataFullyLoaded) return; // Não recarregar se os dados iniciais não foram carregados
         
         console.log('[Index] Atualizando dados das roletas...');
-        const data = await fetchAllRoulettes();
+        const data = await RouletteRepository.fetchAllRoulettesWithNumbers();
         
         // Mesclar novos dados com os existentes, preservando números
         setRoulettes(prevRoulettes => {
@@ -217,13 +232,13 @@ const Index = () => {
             // Se a roleta já existe, preservar os números e apenas atualizar outros dados
             if (existingRoulette) {
               // Se não há números no objeto novo ou há menos números que no existente, manter os números existentes
-              const shouldKeepExistingNumbers = !newRoulette.numeros || (existingRoulette.numeros && existingRoulette.numeros.length > newRoulette.numeros.length);
+              const shouldKeepExistingNumbers = !newRoulette.numbers || (existingRoulette.numbers && existingRoulette.numbers.length > newRoulette.numbers.length);
               
               // Mesclar listas de números para não perder dados
-              let mergedNumbers = newRoulette.numeros || [];
-              if (shouldKeepExistingNumbers && existingRoulette.numeros) {
+              let mergedNumbers = newRoulette.numbers || [];
+              if (shouldKeepExistingNumbers && existingRoulette.numbers) {
                 // Usar conjunto para eliminar duplicatas
-                const numbersSet = new Set([...mergedNumbers, ...existingRoulette.numeros]);
+                const numbersSet = new Set([...mergedNumbers, ...existingRoulette.numbers]);
                 mergedNumbers = Array.from(numbersSet);
               }
               
@@ -231,8 +246,8 @@ const Index = () => {
                 ...newRoulette,
                 numeros: mergedNumbers,
                 // Preservar dados de estratégia se não mudaram
-                vitorias: newRoulette.vitorias || existingRoulette.vitorias,
-                derrotas: newRoulette.derrotas || existingRoulette.derrotas
+                vitorias: newRoulette.wins || existingRoulette.vitorias,
+                derrotas: newRoulette.losses || existingRoulette.derrotas
               };
             }
             
