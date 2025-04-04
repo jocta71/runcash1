@@ -16,10 +16,17 @@ export default defineConfig({
     // Configuração para o proxy de desenvolvimento
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || '',
+        target: 'https://backendapi-production-36b5.up.railway.app',
         changeOrigin: true,
-        rewrite: (path: string) => path.replace(/^\/api/, ''),
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, '/api')
       },
+      // Proxy para WebSockets
+      '/socket.io': {
+        target: 'https://backend-production-2f96.up.railway.app',
+        ws: true,
+        changeOrigin: true
+      }
     },
   },
   // Configuração para garantir que o HTML5 History API funcione

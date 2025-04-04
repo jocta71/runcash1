@@ -1008,15 +1008,8 @@ class SocketService {
 
   // Obter a URL base da API
   private getApiBaseUrl(): string {
-    // Verificar se estamos em produção ou desenvolvimento
-    if (import.meta.env.VITE_API_URL) {
-      // Se a URL já termina com /api, não adicionar novamente
-      const baseUrl = import.meta.env.VITE_API_URL;
-      return baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-    }
-    
-    // URL padrão para desenvolvimento local com /api incluído
-    return 'http://localhost:3004/api';
+    // Em vez de usar a URL completa, usar apenas /api para que o proxy do Vite funcione
+    return '/api';
   }
 
   // Adicionando um evento artificial para teste (deve ser removido em produção)

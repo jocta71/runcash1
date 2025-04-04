@@ -133,7 +133,7 @@ export function mapToCanonicalRouletteId(roletaId: string): string {
 }
 
 // Configuração básica para todas as APIs
-const apiBaseUrl = getEnvVar('VITE_API_URL') || 'http://localhost:3000';
+const apiBaseUrl = '/api'; // Usar o proxy local para evitar problemas de CORS
 
 // Cache para evitar múltiplas solicitações para os mesmos dados
 const cache: Record<string, { data: any, timestamp: number }> = {};
@@ -150,8 +150,8 @@ export const fetchRoulettes = async (): Promise<RouletteData[]> => {
       return cache['roulettes'].data;
     }
 
-    console.log(`[API] Buscando roletas em: ${apiBaseUrl}/api/ROULETTES`);
-    const response = await axios.get(`${apiBaseUrl}/api/ROULETTES`);
+    console.log(`[API] Buscando roletas em: ${apiBaseUrl}/ROULETTES`);
+    const response = await axios.get(`${apiBaseUrl}/ROULETTES`);
     
     if (response.data && Array.isArray(response.data)) {
       // Mapear dados recebidos para o formato com IDs canônicos
@@ -245,8 +245,8 @@ export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100)
       return cache[cacheKey].data;
     }
     
-    console.log(`[API] Buscando números da roleta ${canonicalId} em: ${apiBaseUrl}/api/roulette-numbers/${canonicalId}?limit=${limit}`);
-    const response = await axios.get(`${apiBaseUrl}/api/roulette-numbers/${canonicalId}?limit=${limit}`);
+    console.log(`[API] Buscando números da roleta ${canonicalId} em: ${apiBaseUrl}/roulette-numbers/${canonicalId}?limit=${limit}`);
+    const response = await axios.get(`${apiBaseUrl}/roulette-numbers/${canonicalId}?limit=${limit}`);
     
     if (response.data && Array.isArray(response.data)) {
       // Armazenar em cache
