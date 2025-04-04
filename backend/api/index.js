@@ -551,16 +551,20 @@ app.get('/api/roulettes', async (req, res) => {
     
     // Para cada roleta, criar uma promessa para buscar os números mais recentes
     roletas.forEach((roleta) => {
-      const id = roleta.id || roleta._id;
+      const originalId = roleta.id || roleta._id;
+      // Converter UUID para ID canônico
+      const id = mapToCanonicalId(originalId.toString());
+      
       const promise = db.collection('roleta_numeros')
         .find({ roleta_id: id.toString() })
         .sort({ timestamp: -1 })
         .limit(numbersLimit)
         .toArray()
         .then(numeros => {
-          console.log(`[API] Encontrados ${numeros.length} números para roleta ${id}`);
+          console.log(`[API] Encontrados ${numeros.length} números para roleta ${id} (original: ${originalId})`);
           return { 
-            roletaId: id, 
+            roletaId: originalId, // Manter o ID original para mapeamento
+            canonicalId: id, // Adicionar o ID canônico para referência
             numeros: numeros.map(n => ({
               numero: n.numero,
               roleta_id: n.roleta_id,
@@ -572,7 +576,7 @@ app.get('/api/roulettes', async (req, res) => {
         })
         .catch(error => {
           console.error(`[API] Erro ao buscar números para roleta ${id}:`, error);
-          return { roletaId: id, numeros: [] };
+          return { roletaId: originalId, canonicalId: id, numeros: [] };
         });
       
       fetchPromises.push(promise);
@@ -590,8 +594,11 @@ app.get('/api/roulettes', async (req, res) => {
     // Formatar roletas para uniformidade, incluindo os números
     const formattedRoulettes = roletas.map(r => {
       const id = r.id || r._id;
+      const canonicalId = mapToCanonicalId(id.toString());
+      
       return {
         id: id,
+        canonical_id: canonicalId, // Adicionar ID canônico para referência
         nome: r.nome || r.name,
         // Incluir os números buscados ou usar um array vazio como fallback
         numero: numerosMap[id] || [],
@@ -613,11 +620,20 @@ app.get('/api/roulettes', async (req, res) => {
 // Endpoint para obter números de uma roleta específica por ID
 app.get('/api/roulette-numero/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    let { id } = req.params;
     const limit = req.query.limit ? parseInt(req.query.limit) : 100;
     const skip = req.query.skip ? parseInt(req.query.skip) : 0;
     
     console.log(`[API] Requisição recebida para /api/roulette-numero/${id} (limit: ${limit}, skip: ${skip})`);
+
+    // Converter UUID para ID canônico
+    const canonicalId = mapToCanonicalId(id);
+    if (canonicalId !== id) {
+      console.log(`[API] UUID ${id} convertido para ID canônico ${canonicalId}`);
+      id = canonicalId;
+    }
+    
+    console.log(`[API] Buscando dados para ID canônico ${id}`);
 
     // Verificar se MongoDB está conectado
     if (!db) {
@@ -688,15 +704,85 @@ app.get('/api/roulette-numero/:id', async (req, res) => {
   }
 });
 
+// Função para mapear UUIDs para IDs canônicos
+function mapToCanonicalId(uuid) {
+  // Remover traços para normalização
+  const normalizedUuid = uuid.replace(/-/g, '').toLowerCase();
+  
+  // Mapeamento direto de UUIDs para IDs canônicos
+  const uuidToCanonicalMap = {
+    // Brazilian Mega Roulette
+    '7d3c2c9f2850f642861f5bb4daf1806a': '2380335',
+    '7d3c2c9f-2850-f642-861f-5bb4daf1806a': '2380335',
+    
+    // Speed Auto Roulette
+    '18bdc4ead884c47ad33f27a268a4eead': '2010096',
+    '18bdc4ea-d884-c47a-d33f-27a268a4eead': '2010096',
+    
+    // Bucharest Auto-Roulette
+    'e3345af9e3879412209ce793fe73e520': '2010065',
+    'e3345af9-e387-9412-209c-e793fe73e520': '2010065',
+    
+    // Auto-Roulette VIP
+    '419aa56cbcff67d2f424a6501bac4a36': '2010098',
+    '419aa56c-bcff-67d2-f424-a6501bac4a36': '2010098',
+    
+    // Immersive Roulette
+    '4cf27e482b9db58e7dcc48264c51d639': '2010016',
+    '4cf27e48-2b9d-b58e-7dcc-48264c51d639': '2010016',
+    
+    // Auto-Roulette (Ruleta Automática)
+    'f27dd03e5282fc78961c6375cef91565': '2010017',
+    'f27dd03e-5282-fc78-961c-6375cef91565': '2010017'
+  };
+  
+  // Verificar se o UUID existe diretamente no mapeamento
+  if (uuidToCanonicalMap[uuid]) {
+    console.log(`[API] Convertendo UUID ${uuid} para ID canônico ${uuidToCanonicalMap[uuid]}`);
+    return uuidToCanonicalMap[uuid];
+  }
+  
+  // Verificar se o UUID normalizado existe no mapeamento
+  if (uuidToCanonicalMap[normalizedUuid]) {
+    console.log(`[API] Convertendo UUID normalizado ${normalizedUuid} para ID canônico ${uuidToCanonicalMap[normalizedUuid]}`);
+    return uuidToCanonicalMap[normalizedUuid];
+  }
+  
+  // Se não encontrou correspondência, tenta verificar se o próprio UUID já é um ID canônico
+  const canonicalIds = ['2010016', '2380335', '2010065', '2010096', '2010017', '2010098'];
+  if (canonicalIds.includes(uuid)) {
+    console.log(`[API] UUID ${uuid} já é um ID canônico, usando diretamente`);
+    return uuid;
+  }
+  
+  // Tenta usar como ID direto se for numérico
+  if (/^\d+$/.test(uuid)) {
+    console.log(`[API] UUID ${uuid} é numérico, assumindo que é um ID canônico`);
+    return uuid;
+  }
+  
+  // Se tudo falhar, retorna o ID original
+  console.warn(`[API] ⚠️ Não foi possível converter UUID ${uuid} para ID canônico - usando original`);
+  return uuid;
+}
+
 // Endpoint para obter números de uma roleta específica por ID - versão alternativa com nome no plural (para compatibilidade)
 app.get('/api/roulette-numbers/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    let { id } = req.params;
     const limit = req.query.limit ? parseInt(req.query.limit) : 100;
     const skip = req.query.skip ? parseInt(req.query.skip) : 0;
     
     console.log(`[API] Requisição recebida para /api/roulette-numbers/${id} (limit: ${limit}, skip: ${skip})`);
-    console.log(`[API] Redirecionando para /api/roulette-numero/${id}`);
+    
+    // Converter UUID para ID canônico
+    const canonicalId = mapToCanonicalId(id);
+    if (canonicalId !== id) {
+      console.log(`[API] UUID ${id} convertido para ID canônico ${canonicalId}`);
+      id = canonicalId;
+    }
+    
+    console.log(`[API] Buscando dados para ID canônico ${id}`);
 
     // Verificar se MongoDB está conectado
     if (!db) {
