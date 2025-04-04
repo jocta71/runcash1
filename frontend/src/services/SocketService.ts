@@ -955,7 +955,7 @@ class SocketService {
       const endpoints = [
         `${baseUrl}/roulettes/${roulette._id}/numbers`,
         `${baseUrl}/ROULETTES/${roulette._id}/numbers`,
-        `${baseUrl}/numbers/${roulette._id}`
+        `${baseUrl}/roulette-numbers/${roulette._id}`
       ];
       
       for (const endpoint of endpoints) {
@@ -1316,8 +1316,7 @@ class SocketService {
       const baseUrl = this.getApiBaseUrl();
       const endpoints = [
         `${baseUrl}/roulette-numbers/${roletaId}`,
-        `${baseUrl}/roulettes/${roletaId}/numbers`,
-        `${baseUrl}/numbers/${roletaId}`
+        `${baseUrl}/roulettes/${roletaId}/numbers`
       ];
       
       console.log(`[SocketService] Tentando buscar números via REST para ${roletaId}`);
@@ -1343,7 +1342,7 @@ class SocketService {
           const data = await response.json();
           
           if (Array.isArray(data) && data.length > 0) {
-            console.log(`[SocketService] Sucesso! Recebidos ${data.length} números via REST para roleta ${roletaId}`);
+            console.log(`[SocketService] ✅ Sucesso! Recebidos ${data.length} números via REST para roleta ${roletaId}`);
             
             // Buscar o nome da roleta para processar corretamente
             let roletaNome = '';
