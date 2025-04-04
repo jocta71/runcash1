@@ -1,72 +1,95 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Layout from '@/components/Layout';
+import React, { useEffect, useState } from 'react';
+import { Helmet } from 'react-helmet-async';
+import axios from 'axios';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
-import CasinoAPIAdapter from '@/services/CasinoAPIAdapter';
+import { RouletteData } from '@/integrations/api/rouletteService';
+import { Loader2 } from 'lucide-react';
 
-const LiveRoulettePage = () => {
-  const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
+const LiveRoulettePage: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
 
   useEffect(() => {
-    // Configurar e iniciar o adaptador da API
-    const apiAdapter = CasinoAPIAdapter.getInstance();
-    
-    // Configurar o adaptador com os endpoints corretos baseados no site de referência
-    apiAdapter.configure({
-      baseUrl: 'https://cgp.safe-iplay.com',
-      endpoint: '/cgpapi/liveFeed/GetLiveTables',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      pollInterval: 5000
-    });
-    
-    // Marcar como carregado após um breve delay para dar tempo do primeiro fetch
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-    
-    // O adaptador já é iniciado dentro do LiveRoulettesDisplay
-    
-    // Limpar ao desmontar (NÃO parar o polling aqui, deixar que o componente LiveRoulettesDisplay gerencie isso)
-    return () => {};
+    const fetchRoulettes = async () => {
+      try {
+        setLoading(true);
+        
+        // Buscar dados das roletas do endpoint principal
+        const response = await axios.get<RouletteData[]>('/api/ROULETTES');
+        console.log('[LiveRoulettePage] Dados recebidos da API:', response.data);
+        
+        if (Array.isArray(response.data)) {
+          // Buscar os números reais para cada roleta usando o ID canônico
+          const enrichedRoulettes = await Promise.all(
+            response.data.map(async (roleta) => {
+              try {
+                // Usar o ID canônico para buscar números
+                const numbersResponse = await axios.get(
+                  `/api/roulette-numbers/${roleta.id}?limit=20`
+                );
+                
+                console.log(`[LiveRoulettePage] Números para ${roleta.nome || roleta.name}:`, 
+                  numbersResponse.data);
+                
+                // Adicionar os números à roleta
+                return {
+                  ...roleta,
+                  numero: Array.isArray(numbersResponse.data) ? numbersResponse.data : []
+                };
+              } catch (err) {
+                console.error(`Erro ao buscar números para roleta ${roleta.id}:`, err);
+                // Retornar a roleta sem números em caso de erro
+                return {
+                  ...roleta,
+                  numero: []
+                };
+              }
+            })
+          );
+          
+          setRoulettes(enrichedRoulettes);
+        } else {
+          setError('Formato de resposta inválido da API');
+        }
+      } catch (err) {
+        console.error('Erro ao buscar dados das roletas:', err);
+        setError('Falha ao carregar dados das roletas. Tente novamente mais tarde.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRoulettes();
   }, []);
 
   return (
-    <Layout>
-      <div className="relative min-h-screen bg-gray-900">
-        <header className="bg-gray-800 py-4 shadow-lg">
-          <div className="container mx-auto px-4 flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-white">Roletas ao Vivo</h1>
-            <button 
-              onClick={() => navigate('/')}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              Voltar
-            </button>
-          </div>
-        </header>
+    <>
+      <Helmet>
+        <title>Roletas ao vivo | RunCash</title>
+      </Helmet>
+      
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-6">Roletas ao vivo</h1>
         
-        <main className="container mx-auto px-4 py-8">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-              <span className="ml-3 text-white">Conectando às mesas de roleta...</span>
-            </div>
-          ) : (
-            <LiveRoulettesDisplay />
-          )}
-        </main>
-        
-        <footer className="bg-gray-800 py-4 mt-12">
-          <div className="container mx-auto px-4 text-center text-gray-400 text-sm">
-            Os dados exibidos são obtidos em tempo real do servidor remoto.
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2">Carregando roletas...</span>
           </div>
-        </footer>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        ) : roulettes.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-gray-500">Nenhuma roleta disponível no momento.</p>
+          </div>
+        ) : (
+          <LiveRoulettesDisplay roulettesData={roulettes} />
+        )}
       </div>
-    </Layout>
+    </>
   );
 };
 

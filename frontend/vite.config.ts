@@ -15,17 +15,19 @@ export default defineConfig({
     host: true,
     // Configuração para o proxy de desenvolvimento
     proxy: {
+      // Proxy para API principal (ROULETTES e outros endpoints)
       '/api': {
         target: 'https://backendapi-production-36b5.up.railway.app',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '/api'),
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
       },
-      // Proxy para WebSockets
+      // Websocket proxy se necessário
       '/socket.io': {
         target: 'https://backend-production-2f96.up.railway.app',
+        changeOrigin: true,
         ws: true,
-        changeOrigin: true
+        secure: false,
       }
     },
   },

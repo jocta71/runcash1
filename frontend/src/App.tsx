@@ -20,6 +20,7 @@ const PlansPage = lazy(() => import("@/pages/PlansPage"));
 const PaymentSuccess = lazy(() => import("@/pages/PaymentSuccess"));
 const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
+const TestPage = lazy(() => import("@/pages/TestPage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -84,6 +85,9 @@ const App = () => {
                 
                 {/* Nova rota para roletas ao vivo */}
                 <Route path="/live-roulettes" element={<LiveRoulettePage />} />
+                
+                {/* Página de teste */}
+                <Route path="/test" element={<TestPage />} />
                 
                 {/* Rotas relacionadas a planos e pagamentos */}
                 <Route path="/planos" element={<PlansPage />} />

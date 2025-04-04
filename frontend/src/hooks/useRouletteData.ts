@@ -9,7 +9,8 @@ import {
   mapToCanonicalRouletteId,
   ROLETAS_CANONICAS,
   fetchRouletteNumbersById,
-  fetchRoulettes
+  fetchRoulettes,
+  fetchRoulettesWithRealNumbers
 } from '@/integrations/api/rouletteService';
 import { toast } from '@/components/ui/use-toast';
 import SocketService from '@/services/SocketService';
@@ -811,4 +812,31 @@ export function useRouletteData(
     refreshNumbers,
     refreshStrategy
   };
+}
+
+// Hook para obter todas as roletas com números reais
+export function useRoulettesWithRealNumbers() {
+  const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchRoulettesWithRealNumbers();
+        setRoulettes(data);
+        setError(null);
+      } catch (err: any) {
+        setError(err.message || 'Erro ao buscar roletas com números reais');
+        console.error('[useRoulettesWithRealNumbers] Erro:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
+  
+  return { roulettes, loading, error };
 }

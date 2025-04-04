@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import RouletteCard from '@/components/RouletteCard';
+import { RouletteData } from '@/integrations/api/rouletteService';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import LastNumbersBar from './LastNumbersBar';
 import EventService from '@/services/EventService';
@@ -12,9 +14,22 @@ interface RouletteTable {
   players?: number;
 }
 
-const LiveRoulettesDisplay = () => {
+interface LiveRoulettesDisplayProps {
+  roulettesData?: RouletteData[]; // Opcional para manter compatibilidade retroativa
+}
+
+const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesData }) => {
   const [tables, setTables] = useState<RouletteTable[]>([]);
+  const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Usar os dados passados como prop ou manter lógica antiga
+  useEffect(() => {
+    if (roulettesData && Array.isArray(roulettesData) && roulettesData.length > 0) {
+      console.log(`[LiveRoulettesDisplay] Usando ${roulettesData.length} roletas fornecidas via props`);
+      setRoulettes(roulettesData);
+    }
+  }, [roulettesData]);
 
   useEffect(() => {
     // Iniciar o adaptador de API do cassino

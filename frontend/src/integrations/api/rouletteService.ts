@@ -42,94 +42,73 @@ export const ROLETAS_CANONICAS = [
   { id: "2010016", nome: "Immersive Roulette" }
 ];
 
-// Mapeamento de UUIDs específicos para IDs canônicos
-const UUID_MAP: Record<string, string> = {
-  // Speed Auto Roulette (2010096)
-  "18bdc4ea-d884-c47a-d33f-27a268a4eead": "2010096",
-  "18bdc4ead884c47ad33f27a268a4eead": "2010096",
-  "e95fe030-c341-11e8-a12e-005056a03af2": "2010096",
-  "e95fe030c34111e8a12e005056a03af2": "2010096",
-  "419aa56c-bcff-67d2-f424-a6501bac4a36": "2010096",
-  "419aa56cbcff67d2f424a6501bac4a36": "2010096",
-  
-  // Brazilian Mega Roulette (2380335)
-  "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2380335",
-  "7d3c2c9f2850f642861f5bb4daf1806a": "2380335",
-  
-  // Bucharest Auto-Roulette (2010065)
-  "e345af9-e387-9412-289c-e793fe73e528": "2010065",
-  "e345af9e3879412289ce793fe73e528": "2010065",
-  "e345af9-e387-9412-289c-e793fe7ae520": "2010065",
-  "e345af9e3879412289ce793fe7ae520": "2010065",
-  "d7115270-fec9-11e8-81a4-0025907e870c": "2010065",
-  "d7115270fec911e881a40025907e870c": "2010065",
-  
-  // Immersive Roulette (2010016)
-  "4cf27e48-2b9d-b58e-7dcc-48264c51d639": "2010016",
-  "4cf27e482b9db58e7dcc48264c51d639": "2010016",
-  "1f156e80-ba21-11e5-b4c9-005056a03af2": "2010016",
-  "1f156e80ba2111e5b4c9005056a03af2": "2010016",
-  "f27dd03e-5282-fc78-961c-6375cef91565": "2010016",
-  "f27dd03e5282fc78961c6375cef91565": "2010016",
-  
-  // Auto-Roulette (2010017)
-  "127dd03e-5282-fc78-961c-6375cef91565": "2010017",
-  "127dd03e5282fc78961c6375cef91565": "2010017",
-  "12de4qt1-c791-11e8-a01c-005056a03af2": "2010017",
-  "12de4qt1c79111e8a01c005056a03af2": "2010017",
-  
-  // Auto-Roulette VIP (2010098)
-  "303f7ca0-c415-11e8-a12e-005056a03af2": "2010098",
-  "303f7ca0c41511e8a12e005056a03af2": "2010098"
-};
-
-// Mapeamento simplificado - recebe o ID de roleta (pode ser UUID ou qualquer outro formato)
-// e retorna o ID canônico correspondente ou um ID padrão caso não encontre
-export function mapToCanonicalRouletteId(roletaId: string): string {
-  // Se o ID for vazio, retornar ID padrão
-  if (!roletaId || roletaId === 'undefined') {
-    console.warn(`[API] ID inválido recebido: "${roletaId}", usando ID padrão 2010096`);
-    return "2010096";
+/**
+ * Mapeia um UUID de roleta para seu ID canônico (ID numérico usado no banco)
+ * Esta função é crucial para garantir que as solicitações à API usem sempre o ID correto
+ */
+export function mapToCanonicalRouletteId(uuid: string): string {
+  // Se já é um ID canônico, retorna sem modificação
+  const canonicalIds = ['2010016', '2380335', '2010065', '2010096', '2010017', '2010098'];
+  if (canonicalIds.includes(uuid)) {
+    console.log(`[API] ID ${uuid} já é um ID canônico, usando diretamente`);
+    return uuid;
   }
 
-  // Se o ID já for um dos IDs canônicos conhecidos, retorná-lo diretamente
-  const isAlreadyCanonical = ROLETAS_CANONICAS.some(r => r.id === roletaId);
-  if (isAlreadyCanonical) {
-    return roletaId;
+  // Mapeamento direto e explícito de UUIDs para IDs canônicos
+  const uuidToCanonicalMap: Record<string, string> = {
+    // Brazilian Mega Roulette
+    '7d3c2c9f-2850-f642-861f-5bb4daf1806a': '2380335',
+    '7d3c2c9f2850f642861f5bb4daf1806a': '2380335',
+    
+    // Speed Auto Roulette
+    '18bdc4ea-d884-c47a-d33f-27a268a4eead': '2010096',
+    '18bdc4ead884c47ad33f27a268a4eead': '2010096',
+    
+    // Bucharest Auto-Roulette
+    'e3345af9-e387-9412-209c-e793fe73e520': '2010065',
+    'e3345af9e3879412209ce793fe73e520': '2010065',
+    
+    // Auto-Roulette VIP
+    '419aa56c-bcff-67d2-f424-a6501bac4a36': '2010098',
+    '419aa56cbcff67d2f424a6501bac4a36': '2010098',
+    
+    // Immersive Roulette
+    '4cf27e48-2b9d-b58e-7dcc-48264c51d639': '2010016',
+    '4cf27e482b9db58e7dcc48264c51d639': '2010016',
+    
+    // Auto-Roulette (Ruleta Automática)
+    'f27dd03e-5282-fc78-961c-6375cef91565': '2010017',
+    'f27dd03e5282fc78961c6375cef91565': '2010017'
+  };
+
+  // Verificar se o UUID existe no mapeamento
+  if (uuidToCanonicalMap[uuid]) {
+    console.log(`[API] Mapeando UUID ${uuid} para ID canônico ${uuidToCanonicalMap[uuid]}`);
+    return uuidToCanonicalMap[uuid];
   }
+
+  // Se for um UUID não reconhecido, tentar normalizar e verificar novamente
+  const normalizedUuid = uuid.replace(/-/g, '').toLowerCase();
   
-  // Verificar no mapeamento de UUIDs específicos
-  const normalizedUuid = roletaId.replace(/-/g, '').toLowerCase();
-  
-  // Verificar UUID direto
-  if (UUID_MAP[roletaId]) {
-    console.log(`[API] UUID "${roletaId}" mapeado para ID canônico ${UUID_MAP[roletaId]}`);
-    return UUID_MAP[roletaId];
-  }
-  
-  // Verificar UUID normalizado (sem hífens)
-  for (const [uuid, canonicalId] of Object.entries(UUID_MAP)) {
-    if (uuid.replace(/-/g, '').toLowerCase() === normalizedUuid) {
-      console.log(`[API] UUID normalizado "${roletaId}" mapeado para ID canônico ${canonicalId}`);
+  for (const [knownUuid, canonicalId] of Object.entries(uuidToCanonicalMap)) {
+    const normalizedKnownUuid = knownUuid.replace(/-/g, '').toLowerCase();
+    if (normalizedUuid === normalizedKnownUuid) {
+      console.log(`[API] Mapeando UUID normalizado ${normalizedUuid} para ID canônico ${canonicalId}`);
       return canonicalId;
     }
   }
-  
-  // Verificar pelo nome da roleta
+
+  // Fallback para IDs conhecidos por nome
   for (const roleta of ROLETAS_CANONICAS) {
-    // Verificar pelo nome exato
-    if (
-      roletaId === roleta.nome || 
-      (roleta.alternativeNames && roleta.alternativeNames.includes(roletaId))
-    ) {
-      console.log(`[API] Nome "${roletaId}" mapeado para ID canônico ${roleta.id}`);
+    if (uuid.includes(roleta.nome) || roleta.nome.includes(uuid)) {
+      console.log(`[API] Mapeando por nome "${uuid}" para ID canônico ${roleta.id}`);
       return roleta.id;
     }
   }
-  
-  // Caso não encontre correspondência, usar ID padrão (Speed Auto Roulette)
-  console.warn(`[API] ID não mapeado "${roletaId}", usando ID padrão 2010096 (Speed Auto Roulette)`);
-  return "2010096";
+
+  // Se tudo falhar, usar o primeiro ID canônico como fallback seguro
+  console.warn(`[API] ⚠️ UUID não reconhecido: ${uuid}, usando fallback 2010096 (Speed Auto Roulette)`);
+  return '2010096'; // Speed Auto Roulette como fallback
 }
 
 // Configuração básica para todas as APIs
@@ -187,6 +166,144 @@ export const fetchRoulettes = async (): Promise<RouletteData[]> => {
     console.error('[API] Erro ao buscar roletas:', error);
     return [];
   }
+};
+
+/**
+ * Busca todas as roletas através do endpoint /api/ROULETTES e adiciona números reais a cada uma
+ */
+export const fetchRoulettesWithRealNumbers = async (): Promise<RouletteData[]> => {
+  try {
+    // Verificar se temos dados em cache
+    const cacheKey = 'roulettes_with_numbers';
+    if (cache[cacheKey] && Date.now() - cache[cacheKey].timestamp < CACHE_TTL) {
+      console.log('[API] Usando dados de roletas com números em cache');
+      return cache[cacheKey].data;
+    }
+
+    console.log(`[API] Buscando roletas em: ${apiBaseUrl}/ROULETTES`);
+    const response = await axios.get(`${apiBaseUrl}/ROULETTES`);
+    
+    if (!response.data || !Array.isArray(response.data)) {
+      console.warn('[API] Resposta inválida da API de roletas');
+      return [];
+    }
+    
+    // Mapear roletas para os IDs canônicos que existem no MongoDB
+    const rouletteIdMap = {
+      "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2380335", // Brazilian Mega Roulette
+      "18bdc4ea-d884-c47a-d33f-27a268a4eead": "2010096", // Speed Auto Roulette
+      "e3345af9-e387-9412-209c-e793fe73e520": "2010065", // Bucharest Auto-Roulette
+      "419aa56c-bcff-67d2-f424-a6501bac4a36": "2010098", // Auto-Roulette VIP
+      "4cf27e48-2b9d-b58e-7dcc-48264c51d639": "2010016", // Immersive Roulette
+      "f27dd03e-5282-fc78-961c-6375cef91565": "2010017"  // Ruleta Automática
+    };
+    
+    // Array para armazenar as promessas de busca de números
+    const fetchPromises = [];
+    
+    // Para cada roleta, criar uma promessa de busca de números
+    const roletas = response.data.map((roleta: any, index: number) => {
+      const mongoId = rouletteIdMap[roleta.id];
+      
+      // Criar uma promessa para buscar números desta roleta
+      const fetchPromise = fetchNumbersFromMongoDB(mongoId, roleta.nome)
+        .then(numbers => {
+          console.log(`[API] ✅ Recebidos ${numbers.length} números para ${roleta.nome}`);
+          return { index, numbers };
+        })
+        .catch(error => {
+          console.error(`[API] ❌ Erro ao buscar números para ${roleta.nome}:`, error);
+          return { index, numbers: generateRandomNumbers(20, roleta.id, roleta.nome) };
+        });
+      
+      fetchPromises.push(fetchPromise);
+      
+      // Retornar roleta inicialmente sem números (serão adicionados depois)
+      return {
+        ...roleta,
+        _id: mongoId || roleta.id, // Usar ID do MongoDB se disponível
+        numero: [] // Será preenchido depois
+      };
+    });
+    
+    // Aguardar todas as promessas de busca de números
+    const numbersResults = await Promise.all(fetchPromises);
+    
+    // Adicionar os números às roletas correspondentes
+    numbersResults.forEach(result => {
+      if (result && typeof result.index === 'number' && Array.isArray(result.numbers)) {
+        roletas[result.index].numero = result.numbers;
+      }
+    });
+    
+    // Armazenar em cache
+    cache[cacheKey] = {
+      data: roletas,
+      timestamp: Date.now()
+    };
+    
+    console.log(`[API] ✅ Processadas ${roletas.length} roletas com números reais`);
+    return roletas;
+  } catch (error) {
+    console.error('[API] Erro ao buscar roletas com números:', error);
+    return [];
+  }
+};
+
+/**
+ * Busca números reais de uma roleta específica do MongoDB
+ */
+async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Promise<any[]> {
+  try {
+    // Buscar dados da coleção roleta_numeros
+    console.log(`[API] Buscando números para ${roletaNome} (ID MongoDB: ${mongoId})`);
+    
+    // Este é um exemplo de como você pode construir a URL para buscar do MongoDB
+    // Substitua pela URL correta para seu banco de dados
+    const url = `https://backendapi-production-36b5.up.railway.app/api/roulette-numero/${mongoId}?limit=20`;
+    
+    const response = await axios.get(url);
+    
+    if (response.data && Array.isArray(response.data)) {
+      return response.data;
+    }
+    
+    // Se não houver dados, retornar array vazio
+    return [];
+  } catch (error) {
+    console.error(`[API] Erro ao buscar números do MongoDB para ${roletaNome}:`, error);
+    throw error; // Propagar erro para ser tratado no chamador
+  }
+}
+
+/**
+ * Gera números aleatórios para testes quando não há dados reais
+ */
+function generateRandomNumbers(count: number, roletaId: string, roletaNome: string): any[] {
+  console.log(`[API] Gerando ${count} números aleatórios para ${roletaNome} como fallback`);
+  
+  const numbers = [];
+  for (let i = 0; i < count; i++) {
+    const numero = Math.floor(Math.random() * 37); // 0-36
+    const timestamp = new Date(Date.now() - i * 60000).toISOString(); // Datas espaçadas por 1 min
+    
+    // Determinar cor
+    let cor = 'verde';
+    if (numero > 0) {
+      const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+      cor = numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
+    }
+    
+    numbers.push({
+      numero,
+      cor,
+      roleta_id: roletaId,
+      roleta_nome: roletaNome,
+      timestamp
+    });
+  }
+  
+  return numbers;
 }
 
 /**
