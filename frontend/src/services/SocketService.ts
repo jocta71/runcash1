@@ -39,6 +39,8 @@ class SocketService {
   private reconnectTimeout: number | null = null;
   private timerId: NodeJS.Timeout | null = null;
   private eventHandlers: Record<string, (data: any) => void> = {};
+  private autoReconnect: boolean = true;
+  private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
   
   // Propriedade para o cliente MongoDB (pode ser undefined em alguns contextos)
   public client?: MongoClient;
@@ -55,7 +57,158 @@ class SocketService {
       }
     });
     
-    this.connect();
+    // Verificar se o socket já existe no localStorage para recuperar uma sessão anterior
+    const savedSocket = this.trySavedSocket();
+    if (!savedSocket) {
+      // Conectar normalmente se não houver sessão salva
+      this.connect();
+    }
+
+    // Adicionar event listener para quando a janela ficar visível novamente
+    window.addEventListener('visibilitychange', this.handleVisibilityChange);
+    
+    // Tentar recarregar dados a cada 1 minuto
+    setInterval(() => this.requestRecentNumbers(), 60000);
+  }
+
+  // Manipular alterações de visibilidade da página
+  private handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      console.log('[SocketService] Página voltou a ficar visível, verificando conexão');
+      // Se não estiver conectado, tentar reconectar
+      if (!this.connectionActive || !this.socket || !this.socket.connected) {
+        console.log('[SocketService] Reconectando após retornar à visibilidade');
+        this.connect();
+      }
+      
+      // Recarregar dados recentes
+      this.requestRecentNumbers();
+    }
+  }
+
+  private trySavedSocket(): boolean {
+    try {
+      // Verificar tempo da última conexão
+      const lastConnectionTime = localStorage.getItem('socket_last_connection');
+      if (lastConnectionTime) {
+        const lastTime = parseInt(lastConnectionTime, 10);
+        const now = Date.now();
+        const diff = now - lastTime;
+        
+        // Se a última conexão foi há menos de 2 minutos, pode ser recuperada
+        if (diff < 120000) {
+          console.log('[SocketService] Encontrada conexão recente. Tentando usar configurações salvas.');
+          return true;
+        } else {
+          console.log('[SocketService] Conexão antiga encontrada, iniciando nova conexão');
+          localStorage.removeItem('socket_last_connection');
+        }
+      }
+    } catch (error) {
+      console.warn('[SocketService] Erro ao verificar socket salvo:', error);
+    }
+    return false;
+  }
+
+  private setupEventListeners(): void {
+    if (!this.socket) return;
+    
+    console.log('[SocketService] Configurando event listeners para Socket.IO');
+    
+    // Configurar listener para novos números
+    this.socket.on('new_number', (data: any) => {
+      console.log('[SocketService] Novo número recebido via Socket.IO:', data);
+      this.processIncomingNumber(data);
+    });
+    
+    // Configurar listener para números em lote
+    this.socket.on('recent_numbers', (data: any) => {
+      console.log('[SocketService] Lote de números recentes recebido:', 
+        Array.isArray(data) ? `${data.length} itens` : 'formato inválido');
+      
+      if (Array.isArray(data)) {
+        // Processar do mais recente para o mais antigo
+        for (let i = 0; i < data.length; i++) {
+          this.processIncomingNumber(data[i]);
+        }
+      }
+    });
+    
+    // Configurar listener para atualizações de estratégia
+    this.socket.on('strategy_update', (data: any) => {
+      console.log('[SocketService] Atualização de estratégia recebida:', data);
+      this.processStrategyEvent(data);
+    });
+    
+    // Ping a cada 30 segundos para manter a conexão ativa
+    this.setupPing();
+    
+    // Solicitar números recentes imediatamente após configurar listeners
+    setTimeout(() => {
+      this.requestRecentNumbers();
+    }, 1000);
+  }
+
+  private processIncomingNumber(data: any): void {
+    // Verificar se dados são válidos
+    if (!data || !data.roleta_nome) {
+      console.warn('[SocketService] Dados de número inválidos:', data);
+      return;
+    }
+    
+    // Verificar se este número é mais recente que o último recebido para esta roleta
+    const roletaId = data.roleta_id || '';
+    const roletaNome = data.roleta_nome;
+    const combinedKey = `${roletaId}|${roletaNome}`;
+    const lastReceived = this.lastReceivedData.get(combinedKey);
+    
+    // Se temos um número recente desta roleta, verificar se o atual é mais novo
+    if (lastReceived) {
+      const currentTime = Date.now();
+      const timeDiff = currentTime - lastReceived.timestamp;
+      
+      // Se recebemos este número há menos de 1 segundo, verificar número e timestamp
+      // para evitar duplicações
+      if (timeDiff < 1000) {
+        const lastNumber = lastReceived.data.numero;
+        const newNumber = data.numero;
+        
+        if (lastNumber === newNumber) {
+          console.log(`[SocketService] Ignorando número duplicado ${newNumber} para ${roletaNome}`);
+          return;
+        }
+      }
+    }
+    
+    // Armazenar este número como o mais recente
+    this.lastReceivedData.set(combinedKey, {
+      timestamp: Date.now(),
+      data
+    });
+    
+    // Transformar em formato de evento para notificar
+    const event: RouletteNumberEvent = {
+      type: 'new_number',
+      roleta_id: data.roleta_id || '',
+      roleta_nome: data.roleta_nome,
+      numero: typeof data.numero === 'number' ? data.numero : 
+              typeof data.numero === 'string' ? parseInt(data.numero, 10) : 0,
+      timestamp: data.timestamp || new Date().toISOString()
+    };
+    
+    if (isNaN(event.numero)) {
+      console.warn(`[SocketService] Número inválido (NaN) recebido para ${roletaNome}, usando 0`);
+      event.numero = 0;
+    }
+    
+    console.log(`[SocketService] Processando número ${event.numero} para roleta ${event.roleta_nome}`);
+    
+    // Notificar os listeners
+    this.notifyListeners(event);
+    
+    // Também notificar via EventService
+    const eventService = EventService.getInstance();
+    eventService.dispatchEvent(event);
   }
   
   public static getInstance(): SocketService {
@@ -423,228 +576,16 @@ class SocketService {
     }
   }
 
-  private setupEventListeners(): void {
-    if (!this.socket) return;
-
-    // Registrar handlers para eventos do socket
-    this.socket.on('connect', () => {
-      console.log(`[SocketService] Conectado ao servidor WebSocket: ${this.getSocketUrl()}`);
-      this.connectionActive = true;
-      this.notifyConnectionListeners();
-    });
-
-    this.socket.on('disconnect', (reason) => {
-      console.log(`[SocketService] Desconectado do servidor WebSocket. Motivo: ${reason}`);
-      this.connectionActive = false;
-      this.notifyConnectionListeners();
-    });
-
-    this.socket.on('message', (data: any) => {
-      console.log(`[SocketService] Mensagem recebida:`, data);
-      
-      // Se temos dados de número, processar
-      if (data && data.type === 'new_number' && data.roleta_nome) {
-        this.processIncomingNumber(data);
-      }
-      
-      // Se temos dados de estratégia, processar
-      if (data && data.type === 'strategy_update') {
-        console.log(`[SocketService] Dados de estratégia recebidos para ${data.roleta_nome || data.roleta_id}:`, {
-          vitorias: data.vitorias,
-          derrotas: data.derrotas,
-          estado: data.estado
-        });
-        this.processStrategyEvent(data);
-      }
-    });
-    
-    // Processador de evento global_update
-    this.socket.on('global_update', (data: any) => {
-      console.log(`[SocketService] Evento global_update recebido:`, data);
-      
-      // Verificar se o objeto contém dados de número
-      if (data && data.numero !== undefined && (data.roleta_nome || data.mesa)) {
-        // Criar um evento de número a partir do global_update
-        const numberEvent = {
-          type: 'new_number',
-          roleta_id: data.roleta_id || data.id || 'unknown-id',
-          roleta_nome: data.roleta_nome || data.mesa || 'Roleta Desconhecida',
-          numero: typeof data.numero === 'number' ? data.numero : parseInt(String(data.numero), 10),
-          timestamp: data.timestamp || new Date().toISOString()
-        };
-        
-        console.log(`[SocketService] Convertendo global_update para new_number: ${numberEvent.numero} para ${numberEvent.roleta_nome}`);
-        
-        // Processar como um evento de número normal
-        this.processIncomingNumber(numberEvent);
-      }
-    });
-
-    // Ouvir especificamente por eventos de estratégia
-    this.socket.on('strategy_update', (data: any) => {
-      console.log(`[SocketService] Evento strategy_update recebido:`, data);
-      if (data && (data.roleta_id || data.roleta_nome)) {
-        // Garantir que o evento tenha o tipo correto
-        const event = {
-          ...data,
-          type: 'strategy_update'
-        };
-        this.processStrategyEvent(event);
-      }
-    });
-    
-    // Ouvir por evento específico de vitórias/derrotas
-    this.socket.on('wins_losses_update', (data: any) => {
-      console.log(`[SocketService] Evento wins_losses_update recebido:`, data);
-      if (data && (data.roleta_id || data.roleta_nome) && 
-          (data.vitorias !== undefined || data.derrotas !== undefined)) {
-        // Converter para formato de evento de estratégia
-        const event = {
-          ...data,
-          type: 'strategy_update',
-          estado: data.estado || 'NEUTRAL',
-          vitorias: data.vitorias !== undefined ? parseInt(data.vitorias) : 0,
-          derrotas: data.derrotas !== undefined ? parseInt(data.derrotas) : 0
-        };
-        this.processStrategyEvent(event);
-      }
-    });
-
-    // Ouvir por eventos de estatísticas que também podem trazer vitórias/derrotas
-    this.socket.on('statistics', (data: any) => {
-      console.log(`[SocketService] Evento statistics recebido:`, data);
-      if (data && (data.roleta_id || data.roleta_nome) && 
-          (data.vitorias !== undefined || data.derrotas !== undefined)) {
-        // Converter para formato de evento de estratégia
-        const event = {
-          ...data,
-          type: 'strategy_update',
-          vitorias: data.vitorias !== undefined ? parseInt(data.vitorias) : 0,
-          derrotas: data.derrotas !== undefined ? parseInt(data.derrotas) : 0
-        };
-        this.processStrategyEvent(event);
-      }
-    });
-  }
-
-  // Método auxiliar para processar eventos de estratégia
-  private processStrategyEvent(data: any): void {
-    try {
-      if (!data || (!data.roleta_id && !data.roleta_nome)) {
-        console.warn('[SocketService] Evento de estratégia recebido sem identificador de roleta');
-        return;
-      }
-
-      // Garantir que os valores de vitórias e derrotas sejam números válidos
-      const vitorias = data.vitorias !== undefined ? parseInt(data.vitorias) : 0;
-      const derrotas = data.derrotas !== undefined ? parseInt(data.derrotas) : 0;
-
-      // Criar objeto de evento padronizado
-      const event: StrategyUpdateEvent = {
-        type: 'strategy_update',
-        roleta_id: data.roleta_id || 'unknown-id',
-        roleta_nome: data.roleta_nome || data.roleta_id || 'unknown',
-        estado: data.estado || 'NEUTRAL',
-        numero_gatilho: data.numero_gatilho || null,
-        terminais_gatilho: data.terminais_gatilho || [],
-        vitorias: vitorias,
-        derrotas: derrotas,
-        sugestao_display: data.sugestao_display || '',
-        timestamp: data.timestamp || new Date().toISOString()
-      };
-
-      console.log(`[SocketService] Processando evento de estratégia:`, {
-        roleta: event.roleta_nome,
-        vitorias: event.vitorias,
-        derrotas: event.derrotas,
-        timestamp: event.timestamp
-      });
-
-      // Usar o EventService para notificar listeners
-      const eventService = EventService.getInstance();
-      eventService.emitStrategyUpdate(event);
-
-      // Também notificar diretamente os callbacks específicos para esta roleta
-      this.notifyListeners(event);
-    } catch (error) {
-      console.error('[SocketService] Erro ao processar evento de estratégia:', error);
+  private setupPing() {
+    if (this.timerId) {
+      clearInterval(this.timerId);
     }
-  }
 
-  // Método para processar novos números
-  private processIncomingNumber(data: any): void {
-    try {
-      if (!data || !data.roleta_nome || data.numero === undefined) {
-        console.warn('[SocketService] Dados de número inválidos');
-        return;
+    this.timerId = setInterval(() => {
+      if (this.socket && this.connectionActive) {
+        this.socket.emit('ping');
       }
-
-      // Normalizar nome da roleta
-      const roletaNome = data.roleta_nome;
-      const roletaId = data.roleta_id || 'unknown-id';
-      
-      // Extrair o número (garantir que é um número)
-      const numeroRaw = data.numero;
-      const numero = typeof numeroRaw === 'number' 
-        ? numeroRaw 
-        : typeof numeroRaw === 'string' 
-          ? parseInt(numeroRaw, 10) 
-          : 0;
-          
-      if (isNaN(numero) || numero < 0 || numero > 36) {
-        console.warn(`[SocketService] Número inválido recebido: ${numeroRaw}`);
-        return;
-      }
-
-      // Converter para formato padronizado
-      const event: RouletteNumberEvent = {
-        type: 'new_number',
-        roleta_id: roletaId,
-        roleta_nome: roletaNome,
-        numero: numero,
-        timestamp: data.timestamp || new Date().toISOString()
-      };
-
-      // Log detalhado para debug
-      console.log(`[SocketService] Processando número real ${numero} para ${roletaNome}`);
-      
-      // Notificar através do EventService (para garantir que todos recebam)
-      EventService.emitGlobalEvent('new_number', event);
-      
-      // Notificar os listeners sobre este número
-      this.notifyListeners(event);
-      
-      // Atualizar estado global para indicar que dados foram carregados
-      EventService.emitGlobalEvent('numbers_processed', {
-        roleta_id: roletaId,
-        roleta_nome: roletaNome,
-        count: 1,
-        numero: numero,
-        isRealData: true
-      });
-      
-      // Enviar também em formato separado para facilitar processamento no frontend
-      if (this.listeners.has(roletaNome)) {
-        console.log(`[SocketService] Emitindo número ${numero} diretamente para listeners de ${roletaNome}`);
-        const listeners = this.listeners.get(roletaNome);
-        if (listeners) {
-          listeners.forEach(callback => {
-            try {
-              callback(event);
-            } catch (error) {
-              console.error(`[SocketService] Erro ao chamar callback para ${roletaNome}:`, error);
-            }
-          });
-        }
-      }
-    } catch (error) {
-      console.error('[SocketService] Erro ao processar novo número:', error);
-    }
-  }
-
-  // Notifica os listeners sobre mudanças de conexão
-  private notifyConnectionListeners(): void {
-    // Implementação aqui
+    }, 30000);
   }
 
   // Método para solicitar números recentes de todas as roletas
@@ -1032,26 +973,14 @@ class SocketService {
     const eventService = EventService.getInstance();
     const event = {
       type: 'strategy_requested',
-      roleta_id: roletaId,
-      roleta_nome: roletaNome,
-      timestamp: new Date().toISOString()
-    };
-    
+          roleta_id: roletaId,
+          roleta_nome: roletaNome,
+          timestamp: new Date().toISOString()
+        };
+        
     if (typeof eventService.dispatchEvent === 'function') {
       eventService.dispatchEvent(event);
     }
-  }
-
-  setupPing() {
-    if (this.timerId) {
-      clearInterval(this.timerId);
-    }
-
-    this.timerId = setInterval(() => {
-      if (this.socket && this.connectionActive) {
-        this.socket.emit('ping');
-      }
-    }, 30000);
   }
 
   // Adicionar um método para verificar a conexão
@@ -1076,6 +1005,50 @@ class SocketService {
       return this.connectionActive;
     }
     return false;
+  }
+
+  // Método para processar eventos de estratégia
+  private processStrategyEvent(data: any): void {
+    try {
+      if (!data || (!data.roleta_id && !data.roleta_nome)) {
+        console.warn('[SocketService] Evento de estratégia recebido sem identificador de roleta');
+        return;
+      }
+
+      // Garantir que os valores de vitórias e derrotas sejam números válidos
+      const vitorias = data.vitorias !== undefined ? parseInt(data.vitorias) : 0;
+      const derrotas = data.derrotas !== undefined ? parseInt(data.derrotas) : 0;
+
+      // Criar objeto de evento padronizado
+      const event: StrategyUpdateEvent = {
+        type: 'strategy_update',
+        roleta_id: data.roleta_id || 'unknown-id',
+        roleta_nome: data.roleta_nome || data.roleta_id || 'unknown',
+        estado: data.estado || 'NEUTRAL',
+        numero_gatilho: data.numero_gatilho || 0,
+        terminais_gatilho: data.terminais_gatilho || [],
+        vitorias: vitorias,
+        derrotas: derrotas,
+        sugestao_display: data.sugestao_display || '',
+        timestamp: data.timestamp || new Date().toISOString()
+      };
+
+      console.log(`[SocketService] Processando evento de estratégia:`, {
+        roleta: event.roleta_nome,
+        vitorias: event.vitorias,
+        derrotas: event.derrotas,
+        timestamp: event.timestamp
+      });
+
+      // Notificar diretamente os callbacks específicos para esta roleta
+      this.notifyListeners(event);
+      
+      // Notificar também via EventService
+      const eventService = EventService.getInstance();
+      eventService.emitStrategyUpdate(event);
+    } catch (error) {
+      console.error('[SocketService] Erro ao processar evento de estratégia:', error);
+    }
   }
 }
 
