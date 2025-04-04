@@ -49,24 +49,47 @@
         
         // Sistema avançado de anti-flash/anti-piscar
         const createFreezeOverlay = () => {
-          // Criar um overlay transparente para impedir interações durante transição
-          const overlay = document.createElement('div');
-          overlay.id = 'freeze-overlay';
-          
-          // Verificar se document.body existe antes de adicionar o filho
-          if (document.body) {
-            document.body.appendChild(overlay);
-          } else {
-            console.warn('[FREEZE] document.body não existe ainda, overlay não foi criado');
-            // Adicionar evento para tentar novamente quando o DOM estiver pronto
-            document.addEventListener('DOMContentLoaded', () => {
-              if (document.body && !document.getElementById('freeze-overlay')) {
-                document.body.appendChild(overlay);
-              }
-            });
+          try {
+            // Criar um overlay transparente para impedir interações durante transição
+            const overlay = document.createElement('div');
+            overlay.id = 'freeze-overlay';
+            
+            // Verificar se document.body existe antes de adicionar o filho
+            if (document.body) {
+              document.body.appendChild(overlay);
+              console.log('[FREEZE] Overlay criado com sucesso');
+            } else {
+              console.warn('[FREEZE] document.body não existe ainda, overlay não foi criado');
+              // Adicionar evento para tentar novamente quando o DOM estiver pronto
+              document.addEventListener('DOMContentLoaded', () => {
+                try {
+                  if (document.body && !document.getElementById('freeze-overlay')) {
+                    document.body.appendChild(overlay);
+                    console.log('[FREEZE] Overlay criado ao carregar DOM');
+                  }
+                } catch (err) {
+                  console.error('[FREEZE] Erro ao criar overlay durante DOMContentLoaded:', err);
+                }
+              });
+              
+              // Fallback adicional para garantir que o overlay seja criado
+              setTimeout(() => {
+                try {
+                  if (document.body && !document.getElementById('freeze-overlay')) {
+                    document.body.appendChild(overlay);
+                    console.log('[FREEZE] Overlay criado via timeout');
+                  }
+                } catch (err) {
+                  console.error('[FREEZE] Erro ao criar overlay via timeout:', err);
+                }
+              }, 500);
+            }
+            
+            return overlay;
+          } catch (err) {
+            console.error('[FREEZE] Erro ao verificar estado de congelamento:', err);
+            return null;
           }
-          
-          return overlay;
         };
         
         // Função para tirar snapshot do DOM atual
