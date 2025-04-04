@@ -7,7 +7,9 @@ import {
   fetchRouletteById,
   RouletteStrategy as ApiRouletteStrategy,
   mapToCanonicalRouletteId,
-  ROLETAS_CANONICAS
+  ROLETAS_CANONICAS,
+  fetchRouletteNumbersById,
+  fetchRoulettes
 } from '@/integrations/api/rouletteService';
 import { toast } from '@/components/ui/use-toast';
 import SocketService from '@/services/SocketService';
@@ -54,11 +56,7 @@ type RouletteStrategy = ApiRouletteStrategy;
 const pollingInitialized = new Set<string>();
 
 /**
- * Função para buscar números da roleta pelo novo endpoint separado
- * @param roletaId ID da roleta
- * @param nome Nome da roleta (para mapeamento)
- * @param limit Limite de números a serem retornados
- * @returns Array de objetos RouletteNumber
+ * Função para buscar números da roleta pelo endpoint único
  */
 const fetchRouletteNumbers = async (roletaId: string, nome?: string, limit: number = 100): Promise<RouletteNumber[]> => {
   try {
@@ -72,52 +70,30 @@ const fetchRouletteNumbers = async (roletaId: string, nome?: string, limit: numb
     const canonicalId = mapToCanonicalRouletteId(roletaId);
     console.log(`[useRouletteData] Buscando números para roleta ${roletaId} (nome: ${nome || 'desconhecido'}, canônico: ${canonicalId})`);
     
-    // Verificar se o ID é numérico (formato canônico esperado pela API)
-    if (!/^\d+$/.test(canonicalId)) {
-      console.warn(`[useRouletteData] ID canônico ${canonicalId} não está no formato numérico esperado!`);
+    // Fazer a requisição à API usando a função otimizada
+    const numbers = await fetchRouletteNumbersById(canonicalId, limit);
+    
+    if (numbers && Array.isArray(numbers) && numbers.length > 0) {
+      console.log(`[useRouletteData] ✅ Recebidos ${numbers.length} números da API para ID: ${canonicalId}`);
+      return numbers;
     }
     
-    // Fazer a requisição à API
-    const endpoint = `/roulette-numbers/${canonicalId}?limit=${limit}`;
-    console.log(`[useRouletteData] Chamando endpoint: ${API_URL}${endpoint}`);
+    console.log(`[useRouletteData] ⚠️ Resposta da API não é um array válido para ID: ${canonicalId}`);
     
-    const response = await api.get(endpoint);
-    
-    if (response.data && Array.isArray(response.data)) {
-      console.log(`[useRouletteData] ✅ Recebidos ${response.data.length} números da API para ID: ${canonicalId}`);
+    // Tentar novamente com fallback para nome da roleta
+    if (nome) {
+      console.log(`[useRouletteData] Tentando fallback para nome: ${nome}`);
+      const numbersByName = await fetchRouletteLatestNumbersByName(nome, limit);
       
-      // Validar os primeiros 3 itens para garantir formato correto
-      if (response.data.length > 0) {
-        const primeiroItem = response.data[0];
-        console.log(`[useRouletteData] Exemplo do primeiro item recebido:`, primeiroItem);
+      if (numbersByName && Array.isArray(numbersByName) && numbersByName.length > 0) {
+        console.log(`[useRouletteData] ✅ Recebidos ${numbersByName.length} números pelo nome: ${nome}`);
+        return numbersByName;
       }
-      
-      return response.data;
     }
     
-    console.log(`[useRouletteData] ⚠️ Resposta da API não é um array válido para ID: ${canonicalId}`, response.data);
     return [];
   } catch (error: any) {
     console.error(`[useRouletteData] ❌ Erro ao buscar números da roleta ${nome || roletaId}:`, error.message);
-    // Tentar novamente com fallback para ID específico
-    if (nome) {
-      console.log(`[useRouletteData] Tentando fallback para ID baseado no nome: ${nome}`);
-      try {
-        const fallbackId = mapToCanonicalRouletteId(nome);
-        if (fallbackId && fallbackId !== roletaId) {
-          console.log(`[useRouletteData] Usando ID fallback: ${fallbackId}`);
-          const endpoint = `/roulette-numbers/${fallbackId}?limit=${limit}`;
-          const response = await api.get(endpoint);
-          
-          if (response.data && Array.isArray(response.data)) {
-            console.log(`[useRouletteData] ✅ Recebidos ${response.data.length} números do fallback para ${nome}`);
-            return response.data;
-          }
-        }
-      } catch (fallbackError) {
-        console.error(`[useRouletteData] Erro no fallback para ${nome}:`, fallbackError);
-      }
-    }
     return [];
   }
 };

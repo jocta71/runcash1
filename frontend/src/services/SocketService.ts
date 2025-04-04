@@ -908,15 +908,64 @@ class SocketService {
     console.log('[SocketService] Buscando lista de roletas reais...');
     
     try {
-      // Usar a lista de roletas canônicas em vez de fazer API calls desnecessárias
-      const roletasCanonicas = ROLETAS_CANONICAS.map(roleta => ({
-        _id: roleta.id,
-        nome: roleta.nome,
-        ativa: true
-      }));
+      // Define a URL base para as APIs
+      const baseUrl = this.getApiBaseUrl();
       
-      console.log(`[SocketService] Usando lista local de ${roletasCanonicas.length} roletas canônicas`);
-      return roletasCanonicas;
+      // Usar apenas o endpoint /api/ROULETTES
+      const endpoint = `${baseUrl}/ROULETTES`;
+      
+      try {
+        console.log(`[SocketService] Buscando roletas em: ${endpoint}`);
+        const response = await fetch(endpoint);
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data) && data.length > 0) {
+            console.log(`[SocketService] ✅ Recebidas ${data.length} roletas da API`);
+            
+            // Mapear os UUIDs para IDs canônicos para uso posterior
+            const roletasComIdsCanonicos = data.map(roleta => {
+              const uuid = roleta.id;
+              const canonicalId = mapToCanonicalRouletteId(uuid);
+              
+              return {
+                ...roleta,
+                _id: canonicalId, // Adicionar o ID canônico
+                uuid: uuid        // Preservar o UUID original
+              };
+            });
+            
+            console.log(`[SocketService] Roletas mapeadas com IDs canônicos:`, 
+              roletasComIdsCanonicos.map(r => `${r.nome}: ${r.uuid} → ${r._id}`));
+            
+            return roletasComIdsCanonicos;
+          }
+        }
+        
+        console.warn(`[SocketService] Falha ao buscar roletas ou resposta inválida do endpoint ${endpoint}`);
+        
+        // Se falhou, usar a lista local de roletas canônicas como fallback
+        const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+          _id: roleta.id,
+          nome: roleta.nome,
+          ativa: true
+        }));
+        
+        console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback`);
+        return roletasFallback;
+      } catch (e) {
+        console.warn(`[SocketService] Erro ao acessar endpoint ${endpoint}:`, e);
+        
+        // Se ocorrer erro, usar a lista local como fallback
+        const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+          _id: roleta.id,
+          nome: roleta.nome,
+          ativa: true
+        }));
+        
+        console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback após erro`);
+        return roletasFallback;
+      }
     } catch (error) {
       console.error('[SocketService] Erro ao buscar roletas:', error);
       return [];
