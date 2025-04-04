@@ -43,11 +43,21 @@ const CORS_ORIGIN = '*';
 // Mantendo a constante API_KEY para uso futuro
 const API_KEY = process.env.API_KEY || 'runcash-default-key';
 
-// Configuração de CORS - DESABILITADO
+// Configuração CORS mais robusta
+app.use(cors({
+  origin: ['https://runcash5.vercel.app', 'http://localhost:3000', 'http://localhost:5173'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 
+                 'ngrok-skip-browser-warning', 'bypass-tunnel-reminder', 'cache-control'],
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
+
+// Middleware adicional para garantir que CORS funcione
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, ngrok-skip-browser-warning, bypass-tunnel-reminder');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, ngrok-skip-browser-warning, bypass-tunnel-reminder, cache-control');
   
   // Permitir credenciais
   res.header('Access-Control-Allow-Credentials', true);
