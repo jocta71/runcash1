@@ -31,8 +31,8 @@ print(f"* Python versão: {sys.version}")
 print("*" * 80 + "\n")
 
 try:
-from config import CASINO_URL, roleta_permitida_por_id, MAX_CICLOS, MAX_ERROS_CONSECUTIVOS
-from event_manager import event_manager
+    from config import CASINO_URL, roleta_permitida_por_id, MAX_CICLOS, MAX_ERROS_CONSECUTIVOS
+    from event_manager import event_manager
     MODULOS_CORE_DISPONÍVEIS = True
 except ImportError as e:
     print(f"Aviso: {e}")
@@ -192,8 +192,8 @@ class Casino888API:
                         }
                 
                 print(f"Encontradas {len(all_tables)} mesas de roleta até o momento")
-    
-    except Exception as e:
+            
+            except Exception as e:
                 print(f"Erro ao processar regulation_id={regulation_id}: {str(e)}")
         
         return all_tables
@@ -226,9 +226,9 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         
         # Interação com o banco de dados
         if hasattr(db, 'garantir_roleta_existe'):
-        db.garantir_roleta_existe(id_roleta, roleta_nome)
+            db.garantir_roleta_existe(id_roleta, roleta_nome)
         if hasattr(db, 'inserir_numero'):
-        db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
+            db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
         
         # Log
         print(f"{roleta_nome}:{num_int}:{cor}")
@@ -242,7 +242,7 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
             "timestamp": ts
         }
         if hasattr(event_manager, 'notify_clients'):
-        event_manager.notify_clients(event_data, silent=True)
+            event_manager.notify_clients(event_data, silent=True)
         
         # Hook personalizado
         if numero_hook:
@@ -379,13 +379,13 @@ def scrape_roletas_api(db, numero_hook=None):
     ultimo_ciclo_tempo = 0
     
     while ciclo <= MAX_CICLOS or MAX_CICLOS == 0:
-            try:
-                tempo_atual = time.time()
-                
+        try:
+            tempo_atual = time.time()
+            
             # Verificar se passou tempo suficiente desde o último ciclo
             if tempo_atual - ultimo_ciclo_tempo < intervalo_minimo:
                 time.sleep(0.5)
-                    continue
+                continue
                 
             # Registrar tempo deste ciclo
             ultimo_ciclo_tempo = tempo_atual
@@ -471,7 +471,7 @@ def scrape_roletas_api(db, numero_hook=None):
                     else:
                         print(f"[API] Mesa {roleta_nome} sem números disponíveis")
                         
-                    except Exception as e:
+                except Exception as e:
                     print(f"[API] Erro ao processar mesa {table_id}: {str(e)}")
             
             # Atualizar controles

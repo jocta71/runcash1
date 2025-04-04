@@ -154,4 +154,4 @@ def main():
 
 if __name__ == "__main__":
     # Executar a função principal
-    main()
+    main() 
