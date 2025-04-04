@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { RouletteNumberEvent } from '@/services/EventService';
 import EventService from '@/services/EventService';
 import { 
@@ -6,7 +6,8 @@ import {
   fetchRouletteStrategy,
   fetchRouletteById,
   RouletteStrategy as ApiRouletteStrategy,
-  mapToCanonicalRouletteId  // Importar a função de mapeamento
+  mapToCanonicalRouletteId,
+  ROLETAS_CANONICAS
 } from '@/integrations/api/rouletteService';
 import { toast } from '@/components/ui/use-toast';
 import SocketService from '@/services/SocketService';
@@ -273,6 +274,29 @@ export function useRouletteData(
   
   // Chave única para esta instância do hook
   const instanceKey = useRef<string>(`${roletaId}:${roletaNome}`);
+
+  // Função auxiliar para buscar o ID canônico a partir do nome
+  const getCanonicalIdByName = (name: string) => {
+    const roleta = ROLETAS_CANONICAS.find(r => r.nome === name);
+    return roleta ? roleta.id : null;
+  };
+
+  // Determinar o ID canônico para esta roleta
+  const canonicalId = useMemo(() => {
+    // Se temos o ID diretamente e é um ID canônico, usar ele
+    if (roletaId && ROLETAS_CANONICAS.some(r => r.id === roletaId)) {
+      return roletaId;
+    }
+
+    // Se temos o nome, tentar mapear pelo nome
+    if (roletaNome) {
+      const idByName = getCanonicalIdByName(roletaNome);
+      if (idByName) return idByName;
+    }
+
+    // Se ainda não encontramos, usar a função de mapeamento
+    return mapToCanonicalRouletteId(roletaId);
+  }, [roletaId, roletaNome]);
 
   // Função para atualizar o estado numbers que combina initialNumbers e newNumbers
   const updateCombinedNumbers = useCallback(() => {

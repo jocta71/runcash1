@@ -7,7 +7,7 @@ import EventService, {
   StrategyUpdateEvent
 } from './EventService';
 import { getRequiredEnvVar, isProduction } from '../config/env';
-import { mapToCanonicalRouletteId } from '@/integrations/api/rouletteService';
+import { mapToCanonicalRouletteId, ROLETAS_CANONICAS } from '../integrations/api/rouletteService';
 
 // Importando o serviço de estratégia para simular respostas
 import { StrategyService } from './StrategyService';
@@ -25,6 +25,14 @@ interface SocketEvent {
   roleta_id: string;
   roleta_nome: string;
   [key: string]: any;
+}
+
+// Tipo para definir uma roleta
+interface Roulette {
+  _id: string;
+  id?: string;
+  nome?: string;
+  name?: string;
 }
 
 /**
@@ -899,60 +907,16 @@ class SocketService {
   private async fetchRealRoulettes(): Promise<any[]> {
     console.log('[SocketService] Buscando lista de roletas reais...');
     
-    // Lista de IDs permitidos - apenas estas roletas serão processadas
-    const ALLOWED_ROULETTES = [
-      "2010016",  // Immersive Roulette
-      "2380335",  // Brazilian Mega Roulette
-      "2010065",  // Bucharest Auto-Roulette
-      "2010096",  // Speed Auto Roulette
-      "2010017",  // Auto-Roulette
-      "2010098"   // Auto-Roulette VIP
-    ];
-    
     try {
-      // Define a URL base para as APIs
-      const baseUrl = this.getApiBaseUrl();
+      // Usar a lista de roletas canônicas em vez de fazer API calls desnecessárias
+      const roletasCanonicas = ROLETAS_CANONICAS.map(roleta => ({
+        _id: roleta.id,
+        nome: roleta.nome,
+        ativa: true
+      }));
       
-      // Usar apenas um endpoint para buscar dados de roletas
-      const endpoint = `${baseUrl}/roulettes`;
-      
-      try {
-        console.log(`[SocketService] Buscando roletas em: ${endpoint}`);
-        const response = await fetch(endpoint);
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data) && data.length > 0) {
-            // Filtrar apenas as roletas permitidas
-            const filteredRoulettes = data.filter(roulette => {
-              // Obter o ID da roleta considerando diferentes campos possíveis
-              const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.GameID || '';
-              
-              // Converter para string para garantir consistência na comparação
-              const stringId = String(roletaId);
-              
-              // Verificar se o ID está na lista de permitidos
-              const isAllowed = ALLOWED_ROULETTES.includes(stringId);
-              
-              // Log para depuração
-              if (isAllowed) {
-                console.log(`[SocketService] Roleta permitida: ${roulette.nome || roulette.name || 'Sem Nome'} (ID: ${stringId})`);
-              }
-              
-              return isAllowed;
-            });
-            
-            console.log(`[SocketService] Encontradas ${data.length} roletas, filtradas para ${filteredRoulettes.length} permitidas`);
-            return filteredRoulettes;
-          }
-        }
-      } catch (e) {
-        console.warn(`[SocketService] Falha ao buscar roletas em ${endpoint}:`, e);
-      }
-      
-      // Se o endpoint não funcionou, retornar array vazio
-      return [];
-      
+      console.log(`[SocketService] Usando lista local de ${roletasCanonicas.length} roletas canônicas`);
+      return roletasCanonicas;
     } catch (error) {
       console.error('[SocketService] Erro ao buscar roletas:', error);
       return [];
@@ -969,7 +933,7 @@ class SocketService {
       // Usar apenas o endpoint correto /api/roulette-numbers/id
       const endpoint = `${baseUrl}/roulette-numbers/${canonicalId}`;
       
-      console.log(`[SocketService] Buscando números via REST para ${canonicalId} (original: ${roletaId})`);
+      console.log(`[SocketService] Buscando números via REST para roleta ${canonicalId}`);
       
       try {
         const response = await fetch(endpoint, {
@@ -991,21 +955,9 @@ class SocketService {
         if (Array.isArray(data) && data.length > 0) {
           console.log(`[SocketService] ✅ Sucesso! Recebidos ${data.length} números via REST para roleta ${canonicalId}`);
           
-          // Buscar o nome da roleta para processar corretamente
-          let roletaNome = '';
-          try {
-            const roulettes = await this.fetchRealRoulettes();
-            const roulette = roulettes.find(r => r._id === canonicalId || r.id === canonicalId);
-            
-            if (roulette) {
-              roletaNome = roulette.nome || roulette.name || `Roleta ${canonicalId}`;
-            } else {
-              roletaNome = `Roleta ${canonicalId}`;
-            }
-          } catch (error) {
-            console.warn(`[SocketService] Erro ao buscar nome da roleta:`, error);
-            roletaNome = `Roleta ${canonicalId}`;
-          }
+          // Encontrar o nome da roleta a partir do ID canônico
+          const roleta = ROLETAS_CANONICAS.find(r => r.id === canonicalId);
+          const roletaNome = roleta ? roleta.nome : `Roleta ${canonicalId}`;
           
           // Processar os números recebidos
           this.processNumbersData(data, { _id: canonicalId, nome: roletaNome });
@@ -1420,6 +1372,76 @@ class SocketService {
         });
       }
     });
+  }
+
+  // Método para testar uma roleta específica
+  public testRouletteData(roletaUuid: string, roletaNome: string): void {
+    if (!roletaUuid || !roletaNome) {
+      console.warn(`[SocketService] testRouletteData chamado com parâmetros inválidos: ${roletaUuid}, ${roletaNome}`);
+      return;
+    }
+    
+    console.log(`[SocketService] Testando dados para roleta ${roletaNome} (${roletaUuid})`);
+    
+    // Converter o UUID para ID canônico (se necessário)
+    const canonicalId = mapToCanonicalRouletteId(roletaUuid);
+    
+    // Simular evento de número ou buscar número real
+    this.fetchRouletteNumbersREST(canonicalId);
+  }
+
+  private addRouletteToQueue(roletaId: string, roletaNome: string, shouldStartPolling = true): void {
+    try {
+      // Verificar se os parâmetros são válidos
+      if (!roletaId) {
+        console.warn(`[SocketService] addRouletteToQueue: ID da roleta inválido: ${roletaId}`);
+        return;
+      }
+      
+      // Converter o ID para canônico se necessário
+      // Se tivermos apenas o nome, tentar mapear pelo nome
+      let canonicalId = roletaId;
+      if (roletaNome) {
+        const roleta = ROLETAS_CANONICAS.find(r => r.nome === roletaNome);
+        if (roleta) {
+          canonicalId = roleta.id;
+        } else {
+          canonicalId = mapToCanonicalRouletteId(roletaId);
+        }
+      } else {
+        canonicalId = mapToCanonicalRouletteId(roletaId);
+      }
+      
+      // Log para debug
+      console.log(`[SocketService] Adicionando roleta à fila: ${roletaNome || 'Sem Nome'} (${canonicalId})`);
+      
+      // Se já estivermos monitorando esta roleta, não adicionar novamente
+      if (this.pollingRoulettes.has(canonicalId)) {
+        console.log(`[SocketService] Roleta ${canonicalId} já está na fila de monitoramento`);
+        return;
+      }
+      
+      // Adicionar à lista de roletas para polling
+      this.pollingRoulettes.set(canonicalId, {
+        id: canonicalId,
+        nome: roletaNome || `Roleta ${canonicalId}`,
+        lastPolled: Date.now()
+      });
+      
+      // Iniciar polling se solicitado
+      if (shouldStartPolling) {
+        this.startPollingForRoulette(canonicalId);
+      }
+      
+      // Emitir evento para sinalizar adição da roleta
+      EventService.emitGlobalEvent('roulette_added_to_queue', {
+        roleta_id: canonicalId,
+        roleta_nome: roletaNome || `Roleta ${canonicalId}`
+      });
+      
+    } catch (error) {
+      console.error(`[SocketService] Erro ao adicionar roleta à fila: ${error}`);
+    }
   }
 
 }
