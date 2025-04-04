@@ -489,19 +489,40 @@ const RouletteCard = memo(({
       currentTime: new Date().toISOString()
     });
     
-    // Se temos dados da API ou do socket, mas ainda estamos carregando, desativar o carregamento
-    if (isLoading && (apiNumbers.length > 0 || mappedNumbersOverride.length > 0)) {
-      console.log(`[RouletteCard] Desativando isLoading para ${roletaNome} porque temos dados disponíveis`);
+    // FORÇAR desativação do carregamento se temos QUALQUER tipo de dados
+    if (isLoading && (apiNumbers.length > 0 || mappedNumbersOverride.length > 0 || mappedNumbers.length > 0)) {
+      console.log(`[RouletteCard] FORÇANDO desativação do isLoading para ${roletaNome} - dados detectados`);
       setIsLoading(false);
       
       // Se temos dados e não temos lastNumber definido, definir usando os dados disponíveis
       if (lastNumber === null) {
-        const firstNumber = mappedNumbersOverride[0] || (apiNumbers[0] && apiNumbers[0].numero);
-        if (firstNumber !== undefined) {
+        // Tentar todas as fontes possíveis de dados
+        const firstNumber = 
+          mappedNumbersOverride[0] || 
+          (apiNumbers[0] && (typeof apiNumbers[0] === 'number' ? apiNumbers[0] : apiNumbers[0].numero)) ||
+          mappedNumbers[0];
+          
+        if (firstNumber !== undefined && firstNumber !== null) {
           console.log(`[RouletteCard] Definindo lastNumber para ${roletaNome} como ${firstNumber}`);
-          setLastNumber(typeof firstNumber === 'number' ? firstNumber : parseInt(firstNumber, 10));
+          const parsedNumber = typeof firstNumber === 'number' ? 
+            firstNumber : 
+            parseInt(String(firstNumber), 10);
+            
+          if (!isNaN(parsedNumber)) {
+            setLastNumber(parsedNumber);
+          }
         }
       }
+    }
+    
+    // Segurança: desativar carregamento após timeout mesmo sem dados
+    if (isLoading) {
+      const timer = setTimeout(() => {
+        console.log(`[RouletteCard] Timeout de carregamento atingido para ${roletaNome} - forçando desativação`);
+        setIsLoading(false);
+      }, 3000); // 3 segundos de timeout
+      
+      return () => clearTimeout(timer);
     }
   }, [isLoading, apiNumbers, mappedNumbersOverride, mappedNumbers, lastNumber, roletaNome]);
 
@@ -641,28 +662,29 @@ const RouletteCard = memo(({
           <div className="flex items-center justify-center h-12 text-red-500">
             <span>Erro ao carregar dados</span>
           </div>
-        ) : numbers.length === 0 && mappedNumbers.length === 0 && mappedNumbersOverride.length === 0 ? (
-          <div className="flex items-center justify-center h-12">
-            <span className="text-zinc-500">Sem dados disponíveis</span>
-          </div>
         ) : (
-          /* Exibir dados quando disponíveis */
+          /* Sempre exibir algum conteúdo, mesmo sem dados */
           <div>
-            {/* Últimos números */}
+            {/* Últimos números - usar qualquer fonte de dados disponível */}
             <LastNumbers 
-              numbers={numbers.length > 0 ? numbers : mappedNumbersOverride.length > 0 ? mappedNumbersOverride : mappedNumbers.slice(0, 18)} 
+              numbers={
+                numbers.length > 0 ? numbers : 
+                mappedNumbersOverride.length > 0 ? mappedNumbersOverride : 
+                mappedNumbers.length > 0 ? mappedNumbers.slice(0, 18) : 
+                []
+              } 
               className="mb-4" 
               isBlurred={isBlurred}
             />
             
-            {/* Debug - Remover em produção */}
+            {/* Informações de debug - mais detalhadas */}
             <div className="mb-2 text-xs text-zinc-500">
-              {name} - Eventos: {numbers.length} | API: {mappedNumbers.length} | Override: {mappedNumbersOverride.length}
+              {roletaNome} - ID: {roletaId || "N/A"} - Eventos: {numbers.length} | API: {mappedNumbers.length} | Override: {mappedNumbersOverride.length}
             </div>
             
             {/* Insights */}
             <div className="mb-4 text-sm text-zinc-400 italic">
-              {insight}
+              {mappedNumbers.length > 0 ? insight : "Aguardando dados..."}
             </div>
             
             {/* Estatísticas */}
