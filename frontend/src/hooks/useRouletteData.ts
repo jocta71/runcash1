@@ -210,6 +210,8 @@ export function useRouletteData(
 ): UseRouletteDataResult {
   // Estado para dados de números
   const [numbers, setNumbers] = useState<RouletteNumber[]>([]);
+  const [initialNumbers, setInitialNumbers] = useState<RouletteNumber[]>([]); // Dados iniciais
+  const [newNumbers, setNewNumbers] = useState<RouletteNumber[]>([]); // Novos números
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshLoading, setRefreshLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -220,14 +222,54 @@ export function useRouletteData(
   const [strategy, setStrategy] = useState<RouletteStrategy | null>(null);
   const [strategyLoading, setStrategyLoading] = useState<boolean>(true);
   
-  // Ref para controle de inicialização e armazenamento de dados iniciais
+  // Ref para controle de inicialização
   const initialLoadCompleted = useRef<boolean>(false);
-  const initialDataRef = useRef<RouletteNumber[]>([]);  // Armazenar os dados iniciais que não queremos perder
-  const hasSavedInitialData = useRef<boolean>(false);   // Flag para controlar se já temos dados iniciais salvos
+  const initialDataLoaded = useRef<boolean>(false);
   
-  // ===== CARREGAMENTO DE DADOS INICIAIS =====
-  
-  // Função para extrair e processar números da API
+  // Função para atualizar o estado numbers que combina initialNumbers e newNumbers
+  const updateCombinedNumbers = useCallback(() => {
+    // Combinar os novos números com os dados iniciais
+    console.log(`[useRouletteData] Combinando ${newNumbers.length} novos números com ${initialNumbers.length} números iniciais para ${roletaNome}`);
+    
+    // Se não temos novos números, usar apenas os iniciais
+    if (newNumbers.length === 0) {
+      setNumbers([...initialNumbers]);
+      return;
+    }
+    
+    // Se não temos números iniciais, usar apenas os novos
+    if (initialNumbers.length === 0) {
+      setNumbers([...newNumbers]);
+      return;
+    }
+    
+    // Combinar, garantindo que não haja duplicações
+    const combined = [...newNumbers];
+    
+    // Adicionar números iniciais que não estão nos novos
+    initialNumbers.forEach(initialNum => {
+      // Verificar se já existe nos novos números
+      const exists = combined.some(newNum => 
+        newNum.numero === initialNum.numero && 
+        newNum.timestamp === initialNum.timestamp
+      );
+      
+      // Se não existe, adicionar
+      if (!exists) {
+        combined.push(initialNum);
+      }
+    });
+    
+    console.log(`[useRouletteData] Total combinado: ${combined.length} números para ${roletaNome}`);
+    setNumbers(combined);
+  }, [initialNumbers, newNumbers, roletaNome]);
+
+  // Atualizar o estado combinado sempre que initialNumbers ou newNumbers mudar
+  useEffect(() => {
+    updateCombinedNumbers();
+  }, [initialNumbers, newNumbers, updateCombinedNumbers]);
+
+  // Função para extrair e processar números da API - MODIFICADA PARA ATUALIZAR APENAS initialNumbers
   const loadNumbers = useCallback(async (isRefresh = false): Promise<boolean> => {
     try {
       if (!isRefresh) setLoading(true);
@@ -279,42 +321,16 @@ export function useRouletteData(
           ultimoNum: processedNumbers[0]?.numero
         });
         
-        // MUDANÇA IMPORTANTE: Salvar uma cópia dos dados iniciais se ainda não tivermos feito isso
-        if (!hasSavedInitialData.current) {
-          console.log(`[useRouletteData] Salvando dados iniciais para ${roletaNome}: ${processedNumbers.length} números`);
-          initialDataRef.current = [...processedNumbers];
-          hasSavedInitialData.current = true;
+        // IMPORTANTE: Salvar os dados iniciais apenas uma vez
+        if (!initialDataLoaded.current) {
+          console.log(`[useRouletteData] Salvando dados iniciais pela primeira vez para ${roletaNome}: ${processedNumbers.length} números`);
+          setInitialNumbers(processedNumbers);
+          initialDataLoaded.current = true;
+        } else if (isRefresh) {
+          // Se for uma atualização manual, atualizar os dados iniciais
+          console.log(`[useRouletteData] Atualizando dados iniciais em refresh manual para ${roletaNome}`);
+          setInitialNumbers(processedNumbers);
         }
-        
-        // Atualizar estado COMBINANDO dados iniciais com os novos
-        setNumbers(prev => {
-          // Se já temos dados, apenas atualizar o primeiro número se for novo
-          if (prev.length > 0 && processedNumbers.length > 0) {
-            const newFirstNumber = processedNumbers[0];
-            
-            // Verificar se o primeiro número é diferente do que já temos
-            const isDifferentFirst = prev.length === 0 || 
-                                     prev[0].numero !== newFirstNumber.numero ||
-                                     prev[0].timestamp !== newFirstNumber.timestamp;
-            
-            if (isDifferentFirst) {
-              // Combinar o novo número com os dados existentes
-              console.log(`[useRouletteData] Adicionando novo número ${newFirstNumber.numero} aos dados existentes para ${roletaNome}`);
-              return [newFirstNumber, ...prev];
-            }
-            
-            // Se não é diferente, manter os dados atuais
-            return prev;
-          }
-          
-          // Se não temos dados, usar os dados iniciais ou os processados
-          if (initialDataRef.current.length > 0) {
-            console.log(`[useRouletteData] Usando dados iniciais salvos para ${roletaNome}: ${initialDataRef.current.length} números`);
-            return initialDataRef.current;
-          }
-          
-          return processedNumbers;
-        });
         
         setHasData(true);
         initialLoadCompleted.current = true;
@@ -473,7 +489,7 @@ export function useRouletteData(
   
   // ===== EVENTOS E WEBSOCKETS =====
   
-  // Processar novos números recebidos via WebSocket
+  // Processar novos números recebidos via WebSocket - MODIFICADA PARA ATUALIZAR APENAS newNumbers
   const handleNewNumber = useCallback((event: RouletteNumberEvent) => {
     if (event.type !== 'new_number') return;
     
@@ -481,33 +497,24 @@ export function useRouletteData(
     const numeroRaw = event.numero;
     const numeroFormatado = typeof numeroRaw === 'string' ? parseInt(numeroRaw, 10) : numeroRaw;
     
-    console.log(`[useRouletteData] Número recebido via evento para ${roletaNome}: ${numeroFormatado}`);
+    debugLog(`[useRouletteData] Número recebido via evento para ${roletaNome}: ${numeroFormatado}`);
     
-    // 2. PROCESSAMENTO: Atualizar estado com o novo número, PRESERVANDO TODOS OS DADOS ANTERIORES
-    setNumbers(prev => {
-      // Verificar se o número já existe
+    // 2. PROCESSAMENTO: Atualizar estado APENAS dos novos números
+    setNewNumbers(prev => {
+      // Verificar se o número já existe nos novos
       const isDuplicate = prev.some(num => 
-        num.numero === numeroFormatado
+        num.numero === numeroFormatado && 
+        num.timestamp === event.timestamp
       );
       
-      // Se for duplicado, não modificar o estado
-      if (isDuplicate) {
-        console.log(`[useRouletteData] Número duplicado ${numeroFormatado} ignorado para ${roletaNome}`);
-        return prev;
-      }
-      
-      // SOLUÇÃO: Carregar os números iniciais salvos (ou usar os atuais se não tivermos dados iniciais)
-      // e adicionar o novo número apenas no início
+      if (isDuplicate) return prev;
       
       // Processar o novo número
       const newNumber = processRouletteNumber(numeroFormatado, event.timestamp);
       
-      // IMPORTANTE: Criar um array totalmente novo combinando o novo número com TODOS os existentes
-      // Isso garante que não perdemos nenhum dado
-      const combinedNumbers = [newNumber, ...prev];
-      
-      console.log(`[useRouletteData] Preservando todos os ${prev.length} números existentes e adicionando ${numeroFormatado} no início para ${roletaNome}`);
-      return combinedNumbers;
+      // Adicionar o novo número APENAS ao array de novos números
+      console.log(`[useRouletteData] Adicionando novo número ${numeroFormatado} ao array de NOVOS números para ${roletaNome}`);
+      return [newNumber, ...prev];
     });
     
     // Atualizar estado de conexão e dados
