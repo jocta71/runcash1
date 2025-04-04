@@ -276,12 +276,13 @@ export function useRouletteData(
     updateCombinedNumbers();
   }, [initialNumbers, newNumbers, updateCombinedNumbers]);
 
-  // Função para extrair e processar números da API - MODIFICADA PARA EVITAR CARREGAMENTOS DUPLICADOS
+  // Função para extrair e processar números da API - MODIFICADA PARA RESPOSTA MAIS RÁPIDA
   const loadNumbers = useCallback(async (isRefresh = false): Promise<boolean> => {
     try {
       // Se já temos dados iniciais e não é uma atualização manual, pular
       if (initialDataLoaded.current && !isRefresh) {
         console.log(`[useRouletteData] Ignorando carregamento de números para ${roletaNome} - dados já carregados`);
+        setLoading(false); // GARANTIR loading false imediatamente
         return true;
       }
       
@@ -340,6 +341,8 @@ export function useRouletteData(
           initialDataLoaded.current = true;
         }
         
+        // NOVA ADIÇÃO: Definir loading como false IMEDIATAMENTE após ter os dados
+        setLoading(false);
         setHasData(true);
         initialLoadCompleted.current = true;
         
@@ -347,6 +350,9 @@ export function useRouletteData(
       } else {
         // Sem dados disponíveis
         console.warn(`[useRouletteData] ⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
+        
+        // NOVA ADIÇÃO: Definir loading como false mesmo sem dados
+        setLoading(false);  
         setHasData(false);
         initialLoadCompleted.current = true;
                 
@@ -355,10 +361,14 @@ export function useRouletteData(
     } catch (err: any) {
       console.error(`[useRouletteData] ❌ Erro ao carregar números para ${roletaNome}: ${err.message}`);
       setError(`Erro ao carregar números: ${err.message}`);
+      
+      // NOVA ADIÇÃO: Garantir que loading seja false mesmo em caso de erro
+      setLoading(false);
       setHasData(false);
       initialLoadCompleted.current = true;
       return false;
     } finally {
+      // Garantir que loading e refreshLoading sejam sempre definidos como false ao final
       setLoading(false);
       setRefreshLoading(false);
     }
@@ -442,6 +452,7 @@ export function useRouletteData(
         // Verificar se já temos dados iniciais carregados para esta roleta
         if (initialDataLoaded.current) {
           console.log(`[useRouletteData] Dados iniciais já carregados para ${roletaNome}, pulando carregamento`);
+          setLoading(false); // IMPORTANTE: Garantir que loading seja false mesmo se não carregarmos novamente
           return;
         }
         
@@ -460,6 +471,12 @@ export function useRouletteData(
         const strategyLoaded = await loadStrategy();
         
         console.log(`[useRouletteData] Carregamento inicial concluído: números=${numbersLoaded}, estratégia=${strategyLoaded}`);
+        
+        // Definir loading como false IMEDIATAMENTE depois do carregamento
+        setLoading(false);
+        
+        // Atualizar o estado de hasData com base nos resultados
+        setHasData(numbersLoaded);
         
         // Disparar evento de conclusão
         eventService.dispatchEvent({
@@ -481,23 +498,25 @@ export function useRouletteData(
           // Marcar como inicializado globalmente
           pollingInitialized.add(instanceKey.current);
           
-          // Usar um setTimeout para garantir que não haverá interferência
+          // REDUZIDO: Usar um setTimeout mais curto para iniciar o polling mais rapidamente
           setTimeout(() => {
             if (isActive) {
               const fetchService = FetchService.getInstance();
               fetchService.startPolling();
               console.log(`[useRouletteData] ✅ Polling iniciado com sucesso para ${roletaNome}`);
             }
-          }, 5000); // Atraso maior para garantir separação completa
+          }, 1000); // Reduzido de 5000 para 1000 ms para iniciar mais rapidamente
         } else {
           console.log(`[useRouletteData] Polling JÁ INICIALIZADO para ${roletaNome}, não iniciando novamente`);
         }
       } catch (error) {
         console.error(`[useRouletteData] ❌ Erro ao carregar dados iniciais para ${roletaNome}:`, error);
+        setLoading(false); // Importante: garantir que loading seja false mesmo em caso de erro
+        setError(`Erro ao carregar dados: ${error}`);
       }
     };
     
-    // Carregar dados apenas uma vez na inicialização
+    // ALTERAÇÃO: Iniciar carregamento imediatamente sem atrasos
     loadInitialData();
     
     // Cleanup
