@@ -1,6 +1,6 @@
 import io from 'socket.io-client';
 import { EventEmitter } from 'events';
-import { mapToCanonicalId } from '../data/rouletteTransformer';
+import { getNumericId } from '../data/rouletteTransformer';
 
 /**
  * Cliente WebSocket para comunicação em tempo real
@@ -104,15 +104,12 @@ class SocketClient {
           return;
         }
         
-        // Mapear para ID canônico
-        const canonicalId = mapToCanonicalId(roletaId);
-        console.log(`[Socket] Mapeado ID de roleta: ${roletaId} -> ${canonicalId}`);
-        
-        // Adicionar ID canônico ao objeto de dados
-        data.canonical_id = canonicalId;
+        // Mapear para ID numérico
+        const numericId = getNumericId(roletaId);
+        console.log(`[Socket] Mapeado ID de roleta: ${roletaId} -> ${numericId}`);
         
         // Emitir evento
-        this.eventEmitter.emit(`new_number_${canonicalId}`, data);
+        this.eventEmitter.emit(`new_number_${numericId}`, data);
       } catch (error) {
         console.error('[Socket] Erro ao processar novo número:', error);
       }
@@ -129,15 +126,12 @@ class SocketClient {
           return;
         }
         
-        // Mapear para ID canônico
-        const canonicalId = mapToCanonicalId(roletaId);
-        console.log(`[Socket] Mapeado ID de roleta: ${roletaId} -> ${canonicalId}`);
-        
-        // Adicionar ID canônico ao objeto de dados
-        data.canonical_id = canonicalId;
+        // Mapear para ID numérico
+        const numericId = getNumericId(roletaId);
+        console.log(`[Socket] Mapeado ID de roleta: ${roletaId} -> ${numericId}`);
         
         // Emitir evento
-        this.eventEmitter.emit(`strategy_update_${canonicalId}`, data);
+        this.eventEmitter.emit(`strategy_update_${numericId}`, data);
       } catch (error) {
         console.error('[Socket] Erro ao processar atualização de estratégia:', error);
       }
@@ -171,14 +165,14 @@ class SocketClient {
       return;
     }
     
-    // Usar ID canônico para consistência
-    const canonicalId = mapToCanonicalId(id);
+    // Usar ID numérico para consistência
+    const numericId = getNumericId(id);
     
     // Adicionar à lista de roletas conectadas
-    this.connectedRoulettes.add(canonicalId);
+    this.connectedRoulettes.add(numericId);
     
-    console.log(`[Socket] Assinando roleta: ${name || canonicalId} (ID: ${canonicalId})`);
-    this.socket.emit('subscribe_roulette', { id: canonicalId });
+    console.log(`[Socket] Assinando roleta: ${name || numericId} (ID: ${numericId})`);
+    this.socket.emit('subscribe_roulette', { id: numericId });
   }
   
   /**
@@ -190,14 +184,14 @@ class SocketClient {
       return;
     }
     
-    // Usar ID canônico para consistência
-    const canonicalId = mapToCanonicalId(id);
+    // Usar ID numérico para consistência
+    const numericId = getNumericId(id);
     
     // Remover da lista de roletas conectadas
-    this.connectedRoulettes.delete(canonicalId);
+    this.connectedRoulettes.delete(numericId);
     
-    console.log(`[Socket] Cancelando assinatura de roleta: ${canonicalId}`);
-    this.socket.emit('unsubscribe_roulette', { id: canonicalId });
+    console.log(`[Socket] Cancelando assinatura de roleta: ${numericId}`);
+    this.socket.emit('unsubscribe_roulette', { id: numericId });
   }
   
   /**
@@ -210,11 +204,11 @@ class SocketClient {
       return;
     }
     
-    // Usar ID canônico para consistência
-    const canonicalId = mapToCanonicalId(id);
+    // Usar ID numérico para consistência
+    const numericId = getNumericId(id);
     
-    console.log(`[Socket] Solicitando números para roleta: ${canonicalId}`);
-    this.socket.emit('get_roulette_numbers', { id: canonicalId });
+    console.log(`[Socket] Solicitando números para roleta: ${numericId}`);
+    this.socket.emit('get_roulette_numbers', { id: numericId });
   }
   
   /**

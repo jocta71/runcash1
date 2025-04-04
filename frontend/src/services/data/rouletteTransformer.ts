@@ -1,118 +1,83 @@
 /**
- * Definições de IDs canônicos para cada roleta.
- * Usamos esses IDs para garantir consistência em diferentes partes do sistema.
+ * Lista de roletas permitidas
+ * Contém apenas os IDs numéricos oficiais
  */
-export const CANONICAL_IDS = {
-  BRAZILIAN_MEGA: "2380335",
-  SPEED_AUTO: "2010096",
-  AUTO_VIP: "2010098",
-  RULETA_AUTOMATICA: "2010017",
-  BUCHAREST: "2010065",
-  IMMERSIVE: "2010016"
+export const ALLOWED_ROULETTES = [
+  "2010016",  // Immersive Roulette
+  "2380335",  // Brazilian Mega Roulette
+  "2010065",  // Bucharest Auto-Roulette
+  "2010096",  // Speed Auto Roulette
+  "2010017",  // Ruleta Automática
+  "2010098"   // Auto-Roulette VIP
+];
+
+/**
+ * Mapeamento de UUIDs para IDs numéricos
+ */
+export const UUID_TO_NUMERIC = {
+  "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2380335", // Brazilian Mega
+  "18bdc4ea-d884-c47a-d33f-27a268a4eead": "2010096", // Speed Auto
+  "e3345af9-e387-9412-209c-e793fe73e520": "2010065", // Bucharest
+  "419aa56c-bcff-67d2-f424-a6501bac4a36": "2010098", // Auto VIP
+  "4cf27e48-2b9d-b58e-7dcc-48264c51d639": "2010016", // Immersive
+  "f27dd03e-5282-fc78-961c-6375cef91565": "2010017"  // Ruleta Automática
 };
 
 /**
- * Mapeamento de UUIDs para IDs canônicos.
- * Isso permite identificar roletas mesmo quando seus IDs são fornecidos
- * em formatos diferentes.
+ * Nomes amigáveis para roletas
  */
-export const UUID_TO_CANONICAL = {
-  "7d3c2c9f-2850-f642-861f-5bb4daf1806a": CANONICAL_IDS.BRAZILIAN_MEGA,
-  "18bdc4ea-d884-c47a-d33f-27a268a4eead": CANONICAL_IDS.SPEED_AUTO,
-  "e3345af9-e387-9412-209c-e793fe73e520": CANONICAL_IDS.BUCHAREST,
-  "419aa56c-bcff-67d2-f424-a6501bac4a36": CANONICAL_IDS.AUTO_VIP,
-  "4cf27e48-2b9d-b58e-7dcc-48264c51d639": CANONICAL_IDS.IMMERSIVE,
-  "f27dd03e-5282-fc78-961c-6375cef91565": CANONICAL_IDS.RULETA_AUTOMATICA,
-  
-  // Mapeamento caso o campo roleta_id seja passado diretamente
-  "roleta_id_2380335": CANONICAL_IDS.BRAZILIAN_MEGA,
-  "roleta_id_2010096": CANONICAL_IDS.SPEED_AUTO,
-  "roleta_id_2010065": CANONICAL_IDS.BUCHAREST,
-  "roleta_id_2010098": CANONICAL_IDS.AUTO_VIP,
-  "roleta_id_2010016": CANONICAL_IDS.IMMERSIVE,
-  "roleta_id_2010017": CANONICAL_IDS.RULETA_AUTOMATICA
+export const ROULETTE_NAMES = {
+  "2010016": "Immersive Roulette",
+  "2380335": "Brazilian Mega Roulette",
+  "2010065": "Bucharest Auto-Roulette",
+  "2010096": "Speed Auto Roulette",
+  "2010017": "Ruleta Automática",
+  "2010098": "Auto-Roulette VIP"
 };
 
 /**
- * Nomes amigáveis para roletas com base no ID canônico
+ * Mapeia qualquer ID para um ID numérico válido
+ * @param id ID em qualquer formato
+ * @returns ID numérico válido
  */
-export const CANONICAL_NAMES = {
-  [CANONICAL_IDS.BRAZILIAN_MEGA]: "Brazilian Mega Roulette",
-  [CANONICAL_IDS.SPEED_AUTO]: "Speed Auto Roulette",
-  [CANONICAL_IDS.AUTO_VIP]: "Auto-Roulette VIP",
-  [CANONICAL_IDS.RULETA_AUTOMATICA]: "Ruleta Automática",
-  [CANONICAL_IDS.BUCHAREST]: "Bucharest Auto-Roulette",
-  [CANONICAL_IDS.IMMERSIVE]: "Immersive Roulette"
-};
-
-/**
- * Converte qualquer ID de roleta para seu ID canônico.
- * Isso garante que possamos identificar consistentemente
- * a mesma roleta, mesmo que ela seja referenciada com 
- * diferentes identificadores.
- * 
- * @param id ID da roleta (qualquer formato)
- * @returns ID canônico da roleta
- */
-export function mapToCanonicalId(id: string): string {
-  // Se já é um ID canônico, retornar como está
-  if (Object.values(CANONICAL_IDS).includes(id)) {
+export function getNumericId(id: string): string {
+  // Se já é um ID numérico válido, retorna ele mesmo
+  if (ALLOWED_ROULETTES.includes(id)) {
     return id;
   }
   
-  // Verificar se é um campo roleta_id e extrair o número
-  if (typeof id === 'string' && id.startsWith('roleta_id_')) {
-    const extractedId = id.replace('roleta_id_', '');
-    if (Object.values(CANONICAL_IDS).includes(extractedId)) {
-      return extractedId;
-    }
+  // Se está no mapeamento, retorna o ID correspondente
+  if (UUID_TO_NUMERIC[id]) {
+    return UUID_TO_NUMERIC[id];
   }
   
-  // Tentar mapeamento direto
-  if (UUID_TO_CANONICAL[id]) {
-    return UUID_TO_CANONICAL[id];
-  }
-  
-  // Normalizar e tentar novamente
-  const normalizedId = id.replace(/-/g, '').toLowerCase();
-  
-  for (const [uuid, canonicalId] of Object.entries(UUID_TO_CANONICAL)) {
-    if (uuid.replace(/-/g, '').toLowerCase() === normalizedId) {
-      return canonicalId;
-    }
-  }
-  
-  // Verificar se é o próprio ID numérico da roleta (sem prefixo)
-  if (typeof id === 'string') {
-    const numericId = id.replace(/\D/g, ''); // Remove todos os não-dígitos
-    if (Object.values(CANONICAL_IDS).includes(numericId)) {
+  // Verificar se o ID contém um ID numérico como sufixo
+  for (const numericId of ALLOWED_ROULETTES) {
+    if (id.endsWith(numericId)) {
       return numericId;
     }
   }
   
-  // Fallback seguro - retornar o ID Speed Auto como padrão
-  console.warn(`[Transformer] ID não reconhecido: ${id}, usando fallback`);
-  return CANONICAL_IDS.SPEED_AUTO;
+  // Não foi possível mapear, usar o valor padrão
+  console.warn(`[Transformer] ID não reconhecido: ${id}, usando Speed Auto como fallback`);
+  return "2010096"; // Speed Auto como fallback
 }
 
 /**
- * Números vermelhos na roleta (para determinar cor)
+ * Determina a cor de um número
+ * @param num Número da roleta
+ * @returns Cor ('red', 'black', 'green')
  */
-const RED_NUMBERS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-
-/**
- * Determina a cor do número na roleta
- * @param number Número da roleta
- * @returns Cor correspondente ('red', 'black', 'green')
- */
-export function getNumberColor(number: number): 'red' | 'black' | 'green' {
-  if (number === 0) return 'green';
-  return RED_NUMBERS.includes(number) ? 'red' : 'black';
+export function getNumberColor(num: number): 'red' | 'black' | 'green' {
+  if (num === 0) return 'green';
+  
+  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  return redNumbers.includes(num) ? 'red' : 'black';
 }
 
 /**
- * Transforma dados de um número da roleta para o formato padronizado
- * @param rawNumber Número bruto da API
+ * Transforma um número bruto em formato padronizado
+ * @param rawNumber Número em qualquer formato
  * @returns Objeto de número padronizado
  */
 export function transformRouletteNumber(rawNumber: any): {
@@ -140,12 +105,12 @@ export function transformRouletteNumber(rawNumber: any): {
           : null;
           
       if (num === null) {
-        console.warn('[Transformer] Objeto de número inválido:', rawNumber);
+        console.warn('[Transformer] Número inválido:', rawNumber);
         return null;
       }
       
       // Determinar cor
-      const color = rawNumber.cor || rawNumber.color || getNumberColor(num);
+      const color = rawNumber.cor || rawNumber.color || getNumberColor(Number(num));
       
       // Determinar timestamp
       const timestamp = rawNumber.timestamp || new Date().toISOString();
@@ -166,24 +131,23 @@ export function transformRouletteNumber(rawNumber: any): {
 }
 
 /**
- * Transforma dados brutos de roleta para o formato padronizado
- * @param rawData Dados brutos da API
+ * Transforma dados brutos de roleta em formato padronizado
+ * @param rawData Dados brutos
  * @returns Objeto de roleta padronizado
  */
 export function transformRouletteData(rawData: any) {
   try {
-    // Procurar possíveis IDs para mapear ao canônico
-    let canonicalId;
+    // Obter o ID numérico
+    let numericId;
     
-    // Primeiro, verificar se há um campo roleta_id, que tem prioridade
+    // Prioridade: campo roleta_id > id > _id
     if (rawData.roleta_id) {
-      canonicalId = mapToCanonicalId(`roleta_id_${rawData.roleta_id}`);
+      numericId = getNumericId(rawData.roleta_id);
     } else {
-      // Caso contrário, usar outros campos disponíveis
-      canonicalId = rawData.canonical_id || mapToCanonicalId(rawData.id || rawData._id);
+      numericId = getNumericId(rawData.id || rawData._id);
     }
     
-    // Garantir que temos o array de números no formato correto
+    // Números
     let numbers = [];
     
     if (rawData.numero && Array.isArray(rawData.numero)) {
@@ -192,16 +156,16 @@ export function transformRouletteData(rawData: any) {
       numbers = rawData.numeros;
     }
     
-    // Processar cada número para garantir formato consistente
+    // Processar números
     const processedNumbers = numbers
       .map(transformRouletteNumber)
       .filter(Boolean);
     
-    // Determinar nome amigável
-    const name = rawData.nome || rawData.name || CANONICAL_NAMES[canonicalId] || `Roleta ${canonicalId}`;
+    // Nome
+    const name = rawData.nome || rawData.name || ROULETTE_NAMES[numericId] || `Roleta ${numericId}`;
     
     return {
-      id: canonicalId,
+      id: numericId,
       uuid: rawData._id || rawData.id,
       name,
       numbers: processedNumbers,
@@ -213,7 +177,7 @@ export function transformRouletteData(rawData: any) {
   } catch (error) {
     console.error('[Transformer] Erro ao transformar dados da roleta:', error);
     return {
-      id: '0',
+      id: '2010096', // Speed Auto como fallback
       uuid: '0',
       name: 'Erro',
       numbers: [],
