@@ -542,6 +542,51 @@ export function useRouletteData(
     setIsConnected(true);
   }, [roletaNome]);
   
+  // Efeito para ancorar novos números periodicamente nos dados iniciais
+  useEffect(() => {
+    // Se não temos novos números, não fazer nada
+    if (newNumbers.length === 0) return;
+    
+    // Criar um timer para ancorar os novos números nos dados iniciais a cada minuto
+    const anchorTimer = setInterval(() => {
+      // Ancorar os novos números nos dados iniciais
+      console.log(`[useRouletteData] ANCORANDO ${newNumbers.length} novos números nos dados iniciais para ${roletaNome}`);
+      
+      setInitialNumbers(prev => {
+        // Criar um novo array com os dados iniciais existentes
+        const updatedInitialData = [...prev];
+        
+        // Adicionar novos números que não existem nos dados iniciais
+        let numAdded = 0;
+        newNumbers.forEach(newNum => {
+          // Verificar se já existe nos dados iniciais
+          const exists = updatedInitialData.some(initial => 
+            initial.numero === newNum.numero && 
+            initial.timestamp === newNum.timestamp
+          );
+          
+          // Se não existe, adicionar
+          if (!exists) {
+            updatedInitialData.unshift(newNum); // Adicionar no início
+            numAdded++;
+          }
+        });
+        
+        console.log(`[useRouletteData] ${numAdded} novos números ancorados nos dados iniciais para ${roletaNome}`);
+        
+        // Retornar os dados iniciais atualizados
+        return updatedInitialData;
+      });
+      
+      // Limpar os novos números já ancorados
+      setNewNumbers([]);
+    }, 30000); // Ancorar a cada 30 segundos
+    
+    return () => {
+      clearInterval(anchorTimer);
+    };
+  }, [newNumbers, roletaNome]);
+  
   // Subscrever para eventos via WebSocket
   useEffect(() => {
     const socketService = SocketService.getInstance();
