@@ -585,11 +585,13 @@ app.get('/api/roulettes', async (req, res) => {
 });
 
 // Endpoint para obter números de uma roleta específica por ID
-app.get('/api/numbers/byId/:id', async (req, res) => {
+app.get('/api/roulette-numbers/:id', async (req, res) => {
   try {
-    console.log(`[API] Requisição recebida para /api/numbers/byId/${req.params.id}`);
     const { id } = req.params;
-    const limit = req.query.limit ? parseInt(req.query.limit) : 500;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 100;
+    const skip = req.query.skip ? parseInt(req.query.skip) : 0;
+    
+    console.log(`[API] Requisição recebida para /api/roulette-numbers/${id} (limit: ${limit}, skip: ${skip})`);
 
     // Verificar se MongoDB está conectado
     if (!db) {
@@ -601,30 +603,26 @@ app.get('/api/numbers/byId/:id', async (req, res) => {
     }
 
     try {
-      // Tentar buscar na coleção roleta_numeros
+      // Buscar na coleção roleta_numeros
       console.log(`[API] Buscando números para roleta ${id} no MongoDB...`);
       const numeros = await db.collection('roleta_numeros')
         .find({ roleta_id: id })
         .sort({ timestamp: -1 })
+        .skip(skip)
         .limit(limit)
         .toArray();
 
       if (numeros.length === 0) {
-        // Tentar com nome de coleção alternativo
-        console.log('[API] Nenhum número encontrado, tentando coleção alternativa...');
-        const altNumeros = await db.collection('roulette_numbers')
-          .find({ roulette_id: id })
-          .sort({ timestamp: -1 })
-          .limit(limit)
-          .toArray();
-
-        if (altNumeros.length > 0) {
-          console.log(`[API] Encontrados ${altNumeros.length} números na coleção alternativa`);
-          return res.json(altNumeros);
-        }
-
+        console.log(`[API] Nenhum número encontrado para roleta ${id}`);
+        
         // Verificar se a roleta existe
-        const roleta = await db.collection('roletas').findOne({ _id: id });
+        const roleta = await db.collection('roletas').findOne({ 
+          $or: [
+            { _id: id },
+            { id: id }
+          ]
+        });
+        
         if (!roleta) {
           console.log(`[API] Roleta ID ${id} não encontrada`);
           return res.status(404).json({ 
@@ -632,16 +630,22 @@ app.get('/api/numbers/byId/:id', async (req, res) => {
             details: `Nenhuma roleta encontrada com ID ${id}` 
           });
         }
-
-        console.log(`[API] Nenhum número encontrado para roleta ${id}`);
-        return res.status(404).json({ 
-          error: 'Nenhum número encontrado', 
-          details: 'Esta roleta não possui números registrados ainda'
-        });
+        
+        return res.json([]); // Retornar array vazio, não é erro
       }
 
       console.log(`[API] Encontrados ${numeros.length} números para roleta ${id}`);
-      return res.json(numeros);
+      
+      // Formatar os números para garantir consistência
+      const formattedNumbers = numeros.map(n => ({
+        numero: n.numero,
+        roleta_id: n.roleta_id,
+        roleta_nome: n.roleta_nome,
+        cor: n.cor || determinarCorNumero(n.numero),
+        timestamp: n.timestamp || n.created_at || n.criado_em
+      }));
+      
+      return res.json(formattedNumbers);
     } catch (dbError) {
       console.error('[API] Erro ao consultar MongoDB:', dbError);
       return res.status(500).json({ 
@@ -657,6 +661,15 @@ app.get('/api/numbers/byId/:id', async (req, res) => {
     });
   }
 });
+
+// Função auxiliar para determinar a cor de um número da roleta
+function determinarCorNumero(numero) {
+  if (numero === 0) return 'verde';
+  
+  // Números vermelhos na roleta europeia
+  const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
+}
 
 // 404 handler for any routes not found
 app.use((req, res) => {

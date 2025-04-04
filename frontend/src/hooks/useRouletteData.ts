@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { RouletteNumberEvent } from '@/services/EventService';
 import EventService from '@/services/EventService';
 import { 
-  fetchRouletteLatestNumbers, 
   fetchRouletteLatestNumbersByName, 
   fetchRouletteStrategy,
   fetchRouletteById,
@@ -10,9 +9,25 @@ import {
 } from '@/integrations/api/rouletteService';
 import { toast } from '@/components/ui/use-toast';
 import SocketService from '@/services/SocketService';
+import axios from 'axios';
+import config from '@/config/env';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG = false;
+
+// Usar a variável de ambiente centralizada do config
+const API_URL = config.apiBaseUrl;
+
+// Configuração do axios com headers padrão
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+    'bypass-tunnel-reminder': 'true'
+  },
+  timeout: 10000,
+});
 
 // Função auxiliar para debug
 const debugLog = (...args: any[]) => {
@@ -27,9 +42,34 @@ interface RouletteNumber {
   roleta_id?: string;
   roleta_nome?: string;
   timestamp?: string;
+  cor?: string; // Nova propriedade para a cor do número
 }
 
 type RouletteStrategy = ApiRouletteStrategy;
+
+/**
+ * Função para buscar números da roleta pelo novo endpoint separado
+ * @param roletaId ID da roleta
+ * @param limit Limite de números a serem retornados
+ * @returns Array de objetos RouletteNumber
+ */
+const fetchRouletteNumbers = async (roletaId: string, limit: number = 100): Promise<RouletteNumber[]> => {
+  try {
+    console.log(`[useRouletteData] Buscando números para roleta ${roletaId} via novo endpoint...`);
+    const response = await api.get(`/roulette-numbers/${roletaId}?limit=${limit}`);
+    
+    if (response.data && Array.isArray(response.data)) {
+      console.log(`[useRouletteData] Recebidos ${response.data.length} números da API`);
+      return response.data;
+    }
+    
+    console.log(`[useRouletteData] Resposta da API não é um array válido:`, response.data);
+    return [];
+  } catch (error: any) {
+    console.error(`[useRouletteData] Erro ao buscar números da roleta:`, error.message);
+    return [];
+  }
+};
 
 /**
  * Processa números brutos em formato RouletteNumber
@@ -45,6 +85,7 @@ const processRouletteNumbers = (numbers: number[] | any[]): RouletteNumber[] => 
         numero: typeof item.numero === 'number' ? item.numero : parseInt(item.numero, 10),
         roleta_id: item.roleta_id,
         roleta_nome: item.roleta_nome,
+        cor: item.cor,
         timestamp: item.timestamp || new Date().toISOString()
       };
     }
@@ -91,6 +132,7 @@ export const processRouletteNumber = (numero: number, timestamp?: string): Roule
     numero,
     roleta_id: undefined,
     roleta_nome: undefined,
+    cor: determinarCorNumero(numero),
     timestamp: timestamp || new Date().toISOString()
   };
 };
@@ -105,7 +147,7 @@ export const processRouletteNumber = (numero: number, timestamp?: string): Roule
 export function useRouletteData(
   roletaId: string, 
   roletaNome: string, 
-  limit: number = 500
+  limit: number = 100
 ): UseRouletteDataResult {
   // Estado para dados de números
   const [numbers, setNumbers] = useState<RouletteNumber[]>([]);
@@ -137,11 +179,17 @@ export function useRouletteData(
         return false;
       }
       
-      // 1. EXTRAÇÃO: Obter números brutos da API
+      // 1. EXTRAÇÃO: Obter números brutos do novo endpoint
       console.log(`[useRouletteData] Extraindo números para ${roletaNome} (ID: ${roletaId})`);
-      let numerosArray = await fetchRouletteLatestNumbers(roletaId, limit);
       
-      console.log(`[useRouletteData] Resposta da API para ${roletaNome}:`, numerosArray);
+      // Usar o novo endpoint específico para números
+      let numerosArray = await fetchRouletteNumbers(roletaId, limit);
+      
+      console.log(`[useRouletteData] Resposta do endpoint de números para ${roletaNome}:`, 
+        numerosArray.length > 0 ? 
+        `${numerosArray.length} números, primeiro: ${numerosArray[0]?.numero}` : 
+        'Sem números'
+      );
       
       // Tentar obter por nome como fallback se não conseguir por ID
       if (!numerosArray || numerosArray.length === 0) {
@@ -149,17 +197,24 @@ export function useRouletteData(
         numerosArray = await fetchRouletteLatestNumbersByName(roletaNome, limit);
         
         // Log do resultado da busca por nome
-        console.log(`[useRouletteData] Resposta da busca por nome (${roletaNome}):`, numerosArray);
+        console.log(`[useRouletteData] Resposta da busca por nome (${roletaNome}):`, 
+          numerosArray.length > 0 ? 
+          `${numerosArray.length} números, primeiro: ${numerosArray[0]}` : 
+          'Sem números'
+        );
       }
       
       // 2. PROCESSAMENTO: Converter para formato RouletteNumber
       if (numerosArray && Array.isArray(numerosArray) && numerosArray.length > 0) {
-        // Processar os números em formato adequado
-        const processedNumbers = processRouletteNumbers(numerosArray);
+        // Processar os números em formato adequado - não precisamos mais processar
+        // se vierem do novo endpoint, pois já estão formatados
+        const processedNumbers = Array.isArray(numerosArray[0]?.numero) ? 
+          processRouletteNumbers(numerosArray) : 
+          numerosArray as RouletteNumber[];
         
         console.log(`[useRouletteData] Dados processados para ${roletaNome}:`, {
           total: processedNumbers.length,
-          primeiros: processedNumbers.slice(0, 3),
+          primeiros: processedNumbers.slice(0, 3).map(n => n.numero),
           ultimoNum: processedNumbers[0]?.numero
         });
         
@@ -184,20 +239,7 @@ export function useRouletteData(
         console.log(`[useRouletteData] ⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
         setHasData(false);
         initialLoadCompleted.current = true;
-        
-        // TESTE: Injetar dados simulados para teste
-        /* 
-        const dadosSimulados = Array.from({length: 10}, () => ({
-          numero: Math.floor(Math.random() * 37),
-          roleta_id: roletaId,
-          roleta_nome: roletaNome,
-          timestamp: new Date().toISOString()
-        }));
-        console.log(`[useRouletteData] Injetando dados simulados para teste`, dadosSimulados);
-        setNumbers(dadosSimulados);
-        setHasData(true);
-        */
-        
+                
         return false;
       }
     } catch (err: any) {
