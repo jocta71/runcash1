@@ -261,20 +261,30 @@ export function useRouletteData(
   const checkIfRouleteHasData = useCallback((roulette: any): boolean => {
     if (!roulette) return false;
     
-    // Verificar se existe dados em 'numero' ou 'numeros'
-    const hasNumero = roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0;
-    const hasNumeros = roulette.numeros && Array.isArray(roulette.numeros) && roulette.numeros.length > 0;
+    // Verificar se existe dados apenas em 'numero'
+    // Se vier como 'numeros', converter para 'numero'
+    if (roulette.numeros && Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
+      roulette.numero = roulette.numeros;
+      roulette.numeros = undefined;
+    }
     
-    return hasNumero || hasNumeros;
+    // Verificar se temos dados no campo 'numero'
+    return roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0;
   }, []);
   
   // Normaliza os dados da roleta para garantir que estejam no formato esperado
   const normalizeRouletteData = useCallback((data: any): RouletteNumber[] => {
     if (!data) return [];
     
-    // Verificar qual campo usar: numero ou numeros
-    const rawNumbers = data.numero && Array.isArray(data.numero) ? data.numero :
-                      (data.numeros && Array.isArray(data.numeros) ? data.numeros : []);
+    // Converter numeros para numero se necessário
+    const rawNumbers = Array.isArray(data.numeros) ? data.numeros : 
+                      (Array.isArray(data.numero) ? data.numero : []);
+    
+    // Se ainda estamos recebendo dados como "numeros", converter
+    if (Array.isArray(data.numeros) && !data.numero) {
+      data.numero = data.numeros;
+      data.numeros = undefined;
+    }
     
     return rawNumbers.map((item: any) => {
       // Se já for um objeto com 'numero', normalizar

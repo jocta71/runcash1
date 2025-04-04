@@ -756,11 +756,11 @@ class SocketService {
       
       console.log(`[SocketService] Emitindo evento de números para ${roletaNome} (${roletaId})`);
       
-      // Emite evento global com os números da roleta, enviando informações sobre a roleta
+      // Emite evento global com os números da roleta, usando apenas o campo "numero"
       EventService.emitGlobalEvent('numeros_atualizados', {
         roleta_id: roletaId,
         roleta_nome: roletaNome,
-        numeros: normalizeDados
+        numero: normalizeDados  // Emitir como "numero" em vez de "numeros"
       });
       
       // Se temos poucos números, também emitimos como eventos individuais
