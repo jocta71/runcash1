@@ -171,3 +171,90 @@
 .animate-fade-in {
   animation: fade-in 0.5s ease-out forwards;
 }
+
+/* Estilos para as mesas de roleta baseados no site de referência */
+.cy-live-casino-grid-item {
+  position: relative;
+  cursor: pointer;
+  background-color: #1c1c1c;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin-bottom: 16px;
+}
+
+.cy-live-casino-grid-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.cy-live-casino-grid-item-infobar {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  background-color: #2a2a2a;
+}
+
+.cy-live-casino-grid-item-infobar-dealer-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cy-live-casino-grid-item-infobar-draws {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+/* Classes para os números da roleta */
+.sc-kJLGgd {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  font-weight: 500;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.sc-kJLGgd span {
+  color: white;
+}
+
+/* Estilos para cada cor */
+.sc-kJLGgd.dPOPqL {
+  background-color: #d13639; /* Vermelho */
+}
+
+.sc-kJLGgd.bYTuoA {
+  background-color: #242424; /* Preto */
+}
+
+.sc-kJLGgd.iDZRwn {
+  background-color: #00a651; /* Verde */
+}
+
+/* Animação de pulso para destacar números novos */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s 1;
+}

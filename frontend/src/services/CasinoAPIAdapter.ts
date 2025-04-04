@@ -7,9 +7,20 @@ interface CasinoAPIConfig {
   baseUrl: string;
   endpoint: string;
   method: 'GET' | 'POST';
-  requestData?: any;
   headers?: Record<string, string>;
   pollInterval: number;
+}
+
+// Função para gerar ID de requisição único
+function generateClientRequestId(): string {
+  // Formato observado no site: mix de caracteres hexadecimais
+  const chars = '0123456789abcdef';
+  let result = '';
+  for (let i = 0; i < 32; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  // Inserir hífens para corresponder ao formato observado
+  return `${result.substring(0, 8)}-${result.substring(8, 12)}-${result.substring(12, 16)}-${result.substring(16, 20)}-${result.substring(20)}`;
 }
 
 class CasinoAPIAdapter {
@@ -20,16 +31,15 @@ class CasinoAPIAdapter {
   private lastData: any = null;
   
   constructor() {
-    // Configuração padrão que pode ser ajustada posteriormente
+    // Configuração padrão que corresponde ao site de referência
     this.config = {
       baseUrl: 'https://cgp.safe-iplay.com',
       endpoint: '/cgpapi/liveFeed/GetLiveTables',
       method: 'POST',
-      requestData: {},
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      pollInterval: 5000 // 5 segundos
+      pollInterval: 5000 // 5 segundos, como observado no site
     };
     
     console.log('[CasinoAPIAdapter] Inicializado');
@@ -90,17 +100,16 @@ class CasinoAPIAdapter {
     try {
       const url = `${this.config.baseUrl}${this.config.endpoint}`;
       
-      // Usar método correto para a requisição
-      let response;
-      if (this.config.method === 'POST') {
-        response = await axios.post(url, this.config.requestData, {
-          headers: this.config.headers
-        });
-      } else {
-        response = await axios.get(url, {
-          headers: this.config.headers
-        });
-      }
+      // Gerar um clientRequestId para cada requisição
+      const clientRequestId = generateClientRequestId();
+      
+      // Construir corpo da requisição exatamente como no site de referência
+      const requestBody = `regulationID=48&lang=spa&clientRequestId=${clientRequestId}`;
+      
+      // Fazer requisição POST com os parâmetros exatos
+      const response = await axios.post(url, requestBody, {
+        headers: this.config.headers
+      });
       
       if (response.status === 200 && response.data) {
         // Processar os dados recebidos
@@ -177,16 +186,16 @@ class CasinoAPIAdapter {
     try {
       const url = `${this.config.baseUrl}${this.config.endpoint}`;
       
-      let response;
-      if (this.config.method === 'POST') {
-        response = await axios.post(url, this.config.requestData, {
-          headers: this.config.headers
-        });
-      } else {
-        response = await axios.get(url, {
-          headers: this.config.headers
-        });
-      }
+      // Gerar um clientRequestId para a requisição
+      const clientRequestId = generateClientRequestId();
+      
+      // Construir corpo da requisição exatamente como no site de referência
+      const requestBody = `regulationID=48&lang=spa&clientRequestId=${clientRequestId}`;
+      
+      // Fazer requisição POST com os parâmetros exatos
+      const response = await axios.post(url, requestBody, {
+        headers: this.config.headers
+      });
       
       if (response.status === 200) {
         this.processLiveData(response.data);

@@ -12,53 +12,59 @@ const LiveRoulettePage = () => {
     // Configurar e iniciar o adaptador da API
     const apiAdapter = CasinoAPIAdapter.getInstance();
     
-    // Configurar o adaptador com os endpoints corretos
+    // Configurar o adaptador com os endpoints corretos baseados no site de referência
     apiAdapter.configure({
       baseUrl: 'https://cgp.safe-iplay.com',
       endpoint: '/cgpapi/liveFeed/GetLiveTables',
       method: 'POST',
-      requestData: {},
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
       pollInterval: 5000
     });
     
-    // Iniciar o polling
-    apiAdapter.startPolling();
-    
     // Marcar como carregado após um breve delay para dar tempo do primeiro fetch
     setTimeout(() => {
       setIsLoading(false);
     }, 1000);
     
-    // Limpar ao desmontar
-    return () => {
-      apiAdapter.stopPolling();
-    };
+    // O adaptador já é iniciado dentro do LiveRoulettesDisplay
+    
+    // Limpar ao desmontar (NÃO parar o polling aqui, deixar que o componente LiveRoulettesDisplay gerencie isso)
+    return () => {};
   }, []);
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-white">Roletas ao Vivo</h1>
-          <button 
-            onClick={() => navigate('/')}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-          >
-            Voltar
-          </button>
-        </div>
-        
-        {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-            <span className="ml-3 text-white">Conectando às mesas...</span>
+      <div className="relative min-h-screen bg-gray-900">
+        <header className="bg-gray-800 py-4 shadow-lg">
+          <div className="container mx-auto px-4 flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-white">Roletas ao Vivo</h1>
+            <button 
+              onClick={() => navigate('/')}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            >
+              Voltar
+            </button>
           </div>
-        ) : (
-          <LiveRoulettesDisplay />
-        )}
+        </header>
+        
+        <main className="container mx-auto px-4 py-8">
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+              <span className="ml-3 text-white">Conectando às mesas de roleta...</span>
+            </div>
+          ) : (
+            <LiveRoulettesDisplay />
+          )}
+        </main>
+        
+        <footer className="bg-gray-800 py-4 mt-12">
+          <div className="container mx-auto px-4 text-center text-gray-400 text-sm">
+            Os dados exibidos são obtidos em tempo real do servidor remoto.
+          </div>
+        </footer>
       </div>
     </Layout>
   );

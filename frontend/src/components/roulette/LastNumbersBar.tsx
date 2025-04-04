@@ -8,6 +8,25 @@ interface RouletteNumbersProps {
   tableName: string;
 }
 
+// Função para determinar a classe CSS correta com base no número
+const getNumberColorClass = (number: string): string => {
+  const num = parseInt(number, 10);
+  
+  // Zero é verde
+  if (num === 0) {
+    return 'sc-kJLGgd iDZRwn'; // Classe verde observada no site
+  }
+  
+  // Verificar se é número vermelho
+  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  if (redNumbers.includes(num)) {
+    return 'sc-kJLGgd dPOPqL'; // Classe vermelha observada no site
+  }
+  
+  // Caso contrário é preto
+  return 'sc-kJLGgd bYTuoA'; // Classe preta observada no site
+};
+
 const LastNumbersBar = ({ tableId, tableName }: RouletteNumbersProps) => {
   const [numbers, setNumbers] = useState<string[]>([]);
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
@@ -46,29 +65,6 @@ const LastNumbersBar = ({ tableId, tableName }: RouletteNumbersProps) => {
     };
   }, [tableId]);
 
-  // Função para obter a classe CSS baseada no número
-  const getNumberClass = (number: string, index: number) => {
-    const baseClass = 'flex justify-center items-center rounded-full w-7 h-7 text-white font-bold text-sm';
-    
-    // Adicionar classe de destaque se for o número recém-adicionado
-    const highlightClass = highlightIndex === index ? 'animate-pulse ring-2 ring-yellow-400' : '';
-    
-    // Determinar cor de fundo com base no valor do número
-    let bgColorClass = 'bg-gray-700'; // Default
-    
-    if (number === '0') {
-      bgColorClass = 'bg-green-600';
-    } else if (parseInt(number) > 0 && parseInt(number) <= 36) {
-      // Vermelho ou preto baseado na regra da roleta
-      const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-      bgColorClass = redNumbers.includes(parseInt(number)) 
-        ? 'bg-red-600' 
-        : 'bg-black';
-    }
-    
-    return `${baseClass} ${bgColorClass} ${highlightClass}`;
-  };
-
   const handleClick = () => {
     // Navegar para página detalhada da roleta ao clicar
     navigate(`/roulette/${tableId}`);
@@ -76,19 +72,29 @@ const LastNumbersBar = ({ tableId, tableName }: RouletteNumbersProps) => {
 
   return (
     <div 
-      className="flex flex-col space-y-1 bg-gray-800 p-2 rounded-md cursor-pointer hover:bg-gray-700 transition-colors"
+      className="cy-live-casino-grid-item"
       onClick={handleClick}
     >
-      <div className="text-xs text-white font-medium mb-1 truncate">{tableName}</div>
-      <div className="flex flex-wrap gap-1">
-        {numbers.slice(0, 10).map((number, index) => (
-          <div 
-            key={`${tableId}-${index}`} 
-            className={getNumberClass(number, index)}
-          >
-            {number}
-          </div>
-        ))}
+      <div className="sc-jhRbCK dwoBEu cy-live-casino-grid-item-infobar">
+        <div className="sc-hGwcmR dYPzjx cy-live-casino-grid-item-infobar-dealer-name">
+          {tableName}
+        </div>
+        <div className="sc-brePHE gjvwkd cy-live-casino-grid-item-infobar-draws">
+          {numbers.slice(0, 5).map((number, index) => {
+            const colorClass = getNumberColorClass(number);
+            const highlightClass = highlightIndex === index ? 'animate-pulse' : '';
+            
+            return (
+              <div 
+                key={`${tableId}-${index}`} 
+                className={`${colorClass} ${highlightClass}`}
+                style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+              >
+                <span>{number}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

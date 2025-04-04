@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import LastNumbersBar from './LastNumbersBar';
 import EventService from '@/services/EventService';
+import CasinoAPIAdapter from '@/services/CasinoAPIAdapter';
 
 interface RouletteTable {
   tableId: string;
@@ -16,12 +17,13 @@ const LiveRoulettesDisplay = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Iniciar o serviço de feed das roletas
-    const feedService = RouletteFeedService.getInstance();
-    feedService.startPolling();
+    // Iniciar o adaptador de API do cassino
+    const apiAdapter = CasinoAPIAdapter.getInstance();
+    apiAdapter.startPolling();
     
     // Função para atualizar a lista de mesas
     const updateTables = () => {
+      const feedService = RouletteFeedService.getInstance();
       const allTables = feedService.getAllRouletteTables();
       
       if (allTables.length > 0) {
@@ -84,12 +86,13 @@ const LiveRoulettesDisplay = () => {
     return () => {
       EventService.off('roulette:numbers-updated', handleNumbersUpdated);
       clearInterval(checkInterval);
+      apiAdapter.stopPolling();
     };
   }, []);
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center p-8">
+      <div className="flex justify-center items-center p-8 h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
         <span className="ml-2 text-white">Carregando mesas de roleta...</span>
       </div>
@@ -105,9 +108,11 @@ const LiveRoulettesDisplay = () => {
   }
 
   return (
-    <div className="p-4">
-      <h2 className="text-xl font-bold mb-4 text-white">Roletas ao Vivo</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    <div className="container mx-auto px-4 py-8">
+      <h2 className="text-2xl font-bold mb-6 text-white">Roletas ao Vivo</h2>
+      
+      {/* Grid de roletas similar ao do site de referência */}
+      <div className="sc-casino-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
         {tables.map(table => (
           <LastNumbersBar 
             key={table.tableId}
@@ -115,6 +120,16 @@ const LiveRoulettesDisplay = () => {
             tableName={table.tableName}
           />
         ))}
+      </div>
+      
+      {/* Botão para atualizar manualmente */}
+      <div className="flex justify-center mt-8">
+        <button 
+          onClick={() => CasinoAPIAdapter.getInstance().fetchDataOnce()}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors"
+        >
+          Atualizar Dados
+        </button>
       </div>
     </div>
   );
