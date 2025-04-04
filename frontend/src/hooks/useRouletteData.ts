@@ -573,7 +573,7 @@ export function useRouletteData(
   
   // ===== EVENTOS E WEBSOCKETS =====
   
-  // Processar novos números recebidos via WebSocket - MODIFICADA PARA ATUALIZAR APENAS newNumbers
+  // Processar novos números recebidos via WebSocket - MODIFICADA PARA ATUALIZAR AMBOS newNumbers E initialNumbers
   const handleNewNumber = useCallback((event: RouletteNumberEvent) => {
     if (event.type !== 'new_number') return;
     
@@ -583,7 +583,10 @@ export function useRouletteData(
     
     debugLog(`[useRouletteData] Número recebido via evento para ${roletaNome}: ${numeroFormatado}`);
     
-    // 2. PROCESSAMENTO: Atualizar estado APENAS dos novos números
+    // Processar o novo número
+    const newNumber = processRouletteNumber(numeroFormatado, event.timestamp);
+    
+    // 2. PROCESSAMENTO: Atualizar estado dos novos números
     setNewNumbers(prev => {
       // Verificar se o número já existe nos novos
       const isDuplicate = prev.some(num => 
@@ -593,11 +596,23 @@ export function useRouletteData(
       
       if (isDuplicate) return prev;
       
-      // Processar o novo número
-      const newNumber = processRouletteNumber(numeroFormatado, event.timestamp);
-      
-      // Adicionar o novo número APENAS ao array de novos números
+      // Adicionar o novo número ao array de novos números
       console.log(`[useRouletteData] Adicionando novo número ${numeroFormatado} ao array de NOVOS números para ${roletaNome}`);
+      return [newNumber, ...prev];
+    });
+    
+    // 3. ADIÇÃO IMEDIATA: Adicionar também ao histórico initialNumbers
+    setInitialNumbers(prev => {
+      // Verificar se o número já existe no histórico
+      const isDuplicate = prev.some(num => 
+        num.numero === numeroFormatado && 
+        num.timestamp === event.timestamp
+      );
+      
+      if (isDuplicate) return prev;
+      
+      // Adicionar o novo número também ao histórico
+      console.log(`[useRouletteData] Adicionando imediatamente o número ${numeroFormatado} ao HISTÓRICO para ${roletaNome}`);
       return [newNumber, ...prev];
     });
     
