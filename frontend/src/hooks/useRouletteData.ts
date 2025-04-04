@@ -52,6 +52,9 @@ type RouletteStrategy = ApiRouletteStrategy;
 // Criar um registro global de polling para evitar duplicações
 const pollingInitialized = new Set<string>();
 
+// Cache local para armazenar dados entre sessões
+const getLocalStorageKey = (roletaId: string) => `roulette_data_${roletaId}`;
+
 /**
  * Função para buscar números da roleta pelo novo endpoint separado
  * @param roletaId ID da roleta
@@ -232,6 +235,44 @@ export function useRouletteData(
   
   // Chave única para esta instância do hook
   const instanceKey = useRef<string>(`${roletaId}:${roletaNome}`);
+
+  // NOVA ADIÇÃO: Carregar dados do localStorage ao iniciar
+  useEffect(() => {
+    try {
+      const storageKey = getLocalStorageKey(roletaId);
+      const cachedData = localStorage.getItem(storageKey);
+      
+      if (cachedData) {
+        const parsedData = JSON.parse(cachedData) as RouletteNumber[];
+        console.log(`[useRouletteData] Carregado ${parsedData.length} números do armazenamento local para ${roletaNome}`);
+        
+        if (parsedData.length > 0) {
+          setInitialNumbers(parsedData);
+          setHasData(true);
+          initialDataLoaded.current = true;
+          
+          // Definir loading como false imediatamente se temos dados em cache
+          setLoading(false);
+        }
+      }
+    } catch (err) {
+      console.warn(`[useRouletteData] Erro ao carregar dados do localStorage:`, err);
+    }
+  }, [roletaId, roletaNome]);
+
+  // NOVA ADIÇÃO: Salvar dados no localStorage sempre que initialNumbers for atualizado
+  useEffect(() => {
+    if (initialNumbers.length > 0) {
+      try {
+        const storageKey = getLocalStorageKey(roletaId);
+        const dataToSave = JSON.stringify(initialNumbers);
+        localStorage.setItem(storageKey, dataToSave);
+        console.log(`[useRouletteData] Salvos ${initialNumbers.length} números no armazenamento local para ${roletaNome}`);
+      } catch (err) {
+        console.warn(`[useRouletteData] Erro ao salvar dados no localStorage:`, err);
+      }
+    }
+  }, [initialNumbers, roletaId, roletaNome]);
 
   // Função para atualizar o estado numbers que combina initialNumbers e newNumbers
   const updateCombinedNumbers = useCallback(() => {
