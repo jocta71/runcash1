@@ -250,25 +250,39 @@ export function useRouletteData(
       return;
     }
     
-    // Combinar, garantindo que não haja duplicações
-    const combined = [...newNumbers];
+    // Combinar sem duplicar números
+    const numberMap = new Map();
     
-    // Adicionar números iniciais que não estão nos novos
-    initialNumbers.forEach(initialNum => {
-      // Verificar se já existe nos novos números
-      const exists = combined.some(newNum => 
-        newNum.numero === initialNum.numero && 
-        newNum.timestamp === initialNum.timestamp
-      );
-      
-      // Se não existe, adicionar
-      if (!exists) {
-        combined.push(initialNum);
+    // Adicionar números iniciais ao mapa, usando o valor do número como chave
+    initialNumbers.forEach(item => {
+      const numeroValue = typeof item === 'object' ? item.numero : item;
+      if (!numberMap.has(numeroValue)) {
+        numberMap.set(numeroValue, item);
       }
     });
     
-    console.log(`[useRouletteData] Total combinado: ${combined.length} números para ${roletaNome}`);
-    setNumbers(combined);
+    // Adicionar novos números, substituindo os existentes se houver duplicatas
+    newNumbers.forEach(item => {
+      const numeroValue = typeof item === 'object' ? item.numero : item;
+      if (!numberMap.has(numeroValue)) {
+        numberMap.set(numeroValue, item);
+      }
+    });
+    
+    // Converter o mapa de volta para um array e ordenar por timestamp (mais recente primeiro)
+    const combinedArray = Array.from(numberMap.values()).sort((a, b) => {
+      // Se for objeto, comparar timestamps
+      if (typeof a === 'object' && typeof b === 'object') {
+        const timeA = new Date(a.timestamp || '');
+        const timeB = new Date(b.timestamp || '');
+        return timeB.getTime() - timeA.getTime();
+      }
+      // Se forem números simples, manter a ordem
+      return 0;
+    });
+    
+    console.log(`[useRouletteData] Números combinados: ${combinedArray.length} números únicos para ${roletaNome}`);
+    setNumbers(combinedArray);
   }, [initialNumbers, newNumbers, roletaNome]);
 
   // Atualizar o estado combinado sempre que initialNumbers ou newNumbers mudar

@@ -223,24 +223,53 @@ export const fetchAllRoulettes = async (): Promise<RouletteData[]> => {
   
   if (Array.isArray(data)) {
     // Formatar os dados para o tipo RouletteData
-    const formattedData: RouletteData[] = data.map((roleta: any) => ({
-      id: roleta.id || roleta._id,
-      nome: roleta.nome,
-      roleta_nome: roleta.roleta_nome || roleta.nome,
-      numeros: roleta.numeros || [],
-      updated_at: roleta.updated_at || new Date().toISOString(),
-      estado_estrategia: roleta.estado_estrategia || 'NEUTRAL',
-      numero_gatilho: roleta.numero_gatilho || 0,
-      numero_gatilho_anterior: roleta.numero_gatilho_anterior || 0,
-      terminais_gatilho: roleta.terminais_gatilho || [],
-      terminais_gatilho_anterior: roleta.terminais_gatilho_anterior || [],
-      vitorias: roleta.vitorias || 0,
-      derrotas: roleta.derrotas || 0,
-      sugestao_display: roleta.sugestao_display || ''
+    const formattedData: RouletteData[] = await Promise.all(data.map(async (roleta: any) => {
+      const roletaId = roleta.id || roleta._id;
+      
+      // Buscar os números desta roleta específica do endpoint correto
+      let numeros: number[] = [];
+      try {
+        // Buscar números da roleta do endpoint específico
+        console.log(`[API] Buscando números para roleta ${roletaId} do endpoint específico...`);
+        const response = await api.get(`/roulette-numbers/${roletaId}?limit=50`);
+        
+        if (response.data && Array.isArray(response.data)) {
+          // Extrair apenas os números do array de objetos
+          numeros = response.data.map((item: any) => {
+            if (typeof item.numero === 'number') return item.numero;
+            if (typeof item.numero === 'string') return parseInt(item.numero, 10);
+            return 0;
+          }).filter((n: number) => !isNaN(n));
+          
+          console.log(`[API] Obtidos ${numeros.length} números para roleta ${roleta.nome} (ID: ${roletaId})`);
+        }
+      } catch (error) {
+        console.warn(`[API] Erro ao buscar números para roleta ${roleta.nome} (ID: ${roletaId}):`, error);
+        // Em caso de erro, manter os números existentes no objeto da roleta (se houver)
+        if (roleta.numeros && Array.isArray(roleta.numeros)) {
+          numeros = roleta.numeros;
+        }
+      }
+      
+      return {
+        id: roletaId,
+        nome: roleta.nome,
+        roleta_nome: roleta.roleta_nome || roleta.nome,
+        numeros: numeros, // Usar os números obtidos do endpoint específico
+        updated_at: roleta.updated_at || new Date().toISOString(),
+        estado_estrategia: roleta.estado_estrategia || 'NEUTRAL',
+        numero_gatilho: roleta.numero_gatilho || 0,
+        numero_gatilho_anterior: roleta.numero_gatilho_anterior || 0,
+        terminais_gatilho: roleta.terminais_gatilho || [],
+        terminais_gatilho_anterior: roleta.terminais_gatilho_anterior || [],
+        vitorias: roleta.vitorias || 0,
+        derrotas: roleta.derrotas || 0,
+        sugestao_display: roleta.sugestao_display || ''
+      };
     }));
     
     // Os dados já foram filtrados anteriormente no getAllRoulettesWithCache
-    console.log(`[API] Processadas ${formattedData.length} roletas permitidas`);
+    console.log(`[API] Processadas ${formattedData.length} roletas com dados completos de números`);
     return formattedData;
   }
   

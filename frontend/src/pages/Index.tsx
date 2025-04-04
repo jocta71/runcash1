@@ -145,11 +145,42 @@ const Index = () => {
           throw new Error('Dados inválidos retornados pela API');
         }
         
-        // Mesclar com roletas conhecidas para garantir que nenhuma desaparece
-        const mergedRoulettes = mergeRoulettes(data);
-        setRoulettes(mergedRoulettes);
-        
-        console.log(`[Index] Total de roletas após mesclagem: ${mergedRoulettes.length} (API: ${data.length}, Conhecidas: ${Object.keys(knownRoulettes).length})`);
+        // Mesclar com roletas conhecidas e também preservar dados existentes
+        setRoulettes(prevRoulettes => {
+          // Criar um mapa das roletas anteriores por ID para preservar os dados
+          const existingRoulettesMap = new Map();
+          prevRoulettes.forEach(roleta => {
+            existingRoulettesMap.set(roleta.id, roleta);
+          });
+          
+          // Mesclar novas roletas com dados existentes para preservar os números
+          const mergedRoulettes = data.map(newRoulette => {
+            const existingRoulette = existingRoulettesMap.get(newRoulette.id);
+            
+            // Se a roleta já existe, preservar os números e apenas atualizar outros dados
+            if (existingRoulette) {
+              // Se não há números no objeto novo ou a lista está vazia, manter os números existentes
+              const shouldKeepExistingNumbers = !newRoulette.numeros || newRoulette.numeros.length === 0;
+              
+              return {
+                ...newRoulette,
+                numeros: shouldKeepExistingNumbers ? existingRoulette.numeros : newRoulette.numeros,
+                // Preservar dados de vitórias/derrotas se eles não mudaram
+                vitorias: newRoulette.vitorias || existingRoulette.vitorias,
+                derrotas: newRoulette.derrotas || existingRoulette.derrotas
+              };
+            }
+            
+            // Se é uma nova roleta, usá-la como está
+            return newRoulette;
+          });
+          
+          // Mesclar com roletas conhecidas também
+          const finalRoulettes = mergeRoulettes(mergedRoulettes);
+          console.log(`[Index] Total de roletas após mesclagem: ${finalRoulettes.length} (API: ${data.length}, Anteriores: ${prevRoulettes.length})`);
+          
+          return finalRoulettes;
+        });
         
         setError(null);
         setDataFullyLoaded(true);
@@ -177,17 +208,60 @@ const Index = () => {
     // Recarregar a cada 60 segundos
     const interval = setInterval(async () => {
       try {
+        if (!dataFullyLoaded) return; // Não recarregar se os dados iniciais não foram carregados
+        
+        console.log('[Index] Atualizando dados das roletas...');
         const data = await fetchAllRoulettes();
-        const mergedRoulettes = mergeRoulettes(data);
-        setRoulettes(mergedRoulettes);
-        console.log('[Index] Roletas recarregadas automaticamente');
+        
+        // Mesclar novos dados com os existentes, preservando números
+        setRoulettes(prevRoulettes => {
+          // Criar um mapa das roletas anteriores por ID
+          const existingRoulettesMap = new Map();
+          prevRoulettes.forEach(roleta => {
+            existingRoulettesMap.set(roleta.id, roleta);
+          });
+          
+          // Mesclar novos dados com dados existentes
+          const mergedRoulettes = data.map(newRoulette => {
+            const existingRoulette = existingRoulettesMap.get(newRoulette.id);
+            
+            // Se a roleta já existe, preservar os números e apenas atualizar outros dados
+            if (existingRoulette) {
+              // Se não há números no objeto novo ou há menos números que no existente, manter os números existentes
+              const shouldKeepExistingNumbers = !newRoulette.numeros || (existingRoulette.numeros && existingRoulette.numeros.length > newRoulette.numeros.length);
+              
+              // Mesclar listas de números para não perder dados
+              let mergedNumbers = newRoulette.numeros || [];
+              if (shouldKeepExistingNumbers && existingRoulette.numeros) {
+                // Usar conjunto para eliminar duplicatas
+                const numbersSet = new Set([...mergedNumbers, ...existingRoulette.numeros]);
+                mergedNumbers = Array.from(numbersSet);
+              }
+              
+              return {
+                ...newRoulette,
+                numeros: mergedNumbers,
+                // Preservar dados de estratégia se não mudaram
+                vitorias: newRoulette.vitorias || existingRoulette.vitorias,
+                derrotas: newRoulette.derrotas || existingRoulette.derrotas
+              };
+            }
+            
+            // Se é uma nova roleta, usá-la como está
+            return newRoulette;
+          });
+          
+          const finalMerged = mergeRoulettes(mergedRoulettes);
+          console.log('[Index] Roletas atualizadas, preservando dados existentes');
+          return finalMerged;
+        });
       } catch (err) {
         console.error('[Index] Erro ao recarregar roletas:', err);
       }
     }, 60000);
     
     return () => clearInterval(interval);
-  }, [mergeRoulettes]);
+  }, [mergeRoulettes, dataFullyLoaded]);
   
   const filteredRoulettes = useMemo(() => {
     return roulettes.filter(roulette => 
