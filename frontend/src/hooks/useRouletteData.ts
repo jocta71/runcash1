@@ -557,7 +557,15 @@ export function useRouletteData(
     const numeroRaw = event.numero;
     const numeroFormatado = typeof numeroRaw === 'string' ? parseInt(numeroRaw, 10) : numeroRaw;
     
-    debugLog(`[useRouletteData] Número recebido via evento para ${roletaNome}: ${numeroFormatado}`);
+    // Adicionar log para debug - mostrar a relação entre roleta e número recebido
+    console.log(`[useRouletteData] 📌 Número ${numeroFormatado} recebido para roleta ${event.roleta_nome} (${event.roleta_id}), hook está inscrito em: ${roletaNome} (${canonicalId})`);
+    
+    // Verificar se este evento é realmente para esta roleta
+    if (event.roleta_nome !== roletaNome && event.roleta_id !== roletaId && event.roleta_id !== canonicalId) {
+      console.warn(`[useRouletteData] ⚠️ EVENTO CRUZADO: Número ${numeroFormatado} da roleta ${event.roleta_nome} foi recebido pelo hook de ${roletaNome}`);
+      // Se o número não é para esta roleta, não processar
+      return;
+    }
     
     // Processar o novo número
     const newNumber = processRouletteNumber(numeroFormatado, event.timestamp);
@@ -573,7 +581,7 @@ export function useRouletteData(
       if (isDuplicate) return prev;
       
       // Adicionar o novo número ao array de novos números
-      console.log(`[useRouletteData] Adicionando novo número ${numeroFormatado} ao array de NOVOS números para ${roletaNome}`);
+      console.log(`[useRouletteData] ✅ Adicionando novo número ${numeroFormatado} ao array de NOVOS números para ${roletaNome}`);
       return [newNumber, ...prev];
     });
     
@@ -588,14 +596,14 @@ export function useRouletteData(
       if (isDuplicate) return prev;
       
       // Adicionar o novo número também ao histórico
-      console.log(`[useRouletteData] Adicionando imediatamente o número ${numeroFormatado} ao HISTÓRICO para ${roletaNome}`);
+      console.log(`[useRouletteData] ✅ Adicionando imediatamente o número ${numeroFormatado} ao HISTÓRICO para ${roletaNome}`);
       return [newNumber, ...prev];
     });
     
     // Atualizar estado de conexão e dados
     setHasData(true);
     setIsConnected(true);
-  }, [roletaNome]);
+  }, [roletaNome, roletaId, canonicalId]);
   
   // Efeito para ancorar novos números periodicamente nos dados iniciais
   useEffect(() => {

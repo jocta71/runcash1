@@ -433,36 +433,37 @@ class SocketService {
     }, delay);
   }
   
-  // Adiciona um listener para eventos de uma roleta específica - melhorado para garantir conexão
+  /**
+   * Subscreve para eventos de uma roleta específica
+   * 
+   * @param roletaNome Nome da roleta para subscrever
+   * @param callback Callback a ser chamado quando o evento ocorrer
+   */
   public subscribe(roletaNome: string, callback: RouletteEventCallback): void {
-    // Garantir que estamos conectados
-    if (!this.isSocketConnected()) {
-      console.log("[SocketService] Conexão Socket.IO não ativa, reconectando...");
-      this.connect();
-    }
-    
-    // Validar o nome da roleta
+    // Verificação de segurança
     if (!roletaNome) {
-      console.warn("[SocketService] Tentativa de inscrição com nome de roleta inválido");
-      roletaNome = '*'; // Fallback para o listener global
+      console.warn('[SocketService] Tentativa de inscrição com nome de roleta inválido.');
+      return;
     }
     
-    // Resto do código de inscrição existente
+    // Log detalhado
+    console.log(`[SocketService] INSCREVENDO para eventos da roleta: ${roletaNome}`);
+    
+    // Se não existe conjunto para este nome, criar
     if (!this.listeners.has(roletaNome)) {
+      console.log(`[SocketService] Criando novo conjunto de listeners para roleta: ${roletaNome}`);
       this.listeners.set(roletaNome, new Set());
     }
     
-    const currentListeners = this.listeners.get(roletaNome);
-    if (currentListeners) {
-      currentListeners.add(callback);
-      console.log(`[SocketService] Inscrevendo para eventos da roleta: ${roletaNome}`);
-      console.log(`[SocketService] Total de listeners para ${roletaNome}: ${currentListeners.size}`);
-      
-      // Solicitar dados recentes para garantir dados iniciais e contínuos
-      if (roletaNome !== '*') {
-        setTimeout(() => this.requestRecentNumbers(), 500);
-      }
+    // Adicionar o callback ao conjunto de listeners para esta roleta
+    const listeners = this.listeners.get(roletaNome);
+    if (listeners) {
+      listeners.add(callback);
+      console.log(`[SocketService] ✅ Callback adicionado aos listeners de ${roletaNome}. Total: ${listeners.size}`);
     }
+    
+    // Registrar roleta específica para receber updates em tempo real
+    this.registerRouletteForRealTimeUpdates(roletaNome);
   }
   
   // Remove um listener
@@ -476,22 +477,32 @@ class SocketService {
     }
   }
   
-  // Notifica os listeners sobre um novo evento
+  /**
+   * Notifica os listeners sobre um evento de roleta
+   * 
+   * @param event Evento a ser notificado
+   */
   private notifyListeners(event: RouletteNumberEvent | StrategyUpdateEvent): void {
     try {
-      // Verificar se é um evento de novo número ou de estratégia
-      const eventType = event.type;
+      if (!event) {
+        console.warn('[SocketService] Tentativa de notificar com evento nulo ou indefinido');
+        return;
+      }
+      
       const roletaNome = event.roleta_nome;
+      const roletaId = event.roleta_id;
       
       // Log detalhado para debug
-      console.log(`[SocketService] Notificando listeners para evento ${eventType} da roleta ${roletaNome}`);
+      console.log(`[SocketService] NOTIFICANDO listeners de evento para roleta: ${roletaNome} (${roletaId}), tipo: ${event.type}`);
       
-      // Notificar os listeners específicos para esta roleta
-      if (this.listeners.has(roletaNome)) {
-        const roletaListeners = this.listeners.get(roletaNome);
-        if (roletaListeners) {
-          console.log(`[SocketService] Notificando ${roletaListeners.size} listeners específicos para ${roletaNome}`);
-          roletaListeners.forEach(callback => {
+      // 1. Notificar listeners específicos desta roleta
+      if (roletaNome && this.listeners.has(roletaNome)) {
+        const specificListeners = this.listeners.get(roletaNome);
+        
+        console.log(`[SocketService] Notificando ${specificListeners?.size || 0} listeners específicos para ${roletaNome}`);
+        
+        if (specificListeners && specificListeners.size > 0) {
+          specificListeners.forEach(callback => {
             try {
               callback(event);
             } catch (error) {
@@ -501,52 +512,30 @@ class SocketService {
         }
       }
       
-      // Notificar também os listeners globais
+      // 2. Notificar listeners globais (apenas se houver algum)
       if (this.listeners.has('*')) {
         const globalListeners = this.listeners.get('*');
-        if (globalListeners) {
-          console.log(`[SocketService] Notificando ${globalListeners.size} listeners globais`);
+        
+        console.log(`[SocketService] Notificando ${globalListeners?.size || 0} listeners globais (*)`);
+        
+        if (globalListeners && globalListeners.size > 0) {
           globalListeners.forEach(callback => {
             try {
               callback(event);
             } catch (error) {
-              console.error('[SocketService] Erro ao chamar callback global:', error);
+              console.error(`[SocketService] Erro ao chamar callback global:`, error);
             }
           });
         }
       }
       
-      // Se for um evento de novo número, também notificar através dos listeners de números específicos
-      if (eventType === 'new_number' && this.listeners.has('new_number')) {
-        const numberListeners = this.listeners.get('new_number');
-        if (numberListeners) {
-          console.log(`[SocketService] Notificando ${numberListeners.size} listeners de números`);
-          numberListeners.forEach(callback => {
-            try {
-              callback(event);
-            } catch (error) {
-              console.error('[SocketService] Erro ao chamar callback de número:', error);
-            }
-          });
-        }
-      }
-      
-      // Se for um evento de estratégia, também notificar através dos listeners de estratégia
-      if (eventType === 'strategy_update' && this.listeners.has('strategy_update')) {
-        const strategyListeners = this.listeners.get('strategy_update');
-        if (strategyListeners) {
-          console.log(`[SocketService] Notificando ${strategyListeners.size} listeners de estratégia`);
-          strategyListeners.forEach(callback => {
-            try {
-              callback(event);
-            } catch (error) {
-              console.error('[SocketService] Erro ao chamar callback de estratégia:', error);
-            }
-          });
-        }
-      }
+      // 3. Log com estatísticas de notificação
+      console.log(`[SocketService] Total de listeners notificados: ${
+        (this.listeners.get(roletaNome)?.size || 0) + 
+        (this.listeners.get('*')?.size || 0)
+      }`);
     } catch (error) {
-      console.error('[SocketService] Erro ao notificar listeners:', error);
+      console.error('[SocketService] Erro na notificação de listeners:', error);
     }
   }
   
@@ -699,86 +688,78 @@ class SocketService {
     }
   }
   
-  // Método para processar dados de números
+  // Método para processar dados dos números recebidos
   private processNumbersData(numbersData: any[], roulette: any): void {
-    console.log(`[SocketService] Processando ${numbersData.length} números para roleta ${roulette.nome || roulette.name}`);
-    
-    // Verificar se temos listeners para esta roleta
-    const roletaNome = roulette.nome || roulette.name;
-    const roletaId = roulette._id || roulette.id;
-    
-    if (!this.listeners.has(roletaNome) && !this.listeners.has('*')) {
-      console.log(`[SocketService] Nenhum listener encontrado para a roleta: ${roletaNome}. Criando inscrição automática`);
-      // Criar um set vazio para garantir que podemos adicionar listeners depois
-      this.listeners.set(roletaNome, new Set());
-    }
-    
-    // Log detalhado sobre listeners
-    console.log(`[SocketService] Status dos listeners:
-      - Global (*): ${this.listeners.has('*') ? 'Sim' : 'Não'}
-      - Específico (${roletaNome}): ${this.listeners.has(roletaNome) ? 'Sim' : 'Não'}
-      - Total listeners globais: ${this.listeners.get('*')?.size || 0}
-      - Total listeners específicos: ${this.listeners.get(roletaNome)?.size || 0}
-    `);
-    
-    // Processar cada número individualmente
-    numbersData.forEach((num, index) => {
-      // Verificar se o número é válido
-      if (num === null || num === undefined) {
-        console.warn(`[SocketService] Número inválido na posição ${index} para ${roletaNome}`);
+    try {
+      // Verifica se chegaram dados 
+      if (!Array.isArray(numbersData) || numbersData.length === 0 || !roulette) {
+        console.warn('[SocketService] Dados inválidos recebidos para processamento:', { numbersData, roulette });
         return;
       }
       
-      // Extrair o número conforme o tipo
-      let numero: number;
-      if (typeof num === 'number') {
-        numero = num;
-      } else if (typeof num === 'object' && num !== null && num.numero !== undefined) {
-        numero = typeof num.numero === 'number' ? num.numero : parseInt(String(num.numero), 10);
-      } else if (typeof num === 'string') {
-        numero = parseInt(num, 10);
-      } else {
-        console.warn(`[SocketService] Formato de número não suportado: ${typeof num}`);
-        return;
-      }
-      
-      // Verificar se o número é válido após conversão
-      if (isNaN(numero) || numero < 0 || numero > 36) {
-        console.warn(`[SocketService] Número fora do intervalo válido: ${numero}`);
-        return;
-      }
-      
-      // Criar o evento
-                  const event: RouletteNumberEvent = {
-                    type: 'new_number',
-        roleta_id: roletaId || 'unknown-id',
-        roleta_nome: roletaNome,
-                    numero: numero,
-                    timestamp: (num && num.timestamp) ? num.timestamp : new Date().toISOString()
-                  };
-                  
       // Log detalhado para debug
-      console.log(`[SocketService] Enviando evento para ${roletaNome}: número ${numero}`);
+      console.log(`[SocketService] PROCESSANDO ${numbersData.length} NÚMEROS para roleta ${roulette.nome || roulette._id}`);
+      console.log(`[SocketService] Primeiro número: ${numbersData[0]?.numero}, Último número: ${numbersData[numbersData.length-1]?.numero}`);
       
-      // Usar o EventService diretamente, sem chamar o método que não existe
-      const eventService = EventService.getInstance();
+      // Extrai o ID e nome da roleta
+      const roletaId = roulette._id || roulette.id;
+      const roletaNome = roulette.nome || roulette.name || `Roleta ${roletaId}`;
       
-      // Enviar também como evento global para garantir
-      EventService.emitGlobalEvent('new_number', event);
+      if (!roletaId) {
+        console.error('[SocketService] Roleta sem ID válido:', roulette);
+        return;
+      }
       
-      // Notificar diretamente os listeners locais sobre este número
-                  this.notifyListeners(event);
-    });
-    
-    // Log final
-    console.log(`[SocketService] Concluído o processamento de ${numbersData.length} números para ${roletaNome}`);
-    
-    // Garantir que a interface seja atualizada enviando um evento global
-    EventService.emitGlobalEvent('numbers_processed', { 
-      roleta_id: roletaId,
-      roleta_nome: roletaNome, 
-      count: numbersData.length 
-    });
+      console.log(`[SocketService] Emitindo evento de números para ${roletaNome} (${roletaId})`);
+      
+      // Emite evento global com os números da roleta, enviando informações sobre a roleta
+      EventService.emitGlobalEvent('numeros_atualizados', {
+        roleta_id: roletaId,
+        roleta_nome: roletaNome,
+        numeros: numbersData.map(item => ({
+          numero: item.numero,
+          timestamp: item.timestamp,
+          cor: item.cor,
+          roleta_id: roletaId,
+          roleta_nome: roletaNome
+        }))
+      });
+      
+      // Se temos poucos números, também emitimos como eventos individuais
+      // para manter a compatibilidade com código legado
+      if (numbersData.length <= 10) {
+        // Emitir cada número como um evento separado
+        numbersData.forEach(item => {
+          const numero = item.numero;
+          const timestamp = item.timestamp || new Date().toISOString();
+          
+          // Log para debug - mostrar o número exato sendo enviado para cada roleta
+          console.log(`[SocketService] Emitindo número ${numero} para ${roletaNome}`);
+          
+          const event: RouletteNumberEvent = {
+            type: 'new_number',
+            roleta_id: roletaId,
+            roleta_nome: roletaNome,
+            numero: numero,
+            timestamp: timestamp
+          };
+          
+          // Notificar os ouvintes deste evento
+          this.notifyListeners(event);
+          
+          // Adicionar o número à lista de recebidos recentemente
+          this.lastReceivedData.set(`${roletaId}:${numero}`, {
+            timestamp: Date.now(),
+            data: event
+          });
+        });
+      } else {
+        console.log(`[SocketService] Emitindo apenas evento em lote para ${numbersData.length} números da roleta ${roletaNome}`);
+      }
+      
+    } catch (error) {
+      console.error('[SocketService] Erro ao processar números:', error);
+    }
   }
 
   // Método para carregar números históricos das roletas
@@ -1490,6 +1471,49 @@ class SocketService {
       
     } catch (error) {
       console.error(`[SocketService] Erro ao adicionar roleta à fila: ${error}`);
+    }
+  }
+
+  /**
+   * Registra uma roleta para receber atualizações em tempo real
+   * 
+   * @param roletaNome Nome da roleta para registrar
+   */
+  private registerRouletteForRealTimeUpdates(roletaNome: string): void {
+    if (!roletaNome) return;
+    
+    console.log(`[SocketService] Registrando roleta ${roletaNome} para updates em tempo real`);
+    
+    // Buscar o ID canônico pelo nome
+    const roleta = ROLETAS_CANONICAS.find(r => r.nome === roletaNome);
+    
+    if (roleta) {
+      const roletaId = roleta.id;
+      console.log(`[SocketService] Roleta encontrada com ID: ${roletaId}`);
+      
+      // Emitir evento para o servidor registrar esta roleta para atualizações em tempo real
+      if (this.socket && this.connectionActive) {
+        this.socket.emit('subscribe_roulette', { 
+          roleta_id: roletaId, 
+          roleta_nome: roletaNome 
+        });
+        
+        console.log(`[SocketService] ✅ Enviado pedido de subscrição para ${roletaNome} (${roletaId})`);
+      } else {
+        console.log(`[SocketService] ⚠️ Socket não conectado, subscrição será feita quando reconectar`);
+      }
+      
+      // Buscar dados iniciais via REST
+      this.fetchRouletteNumbersREST(roletaId)
+        .then(success => {
+          if (success) {
+            console.log(`[SocketService] ✅ Dados iniciais obtidos com sucesso para ${roletaNome}`);
+          } else {
+            console.warn(`[SocketService] ⚠️ Falha ao obter dados iniciais para ${roletaNome}`);
+          }
+        });
+    } else {
+      console.warn(`[SocketService] ⚠️ Roleta não encontrada pelo nome: ${roletaNome}`);
     }
   }
 
