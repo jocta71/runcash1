@@ -172,15 +172,52 @@ export const mapToCanonicalRouletteId = (uuid: string, nome?: string): string =>
     return uuid;
   }
 
-  // Mapeamento fixo de UUIDs específicos para IDs canônicos
+  // MAPEAMENTO COMPLETO: Tabela de conversão de UUIDs para IDs canônicos
   const uuidToIdMap: Record<string, string> = {
-    "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2380335", // Brazilian Mega Roulette
-    "1f156e80-ba21-11e5-b4c9-005056a03af2": "2010016", // Immersive Roulette
-    "e95fe030-c341-11e8-a12e-005056a03af2": "2010096", // Speed Auto Roulette
-    "d7115270-fec9-11e8-81a4-0025907e870c": "2010065", // Bucharest Auto-Roulette
-    "12de4qt1-c791-11e8-a01c-005056a03af2": "2010017", // Auto-Roulette
-    "303f7ca0-c415-11e8-a12e-005056a03af2": "2010098"  // Auto-Roulette VIP
+    // Brazilian Mega Roulette (2380335)
+    "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2380335",
+    "7d3c2c9f2850f642861f5bb4daf1806a": "2380335",
+    
+    // Immersive Roulette (2010016)
+    "1f156e80-ba21-11e5-b4c9-005056a03af2": "2010016",
+    "1f156e80ba2111e5b4c9005056a03af2": "2010016",
+    "f27dd03e-5282-fc78-961c-6375cef91565": "2010016",
+    "f27dd03e5282fc78961c6375cef91565": "2010016",
+    
+    // Speed Auto Roulette (2010096)
+    "e95fe030-c341-11e8-a12e-005056a03af2": "2010096",
+    "e95fe030c34111e8a12e005056a03af2": "2010096",
+    
+    // Bucharest Auto-Roulette (2010065)
+    "d7115270-fec9-11e8-81a4-0025907e870c": "2010065",
+    "d7115270fec911e881a40025907e870c": "2010065",
+    
+    // Auto-Roulette (2010017)
+    "12de4qt1-c791-11e8-a01c-005056a03af2": "2010017",
+    "12de4qt1c79111e8a01c005056a03af2": "2010017",
+    
+    // Auto-Roulette VIP (2010098)
+    "303f7ca0-c415-11e8-a12e-005056a03af2": "2010098",
+    "303f7ca0c41511e8a12e005056a03af2": "2010098",
+    
+    // Mapeamentos adicionais observados nos logs
+    "180dc4ea-d884-c47a-d33f-27a268a4eead": "2010016", // Immersive
+    "e345afa9-e387-9412-209c-e793fe7ae520": "2010065", // Bucharest
+    "4cf27e48-2b9d-b58e-7dcc-4826c51de39": "2010017",  // Auto-Roulette
+    "419aa56c-bcff-67d2-f424-a6501bac4a36": "2010096"  // Speed Auto
   };
+
+  // Remover hifens e converter para lowercase para aumentar chances de correspondência
+  const normalizedUuid = uuid.replace(/-/g, '').toLowerCase();
+  
+  // Tentar encontrar correspondência pelo UUID normalizado
+  for (const [key, value] of Object.entries(uuidToIdMap)) {
+    const normalizedKey = key.replace(/-/g, '').toLowerCase();
+    if (normalizedUuid === normalizedKey) {
+      console.log(`[API] Mapeado UUID normalizado "${uuid}" para ID canônico ${value}`);
+      return value;
+    }
+  }
 
   // Se o UUID está no mapeamento direto, usá-lo
   if (uuidToIdMap[uuid]) {
@@ -229,9 +266,10 @@ export const mapToCanonicalRouletteId = (uuid: string, nome?: string): string =>
     return "2010065";
   }
 
-  // Log de aviso e retorna o UUID original
-  console.warn(`[API] ⚠️ Não foi possível mapear UUID "${uuid}" para ID canônico, usando original`);
-  return uuid;
+  // FORCE FALLBACK: Se chegou até aqui e não conseguiu mapear, usar um ID conhecido
+  // Isso garante que não enviemos UUIDs não mapeados para o servidor
+  console.warn(`[API] ⚠️ Não foi possível mapear UUID "${uuid}" para ID canônico, usando fallback para Speed Auto Roulette`);
+  return "2010096"; // Fallback para Speed Auto Roulette
 };
 
 // Função auxiliar para mapear nomes de roletas para IDs canônicos

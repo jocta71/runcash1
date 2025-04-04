@@ -7,6 +7,7 @@ import EventService, {
   StrategyUpdateEvent
 } from './EventService';
 import { getRequiredEnvVar, isProduction } from '../config/env';
+import { mapToCanonicalRouletteId } from '@/integrations/api/rouletteService';
 
 // Importando o serviço de estratégia para simular respostas
 import { StrategyService } from './StrategyService';
@@ -1198,7 +1199,9 @@ class SocketService {
       return;
     }
 
-    console.log(`[SocketService] Conectando ao endpoint específico de roleta: ${roletaId} (${roletaNome})`);
+    // Garantir que estamos usando o ID canônico
+    const canonicalId = mapToCanonicalRouletteId(roletaId, roletaNome);
+    console.log(`[SocketService] Conectando ao endpoint específico de roleta: ${roletaId} (${roletaNome}) -> ID canônico: ${canonicalId}`);
     
     // Verificar se a conexão está ativa
     if (!this.socket || !this.socket.connected) {
@@ -1214,31 +1217,8 @@ class SocketService {
       return;
     }
     
-    // Tentar obter o ID canônico para esta roleta
     try {
-      // Importar a função mapToCanonicalRouletteId se ela estiver disponível
-      // Não precisa importar diretamente aqui, apenas usar o ID que já foi passado
-      let canonicalId = roletaId;
-      
-      // Se o ID não for numérico, tente converter para ID canônico baseado no nome
-      if (!/^\d+$/.test(roletaId) && roletaNome) {
-        // Mapeamento manual baseado nos nomes das roletas
-        const nameToIdMap: Record<string, string> = {
-          "Immersive Roulette": "2010016",
-          "Brazilian Mega Roulette": "2380335",
-          "Bucharest Auto-Roulette": "2010065",
-          "Speed Auto Roulette": "2010096",
-          "Auto-Roulette": "2010017",
-          "Auto-Roulette VIP": "2010098"
-        };
-        
-        if (nameToIdMap[roletaNome]) {
-          canonicalId = nameToIdMap[roletaNome];
-          console.log(`[SocketService] Convertido nome "${roletaNome}" para ID canônico ${canonicalId}`);
-        }
-      }
-      
-      // Enviar inscrição para canal específico desta roleta
+      // Enviar inscrição para canal específico desta roleta usando ID canônico
       console.log(`[SocketService] Enviando solicitação para assinar canal da roleta: ${canonicalId} (originalmente: ${roletaId})`);
       this.socket.emit('subscribe_roulette', {
         roletaId: canonicalId,
@@ -1247,7 +1227,7 @@ class SocketService {
         channel: `roulette:${canonicalId}`
       });
       
-      // Solicitar dados iniciais para esta roleta
+      // Solicitar dados iniciais para esta roleta usando ID canônico
       this.requestRouletteNumbers(canonicalId);
       
       // Configurar um ouvinte específico para esta roleta, se ainda não existir
@@ -1289,37 +1269,43 @@ class SocketService {
       return;
     }
     
+    // Garantir que estamos usando o ID canônico
+    const canonicalId = mapToCanonicalRouletteId(roletaId);
+    
     if (!this.socket || !this.socket.connected) {
       console.log('[SocketService] Socket não conectado. Reconectando antes de solicitar dados.');
       this.connect();
       // Programar nova tentativa após conexão
-      setTimeout(() => this.requestRouletteNumbers(roletaId), 1000);
+      setTimeout(() => this.requestRouletteNumbers(canonicalId), 1000);
       return;
     }
     
-    console.log(`[SocketService] Solicitando números específicos para roleta ID: ${roletaId}`);
+    console.log(`[SocketService] Solicitando números específicos para roleta ID: ${canonicalId} (original: ${roletaId})`);
     
-    // Solicitar via socket
+    // Solicitar via socket usando ID canônico
     this.socket.emit('get_roulette_numbers', {
-      roletaId: roletaId,
-      endpoint: `/api/roulette-numbers/${roletaId}`,
+      roletaId: canonicalId,
+      endpoint: `/api/roulette-numbers/${canonicalId}`,
       count: 50 // Solicitar até 50 números para garantir boa amostra
     });
     
     // Fazer também uma solicitação REST para garantir dados completos
-    this.fetchRouletteNumbersREST(roletaId);
+    this.fetchRouletteNumbersREST(canonicalId);
   }
 
   // Método para buscar dados via REST como alternativa/complemento
   private async fetchRouletteNumbersREST(roletaId: string): Promise<boolean> {
     try {
+      // Garantir que estamos usando o ID canônico
+      const canonicalId = mapToCanonicalRouletteId(roletaId);
+      
       const baseUrl = this.getApiBaseUrl();
       const endpoints = [
-        `${baseUrl}/roulette-numbers/${roletaId}`,
-        `${baseUrl}/roulettes/${roletaId}/numbers`
+        `${baseUrl}/roulette-numbers/${canonicalId}`,
+        `${baseUrl}/roulettes/${canonicalId}/numbers`
       ];
       
-      console.log(`[SocketService] Tentando buscar números via REST para ${roletaId}`);
+      console.log(`[SocketService] Tentando buscar números via REST para ${canonicalId} (original: ${roletaId})`);
       
       // Tentar cada endpoint em sequência
       for (const endpoint of endpoints) {
@@ -1342,26 +1328,26 @@ class SocketService {
           const data = await response.json();
           
           if (Array.isArray(data) && data.length > 0) {
-            console.log(`[SocketService] ✅ Sucesso! Recebidos ${data.length} números via REST para roleta ${roletaId}`);
+            console.log(`[SocketService] ✅ Sucesso! Recebidos ${data.length} números via REST para roleta ${canonicalId}`);
             
             // Buscar o nome da roleta para processar corretamente
             let roletaNome = '';
             try {
               const roulettes = await this.fetchRealRoulettes();
-              const roulette = roulettes.find(r => r._id === roletaId || r.id === roletaId);
+              const roulette = roulettes.find(r => r._id === canonicalId || r.id === canonicalId);
               
               if (roulette) {
-                roletaNome = roulette.nome || roulette.name || `Roleta ${roletaId}`;
+                roletaNome = roulette.nome || roulette.name || `Roleta ${canonicalId}`;
               } else {
-                roletaNome = `Roleta ${roletaId}`;
+                roletaNome = `Roleta ${canonicalId}`;
               }
             } catch (error) {
               console.warn(`[SocketService] Erro ao buscar nome da roleta:`, error);
-              roletaNome = `Roleta ${roletaId}`;
+              roletaNome = `Roleta ${canonicalId}`;
             }
             
             // Processar os números recebidos
-            this.processNumbersData(data, { _id: roletaId, nome: roletaNome });
+            this.processNumbersData(data, { _id: canonicalId, nome: roletaNome });
             return true;
           } else {
             console.warn(`[SocketService] Endpoint retornou array vazio ou dados inválidos: ${endpoint}`);
@@ -1371,10 +1357,10 @@ class SocketService {
         }
       }
       
-      console.warn(`[SocketService] Todos os endpoints falharam para ${roletaId}`);
+      console.warn(`[SocketService] Todos os endpoints falharam para ${canonicalId}`);
       return false;
     } catch (error) {
-      console.error(`[SocketService] Erro geral no fetchRouletteNumbersREST para ${roletaId}:`, error);
+      console.error(`[SocketService] Erro geral no fetchRouletteNumbersREST:`, error);
       return false;
     }
   }
