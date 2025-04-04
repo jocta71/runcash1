@@ -776,17 +776,6 @@ function mapToCanonicalId(uuid) {
   return uuid;
 }
 
-// Endpoint para obter números de uma roleta específica por ID - versão alternativa com nome no plural (para compatibilidade)
-app.get('/api/roulette-numbers/:id', async (req, res) => {
-  // Endpoint desativado conforme solicitado
-  console.log(`[API] Acesso ao endpoint desativado /api/roulette-numbers/${req.params.id}`);
-  return res.status(410).json({ 
-    error: 'Endpoint desativado', 
-    message: 'Este endpoint foi desativado. Por favor, use /api/roulette-numero/:id em vez disso.',
-    code: 'ENDPOINT_DEPRECATED'
-  });
-});
-
 // Função auxiliar para determinar a cor de um número da roleta
 function determinarCorNumero(numero) {
   if (numero === 0) return 'verde';

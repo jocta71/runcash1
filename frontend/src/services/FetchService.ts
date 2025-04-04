@@ -155,7 +155,7 @@ class FetchService {
     try {
       // Tentar o endpoint específico primeiro (o mais rápido)
       try {
-        const response = await axios.get(`${this.apiBaseUrl}/roulette-numbers/${roletaId}?limit=10`);
+        const response = await axios.get(`${this.apiBaseUrl}/roulette-numero/${roletaId}?limit=10`);
         
         if (response.status === 200 && Array.isArray(response.data)) {
           // Extrair apenas os números numéricos do array de objetos

@@ -35,7 +35,7 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
           const canonicalId = mapToCanonicalRouletteId(roleta.id);
           
           // Buscar os números mais recentes para esta roleta
-          const numbersResponse = await axios.get(`/api/roulette-numbers/${canonicalId}?limit=${limit}`);
+          const numbersResponse = await axios.get(`/api/roulette-numero/${canonicalId}?limit=${limit}`);
           
           // Verificar se a resposta contém dados válidos
           const numbers = Array.isArray(numbersResponse.data) ? numbersResponse.data : [];
@@ -111,7 +111,7 @@ export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Pr
     
     // Passo 2: Buscar os números mais recentes para esta roleta
     try {
-      const numbersResponse = await axios.get(`/api/roulette-numbers/${canonicalId}?limit=${limit}`);
+      const numbersResponse = await axios.get(`/api/roulette-numero/${canonicalId}?limit=${limit}`);
       
       // Verificar se a resposta contém dados válidos
       const numbers = Array.isArray(numbersResponse.data) ? numbersResponse.data : [];
