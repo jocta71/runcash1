@@ -327,8 +327,8 @@ class SocketService {
       const apiBaseUrl = getApiBaseUrl();
       console.log(`[SocketService] Carregando dados históricos das roletas`);
       
-      // Primeiro, buscar a lista de roletas disponíveis
-      const rouletteResponse = await fetch(`${apiBaseUrl}/roulettes`);
+      // Buscar todas as roletas de uma vez usando o endpoint único
+      const rouletteResponse = await fetch(`${apiBaseUrl}/ROULETTES`);
       
       if (!rouletteResponse.ok) {
         throw new Error(`Falha ao buscar lista de roletas: ${rouletteResponse.status}`);
@@ -339,33 +339,24 @@ class SocketService {
       if (Array.isArray(roulettes)) {
         console.log(`[SocketService] Processando dados históricos para ${roulettes.length} roletas`);
         
-        // Para cada roleta, buscar seus números recentes
+        // Para cada roleta, processar seus números (que já estão incluídos na resposta)
         for (const roulette of roulettes) {
           try {
-            console.log(`[SocketService] Carregando números para roleta ${roulette.nome || roulette.name}`);
+            console.log(`[SocketService] Processando números para roleta ${roulette.nome || roulette.name}`);
             
-            // Buscar os últimos números desta roleta
-            const numbersResponse = await fetch(`${apiBaseUrl}/numeros?roletaId=${roulette._id}&limit=50`);
-            
-            if (!numbersResponse.ok) {
-              console.warn(`[SocketService] Falha ao buscar números para roleta ${roulette._id}: ${numbersResponse.status}`);
-              continue;
-            }
-            
-            const numbersData = await numbersResponse.json();
-            
-            if (Array.isArray(numbersData)) {
-              console.log(`[SocketService] Carregados ${numbersData.length} números para roleta ${roulette.nome || roulette.name}`);
+            // Verificar se a roleta já tem números incluídos na resposta
+            if (roulette.numero && Array.isArray(roulette.numero)) {
+              console.log(`[SocketService] Encontrados ${roulette.numero.length} números para roleta ${roulette.nome || roulette.name}`);
               
               // Converter cada número para o formato de evento
-              numbersData.forEach(num => {
+              roulette.numero.forEach(num => {
                 // Verificar se o número é válido
                 if (num && (typeof num === 'number' || typeof num.numero === 'number')) {
                   const numero = typeof num === 'number' ? num : num.numero;
                   
                   const event = {
                     type: 'new_number',
-                    roleta_id: roulette._id,
+                    roleta_id: roulette._id || roulette.id,
                     roleta_nome: roulette.nome || roulette.name,
                     numero: numero,
                     timestamp: (num && num.timestamp) ? num.timestamp : new Date().toISOString()
@@ -375,9 +366,11 @@ class SocketService {
                   this.notifyListeners('new_number', event);
                 }
               });
+            } else {
+              console.warn(`[SocketService] Roleta ${roulette.nome || roulette.name} não possui números`);
             }
           } catch (error) {
-            console.error(`[SocketService] Erro ao processar números para roleta ${roulette._id}:`, error);
+            console.error(`[SocketService] Erro ao processar números para roleta ${roulette._id || roulette.id}:`, error);
           }
         }
         
@@ -400,8 +393,8 @@ class SocketService {
       const apiBaseUrl = getApiBaseUrl();
       console.log(`[SocketService] Tentando endpoints alternativos para dados históricos`);
       
-      // Tentar outro formato de endpoint
-      const response = await fetch(`${apiBaseUrl}/roletas-com-numeros`);
+      // Tentar o endpoint principal novo
+      const response = await fetch(`${apiBaseUrl}/ROULETTES`);
       
       if (!response.ok) {
         throw new Error(`Falha ao buscar dados históricos alternativos: ${response.status}`);
@@ -411,14 +404,14 @@ class SocketService {
       
       if (data && Array.isArray(data)) {
         data.forEach(roulette => {
-          if (roulette && roulette.nome && Array.isArray(roulette.numeros)) {
-            roulette.numeros.forEach(numero => {
+          if (roulette && roulette.nome && Array.isArray(roulette.numero)) {
+            roulette.numero.forEach(numero => {
               const event = {
                 type: 'new_number',
-                roleta_id: roulette._id || 'unknown',
+                roleta_id: roulette._id || roulette.id || 'unknown',
                 roleta_nome: roulette.nome,
-                numero: numero,
-                timestamp: new Date().toISOString()
+                numero: typeof numero === 'object' ? numero.numero : numero,
+                timestamp: (numero && numero.timestamp) ? numero.timestamp : new Date().toISOString()
               };
               
               this.notifyListeners('new_number', event);
