@@ -61,7 +61,7 @@ class SocketService {
     const savedSocket = this.trySavedSocket();
     if (!savedSocket) {
       // Conectar normalmente se não houver sessão salva
-      this.connect();
+    this.connect();
     }
 
     // Adicionar event listener para quando a janela ficar visível novamente
@@ -634,7 +634,7 @@ class SocketService {
         console.warn(`[SocketService] Número inválido na posição ${index} para ${roletaNome}`);
         return;
       }
-      
+
       // Extrair o número conforme o tipo
       let numero: number;
       if (typeof num === 'number') {
@@ -653,10 +653,10 @@ class SocketService {
         console.warn(`[SocketService] Número fora do intervalo válido: ${numero}`);
         return;
       }
-      
+
       // Criar o evento
-                  const event: RouletteNumberEvent = {
-                    type: 'new_number',
+      const event: RouletteNumberEvent = {
+        type: 'new_number',
         roleta_id: roletaId || 'unknown-id',
         roleta_nome: roletaNome,
                     numero: numero,
@@ -718,9 +718,9 @@ class SocketService {
           const roletaId = roulette._id || roulette.id || roulette.gameId || roulette.table_id;
           if (!roletaId) {
             console.warn('[SocketService] Roleta sem ID válido:', roulette);
-            continue;
-          }
-          
+              continue;
+            }
+            
           // Verificar se o ID está na lista de permitidos
           const stringId = String(roletaId);
           if (!ALLOWED_ROULETTES.includes(stringId)) {

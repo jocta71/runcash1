@@ -31,8 +31,8 @@ print(f"* Python versão: {sys.version}")
 print("*" * 80 + "\n")
 
 try:
-from config import CASINO_URL, roleta_permitida_por_id, MAX_CICLOS, MAX_ERROS_CONSECUTIVOS
-from event_manager import event_manager
+    from config import CASINO_URL, roleta_permitida_por_id, MAX_CICLOS, MAX_ERROS_CONSECUTIVOS
+    from event_manager import event_manager
     MODULOS_CORE_DISPONÍVEIS = True
 except ImportError as e:
     print(f"Aviso: {e}")
@@ -357,152 +357,91 @@ def scrape_roletas_api(db, numero_hook=None):
     global ultima_atividade, erros_consecutivos
     
     print("[API] Iniciando scraping via API 888Casino")
-        
+    
     ciclo = 1
     erros = 0
     max_erros = 3
     
     # Roletas permitidas
     ids_permitidos = os.environ.get('ALLOWED_ROULETTES', '').split(',')
-    if not ids_permitidos or not ids_permitidos[0].strip():
-        # Se não tiver no ambiente, usar a lista fixa do módulo roletas_permitidas
-        from roletas_permitidas import ALLOWED_ROULETTES
-        ids_permitidos = ALLOWED_ROULETTES
-        
-    print(f"[API] Monitorando APENAS roletas específicas: {','.join(ids_permitidos)}")
+    if ids_permitidos and ids_permitidos[0].strip():
+        print(f"[API] Monitorando roletas específicas: {','.join([i[:5] for i in ids_permitidos if i.strip()])}")
     
-    # Rastreamento de dados das mesas para detectar mudanças
-    estado_anterior_mesas = {}
-    
-    # Intervalo entre ciclos (aumentado para evitar processamento excessivo)
-    intervalo_minimo = 5  # segundos
-    ultimo_ciclo_tempo = 0
+    # Armazenar o último resultado de GetLiveTables para comparação
+    ultimo_estado_roletas = {}
     
     while ciclo <= MAX_CICLOS or MAX_CICLOS == 0:
-            try:
-                tempo_atual = time.time()
-                
-            # Verificar se passou tempo suficiente desde o último ciclo
-            if tempo_atual - ultimo_ciclo_tempo < intervalo_minimo:
-                time.sleep(0.5)
-                    continue
-                
-            # Registrar tempo deste ciclo
-            ultimo_ciclo_tempo = tempo_atual
-            
+        try:
             # Buscar todas as mesas
             tables = casino_api.get_all_roulette_tables()
             print(f"[API] Ciclo {ciclo}: Encontradas {len(tables)} mesas de roleta")
             
             # Contador de atualizações
             roletas_com_numeros = 0
-            roletas_permitidas_encontradas = 0
-            roletas_ignoradas = 0
             
             # Processar cada mesa
             for table_id, table_info in tables.items():
                 try:
-                    # Limpar ID para verificação (remover prefixos/sufixos)
-                    clean_id = table_id
-                    if '_' in clean_id:
-                        clean_id = clean_id.split('_')[0]
+                    # Verificar se a roleta está permitida
+                    if ids_permitidos and ids_permitidos[0].strip():
+                        if not roleta_permitida_por_id(table_id):
+                            continue
                     
-                    # Verificação estrita se o ID está na lista de permitidos
-                    if clean_id not in ids_permitidos:
-                        roletas_ignoradas += 1
-                        continue
-                    
-                    # Se chegou aqui, a roleta está na lista de permitidos
-                    roletas_permitidas_encontradas += 1
-                    
-                    roleta_nome = table_info['name']
+                    # Obter dados da mesa
+                    roleta_nome = table_info.get('name', f"Roleta {table_id}")
                     last_numbers = table_info.get('last_numbers', [])
                     
-                    # Criar uma assinatura dos dados completos desta mesa para detectar mudanças
-                    mesa_atual = {
-                        'id': table_id,
-                        'nome': roleta_nome,
-                        'numeros': last_numbers if last_numbers else []
-                    }
-                    
-                    # Criar hash da mesa atual para comparação rápida
-                    mesa_hash = hashlib.md5(json.dumps(mesa_atual, sort_keys=True).encode()).hexdigest()
-                    
-                    # Verificar se os dados são idênticos ao ciclo anterior
-                    if table_id in estado_anterior_mesas and estado_anterior_mesas[table_id]['hash'] == mesa_hash:
-                        print(f"[API] Mesa {roleta_nome} sem alterações (hash: {mesa_hash[:6]})")
-                        continue
-                    
-                    # Atualizar o estado desta mesa para o próximo ciclo
-                    estado_anterior_mesas[table_id] = {
-                        'hash': mesa_hash,
-                        'ultima_atualizacao': tempo_atual
-                    }
-                    
-                    print(f"[API] Processando roleta permitida: {roleta_nome} (ID: {table_id}, Clean ID: {clean_id})")
-                    
-                    # Processar apenas se tiver números
+                    # Processar apenas o número mais recente (posição 0)
                     if last_numbers and len(last_numbers) > 0:
                         numero_recente = last_numbers[0]
                         
-                        # Verificar no banco se este número já foi registrado para esta roleta
-                        numeros_banco = []
-                        try:
-                            if hasattr(db, 'obter_numeros_recentes'):
-                                numeros_banco = [n.get('numero') for n in db.obter_numeros_recentes(table_id, limite=5)]
-                        except Exception as e:
-                            print(f"[API] Erro ao verificar números do banco: {str(e)}")
+                        # Verificar se este número já foi processado para esta roleta
+                        ultimo_numero = ultimo_estado_roletas.get(table_id, {}).get('ultimo_numero')
                         
-                        # Converter para inteiro para comparação
-                        if isinstance(numero_recente, str):
-                            numero_int = int(re.sub(r'[^\d]', '', numero_recente))
+                        # Se o número mais recente for diferente do último processado, processar
+                        if ultimo_numero != numero_recente:
+                            print(f"[API] Novo número detectado para {roleta_nome}: {numero_recente} (anterior: {ultimo_numero})")
+                            
+                            if processar_numeros(db, table_id, roleta_nome, [numero_recente], numero_hook):
+                                roletas_com_numeros += 1
+                                
+                                # Atualizar o estado desta roleta
+                                ultimo_estado_roletas[table_id] = {
+                                    'ultimo_numero': numero_recente,
+                                    'timestamp': time.time()
+                                }
                         else:
-                            numero_int = int(numero_recente)
-                        
-                        # Verificar se o número mais recente já existe no banco
-                        if numeros_banco and numero_int == numeros_banco[0]:
-                            print(f"[API] Número já registrado no banco: {numero_recente}")
-                            continue
-                        
-                        print(f"[API] Novo número detectado para {roleta_nome}: {numero_recente}")
-                        if processar_numeros(db, table_id, roleta_nome, [numero_recente], numero_hook):
-                            roletas_com_numeros += 1
-                            print(f"[API] ✅ Número {numero_recente} registrado com sucesso para {roleta_nome}")
-                    else:
-                        print(f"[API] Mesa {roleta_nome} sem números disponíveis")
-                        
-                    except Exception as e:
+                            print(f"[API] Número já processado para {roleta_nome}: {numero_recente}")
+                
+                except Exception as e:
                     print(f"[API] Erro ao processar mesa {table_id}: {str(e)}")
-            
-            # Atualizar controles
-            ultima_atividade = time.time()
-            erros_consecutivos = 0
+                    continue
             
             # Log
-            print(f"[API] Ciclo {ciclo} completo: Encontradas {len(tables)} roletas, {roletas_permitidas_encontradas} permitidas, {roletas_ignoradas} ignoradas, {roletas_com_numeros} com novos números")
+            print(f"[API] Ciclo {ciclo} completo: {roletas_com_numeros} roletas com novos números")
             
             # Incrementar ciclo
             ciclo += 1
             
-            # Aguardar para o próximo ciclo (tempo baseado na atividade)
-            if roletas_com_numeros > 0:
-                # Se houve novos números, verificar mais rapidamente
-                time.sleep(intervalo_minimo / 2)
-            else:
-                # Caso contrário, aguardar o intervalo completo
-                time.sleep(intervalo_minimo)
+            # Resetar erros
+            erros = 0
+            
+            # Em vez de um intervalo fixo, fazer uma pausa curta e continuar 
+            # verificando se há novos GetLiveTables
+            time.sleep(0.5)  # Pequena pausa para não sobrecarregar a CPU
             
         except Exception as e:
-            print(f"[API] Erro no ciclo {ciclo}: {str(e)}")
             erros += 1
-            erros_consecutivos += 1
+            print(f"[API] Erro no ciclo {ciclo}: {str(e)}")
             
-            # Pausa maior em caso de erro
-            time.sleep(intervalo_minimo)
-        
-        if erros >= max_erros:
-            print(f"[API] Muitos erros consecutivos ({erros}), reiniciando ciclo")
-            erros = 0
+            if erros >= max_erros:
+                print(f"[API] Número máximo de erros ({max_erros}) atingido. Encerrando scraping...")
+                break
+            
+            # Aguardar antes de tentar novamente
+            time.sleep(2)  # Pausa curta em caso de erro
+    
+    print("[API] Scraping finalizado")
 
 # Funções de compatibilidade
 def scrape_roletas(db, driver=None, numero_hook=None):
@@ -510,24 +449,38 @@ def scrape_roletas(db, driver=None, numero_hook=None):
     print("🚀 Usando scraper com API 888Casino")
     return scrape_roletas_api(db, numero_hook)
 
+def simulate_roulette_data(db):
+    """Simula dados de roleta para testes"""
+    print("🧪 Simulando dados de roleta...")
+    roletas = [
+        {"id": "2010016", "nome": "Immersive Roulette"},
+        {"id": "2380335", "nome": "Brazilian Mega Roulette"},
+        {"id": "2010065", "nome": "Bucharest Auto-Roulette"},
+        {"id": "2010096", "nome": "Speed Auto Roulette"},
+        {"id": "2010017", "nome": "Auto-Roulette"},
+        {"id": "2010098", "nome": "Auto-Roulette VIP"}
+    ]
+    
+    for roleta in roletas:
+        numero = random.randint(0, 36)
+        novo_numero(db, roleta["id"], roleta["nome"], numero)
+        print(f"[SIMULAÇÃO] Gerado número {numero} para {roleta['nome']}")
+        time.sleep(5)
+
 # Testes básicos
 if __name__ == "__main__":
     print("\nTeste básico da API 888Casino...")
     try:
         # Testar API
-        tables = casino_api.get_roulette_tables(2)
-        print(f"Encontradas {len(tables)} mesas para regulation_id=2")
+        api = Casino888API()
+        tables = api.get_all_roulette_tables()
         
-        # Mostrar primeiras 3 mesas (exemplo)
-        for i, (table_id, table_info) in enumerate(list(tables.items())[:3]):
-            print(f"\nMesa #{i+1}: {table_info.get('Name', 'Unknown')}")
+        print(f"Encontradas {len(tables)} mesas de roleta:")
+        for table_id, table_info in list(tables.items())[:5]:  # Mostrar até 5 roletas
+            print(f"\n- {table_info.get('name', 'Sem nome')}")
             print(f"  ID: {table_id}")
             print(f"  Dealer: {table_info.get('Dealer', 'Auto')}")
             print(f"  Últimos números: {table_info.get('RouletteLast5Numbers', [])}")
     
     except Exception as e:
-        print(f"ERRO no teste: {str(e)}")
-        traceback.print_exc()
-
-# Exports
-__all__ = ['scrape_roletas'] 
+        print(f"Erro nos testes: {str(e)}") 

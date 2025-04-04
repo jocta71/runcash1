@@ -212,8 +212,7 @@ export const fetchRouletteLatestNumbers = async (roletaId: string, limit = 10): 
 export function useRouletteData(
   roletaId: string, 
   roletaNome: string, 
-  limit: number = 100,
-  forceCanonicalId?: string // Novo parâmetro para forçar o uso de um ID canônico específico
+  limit: number = 100
 ): UseRouletteDataResult {
   // Estado para dados de números
   const [numbers, setNumbers] = useState<RouletteNumber[]>([]);
@@ -236,29 +235,6 @@ export function useRouletteData(
   
   // Chave única para esta instância do hook
   const instanceKey = useRef<string>(`${roletaId}:${roletaNome}`);
-
-  // Mapeamento direto de nomes para IDs canônicos
-  const ROLETA_NAME_TO_ID: Record<string, string> = {
-    "Immersive Roulette": "2010016",
-    "Brazilian Mega Roulette": "2380335",
-    "Bucharest Auto-Roulette": "2010065",
-    "Speed Auto Roulette": "2010096",
-    "Auto-Roulette": "2010017",
-    "Auto-Roulette VIP": "2010098",
-    "Ruleta Automática": "2010096" // Adicional para compatibilidade
-  };
-
-  // ID canônico a ser usado em todas as chamadas
-  const effectiveCanonicalId = useRef<string>(
-    forceCanonicalId || 
-    ROLETA_NAME_TO_ID[roletaNome] || 
-    mapToCanonicalRouletteId(roletaId, roletaNome)
-  );
-
-  // Logging para debug
-  useEffect(() => {
-    console.log(`[useRouletteData] Hook inicializado para ${roletaNome} com ID original: ${roletaId}, ID canônico: ${effectiveCanonicalId.current}`);
-  }, [roletaId, roletaNome]);
 
   // NOVA ADIÇÃO: Carregar dados do localStorage ao iniciar
   useEffect(() => {
@@ -341,7 +317,7 @@ export function useRouletteData(
     updateCombinedNumbers();
   }, [initialNumbers, newNumbers, updateCombinedNumbers]);
 
-  // Função para extrair e processar números da API - MODIFICADA PARA USAR ID CANÔNICO
+  // Função para extrair e processar números da API - MODIFICADA PARA RESPOSTA MAIS RÁPIDA
   const loadNumbers = useCallback(async (isRefresh = false): Promise<boolean> => {
     try {
       // Se já temos dados iniciais e não é uma atualização manual, pular
@@ -354,22 +330,18 @@ export function useRouletteData(
       if (!isRefresh) setLoading(true);
       setError(null);
       
-      // IMPORTANTE: Sempre usar o ID canônico para as requisições
-      const idToUse = effectiveCanonicalId.current;
-      
-      if (!idToUse) {
-        console.log(`[useRouletteData] ID canônico não encontrado para ${roletaNome} (ID original: ${roletaId})`);
+      if (!roletaId) {
+        console.log(`[useRouletteData] ID de roleta inválido ou vazio: "${roletaId}"`);
         setLoading(false);
         setHasData(false);
         return false;
       }
       
       // Registrar explicitamente o início do carregamento
-      console.log(`[useRouletteData] ${isRefresh ? '🔄 RECARREGANDO' : '📥 CARREGANDO'} dados para ${roletaNome} (ID original: ${roletaId}, ID canônico: ${idToUse})`);
+      console.log(`[useRouletteData] ${isRefresh ? '🔄 RECARREGANDO' : '📥 CARREGANDO'} dados para ${roletaNome} (ID: ${roletaId})`);
       
-      // 1. EXTRAÇÃO: Obter números brutos do endpoint com o ID canônico
-      // NOTA: Substituir roletaId por idToUse para garantir que sempre use o ID canônico
-      let numerosArray = await fetchRouletteNumbers(idToUse, roletaNome, limit);
+      // 1. EXTRAÇÃO: Obter números brutos do novo endpoint
+      let numerosArray = await fetchRouletteNumbers(roletaId, roletaNome, limit);
       
       console.log(`[useRouletteData] Resposta do endpoint de números para ${roletaNome}:`, 
         numerosArray.length > 0 ? 
@@ -377,7 +349,7 @@ export function useRouletteData(
         'Sem números'
       );
       
-      // Tentar obter por nome como fallback se não conseguir por ID canônico
+      // Tentar obter por nome como fallback se não conseguir por ID
       if (!numerosArray || numerosArray.length === 0) {
         console.log(`[useRouletteData] Tentando obter números por nome da roleta: ${roletaNome}`);
         numerosArray = await fetchRouletteLatestNumbersByName(roletaNome, limit);
@@ -418,7 +390,7 @@ export function useRouletteData(
         return true;
       } else {
         // Sem dados disponíveis
-        console.warn(`[useRouletteData] ⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${idToUse})`);
+        console.warn(`[useRouletteData] ⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
         
         // NOVA ADIÇÃO: Definir loading como false mesmo sem dados
         setLoading(false);  
@@ -441,7 +413,7 @@ export function useRouletteData(
       setLoading(false);
       setRefreshLoading(false);
     }
-  }, [roletaId, roletaNome, limit, effectiveCanonicalId]);
+  }, [roletaId, roletaNome, limit]);
   
   // Função para extrair e processar estratégia da API
   const loadStrategy = useCallback(async (): Promise<boolean> => {
