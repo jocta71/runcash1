@@ -354,95 +354,142 @@ const RouletteCard = memo(({
     };
   }, [name]);
 
-  // Modifica a lógica de atualização para preservar dados históricos enquanto adiciona novos
-  function handleEvent(event: RouletteNumberEvent) {
-    if (event.type === 'new_number' && event.roleta_nome === name) {
-      console.log(`[RouletteCard] Novo número recebido via event: ${event.numero} para ${name}`);
+  // Efeito para escutar eventos do websocket - garantindo atualizações em tempo real
+  useEffect(() => {
+    const socketService = SocketService.getInstance();
+    
+    // Função que processa eventos de novos números
+    const handleEvent = (event: any) => {
+      // Ignorar eventos não relacionados ou sem dados
+      if (!event || !event.type) return;
       
-      // Se número for zero ou não for válido, ignorar
-      if (event.numero === 0 || isNaN(event.numero)) {
-        console.log(`[RouletteCard] Ignorando número inválido: ${event.numero}`);
+      // Verificar se o evento é para esta roleta
+      const isForThisRoulette = 
+        (event.roleta_nome && (event.roleta_nome === name || event.roleta_nome === roleta_nome)) ||
+        (event.roleta_id && event.roleta_id === roletaId);
+        
+      if (!isForThisRoulette) return;
+      
+      // Processar estado de conexão
+      if (event.type === 'connection_state') {
+        console.log(`[RouletteCard] Recebido estado de conexão: ${event.connected ? 'Conectado' : 'Desconectado'}`);
         return;
       }
       
-      // Atualiza o último número (último que chegou em tempo real)
-      setLastNumber(event.numero);
-      setHighlight(true);
-      
-      // Adicionar à lista de números mapeados sem substituir os existentes
-      setMappedNumbersOverride(prev => {
-        // Verificar se o número já existe na lista para evitar duplicações
-        if (prev.some(n => n.numero === event.numero && 
-                       (new Date().getTime() - new Date(n.timestamp).getTime()) < 10000)) {
-          console.log(`[RouletteCard] Número ${event.numero} já existe na lista recente`);
-          return prev;
+      // Processar novo número
+      if (event.type === 'new_number' && event.numero !== undefined) {
+        let numero: number;
+        
+        // Validar e converter o número
+        if (typeof event.numero === 'number' && !isNaN(event.numero)) {
+          numero = event.numero;
+        } else if (typeof event.numero === 'string' && event.numero.trim() !== '') {
+          const parsed = parseInt(event.numero, 10);
+          numero = !isNaN(parsed) ? parsed : 0;
+        } else {
+          console.warn(`[RouletteCard] Número inválido recebido: ${event.numero}, ignorando`);
+          return;
         }
         
-        // Adiciona o novo número no início da lista
-        const newNumber = {
-          id: `realtime-${Date.now()}`,
-          numero: event.numero,
-          timestamp: event.timestamp || new Date().toISOString(),
-          isRealtime: true
-        };
+        console.log(`[RouletteCard] ✨ Novo número em tempo real: ${numero} para ${name}`);
         
-        // Limitar o tamanho da lista para evitar crescimento excessivo
-        const updatedList = [newNumber, ...prev];
-        if (updatedList.length > 100) {
-          return updatedList.slice(0, 100);
+        // Atualizar o número mais recente
+        setLastNumber(numero);
+        
+        // Atualizar o array de números em tempo real
+        setNumbers(prevNumbers => {
+          // Verificar se o número já existe para evitar duplicatas
+          if (prevNumbers.includes(numero)) {
+            return prevNumbers;
+          }
+          
+          const newNumbers = [numero, ...prevNumbers];
+          
+          // Manter apenas os últimos 20 números
+          return newNumbers.slice(0, 20);
+        });
+        
+        // Atualizar o estado de override para garantir exibição
+        setMappedNumbersOverride(prevNumbers => {
+          // Verificar se o número já existe
+          if (prevNumbers.includes(numero)) {
+            return prevNumbers;
+          }
+          
+          // Adicionar o número no início e manter apenas os 20 últimos
+          const newArray = [numero, ...prevNumbers].slice(0, 20);
+          console.log(`[RouletteCard] Atualizados números em tempo real para ${name}:`, newArray.slice(0, 5));
+          
+          return newArray;
+        });
+        
+        // Acionar o destaque visual mais notável
+        setHighlight(true);
+        
+        // Mostrar micronotificação para novos números
+        toast({
+          title: `Novo número: ${numero}`,
+          description: `${roletaNome}`,
+          variant: "default",
+          duration: 2000 // Duração curta
+        });
+        
+        // Limpar o timer anterior se existir
+        if (highlightTimerRef.current) {
+          clearTimeout(highlightTimerRef.current);
         }
         
-        return updatedList;
-      });
-      
-      // Atualiza a lista de números original também (para manter consistência)
-      setNumbers(prev => {
-        // Verificar se o número já existe na lista recente
-        if (prev.some(n => n === event.numero)) {
-          return prev;
-        }
-        
-        // Adiciona o novo número no início e mantém o limite 
-        const updatedList = [event.numero, ...prev];
-        return updatedList.slice(0, 100);
-      });
-      
-      // Atualizar timestamp para facilitar debug
-      setLastUpdateTime(new Date().toISOString());
-    }
-  }
-
-  // Melhora o efeito para ouvir eventos de socket
-  useEffect(() => {
-    // Registrar para eventos de socket quando o componente montar
-    const socketService = SocketService.getInstance();
-    socketService.addEventListener(handleEvent);
-    
-    console.log(`[RouletteCard] Registrado para eventos de socket: ${name}`);
-    
-    // Injetar um evento de teste quando em modo de desenvolvimento
-    if (import.meta.env.DEV) {
-      console.log(`[RouletteCard] Modo de desenvolvimento, permitindo injeção de testes`);
-    }
-    
-    // Cleanup: remover listener quando o componente desmontar
-    return () => {
-      console.log(`[RouletteCard] Removendo listener de socket: ${name}`);
-      socketService.removeEventListener(handleEvent);
+        // Configurar o novo timer para remover o destaque (mais longo para maior visibilidade)
+        highlightTimerRef.current = setTimeout(() => {
+          setHighlight(false);
+          highlightTimerRef.current = null;
+        }, 1500);
+      }
     };
-  }, [name]); // Apenas re-registre se o nome da roleta mudar
-
-  // Efeito para resetar o highlight após um tempo
-  useEffect(() => {
-    if (highlight) {
-      // Aumentar a duração do highlight para melhor feedback visual
-      const timer = setTimeout(() => {
-        setHighlight(false);
-      }, 3000); // 3 segundos de highlight
-      
-      return () => clearTimeout(timer);
+    
+    // Inscrever para eventos globais e específicos
+    socketService.subscribe('*', handleEvent);
+    socketService.subscribe(name || '', handleEvent);
+    
+    // Verificar conexão e solicitar reconexão se necessário
+    if (!socketService.isSocketConnected()) {
+      console.log(`[RouletteCard] Reconectando socket para ${roletaNome}...`);
+      socketService.reconnect().then(connected => {
+        console.log(`[RouletteCard] Reconexão para ${roletaNome}: ${connected ? 'Sucesso' : 'Falha'}`);
+      });
     }
-  }, [highlight]);
+    
+    // Configurar verificação periódica da conexão
+    const connectionCheckInterval = setInterval(() => {
+      if (!socketService.isSocketConnected()) {
+        console.log(`[RouletteCard] Verificação periódica: reconectando socket para ${roletaNome}...`);
+        socketService.reconnect();
+      }
+    }, 30000); // Verificar a cada 30 segundos
+    
+    // Escutar eventos do EventService também
+    const eventService = EventService.getInstance();
+    const handleNumberEvent = (event: any) => {
+      // Processar através do mesmo manipulador de eventos
+      handleEvent(event);
+    };
+    
+    // Inscrever para eventos do EventService
+    eventService.subscribeToEvent('new_number', handleNumberEvent);
+    
+    // Limpar a inscrição quando o componente for desmontado
+    return () => {
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+      }
+      
+      clearInterval(connectionCheckInterval);
+      
+      socketService.unsubscribe('*', handleEvent);
+      socketService.unsubscribe(name || '', handleEvent);
+      eventService.unsubscribeFromEvent('new_number', handleNumberEvent);
+    };
+  }, [name, roleta_nome, roletaId, roletaNome]); // Dependências reduzidas para evitar re-inscrições frequentes
 
   // Adicionar um efeito para a detecção de dados carregados
   useEffect(() => {

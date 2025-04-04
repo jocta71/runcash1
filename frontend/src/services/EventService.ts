@@ -26,6 +26,8 @@ export interface RouletteNumberEvent {
   terminais_gatilho?: number[];
   // Flag para indicar se dados existentes devem ser preservados
   preserve_existing?: boolean;
+  // Flag para indicar se é uma atualização em tempo real (após carregamento inicial)
+  realtime_update?: boolean;
 }
 
 export interface StrategyUpdateEvent {
@@ -651,6 +653,85 @@ class EventService {
           console.error(`[EventService] Erro ao processar evento global:`, error);
         }
       });
+    }
+  }
+
+  // Adicionar método para gerenciar atualizações em tempo real
+  public receiveRealtimeUpdate(event: RouletteNumberEvent | StrategyUpdateEvent): void {
+    if (!event) return;
+    
+    debugLog(`[EventService] Recebendo atualização em tempo real para ${event.roleta_nome}`);
+    
+    // Marcar evento como atualização em tempo real
+    if (event.type === 'new_number') {
+      event.realtime_update = true;
+    }
+    
+    // Enviar para processamento normal de eventos
+    this.dispatchEvent(event);
+    
+    // Notificar os listeners específicos para atualizações em tempo real
+    if (this.listeners.has('realtime_updates')) {
+      const realtimeListeners = this.listeners.get('realtime_updates');
+      if (realtimeListeners) {
+        debugLog(`[EventService] Notificando ${realtimeListeners.size} listeners de atualizações em tempo real`);
+        realtimeListeners.forEach(callback => {
+          try {
+            callback(event);
+          } catch (error) {
+            console.error('[EventService] Erro ao chamar callback de atualização em tempo real:', error);
+          }
+        });
+      }
+    }
+    
+    // Também exibir notificação visual para destacar novos dados
+    if (event.type === 'new_number') {
+      const numero = event.numero;
+      const roletaNome = event.roleta_nome;
+      
+      // Mostrar pequena notificação para novos números
+      toast({
+        title: `Novo número: ${numero}`,
+        description: `${roletaNome}`,
+        variant: "default",
+        duration: 2000 // Duração curta para não incomodar
+      });
+    }
+  }
+
+  // Método para verificar e solicitar atualizações em tempo real
+  public requestRealtimeUpdates(): void {
+    debugLog('[EventService] Solicitando atualizações em tempo real');
+    
+    if (this.usingSocketService) {
+      // Solicitar através do SocketService
+      const socketService = SocketService.getInstance();
+      
+      // Verificar conexão do SocketService
+      if (!socketService.isSocketConnected()) {
+        debugLog('[EventService] Socket não conectado, tentando reconectar');
+        socketService.reconnect()
+          .then(connected => {
+            if (connected) {
+              socketService.requestRecentNumbers();
+              socketService.broadcastConnectionState();
+            }
+          });
+      } else {
+        // Se estiver conectado, solicitar atualização
+        socketService.requestRecentNumbers();
+      }
+    } else if (this.isConnected && this.eventSource) {
+      // Se estiver usando SSE, enviar evento para solicitar atualização
+      debugLog('[EventService] Solicitando atualizações via SSE');
+      // Não é possível enviar diretamente via SSE, mas podemos reconectar para atualizar
+      this.disconnect();
+      this.connect();
+    } else if (this.usingPolling) {
+      // Se estiver usando polling, forçar uma verificação imediata
+      debugLog('[EventService] Forçando verificação via polling');
+      this.performPoll();
     }
   }
 }

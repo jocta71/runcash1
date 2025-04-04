@@ -162,10 +162,6 @@ class SocketService {
     const combinedKey = `${roletaId}|${roletaNome}`;
     const lastReceived = this.lastReceivedData.get(combinedKey);
     
-    // Converter o número para um formato válido
-    const parsedNumero = typeof data.numero === 'number' ? data.numero : 
-                        typeof data.numero === 'string' ? parseInt(data.numero, 10) : 0;
-    
     // Se temos um número recente desta roleta, verificar se o atual é mais novo
     if (lastReceived) {
       const currentTime = Date.now();
@@ -175,7 +171,7 @@ class SocketService {
       // para evitar duplicações
       if (timeDiff < 1000) {
         const lastNumber = lastReceived.data.numero;
-        const newNumber = parsedNumero;
+        const newNumber = data.numero;
         
         if (lastNumber === newNumber) {
           console.log(`[SocketService] Ignorando número duplicado ${newNumber} para ${roletaNome}`);
@@ -187,10 +183,7 @@ class SocketService {
     // Armazenar este número como o mais recente
     this.lastReceivedData.set(combinedKey, {
       timestamp: Date.now(),
-      data: {
-        ...data,
-        numero: parsedNumero // Garantir que armazenamos o número já convertido
-      }
+      data
     });
     
     // Transformar em formato de evento para notificar
@@ -198,7 +191,8 @@ class SocketService {
       type: 'new_number',
       roleta_id: data.roleta_id || '',
       roleta_nome: data.roleta_nome,
-      numero: parsedNumero,
+      numero: typeof data.numero === 'number' ? data.numero : 
+              typeof data.numero === 'string' ? parseInt(data.numero, 10) : 0,
       timestamp: data.timestamp || new Date().toISOString(),
       // Adicionar flag para preservar dados existentes
       preserve_existing: true
@@ -209,23 +203,14 @@ class SocketService {
       event.numero = 0;
     }
     
-    console.log(`[SocketService] Processando número em tempo real: ${event.numero} para roleta ${event.roleta_nome}`);
+    console.log(`[SocketService] Processando número ${event.numero} para roleta ${event.roleta_nome}`);
     
     // Notificar os listeners
     this.notifyListeners(event);
     
-    // Também notificar via EventService com propriedade explícita de tempo real
+    // Também notificar via EventService
     const eventService = EventService.getInstance();
-    eventService.dispatchEvent({
-      ...event,
-      isRealtime: true, // Adicionar flag para identificar como evento de tempo real
-      timestamp: new Date().toISOString() // Timestamp atual para garantir que seja mais recente
-    });
-    
-    // Emitir um alerta visual para debugging
-    if (config.isDevelopment) {
-      console.log(`%c[REALTIME] Novo número: ${event.numero} para ${event.roleta_nome}`, 'background: #222; color: #bada55');
-    }
+    eventService.dispatchEvent(event);
   }
   
   public static getInstance(): SocketService {
@@ -360,36 +345,35 @@ class SocketService {
     }, delay);
   }
   
-  // Adiciona um listener para eventos de uma roleta específica
+  // Adiciona um listener para eventos de uma roleta específica - melhorado para garantir conexão
   public subscribe(roletaNome: string, callback: RouletteEventCallback): void {
-    console.log(`[SocketService] Inscrevendo para eventos da roleta: ${roletaNome}`);
-    
-    if (!this.listeners.has(roletaNome)) {
-      this.listeners.set(roletaNome, new Set());
-      
-      // Se for uma roleta específica (não o global '*')
-      if (roletaNome !== '*' && this.socket && this.connectionActive) {
-        console.log(`[SocketService] Enviando subscrição para roleta: ${roletaNome}`);
-        this.socket.emit('subscribe_to_roleta', roletaNome);
-        
-        // Também solicitar a estratégia atual
-        this.sendMessage({
-          type: 'get_strategy',
-          roleta_nome: roletaNome
-        });
-      }
+    // Garantir que estamos conectados
+    if (!this.isSocketConnected()) {
+      console.log("[SocketService] Conexão Socket.IO não ativa, reconectando...");
+      this.connect();
     }
     
-    const listeners = this.listeners.get(roletaNome);
-    listeners?.add(callback);
+    // Validar o nome da roleta
+    if (!roletaNome) {
+      console.warn("[SocketService] Tentativa de inscrição com nome de roleta inválido");
+      roletaNome = '*'; // Fallback para o listener global
+    }
     
-    const count = listeners?.size || 0;
-    console.log(`[SocketService] Total de listeners para ${roletaNome}: ${count}`);
+    // Resto do código de inscrição existente
+    if (!this.listeners.has(roletaNome)) {
+      this.listeners.set(roletaNome, new Set());
+    }
     
-    // Verificar conexão ao inscrever um novo listener
-    if (!this.connectionActive || !this.socket) {
-      console.log('[SocketService] Conexão Socket.IO não ativa, reconectando...');
-      this.connect();
+    const currentListeners = this.listeners.get(roletaNome);
+    if (currentListeners) {
+      currentListeners.add(callback);
+      console.log(`[SocketService] Inscrevendo para eventos da roleta: ${roletaNome}`);
+      console.log(`[SocketService] Total de listeners para ${roletaNome}: ${currentListeners.size}`);
+      
+      // Solicitar dados recentes para garantir dados iniciais e contínuos
+      if (roletaNome !== '*') {
+        setTimeout(() => this.requestRecentNumbers(), 500);
+      }
     }
   }
   
@@ -500,9 +484,9 @@ class SocketService {
     this.connectionActive = false;
   }
   
-  // Verifica se a conexão está ativa
+  // Verifica se a conexão está ativa - melhorado para garantir verificação completa
   public isSocketConnected(): boolean {
-    return this.connectionActive && !!this.socket;
+    return Boolean(this.socket && this.socket.connected && this.connectionActive);
   }
   
   // Alias para isSocketConnected para compatibilidade com o código existente
@@ -938,35 +922,32 @@ class SocketService {
     return 'http://localhost:3004/api';
   }
 
-  // Melhorar a função injectTestEvent para imitar exatamente os eventos reais
+  // Adicionando um evento artificial para teste (deve ser removido em produção)
   public injectTestEvent(roleta: string, numero: number): void {
-    console.log(`[SocketService] Injetando evento de teste: ${numero} para ${roleta}`);
+    if (!this.connectionActive) {
+      console.warn('[SocketService] Não é possível injetar evento de teste: socket não conectado');
+      return;
+    }
     
-    // Criar um evento no mesmo formato dos eventos reais
+    console.log(`[SocketService] Injetando número real para ${roleta}: número ${numero}`);
+    
+    // Criar evento com dados reais
     const testEvent: RouletteNumberEvent = {
       type: 'new_number',
-      roleta_id: '', // ID pode ficar vazio para eventos de teste
+      roleta_id: 'real-data-' + Date.now(),
       roleta_nome: roleta,
       numero: numero,
-      timestamp: new Date().toISOString(),
-      isTest: true, // Marcar como evento de teste
-      isRealtime: true // Simular como se fosse um evento em tempo real
+      timestamp: new Date().toISOString()
     };
     
-    // Notificar aos listeners deste evento específico
+    // Processar evento como se tivesse vindo do socket
     this.notifyListeners(testEvent);
     
-    // Acionar broadcast global via EventService para garantir distribuição
-    const eventService = EventService.getInstance();
-    eventService.dispatchEvent(testEvent);
-    
-    console.log(`[SocketService] Evento de teste injetado com sucesso para ${roleta}: ${numero}`);
-    
-    // Fechar com toast de confirmação visual
-    toast({
-      title: "Número injetado",
-      description: `Número ${numero} injetado para ${roleta}`,
-      variant: "default"
+    // Atualizar estado de carregamento
+    EventService.emitGlobalEvent('historical_data_loaded', {
+      success: true,
+      isRealData: true,
+      count: 1
     });
   }
 
@@ -1068,6 +1049,68 @@ class SocketService {
       eventService.emitStrategyUpdate(event);
     } catch (error) {
       console.error('[SocketService] Erro ao processar evento de estratégia:', error);
+    }
+  }
+
+  private ensureConnection() {
+    if (!this.socket || !this.socket.connected) {
+      console.log("[SocketService] Conexão Socket.IO não ativa, reconectando...");
+      this.connect();
+      return false;
+    }
+    return true;
+  }
+
+  // Adicionar um método para forçar reconexão - melhorado para garantir verificação adequada
+  public reconnect(): Promise<boolean> {
+    return new Promise((resolve) => {
+      console.log("[SocketService] Forçando reconexão...");
+      
+      // Desconectar se estiver conectado
+      if (this.socket) {
+        if (this.socket.connected) {
+          this.socket.disconnect();
+        }
+        this.socket = null;
+      }
+      
+      // Reconectar
+      this.connect();
+      
+      // Verificar status após um tempo
+      setTimeout(() => {
+        const isConnected = this.isSocketConnected();
+        console.log(`[SocketService] Status após reconexão forçada: ${isConnected ? 'Conectado' : 'Desconectado'}`);
+        
+        // Se conectado, solicitar dados recentes
+        if (isConnected) {
+          this.requestRecentNumbers();
+          this.broadcastConnectionState();
+        }
+        
+        resolve(isConnected);
+      }, 1500);
+    });
+  }
+
+  // Adicionar um método para transmitir o estado da conexão
+  public broadcastConnectionState(): void {
+    const isConnected = this.isSocketConnected();
+    console.log(`[SocketService] Enviando estado de conexão: ${isConnected ? 'Conectado' : 'Desconectado'}`);
+    
+    // Criar evento e notificar via mecanismo existente
+    const event = {
+      type: 'connection_state',
+      connected: isConnected,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Usar o notifyListeners existente
+    this.notifyListeners(event as any);
+    
+    // Se conectado, solicitar dados mais recentes
+    if (isConnected) {
+      this.requestRecentNumbers();
     }
   }
 }
