@@ -406,7 +406,7 @@ export function useRouletteData(
     }
   }, [roletaId, roletaNome]);
   
-  // useEffect para inicialização - SIMPLIFICADO, REMOVIDO POLLING
+  // useEffect para inicialização - UNIFICADO PARA EVITAR CARREGAMENTO DUPLO
   useEffect(() => {
     let isActive = true;
     
@@ -415,7 +415,7 @@ export function useRouletteData(
       if (!isActive) return;
       
       try {
-        console.log(`[useRouletteData] Iniciando carregamento inicial para ${roletaNome} (ID: ${roletaId})`);
+        console.log(`[useRouletteData] Iniciando carregamento inicial único para ${roletaNome} (ID: ${roletaId})`);
         
         // Disparar evento de início de carregamento
         const eventService = EventService.getInstance();
@@ -442,6 +442,20 @@ export function useRouletteData(
         // Solicitar dados também via WebSocket
         const socketService = SocketService.getInstance();
         socketService.requestStrategy(roletaId, roletaNome);
+        
+        // Agora que temos os dados iniciais, iniciar o polling com FetchService para atualizações
+        if (numbersLoaded) {
+          console.log(`[useRouletteData] Dados iniciais carregados, iniciando polling para ${roletaNome}`);
+          const fetchService = FetchService.getInstance();
+          
+          // Iniciar polling com atraso para evitar sobreposição com carregamento inicial
+          setTimeout(() => {
+            if (isActive) {
+              fetchService.startPolling();
+              console.log(`[useRouletteData] Polling iniciado para ${roletaNome}`);
+            }
+          }, 3000); // Atraso de 3 segundos para garantir que não interfira no carregamento inicial
+        }
       } catch (error) {
         console.error(`[useRouletteData] ❌ Erro ao carregar dados iniciais para ${roletaNome}:`, error);
       }
@@ -453,8 +467,9 @@ export function useRouletteData(
     // Cleanup
     return () => {
       isActive = false;
+      console.log(`[useRouletteData] Componente desmontado, limpeza realizada para ${roletaNome}`);
     };
-  }, [loadNumbers, loadStrategy]);
+  }, [loadNumbers, loadStrategy, roletaId, roletaNome]);
   
   // ===== EVENTOS E WEBSOCKETS =====
   
@@ -607,47 +622,6 @@ export function useRouletteData(
     console.log(`[useRouletteData] Atualizando manualmente estratégia para ${roletaNome}`);
     return await loadStrategy();
   }, [roletaNome, loadStrategy]);
-  
-  // Modificar o FetchService para evitar substituição de dados
-  useEffect(() => {
-    // Iniciar o polling quando o componente é montado
-    console.log(`[useRouletteData] Iniciando polling para roleta ${roletaId}`);
-    const fetchService = FetchService.getInstance();
-    
-    // Antes de iniciar o polling, garantir que os dados iniciais foram carregados
-    const waitForInitialData = async () => {
-      // Verificar se já temos dados carregados
-      if (numbers.length > 0) {
-        console.log(`[useRouletteData] Dados iniciais já carregados para ${roletaNome}, iniciando polling`);
-        fetchService.startPolling();
-        return;
-      }
-      
-      // Esperar pelos dados iniciais antes de iniciar o polling
-      console.log(`[useRouletteData] Aguardando carregamento inicial para ${roletaNome} antes de iniciar polling`);
-      
-      // Tentar carregar dados antes de iniciar polling se ainda não temos dados
-      if (numbers.length === 0 && !loading) {
-        await loadNumbers();
-      }
-      
-      // Agora podemos iniciar o polling
-      fetchService.startPolling();
-      
-      // Forçar uma atualização mas preservando os dados existentes
-      setTimeout(() => {
-        fetchService.forceUpdate();
-      }, 2000);
-    };
-    
-    waitForInitialData();
-    
-    // Cleanup: parar polling quando o componente é desmontado
-    return () => {
-      // Não desligar o polling no cleanup para permitir que outros componentes continuem recebendo atualizações
-      console.log(`[useRouletteData] Componente desmontado, mas mantendo polling ativo`);
-    };
-  }, [roletaId, numbers.length, loading, loadNumbers, roletaNome]);
   
   // Retornar o resultado processado
   return {
