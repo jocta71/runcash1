@@ -372,8 +372,11 @@ const RouletteCard = memo(({
       
       console.log(`[RouletteCard] Processando número ${event.numero} para ${name} de evento ${eventRoletaNome}`);
       
-      // Importante: Desativar estado de carregamento quando recebemos qualquer evento válido
-      setIsLoading(false);
+      // Importante: Desativar estado de carregamento imediatamente quando recebemos qualquer evento válido
+      if (isLoading) {
+        console.log(`[RouletteCard] Desativando isLoading para ${name} após receber evento válido`);
+        setIsLoading(false);
+      }
       
       // Garantir que o número é um número válido
       let numero: number;
@@ -381,7 +384,7 @@ const RouletteCard = memo(({
         numero = event.numero;
       } else if (typeof event.numero === 'string') {
         numero = parseInt(event.numero, 10);
-              } else {
+      } else {
         console.warn(`[RouletteCard] Número inválido recebido: ${event.numero}`);
         return;
       }
@@ -407,7 +410,9 @@ const RouletteCard = memo(({
           return prevNumbers;
         }
         // Adicionar o número no início do array e manter apenas os 20 últimos
-        return [numero, ...prevNumbers].slice(0, 20);
+        const newArray = [numero, ...prevNumbers].slice(0, 20);
+        console.log(`[RouletteCard] Números atualizados para ${name}:`, newArray);
+        return newArray;
       });
       
       // Acionar o destaque visual
@@ -471,6 +476,34 @@ const RouletteCard = memo(({
       setIsSubscribed(false);
     };
   }, [name, apiNumbers, isLoading]);
+
+  // Adicionar um efeito para a detecção de dados carregados
+  useEffect(() => {
+    // Log detalhado do estado dos dados no componente
+    console.log(`[RouletteCard] Estado do card para ${roletaNome}:`, {
+      isLoading,
+      hasApiData: apiNumbers.length > 0,
+      hasSocketData: mappedNumbersOverride.length > 0,
+      mappedNumbersLength: mappedNumbers.length,
+      lastNumberState: lastNumber,
+      currentTime: new Date().toISOString()
+    });
+    
+    // Se temos dados da API ou do socket, mas ainda estamos carregando, desativar o carregamento
+    if (isLoading && (apiNumbers.length > 0 || mappedNumbersOverride.length > 0)) {
+      console.log(`[RouletteCard] Desativando isLoading para ${roletaNome} porque temos dados disponíveis`);
+      setIsLoading(false);
+      
+      // Se temos dados e não temos lastNumber definido, definir usando os dados disponíveis
+      if (lastNumber === null) {
+        const firstNumber = mappedNumbersOverride[0] || (apiNumbers[0] && apiNumbers[0].numero);
+        if (firstNumber !== undefined) {
+          console.log(`[RouletteCard] Definindo lastNumber para ${roletaNome} como ${firstNumber}`);
+          setLastNumber(typeof firstNumber === 'number' ? firstNumber : parseInt(firstNumber, 10));
+        }
+      }
+    }
+  }, [isLoading, apiNumbers, mappedNumbersOverride, mappedNumbers, lastNumber, roletaNome]);
 
   // Função para gerar sugestões
   const generateSuggestion = () => {
@@ -547,17 +580,6 @@ const RouletteCard = memo(({
   // Verificar se temos dados reais para exibir (apenas do WebSocket ou API)
   const hasDisplayableData = mappedNumbers.length > 0;
   
-  // Mostrar logs para depuração
-  useEffect(() => {
-    console.log(`[RouletteCard] Estado do card para ${roletaNome}:`, {
-      hasNumbers: mappedNumbers.length > 0,
-      numbersCount: mappedNumbers.length,
-      isLoading,
-      hasError: !!error,
-      numbersSource: mappedNumbersOverride.length > 0 ? 'WebSocket' : (apiNumbers.length > 0 ? 'API' : 'Nenhum')
-    });
-  }, [mappedNumbers, mappedNumbersOverride, apiNumbers, isLoading, error, roletaNome]);
-
   // Renderização apenas quando props são alteradas ou estados específicos mudam
   return (
     <div 
