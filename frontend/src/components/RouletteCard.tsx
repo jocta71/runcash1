@@ -354,7 +354,7 @@ const RouletteCard = memo(({
     };
   }, [name]);
 
-  // Efeito para conectar ao endpoint específico da roleta
+  // Efeito para conectar ao endpoint específico da roleta e escutar atualizações em tempo real
   useEffect(() => {
     // Verificar se temos o ID da roleta
     if (!roletaId) {
@@ -362,7 +362,7 @@ const RouletteCard = memo(({
       return;
     }
 
-    console.log(`[RouletteCard] Configurando conexão específica para roleta ${roletaId} (${roletaNome})`);
+    console.log(`[RouletteCard] ⚡️ Configurando conexão específica para roleta ${roletaId} (${roletaNome})`);
     
     // Obter instância do socketService
     const socketService = SocketService.getInstance();
@@ -370,11 +370,35 @@ const RouletteCard = memo(({
     // Conectar ao endpoint específico desta roleta
     socketService.subscribeToRouletteEndpoint(roletaId, roletaNome);
     
+    // Forçar reconexão para garantir que estamos recebendo eventos em tempo real
+    socketService.reconnect().then(connected => {
+      if (connected) {
+        console.log(`[RouletteCard] Reconexão bem-sucedida, solicitando dados para ${roletaNome}`);
+        // Reinscrever no endpoint específico após reconexão
+        socketService.subscribeToRouletteEndpoint(roletaId, roletaNome);
+        // Solicitar dados imediatamente
+        socketService.requestRouletteNumbers(roletaId);
+      } else {
+        console.log(`[RouletteCard] Falha na reconexão para ${roletaNome}, tentando novamente em 3s`);
+        // Tentar novamente após um breve delay
+        setTimeout(() => {
+          socketService.reconnect().then(success => {
+            if (success) {
+              socketService.subscribeToRouletteEndpoint(roletaId, roletaNome);
+              socketService.requestRouletteNumbers(roletaId);
+            }
+          });
+        }, 3000);
+      }
+    });
+    
     // Configurar verificação periódica para manter dados atualizados
     const dataRefreshInterval = setInterval(() => {
       console.log(`[RouletteCard] Verificação periódica de dados para ${roletaNome}`);
+      
       if (socketService.isSocketConnected()) {
-        // Solicitar novos dados específicos para esta roleta
+        // Adicionar timestamp para evitar cache
+        console.log(`[RouletteCard] Solicitando dados atualizados para ${roletaNome}`);
         socketService.requestRouletteNumbers(roletaId);
       } else {
         console.log(`[RouletteCard] Socket desconectado, reconectando para ${roletaNome}`);
@@ -384,13 +408,11 @@ const RouletteCard = memo(({
           }
         });
       }
-    }, 15000); // Verificar a cada 15 segundos
-    
-    // Solicitar dados imediatamente
-    socketService.requestRouletteNumbers(roletaId);
+    }, 10000); // Verificar a cada 10 segundos
     
     // Limpar intervalo quando o componente for desmontado
     return () => {
+      console.log(`[RouletteCard] Limpando recursos para ${roletaNome}`);
       clearInterval(dataRefreshInterval);
     };
   }, [roletaId, roletaNome]);
@@ -454,7 +476,7 @@ const RouletteCard = memo(({
       setHighlight(false);
       highlightTimerRef.current = null;
     }, 1500);
-  }, [roletaNome, setLastNumber, setNumbers, setMappedNumbersOverride, setHighlight, toast]);
+  }, [roletaNome, setLastNumber, setNumbers, setMappedNumbersOverride, setHighlight]);
 
   // Efeito para escutar eventos do websocket específicos para esta roleta
   useEffect(() => {
