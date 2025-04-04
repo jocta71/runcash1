@@ -18,11 +18,21 @@ export const ROLETAS_PERMITIDAS = [
  * @returns boolean indicando se a roleta está permitida
  */
 export const isRouletteAllowed = (rouletteId: string): boolean => {
-  // Permitir qualquer roleta que tenha um ID não vazio
-  return rouletteId !== undefined && rouletteId !== null && rouletteId.trim() !== '';
+  console.log(`[CONFIG] Verificando permissão para roleta ID: ${rouletteId}`);
+  
+  // Verificar se o ID é válido
+  const isValid = rouletteId !== undefined && rouletteId !== null && rouletteId.trim() !== '';
+  
+  // Verificar se está na lista de permitidas
+  const isInList = ROLETAS_PERMITIDAS.includes(rouletteId);
+  
+  // Usar configuração que permite todas as roletas com ID válido
+  // Se quiser restringir apenas para as IDs específicas, comente a linha abaixo
+  // e descomente a linha return isInList;
+  return isValid;
   
   // Código original que filtra apenas as roletas específicas:
-  // return ROLETAS_PERMITIDAS.includes(rouletteId);
+  // return isInList;
 };
 
 /**
@@ -31,5 +41,16 @@ export const isRouletteAllowed = (rouletteId: string): boolean => {
  * @returns Array filtrado contendo apenas roletas permitidas
  */
 export const filterAllowedRoulettes = <T extends { id: string }>(roulettes: T[]): T[] => {
-  return roulettes.filter(roulette => isRouletteAllowed(roulette.id));
+  console.log(`[CONFIG] Filtrando ${roulettes.length} roletas`);
+  
+  const filteredRoulettes = roulettes.filter(roulette => {
+    const allowed = isRouletteAllowed(roulette.id);
+    if (!allowed) {
+      console.log(`[CONFIG] Roleta ${roulette.id} foi rejeitada`);
+    }
+    return allowed;
+  });
+  
+  console.log(`[CONFIG] Resultado da filtragem: ${filteredRoulettes.length} roletas permitidas`);
+  return filteredRoulettes;
 }; 

@@ -619,6 +619,38 @@ class EventService {
     // Notificar listeners globais
     instance.notifyListeners(event as any);
   }
+
+  /**
+   * Envia um evento para todos os ouvintes registrados
+   * @param event Evento a ser enviado
+   */
+  public dispatchEvent(event: any): void {
+    console.log(`[EventService] Disparando evento ${event.type} para roleta ${event.roleta_nome || 'desconhecida'}`);
+    
+    // Notificar os listeners específicos para este tipo de evento
+    const callbacks = this.listeners.get(event.type);
+    if (callbacks) {
+      callbacks.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error(`[EventService] Erro ao processar evento ${event.type}:`, error);
+        }
+      });
+    }
+    
+    // Notificar também os listeners globais
+    const globalCallbacks = this.listeners.get('*');
+    if (globalCallbacks) {
+      globalCallbacks.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error(`[EventService] Erro ao processar evento global:`, error);
+        }
+      });
+    }
+  }
 }
 
 export default EventService; 

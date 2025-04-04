@@ -131,20 +131,25 @@ export function useRouletteData(
       setError(null);
       
       if (!roletaId) {
-        debugLog(`[useRouletteData] ID de roleta inválido: ${roletaId}`);
+        console.log(`[useRouletteData] ID de roleta inválido ou vazio: "${roletaId}"`);
         setLoading(false);
         setHasData(false);
         return false;
       }
       
       // 1. EXTRAÇÃO: Obter números brutos da API
-      debugLog(`[useRouletteData] Extraindo números para ${roletaNome} (ID: ${roletaId})`);
+      console.log(`[useRouletteData] Extraindo números para ${roletaNome} (ID: ${roletaId})`);
       let numerosArray = await fetchRouletteLatestNumbers(roletaId, limit);
+      
+      console.log(`[useRouletteData] Resposta da API para ${roletaNome}:`, numerosArray);
       
       // Tentar obter por nome como fallback se não conseguir por ID
       if (!numerosArray || numerosArray.length === 0) {
-        debugLog(`[useRouletteData] Tentando obter números por nome da roleta: ${roletaNome}`);
+        console.log(`[useRouletteData] Tentando obter números por nome da roleta: ${roletaNome}`);
         numerosArray = await fetchRouletteLatestNumbersByName(roletaNome, limit);
+        
+        // Log do resultado da busca por nome
+        console.log(`[useRouletteData] Resposta da busca por nome (${roletaNome}):`, numerosArray);
       }
       
       // 2. PROCESSAMENTO: Converter para formato RouletteNumber
@@ -152,23 +157,51 @@ export function useRouletteData(
         // Processar os números em formato adequado
         const processedNumbers = processRouletteNumbers(numerosArray);
         
+        console.log(`[useRouletteData] Dados processados para ${roletaNome}:`, {
+          total: processedNumbers.length,
+          primeiros: processedNumbers.slice(0, 3),
+          ultimoNum: processedNumbers[0]?.numero
+        });
+        
         // Atualizar estado
         setNumbers(processedNumbers);
         setHasData(true);
         initialLoadCompleted.current = true;
         
-        debugLog(`[useRouletteData] Processados ${processedNumbers.length} números para ${roletaNome}`);
+        // Acionar eventos no EventService para notificar outros componentes
+        const eventService = EventService.getInstance();
+        eventService.dispatchEvent({
+          type: 'historical_data_loaded',
+          roleta_id: roletaId,
+          roleta_nome: roletaNome,
+          numeros: processedNumbers.slice(0, 20).map(n => n.numero)
+        });
+        
+        console.log(`[useRouletteData] Concluído: ${processedNumbers.length} números carregados para ${roletaNome}`);
         return true;
       } else {
         // Sem dados disponíveis
+        console.log(`[useRouletteData] ⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
         setHasData(false);
         initialLoadCompleted.current = true;
         
-        debugLog(`[useRouletteData] Sem dados disponíveis para ${roletaNome}`);
+        // TESTE: Injetar dados simulados para teste
+        /* 
+        const dadosSimulados = Array.from({length: 10}, () => ({
+          numero: Math.floor(Math.random() * 37),
+          roleta_id: roletaId,
+          roleta_nome: roletaNome,
+          timestamp: new Date().toISOString()
+        }));
+        console.log(`[useRouletteData] Injetando dados simulados para teste`, dadosSimulados);
+        setNumbers(dadosSimulados);
+        setHasData(true);
+        */
+        
         return false;
       }
     } catch (err: any) {
-      console.error(`[useRouletteData] Erro ao carregar números: ${err.message}`);
+      console.error(`[useRouletteData] ❌ Erro ao carregar números para ${roletaNome}: ${err.message}`);
       setError(`Erro ao carregar números: ${err.message}`);
       setHasData(false);
       initialLoadCompleted.current = true;
@@ -187,13 +220,17 @@ export function useRouletteData(
     
     try {
       // 1. EXTRAÇÃO: Obter estratégia da API
-      debugLog(`[useRouletteData] Extraindo estratégia para ${roletaNome}...`);
+      console.log(`[useRouletteData] Extraindo estratégia para ${roletaNome} (ID: ${roletaId})...`);
       let strategyData = await fetchRouletteStrategy(roletaId);
+      
+      console.log(`[useRouletteData] Resposta da API de estratégia para ${roletaNome}:`, strategyData);
       
       // Se não tem dados de estratégia, tenta extrair da roleta por nome
       if (!strategyData) {
-        debugLog(`[useRouletteData] Tentando extrair estratégia da roleta por nome: ${roletaNome}`);
+        console.log(`[useRouletteData] Tentando extrair estratégia da roleta por nome: ${roletaNome}`);
         const roletaData = await fetchRouletteById(roletaId);
+        
+        console.log(`[useRouletteData] Dados da roleta obtidos:`, roletaData);
         
         if (roletaData) {
           strategyData = {
@@ -209,7 +246,7 @@ export function useRouletteData(
       
       // 2. PROCESSAMENTO: Atualizar estado com dados obtidos
       if (strategyData) {
-        debugLog(`[useRouletteData] Estratégia processada para ${roletaNome}:`, {
+        console.log(`[useRouletteData] Estratégia processada para ${roletaNome}:`, {
           estado: strategyData.estado,
           vitorias: strategyData.vitorias,
           derrotas: strategyData.derrotas
@@ -219,13 +256,13 @@ export function useRouletteData(
         setStrategyLoading(false);
         return true;
       } else {
-        debugLog(`[useRouletteData] Nenhuma estratégia encontrada para ${roletaNome}`);
+        console.log(`[useRouletteData] ⚠️ Nenhuma estratégia encontrada para ${roletaNome}`);
         setStrategy(null);
         setStrategyLoading(false);
         return false;
       }
     } catch (error) {
-      console.error(`[useRouletteData] Erro ao extrair estratégia: ${error}`);
+      console.error(`[useRouletteData] ❌ Erro ao extrair estratégia: ${error}`);
       setStrategyLoading(false);
       return false;
     }
@@ -240,10 +277,35 @@ export function useRouletteData(
       if (!isActive) return;
       
       try {
-        await loadNumbers();
-        await loadStrategy();
+        console.log(`[useRouletteData] Iniciando carregamento inicial para ${roletaNome} (ID: ${roletaId})`);
+        
+        // Disparar evento de início de carregamento
+        const eventService = EventService.getInstance();
+        eventService.dispatchEvent({
+          type: 'historical_data_loading',
+          roleta_id: roletaId,
+          roleta_nome: roletaNome
+        });
+        
+        // Carregar dados sequencialmente
+        const numbersLoaded = await loadNumbers();
+        const strategyLoaded = await loadStrategy();
+        
+        console.log(`[useRouletteData] Carregamento inicial concluído: números=${numbersLoaded}, estratégia=${strategyLoaded}`);
+        
+        // Disparar evento de conclusão
+        eventService.dispatchEvent({
+          type: 'historical_data_loaded',
+          roleta_id: roletaId,
+          roleta_nome: roletaNome,
+          success: numbersLoaded || strategyLoaded
+        });
+        
+        // Solicitar dados também via WebSocket
+        const socketService = SocketService.getInstance();
+        socketService.requestStrategy(roletaId, roletaNome);
       } catch (error) {
-        console.error('[useRouletteData] Erro ao carregar dados iniciais:', error);
+        console.error(`[useRouletteData] ❌ Erro ao carregar dados iniciais para ${roletaNome}:`, error);
       }
     };
     

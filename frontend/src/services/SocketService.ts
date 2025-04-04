@@ -1009,38 +1009,37 @@ class SocketService {
     });
   }
 
-  // Método para enviar solicitação de estratégia para um roleta
+  /**
+   * Solicita dados de estratégia para uma roleta específica
+   * @param roletaId ID da roleta
+   * @param roletaNome Nome da roleta
+   */
   public requestStrategy(roletaId: string, roletaNome: string): void {
-    // ⚠️ IMPORTANTE: Modificado para não fazer requisições HTTP diretas
-    console.log(`[SocketService] Solicitação de estratégia para ${roletaNome} interceptada e redirecionada para simulação local`);
+    console.log(`[SocketService] Solicitando dados de estratégia para ${roletaNome} (ID: ${roletaId})`);
     
-    // Importar StrategyService de forma assíncrona para evitar referência circular
-    import('./StrategyService').then(({ default: StrategyService }) => {
-      // Usar o StrategyService local que foi modificado para funcionar offline
-      StrategyService.getSystemStrategy().then(strategy => {
-        // Criar um evento simulado com a estratégia do sistema
-        const event: StrategyUpdateEvent = {
-          type: 'strategy_update',
-          roleta_id: roletaId,
-          roleta_nome: roletaNome,
-          estado: 'NEUTRAL',
-          numero_gatilho: null,
-          terminais_gatilho: [],
-          vitorias: 0,
-          derrotas: 0,
-          sugestao_display: 'Simulação modo offline',
-          timestamp: new Date().toISOString()
-        };
-        
-        console.log(`[SocketService] Enviando evento simulado de estratégia para ${roletaNome}`);
-        
-        // Notificar os ouvintes sobre essa estratégia
-        this.notifyListeners(event);
+    // Tentar enviar via socket se conectado
+    if (this.isConnected()) {
+      this.sendMessage({
+        type: 'get_strategy',
+        roleta_id: roletaId,
+        roleta_nome: roletaNome
       });
-    });
+    } else {
+      console.log(`[SocketService] Socket não conectado, solicitação de estratégia ignorada`);
+    }
     
-    // Não enviar requisição para o servidor
-    return;
+    // Emitir evento no Event Service para notificar componentes interessados
+    const eventService = EventService.getInstance();
+    const event = {
+      type: 'strategy_requested',
+      roleta_id: roletaId,
+      roleta_nome: roletaNome,
+      timestamp: new Date().toISOString()
+    };
+    
+    if (typeof eventService.dispatchEvent === 'function') {
+      eventService.dispatchEvent(event);
+    }
   }
 
   setupPing() {
