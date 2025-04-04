@@ -193,7 +193,9 @@ class SocketService {
       roleta_nome: data.roleta_nome,
       numero: typeof data.numero === 'number' ? data.numero : 
               typeof data.numero === 'string' ? parseInt(data.numero, 10) : 0,
-      timestamp: data.timestamp || new Date().toISOString()
+      timestamp: data.timestamp || new Date().toISOString(),
+      // Adicionar flag para preservar dados existentes
+      preserve_existing: true
     };
     
     if (isNaN(event.numero)) {

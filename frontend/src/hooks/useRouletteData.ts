@@ -429,7 +429,7 @@ export function useRouletteData(
     const numeroRaw = event.numero;
     const numeroFormatado = typeof numeroRaw === 'string' ? parseInt(numeroRaw, 10) : numeroRaw;
     
-    debugLog(`[useRouletteData] Número recebido via evento para ${roletaNome}: ${numeroFormatado}`);
+    debugLog(`[useRouletteData] Número recebido via evento para ${roletaNome}: ${numeroFormatado}, preserve_existing: ${event.preserve_existing}`);
     
     // 2. PROCESSAMENTO: Atualizar estado com o novo número
     setNumbers(prev => {
@@ -444,8 +444,18 @@ export function useRouletteData(
       // Processar o novo número
       const newNumber = processRouletteNumber(numeroFormatado, event.timestamp);
       
-      // Adicionar ao início da lista e manter o limite
-      const updatedNumbers = [newNumber, ...prev].slice(0, limit);
+      // Verificar se devemos preservar os dados existentes
+      let updatedNumbers;
+      if (event.preserve_existing) {
+        // Adicionar o novo número ao início e preservar todos os dados existentes
+        updatedNumbers = [newNumber, ...prev];
+        console.log(`[useRouletteData] PRESERVANDO dados existentes e adicionando número ${numeroFormatado} para ${roletaNome}`);
+      } else {
+        // Adicionar ao início da lista e manter apenas até o limite
+        updatedNumbers = [newNumber, ...prev].slice(0, limit);
+        console.log(`[useRouletteData] Atualizando números para ${roletaNome}: adicionando ${numeroFormatado}, total agora: ${updatedNumbers.length}`);
+      }
+      
       return updatedNumbers;
     });
     
@@ -545,22 +555,46 @@ export function useRouletteData(
     return await loadStrategy();
   }, [roletaNome, loadStrategy]);
   
-  // Inicializar o FetchService no início do hook para garantir a conexão em tempo real
+  // Modificar o FetchService para evitar substituição de dados
   useEffect(() => {
     // Iniciar o polling quando o componente é montado
     console.log(`[useRouletteData] Iniciando polling para roleta ${roletaId}`);
     const fetchService = FetchService.getInstance();
-    fetchService.startPolling();
     
-    // Forçar uma atualização imediata
-    fetchService.forceUpdate();
+    // Antes de iniciar o polling, garantir que os dados iniciais foram carregados
+    const waitForInitialData = async () => {
+      // Verificar se já temos dados carregados
+      if (numbers.length > 0) {
+        console.log(`[useRouletteData] Dados iniciais já carregados para ${roletaNome}, iniciando polling`);
+        fetchService.startPolling();
+        return;
+      }
+      
+      // Esperar pelos dados iniciais antes de iniciar o polling
+      console.log(`[useRouletteData] Aguardando carregamento inicial para ${roletaNome} antes de iniciar polling`);
+      
+      // Tentar carregar dados antes de iniciar polling se ainda não temos dados
+      if (numbers.length === 0 && !loading) {
+        await loadNumbers();
+      }
+      
+      // Agora podemos iniciar o polling
+      fetchService.startPolling();
+      
+      // Forçar uma atualização mas preservando os dados existentes
+      setTimeout(() => {
+        fetchService.forceUpdate();
+      }, 2000);
+    };
+    
+    waitForInitialData();
     
     // Cleanup: parar polling quando o componente é desmontado
     return () => {
       // Não desligar o polling no cleanup para permitir que outros componentes continuem recebendo atualizações
       console.log(`[useRouletteData] Componente desmontado, mas mantendo polling ativo`);
     };
-  }, [roletaId]);
+  }, [roletaId, numbers.length, loading, loadNumbers, roletaNome]);
   
   // Retornar o resultado processado
   return {

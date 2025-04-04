@@ -24,6 +24,8 @@ export interface RouletteNumberEvent {
   estado_estrategia?: string;
   sugestao_display?: string;
   terminais_gatilho?: number[];
+  // Flag para indicar se dados existentes devem ser preservados
+  preserve_existing?: boolean;
 }
 
 export interface StrategyUpdateEvent {

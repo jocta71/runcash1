@@ -260,7 +260,9 @@ class FetchService {
       roleta_id: roletaId,
       roleta_nome: roletaNome,
       numero: numero,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      // Adicionar flag para indicar que este evento NÃO deve substituir dados existentes
+      preserve_existing: true
     };
     
     console.log(`[FetchService] Emitindo evento de novo número para ${roletaNome}: ${numero}`);
