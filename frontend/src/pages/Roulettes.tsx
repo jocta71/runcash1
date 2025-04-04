@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMultipleRoulettes } from '../hooks/useRoulette';
-import { RouletteCard } from '../services/ui/components/RouletteCard/RouletteCard';
+import RouletteCard from '../services/ui/components/RouletteCard';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import './Roulettes.css';
 
