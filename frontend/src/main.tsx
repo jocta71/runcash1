@@ -2,13 +2,21 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import SocketService from './services/SocketService';
+import { initializeLogging } from './services/utils/initLogger';
+import { getLogger } from './services/utils/logger';
+
+// Inicializar o sistema de log
+initializeLogging();
+
+// Obter logger para o componente principal
+const logger = getLogger('Main');
 
 // Inicializar o SocketService logo no início para estabelecer conexão antecipada
-console.log('[main] Inicializando SocketService antes do render...');
+logger.info('Inicializando SocketService antes do render...');
 const socketService = SocketService.getInstance(); // Inicia a conexão
 
 // Informa ao usuário que a conexão está sendo estabelecida
-console.log('[main] Conexão com o servidor sendo estabelecida em background...');
+logger.info('Conexão com o servidor sendo estabelecida em background...');
 
 // Configuração global para requisições fetch
 const originalFetch = window.fetch;
@@ -29,9 +37,9 @@ window.fetch = function(input, init) {
 };
 
 // Iniciar pré-carregamento de dados históricos
-console.log('[main] Iniciando pré-carregamento de dados históricos...');
+logger.info('Iniciando pré-carregamento de dados históricos...');
 socketService.loadHistoricalRouletteNumbers().catch(err => {
-  console.error('[main] Erro ao pré-carregar dados históricos:', err);
+  logger.error('Erro ao pré-carregar dados históricos:', err);
 });
 
 const rootElement = document.getElementById("root");
@@ -57,5 +65,5 @@ if (rootElement) {
     createRoot(rootElement).render(<App />);
   }, 1500);
 } else {
-  console.error('[main] Elemento root não encontrado!');
+  logger.error('Elemento root não encontrado!');
 }

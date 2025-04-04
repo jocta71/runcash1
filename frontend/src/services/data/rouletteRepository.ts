@@ -1,6 +1,10 @@
 import { RouletteApi } from '../api/rouletteApi';
 import { socketClient } from '../socket/socketClient';
 import { transformRouletteData, getNumericId } from './rouletteTransformer';
+import { getLogger } from '../utils/logger';
+
+// Logger para o repositório
+const logger = getLogger('Repository');
 
 // Tipagem para os dados de roleta padronizados
 export interface RouletteData {
@@ -22,6 +26,9 @@ export interface RouletteData {
 const cache = new Map<string, { data: any, timestamp: number }>();
 const CACHE_TTL = 60000; // 1 minuto em milissegundos
 
+// Rastreamento de requisições pendentes para evitar chamadas duplicadas
+const pendingRequests = new Map<string, Promise<any>>();
+
 /**
  * Repositório para gerenciar dados de roletas
  */
@@ -31,7 +38,7 @@ export const RouletteRepository = {
    */
   clearCache() {
     cache.clear();
-    console.log('[Repository] Cache limpo');
+    logger.info('Cache limpo');
   },
   
   /**
@@ -46,34 +53,57 @@ export const RouletteRepository = {
       if (cache.has(cacheKey)) {
         const cacheEntry = cache.get(cacheKey)!;
         if (Date.now() - cacheEntry.timestamp < CACHE_TTL) {
-          console.log('[Repository] Usando dados em cache para todas as roletas');
+          logger.debug('Usando dados em cache para todas as roletas');
           return cacheEntry.data;
         }
       }
       
-      console.log('[Repository] Buscando todas as roletas com seus números');
-      
-      // Buscar dados da API
-      const rawData = await RouletteApi.fetchAllRoulettes();
-      
-      if (!Array.isArray(rawData)) {
-        console.error('[Repository] Resposta inválida da API:', rawData);
-        return [];
+      // Verificar se já existe uma requisição pendente
+      if (pendingRequests.has(cacheKey)) {
+        logger.debug('Reaproveitando requisição pendente para todas as roletas');
+        return pendingRequests.get(cacheKey)!;
       }
       
-      // Transformar dados para o formato padronizado
-      const transformedData = rawData.map(transformRouletteData);
+      logger.info('Buscando todas as roletas com seus números');
       
-      // Salvar em cache
-      cache.set(cacheKey, {
-        data: transformedData,
-        timestamp: Date.now()
+      // Criar nova requisição e armazenar a promessa
+      const requestPromise = new Promise<RouletteData[]>(async (resolve) => {
+        try {
+          // Buscar dados da API
+          const rawData = await RouletteApi.fetchAllRoulettes();
+          
+          if (!Array.isArray(rawData)) {
+            logger.error('Resposta inválida da API:', rawData);
+            resolve([]);
+            return;
+          }
+          
+          // Transformar dados para o formato padronizado
+          const transformedData = rawData.map(transformRouletteData);
+          
+          // Salvar em cache
+          cache.set(cacheKey, {
+            data: transformedData,
+            timestamp: Date.now()
+          });
+          
+          logger.info(`✅ Obtidas ${transformedData.length} roletas processadas`);
+          resolve(transformedData);
+        } catch (error) {
+          logger.error('Erro ao buscar roletas:', error);
+          resolve([]);
+        } finally {
+          // Remover do mapa de requisições pendentes após conclusão
+          pendingRequests.delete(cacheKey);
+        }
       });
       
-      console.log(`[Repository] ✅ Obtidas ${transformedData.length} roletas processadas`);
-      return transformedData;
+      // Salvar a promessa no mapa de requisições pendentes
+      pendingRequests.set(cacheKey, requestPromise);
+      
+      return requestPromise;
     } catch (error) {
-      console.error('[Repository] Erro ao buscar roletas:', error);
+      logger.error('Erro ao buscar roletas:', error);
       return [];
     }
   },
@@ -86,7 +116,7 @@ export const RouletteRepository = {
   async fetchRouletteById(id: string): Promise<RouletteData | null> {
     try {
       if (!id) {
-        console.error('[Repository] ID de roleta não fornecido');
+        logger.error('ID de roleta não fornecido');
         return null;
       }
       
@@ -98,38 +128,60 @@ export const RouletteRepository = {
       if (cache.has(cacheKey)) {
         const cacheEntry = cache.get(cacheKey)!;
         if (Date.now() - cacheEntry.timestamp < CACHE_TTL) {
-          console.log(`[Repository] Usando dados em cache para roleta ${numericId}`);
+          logger.debug(`Usando dados em cache para roleta ${numericId}`);
           return cacheEntry.data;
         }
       }
       
-      console.log(`[Repository] Buscando roleta com ID: ${numericId}`);
-      
-      // Buscar todas as roletas e filtrar
-      const roulettes = await this.fetchAllRoulettesWithNumbers();
-      const roulette = roulettes.find(r => 
-        r.id === numericId || r.uuid === id
-      );
-      
-      if (roulette) {
-        // Salvar em cache
-        cache.set(cacheKey, {
-          data: roulette,
-          timestamp: Date.now()
-        });
-        
-        console.log(`[Repository] ✅ Roleta encontrada: ${roulette.name}`);
-        
-        // Também assinar em tempo real via socket
-        socketClient.subscribeToRoulette(numericId, roulette.name);
-        
-        return roulette;
+      // Verificar se já existe uma requisição pendente
+      if (pendingRequests.has(cacheKey)) {
+        logger.debug(`Reaproveitando requisição pendente para roleta ${numericId}`);
+        return pendingRequests.get(cacheKey)!;
       }
       
-      console.warn(`[Repository] ❌ Roleta com ID ${numericId} não encontrada`);
-      return null;
+      logger.info(`Buscando roleta com ID: ${numericId}`);
+      
+      // Criar nova requisição e armazenar a promessa
+      const requestPromise = new Promise<RouletteData | null>(async (resolve) => {
+        try {
+          // Buscar todas as roletas e filtrar
+          const roulettes = await this.fetchAllRoulettesWithNumbers();
+          const roulette = roulettes.find(r => 
+            r.id === numericId || r.uuid === id
+          );
+          
+          if (roulette) {
+            // Salvar em cache
+            cache.set(cacheKey, {
+              data: roulette,
+              timestamp: Date.now()
+            });
+            
+            logger.info(`✅ Roleta encontrada: ${roulette.name}`);
+            
+            // Também assinar em tempo real via socket
+            socketClient.subscribeToRoulette(numericId, roulette.name);
+            
+            resolve(roulette);
+          } else {
+            logger.warn(`❌ Roleta com ID ${numericId} não encontrada`);
+            resolve(null);
+          }
+        } catch (error) {
+          logger.error(`Erro ao buscar roleta ${id}:`, error);
+          resolve(null);
+        } finally {
+          // Remover do mapa de requisições pendentes após conclusão
+          pendingRequests.delete(cacheKey);
+        }
+      });
+      
+      // Salvar a promessa no mapa de requisições pendentes
+      pendingRequests.set(cacheKey, requestPromise);
+      
+      return requestPromise;
     } catch (error) {
-      console.error(`[Repository] Erro ao buscar roleta ${id}:`, error);
+      logger.error(`Erro ao buscar roleta ${id}:`, error);
       return null;
     }
   },
@@ -143,17 +195,17 @@ export const RouletteRepository = {
     try {
       const numericId = getNumericId(roletaId);
       
-      console.log(`[Repository] Adicionando número para roleta ${roletaId} -> numeric=${numericId}`);
+      logger.debug(`Adicionando número para roleta ${numericId}`);
       
       const cacheKey = `roulette_${numericId}`;
       
       // Verificar se temos essa roleta em cache
       if (!cache.has(cacheKey)) {
-        console.warn(`[Repository] Tentativa de adicionar número, mas roleta ${numericId} não está em cache`);
+        logger.debug(`Roleta ${numericId} não está em cache, carregando`);
         // Tentar buscar a roleta pelo ID numérico
         this.fetchRouletteById(numericId).then(roulette => {
           if (roulette) {
-            console.log(`[Repository] Roleta ${numericId} carregada após recebimento de número`);
+            logger.debug(`Roleta ${numericId} carregada após recebimento de número`);
             // Adicionar o número após carregamento da roleta
             setTimeout(() => {
               this.addNewNumberToRoulette(numericId, number);
@@ -191,9 +243,9 @@ export const RouletteRepository = {
         timestamp: Date.now()
       });
       
-      console.log(`[Repository] ✅ Número ${transformedNumber.number} adicionado à roleta ${numericId}`);
+      logger.debug(`✅ Número ${transformedNumber.number} adicionado à roleta ${numericId}`);
     } catch (error) {
-      console.error(`[Repository] Erro ao adicionar número à roleta ${roletaId}:`, error);
+      logger.error(`Erro ao adicionar número à roleta ${roletaId}:`, error);
     }
   },
   
@@ -209,7 +261,7 @@ export const RouletteRepository = {
       
       // Verificar se temos essa roleta em cache
       if (!cache.has(cacheKey)) {
-        console.warn(`[Repository] Tentativa de atualizar estratégia, mas roleta ${numericId} não está em cache`);
+        logger.debug(`Roleta ${numericId} não está em cache, ignorando atualização de estratégia`);
         return;
       }
       
@@ -226,9 +278,9 @@ export const RouletteRepository = {
         timestamp: Date.now()
       });
       
-      console.log(`[Repository] ✅ Estratégia atualizada para roleta ${numericId}: ${cachedRoulette.strategyState}`);
+      logger.debug(`✅ Estratégia atualizada para roleta ${numericId}: ${cachedRoulette.strategyState}`);
     } catch (error) {
-      console.error(`[Repository] Erro ao atualizar estratégia da roleta ${roletaId}:`, error);
+      logger.error(`Erro ao atualizar estratégia da roleta ${roletaId}:`, error);
     }
   },
   
@@ -240,7 +292,7 @@ export const RouletteRepository = {
    */
   subscribeToRouletteUpdates(id: string, callback: (data: RouletteData) => void): () => void {
     const numericId = getNumericId(id);
-    console.log(`[Repository] Assinando atualizações para roleta ${id} -> numeric=${numericId}`);
+    logger.debug(`Assinando atualizações para roleta ${numericId}`);
     
     // Buscar dados iniciais
     this.fetchRouletteById(numericId).then(roulette => {
@@ -251,7 +303,7 @@ export const RouletteRepository = {
     
     // Assinar eventos do socket para atualizações de números
     const numberEventCallback = (data: any) => {
-      console.log(`[Repository] Evento de novo número recebido para roleta ${numericId}:`, data);
+      logger.verbose(`Evento de novo número recebido para roleta ${numericId}`);
       
       // Adicionar número ao cache
       if (data.numero !== undefined || data.number !== undefined) {
@@ -260,14 +312,14 @@ export const RouletteRepository = {
         // Extrair o ID da roleta do evento
         let eventRouletaId = data.roleta_id || data.roulette_id;
         if (eventRouletaId && eventRouletaId !== numericId) {
-          console.log(`[Repository] ⚠️ ID da roleta no evento (${eventRouletaId}) é diferente do ID assinado (${numericId})`);
+          logger.debug(`⚠️ ID da roleta no evento (${eventRouletaId}) é diferente do ID assinado (${numericId})`);
           
           // Verificar se podemos mapear o ID do evento para nosso ID numérico
           const mappedId = getNumericId(eventRouletaId);
           if (mappedId === numericId) {
-            console.log(`[Repository] ✅ IDs mapeados corretamente: ${eventRouletaId} -> ${numericId}`);
+            logger.debug(`✅ IDs mapeados corretamente: ${eventRouletaId} -> ${numericId}`);
           } else {
-            console.warn(`[Repository] ❌ IDs não correspondem após mapeamento: ${eventRouletaId} -> ${mappedId} != ${numericId}`);
+            logger.warn(`❌ IDs não correspondem após mapeamento: ${eventRouletaId} -> ${mappedId} != ${numericId}`);
           }
         }
       }
@@ -281,7 +333,7 @@ export const RouletteRepository = {
     
     // Assinar eventos do socket para atualizações de estratégia
     const strategyEventCallback = (data: any) => {
-      console.log(`[Repository] Evento de estratégia recebido para roleta ${numericId}:`, data);
+      logger.verbose(`Evento de estratégia recebido para roleta ${numericId}`);
       this.updateRouletteStrategy(numericId, data);
       
       // Buscar roleta atualizada do cache e notificar
@@ -297,9 +349,9 @@ export const RouletteRepository = {
     
     // Retornar função para cancelar assinatura
     return () => {
-      // Usar removeAllListeners para compatibilidade
-      socketClient.removeAllListeners(`new_number_${numericId}`);
-      socketClient.removeAllListeners(`strategy_update_${numericId}`);
+      // Usar removeListener para especificidade
+      socketClient.removeListener(`new_number_${numericId}`, numberEventCallback);
+      socketClient.removeListener(`strategy_update_${numericId}`, strategyEventCallback);
     };
   }
 }; 
