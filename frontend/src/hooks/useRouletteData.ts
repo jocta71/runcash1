@@ -49,6 +49,9 @@ interface RouletteNumber {
 
 type RouletteStrategy = ApiRouletteStrategy;
 
+// Criar um registro global de polling para evitar duplicações
+const pollingInitialized = new Set<string>();
+
 /**
  * Função para buscar números da roleta pelo novo endpoint separado
  * @param roletaId ID da roleta
@@ -225,7 +228,11 @@ export function useRouletteData(
   // Ref para controle de inicialização
   const initialLoadCompleted = useRef<boolean>(false);
   const initialDataLoaded = useRef<boolean>(false);
+  const hookInitialized = useRef<boolean>(false);
   
+  // Chave única para esta instância do hook
+  const instanceKey = useRef<string>(`${roletaId}:${roletaNome}`);
+
   // Função para atualizar o estado numbers que combina initialNumbers e newNumbers
   const updateCombinedNumbers = useCallback(() => {
     // Combinar os novos números com os dados iniciais
@@ -269,9 +276,15 @@ export function useRouletteData(
     updateCombinedNumbers();
   }, [initialNumbers, newNumbers, updateCombinedNumbers]);
 
-  // Função para extrair e processar números da API - MODIFICADA PARA ATUALIZAR APENAS initialNumbers
+  // Função para extrair e processar números da API - MODIFICADA PARA EVITAR CARREGAMENTOS DUPLICADOS
   const loadNumbers = useCallback(async (isRefresh = false): Promise<boolean> => {
     try {
+      // Se já temos dados iniciais e não é uma atualização manual, pular
+      if (initialDataLoaded.current && !isRefresh) {
+        console.log(`[useRouletteData] Ignorando carregamento de números para ${roletaNome} - dados já carregados`);
+        return true;
+      }
+      
       if (!isRefresh) setLoading(true);
       setError(null);
       
@@ -282,10 +295,10 @@ export function useRouletteData(
         return false;
       }
       
-      // 1. EXTRAÇÃO: Obter números brutos do novo endpoint
-      console.log(`[useRouletteData] Extraindo números para ${roletaNome} (ID: ${roletaId})`);
+      // Registrar explicitamente o início do carregamento
+      console.log(`[useRouletteData] ${isRefresh ? '🔄 RECARREGANDO' : '📥 CARREGANDO'} dados para ${roletaNome} (ID: ${roletaId})`);
       
-      // Usar o novo endpoint específico para números
+      // 1. EXTRAÇÃO: Obter números brutos do novo endpoint
       let numerosArray = await fetchRouletteNumbers(roletaId, roletaNome, limit);
       
       console.log(`[useRouletteData] Resposta do endpoint de números para ${roletaNome}:`, 
@@ -317,38 +330,23 @@ export function useRouletteData(
         
         console.log(`[useRouletteData] Dados processados para ${roletaNome}:`, {
           total: processedNumbers.length,
-          primeiros: processedNumbers.slice(0, 3).map(n => n.numero),
-          ultimoNum: processedNumbers[0]?.numero
+          primeiros: processedNumbers.slice(0, 3).map(n => n.numero)
         });
         
-        // IMPORTANTE: Salvar os dados iniciais apenas uma vez
-        if (!initialDataLoaded.current) {
-          console.log(`[useRouletteData] Salvando dados iniciais pela primeira vez para ${roletaNome}: ${processedNumbers.length} números`);
+        // IMPORTANTE: Salvar os dados iniciais apenas uma vez ou se for refresh manual
+        if (!initialDataLoaded.current || isRefresh) {
+          console.log(`[useRouletteData] ${initialDataLoaded.current ? 'Atualizando' : 'Salvando pela primeira vez'} dados iniciais para ${roletaNome}: ${processedNumbers.length} números`);
           setInitialNumbers(processedNumbers);
           initialDataLoaded.current = true;
-        } else if (isRefresh) {
-          // Se for uma atualização manual, atualizar os dados iniciais
-          console.log(`[useRouletteData] Atualizando dados iniciais em refresh manual para ${roletaNome}`);
-          setInitialNumbers(processedNumbers);
         }
         
         setHasData(true);
         initialLoadCompleted.current = true;
         
-        // Acionar eventos no EventService para notificar outros componentes
-        const eventService = EventService.getInstance();
-        eventService.dispatchEvent({
-          type: 'historical_data_loaded',
-          roleta_id: roletaId,
-          roleta_nome: roletaNome,
-          numeros: processedNumbers.slice(0, 20).map(n => n.numero)
-        });
-        
-        console.log(`[useRouletteData] Concluído: ${processedNumbers.length} números carregados para ${roletaNome}`);
         return true;
       } else {
         // Sem dados disponíveis
-        console.log(`[useRouletteData] ⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
+        console.warn(`[useRouletteData] ⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
         setHasData(false);
         initialLoadCompleted.current = true;
                 
@@ -422,15 +420,31 @@ export function useRouletteData(
     }
   }, [roletaId, roletaNome]);
   
-  // useEffect para inicialização - UNIFICADO PARA EVITAR CARREGAMENTO DUPLO
+  // useEffect para inicialização - GARANTINDO CARREGAMENTO ÚNICO
   useEffect(() => {
+    // Verificar se esta instância específica já foi inicializada para evitar carregamento duplo
+    if (hookInitialized.current) {
+      console.log(`[useRouletteData] Hook já inicializado para ${roletaNome}, ignorando inicialização duplicada`);
+      return;
+    }
+    
+    // Marcar esta instância como inicializada
+    hookInitialized.current = true;
+    
     let isActive = true;
+    console.log(`[useRouletteData] ⭐ INICIANDO CARREGAMENTO ÚNICO para ${roletaNome} (ID: ${roletaId})`);
     
     // Função para carregar dados uma única vez
     const loadInitialData = async () => {
       if (!isActive) return;
       
       try {
+        // Verificar se já temos dados iniciais carregados para esta roleta
+        if (initialDataLoaded.current) {
+          console.log(`[useRouletteData] Dados iniciais já carregados para ${roletaNome}, pulando carregamento`);
+          return;
+        }
+        
         console.log(`[useRouletteData] Iniciando carregamento inicial único para ${roletaNome} (ID: ${roletaId})`);
         
         // Disparar evento de início de carregamento
@@ -460,17 +474,23 @@ export function useRouletteData(
         socketService.requestStrategy(roletaId, roletaNome);
         
         // Agora que temos os dados iniciais, iniciar o polling com FetchService para atualizações
-        if (numbersLoaded) {
-          console.log(`[useRouletteData] Dados iniciais carregados, iniciando polling para ${roletaNome}`);
-          const fetchService = FetchService.getInstance();
+        // APENAS se ainda não foi inicializado para esta roleta
+        if (numbersLoaded && !pollingInitialized.has(instanceKey.current)) {
+          console.log(`[useRouletteData] Iniciando polling PELA PRIMEIRA VEZ para ${roletaNome}`);
           
-          // Iniciar polling com atraso para evitar sobreposição com carregamento inicial
+          // Marcar como inicializado globalmente
+          pollingInitialized.add(instanceKey.current);
+          
+          // Usar um setTimeout para garantir que não haverá interferência
           setTimeout(() => {
             if (isActive) {
+              const fetchService = FetchService.getInstance();
               fetchService.startPolling();
-              console.log(`[useRouletteData] Polling iniciado para ${roletaNome}`);
+              console.log(`[useRouletteData] ✅ Polling iniciado com sucesso para ${roletaNome}`);
             }
-          }, 3000); // Atraso de 3 segundos para garantir que não interfira no carregamento inicial
+          }, 5000); // Atraso maior para garantir separação completa
+        } else {
+          console.log(`[useRouletteData] Polling JÁ INICIALIZADO para ${roletaNome}, não iniciando novamente`);
         }
       } catch (error) {
         console.error(`[useRouletteData] ❌ Erro ao carregar dados iniciais para ${roletaNome}:`, error);
@@ -485,7 +505,7 @@ export function useRouletteData(
       isActive = false;
       console.log(`[useRouletteData] Componente desmontado, limpeza realizada para ${roletaNome}`);
     };
-  }, [loadNumbers, loadStrategy, roletaId, roletaNome]);
+  }, [loadNumbers, loadStrategy, roletaId, roletaNome]); // Dependências mínimas necessárias
   
   // ===== EVENTOS E WEBSOCKETS =====
   
