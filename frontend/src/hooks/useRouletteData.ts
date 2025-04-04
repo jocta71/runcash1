@@ -68,8 +68,8 @@ const fetchRouletteNumbers = async (roletaId: string, nome?: string, limit: numb
       return [];
     }
 
-    // Mapear para o ID canônico
-    const canonicalId = mapToCanonicalRouletteId(roletaId, nome);
+    // Mapeamento para o ID canônico
+    const canonicalId = mapToCanonicalRouletteId(roletaId);
     console.log(`[useRouletteData] Buscando números para roleta ${roletaId} (nome: ${nome || 'desconhecido'}, canônico: ${canonicalId})`);
     
     // Verificar se o ID é numérico (formato canônico esperado pela API)
@@ -100,10 +100,10 @@ const fetchRouletteNumbers = async (roletaId: string, nome?: string, limit: numb
   } catch (error: any) {
     console.error(`[useRouletteData] ❌ Erro ao buscar números da roleta ${nome || roletaId}:`, error.message);
     // Tentar novamente com fallback para ID específico
-    if (nome && roletaId !== mapToCanonicalRouletteId("", nome)) {
+    if (nome) {
       console.log(`[useRouletteData] Tentando fallback para ID baseado no nome: ${nome}`);
       try {
-        const fallbackId = mapToCanonicalRouletteId("", nome);
+        const fallbackId = mapToCanonicalRouletteId(nome);
         if (fallbackId && fallbackId !== roletaId) {
           console.log(`[useRouletteData] Usando ID fallback: ${fallbackId}`);
           const endpoint = `/roulette-numbers/${fallbackId}?limit=${limit}`;
@@ -281,22 +281,9 @@ export function useRouletteData(
     return roleta ? roleta.id : null;
   };
 
-  // Determinar o ID canônico para esta roleta
-  const canonicalId = useMemo(() => {
-    // Se temos o ID diretamente e é um ID canônico, usar ele
-    if (roletaId && ROLETAS_CANONICAS.some(r => r.id === roletaId)) {
-      return roletaId;
-    }
-
-    // Se temos o nome, tentar mapear pelo nome
-    if (roletaNome) {
-      const idByName = getCanonicalIdByName(roletaNome);
-      if (idByName) return idByName;
-    }
-
-    // Se ainda não encontramos, usar a função de mapeamento
-    return mapToCanonicalRouletteId(roletaId);
-  }, [roletaId, roletaNome]);
+  // Obter o ID canônico da roleta
+  const canonicalId = mapToCanonicalRouletteId(roletaId);
+  console.log(`[useRouletteData] ID canônico para ${roletaId}: ${canonicalId}`);
 
   // Função para atualizar o estado numbers que combina initialNumbers e newNumbers
   const updateCombinedNumbers = useCallback(() => {
@@ -535,7 +522,7 @@ export function useRouletteData(
           initialDataLoaded.current = false;
           
           // Obter o ID canônico da roleta
-          const canonicalId = mapToCanonicalRouletteId(roletaId, roletaNome);
+          const canonicalId = mapToCanonicalRouletteId(roletaId);
           console.log(`[useRouletteData] ID canônico para ${roletaId}: ${canonicalId}`);
           
           // Buscar dados de números diretamente - sempre buscar novos dados
