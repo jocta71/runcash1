@@ -8,7 +8,8 @@ export interface RouletteData {
   id?: string;
   nome?: string;
   name?: string;
-  numeros?: Array<any>;
+  numero?: Array<any>;   // Campo usado no endpoint roulette-numbers (singular)
+  numeros?: Array<any>;  // Campo usado no endpoint ROULETTES (plural)
   estado_estrategia?: string;
   ativa?: boolean;
   vitorias?: number;
@@ -159,10 +160,16 @@ export const fetchRoulettes = async (): Promise<RouletteData[]> => {
         const uuid = roleta.id;
         const canonicalId = mapToCanonicalRouletteId(uuid);
         
+        // Garantir que temos arrays de números válidos, independente se vier como numeros ou numero
+        const numerosArray = Array.isArray(roleta.numeros) ? roleta.numeros : 
+                             (Array.isArray(roleta.numero) ? roleta.numero : []);
+        
         return {
           ...roleta,
-          _id: canonicalId, // Adicionar o ID canônico
-          uuid: uuid        // Preservar o UUID original
+          _id: canonicalId,       // Adicionar o ID canônico
+          uuid: uuid,             // Preservar o UUID original
+          numeros: numerosArray,  // Garantir campo numeros (plural)
+          numero: numerosArray    // Garantir campo numero (singular)
         };
       });
       
