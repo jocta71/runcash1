@@ -287,7 +287,16 @@ export const fetchRouletteLatestNumbers = async (roletaId: string, limit = 10): 
   if (data && Array.isArray(data)) {
     // Extrair apenas os números do array de objetos
     const numbers = data.map((item: any) => {
-      return typeof item.numero === 'number' ? item.numero : parseInt(item.numero, 10);
+      // Verificar se o item.numero é válido
+      if (typeof item.numero === 'number' && !isNaN(item.numero)) {
+        return item.numero;
+      } else if (typeof item.numero === 'string' && item.numero.trim() !== '') {
+        const parsedValue = parseInt(item.numero, 10);
+        if (!isNaN(parsedValue)) return parsedValue;
+      }
+      // Se chegou aqui, é um valor inválido, retornar 0
+      console.warn(`[API] Valor inválido de número encontrado: ${item.numero}, substituindo por 0`);
+      return 0;
     });
     console.log(`[API] Processados ${numbers.length} números para roleta ID ${roletaId}:`, numbers);
     return numbers;

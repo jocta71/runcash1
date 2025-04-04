@@ -86,20 +86,45 @@ const processRouletteNumbers = (numbers: number[] | any[]): RouletteNumber[] => 
   return numbers.map((item) => {
     // Verificar se o item já é um objeto com número
     if (typeof item === 'object' && item !== null) {
+      // Garantir que número seja um valor numérico válido
+      let numeroValue: number;
+      
+      if (typeof item.numero === 'number' && !isNaN(item.numero)) {
+        numeroValue = item.numero;
+      } else if (typeof item.numero === 'string' && item.numero.trim() !== '') {
+        const parsedValue = parseInt(item.numero, 10);
+        numeroValue = !isNaN(parsedValue) ? parsedValue : 0;
+      } else {
+        numeroValue = 0;
+        console.warn(`[useRouletteData] Valor inválido encontrado: ${item.numero}, usando 0 como fallback`);
+      }
+      
       return {
-        numero: typeof item.numero === 'number' ? item.numero : parseInt(item.numero, 10),
+        numero: numeroValue,
         roleta_id: item.roleta_id,
         roleta_nome: item.roleta_nome,
-        cor: item.cor,
+        cor: item.cor || determinarCorNumero(numeroValue),
         timestamp: item.timestamp || new Date().toISOString()
       };
     }
     
     // Se for direto um número
+    let numeroValue: number;
+    if (typeof item === 'number' && !isNaN(item)) {
+      numeroValue = item;
+    } else if (typeof item === 'string' && item.trim() !== '') {
+      const parsedValue = parseInt(item, 10);
+      numeroValue = !isNaN(parsedValue) ? parsedValue : 0;
+    } else {
+      numeroValue = 0;
+      console.warn(`[useRouletteData] Valor inválido encontrado: ${item}, usando 0 como fallback`);
+    }
+    
     return {
-      numero: typeof item === 'number' ? item : parseInt(item, 10),
+      numero: numeroValue,
       roleta_id: undefined,
       roleta_nome: undefined,
+      cor: determinarCorNumero(numeroValue),
       timestamp: new Date().toISOString()
     };
   });
@@ -140,6 +165,34 @@ export const processRouletteNumber = (numero: number, timestamp?: string): Roule
     cor: determinarCorNumero(numero),
     timestamp: timestamp || new Date().toISOString()
   };
+};
+
+/**
+ * Processa números de uma roleta por ID
+ */
+export const fetchRouletteLatestNumbers = async (roletaId: string, limit = 10): Promise<number[]> => {
+  const data = await extractRouletteNumbersById(roletaId, limit);
+  
+  if (data && Array.isArray(data)) {
+    // Extrair apenas os números do array de objetos
+    const numbers = data.map((item: any) => {
+      // Verificar se o item.numero é válido
+      if (typeof item.numero === 'number' && !isNaN(item.numero)) {
+        return item.numero;
+      } else if (typeof item.numero === 'string' && item.numero.trim() !== '') {
+        const parsedValue = parseInt(item.numero, 10);
+        if (!isNaN(parsedValue)) return parsedValue;
+      }
+      // Se chegou aqui, é um valor inválido, retornar 0
+      console.warn(`[API] Valor inválido de número encontrado: ${item.numero}, substituindo por 0`);
+      return 0;
+    });
+    console.log(`[API] Processados ${numbers.length} números para roleta ID ${roletaId}:`, numbers);
+    return numbers;
+  }
+  
+  console.warn(`[API] Nenhum número encontrado para roleta ID ${roletaId}`);
+  return [];
 };
 
 /**
