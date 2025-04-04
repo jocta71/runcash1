@@ -785,6 +785,17 @@ function determinarCorNumero(numero) {
   return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
 }
 
+// Endpoint para obter números de uma roleta específica por ID - versão alternativa com nome no plural (para compatibilidade)
+app.get('/api/roulette-numbers/:id', async (req, res) => {
+  // Endpoint desativado para forçar uso da nova API
+  console.log(`[API] Acesso ao endpoint desativado /api/roulette-numbers/${req.params.id}`);
+  return res.status(404).json({ 
+    error: 'Endpoint desativado', 
+    message: 'Este endpoint foi removido. Por favor, use /api/roulette-numero/:id em vez disso.',
+    code: 'ENDPOINT_DEPRECATED'
+  });
+});
+
 // 404 handler for any routes not found
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
