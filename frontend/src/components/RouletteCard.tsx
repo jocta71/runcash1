@@ -647,19 +647,6 @@ const RouletteCard = memo(({
         </div>
       </div>
       
-      {/* Último número */}
-      <div className={`flex justify-center items-center p-2 ${highlight ? 'bg-green-500/10' : 'bg-transparent'} transition-colors duration-300`}>
-        {isLoading ? (
-          <div className="w-12 h-12 flex items-center justify-center">
-            <Loader2 className="animate-spin w-6 h-6 text-zinc-500" />
-          </div>
-        ) : (
-          <div className="w-12 h-12 flex items-center justify-center">
-            <HelpCircle className="w-6 h-6 text-zinc-500" />
-          </div>
-        )}
-      </div>
-      
       {/* Corpo do Card */}
       <div className="p-4">
         {isLoading ? (
