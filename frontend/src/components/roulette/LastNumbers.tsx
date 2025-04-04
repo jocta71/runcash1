@@ -1,134 +1,81 @@
-import React, { memo, useEffect, useRef } from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { getRouletteNumberColor } from '@/utils/rouletteUtils';
+import React, { useEffect, useState, useRef } from 'react';
+import RouletteNumber from './RouletteNumber';
+import { Loader2 } from 'lucide-react';
 
 interface LastNumbersProps {
   numbers: number[];
-  isLoading?: boolean;
   className?: string;
   isBlurred?: boolean;
+  roletaId?: string; // Adicionado para permitir vinculação direta ao endpoint
 }
 
-const LastNumbers = memo(({ numbers, isLoading = false, className = '', isBlurred = false }: LastNumbersProps) => {
-  // Garantir que numbers é um array válido
-  const safeNumbers = Array.isArray(numbers) ? numbers : [];
-  
-  // Log para depuração
-  useEffect(() => {
-    console.log(`[LastNumbers] Recebeu ${safeNumbers.length} números`, 
-      safeNumbers.length > 0 ? safeNumbers.slice(0, 5) : 'array vazio');
-  }, [safeNumbers]);
+const LastNumbers = ({ numbers, className = '', isBlurred = false, roletaId }: LastNumbersProps) => {
+  const [displayNumbers, setDisplayNumbers] = useState<number[]>([]);
+  const previousNumbersRef = useRef<number[]>([]);
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  // Manter uma referência aos números exibidos para evitar oscilações
-  const displayNumbersRef = useRef<number[]>([]);
-  
-  // Atualizar os números de exibição apenas quando houver novos números
+  // Efeito para processar números recebidos
   useEffect(() => {
-    // Só atualizamos os números se:
-    // 1. Temos números novos E
-    // 2. Os números são diferentes dos que já estamos exibindo
-    if (safeNumbers.length > 0 && 
-        JSON.stringify(safeNumbers) !== JSON.stringify(displayNumbersRef.current)) {
-      console.log(`[LastNumbers] Atualizando displayNumbersRef com ${safeNumbers.length} números`);
+    // Verificar se os números mudaram de forma significativa
+    const hasNewNumbers = Array.isArray(numbers) && numbers.length > 0 && 
+      (previousNumbersRef.current.length === 0 || numbers[0] !== previousNumbersRef.current[0]);
+    
+    if (hasNewNumbers) {
+      console.log(`[LastNumbers] Recebidos ${numbers.length} números para exibição, primeiro número: ${numbers[0]}`);
       
-      // NOVA LÓGICA: Filtrar zeros de placeholder
-      // Se só temos um número e é zero, provavelmente é um placeholder
-      const isLikelyPlaceholder = safeNumbers.length === 1 && safeNumbers[0] === 0;
+      // Filtrar zeros solitários que são provavelmente placeholders
+      const validNumbers = numbers.filter(num => {
+        // Se não é um número válido, filtrar
+        if (typeof num !== 'number' || isNaN(num)) return false;
+        
+        // Se há vários números, permitir zeros (pois provavelmente são números reais)
+        if (numbers.length > 4) return true;
+        
+        // Para sequências curtas, filtrar zeros (prováveis placeholders)
+        return num !== 0;
+      });
       
-      // Só atualizar se não parece ser um placeholder
-      if (!isLikelyPlaceholder) {
-        displayNumbersRef.current = [...safeNumbers];
-      } else {
-        console.log('[LastNumbers] Ignorando possível zero de placeholder');
+      // Verificar se ainda temos números após a filtragem
+      if (validNumbers.length > 0) {
+        // Animar a transição de números (breve flash)
+        setIsUpdating(true);
+        setTimeout(() => setIsUpdating(false), 300);
+        
+        // Atualizar os números exibidos
+        setDisplayNumbers(validNumbers);
+        previousNumbersRef.current = validNumbers;
+      } else if (numbers.length > 0 && validNumbers.length === 0) {
+        console.log('[LastNumbers] Todos os números foram filtrados como inválidos');
       }
     }
-  }, [safeNumbers]);
-  
-  // Se temos números na ref de exibição, usamos eles (mesmo durante loading)
-  // Isso garante que os números permaneçam visíveis mesmo durante refreshes
-  const hasStoredNumbers = displayNumbersRef.current.length > 0;
-  
-  // Não usar mais dados falsos de template
-  const shouldUseTemplateData = false;
-  
-  // Array final de números para exibição
-  const displayNumbers = hasStoredNumbers
-    ? displayNumbersRef.current
-    : [];
-  
-  // Verificar qual número é novo (para animação)
-  const previousRenderRef = useRef<number[]>([]);
-  const newNumberIndex = displayNumbers.length > 0 && previousRenderRef.current.length > 0 
-    ? (displayNumbers[0] !== previousRenderRef.current[0] ? 0 : -1) 
-    : -1;
-  
-  // Após renderizar, atualizar a referência do render anterior para detectar novos números
-  useEffect(() => {
-    if (displayNumbers.length > 0) {
-      previousRenderRef.current = [...displayNumbers];
-    }
-  }, [displayNumbers]);
-  
-  // Mostrar loading apenas no carregamento inicial e quando não temos números armazenados
-  if (isLoading && !hasStoredNumbers) {
-    return (
-      <div className={`flex flex-wrap gap-1.5 my-2 ${className}`}>
-        {Array(10).fill(0).map((_, i) => (
-          <Skeleton key={i} className="w-7 h-7 rounded-full" />
-        ))}
-      </div>
-    );
-  }
-  
-  // Se não temos dados para exibir
+  }, [numbers]);
+
+  // Mover a validação para o efeito acima e simplificar o render
+  // Verificar se temos números válidos para exibir
   if (displayNumbers.length === 0) {
     return (
-      <div className={`flex flex-wrap gap-1.5 my-2 ${className}`}>
-        <div className="w-full text-center text-zinc-500">Sem dados disponíveis</div>
+      <div className={`flex items-center justify-center py-4 text-zinc-500 ${className}`}>
+        {isUpdating ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <span>Sem dados disponíveis</span>
+        )}
       </div>
     );
   }
-  
-  // Filtrar zeros que possam ser placeholders nas posições iniciais
-  // Se o primeiro número é zero e o array tem apenas uns poucos números, provavelmente é placeholder
-  const filteredNumbers = displayNumbers.length <= 2 && displayNumbers[0] === 0 
-    ? [] // Retornar array vazio se parece ser placeholder
-    : displayNumbers;
-  
-  // Se não temos dados válidos após filtragem
-  if (filteredNumbers.length === 0) {
-    return (
-      <div className={`flex flex-wrap gap-1.5 my-2 ${className}`}>
-        <div className="w-full text-center text-zinc-500">Sem dados disponíveis</div>
-      </div>
-    );
-  }
-  
-  // Renderizar números
+
   return (
-    <div 
-      className={`h-[74px] flex flex-wrap content-start gap-1 my-2 w-full overflow-hidden ${className}`} 
-      data-testid="last-numbers"
-      data-numbers-count={filteredNumbers.length}
-    >
-      {filteredNumbers.slice(0, 12).map((num, idx) => (
-        <div
-          key={`${num}-${idx}`}
-          className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-bold 
-            ${getRouletteNumberColor(num)}
-            ${newNumberIndex === 0 && idx === 0 ? 'animate-pulse shadow-lg transition-all duration-500 scale-110' : ''}
-            ${isBlurred ? 'opacity-30 blur-sm' : ''}
-          `}
-          data-number={num}
-          data-new={newNumberIndex === 0 && idx === 0 ? 'true' : 'false'}
-        >
-          {num}
-        </div>
+    <div className={`flex flex-wrap gap-2 justify-center ${className} ${isUpdating ? 'opacity-70 transition-opacity duration-300' : ''}`}>
+      {displayNumbers.map((number, index) => (
+        <RouletteNumber
+          key={`${number}-${index}`}
+          number={number}
+          size="md"
+          isBlurred={isBlurred}
+        />
       ))}
     </div>
   );
-});
-
-LastNumbers.displayName = 'LastNumbers';
+};
 
 export default LastNumbers;

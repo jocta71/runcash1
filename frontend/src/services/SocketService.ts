@@ -1113,6 +1113,104 @@ class SocketService {
       this.requestRecentNumbers();
     }
   }
+
+  // Adicionar um método específico para assinar roletaId específico
+  public subscribeToRouletteEndpoint(roletaId: string, roletaNome: string): void {
+    if (!roletaId) {
+      console.warn('[SocketService] ID da roleta não especificado para assinatura de endpoint');
+      return;
+    }
+
+    console.log(`[SocketService] Conectando ao endpoint específico de roleta: ${roletaId} (${roletaNome})`);
+    
+    // Verificar se a conexão está ativa
+    if (!this.socket || !this.socket.connected) {
+      console.log('[SocketService] Reconectando socket antes de assinar endpoint específico');
+      this.connect();
+    }
+    
+    // Enviar mensagem solicitando assinatura específica para esta roleta
+    if (this.socket) {
+      console.log(`[SocketService] Enviando solicitação para assinar endpoint /api/roulette-numbers/${roletaId}`);
+      this.socket.emit('subscribe_specific_endpoint', {
+        endpoint: `/api/roulette-numbers/${roletaId}`,
+        roletaId: roletaId,
+        roletaNome: roletaNome
+      });
+      
+      // Solicitar dados imediatamente após assinar
+      this.requestRouletteNumbers(roletaId);
+    }
+  }
+
+  // Método para solicitar números específicos de uma roleta
+  public requestRouletteNumbers(roletaId: string): void {
+    if (!roletaId) {
+      console.warn('[SocketService] ID da roleta não especificado para solicitação de números');
+      return;
+    }
+    
+    if (!this.socket || !this.socket.connected) {
+      console.log('[SocketService] Socket não conectado. Reconectando antes de solicitar dados.');
+      this.connect();
+      // Programar nova tentativa após conexão
+      setTimeout(() => this.requestRouletteNumbers(roletaId), 1000);
+      return;
+    }
+    
+    console.log(`[SocketService] Solicitando números específicos para roleta ID: ${roletaId}`);
+    
+    // Solicitar via socket
+    this.socket.emit('get_roulette_numbers', {
+      roletaId: roletaId,
+      endpoint: `/api/roulette-numbers/${roletaId}`,
+      count: 50 // Solicitar até 50 números para garantir boa amostra
+    });
+    
+    // Fazer também uma solicitação REST para garantir dados completos
+    this.fetchRouletteNumbersREST(roletaId);
+  }
+
+  // Método para buscar dados via REST como alternativa/complemento
+  private async fetchRouletteNumbersREST(roletaId: string): Promise<boolean> {
+    try {
+      const baseUrl = this.getApiBaseUrl();
+      const endpoint = `${baseUrl}/roulette-numbers/${roletaId}`;
+      
+      console.log(`[SocketService] Buscando números via REST em: ${endpoint}`);
+      
+      const response = await fetch(endpoint);
+      
+      if (!response.ok) {
+        console.warn(`[SocketService] Falha na requisição REST: ${response.status}`);
+        return false;
+      }
+      
+      const data = await response.json();
+      
+      if (Array.isArray(data) && data.length > 0) {
+        console.log(`[SocketService] Recebidos ${data.length} números via REST para roleta ${roletaId}`);
+        
+        // Buscar o nome da roleta para processar corretamente
+        let roletaNome = '';
+        const roulettes = await this.fetchRealRoulettes();
+        const roulette = roulettes.find(r => r._id === roletaId || r.id === roletaId);
+        
+        if (roulette) {
+          roletaNome = roulette.nome || roulette.name || `Roleta ${roletaId}`;
+          
+          // Processar os números recebidos
+          this.processNumbersData(data, { _id: roletaId, nome: roletaNome });
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.error(`[SocketService] Erro ao buscar números REST para ${roletaId}:`, error);
+      return false;
+    }
+  }
 }
 
 export default SocketService; 

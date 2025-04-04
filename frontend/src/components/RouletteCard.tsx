@@ -354,7 +354,109 @@ const RouletteCard = memo(({
     };
   }, [name]);
 
-  // Efeito para escutar eventos do websocket - garantindo atualizações em tempo real
+  // Efeito para conectar ao endpoint específico da roleta
+  useEffect(() => {
+    // Verificar se temos o ID da roleta
+    if (!roletaId) {
+      console.log(`[RouletteCard] ID da roleta não disponível para ${roletaNome}, não será possível conectar ao endpoint específico`);
+      return;
+    }
+
+    console.log(`[RouletteCard] Configurando conexão específica para roleta ${roletaId} (${roletaNome})`);
+    
+    // Obter instância do socketService
+    const socketService = SocketService.getInstance();
+    
+    // Conectar ao endpoint específico desta roleta
+    socketService.subscribeToRouletteEndpoint(roletaId, roletaNome);
+    
+    // Configurar verificação periódica para manter dados atualizados
+    const dataRefreshInterval = setInterval(() => {
+      console.log(`[RouletteCard] Verificação periódica de dados para ${roletaNome}`);
+      if (socketService.isSocketConnected()) {
+        // Solicitar novos dados específicos para esta roleta
+        socketService.requestRouletteNumbers(roletaId);
+      } else {
+        console.log(`[RouletteCard] Socket desconectado, reconectando para ${roletaNome}`);
+        socketService.reconnect().then(connected => {
+          if (connected) {
+            socketService.subscribeToRouletteEndpoint(roletaId, roletaNome);
+          }
+        });
+      }
+    }, 15000); // Verificar a cada 15 segundos
+    
+    // Solicitar dados imediatamente
+    socketService.requestRouletteNumbers(roletaId);
+    
+    // Limpar intervalo quando o componente for desmontado
+    return () => {
+      clearInterval(dataRefreshInterval);
+    };
+  }, [roletaId, roletaNome]);
+
+  // Função para processar atualizações em tempo real de números
+  const processRealtimeNumber = useCallback((numero: number) => {
+    console.log(`[RouletteCard] ⚡ Processando número em tempo real: ${numero} para ${roletaNome}`);
+    
+    // Verificar se o número é válido
+    if (typeof numero !== 'number' || isNaN(numero)) {
+      console.warn(`[RouletteCard] Número inválido recebido: ${numero}, ignorando`);
+      return;
+    }
+    
+    // Atualizar o último número
+    setLastNumber(numero);
+    
+    // Atualizar o array de números em tempo real
+    setNumbers(prevNumbers => {
+      // Verificar se o número já existe para evitar duplicatas
+      if (prevNumbers.includes(numero)) {
+        return prevNumbers;
+      }
+      
+      const newNumbers = [numero, ...prevNumbers];
+      return newNumbers.slice(0, 20); // Manter apenas os últimos 20
+    });
+    
+    // Atualizar o estado de override para garantir exibição
+    setMappedNumbersOverride(prevNumbers => {
+      // Verificar se o número já existe
+      if (prevNumbers.includes(numero)) {
+        return prevNumbers;
+      }
+      
+      // Adicionar o número no início e manter apenas os 20 últimos
+      const newArray = [numero, ...prevNumbers].slice(0, 20);
+      console.log(`[RouletteCard] Números atualizados em tempo real para ${roletaNome}:`, newArray.slice(0, 5));
+      
+      return newArray;
+    });
+    
+    // Acionar o destaque visual
+    setHighlight(true);
+    
+    // Mostrar notificação de novo número
+    toast({
+      title: `Novo número: ${numero}`,
+      description: `${roletaNome}`,
+      variant: "default",
+      duration: 2000
+    });
+    
+    // Limpar o timer anterior se existir
+    if (highlightTimerRef.current) {
+      clearTimeout(highlightTimerRef.current);
+    }
+    
+    // Configurar novo timer para remover o destaque
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlight(false);
+      highlightTimerRef.current = null;
+    }, 1500);
+  }, [roletaNome, setLastNumber, setNumbers, setMappedNumbersOverride, setHighlight, toast]);
+
+  // Efeito para escutar eventos do websocket específicos para esta roleta
   useEffect(() => {
     const socketService = SocketService.getInstance();
     
@@ -369,12 +471,6 @@ const RouletteCard = memo(({
         (event.roleta_id && event.roleta_id === roletaId);
         
       if (!isForThisRoulette) return;
-      
-      // Processar estado de conexão
-      if (event.type === 'connection_state') {
-        console.log(`[RouletteCard] Recebido estado de conexão: ${event.connected ? 'Conectado' : 'Desconectado'}`);
-        return;
-      }
       
       // Processar novo número
       if (event.type === 'new_number' && event.numero !== undefined) {
@@ -391,59 +487,8 @@ const RouletteCard = memo(({
           return;
         }
         
-        console.log(`[RouletteCard] ✨ Novo número em tempo real: ${numero} para ${name}`);
-        
-        // Atualizar o número mais recente
-        setLastNumber(numero);
-        
-        // Atualizar o array de números em tempo real
-        setNumbers(prevNumbers => {
-          // Verificar se o número já existe para evitar duplicatas
-          if (prevNumbers.includes(numero)) {
-            return prevNumbers;
-          }
-          
-          const newNumbers = [numero, ...prevNumbers];
-          
-          // Manter apenas os últimos 20 números
-          return newNumbers.slice(0, 20);
-        });
-        
-        // Atualizar o estado de override para garantir exibição
-        setMappedNumbersOverride(prevNumbers => {
-          // Verificar se o número já existe
-          if (prevNumbers.includes(numero)) {
-            return prevNumbers;
-          }
-          
-          // Adicionar o número no início e manter apenas os 20 últimos
-          const newArray = [numero, ...prevNumbers].slice(0, 20);
-          console.log(`[RouletteCard] Atualizados números em tempo real para ${name}:`, newArray.slice(0, 5));
-          
-          return newArray;
-        });
-        
-        // Acionar o destaque visual mais notável
-        setHighlight(true);
-        
-        // Mostrar micronotificação para novos números
-        toast({
-          title: `Novo número: ${numero}`,
-          description: `${roletaNome}`,
-          variant: "default",
-          duration: 2000 // Duração curta
-        });
-        
-        // Limpar o timer anterior se existir
-        if (highlightTimerRef.current) {
-          clearTimeout(highlightTimerRef.current);
-        }
-        
-        // Configurar o novo timer para remover o destaque (mais longo para maior visibilidade)
-        highlightTimerRef.current = setTimeout(() => {
-          setHighlight(false);
-          highlightTimerRef.current = null;
-        }, 1500);
+        // Processar via função dedicada
+        processRealtimeNumber(numero);
       }
     };
     
@@ -451,31 +496,10 @@ const RouletteCard = memo(({
     socketService.subscribe('*', handleEvent);
     socketService.subscribe(name || '', handleEvent);
     
-    // Verificar conexão e solicitar reconexão se necessário
-    if (!socketService.isSocketConnected()) {
-      console.log(`[RouletteCard] Reconectando socket para ${roletaNome}...`);
-      socketService.reconnect().then(connected => {
-        console.log(`[RouletteCard] Reconexão para ${roletaNome}: ${connected ? 'Sucesso' : 'Falha'}`);
-      });
+    // Se temos ID da roleta, inscrever especificamente por ID
+    if (roletaId) {
+      socketService.subscribe(roletaId, handleEvent);
     }
-    
-    // Configurar verificação periódica da conexão
-    const connectionCheckInterval = setInterval(() => {
-      if (!socketService.isSocketConnected()) {
-        console.log(`[RouletteCard] Verificação periódica: reconectando socket para ${roletaNome}...`);
-        socketService.reconnect();
-      }
-    }, 30000); // Verificar a cada 30 segundos
-    
-    // Escutar eventos do EventService também
-    const eventService = EventService.getInstance();
-    const handleNumberEvent = (event: any) => {
-      // Processar através do mesmo manipulador de eventos
-      handleEvent(event);
-    };
-    
-    // Inscrever para eventos do EventService
-    eventService.subscribeToEvent('new_number', handleNumberEvent);
     
     // Limpar a inscrição quando o componente for desmontado
     return () => {
@@ -483,13 +507,14 @@ const RouletteCard = memo(({
         clearTimeout(highlightTimerRef.current);
       }
       
-      clearInterval(connectionCheckInterval);
-      
       socketService.unsubscribe('*', handleEvent);
       socketService.unsubscribe(name || '', handleEvent);
-      eventService.unsubscribeFromEvent('new_number', handleNumberEvent);
+      
+      if (roletaId) {
+        socketService.unsubscribe(roletaId, handleEvent);
+      }
     };
-  }, [name, roleta_nome, roletaId, roletaNome]); // Dependências reduzidas para evitar re-inscrições frequentes
+  }, [name, roleta_nome, roletaId, roletaNome, processRealtimeNumber]);
 
   // Adicionar um efeito para a detecção de dados carregados
   useEffect(() => {
