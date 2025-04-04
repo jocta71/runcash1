@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { ENDPOINTS } from './endpoints';
+import { mapToCanonicalId } from '../data/rouletteTransformer';
 
 /**
  * Cliente de API para comunicação com os endpoints de roleta
@@ -20,7 +21,19 @@ export const RouletteApi = {
       }
       
       console.log(`[API] ✅ Obtidas ${response.data.length} roletas`);
-      return response.data;
+      
+      // Processar cada roleta para extrair campos relevantes
+      const processedRoulettes = response.data.map((roulette: any) => {
+        // Garantir que temos o campo roleta_id em cada objeto
+        if (!roulette.roleta_id && roulette._id) {
+          const canonicalId = mapToCanonicalId(roulette._id);
+          console.log(`[API] Adicionando roleta_id=${canonicalId} para roleta UUID=${roulette._id}`);
+          roulette.roleta_id = canonicalId;
+        }
+        return roulette;
+      });
+      
+      return processedRoulettes;
     } catch (error) {
       console.error('[API] Erro ao buscar roletas:', error);
       return [];
@@ -35,12 +48,19 @@ export const RouletteApi = {
   async fetchRouletteById(id: string) {
     try {
       console.log(`[API] Buscando roleta com ID: ${id}`);
+      // Converter para ID canônico para normalização
+      const canonicalId = mapToCanonicalId(id);
+      
       // Buscar todas as roletas e filtrar localmente
       // Este método é mais eficiente do que fazer múltiplas requisições
       const allRoulettes = await this.fetchAllRoulettes();
       
+      // Buscar com prioridade pelo campo roleta_id
       const roulette = allRoulettes.find((r: any) => 
-        r.id === id || r.canonical_id === id
+        r.roleta_id === canonicalId || 
+        r.id === canonicalId || 
+        r._id === id || 
+        r.canonical_id === canonicalId
       );
       
       if (roulette) {
@@ -48,7 +68,7 @@ export const RouletteApi = {
         return roulette;
       }
       
-      console.warn(`[API] ❌ Roleta com ID ${id} não encontrada`);
+      console.warn(`[API] ❌ Roleta com ID ${canonicalId} não encontrada`);
       return null;
     } catch (error) {
       console.error(`[API] Erro ao buscar roleta ${id}:`, error);
@@ -65,11 +85,14 @@ export const RouletteApi = {
     try {
       console.log(`[API] Buscando estratégia para roleta ID: ${id}`);
       
+      // Converter para ID canônico para normalização
+      const canonicalId = mapToCanonicalId(id);
+      
       // Buscar dados da roleta que já incluem a estratégia
-      const roulette = await this.fetchRouletteById(id);
+      const roulette = await this.fetchRouletteById(canonicalId);
       
       if (!roulette) {
-        console.warn(`[API] Roleta ${id} não encontrada para estratégia`);
+        console.warn(`[API] Roleta ${canonicalId} não encontrada para estratégia`);
         return null;
       }
       
@@ -83,7 +106,7 @@ export const RouletteApi = {
         sugestao_display: roulette.sugestao_display || ''
       };
       
-      console.log(`[API] ✅ Estratégia obtida para roleta ${id}`);
+      console.log(`[API] ✅ Estratégia obtida para roleta ${canonicalId}`);
       return strategy;
     } catch (error) {
       console.error(`[API] Erro ao buscar estratégia para roleta ${id}:`, error);

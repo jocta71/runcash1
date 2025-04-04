@@ -22,7 +22,15 @@ export const UUID_TO_CANONICAL = {
   "e3345af9-e387-9412-209c-e793fe73e520": CANONICAL_IDS.BUCHAREST,
   "419aa56c-bcff-67d2-f424-a6501bac4a36": CANONICAL_IDS.AUTO_VIP,
   "4cf27e48-2b9d-b58e-7dcc-48264c51d639": CANONICAL_IDS.IMMERSIVE,
-  "f27dd03e-5282-fc78-961c-6375cef91565": CANONICAL_IDS.RULETA_AUTOMATICA
+  "f27dd03e-5282-fc78-961c-6375cef91565": CANONICAL_IDS.RULETA_AUTOMATICA,
+  
+  // Mapeamento caso o campo roleta_id seja passado diretamente
+  "roleta_id_2380335": CANONICAL_IDS.BRAZILIAN_MEGA,
+  "roleta_id_2010096": CANONICAL_IDS.SPEED_AUTO,
+  "roleta_id_2010065": CANONICAL_IDS.BUCHAREST,
+  "roleta_id_2010098": CANONICAL_IDS.AUTO_VIP,
+  "roleta_id_2010016": CANONICAL_IDS.IMMERSIVE,
+  "roleta_id_2010017": CANONICAL_IDS.RULETA_AUTOMATICA
 };
 
 /**
@@ -52,6 +60,14 @@ export function mapToCanonicalId(id: string): string {
     return id;
   }
   
+  // Verificar se é um campo roleta_id e extrair o número
+  if (typeof id === 'string' && id.startsWith('roleta_id_')) {
+    const extractedId = id.replace('roleta_id_', '');
+    if (Object.values(CANONICAL_IDS).includes(extractedId)) {
+      return extractedId;
+    }
+  }
+  
   // Tentar mapeamento direto
   if (UUID_TO_CANONICAL[id]) {
     return UUID_TO_CANONICAL[id];
@@ -63,6 +79,14 @@ export function mapToCanonicalId(id: string): string {
   for (const [uuid, canonicalId] of Object.entries(UUID_TO_CANONICAL)) {
     if (uuid.replace(/-/g, '').toLowerCase() === normalizedId) {
       return canonicalId;
+    }
+  }
+  
+  // Verificar se é o próprio ID numérico da roleta (sem prefixo)
+  if (typeof id === 'string') {
+    const numericId = id.replace(/\D/g, ''); // Remove todos os não-dígitos
+    if (Object.values(CANONICAL_IDS).includes(numericId)) {
+      return numericId;
     }
   }
   
@@ -148,8 +172,16 @@ export function transformRouletteNumber(rawNumber: any): {
  */
 export function transformRouletteData(rawData: any) {
   try {
-    // Garantir que temos um ID canônico
-    const canonicalId = rawData.canonical_id || mapToCanonicalId(rawData.id);
+    // Procurar possíveis IDs para mapear ao canônico
+    let canonicalId;
+    
+    // Primeiro, verificar se há um campo roleta_id, que tem prioridade
+    if (rawData.roleta_id) {
+      canonicalId = mapToCanonicalId(`roleta_id_${rawData.roleta_id}`);
+    } else {
+      // Caso contrário, usar outros campos disponíveis
+      canonicalId = rawData.canonical_id || mapToCanonicalId(rawData.id || rawData._id);
+    }
     
     // Garantir que temos o array de números no formato correto
     let numbers = [];
@@ -170,7 +202,7 @@ export function transformRouletteData(rawData: any) {
     
     return {
       id: canonicalId,
-      uuid: rawData.id,
+      uuid: rawData._id || rawData.id,
       name,
       numbers: processedNumbers,
       active: rawData.ativa !== false,

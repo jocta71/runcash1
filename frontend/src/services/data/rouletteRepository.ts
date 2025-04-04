@@ -142,11 +142,24 @@ export const RouletteRepository = {
   addNewNumberToRoulette(roletaId: string, number: any): void {
     try {
       const canonicalId = mapToCanonicalId(roletaId);
+      
+      console.log(`[Repository] Adicionando número para roleta ${roletaId} -> canonical=${canonicalId}`);
+      
       const cacheKey = `roulette_${canonicalId}`;
       
       // Verificar se temos essa roleta em cache
       if (!cache.has(cacheKey)) {
         console.warn(`[Repository] Tentativa de adicionar número, mas roleta ${canonicalId} não está em cache`);
+        // Tentar buscar a roleta pelo ID canônico
+        this.fetchRouletteById(canonicalId).then(roulette => {
+          if (roulette) {
+            console.log(`[Repository] Roleta ${canonicalId} carregada após recebimento de número`);
+            // Adicionar o número após carregamento da roleta
+            setTimeout(() => {
+              this.addNewNumberToRoulette(canonicalId, number);
+            }, 500);
+          }
+        });
         return;
       }
       
@@ -227,6 +240,7 @@ export const RouletteRepository = {
    */
   subscribeToRouletteUpdates(id: string, callback: (data: RouletteData) => void): () => void {
     const canonicalId = mapToCanonicalId(id);
+    console.log(`[Repository] Assinando atualizações para roleta ${id} -> canonical=${canonicalId}`);
     
     // Buscar dados iniciais
     this.fetchRouletteById(canonicalId).then(roulette => {
@@ -242,6 +256,20 @@ export const RouletteRepository = {
       // Adicionar número ao cache
       if (data.numero !== undefined || data.number !== undefined) {
         this.addNewNumberToRoulette(canonicalId, data);
+        
+        // Extrair o ID da roleta do evento
+        let eventRouletaId = data.roleta_id || data.roulette_id;
+        if (eventRouletaId && eventRouletaId !== canonicalId) {
+          console.log(`[Repository] ⚠️ ID da roleta no evento (${eventRouletaId}) é diferente do ID assinado (${canonicalId})`);
+          
+          // Verificar se podemos mapear o ID do evento para nosso ID canônico
+          const mappedId = mapToCanonicalId(eventRouletaId);
+          if (mappedId === canonicalId) {
+            console.log(`[Repository] ✅ IDs mapeados corretamente: ${eventRouletaId} -> ${canonicalId}`);
+          } else {
+            console.warn(`[Repository] ❌ IDs não correspondem após mapeamento: ${eventRouletaId} -> ${mappedId} != ${canonicalId}`);
+          }
+        }
       }
       
       // Buscar roleta atualizada do cache e notificar
@@ -254,8 +282,6 @@ export const RouletteRepository = {
     // Assinar eventos do socket para atualizações de estratégia
     const strategyEventCallback = (data: any) => {
       console.log(`[Repository] Evento de estratégia recebido para roleta ${canonicalId}:`, data);
-      
-      // Atualizar estratégia no cache
       this.updateRouletteStrategy(canonicalId, data);
       
       // Buscar roleta atualizada do cache e notificar
@@ -265,14 +291,15 @@ export const RouletteRepository = {
       }
     };
     
-    // Registrar callbacks
-    socketClient.on(`roulette_update:${canonicalId}`, numberEventCallback);
-    socketClient.on(`strategy_update:${canonicalId}`, strategyEventCallback);
+    // Assinar eventos específicos para esta roleta
+    socketClient.on(`new_number_${canonicalId}`, numberEventCallback);
+    socketClient.on(`strategy_update_${canonicalId}`, strategyEventCallback);
     
     // Retornar função para cancelar assinatura
     return () => {
-      socketClient.removeListener(`roulette_update:${canonicalId}`, numberEventCallback);
-      socketClient.removeListener(`strategy_update:${canonicalId}`, strategyEventCallback);
+      // Usar removeAllListeners para compatibilidade
+      socketClient.removeAllListeners(`new_number_${canonicalId}`);
+      socketClient.removeAllListeners(`strategy_update_${canonicalId}`);
     };
   }
 }; 
