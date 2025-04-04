@@ -192,11 +192,21 @@ const RouletteCard = memo(({
         
         if (typeof numObj === 'number' && !isNaN(numObj)) {
           num = numObj;
-        } else if (numObj && typeof numObj.numero !== 'undefined') {
-          if (typeof numObj.numero === 'number' && !isNaN(numObj.numero)) {
-            num = numObj.numero;
-          } else if (typeof numObj.numero === 'string' && numObj.numero.trim() !== '') {
-            const parsed = parseInt(numObj.numero, 10);
+        } else if (numObj && typeof numObj !== 'undefined') {
+          // Verificar se o objeto tem uma propriedade 'numero'
+          if (typeof numObj.numero !== 'undefined') {
+            if (typeof numObj.numero === 'number' && !isNaN(numObj.numero)) {
+              num = numObj.numero;
+            } else if (typeof numObj.numero === 'string' && numObj.numero.trim() !== '') {
+              const parsed = parseInt(numObj.numero, 10);
+              num = !isNaN(parsed) ? parsed : 0;
+            }
+          }
+          // Verificar se o objeto tem valor direto
+          else if (typeof numObj === 'number') {
+            num = numObj;
+          } else if (typeof numObj === 'string' && numObj.trim() !== '') {
+            const parsed = parseInt(numObj, 10);
             num = !isNaN(parsed) ? parsed : 0;
           }
         }
@@ -211,10 +221,22 @@ const RouletteCard = memo(({
       return mapped;
     }
     
+    // Prioridade 3: Números passados via props
+    if (Array.isArray(lastNumbers) && lastNumbers.length > 0) {
+      // Usar números passados como props, se disponíveis
+      console.log(`[RouletteCard] Usando números de props para ${roletaNome}:`, lastNumbers.slice(0, 5));
+      return lastNumbers.map(num => {
+        if (typeof num === 'number') return num;
+        if (typeof num === 'string') return parseInt(num, 10);
+        if (typeof num === 'object' && num?.numero) return parseInt(num.numero, 10);
+        return 0;
+      });
+    }
+    
     // Sem dados reais, retornar array vazio
     console.log(`[RouletteCard] Sem números reais para ${roletaNome}. Retornando array vazio.`);
     return [];
-  }, [apiNumbers, roletaNome, mappedNumbersOverride]);
+  }, [apiNumbers, roletaNome, mappedNumbersOverride, lastNumbers]);
 
   // Otimizar trend com useMemo - não gerar dados simulados
   const trendData = useMemo(() => {

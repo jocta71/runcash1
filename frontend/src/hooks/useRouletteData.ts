@@ -248,18 +248,66 @@ export function useRouletteData(
   const initialDataLoaded = useRef<boolean>(false);
   const hookInitialized = useRef<boolean>(false);
   
-  // Chave única para esta instância do hook
-  const instanceKey = useRef<string>(`${roletaId}:${roletaNome}`);
+  // Socket Service para comunicação em tempo real
+  const socketService = useMemo(() => SocketService.getInstance(), []);
+  
+  // EventService para eventos
+  const eventService = useMemo(() => EventService.getInstance(), []);
+  
+  // IDs canônicos para roletas
+  const canonicalId = useMemo(() => mapToCanonicalRouletteId(roletaId), [roletaId]);
+
+  // Verifica se a roleta tem dados (números)
+  const checkIfRouleteHasData = useCallback((roulette: any): boolean => {
+    if (!roulette) return false;
+    
+    // Verificar se existe dados em 'numero' ou 'numeros'
+    const hasNumero = roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0;
+    const hasNumeros = roulette.numeros && Array.isArray(roulette.numeros) && roulette.numeros.length > 0;
+    
+    return hasNumero || hasNumeros;
+  }, []);
+  
+  // Normaliza os dados da roleta para garantir que estejam no formato esperado
+  const normalizeRouletteData = useCallback((data: any): RouletteNumber[] => {
+    if (!data) return [];
+    
+    // Verificar qual campo usar: numero ou numeros
+    const rawNumbers = data.numero && Array.isArray(data.numero) ? data.numero :
+                      (data.numeros && Array.isArray(data.numeros) ? data.numeros : []);
+    
+    return rawNumbers.map((item: any) => {
+      // Se já for um objeto com 'numero', normalizar
+      if (typeof item === 'object' && item !== null) {
+        return {
+          numero: typeof item.numero === 'number' ? item.numero : 
+                (typeof item.numero === 'string' ? parseInt(item.numero, 10) : 0),
+          roleta_id: item.roleta_id || roletaId,
+          roleta_nome: item.roleta_nome || roletaNome,
+          cor: item.cor || determinarCorNumero(item.numero || 0),
+          timestamp: item.timestamp || new Date().toISOString()
+        };
+      }
+      
+      // Se for um número direto
+      const numeroValue = typeof item === 'number' ? item : 
+                         (typeof item === 'string' ? parseInt(item, 10) : 0);
+      
+      return {
+        numero: numeroValue,
+        roleta_id: roletaId,
+        roleta_nome: roletaNome,
+        cor: determinarCorNumero(numeroValue),
+        timestamp: new Date().toISOString()
+      };
+    });
+  }, [roletaId, roletaNome]);
 
   // Função auxiliar para buscar o ID canônico a partir do nome
   const getCanonicalIdByName = (name: string) => {
     const roleta = ROLETAS_CANONICAS.find(r => r.nome === name);
     return roleta ? roleta.id : null;
   };
-
-  // Obter o ID canônico da roleta
-  const canonicalId = mapToCanonicalRouletteId(roletaId);
-  console.log(`[useRouletteData] ID canônico para ${roletaId}: ${canonicalId}`);
 
   // Função para atualizar o estado numbers que combina initialNumbers e newNumbers
   const updateCombinedNumbers = useCallback(() => {

@@ -697,11 +697,7 @@ class SocketService {
         return;
       }
       
-      // Log detalhado para debug
-      console.log(`[SocketService] PROCESSANDO ${numbersData.length} NÚMEROS para roleta ${roulette.nome || roulette._id}`);
-      console.log(`[SocketService] Primeiro número: ${numbersData[0]?.numero}, Último número: ${numbersData[numbersData.length-1]?.numero}`);
-      
-      // Extrai o ID e nome da roleta
+      // Extrair o ID e nome da roleta
       const roletaId = roulette._id || roulette.id;
       const roletaNome = roulette.nome || roulette.name || `Roleta ${roletaId}`;
       
@@ -710,48 +706,81 @@ class SocketService {
         return;
       }
       
+      // Log detalhado para debug
+      console.log(`[SocketService] PROCESSANDO ${numbersData.length} NÚMEROS para roleta ${roletaNome} (${roletaId})`);
+      
+      if (numbersData.length > 0) {
+        const primeiroNumero = typeof numbersData[0] === 'object' ? 
+                              (numbersData[0].numero !== undefined ? numbersData[0].numero : numbersData[0]) : 
+                              numbersData[0];
+        const ultimoNumero = typeof numbersData[numbersData.length-1] === 'object' ? 
+                            (numbersData[numbersData.length-1].numero !== undefined ? numbersData[numbersData.length-1].numero : numbersData[numbersData.length-1]) : 
+                            numbersData[numbersData.length-1];
+        
+        console.log(`[SocketService] Primeiro número: ${primeiroNumero}, Último número: ${ultimoNumero}`);
+      }
+      
+      // Normalizar os dados antes de emitir o evento
+      const normalizeDados = numbersData.map(item => {
+        // Se for um objeto com a propriedade 'numero', usar diretamente
+        if (typeof item === 'object' && item !== null) {
+          // Garantir que todas as propriedades necessárias existam
+          return {
+            numero: item.numero !== undefined ? item.numero : 0,
+            timestamp: item.timestamp || new Date().toISOString(),
+            cor: item.cor || this.determinarCorNumero(item.numero || 0),
+            roleta_id: roletaId,
+            roleta_nome: roletaNome
+          };
+        } 
+        // Se for um valor numérico direto
+        else if (typeof item === 'number' || (typeof item === 'string' && !isNaN(parseInt(item)))) {
+          const numeroValue = typeof item === 'number' ? item : parseInt(item);
+          return {
+            numero: numeroValue,
+            timestamp: new Date().toISOString(),
+            cor: this.determinarCorNumero(numeroValue),
+            roleta_id: roletaId,
+            roleta_nome: roletaNome
+          };
+        }
+        // Fallback para valor inválido
+        return {
+          numero: 0,
+          timestamp: new Date().toISOString(),
+          cor: 'verde',
+          roleta_id: roletaId,
+          roleta_nome: roletaNome
+        };
+      });
+      
       console.log(`[SocketService] Emitindo evento de números para ${roletaNome} (${roletaId})`);
       
       // Emite evento global com os números da roleta, enviando informações sobre a roleta
       EventService.emitGlobalEvent('numeros_atualizados', {
         roleta_id: roletaId,
         roleta_nome: roletaNome,
-        numeros: numbersData.map(item => ({
-          numero: item.numero,
-          timestamp: item.timestamp,
-          cor: item.cor,
-          roleta_id: roletaId,
-          roleta_nome: roletaNome
-        }))
+        numeros: normalizeDados
       });
       
       // Se temos poucos números, também emitimos como eventos individuais
       // para manter a compatibilidade com código legado
       if (numbersData.length <= 10) {
         // Emitir cada número como um evento separado
-        numbersData.forEach(item => {
-          const numero = item.numero;
-          const timestamp = item.timestamp || new Date().toISOString();
-          
-          // Log para debug - mostrar o número exato sendo enviado para cada roleta
-          console.log(`[SocketService] Emitindo número ${numero} para ${roletaNome}`);
-          
+        normalizeDados.forEach(item => {
           const event: RouletteNumberEvent = {
             type: 'new_number',
             roleta_id: roletaId,
             roleta_nome: roletaNome,
-            numero: numero,
-            timestamp: timestamp
+            numero: item.numero,
+            timestamp: item.timestamp
           };
+          
+          // Log para debug - mostrar o número exato sendo enviado para cada roleta
+          console.log(`[SocketService] Emitindo número ${item.numero} para ${roletaNome}`);
           
           // Notificar os ouvintes deste evento
           this.notifyListeners(event);
-          
-          // Adicionar o número à lista de recebidos recentemente
-          this.lastReceivedData.set(`${roletaId}:${numero}`, {
-            timestamp: Date.now(),
-            data: event
-          });
         });
       } else {
         console.log(`[SocketService] Emitindo apenas evento em lote para ${numbersData.length} números da roleta ${roletaNome}`);
@@ -760,6 +789,15 @@ class SocketService {
     } catch (error) {
       console.error('[SocketService] Erro ao processar números:', error);
     }
+  }
+  
+  // Função auxiliar para determinar a cor de um número
+  private determinarCorNumero(numero: number): string {
+    if (numero === 0) return 'verde';
+    
+    // Números vermelhos na roleta europeia
+    const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
   }
 
   // Método para carregar números históricos das roletas
