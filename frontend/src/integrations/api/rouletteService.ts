@@ -145,13 +145,97 @@ export const extractRouletteNumbersByName = async (roletaNome: string, limit = 1
 
 // Adicionar um mapeamento para IDs canônicos
 export const mapToCanonicalRouletteId = (uuid: string, nome?: string): string => {
-  // Verificar se o ID já é um dos IDs permitidos
-  if (ROLETAS_PERMITIDAS.includes(uuid)) {
-    console.log(`[API] ID ${uuid} já é um ID canônico válido`);
+  // Validar o ID de entrada
+  if (!uuid || uuid === 'undefined') {
+    console.error(`[API] ID inválido recebido: "${uuid}", verificando nome`);
+    // Se temos nome, tentar mapear pelo nome
+    if (nome) {
+      const mappedId = mapRouletteNameToId(nome);
+      if (mappedId) {
+        console.log(`[API] Mapeado nome "${nome}" para ID canônico ${mappedId}`);
+        return mappedId;
+      }
+    }
+    console.warn(`[API] Não foi possível mapear ID vazio, usando fallback "2010096"`);
+    return "2010096"; // Fallback para Speed Auto Roulette
+  }
+
+  // Verificar se o ID já é numérico (formato canônico)
+  if (/^\d+$/.test(uuid)) {
+    console.log(`[API] ID ${uuid} já é um ID canônico no formato numérico`);
     return uuid;
   }
 
-  // Mapeamento fixo baseado nos nomes das roletas
+  // Verificar se o ID já é um dos IDs permitidos específicos
+  if (ROLETAS_PERMITIDAS.includes(uuid)) {
+    console.log(`[API] ID ${uuid} já é um ID canônico válido na lista de permitidos`);
+    return uuid;
+  }
+
+  // Mapeamento fixo de UUIDs específicos para IDs canônicos
+  const uuidToIdMap: Record<string, string> = {
+    "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2380335", // Brazilian Mega Roulette
+    "1f156e80-ba21-11e5-b4c9-005056a03af2": "2010016", // Immersive Roulette
+    "e95fe030-c341-11e8-a12e-005056a03af2": "2010096", // Speed Auto Roulette
+    "d7115270-fec9-11e8-81a4-0025907e870c": "2010065", // Bucharest Auto-Roulette
+    "12de4qt1-c791-11e8-a01c-005056a03af2": "2010017", // Auto-Roulette
+    "303f7ca0-c415-11e8-a12e-005056a03af2": "2010098"  // Auto-Roulette VIP
+  };
+
+  // Se o UUID está no mapeamento direto, usá-lo
+  if (uuidToIdMap[uuid]) {
+    console.log(`[API] Mapeando UUID "${uuid}" para ID canônico ${uuidToIdMap[uuid]}`);
+    return uuidToIdMap[uuid];
+  }
+
+  // Mapeamento baseado nos nomes das roletas (como fallback)
+  if (nome) {
+    const mappedId = mapRouletteNameToId(nome);
+    if (mappedId) {
+      console.log(`[API] Mapeando pelo nome da roleta "${nome}" para ID canônico ${mappedId}`);
+      return mappedId;
+    }
+  }
+
+  // Fallback final: verificar manualmente pelo padrão de ID da roleta
+  // Speed Auto Roulette
+  if (uuid.includes("Speed") || uuid.toLowerCase().includes("speed")) {
+    console.log(`[API] Mapeamento por padrão de nome: "${uuid}" -> Speed Auto Roulette (2010096)`);
+    return "2010096";
+  }
+  // Brazilian Mega
+  if (uuid.includes("Brazilian") || uuid.toLowerCase().includes("brazil")) {
+    console.log(`[API] Mapeamento por padrão de nome: "${uuid}" -> Brazilian Mega Roulette (2380335)`);
+    return "2380335";
+  }
+  // Immersive
+  if (uuid.includes("Immersive") || uuid.toLowerCase().includes("immersive")) {
+    console.log(`[API] Mapeamento por padrão de nome: "${uuid}" -> Immersive Roulette (2010016)`);
+    return "2010016";
+  }
+  // Auto-Roulette
+  if (uuid.includes("Auto-Roulette") && !uuid.includes("VIP") && !uuid.includes("Bucharest")) {
+    console.log(`[API] Mapeamento por padrão de nome: "${uuid}" -> Auto-Roulette (2010017)`);
+    return "2010017";
+  }
+  // Auto-Roulette VIP
+  if (uuid.includes("VIP") || uuid.toLowerCase().includes("vip")) {
+    console.log(`[API] Mapeamento por padrão de nome: "${uuid}" -> Auto-Roulette VIP (2010098)`);
+    return "2010098";
+  }
+  // Bucharest
+  if (uuid.includes("Bucharest") || uuid.toLowerCase().includes("bucharest")) {
+    console.log(`[API] Mapeamento por padrão de nome: "${uuid}" -> Bucharest Auto-Roulette (2010065)`);
+    return "2010065";
+  }
+
+  // Log de aviso e retorna o UUID original
+  console.warn(`[API] ⚠️ Não foi possível mapear UUID "${uuid}" para ID canônico, usando original`);
+  return uuid;
+};
+
+// Função auxiliar para mapear nomes de roletas para IDs canônicos
+const mapRouletteNameToId = (nome: string): string | null => {
   const nameToIdMap: Record<string, string> = {
     "Immersive Roulette": "2010016",
     "Brazilian Mega Roulette": "2380335",
@@ -161,15 +245,7 @@ export const mapToCanonicalRouletteId = (uuid: string, nome?: string): string =>
     "Auto-Roulette VIP": "2010098"
   };
 
-  // Se temos o nome, e está no mapeamento, usar o ID mapeado
-  if (nome && nameToIdMap[nome]) {
-    console.log(`[API] Mapeando nome "${nome}" para ID canônico ${nameToIdMap[nome]}`);
-    return nameToIdMap[nome];
-  }
-
-  // Fallback: retornar o ID original
-  console.log(`[API] Não foi possível mapear UUID ${uuid} para ID canônico, usando original`);
-  return uuid;
+  return nameToIdMap[nome] || null;
 };
 
 // Modificar a função de extração de números para usar o ID canônico

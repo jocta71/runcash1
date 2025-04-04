@@ -263,10 +263,31 @@ class SocketService {
   private getSocketUrl(): string {
     let wsUrl = getRequiredEnvVar('VITE_WS_URL');
     
+    // Garantir que a URL use o protocolo wss://
+    if (wsUrl && !wsUrl.startsWith('wss://')) {
+      if (wsUrl.startsWith('https://')) {
+        console.warn('[SocketService] Convertendo URL de https:// para wss://');
+        wsUrl = wsUrl.replace('https://', 'wss://');
+      } else if (wsUrl.startsWith('http://')) {
+        console.warn('[SocketService] Convertendo URL de http:// para wss://');
+        wsUrl = wsUrl.replace('http://', 'wss://');
+      } else {
+        console.warn('[SocketService] URL não inicia com protocolo, adicionando wss://');
+        wsUrl = `wss://${wsUrl}`;
+      }
+    }
+    
     // Em produção, garantir que usamos uma URL segura (não localhost)
     if (isProduction && (wsUrl.includes('localhost') || wsUrl.includes('127.0.0.1'))) {
       console.warn('[SocketService] Detectada URL inválida para WebSocket em produção. Usando origem atual.');
-      wsUrl = window.location.origin;
+      const currentOrigin = window.location.origin;
+      wsUrl = currentOrigin.replace('https://', 'wss://').replace('http://', 'wss://');
+    }
+    
+    // Verificar se a URL é válida
+    if (!wsUrl || wsUrl === 'wss://') {
+      console.error('[SocketService] URL de WebSocket inválida. Usando padrão.');
+      wsUrl = 'wss://backend-production-2f96.up.railway.app';
     }
     
     console.log('[SocketService] Usando URL de WebSocket:', wsUrl);
@@ -1193,44 +1214,72 @@ class SocketService {
       return;
     }
     
-    // Enviar inscrição para canal específico desta roleta
-    console.log(`[SocketService] Enviando solicitação para assinar canal da roleta: ${roletaId}`);
-    this.socket.emit('subscribe_roulette', {
-      roletaId: roletaId,
-      roletaNome: roletaNome,
-      channel: `roulette:${roletaId}`
-    });
-    
-    // Solicitar dados iniciais para esta roleta
-    this.requestRouletteNumbers(roletaId);
-    
-    // Configurar um ouvinte específico para esta roleta, se ainda não existir
-    const channelName = `roulette:${roletaId}`;
-    
-    // Remover listener existente para evitar duplicação
-    this.socket.off(channelName);
-    
-    // Adicionar novo listener
-    console.log(`[SocketService] Configurando listener específico para canal ${channelName}`);
-    
-    this.socket.on(channelName, (data: any) => {
-      console.log(`[SocketService] Dados recebidos no canal ${channelName}:`, data);
+    // Tentar obter o ID canônico para esta roleta
+    try {
+      // Importar a função mapToCanonicalRouletteId se ela estiver disponível
+      // Não precisa importar diretamente aqui, apenas usar o ID que já foi passado
+      let canonicalId = roletaId;
       
-      if (data && data.numeros && Array.isArray(data.numeros)) {
-        // Processar números recebidos
-        this.processNumbersData(data.numeros, { _id: roletaId, nome: roletaNome });
-      } else if (data && data.numero !== undefined) {
-        // Processar número único
-        this.processIncomingNumber({
-          type: 'new_number',
-          roleta_id: roletaId,
-          roleta_nome: roletaNome,
-          numero: data.numero,
-          timestamp: data.timestamp || new Date().toISOString(),
-          realtime: true
-        });
+      // Se o ID não for numérico, tente converter para ID canônico baseado no nome
+      if (!/^\d+$/.test(roletaId) && roletaNome) {
+        // Mapeamento manual baseado nos nomes das roletas
+        const nameToIdMap: Record<string, string> = {
+          "Immersive Roulette": "2010016",
+          "Brazilian Mega Roulette": "2380335",
+          "Bucharest Auto-Roulette": "2010065",
+          "Speed Auto Roulette": "2010096",
+          "Auto-Roulette": "2010017",
+          "Auto-Roulette VIP": "2010098"
+        };
+        
+        if (nameToIdMap[roletaNome]) {
+          canonicalId = nameToIdMap[roletaNome];
+          console.log(`[SocketService] Convertido nome "${roletaNome}" para ID canônico ${canonicalId}`);
+        }
       }
-    });
+      
+      // Enviar inscrição para canal específico desta roleta
+      console.log(`[SocketService] Enviando solicitação para assinar canal da roleta: ${canonicalId} (originalmente: ${roletaId})`);
+      this.socket.emit('subscribe_roulette', {
+        roletaId: canonicalId,
+        originalId: roletaId,
+        roletaNome: roletaNome,
+        channel: `roulette:${canonicalId}`
+      });
+      
+      // Solicitar dados iniciais para esta roleta
+      this.requestRouletteNumbers(canonicalId);
+      
+      // Configurar um ouvinte específico para esta roleta, se ainda não existir
+      const channelName = `roulette:${canonicalId}`;
+      
+      // Remover listener existente para evitar duplicação
+      this.socket.off(channelName);
+      
+      // Adicionar novo listener
+      console.log(`[SocketService] Configurando listener específico para canal ${channelName}`);
+      
+      this.socket.on(channelName, (data: any) => {
+        console.log(`[SocketService] Dados recebidos no canal ${channelName}:`, data);
+        
+        if (data && data.numeros && Array.isArray(data.numeros)) {
+          // Processar números recebidos
+          this.processNumbersData(data.numeros, { _id: canonicalId, nome: roletaNome });
+        } else if (data && data.numero !== undefined) {
+          // Processar número único
+          this.processIncomingNumber({
+            type: 'new_number',
+            roleta_id: canonicalId,
+            roleta_nome: roletaNome,
+            numero: data.numero,
+            timestamp: data.timestamp || new Date().toISOString(),
+            realtime: true
+          });
+        }
+      });
+    } catch (error) {
+      console.error(`[SocketService] Erro ao configurar assinatura para ${roletaNome}:`, error);
+    }
   }
 
   // Método para solicitar números específicos de uma roleta

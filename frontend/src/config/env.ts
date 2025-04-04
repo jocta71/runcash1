@@ -10,14 +10,14 @@ export const isProduction = import.meta.env.PROD ||
 // Valores padrão para cada ambiente
 const defaultValues: Record<string, Record<string, string>> = {
   development: {
-    VITE_WS_URL: 'https://backendscraper-production.up.railway.app',
-    VITE_SSE_SERVER_URL: 'https://backendscraper-production.up.railway.app/api/events',
+    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
+    VITE_SSE_SERVER_URL: 'https://backend-production-2f96.up.railway.app/api/events',
     VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
     VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   },
   production: {
-    VITE_WS_URL: 'https://backendscraper-production.up.railway.app',
-    VITE_SSE_SERVER_URL: 'https://backendscraper-production.up.railway.app/api/events',
+    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
+    VITE_SSE_SERVER_URL: 'https://backend-production-2f96.up.railway.app/api/events',
     VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
     VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   }
@@ -83,10 +83,10 @@ export function getRequiredEnvVar(name: string): string {
     
     // Valores padrão para desenvolvimento
     if (name === 'VITE_WS_URL') {
-      return 'https://backendscraper-production.up.railway.app';
+      return 'wss://backend-production-2f96.up.railway.app';
     }
     if (name === 'VITE_SSE_SERVER_URL') {
-      return 'https://backendscraper-production.up.railway.app/api/events';
+      return 'https://backend-production-2f96.up.railway.app/api/events';
     }
     if (name === 'VITE_API_URL' || name === 'VITE_API_BASE_URL') {
       return 'https://backendapi-production-36b5.up.railway.app/api';
