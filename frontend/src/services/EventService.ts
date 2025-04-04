@@ -53,6 +53,9 @@ export type EventData = RouletteNumberEvent | ConnectedEvent | StrategyUpdateEve
 // Tipo para callbacks de eventos
 export type RouletteEventCallback = (event: RouletteNumberEvent | StrategyUpdateEvent) => void;
 
+// Tipo para callbacks de eventos genéricos
+export type EventCallback = (data: any) => void;
+
 // Serviço de eventos
 class EventService {
   private static instance: EventService;
@@ -68,6 +71,9 @@ class EventService {
   private currentMethodIndex: number = 0;
   private usingSocketService: boolean = false;
   private socketServiceSubscriptions: Set<string> = new Set();
+  
+  // Map para armazenar callbacks de eventos personalizados
+  private customEventListeners: Map<string, Set<EventCallback>> = new Map();
 
   private constructor() {
     // Adicionar listener global para logging de todos os eventos
@@ -732,6 +738,47 @@ class EventService {
       // Se estiver usando polling, forçar uma verificação imediata
       debugLog('[EventService] Forçando verificação via polling');
       this.performPoll();
+    }
+  }
+
+  /**
+   * Registra um callback para um evento personalizado
+   */
+  public static on(eventName: string, callback: EventCallback): void {
+    const instance = EventService.getInstance();
+    
+    if (!instance.customEventListeners.has(eventName)) {
+      instance.customEventListeners.set(eventName, new Set());
+    }
+    
+    instance.customEventListeners.get(eventName)?.add(callback);
+  }
+  
+  /**
+   * Remove um callback previamente registrado
+   */
+  public static off(eventName: string, callback: EventCallback): void {
+    const instance = EventService.getInstance();
+    
+    if (instance.customEventListeners.has(eventName)) {
+      instance.customEventListeners.get(eventName)?.delete(callback);
+    }
+  }
+  
+  /**
+   * Emite um evento personalizado com dados
+   */
+  public static emit(eventName: string, data: any): void {
+    const instance = EventService.getInstance();
+    
+    if (instance.customEventListeners.has(eventName)) {
+      instance.customEventListeners.get(eventName)?.forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`[EventService] Erro ao executar callback para ${eventName}:`, error);
+        }
+      });
     }
   }
 }

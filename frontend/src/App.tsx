@@ -19,6 +19,7 @@ const SeedPage = lazy(() => import("@/pages/SeedPage"));
 const PlansPage = lazy(() => import("@/pages/PlansPage"));
 const PaymentSuccess = lazy(() => import("@/pages/PaymentSuccess"));
 const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
+const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -80,6 +81,9 @@ const App = () => {
                 
                 {/* Rota principal (com dados reais do MongoDB) */}
                 <Route path="/" element={<Index />} />
+                
+                {/* Nova rota para roletas ao vivo */}
+                <Route path="/live-roulettes" element={<LiveRoulettePage />} />
                 
                 {/* Rotas relacionadas a planos e pagamentos */}
                 <Route path="/planos" element={<PlansPage />} />
