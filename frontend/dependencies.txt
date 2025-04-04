@@ -1,0 +1,14 @@
+# Dependências necessárias para o novo sistema de roletas
+# Execute os seguintes comandos para instalar:
+
+# Bibliotecas principais
+npm install axios socket.io-client events
+
+# Tipos para desenvolvimento
+npm install --save-dev @types/node @types/react @types/react-dom @types/jest
+
+# Para testes
+npm install --save-dev jest ts-jest @testing-library/react @testing-library/jest-dom
+
+# Observação: As dependências acima precisam ser instaladas para solucionar os erros de linter
+# e permitir o funcionamento adequado do sistema de roletas. 

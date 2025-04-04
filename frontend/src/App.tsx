@@ -7,6 +7,8 @@ import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import SocketService from '@/services/SocketService';
 import LoadingScreen from './components/LoadingScreen';
+import RoulettesPage from './pages/Roulettes';
+import './App.css';
 
 // Importação de componentes principais
 const Index = lazy(() => import("@/pages/Index"));
@@ -111,6 +113,9 @@ const App = () => {
                 
                 {/* Redirecionamento da antiga rota de tempo real para a página principal */}
                 <Route path="/realtime" element={<Navigate to="/" />} />
+
+                {/* Nova rota para roletas */}
+                <Route path="/roulettes" element={<RoulettesPage />} />
               </Routes>
             </Suspense>
           </BrowserRouter>

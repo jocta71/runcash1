@@ -77,4 +77,98 @@ Aplicação para análise de roletas em tempo real.
 
 ## Configuração
 
-Consulte o arquivo `GUIA_IMPLANTACAO.md` para instruções detalhadas sobre como configurar o ambiente. 
+Consulte o arquivo `GUIA_IMPLANTACAO.md` para instruções detalhadas sobre como configurar o ambiente.
+
+# RunCash - Nova Arquitetura de Roletas
+
+Este projeto introduz uma nova arquitetura para o sistema de roletas da aplicação RunCash, com foco em separação de responsabilidades, facilidade de manutenção e escalabilidade.
+
+## Estrutura de Diretórios
+
+A nova arquitetura segue uma estrutura organizada por responsabilidades:
+
+```
+frontend/src/
+├── services/
+│   ├── api/               # Clientes de API REST
+│   ├── socket/            # Cliente de WebSocket
+│   ├── data/              # Repositório de dados e transformadores
+│   └── ui/components/     # Componentes de UI reutilizáveis
+├── hooks/                 # Hooks personalizados do React
+└── pages/                 # Páginas da aplicação
+```
+
+## Principais Componentes
+
+### API Client
+- `RouletteApi`: Cliente para comunicação com a API REST de roletas
+
+### Socket Client
+- `SocketClient`: Cliente WebSocket para atualizações em tempo real
+
+### Data Layer
+- `RouletteRepository`: Gerencia os dados das roletas, incluindo cache e transformações
+- `RouletteTransformer`: Padroniza e transforma os dados brutos das roletas
+
+### Hooks
+- `useRoulette`: Hook para acessar e observar os dados de uma roleta específica
+- `useMultipleRoulettes`: Hook para acessar e observar os dados de múltiplas roletas
+
+### Componentes UI
+- `RouletteCard`: Exibe os dados de uma roleta em formato de cartão
+- `NumberHistory`: Exibe o histórico de números de uma roleta com estatísticas
+
+## Instalação
+
+Antes de executar a aplicação, instale as dependências necessárias:
+
+```bash
+cd frontend
+npm install axios socket.io-client
+npm install --save-dev @types/node @types/react @types/react-dom
+```
+
+## Como Usar os Novos Componentes
+
+### Exemplo com o Hook useRoulette
+
+```tsx
+import { useRoulette } from '../hooks/useRoulette';
+
+function MyComponent() {
+  const { roulette, loading, error } = useRoulette('evolution-lightning-roulette');
+  
+  if (loading) return <p>Carregando...</p>;
+  if (error) return <p>Erro: {error}</p>;
+  
+  return (
+    <div>
+      <h2>{roulette.name}</h2>
+      <p>Último número: {roulette.numbers[0]?.value}</p>
+    </div>
+  );
+}
+```
+
+### Exemplo com o Componente RouletteCard
+
+```tsx
+import { RouletteCard } from '../services/ui/components/RouletteCard';
+
+function MyComponent() {
+  return (
+    <div>
+      <h1>Minhas Roletas</h1>
+      <RouletteCard rouletteId="evolution-lightning-roulette" />
+    </div>
+  );
+}
+```
+
+## Benefícios da Nova Arquitetura
+
+1. **Separação de Responsabilidades**: Cada componente tem uma função específica e bem definida
+2. **Reutilização de Código**: Componentes e hooks podem ser reutilizados em toda a aplicação
+3. **Facilidade de Manutenção**: Estrutura organizada facilita a localização e manutenção do código
+4. **Escalabilidade**: Novos componentes podem ser adicionados seguindo o mesmo padrão
+5. **Performance**: Implementação de cache e otimização de requisições 
