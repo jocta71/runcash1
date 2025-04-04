@@ -521,14 +521,19 @@ const RouletteCard = memo(({
     }
   }, [isLoading, apiNumbers, mappedNumbersOverride, mappedNumbers, lastNumber, roletaNome]);
 
-  // Efeito para atualizar o lastNumber sempre que mappedNumbers mudar
+  // Atualizar o lastNumber apenas quando tiver um número válido
   useEffect(() => {
     if (mappedNumbers.length > 0) {
       const firstNumber = mappedNumbers[0];
-      // Garantir que é um número válido
+      // Garantir que é um número válido e não é um zero de placeholder
       if (typeof firstNumber === 'number' && !isNaN(firstNumber)) {
-        console.log(`[RouletteCard] Atualizando lastNumber para ${roletaNome}: ${firstNumber}`);
-        setLastNumber(firstNumber);
+        // Só atualizar se o número for maior que zero ou se for um zero real da roleta
+        if (firstNumber > 0 || (firstNumber === 0 && mappedNumbers.length > 1)) {
+          console.log(`[RouletteCard] Atualizando lastNumber para ${roletaNome}: ${firstNumber}`);
+          setLastNumber(firstNumber);
+        } else {
+          console.log(`[RouletteCard] Ignorando possível zero de placeholder para ${roletaNome}`);
+        }
       } else {
         console.warn(`[RouletteCard] Ignorando número inválido para ${roletaNome}: ${firstNumber}`);
       }
@@ -648,7 +653,7 @@ const RouletteCard = memo(({
           <div className="w-12 h-12 flex items-center justify-center">
             <Loader2 className="animate-spin w-6 h-6 text-zinc-500" />
           </div>
-        ) : lastNumber !== null ? (
+        ) : lastNumber !== null && (lastNumber > 0 || mappedNumbers.length > 1) ? (
           <RouletteNumber 
             number={lastNumber} 
             size="lg" 

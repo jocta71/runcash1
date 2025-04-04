@@ -24,17 +24,6 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-// Mapeamento de IDs de roletas para tipos de roletas conhecidas
-const knownRouletteTypes = {
-  "2b00051": "Immersive Roulette",
-  "2b00081": "Immersive Roulette",
-  "2b00091": "Brazilian Mega Roulette",
-  "2b00035": "Brazilian Mega Roulette",
-  "2b00085": "Speed Auto Roulette",
-  "2b00098": "Auto-Roulette VIP",
-  "2b00093": "Auto-Roulette",
-  "2b00095": "Bucharest Auto-Roulette",
-};
 
 // Adicionar área do código para persistência de roletas
 interface KnownRoulette {
