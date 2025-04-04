@@ -9,7 +9,7 @@ import {
   RouletteStrategy as ApiRouletteStrategy 
 } from '@/integrations/api/rouletteService';
 import { toast } from '@/components/ui/use-toast';
-import SocketService from '@/integrations/socket/socketService';
+import SocketService from '@/services/SocketService';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG = false;

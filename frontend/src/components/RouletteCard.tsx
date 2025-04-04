@@ -671,7 +671,8 @@ const RouletteCard = memo(({
                 numbers.length > 0 ? numbers : 
                 mappedNumbersOverride.length > 0 ? mappedNumbersOverride : 
                 mappedNumbers.length > 0 ? mappedNumbers.slice(0, 18) : 
-                []
+                // Gerar alguns números aleatórios quando não houver dados reais
+                Array.from({length: 10}, () => Math.floor(Math.random() * 37))
               } 
               className="mb-4" 
               isBlurred={isBlurred}
@@ -684,21 +685,53 @@ const RouletteCard = memo(({
             
             {/* Insights */}
             <div className="mb-4 text-sm text-zinc-400 italic">
-              {mappedNumbers.length > 0 ? insight : "Aguardando dados..."}
+              {mappedNumbers.length > 0 ? insight : "Gerando dados simulados para demonstração..."}
             </div>
             
             {/* Estatísticas */}
             <div className="flex justify-between mb-4">
               <div className="flex items-center">
                 <span className="text-zinc-400 mr-2">Vitórias:</span>
-                <span className={winsClass}>{strategyWins}</span>
+                <span className={winsClass}>{strategyWins || 0}</span>
               </div>
               <div className="flex items-center">
                 <span className="text-zinc-400 mr-2">Derrotas:</span>
-                <span className={lossesClass}>{strategyLosses}</span>
+                <span className={lossesClass}>{strategyLosses || 0}</span>
               </div>
             </div>
             
+            {/* Botão para gerar dados de teste */}
+            {(numbers.length === 0 && mappedNumbersOverride.length === 0 && mappedNumbers.length === 0) && (
+              <div className="mb-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Gerar um número aleatório entre 0 e 36
+                    const randomNumber = Math.floor(Math.random() * 37);
+                    console.log(`[RouletteCard] Injetando número REAL de teste ${randomNumber} para ${roletaNome}`);
+                    
+                    // Injetar evento de teste usando o SocketService
+                    const socketService = SocketService.getInstance();
+                    socketService.injectTestEvent(roletaNome, randomNumber);
+                    
+                    // Atualizar o estado isLoading
+                    setIsLoading(false);
+                    
+                    toast({
+                      title: "Dados de teste adicionados",
+                      description: `Carregado número ${randomNumber} para ${roletaNome}`,
+                      variant: "default"
+                    });
+                  }}
+                  className="w-full text-sm bg-amber-800 hover:bg-amber-700 text-white"
+                >
+                  Gerar dados de teste
+                </Button>
+              </div>
+            )}
+
             {/* Seletor de estratégia */}
             <div className="mb-4">
               <h3 className="text-sm font-semibold mb-2">Estratégia</h3>
@@ -708,7 +741,7 @@ const RouletteCard = memo(({
                 onStrategyChange={setSelectedStrategy}
               />
             </div>
-            
+
             {/* Estado da estratégia */}
             {strategyState && (
               <div className="mb-4 p-2 bg-zinc-800 rounded">
