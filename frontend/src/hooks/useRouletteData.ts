@@ -212,7 +212,8 @@ export const fetchRouletteLatestNumbers = async (roletaId: string, limit = 10): 
 export function useRouletteData(
   roletaId: string, 
   roletaNome: string, 
-  limit: number = 100
+  limit: number = 100,
+  forceCanonicalId?: string // Novo parâmetro para forçar o uso de um ID canônico específico
 ): UseRouletteDataResult {
   // Estado para dados de números
   const [numbers, setNumbers] = useState<RouletteNumber[]>([]);
@@ -235,6 +236,29 @@ export function useRouletteData(
   
   // Chave única para esta instância do hook
   const instanceKey = useRef<string>(`${roletaId}:${roletaNome}`);
+
+  // Mapeamento direto de nomes para IDs canônicos
+  const ROLETA_NAME_TO_ID: Record<string, string> = {
+    "Immersive Roulette": "2010016",
+    "Brazilian Mega Roulette": "2380335",
+    "Bucharest Auto-Roulette": "2010065",
+    "Speed Auto Roulette": "2010096",
+    "Auto-Roulette": "2010017",
+    "Auto-Roulette VIP": "2010098",
+    "Ruleta Automática": "2010096" // Adicional para compatibilidade
+  };
+
+  // ID canônico a ser usado em todas as chamadas
+  const effectiveCanonicalId = useRef<string>(
+    forceCanonicalId || 
+    ROLETA_NAME_TO_ID[roletaNome] || 
+    mapToCanonicalRouletteId(roletaId, roletaNome)
+  );
+
+  // Logging para debug
+  useEffect(() => {
+    console.log(`[useRouletteData] Hook inicializado para ${roletaNome} com ID original: ${roletaId}, ID canônico: ${effectiveCanonicalId.current}`);
+  }, [roletaId, roletaNome]);
 
   // NOVA ADIÇÃO: Carregar dados do localStorage ao iniciar
   useEffect(() => {
@@ -317,54 +341,35 @@ export function useRouletteData(
     updateCombinedNumbers();
   }, [initialNumbers, newNumbers, updateCombinedNumbers]);
 
-  // Função para extrair e processar números da API - MODIFICADA PARA PRESERVAR CACHE LOCAL
+  // Função para extrair e processar números da API - MODIFICADA PARA USAR ID CANÔNICO
   const loadNumbers = useCallback(async (isRefresh = false): Promise<boolean> => {
     try {
-      // Verificar primeiro se já temos dados em cache no localStorage
-      const storageKey = getLocalStorageKey(roletaId);
-      const cachedData = localStorage.getItem(storageKey);
-      let cachedNumbers: RouletteNumber[] = [];
-      
-      // Se já temos cache e não é uma atualização manual, usar o cache primeiro
-      if (cachedData && !isRefresh) {
-        try {
-          cachedNumbers = JSON.parse(cachedData) as RouletteNumber[];
-          console.log(`[useRouletteData] 🔄 Usando ${cachedNumbers.length} números do cache para ${roletaNome}`);
-          
-          // Usar os dados do cache imediatamente para exibição rápida
-          if (cachedNumbers.length > 0) {
-            setInitialNumbers(cachedNumbers);
-            initialDataLoaded.current = true;
-            setLoading(false);
-            setHasData(true);
-          }
-        } catch (err) {
-          console.warn(`[useRouletteData] Erro ao parsear cache:`, err);
-        }
-      }
-      
-      // Se já temos dados iniciais e não é uma atualização manual, pular carregamento da API
-      if (initialDataLoaded.current && !isRefresh && cachedNumbers.length > 0) {
-        console.log(`[useRouletteData] Ignorando carregamento de números para ${roletaNome} - dados já em cache`);
-        setLoading(false);
+      // Se já temos dados iniciais e não é uma atualização manual, pular
+      if (initialDataLoaded.current && !isRefresh) {
+        console.log(`[useRouletteData] Ignorando carregamento de números para ${roletaNome} - dados já carregados`);
+        setLoading(false); // GARANTIR loading false imediatamente
         return true;
       }
       
       if (!isRefresh) setLoading(true);
       setError(null);
       
-      if (!roletaId) {
-        console.log(`[useRouletteData] ID de roleta inválido ou vazio: "${roletaId}"`);
+      // IMPORTANTE: Sempre usar o ID canônico para as requisições
+      const idToUse = effectiveCanonicalId.current;
+      
+      if (!idToUse) {
+        console.log(`[useRouletteData] ID canônico não encontrado para ${roletaNome} (ID original: ${roletaId})`);
         setLoading(false);
         setHasData(false);
         return false;
       }
       
       // Registrar explicitamente o início do carregamento
-      console.log(`[useRouletteData] ${isRefresh ? '🔄 RECARREGANDO' : '📥 CARREGANDO'} dados para ${roletaNome} (ID: ${roletaId})`);
+      console.log(`[useRouletteData] ${isRefresh ? '🔄 RECARREGANDO' : '📥 CARREGANDO'} dados para ${roletaNome} (ID original: ${roletaId}, ID canônico: ${idToUse})`);
       
-      // 1. EXTRAÇÃO: Obter números brutos do novo endpoint
-      let numerosArray = await fetchRouletteNumbers(roletaId, roletaNome, limit);
+      // 1. EXTRAÇÃO: Obter números brutos do endpoint com o ID canônico
+      // NOTA: Substituir roletaId por idToUse para garantir que sempre use o ID canônico
+      let numerosArray = await fetchRouletteNumbers(idToUse, roletaNome, limit);
       
       console.log(`[useRouletteData] Resposta do endpoint de números para ${roletaNome}:`, 
         numerosArray.length > 0 ? 
@@ -372,7 +377,7 @@ export function useRouletteData(
         'Sem números'
       );
       
-      // Tentar obter por nome como fallback se não conseguir por ID
+      // Tentar obter por nome como fallback se não conseguir por ID canônico
       if (!numerosArray || numerosArray.length === 0) {
         console.log(`[useRouletteData] Tentando obter números por nome da roleta: ${roletaNome}`);
         numerosArray = await fetchRouletteLatestNumbersByName(roletaNome, limit);
@@ -385,9 +390,10 @@ export function useRouletteData(
         );
       }
       
-      // 2. PROCESSAMENTO: Converter para formato RouletteNumber e MESCLAR com cache
+      // 2. PROCESSAMENTO: Converter para formato RouletteNumber
       if (numerosArray && Array.isArray(numerosArray) && numerosArray.length > 0) {
-        // Processar os números em formato adequado
+        // Processar os números em formato adequado - não precisamos mais processar
+        // se vierem do novo endpoint, pois já estão formatados
         const processedNumbers = Array.isArray(numerosArray[0]?.numero) ? 
           processRouletteNumbers(numerosArray) : 
           numerosArray as RouletteNumber[];
@@ -397,47 +403,11 @@ export function useRouletteData(
           primeiros: processedNumbers.slice(0, 3).map(n => n.numero)
         });
         
-        // IMPORTANTE: Verificar se o cache tem mais números que a resposta atual da API
-        // Neste caso, queremos preservar o cache e não substituí-lo completamente
-        let numbersToSave: RouletteNumber[] = processedNumbers;
-        
-        if (cachedNumbers.length > processedNumbers.length) {
-          console.log(`[useRouletteData] 🔒 PRESERVANDO cache maior (${cachedNumbers.length} números) vs API (${processedNumbers.length} números)`);
-          
-          // Adicionar apenas números novos que não estão no cache
-          const mergedNumbers = [...cachedNumbers];
-          let novosNumeros = 0;
-          
-          processedNumbers.forEach(apiNumber => {
-            const existsInCache = cachedNumbers.some(cacheNumber => 
-              cacheNumber.numero === apiNumber.numero &&
-              cacheNumber.timestamp === apiNumber.timestamp
-            );
-            
-            if (!existsInCache) {
-              mergedNumbers.unshift(apiNumber); // Adicionar no início
-              novosNumeros++;
-            }
-          });
-          
-          console.log(`[useRouletteData] Adicionados ${novosNumeros} novos números ao cache existente`);
-          numbersToSave = mergedNumbers;
-        } else {
-          console.log(`[useRouletteData] Usando dados da API (${processedNumbers.length} números)`);
-        }
-        
-        // Salvar a versão mesclada dos dados
-        console.log(`[useRouletteData] ${initialDataLoaded.current ? 'Atualizando' : 'Salvando pela primeira vez'} dados iniciais para ${roletaNome}: ${numbersToSave.length} números`);
-        setInitialNumbers(numbersToSave);
-        initialDataLoaded.current = true;
-        
-        // Salvar no localStorage para persistência
-        try {
-          const dataToSave = JSON.stringify(numbersToSave);
-          localStorage.setItem(storageKey, dataToSave);
-          console.log(`[useRouletteData] 💾 Salvos ${numbersToSave.length} números no localStorage para ${roletaNome}`);
-        } catch (err) {
-          console.warn(`[useRouletteData] Erro ao salvar no localStorage:`, err);
+        // IMPORTANTE: Salvar os dados iniciais apenas uma vez ou se for refresh manual
+        if (!initialDataLoaded.current || isRefresh) {
+          console.log(`[useRouletteData] ${initialDataLoaded.current ? 'Atualizando' : 'Salvando pela primeira vez'} dados iniciais para ${roletaNome}: ${processedNumbers.length} números`);
+          setInitialNumbers(processedNumbers);
+          initialDataLoaded.current = true;
         }
         
         // NOVA ADIÇÃO: Definir loading como false IMEDIATAMENTE após ter os dados
@@ -447,16 +417,8 @@ export function useRouletteData(
         
         return true;
       } else {
-        // Sem dados novos disponíveis, mas podemos ter dados em cache
-        if (cachedNumbers.length > 0) {
-          console.log(`[useRouletteData] API sem dados, mas mantendo ${cachedNumbers.length} números do cache para ${roletaNome}`);
-          setLoading(false);
-          setHasData(true);
-          return true;
-        }
-        
         // Sem dados disponíveis
-        console.warn(`[useRouletteData] ⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
+        console.warn(`[useRouletteData] ⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${idToUse})`);
         
         // NOVA ADIÇÃO: Definir loading como false mesmo sem dados
         setLoading(false);  
@@ -479,7 +441,7 @@ export function useRouletteData(
       setLoading(false);
       setRefreshLoading(false);
     }
-  }, [roletaId, roletaNome, limit]);
+  }, [roletaId, roletaNome, limit, effectiveCanonicalId]);
   
   // Função para extrair e processar estratégia da API
   const loadStrategy = useCallback(async (): Promise<boolean> => {

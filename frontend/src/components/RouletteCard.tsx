@@ -119,6 +119,25 @@ const RouletteCard = memo(({
   // Verificar se o nome da roleta é válido, com fallback para roleta_nome
   const roletaNome = name || roleta_nome || "Roleta Desconhecida";
   
+  // Mapeamento de nomes de roletas para IDs canônicos (gameIds)
+  const ROLETA_NAME_TO_ID: Record<string, string> = {
+    "Immersive Roulette": "2010016",
+    "Brazilian Mega Roulette": "2380335",
+    "Bucharest Auto-Roulette": "2010065",
+    "Speed Auto Roulette": "2010096",
+    "Auto-Roulette": "2010017",
+    "Auto-Roulette VIP": "2010098",
+    "Ruleta Automática": "2010096" // Adicional para compatibilidade
+  };
+
+  // Obter o ID canônico (gameId) com base no nome da roleta
+  const getCanonicalRouletteId = (nome: string): string | null => {
+    return ROLETA_NAME_TO_ID[nome] || null;
+  };
+
+  // ID canônico (gameId) a ser usado para requests
+  const canonicalId = getCanonicalRouletteId(roletaNome);
+  
   // Estado para controlar highlights de atualizações
   const [highlightWins, setHighlightWins] = useState(false);
   const [highlightLosses, setHighlightLosses] = useState(false);
@@ -163,7 +182,7 @@ const RouletteCard = memo(({
     strategyLoading: isLoadingApiStrategy, 
     refreshNumbers,
     refreshStrategy = () => Promise.resolve(false)
-  } = roletaId ? useRouletteData(roletaId, roletaNome) : {
+  } = roletaId ? useRouletteData(roletaId, roletaNome, 100, canonicalId) : {
     // Se não tivermos roletaId, não usar dados de fallback, mostrar como não disponível
     numbers: [],
     loading: true,
