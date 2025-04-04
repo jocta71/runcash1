@@ -250,8 +250,8 @@ export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100)
       return cache[cacheKey].data;
     }
     
-    console.log(`[API] Buscando números da roleta ${canonicalId} em: ${apiBaseUrl}/roulette-numbers/${canonicalId}?limit=${limit}`);
-    const response = await axios.get(`${apiBaseUrl}/roulette-numbers/${canonicalId}?limit=${limit}`);
+    console.log(`[API] Buscando números da roleta ${canonicalId} em: ${apiBaseUrl}/roulette-numero/${canonicalId}?limit=${limit}`);
+    const response = await axios.get(`${apiBaseUrl}/roulette-numero/${canonicalId}?limit=${limit}`);
     
     if (response.data && Array.isArray(response.data)) {
       // Armazenar em cache

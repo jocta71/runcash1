@@ -998,8 +998,8 @@ class SocketService {
       const canonicalId = mapToCanonicalRouletteId(roletaId);
       
       const baseUrl = this.getApiBaseUrl();
-      // Usar apenas o endpoint correto /api/roulette-numbers/id
-      const endpoint = `${baseUrl}/roulette-numbers/${canonicalId}`;
+      // Usar apenas o endpoint correto /api/roulette-numero/id
+      const endpoint = `${baseUrl}/roulette-numero/${canonicalId}`;
       
       console.log(`[SocketService] Buscando números via REST para roleta ${canonicalId}`);
       
@@ -1335,7 +1335,7 @@ class SocketService {
     // Solicitar via socket usando ID canônico
     this.socket.emit('get_roulette_numbers', {
       roletaId: canonicalId,
-      endpoint: `/api/roulette-numbers/${canonicalId}`,
+      endpoint: `/api/roulette-numero/${canonicalId}`,
       count: 50 // Solicitar até 50 números para garantir boa amostra
     });
     
@@ -1376,7 +1376,7 @@ class SocketService {
             if (this.socket && this.socket.connected) {
               this.socket.emit('get_roulette_numbers', {
                 roletaId: roletaId,
-                endpoint: `/api/roulette-numbers/${roletaId}`,
+                endpoint: `/api/roulette-numero/${roletaId}`,
                 count: 20
               });
             }
