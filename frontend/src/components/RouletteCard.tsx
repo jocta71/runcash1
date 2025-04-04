@@ -187,9 +187,21 @@ const RouletteCard = memo(({
     // Prioridade 2: Números da API
     if (Array.isArray(apiNumbers) && apiNumbers.length > 0) {
       const mapped = apiNumbers.map(numObj => {
-        const num = typeof numObj.numero === 'number' ? numObj.numero : 
-                   typeof numObj.numero === 'string' ? parseInt(numObj.numero, 10) : 0;
-        return isNaN(num) ? 0 : num;
+        // Verificar e validar cada número para evitar NaN
+        let num = 0;
+        
+        if (typeof numObj === 'number' && !isNaN(numObj)) {
+          num = numObj;
+        } else if (numObj && typeof numObj.numero !== 'undefined') {
+          if (typeof numObj.numero === 'number' && !isNaN(numObj.numero)) {
+            num = numObj.numero;
+          } else if (typeof numObj.numero === 'string' && numObj.numero.trim() !== '') {
+            const parsed = parseInt(numObj.numero, 10);
+            num = !isNaN(parsed) ? parsed : 0;
+          }
+        }
+        
+        return num;
       });
       
       if (DEBUG_ENABLED) {
@@ -347,87 +359,70 @@ const RouletteCard = memo(({
     const socketService = SocketService.getInstance();
     
     const handleEvent = (event: any) => {
-      // Verificar se é um evento do tipo new_number
-      if (event.type !== 'new_number') {
-        console.log(`[RouletteCard] Ignorando evento de tipo não suportado: ${event.type}`);
-        return;
-      }
+      // Ignorar eventos não relacionados ou sem dados
+      if (!event || !event.type) return;
       
-      // Verificar se o evento é para esta roleta, usando correspondência mais flexível
-      // Verifica nome exato, normalizado (sem espaços/caixa baixa) e parcial
-      const eventRoletaNome = event.roleta_nome || '';
-      const normalizedEventName = eventRoletaNome.toLowerCase().replace(/\s+/g, '');
-      const normalizedComponentName = name.toLowerCase().replace(/\s+/g, '');
-      
-      const isExactMatch = eventRoletaNome === name;
-      const isNormalizedMatch = normalizedEventName === normalizedComponentName;
-      const isPartialMatch = 
-        normalizedEventName.includes(normalizedComponentName) || 
-        normalizedComponentName.includes(normalizedEventName);
-      
-      // Se não houver nenhuma correspondência, ignorar o evento
-      if (!isExactMatch && !isNormalizedMatch && !isPartialMatch) {
-        return;
-      }
-      
-      console.log(`[RouletteCard] Processando número ${event.numero} para ${name} de evento ${eventRoletaNome}`);
-      
-      // Importante: Desativar estado de carregamento imediatamente quando recebemos qualquer evento válido
-      if (isLoading) {
-        console.log(`[RouletteCard] Desativando isLoading para ${name} após receber evento válido`);
-        setIsLoading(false);
-      }
-      
-      // Garantir que o número é um número válido
-      let numero: number;
-      if (typeof event.numero === 'number') {
-        numero = event.numero;
-      } else if (typeof event.numero === 'string') {
-        numero = parseInt(event.numero, 10);
-      } else {
-        console.warn(`[RouletteCard] Número inválido recebido: ${event.numero}`);
-        return;
-      }
-      
-      if (isNaN(numero) || numero < 0 || numero > 36) {
-        console.warn(`[RouletteCard] Número fora do intervalo válido: ${numero}`);
-        return;
-      }
-      
-      // Definir último número
-      setLastNumber(numero);
-      
-      // Adicionar número à lista e manter apenas os últimos N
-      setNumbers(prevNumbers => {
-        const newNumbers = [numero, ...prevNumbers];
-        return newNumbers.slice(0, 20); // Manter apenas os últimos 20 números
-      });
-      
-      // Atualizar o estado de dados disponíveis no array com override
-      setMappedNumbersOverride(prevNumbers => {
-        // Se o número já existe no array, não duplicar
-        if (prevNumbers.includes(numero)) {
-          return prevNumbers;
+      if (event.type === 'new_number' || event.type === 'strategy_update') {
+        // Verificar se o evento é para esta roleta
+        const isForThisRoulette = 
+          (event.roleta_nome && (event.roleta_nome === name || event.roleta_nome === roleta_nome)) ||
+          (event.roleta_id && event.roleta_id === roletaId);
+          
+        if (!isForThisRoulette) return;
+        
+        // Processar novo número
+        if (event.type === 'new_number' && event.numero !== undefined) {
+          let numero: number;
+          
+          // Validar e converter o número
+          if (typeof event.numero === 'number' && !isNaN(event.numero)) {
+            numero = event.numero;
+          } else if (typeof event.numero === 'string' && event.numero.trim() !== '') {
+            const parsed = parseInt(event.numero, 10);
+            numero = !isNaN(parsed) ? parsed : 0;
+          } else {
+            console.warn(`[RouletteCard] Número inválido recebido: ${event.numero}, usando 0`);
+            numero = 0;
+          }
+          
+          console.log(`[RouletteCard] Novo número ${numero} para ${name}`);
+          
+          // Atualizar o número mais recente
+          setLastNumber(numero);
+          
+          // Atualizar o array de números
+          setNumbers(prevNumbers => {
+            const newNumbers = [numero, ...prevNumbers];
+            return newNumbers.slice(0, 20); // Manter apenas os últimos 20 números
+          });
+          
+          // Atualizar o estado de dados disponíveis no array com override
+          setMappedNumbersOverride(prevNumbers => {
+            // Se o número já existe no array, não duplicar
+            if (prevNumbers.includes(numero)) {
+              return prevNumbers;
+            }
+            // Adicionar o número no início do array e manter apenas os 20 últimos
+            const newArray = [numero, ...prevNumbers].slice(0, 20);
+            console.log(`[RouletteCard] Números atualizados para ${name}:`, newArray);
+            return newArray;
+          });
+          
+          // Acionar o destaque visual
+          setHighlight(true);
+          
+          // Limpar o timer anterior se existir
+          if (highlightTimerRef.current) {
+            clearTimeout(highlightTimerRef.current);
+          }
+          
+          // Configurar o novo timer para remover o destaque
+          highlightTimerRef.current = setTimeout(() => {
+            setHighlight(false);
+            highlightTimerRef.current = null;
+          }, 800);
         }
-        // Adicionar o número no início do array e manter apenas os 20 últimos
-        const newArray = [numero, ...prevNumbers].slice(0, 20);
-        console.log(`[RouletteCard] Números atualizados para ${name}:`, newArray);
-        return newArray;
-      });
-      
-      // Acionar o destaque visual
-      setHighlight(true);
-      
-      // Limpar o timer anterior se existir
-      if (highlightTimerRef.current) {
-        clearTimeout(highlightTimerRef.current);
       }
-      
-      // Configurar o novo timer para remover o destaque
-      highlightTimerRef.current = setTimeout(() => {
-        setHighlight(false);
-        highlightTimerRef.current = null;
-      }, 800);
     };
     
     // Inscrever para eventos globais (receber todos e filtrar internamente)
@@ -525,6 +520,20 @@ const RouletteCard = memo(({
       return () => clearTimeout(timer);
     }
   }, [isLoading, apiNumbers, mappedNumbersOverride, mappedNumbers, lastNumber, roletaNome]);
+
+  // Efeito para atualizar o lastNumber sempre que mappedNumbers mudar
+  useEffect(() => {
+    if (mappedNumbers.length > 0) {
+      const firstNumber = mappedNumbers[0];
+      // Garantir que é um número válido
+      if (typeof firstNumber === 'number' && !isNaN(firstNumber)) {
+        console.log(`[RouletteCard] Atualizando lastNumber para ${roletaNome}: ${firstNumber}`);
+        setLastNumber(firstNumber);
+      } else {
+        console.warn(`[RouletteCard] Ignorando número inválido para ${roletaNome}: ${firstNumber}`);
+      }
+    }
+  }, [mappedNumbers, roletaNome]);
 
   // Função para gerar sugestões
   const generateSuggestion = () => {
