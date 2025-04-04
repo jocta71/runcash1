@@ -76,22 +76,41 @@ class RouletteFeedService {
             const lastNumbers = tableData.RouletteLastNumbers;
             const previousNumbers = this.lastRouletteNumbers.get(tableId) || [];
             
-            // Verificar se há novos números
-            if (JSON.stringify(lastNumbers) !== JSON.stringify(previousNumbers)) {
-              // Atualizar os números armazenados
-              this.lastRouletteNumbers.set(tableId, lastNumbers);
+            // DEBUG: Log para verificar diferenças
+            console.log(`[RouletteFeedService] Comparando números para ${tableData.Name}:`, {
+              novos: lastNumbers.slice(0, 5),
+              anteriores: previousNumbers.slice(0, 5),
+              saoIguais: JSON.stringify(lastNumbers) === JSON.stringify(previousNumbers)
+            });
+            
+            // Verificar se há novos números - usando verificação mais rigorosa
+            // Só considera igual se mesmo comprimento e mesmo conteúdo
+            const hasNewNumbers = lastNumbers.length !== previousNumbers.length || 
+                                 lastNumbers.some((num, idx) => num !== previousNumbers[idx]);
+            
+            // Se há diferença, atualizar os dados
+            if (hasNewNumbers) {
+              console.log(`[RouletteFeedService] NOVOS NÚMEROS detectados para ${tableData.Name}:`, {
+                primeiro_novo: lastNumbers[0],
+                primeiro_anterior: previousNumbers[0]
+              });
               
-              // Emitir evento com novos dados
+              // Atualizar os números armazenados
+              this.lastRouletteNumbers.set(tableId, [...lastNumbers]); // Clone do array para evitar referências
+              
+              // Emitir evento com novos dados - especificar explicitamente que há novos números
               EventService.emit('roulette:numbers-updated', {
                 tableId,
                 tableName: tableData.Name,
                 numbers: lastNumbers,
                 dealer: tableData.Dealer,
-                players: tableData.Players
+                players: tableData.Players,
+                isNewNumber: true // Indicar explicitamente que há novos números
               });
               
               // Se o primeiro número é diferente, emitir evento específico de novo número
-              if (lastNumbers[0] !== previousNumbers[0]) {
+              if (lastNumbers.length > 0 && (previousNumbers.length === 0 || lastNumbers[0] !== previousNumbers[0])) {
+                console.log(`[RouletteFeedService] NOVO NÚMERO PRINCIPAL detectado: ${lastNumbers[0]}`);
                 EventService.emit('roulette:new-number', {
                   tableId,
                   tableName: tableData.Name,
@@ -112,6 +131,44 @@ class RouletteFeedService {
    */
   public getLastNumbersForTable(tableId: string): string[] {
     return this.lastRouletteNumbers.get(tableId) || [];
+  }
+  
+  /**
+   * Atualiza manualmente os números de uma mesa específica
+   */
+  public updateTableNumbers(tableId: string, numbers: string[]): void {
+    // Obtém os números anteriores
+    const previousNumbers = this.lastRouletteNumbers.get(tableId) || [];
+    
+    // Verifica se há alteração real nos dados
+    if (JSON.stringify(numbers) !== JSON.stringify(previousNumbers)) {
+      console.log(`[RouletteFeedService] Atualizando manualmente números para mesa ${tableId}:`, {
+        novos: numbers.slice(0, 5),
+        anteriores: previousNumbers.slice(0, 5)
+      });
+      
+      // Atualiza o mapa de números
+      this.lastRouletteNumbers.set(tableId, numbers);
+      
+      // Emite evento de atualização
+      const hasNewNumber = numbers.length > 0 && 
+                          (previousNumbers.length === 0 || 
+                           numbers[0] !== previousNumbers[0]);
+      
+      EventService.emit('roulette:numbers-updated', {
+        tableId,
+        numbers,
+        isNewNumber: hasNewNumber
+      });
+      
+      // Se temos um novo número, emite evento específico
+      if (hasNewNumber) {
+        EventService.emit('roulette:new-number', {
+          tableId,
+          number: numbers[0]
+        });
+      }
+    }
   }
   
   /**

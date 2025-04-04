@@ -19,6 +19,17 @@ const LiveRoulettesDisplay = () => {
   useEffect(() => {
     // Iniciar o adaptador de API do cassino
     const apiAdapter = CasinoAPIAdapter.getInstance();
+    apiAdapter.configure({
+      pollInterval: 5000 // 5 segundos entre verificações
+    });
+    
+    // Buscar dados iniciais imediatamente
+    apiAdapter.fetchDataOnce().then(initialData => {
+      console.log('[LiveRoulettesDisplay] Dados iniciais carregados com sucesso:', 
+        initialData?.LiveTables ? Object.keys(initialData.LiveTables).length : 0);
+    });
+    
+    // Iniciar polling regular
     apiAdapter.startPolling();
     
     // Função para atualizar a lista de mesas
@@ -27,6 +38,8 @@ const LiveRoulettesDisplay = () => {
       const allTables = feedService.getAllRouletteTables();
       
       if (allTables.length > 0) {
+        console.log(`[LiveRoulettesDisplay] Atualizando lista de mesas: ${allTables.length} mesas disponíveis`);
+        
         const formattedTables = allTables.map(item => ({
           tableId: item.tableId,
           tableName: item.tableId, // Inicialmente usamos o ID como nome
@@ -38,11 +51,12 @@ const LiveRoulettesDisplay = () => {
       }
     };
     
-    // Verificar se já temos mesas disponíveis
-    updateTables();
-    
     // Escutar por atualizações de números
     const handleNumbersUpdated = (data: any) => {
+      console.log(`[LiveRoulettesDisplay] Dados atualizados para mesa ${data.tableName || data.tableId}:`, {
+        primeiros_numeros: data.numbers?.slice(0, 3)
+      });
+      
       setTables(prevTables => {
         // Verificar se a mesa já existe na lista
         const tableIndex = prevTables.findIndex(t => t.tableId === data.tableId);
@@ -60,6 +74,7 @@ const LiveRoulettesDisplay = () => {
           return updatedTables;
         } else {
           // Adicionar nova mesa
+          console.log(`[LiveRoulettesDisplay] Nova mesa adicionada: ${data.tableName || data.tableId}`);
           return [
             ...prevTables,
             {
@@ -78,13 +93,42 @@ const LiveRoulettesDisplay = () => {
     
     // Inscrever para eventos de atualização
     EventService.on('roulette:numbers-updated', handleNumbersUpdated);
+    EventService.on('casino:data-updated', () => {
+      console.log('[LiveRoulettesDisplay] Dados gerais do casino atualizados, atualizando a lista de mesas');
+      setTimeout(updateTables, 100); // Pequeno delay para garantir que o serviço processou os dados
+    });
+    
+    // Escutar por eventos específicos de novos números
+    const handleNewNumber = (data: any) => {
+      console.log(`[LiveRoulettesDisplay] NOVO NÚMERO recebido para ${data.tableName || data.tableId}: ${data.number}`);
+      
+      // Forçar atualização imediata para garantir que o novo número seja mostrado
+      setTimeout(() => {
+        apiAdapter.fetchDataOnce();
+        updateTables();
+      }, 100);
+    };
+    
+    // Registrar evento para novos números
+    EventService.on('roulette:new-number', handleNewNumber);
+    
+    // Verificar se já temos mesas disponíveis
+    updateTables();
     
     // Configurar um intervalo para verificar atualizações em caso de falha no evento
-    const checkInterval = setInterval(updateTables, 10000);
+    const checkInterval = setInterval(() => {
+      console.log('[LiveRoulettesDisplay] Verificação periódica de dados');
+      apiAdapter.fetchDataOnce(); // Forçar atualização periódica
+      
+      // Re-verificar estado das mesas para garantir que temos os dados mais recentes
+      setTimeout(updateTables, 200);
+    }, 15000); // A cada 15 segundos
     
     // Limpeza ao desmontar
     return () => {
       EventService.off('roulette:numbers-updated', handleNumbersUpdated);
+      EventService.off('casino:data-updated', updateTables);
+      EventService.off('roulette:new-number', handleNewNumber);
       clearInterval(checkInterval);
       apiAdapter.stopPolling();
     };

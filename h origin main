@@ -3,3 +3,8 @@ Author: Jocta <joctaxd@gmail.com>
 Date:   Fri Apr 4 04:04:47 2025 -0700
 
     feat: Remove completamente a exibição do último número no topo do card
+[33mcommit d50ec60e19bab86959ec5e05b711f9148ac0c37f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: Jocta <joctaxd@gmail.com>
+Date:   Fri Apr 4 05:49:02 2025 -0700
+
+    feat: Implementação da exibição de mesas de roleta em tempo real
