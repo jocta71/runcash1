@@ -1351,7 +1351,7 @@ class SocketService {
     // Solicitar via socket usando ID canônico
     this.socket.emit('get_roulette_numbers', {
       roletaId: canonicalId,
-      endpoint: `/api/roulette-numero/${canonicalId}`,
+      endpoint: `/api/ROULETTES`,
       count: 50 // Solicitar até 50 números para garantir boa amostra
     });
     
@@ -1392,7 +1392,7 @@ class SocketService {
             if (this.socket && this.socket.connected) {
               this.socket.emit('get_roulette_numbers', {
                 roletaId: roletaId,
-                endpoint: `/api/roulette-numero/${roletaId}`,
+                endpoint: `/api/ROULETTES`,
                 count: 20
               });
             }
