@@ -199,507 +199,195 @@ export const fetchRouletteLatestNumbers = async (roletaId: string, limit = 10): 
   return [];
 };
 
-/**
- * Hook para obter e atualizar dados da roleta em tempo real
- * @param roletaId - ID da roleta
- * @param roletaNome - Nome da roleta (para subscrição de eventos)
- * @param limit - Limite de números a serem exibidos
- * @returns Objeto com números, estado de carregamento, erro e status de conexão
- */
+// Adicionar flag para controlar carregamento inicial vs. atualização em tempo real
 export function useRouletteData(
-  roletaId: string, 
-  roletaNome: string, 
-  limit: number = 100
+  id: string,
+  refreshInterval = 0
 ): UseRouletteDataResult {
-  // Estado para dados de números
-  const [numbers, setNumbers] = useState<RouletteNumber[]>([]);
-  const [initialNumbers, setInitialNumbers] = useState<RouletteNumber[]>([]); // Dados iniciais
-  const [newNumbers, setNewNumbers] = useState<RouletteNumber[]>([]); // Novos números
-  const [loading, setLoading] = useState<boolean>(true);
-  const [refreshLoading, setRefreshLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [hasData, setHasData] = useState<boolean>(false);
+  const [data, setData] = useState<RouletteData | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [lastUpdateTime, setLastUpdateTime] = useState<string>('');
+  const initialLoadCompleted = useRef(false);
+  const realtimeUpdatesCount = useRef(0);
   
-  // Estado para dados de estratégia
-  const [strategy, setStrategy] = useState<RouletteStrategy | null>(null);
-  const [strategyLoading, setStrategyLoading] = useState<boolean>(true);
-  
-  // Ref para controle de inicialização
-  const initialLoadCompleted = useRef<boolean>(false);
-  const initialDataLoaded = useRef<boolean>(false);
-  const hookInitialized = useRef<boolean>(false);
-  
-  // Chave única para esta instância do hook
-  const instanceKey = useRef<string>(`${roletaId}:${roletaNome}`);
-
-  // Função para atualizar o estado numbers que combina initialNumbers e newNumbers
-  const updateCombinedNumbers = useCallback(() => {
-    // Combinar os novos números com os dados iniciais
-    console.log(`[useRouletteData] Combinando ${newNumbers.length} novos números com ${initialNumbers.length} números iniciais para ${roletaNome}`);
-    
-    // Se não temos novos números, usar apenas os iniciais
-    if (newNumbers.length === 0) {
-      setNumbers([...initialNumbers]);
+  // Função para buscar dados da API
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    if (!id) {
+      setError(new Error('ID da roleta não fornecido'));
+      setIsLoading(false);
       return;
     }
-    
-    // Se não temos números iniciais, usar apenas os novos
-    if (initialNumbers.length === 0) {
-      setNumbers([...newNumbers]);
-      return;
-    }
-    
-    // Combinar sem duplicar números
-    const numberMap = new Map();
-    
-    // Adicionar números iniciais ao mapa, usando o valor do número como chave
-    initialNumbers.forEach(item => {
-      const numeroValue = typeof item === 'object' ? item.numero : item;
-      if (!numberMap.has(numeroValue)) {
-        numberMap.set(numeroValue, item);
-      }
-    });
-    
-    // Adicionar novos números, substituindo os existentes se houver duplicatas
-    newNumbers.forEach(item => {
-      const numeroValue = typeof item === 'object' ? item.numero : item;
-      if (!numberMap.has(numeroValue)) {
-        numberMap.set(numeroValue, item);
-      }
-    });
-    
-    // Converter o mapa de volta para um array e ordenar por timestamp (mais recente primeiro)
-    const combinedArray = Array.from(numberMap.values()).sort((a, b) => {
-      // Se for objeto, comparar timestamps
-      if (typeof a === 'object' && typeof b === 'object') {
-        const timeA = new Date(a.timestamp || '');
-        const timeB = new Date(b.timestamp || '');
-        return timeB.getTime() - timeA.getTime();
-      }
-      // Se forem números simples, manter a ordem
-      return 0;
-    });
-    
-    console.log(`[useRouletteData] Números combinados: ${combinedArray.length} números únicos para ${roletaNome}`);
-    setNumbers(combinedArray);
-  }, [initialNumbers, newNumbers, roletaNome]);
-
-  // Atualizar o estado combinado sempre que initialNumbers ou newNumbers mudar
-  useEffect(() => {
-    updateCombinedNumbers();
-  }, [initialNumbers, newNumbers, updateCombinedNumbers]);
-
-  // Função para extrair e processar números da API - MODIFICADA PARA RESPOSTA MAIS RÁPIDA
-  const loadNumbers = useCallback(async (isRefresh = false): Promise<boolean> => {
-    try {
-      // Se já temos dados iniciais e não é uma atualização manual, pular
-      if (initialDataLoaded.current && !isRefresh) {
-        console.log(`[useRouletteData] Ignorando carregamento de números para ${roletaNome} - dados já carregados`);
-        setLoading(false); // GARANTIR loading false imediatamente
-        return true;
-      }
-      
-      if (!isRefresh) setLoading(true);
-      setError(null);
-      
-      if (!roletaId) {
-        console.log(`[useRouletteData] ID de roleta inválido ou vazio: "${roletaId}"`);
-        setLoading(false);
-        setHasData(false);
-        return false;
-      }
-      
-      // Registrar explicitamente o início do carregamento
-      console.log(`[useRouletteData] ${isRefresh ? '🔄 RECARREGANDO' : '📥 CARREGANDO'} dados para ${roletaNome} (ID: ${roletaId})`);
-      
-      // 1. EXTRAÇÃO: Obter números brutos do novo endpoint
-      let numerosArray = await fetchRouletteNumbers(roletaId, roletaNome, limit);
-      
-      console.log(`[useRouletteData] Resposta do endpoint de números para ${roletaNome}:`, 
-        numerosArray.length > 0 ? 
-        `${numerosArray.length} números, primeiro: ${numerosArray[0]?.numero}` : 
-        'Sem números'
-      );
-      
-      // Tentar obter por nome como fallback se não conseguir por ID
-      if (!numerosArray || numerosArray.length === 0) {
-        console.log(`[useRouletteData] Tentando obter números por nome da roleta: ${roletaNome}`);
-        numerosArray = await fetchRouletteLatestNumbersByName(roletaNome, limit);
-        
-        // Log do resultado da busca por nome
-        console.log(`[useRouletteData] Resposta da busca por nome (${roletaNome}):`, 
-          numerosArray.length > 0 ? 
-          `${numerosArray.length} números, primeiro: ${numerosArray[0]}` : 
-          'Sem números'
-        );
-      }
-      
-      // 2. PROCESSAMENTO: Converter para formato RouletteNumber
-      if (numerosArray && Array.isArray(numerosArray) && numerosArray.length > 0) {
-        // Processar os números em formato adequado - não precisamos mais processar
-        // se vierem do novo endpoint, pois já estão formatados
-        const processedNumbers = Array.isArray(numerosArray[0]?.numero) ? 
-          processRouletteNumbers(numerosArray) : 
-          numerosArray as RouletteNumber[];
-        
-        console.log(`[useRouletteData] Dados processados para ${roletaNome}:`, {
-          total: processedNumbers.length,
-          primeiros: processedNumbers.slice(0, 3).map(n => n.numero)
-        });
-        
-        // IMPORTANTE: Salvar os dados iniciais apenas uma vez ou se for refresh manual
-        if (!initialDataLoaded.current || isRefresh) {
-          console.log(`[useRouletteData] ${initialDataLoaded.current ? 'Atualizando' : 'Salvando pela primeira vez'} dados iniciais para ${roletaNome}: ${processedNumbers.length} números`);
-          setInitialNumbers(processedNumbers);
-          initialDataLoaded.current = true;
-        }
-        
-        // NOVA ADIÇÃO: Definir loading como false IMEDIATAMENTE após ter os dados
-        setLoading(false);
-        setHasData(true);
-        initialLoadCompleted.current = true;
-        
-        return true;
-      } else {
-        // Sem dados disponíveis
-        console.warn(`[useRouletteData] ⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
-        
-        // NOVA ADIÇÃO: Definir loading como false mesmo sem dados
-        setLoading(false);  
-        setHasData(false);
-        initialLoadCompleted.current = true;
-                
-        return false;
-      }
-    } catch (err: any) {
-      console.error(`[useRouletteData] ❌ Erro ao carregar números para ${roletaNome}: ${err.message}`);
-      setError(`Erro ao carregar números: ${err.message}`);
-      
-      // NOVA ADIÇÃO: Garantir que loading seja false mesmo em caso de erro
-      setLoading(false);
-      setHasData(false);
-      initialLoadCompleted.current = true;
-      return false;
-    } finally {
-      // Garantir que loading e refreshLoading sejam sempre definidos como false ao final
-      setLoading(false);
-      setRefreshLoading(false);
-    }
-  }, [roletaId, roletaNome, limit]);
-  
-  // Função para extrair e processar estratégia da API
-  const loadStrategy = useCallback(async (): Promise<boolean> => {
-    if (!roletaId) return false;
-    
-    setStrategyLoading(true);
     
     try {
-      // 1. EXTRAÇÃO: Obter estratégia da API
-      console.log(`[useRouletteData] Extraindo estratégia para ${roletaNome} (ID: ${roletaId})...`);
-      let strategyData = await fetchRouletteStrategy(roletaId);
-      
-      console.log(`[useRouletteData] Resposta da API de estratégia para ${roletaNome}:`, strategyData);
-      
-      // Se não tem dados de estratégia, tenta extrair da roleta por nome
-      if (!strategyData) {
-        console.log(`[useRouletteData] Tentando extrair estratégia da roleta por nome: ${roletaNome}`);
-        const roletaData = await fetchRouletteById(roletaId);
-        
-        console.log(`[useRouletteData] Dados da roleta obtidos:`, roletaData);
-        
-        if (roletaData) {
-          strategyData = {
-            estado: roletaData.estado_estrategia || 'NEUTRAL',
-            numero_gatilho: roletaData.numero_gatilho || null,
-            terminais_gatilho: roletaData.terminais_gatilho || [],
-            vitorias: roletaData.vitorias || 0,
-            derrotas: roletaData.derrotas || 0,
-            sugestao_display: roletaData.sugestao_display || ''
-          };
-        }
-      }
-      
-      // 2. PROCESSAMENTO: Atualizar estado com dados obtidos
-      if (strategyData) {
-        console.log(`[useRouletteData] Estratégia processada para ${roletaNome}:`, {
-          estado: strategyData.estado,
-          vitorias: strategyData.vitorias,
-          derrotas: strategyData.derrotas
-        });
-        
-        setStrategy(strategyData);
-        setStrategyLoading(false);
-        return true;
-      } else {
-        console.log(`[useRouletteData] ⚠️ Nenhuma estratégia encontrada para ${roletaNome}`);
-        setStrategy(null);
-        setStrategyLoading(false);
-        return false;
-      }
-    } catch (error) {
-      console.error(`[useRouletteData] ❌ Erro ao extrair estratégia: ${error}`);
-      setStrategyLoading(false);
-      return false;
-    }
-  }, [roletaId, roletaNome]);
-  
-  // useEffect para inicialização - GARANTINDO CARREGAMENTO ÚNICO
-  useEffect(() => {
-    // Verificar se esta instância específica já foi inicializada para evitar carregamento duplo
-    if (hookInitialized.current) {
-      console.log(`[useRouletteData] Hook já inicializado para ${roletaNome}, ignorando inicialização duplicada`);
-      return;
-    }
-    
-    // Marcar esta instância como inicializada
-    hookInitialized.current = true;
-    
-    let isActive = true;
-    console.log(`[useRouletteData] ⭐ INICIANDO CARREGAMENTO ÚNICO para ${roletaNome} (ID: ${roletaId})`);
-    
-    // Função para carregar dados iniciais
-    const loadInitialData = async () => {
-      if (loading && !initialDataLoaded.current) {
-        try {
-          console.log(`[useRouletteData] Iniciando carregamento de dados para ${roletaId} (${roletaNome})`);
-          
-          // Definir status de carregamento
-          setLoading(true);
-          setError(null);
-          initialDataLoaded.current = false;
-          
-          // Obter o ID canônico da roleta
-          const canonicalId = mapToCanonicalRouletteId(roletaId, roletaNome);
-          console.log(`[useRouletteData] ID canônico para ${roletaId}: ${canonicalId}`);
-          
-          // Buscar dados de números diretamente - sempre buscar novos dados
-          const rawNumbers = await fetchRouletteNumbers(canonicalId, roletaNome, limit);
-          
-          if (rawNumbers && Array.isArray(rawNumbers)) {
-            // Processar números para formato padrão
-            const processedNumbers = processRouletteNumbers(rawNumbers);
-            console.log(`[useRouletteData] Processados ${processedNumbers.length} números para ${roletaNome}`);
-            
-            // Salvar os dados iniciais e atualizar a exibição
-            setInitialNumbers(processedNumbers);
-            setHasData(processedNumbers.length > 0);
-            initialDataLoaded.current = true;
-            
-            // Atualizar números combinados
-            updateCombinedNumbers();
-          } else {
-            console.error(`[useRouletteData] Erro: Dados de números inválidos para ${roletaNome}`);
-            setError(`Dados de números inválidos para ${roletaNome}`);
-            setHasData(false);
-          }
-          
-          // Buscar dados de estratégia - sempre buscar dados atualizados
-          await refreshStrategy();
-          
-        } catch (error: any) {
-          console.error(`[useRouletteData] Erro no carregamento inicial para ${roletaNome}:`, error);
-          setError(`Erro ao carregar dados: ${error.message || 'Erro desconhecido'}`);
-          setHasData(false);
-        } finally {
-          // Concluir o carregamento
-          setLoading(false);
-          initialLoadCompleted.current = true;
-        }
-      }
-    };
-    
-    // ALTERAÇÃO: Iniciar carregamento imediatamente sem atrasos
-    loadInitialData();
-    
-    // Cleanup
-    return () => {
-      isActive = false;
-      console.log(`[useRouletteData] Componente desmontado, limpeza realizada para ${roletaNome}`);
-    };
-  }, [loadNumbers, loadStrategy, roletaId, roletaNome]); // Dependências mínimas necessárias
-  
-  // ===== EVENTOS E WEBSOCKETS =====
-  
-  // Processar novos números recebidos via WebSocket - MODIFICADA PARA ATUALIZAR APENAS newNumbers
-  const handleNewNumber = useCallback((event: RouletteNumberEvent) => {
-    if (event.type !== 'new_number') return;
-    
-    // 1. EXTRAÇÃO: Obter número do evento
-    const numeroRaw = event.numero;
-    const numeroFormatado = typeof numeroRaw === 'string' ? parseInt(numeroRaw, 10) : numeroRaw;
-    
-    debugLog(`[useRouletteData] Número recebido via evento para ${roletaNome}: ${numeroFormatado}`);
-    
-    // 2. PROCESSAMENTO: Atualizar estado APENAS dos novos números
-    setNewNumbers(prev => {
-      // Verificar se o número já existe nos novos
-      const isDuplicate = prev.some(num => 
-        num.numero === numeroFormatado && 
-        num.timestamp === event.timestamp
-      );
-      
-      if (isDuplicate) return prev;
-      
-      // Processar o novo número
-      const newNumber = processRouletteNumber(numeroFormatado, event.timestamp);
-      
-      // Adicionar o novo número APENAS ao array de novos números
-      console.log(`[useRouletteData] Adicionando novo número ${numeroFormatado} ao array de NOVOS números para ${roletaNome}`);
-      return [newNumber, ...prev];
-    });
-    
-    // Atualizar estado de conexão e dados
-    setHasData(true);
-    setIsConnected(true);
-  }, [roletaNome]);
-  
-  // Efeito para ancorar novos números periodicamente nos dados iniciais
-  useEffect(() => {
-    // Se não temos novos números, não fazer nada
-    if (newNumbers.length === 0) return;
-    
-    // Criar um timer para ancorar os novos números nos dados iniciais a cada minuto
-    const anchorTimer = setInterval(() => {
-      // Ancorar os novos números nos dados iniciais
-      console.log(`[useRouletteData] ANCORANDO ${newNumbers.length} novos números nos dados iniciais para ${roletaNome}`);
-      
-      setInitialNumbers(prev => {
-        // Criar um novo array com os dados iniciais existentes
-        const updatedInitialData = [...prev];
-        
-        // Adicionar novos números que não existem nos dados iniciais
-        let numAdded = 0;
-        newNumbers.forEach(newNum => {
-          // Verificar se já existe nos dados iniciais
-          const exists = updatedInitialData.some(initial => 
-            initial.numero === newNum.numero && 
-            initial.timestamp === newNum.timestamp
-          );
-          
-          // Se não existe, adicionar
-          if (!exists) {
-            updatedInitialData.unshift(newNum); // Adicionar no início
-            numAdded++;
-          }
-        });
-        
-        console.log(`[useRouletteData] ${numAdded} novos números ancorados nos dados iniciais para ${roletaNome}`);
-        
-        // Retornar os dados iniciais atualizados
-        return updatedInitialData;
-      });
-      
-      // Limpar os novos números já ancorados
-      setNewNumbers([]);
-    }, 30000); // Ancorar a cada 30 segundos
-    
-    return () => {
-      clearInterval(anchorTimer);
-    };
-  }, [newNumbers, roletaNome]);
-  
-  // Subscrever para eventos via WebSocket
-  useEffect(() => {
-    const socketService = SocketService.getInstance();
-    
-    // Subscrever para eventos
-    debugLog(`[useRouletteData] Inscrevendo para eventos da roleta: ${roletaNome}`);
-    socketService.subscribe(roletaNome, handleNewNumber);
-    
-    // Atualizar status de conexão
-    const isSocketConnected = socketService.isSocketConnected();
-    debugLog(`[useRouletteData] Status da conexão Socket.IO: ${isSocketConnected ? 'Conectado' : 'Desconectado'}`);
-    setIsConnected(isSocketConnected);
-    
-    // Verificar conexão uma única vez - sem polling periódico
-    const connectionCheckInterval = setInterval(() => {
-      const currentStatus = socketService.isSocketConnected();
-      if (currentStatus !== isConnected) {
-        debugLog(`[useRouletteData] Mudança no status da conexão: ${currentStatus}`);
-        setIsConnected(currentStatus);
-      }
-    }, 10000);
-    
-    return () => {
-      // Remover subscrição ao desmontar
-      debugLog(`[useRouletteData] Removendo inscrição para eventos da roleta: ${roletaNome}`);
-      socketService.unsubscribe(roletaNome, handleNewNumber);
-      clearInterval(connectionCheckInterval);
-    };
-  }, [roletaNome, roletaId, handleNewNumber, isConnected]);
-  
-  // Eventos de atualização da estratégia
-  useEffect(() => {
-    const eventService = EventService.getInstance();
-    
-    // Função para processar eventos de estratégia
-    const handleStrategyEvent = (event: any) => {
-      // Verificar se é um evento relevante para esta roleta
-      if (event.type !== 'strategy_update' || 
-          (event.roleta_id !== roletaId && event.roleta_nome !== roletaNome)) {
+      // Se já completou o carregamento inicial e não é forçada uma atualização,
+      // não fazemos nova requisição para não substituir dados em tempo real
+      if (initialLoadCompleted.current && !forceRefresh) {
+        console.log(`[useRouletteData] Pulando requisição para preservar dados em tempo real - ID: ${id}`);
         return;
       }
       
-      // Verificar se temos dados de vitórias e derrotas
-      if (event.vitorias !== undefined || event.derrotas !== undefined) {
-        console.log(`[useRouletteData] Recebido evento de estratégia para ${roletaNome}:`, {
-          vitorias: event.vitorias,
-          derrotas: event.derrotas,
-          estado: event.estado
-        });
+      setIsLoading(true);
+      console.log(`[useRouletteData] Buscando dados da roleta - ID: ${id}`);
+      
+      // Buscar dados da API usando o endpoint correto
+      const response = await fetch(`/api/roulette-numbers/${id}`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar dados: ${response.status}`);
+      }
+      
+      const responseData = await response.json();
+      
+      // Validar os dados recebidos
+      if (!responseData) {
+        throw new Error('Dados inválidos recebidos da API');
+      }
+      
+      // Garantir que estamos usando o formato correto dos dados
+      const formattedData: RouletteData = {
+        id: responseData.id || id,
+        name: responseData.name || 'Roleta sem nome',
+        numbers: Array.isArray(responseData.numbers) 
+          ? responseData.numbers.filter((n: any) => typeof n === 'number' && n > 0)
+          : [],
+        mappedNumbers: Array.isArray(responseData.mappedNumbers)
+          ? responseData.mappedNumbers.filter((n: any) => n && n.numero > 0)
+          : []
+      };
+      
+      // Se já temos dados e estamos apenas atualizando, preservar os dados em tempo real
+      if (data && initialLoadCompleted.current) {
+        console.log(`[useRouletteData] Mesclando dados novos com dados em tempo real existentes`);
         
-        // Criar uma versão atualizada da estratégia atual
-        const updatedStrategy: RouletteStrategy = {
-          ...strategy, // Manter valores existentes que podem não estar no evento
-          estado: event.estado || (strategy?.estado || 'NEUTRAL'),
-          numero_gatilho: event.numero_gatilho || strategy?.numero_gatilho || null,
-          terminais_gatilho: event.terminais_gatilho || strategy?.terminais_gatilho || [],
-          vitorias: event.vitorias !== undefined ? event.vitorias : (strategy?.vitorias || 0),
-          derrotas: event.derrotas !== undefined ? event.derrotas : (strategy?.derrotas || 0),
-          sugestao_display: event.sugestao_display || strategy?.sugestao_display || '',
-        };
+        // Preservar números em tempo real que já foram recebidos
+        const existingRealtimeNumbers = data.mappedNumbers?.filter(
+          n => n.isRealtime === true
+        ) || [];
         
-        console.log(`[useRouletteData] Atualizando estratégia para ${roletaNome}:`, updatedStrategy);
-        setStrategy(updatedStrategy);
-      } else {
-        console.log(`[useRouletteData] Evento de estratégia sem dados de vitórias/derrotas para ${roletaNome}`);
+        // Verificar quais IDs já existem nos dados em tempo real para evitar duplicação
+        const existingIds = new Set(existingRealtimeNumbers.map(n => n.id));
+        
+        // Filtrar novos dados para não incluir IDs que já existem em tempo real
+        const filteredNewNumbers = formattedData.mappedNumbers?.filter(
+          n => !n.isRealtime || !existingIds.has(n.id)
+        ) || [];
+        
+        // Combinar mantendo os dados em tempo real no início (mais recentes)
+        formattedData.mappedNumbers = [
+          ...existingRealtimeNumbers,
+          ...filteredNewNumbers
+        ];
+        
+        // Combinar números simples também
+        const existingNumbers = new Set(data.numbers);
+        const newNumbers = formattedData.numbers.filter(n => !existingNumbers.has(n));
+        formattedData.numbers = [...data.numbers, ...newNumbers];
+      }
+      
+      // Atualizar os dados
+      setData(formattedData);
+      setLastUpdateTime(new Date().toISOString());
+      setError(null);
+      initialLoadCompleted.current = true;
+      
+    } catch (err) {
+      console.error('[useRouletteData] Erro ao buscar dados:', err);
+      setError(err instanceof Error ? err : new Error('Erro desconhecido'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id, data]);
+  
+  // Efeito para carregar dados iniciais e configurar atualizações periódicas
+  useEffect(() => {
+    // Resetar estado quando o ID mudar
+    initialLoadCompleted.current = false;
+    realtimeUpdatesCount.current = 0;
+    
+    // Fazer a carga inicial
+    fetchData();
+    
+    // Configurar atualização periódica se solicitado
+    let intervalId: NodeJS.Timeout | undefined;
+    if (refreshInterval > 0) {
+      intervalId = setInterval(() => {
+        fetchData(true); // Forçar atualização
+      }, refreshInterval);
+    }
+    
+    // Cleanup
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
       }
     };
+  }, [id, fetchData, refreshInterval]);
+
+  // Função para atualizar dados manualmente
+  const refreshData = useCallback(() => {
+    return fetchData(true);
+  }, [fetchData]);
+  
+  // Função para adicionar um novo número em tempo real
+  const addRealtimeNumber = useCallback((number: number, timestamp?: string) => {
+    if (!number || number <= 0) {
+      console.warn('[useRouletteData] Tentativa de adicionar número inválido em tempo real:', number);
+      return;
+    }
     
-    // Registrar o handler para eventos de estratégia
-    eventService.subscribeToEvent('strategy_update', handleStrategyEvent);
+    realtimeUpdatesCount.current += 1;
+    console.log(`[useRouletteData] Adicionando número em tempo real: ${number} (updates: ${realtimeUpdatesCount.current})`);
     
-    return () => {
-      // Remover registro ao desmontar
-      eventService.unsubscribeFromEvent('strategy_update', handleStrategyEvent);
-    };
-  }, [roletaId, roletaNome, strategy]);
-  
-  // ===== FUNÇÕES PÚBLICAS =====
-  
-  // Função para atualizar manualmente os números
-  const refreshNumbers = useCallback(async (): Promise<boolean> => {
-    setRefreshLoading(true);
-    return await loadNumbers(true);
-  }, [loadNumbers]);
-  
-  // Função para atualizar manualmente a estratégia
-  const refreshStrategy = useCallback(async (): Promise<boolean> => {
-    console.log(`[useRouletteData] Atualizando manualmente estratégia para ${roletaNome}`);
-    return await loadStrategy();
-  }, [roletaNome, loadStrategy]);
-  
-  // Retornar o resultado processado
+    setData(prevData => {
+      if (!prevData) return null;
+      
+      // Criar novo item mapeado
+      const newMappedNumber = {
+        id: `realtime-${Date.now()}-${number}`,
+        numero: number,
+        timestamp: timestamp || new Date().toISOString(),
+        isRealtime: true
+      };
+      
+      // Verificar se o número já existe para evitar duplicação
+      const alreadyExists = prevData.mappedNumbers?.some(
+        n => n.numero === number && 
+            (new Date().getTime() - new Date(n.timestamp).getTime() < 10000)
+      );
+      
+      if (alreadyExists) {
+        console.log(`[useRouletteData] Número ${number} já existe, ignorando`);
+        return prevData;
+      }
+      
+      // Adicionar ao início dos números mapeados
+      const updatedMappedNumbers = [
+        newMappedNumber,
+        ...(prevData.mappedNumbers || [])
+      ];
+      
+      // Adicionar ao início dos números simples se ainda não existir
+      const updatedNumbers = prevData.numbers?.includes(number)
+        ? prevData.numbers
+        : [number, ...(prevData.numbers || [])];
+      
+      return {
+        ...prevData,
+        numbers: updatedNumbers,
+        mappedNumbers: updatedMappedNumbers
+      };
+    });
+    
+    setLastUpdateTime(new Date().toISOString());
+  }, []);
+
   return {
-    numbers,
-    loading, // This will only be true during initial loading
+    data,
+    isLoading,
     error,
-    isConnected,
-    hasData,
-    strategy,
-    strategyLoading,
-    refreshNumbers,
-    refreshStrategy
+    refreshData,
+    lastUpdateTime,
+    addRealtimeNumber
   };
 }

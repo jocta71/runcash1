@@ -354,123 +354,95 @@ const RouletteCard = memo(({
     };
   }, [name]);
 
-  // Efeito para escutar eventos do websocket
-  useEffect(() => {
-    const socketService = SocketService.getInstance();
-    
-    const handleEvent = (event: any) => {
-      // Ignorar eventos não relacionados ou sem dados
-      if (!event || !event.type) return;
+  // Modifica a lógica de atualização para preservar dados históricos enquanto adiciona novos
+  function handleEvent(event: RouletteNumberEvent) {
+    if (event.type === 'new_number' && event.roleta_nome === name) {
+      console.log(`[RouletteCard] Novo número recebido via event: ${event.numero} para ${name}`);
       
-      if (event.type === 'new_number' || event.type === 'strategy_update') {
-        // Verificar se o evento é para esta roleta
-        const isForThisRoulette = 
-          (event.roleta_nome && (event.roleta_nome === name || event.roleta_nome === roleta_nome)) ||
-          (event.roleta_id && event.roleta_id === roletaId);
-          
-        if (!isForThisRoulette) return;
+      // Se número for zero ou não for válido, ignorar
+      if (event.numero === 0 || isNaN(event.numero)) {
+        console.log(`[RouletteCard] Ignorando número inválido: ${event.numero}`);
+        return;
+      }
+      
+      // Atualiza o último número (último que chegou em tempo real)
+      setLastNumber(event.numero);
+      setHighlight(true);
+      
+      // Adicionar à lista de números mapeados sem substituir os existentes
+      setMappedNumbersOverride(prev => {
+        // Verificar se o número já existe na lista para evitar duplicações
+        if (prev.some(n => n.numero === event.numero && 
+                       (new Date().getTime() - new Date(n.timestamp).getTime()) < 10000)) {
+          console.log(`[RouletteCard] Número ${event.numero} já existe na lista recente`);
+          return prev;
+        }
         
-        // Processar novo número
-        if (event.type === 'new_number' && event.numero !== undefined) {
-          let numero: number;
-          
-          // Validar e converter o número
-          if (typeof event.numero === 'number' && !isNaN(event.numero)) {
-            numero = event.numero;
-          } else if (typeof event.numero === 'string' && event.numero.trim() !== '') {
-            const parsed = parseInt(event.numero, 10);
-            numero = !isNaN(parsed) ? parsed : 0;
-          } else {
-            console.warn(`[RouletteCard] Número inválido recebido: ${event.numero}, usando 0`);
-            numero = 0;
-          }
-          
-          console.log(`[RouletteCard] Novo número ${numero} para ${name}`);
-          
-          // Atualizar o número mais recente
-          setLastNumber(numero);
-          
-          // Atualizar o array de números
-          setNumbers(prevNumbers => {
-            const newNumbers = [numero, ...prevNumbers];
-            return newNumbers.slice(0, 20); // Manter apenas os últimos 20 números
-          });
-          
-          // Atualizar o estado de dados disponíveis no array com override
-          setMappedNumbersOverride(prevNumbers => {
-            // Se o número já existe no array, não duplicar
-            if (prevNumbers.includes(numero)) {
-              return prevNumbers;
-            }
-            // Adicionar o número no início do array e manter apenas os 20 últimos
-            const newArray = [numero, ...prevNumbers].slice(0, 20);
-            console.log(`[RouletteCard] Números atualizados para ${name}:`, newArray);
-            return newArray;
-          });
-          
-          // Acionar o destaque visual
-          setHighlight(true);
-          
-          // Limpar o timer anterior se existir
-          if (highlightTimerRef.current) {
-            clearTimeout(highlightTimerRef.current);
-          }
-          
-          // Configurar o novo timer para remover o destaque
-          highlightTimerRef.current = setTimeout(() => {
-            setHighlight(false);
-            highlightTimerRef.current = null;
-          }, 800);
+        // Adiciona o novo número no início da lista
+        const newNumber = {
+          id: `realtime-${Date.now()}`,
+          numero: event.numero,
+          timestamp: event.timestamp || new Date().toISOString(),
+          isRealtime: true
+        };
+        
+        // Limitar o tamanho da lista para evitar crescimento excessivo
+        const updatedList = [newNumber, ...prev];
+        if (updatedList.length > 100) {
+          return updatedList.slice(0, 100);
         }
-      }
-    };
-    
-    // Inscrever para eventos globais (receber todos e filtrar internamente)
-    socketService.subscribe('*', handleEvent);
-    
-    // Também inscrever pelo nome específico para garantir
-    socketService.subscribe(name, handleEvent);
-    
-    // Escutar eventos do EventService também
-    const eventService = EventService.getInstance();
-    const handleNumberEvent = (event: any) => {
-      // Se for new_number, processar como outros eventos
-      if (event.type === 'new_number') {
-        handleEvent(event);
-      }
-    };
-    
-    // Inscrever para eventos do EventService também
-    eventService.subscribeToEvent('new_number', handleNumberEvent);
-    
-    // Importante: Forçar atualização injetando um evento de teste após inscrição
-    // para verificar se já existem dados disponíveis
-    setTimeout(() => {
-      console.log(`[RouletteCard] Verificando dados existentes para ${name}...`);
+        
+        return updatedList;
+      });
       
-      // Se ainda estiver carregando e tiver dados da API, usar esses dados
-      if (isLoading && apiNumbers.length > 0) {
-        console.log(`[RouletteCard] Dados da API encontrados para ${name}, atualizando interface`);
-        setIsLoading(false);
-        if (apiNumbers[0] !== undefined) {
-          setLastNumber(apiNumbers[0]);
+      // Atualiza a lista de números original também (para manter consistência)
+      setNumbers(prev => {
+        // Verificar se o número já existe na lista recente
+        if (prev.some(n => n === event.numero)) {
+          return prev;
         }
-      }
-    }, 500);
+        
+        // Adiciona o novo número no início e mantém o limite 
+        const updatedList = [event.numero, ...prev];
+        return updatedList.slice(0, 100);
+      });
+      
+      // Atualizar timestamp para facilitar debug
+      setLastUpdateTime(new Date().toISOString());
+    }
+  }
+
+  // Melhora o efeito para ouvir eventos de socket
+  useEffect(() => {
+    // Registrar para eventos de socket quando o componente montar
+    const socketService = SocketService.getInstance();
+    socketService.addEventListener(handleEvent);
     
-    setIsSubscribed(true);
+    console.log(`[RouletteCard] Registrado para eventos de socket: ${name}`);
     
-    // Limpar a inscrição quando o componente for desmontado
+    // Injetar um evento de teste quando em modo de desenvolvimento
+    if (import.meta.env.DEV) {
+      console.log(`[RouletteCard] Modo de desenvolvimento, permitindo injeção de testes`);
+    }
+    
+    // Cleanup: remover listener quando o componente desmontar
     return () => {
-      if (highlightTimerRef.current) {
-        clearTimeout(highlightTimerRef.current);
-      }
-      socketService.unsubscribe(name, handleEvent);
-      socketService.unsubscribe('*', handleEvent);
-      eventService.unsubscribeFromEvent('new_number', handleNumberEvent);
-      setIsSubscribed(false);
+      console.log(`[RouletteCard] Removendo listener de socket: ${name}`);
+      socketService.removeEventListener(handleEvent);
     };
-  }, [name, apiNumbers, isLoading]);
+  }, [name]); // Apenas re-registre se o nome da roleta mudar
+
+  // Efeito para resetar o highlight após um tempo
+  useEffect(() => {
+    if (highlight) {
+      // Aumentar a duração do highlight para melhor feedback visual
+      const timer = setTimeout(() => {
+        setHighlight(false);
+      }, 3000); // 3 segundos de highlight
+      
+      return () => clearTimeout(timer);
+    }
+  }, [highlight]);
 
   // Adicionar um efeito para a detecção de dados carregados
   useEffect(() => {

@@ -162,6 +162,10 @@ class SocketService {
     const combinedKey = `${roletaId}|${roletaNome}`;
     const lastReceived = this.lastReceivedData.get(combinedKey);
     
+    // Converter o número para um formato válido
+    const parsedNumero = typeof data.numero === 'number' ? data.numero : 
+                        typeof data.numero === 'string' ? parseInt(data.numero, 10) : 0;
+    
     // Se temos um número recente desta roleta, verificar se o atual é mais novo
     if (lastReceived) {
       const currentTime = Date.now();
@@ -171,7 +175,7 @@ class SocketService {
       // para evitar duplicações
       if (timeDiff < 1000) {
         const lastNumber = lastReceived.data.numero;
-        const newNumber = data.numero;
+        const newNumber = parsedNumero;
         
         if (lastNumber === newNumber) {
           console.log(`[SocketService] Ignorando número duplicado ${newNumber} para ${roletaNome}`);
@@ -183,7 +187,10 @@ class SocketService {
     // Armazenar este número como o mais recente
     this.lastReceivedData.set(combinedKey, {
       timestamp: Date.now(),
-      data
+      data: {
+        ...data,
+        numero: parsedNumero // Garantir que armazenamos o número já convertido
+      }
     });
     
     // Transformar em formato de evento para notificar
@@ -191,8 +198,7 @@ class SocketService {
       type: 'new_number',
       roleta_id: data.roleta_id || '',
       roleta_nome: data.roleta_nome,
-      numero: typeof data.numero === 'number' ? data.numero : 
-              typeof data.numero === 'string' ? parseInt(data.numero, 10) : 0,
+      numero: parsedNumero,
       timestamp: data.timestamp || new Date().toISOString(),
       // Adicionar flag para preservar dados existentes
       preserve_existing: true
@@ -203,14 +209,23 @@ class SocketService {
       event.numero = 0;
     }
     
-    console.log(`[SocketService] Processando número ${event.numero} para roleta ${event.roleta_nome}`);
+    console.log(`[SocketService] Processando número em tempo real: ${event.numero} para roleta ${event.roleta_nome}`);
     
     // Notificar os listeners
     this.notifyListeners(event);
     
-    // Também notificar via EventService
+    // Também notificar via EventService com propriedade explícita de tempo real
     const eventService = EventService.getInstance();
-    eventService.dispatchEvent(event);
+    eventService.dispatchEvent({
+      ...event,
+      isRealtime: true, // Adicionar flag para identificar como evento de tempo real
+      timestamp: new Date().toISOString() // Timestamp atual para garantir que seja mais recente
+    });
+    
+    // Emitir um alerta visual para debugging
+    if (config.isDevelopment) {
+      console.log(`%c[REALTIME] Novo número: ${event.numero} para ${event.roleta_nome}`, 'background: #222; color: #bada55');
+    }
   }
   
   public static getInstance(): SocketService {
@@ -923,32 +938,35 @@ class SocketService {
     return 'http://localhost:3004/api';
   }
 
-  // Adicionando um evento artificial para teste (deve ser removido em produção)
+  // Melhorar a função injectTestEvent para imitar exatamente os eventos reais
   public injectTestEvent(roleta: string, numero: number): void {
-    if (!this.connectionActive) {
-      console.warn('[SocketService] Não é possível injetar evento de teste: socket não conectado');
-      return;
-    }
+    console.log(`[SocketService] Injetando evento de teste: ${numero} para ${roleta}`);
     
-    console.log(`[SocketService] Injetando número real para ${roleta}: número ${numero}`);
-    
-    // Criar evento com dados reais
+    // Criar um evento no mesmo formato dos eventos reais
     const testEvent: RouletteNumberEvent = {
       type: 'new_number',
-      roleta_id: 'real-data-' + Date.now(),
+      roleta_id: '', // ID pode ficar vazio para eventos de teste
       roleta_nome: roleta,
       numero: numero,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isTest: true, // Marcar como evento de teste
+      isRealtime: true // Simular como se fosse um evento em tempo real
     };
     
-    // Processar evento como se tivesse vindo do socket
+    // Notificar aos listeners deste evento específico
     this.notifyListeners(testEvent);
     
-    // Atualizar estado de carregamento
-    EventService.emitGlobalEvent('historical_data_loaded', {
-      success: true,
-      isRealData: true,
-      count: 1
+    // Acionar broadcast global via EventService para garantir distribuição
+    const eventService = EventService.getInstance();
+    eventService.dispatchEvent(testEvent);
+    
+    console.log(`[SocketService] Evento de teste injetado com sucesso para ${roleta}: ${numero}`);
+    
+    // Fechar com toast de confirmação visual
+    toast({
+      title: "Número injetado",
+      description: `Número ${numero} injetado para ${roleta}`,
+      variant: "default"
     });
   }
 
