@@ -998,10 +998,10 @@ class SocketService {
       const canonicalId = mapToCanonicalRouletteId(roletaId);
       
       const baseUrl = this.getApiBaseUrl();
-      // Usar apenas o endpoint correto /api/roulette-numero/id
-      const endpoint = `${baseUrl}/roulette-numero/${canonicalId}`;
+      // Usar o endpoint único /api/ROULETTES
+      const endpoint = `${baseUrl}/ROULETTES`;
       
-      console.log(`[SocketService] Buscando números via REST para roleta ${canonicalId}`);
+      console.log(`[SocketService] Buscando dados via REST para roleta ${canonicalId}`);
       
       try {
         const response = await fetch(endpoint, {
@@ -1018,22 +1018,38 @@ class SocketService {
           return false;
         }
         
-        const data = await response.json();
+        const allRoulettes = await response.json();
         
-        if (Array.isArray(data) && data.length > 0) {
-          console.log(`[SocketService] ✅ Sucesso! Recebidos ${data.length} números via REST para roleta ${canonicalId}`);
-          
-          // Encontrar o nome da roleta a partir do ID canônico
-          const roleta = ROLETAS_CANONICAS.find(r => r.id === canonicalId);
-          const roletaNome = roleta ? roleta.nome : `Roleta ${canonicalId}`;
-          
-          // Processar os números recebidos
-          this.processNumbersData(data, { _id: canonicalId, nome: roletaNome });
-          return true;
-        } else {
-          console.warn(`[SocketService] Endpoint retornou array vazio ou dados inválidos: ${endpoint}`);
+        if (!Array.isArray(allRoulettes)) {
+          console.warn(`[SocketService] Endpoint retornou formato inválido: ${endpoint}`);
           return false;
         }
+        
+        // Encontrar a roleta específica pelo ID canônico
+        const targetRoulette = allRoulettes.find((roleta: any) => {
+          const roletaCanonicalId = roleta.canonical_id || mapToCanonicalRouletteId(roleta.id || '');
+          return roletaCanonicalId === canonicalId || roleta.id === canonicalId;
+        });
+        
+        if (!targetRoulette) {
+          console.warn(`[SocketService] Roleta ${canonicalId} não encontrada nos dados retornados`);
+          return false;
+        }
+        
+        // Verificar se a roleta tem números
+        if (!targetRoulette.numero || !Array.isArray(targetRoulette.numero) || targetRoulette.numero.length === 0) {
+          console.warn(`[SocketService] Roleta ${canonicalId} não possui números válidos`);
+          return false;
+        }
+        
+        console.log(`[SocketService] ✅ Sucesso! Encontrados ${targetRoulette.numero.length} números para roleta ${canonicalId}`);
+        
+        // Encontrar o nome da roleta a partir dos dados retornados
+        const roletaNome = targetRoulette.nome || `Roleta ${canonicalId}`;
+        
+        // Processar os números recebidos
+        this.processNumbersData(targetRoulette.numero, { _id: canonicalId, nome: roletaNome });
+        return true;
       } catch (e) {
         console.warn(`[SocketService] Erro ao acessar endpoint ${endpoint}:`, e);
         return false;
