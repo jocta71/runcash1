@@ -356,7 +356,7 @@ export const fetchRouletteLatestNumbersByName = async (roletaNome: string, limit
 }
 
 /**
- * Busca os números mais recentes de uma roleta pelo ID canônico
+ * Busca números de uma roleta específica pelo ID
  */
 export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100): Promise<any[]> => {
   try {
@@ -367,21 +367,36 @@ export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100)
       return cache[cacheKey].data;
     }
     
-    console.log(`[API] Buscando números da roleta ${canonicalId} em: ${apiBaseUrl}/roulette-numero/${canonicalId}?limit=${limit}`);
-    const response = await axios.get(`${apiBaseUrl}/roulette-numero/${canonicalId}?limit=${limit}`);
+    console.log(`[API] Buscando roletas para extrair números da roleta ${canonicalId}`);
+    
+    // Agora buscamos todas as roletas e filtramos a que precisamos
+    const response = await axios.get(`${apiBaseUrl}/ROULETTES`);
     
     if (response.data && Array.isArray(response.data)) {
-      // Armazenar em cache
-      cache[cacheKey] = {
-        data: response.data,
-        timestamp: Date.now()
-      };
+      // Encontrar a roleta específica pelo ID canônico
+      const targetRoulette = response.data.find((roleta: any) => {
+        const roletaCanonicalId = roleta.canonical_id || mapToCanonicalRouletteId(roleta.id || '');
+        return roletaCanonicalId === canonicalId || roleta.id === canonicalId;
+      });
       
-      console.log(`[API] ✅ Recebidos ${response.data.length} números para roleta ${canonicalId}`);
-      return response.data;
+      if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+        const numbers = targetRoulette.numero.slice(0, limit);
+        
+        // Armazenar em cache
+        cache[cacheKey] = {
+          data: numbers,
+          timestamp: Date.now()
+        };
+        
+        console.log(`[API] ✅ Extraídos ${numbers.length} números para roleta ${canonicalId}`);
+        return numbers;
+      }
+      
+      console.warn(`[API] Roleta ${canonicalId} não encontrada nos dados retornados`);
+      return [];
     }
     
-    console.warn(`[API] Resposta inválida da API de números para roleta ${canonicalId}`);
+    console.warn(`[API] Resposta inválida da API de roletas`);
     return [];
   } catch (error) {
     console.error(`[API] Erro ao buscar números da roleta ${canonicalId}:`, error);
