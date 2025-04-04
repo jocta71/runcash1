@@ -371,11 +371,25 @@ def scrape_roletas_api(db, numero_hook=None):
         
     print(f"[API] Monitorando APENAS roletas específicas: {','.join(ids_permitidos)}")
     
-    # Rastreamento de números recentes para cada roleta
-    numeros_ja_processados = {}
-        
+    # Rastreamento de dados das mesas para detectar mudanças
+    estado_anterior_mesas = {}
+    
+    # Intervalo entre ciclos (aumentado para evitar processamento excessivo)
+    intervalo_minimo = 5  # segundos
+    ultimo_ciclo_tempo = 0
+    
     while ciclo <= MAX_CICLOS or MAX_CICLOS == 0:
         try:
+            tempo_atual = time.time()
+            
+            # Verificar se passou tempo suficiente desde o último ciclo
+            if tempo_atual - ultimo_ciclo_tempo < intervalo_minimo:
+                time.sleep(0.5)
+                continue
+                
+            # Registrar tempo deste ciclo
+            ultimo_ciclo_tempo = tempo_atual
+            
             # Buscar todas as mesas
             tables = casino_api.get_all_roulette_tables()
             print(f"[API] Ciclo {ciclo}: Encontradas {len(tables)} mesas de roleta")
@@ -404,22 +418,58 @@ def scrape_roletas_api(db, numero_hook=None):
                     roleta_nome = table_info['name']
                     last_numbers = table_info.get('last_numbers', [])
                     
+                    # Criar uma assinatura dos dados completos desta mesa para detectar mudanças
+                    mesa_atual = {
+                        'id': table_id,
+                        'nome': roleta_nome,
+                        'numeros': last_numbers if last_numbers else []
+                    }
+                    
+                    # Criar hash da mesa atual para comparação rápida
+                    mesa_hash = hashlib.md5(json.dumps(mesa_atual, sort_keys=True).encode()).hexdigest()
+                    
+                    # Verificar se os dados são idênticos ao ciclo anterior
+                    if table_id in estado_anterior_mesas and estado_anterior_mesas[table_id]['hash'] == mesa_hash:
+                        print(f"[API] Mesa {roleta_nome} sem alterações (hash: {mesa_hash[:6]})")
+                        continue
+                    
+                    # Atualizar o estado desta mesa para o próximo ciclo
+                    estado_anterior_mesas[table_id] = {
+                        'hash': mesa_hash,
+                        'ultima_atualizacao': tempo_atual
+                    }
+                    
                     print(f"[API] Processando roleta permitida: {roleta_nome} (ID: {table_id}, Clean ID: {clean_id})")
                     
-                    # Processar apenas o número mais recente (posição 0)
+                    # Processar apenas se tiver números
                     if last_numbers and len(last_numbers) > 0:
                         numero_recente = last_numbers[0]
                         
-                        # Verificar se este número já foi processado para esta roleta
-                        numero_anterior = numeros_ja_processados.get(table_id)
-                        if numero_anterior != numero_recente:
-                            # Novo número detectado
-                            print(f"[API] Novo número para {roleta_nome}: {numero_recente} (anterior: {numero_anterior})")
-                            if processar_numeros(db, table_id, roleta_nome, [numero_recente], numero_hook):
-                                roletas_com_numeros += 1
-                                numeros_ja_processados[table_id] = numero_recente
+                        # Verificar no banco se este número já foi registrado para esta roleta
+                        numeros_banco = []
+                        try:
+                            if hasattr(db, 'obter_numeros_recentes'):
+                                numeros_banco = [n.get('numero') for n in db.obter_numeros_recentes(table_id, limite=5)]
+                        except Exception as e:
+                            print(f"[API] Erro ao verificar números do banco: {str(e)}")
+                        
+                        # Converter para inteiro para comparação
+                        if isinstance(numero_recente, str):
+                            numero_int = int(re.sub(r'[^\d]', '', numero_recente))
                         else:
-                            print(f"[API] Número já processado para {roleta_nome}: {numero_recente}")
+                            numero_int = int(numero_recente)
+                        
+                        # Verificar se o número mais recente já existe no banco
+                        if numeros_banco and numero_int == numeros_banco[0]:
+                            print(f"[API] Número já registrado no banco: {numero_recente}")
+                            continue
+                        
+                        print(f"[API] Novo número detectado para {roleta_nome}: {numero_recente}")
+                        if processar_numeros(db, table_id, roleta_nome, [numero_recente], numero_hook):
+                            roletas_com_numeros += 1
+                            print(f"[API] ✅ Número {numero_recente} registrado com sucesso para {roleta_nome}")
+                    else:
+                        print(f"[API] Mesa {roleta_nome} sem números disponíveis")
                         
                 except Exception as e:
                     print(f"[API] Erro ao processar mesa {table_id}: {str(e)}")
@@ -431,9 +481,16 @@ def scrape_roletas_api(db, numero_hook=None):
             # Log
             print(f"[API] Ciclo {ciclo} completo: Encontradas {len(tables)} roletas, {roletas_permitidas_encontradas} permitidas, {roletas_ignoradas} ignoradas, {roletas_com_numeros} com novos números")
             
-            # Pausa curta para não sobrecarregar CPU, mas sem intervalo fixo entre requisições
-            time.sleep(0.1)
+            # Incrementar ciclo
             ciclo += 1
+            
+            # Aguardar para o próximo ciclo (tempo baseado na atividade)
+            if roletas_com_numeros > 0:
+                # Se houve novos números, verificar mais rapidamente
+                time.sleep(intervalo_minimo / 2)
+            else:
+                # Caso contrário, aguardar o intervalo completo
+                time.sleep(intervalo_minimo)
             
         except Exception as e:
             print(f"[API] Erro no ciclo {ciclo}: {str(e)}")
@@ -441,7 +498,7 @@ def scrape_roletas_api(db, numero_hook=None):
             erros_consecutivos += 1
             
             # Pausa maior em caso de erro
-            time.sleep(1)
+            time.sleep(intervalo_minimo)
         
         if erros >= max_erros:
             print(f"[API] Muitos erros consecutivos ({erros}), reiniciando ciclo")
