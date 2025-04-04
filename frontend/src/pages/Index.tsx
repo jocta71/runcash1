@@ -52,6 +52,7 @@ const Index = () => {
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [knownRoulettes, setKnownRoulettes] = useState<Record<string, KnownRoulette>>({});
+  const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(false);
   
   // Escutar eventos de roletas existentes para persistência
   useEffect(() => {
@@ -133,8 +134,16 @@ const Index = () => {
     const loadRoulettes = async () => {
       try {
         setIsLoading(true);
+        setDataFullyLoaded(false);
+        
+        // Buscar todas as roletas da API
         const data = await fetchAllRoulettes();
         console.log('Dados da API:', data);
+        
+        // Verificar se os dados são válidos
+        if (!data || !Array.isArray(data)) {
+          throw new Error('Dados inválidos retornados pela API');
+        }
         
         // Mesclar com roletas conhecidas para garantir que nenhuma desaparece
         const mergedRoulettes = mergeRoulettes(data);
@@ -143,6 +152,7 @@ const Index = () => {
         console.log(`[Index] Total de roletas após mesclagem: ${mergedRoulettes.length} (API: ${data.length}, Conhecidas: ${Object.keys(knownRoulettes).length})`);
         
         setError(null);
+        setDataFullyLoaded(true);
       } catch (err) {
         console.error('Erro ao buscar dados da API:', err);
         setError('Não foi possível carregar os dados das roletas. Por favor, tente novamente.');
@@ -152,6 +162,7 @@ const Index = () => {
           const fallbackRoulettes = mergeRoulettes([]);
           setRoulettes(fallbackRoulettes);
           console.log(`[Index] Usando ${fallbackRoulettes.length} roletas conhecidas como fallback`);
+          setDataFullyLoaded(true);
         }
       } finally {
         setIsLoading(false);
@@ -216,6 +227,16 @@ const Index = () => {
       );
     }
 
+    if (!dataFullyLoaded) {
+      return (
+        <div className="col-span-full flex flex-col items-center justify-center p-8 bg-zinc-900 rounded-lg">
+          <div className="w-16 h-16 border-4 border-t-transparent border-blue-500 rounded-full animate-spin mb-4"></div>
+          <h3 className="text-xl font-bold text-white mb-2">Carregando dados completos</h3>
+          <p className="text-zinc-400 text-center">Aguarde enquanto carregamos todos os dados da API...</p>
+        </div>
+      );
+    }
+
     if (filteredRoulettes.length === 0) {
       return (
         <div className="col-span-full flex flex-col items-center justify-center p-8 bg-zinc-900 rounded-lg">
@@ -239,7 +260,7 @@ const Index = () => {
   };
 
   return (
-    <Layout>
+    <Layout preloadData={true}>
       <div className="container mx-auto px-4 pt-4 md:pt-8">
         {/* Cabeçalho */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
@@ -248,8 +269,8 @@ const Index = () => {
             <p className="text-sm text-gray-400 mb-4 md:mb-0">
               Escolha uma roleta para começar a jogar
             </p>
-        </div>
-        
+          </div>
+          
           <div className="w-full md:w-auto flex flex-col md:flex-row gap-3">
             <div className="relative">
               <input

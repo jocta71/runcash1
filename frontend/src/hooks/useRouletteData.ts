@@ -444,75 +444,54 @@ export function useRouletteData(
     let isActive = true;
     console.log(`[useRouletteData] ⭐ INICIANDO CARREGAMENTO ÚNICO para ${roletaNome} (ID: ${roletaId})`);
     
-    // Função para carregar dados uma única vez
+    // Função para carregar dados iniciais
     const loadInitialData = async () => {
-      if (!isActive) return;
-      
-      try {
-        // Verificar se já temos dados iniciais carregados para esta roleta
-        if (initialDataLoaded.current) {
-          console.log(`[useRouletteData] Dados iniciais já carregados para ${roletaNome}, pulando carregamento`);
-          setLoading(false); // IMPORTANTE: Garantir que loading seja false mesmo se não carregarmos novamente
-          return;
-        }
-        
-        console.log(`[useRouletteData] Iniciando carregamento inicial único para ${roletaNome} (ID: ${roletaId})`);
-        
-        // Disparar evento de início de carregamento
-        const eventService = EventService.getInstance();
-        eventService.dispatchEvent({
-          type: 'historical_data_loading',
-          roleta_id: roletaId,
-          roleta_nome: roletaNome
-        });
-        
-        // Carregar dados sequencialmente
-        const numbersLoaded = await loadNumbers();
-        const strategyLoaded = await loadStrategy();
-        
-        console.log(`[useRouletteData] Carregamento inicial concluído: números=${numbersLoaded}, estratégia=${strategyLoaded}`);
-        
-        // Definir loading como false IMEDIATAMENTE depois do carregamento
-        setLoading(false);
-        
-        // Atualizar o estado de hasData com base nos resultados
-        setHasData(numbersLoaded);
-        
-        // Disparar evento de conclusão
-        eventService.dispatchEvent({
-          type: 'historical_data_loaded',
-          roleta_id: roletaId,
-          roleta_nome: roletaNome,
-          success: numbersLoaded || strategyLoaded
-        });
-        
-        // Solicitar dados também via WebSocket
-        const socketService = SocketService.getInstance();
-        socketService.requestStrategy(roletaId, roletaNome);
-        
-        // Agora que temos os dados iniciais, iniciar o polling com FetchService para atualizações
-        // APENAS se ainda não foi inicializado para esta roleta
-        if (numbersLoaded && !pollingInitialized.has(instanceKey.current)) {
-          console.log(`[useRouletteData] Iniciando polling PELA PRIMEIRA VEZ para ${roletaNome}`);
+      if (loading && !initialDataLoaded.current) {
+        try {
+          console.log(`[useRouletteData] Iniciando carregamento de dados para ${roletaId} (${roletaNome})`);
           
-          // Marcar como inicializado globalmente
-          pollingInitialized.add(instanceKey.current);
+          // Definir status de carregamento
+          setLoading(true);
+          setError(null);
+          initialDataLoaded.current = false;
           
-          // REDUZIDO: Usar um setTimeout mais curto para iniciar o polling mais rapidamente
-          setTimeout(() => {
-            if (isActive) {
-              const fetchService = FetchService.getInstance();
-              fetchService.startPolling();
-              console.log(`[useRouletteData] ✅ Polling iniciado com sucesso para ${roletaNome}`);
-            }
-          }, 1000); // Reduzido de 5000 para 1000 ms para iniciar mais rapidamente
-        } else {
-          console.log(`[useRouletteData] Polling JÁ INICIALIZADO para ${roletaNome}, não iniciando novamente`);
+          // Obter o ID canônico da roleta
+          const canonicalId = mapToCanonicalRouletteId(roletaId, roletaNome);
+          console.log(`[useRouletteData] ID canônico para ${roletaId}: ${canonicalId}`);
+          
+          // Buscar dados de números diretamente - sempre buscar novos dados
+          const rawNumbers = await fetchRouletteNumbers(canonicalId, roletaNome, limit);
+          
+          if (rawNumbers && Array.isArray(rawNumbers)) {
+            // Processar números para formato padrão
+            const processedNumbers = processRouletteNumbers(rawNumbers);
+            console.log(`[useRouletteData] Processados ${processedNumbers.length} números para ${roletaNome}`);
+            
+            // Salvar os dados iniciais e atualizar a exibição
+            setInitialNumbers(processedNumbers);
+            setHasData(processedNumbers.length > 0);
+            initialDataLoaded.current = true;
+            
+            // Atualizar números combinados
+            updateCombinedNumbers();
+          } else {
+            console.error(`[useRouletteData] Erro: Dados de números inválidos para ${roletaNome}`);
+            setError(`Dados de números inválidos para ${roletaNome}`);
+            setHasData(false);
+          }
+          
+          // Buscar dados de estratégia - sempre buscar dados atualizados
+          await refreshStrategy();
+          
+        } catch (error: any) {
+          console.error(`[useRouletteData] Erro no carregamento inicial para ${roletaNome}:`, error);
+          setError(`Erro ao carregar dados: ${error.message || 'Erro desconhecido'}`);
+          setHasData(false);
+        } finally {
+          // Concluir o carregamento
+          setLoading(false);
+          initialLoadCompleted.current = true;
         }
-      } catch (error) {
-        console.error(`[useRouletteData] ❌ Erro ao carregar dados iniciais para ${roletaNome}:`, error);
-        setLoading(false); // Importante: garantir que loading seja false mesmo em caso de erro
-        setError(`Erro ao carregar dados: ${error}`);
       }
     };
     

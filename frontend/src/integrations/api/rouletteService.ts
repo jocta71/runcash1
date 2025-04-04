@@ -74,14 +74,9 @@ const CACHE_DURATION = 10 * 1000; // 10 segundos
  */
 const getAllRoulettesWithCache = async (forceRefresh = false): Promise<any[]> => {
   const now = Date.now();
-  // Usar cache se disponível e não expirado
-  if (!forceRefresh && cachedRoulettes.length > 0 && (now - lastCacheTime) < CACHE_DURATION) {
-    console.log('[API] Usando dados em cache para roletas');
-    return cachedRoulettes;
-  }
-  
+  // Sempre buscar dados atualizados da API antes de mostrar os cards
   try {
-    console.log('[API] Extraindo dados de todas as roletas...');
+    console.log('[API] Extraindo dados atualizados de todas as roletas...');
     const response = await api.get('/roulettes');
     if (response.data && Array.isArray(response.data)) {
       // Filtrar apenas as roletas permitidas antes de armazenar em cache
@@ -100,7 +95,7 @@ const getAllRoulettesWithCache = async (forceRefresh = false): Promise<any[]> =>
     return [];
   } catch (error) {
     console.error('[API] Erro ao extrair dados de roletas:', error);
-    return cachedRoulettes.length > 0 ? cachedRoulettes : []; // Usar cache mesmo expirado em caso de erro
+    return []; // Em caso de erro, retorna array vazio em vez de usar cache antigo
   }
 };
 

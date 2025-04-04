@@ -1,16 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import ChatUI from './ChatUI';
-import { Search, Wallet } from 'lucide-react';
+import { Search, Wallet, Loader2 } from 'lucide-react';
 import ProfileDropdown from './ProfileDropdown';
 import { Link } from 'react-router-dom';
+import { fetchAllRoulettes } from '@/integrations/api/rouletteService';
 
 interface LayoutProps {
   children: React.ReactNode;
+  preloadData?: boolean;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children }) => {
+const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(preloadData);
+  const [error, setError] = useState<string | null>(null);
+
+  // Pré-carregar dados das roletas se preloadData for verdadeiro
+  useEffect(() => {
+    const preloadRouletteData = async () => {
+      if (!preloadData) return;
+      
+      try {
+        setIsLoading(true);
+        console.log('[Layout] Pré-carregando dados da API...');
+        
+        // Buscar todas as roletas
+        const data = await fetchAllRoulettes();
+        
+        if (!data || !Array.isArray(data)) {
+          throw new Error('Dados inválidos retornados pela API');
+        }
+        
+        console.log(`[Layout] Dados pré-carregados com sucesso (${data.length} roletas)`);
+      } catch (err) {
+        console.error('[Layout] Erro ao pré-carregar dados:', err);
+        setError('Não foi possível carregar os dados. Tente novamente.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    preloadRouletteData();
+  }, [preloadData]);
+
+  // Renderizar tela de carregamento se estiver carregando
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#100f13] flex flex-col items-center justify-center text-white">
+        <Loader2 className="w-16 h-16 text-green-500 animate-spin mb-4" />
+        <h2 className="text-2xl font-bold mb-2">Carregando dados</h2>
+        <p className="text-gray-400">Aguarde enquanto carregamos os dados da API...</p>
+      </div>
+    );
+  }
+
+  // Renderizar tela de erro
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#100f13] flex flex-col items-center justify-center text-white">
+        <div className="bg-red-900/30 p-6 rounded-lg max-w-md text-center">
+          <h2 className="text-2xl font-bold mb-4">Erro ao carregar dados</h2>
+          <p className="text-gray-300 mb-6">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-md"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#100f13] text-white">
