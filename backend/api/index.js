@@ -514,12 +514,11 @@ app.get('/api/roulettes', async (req, res) => {
   try {
     console.log('[API] Requisição recebida para /api/roulettes');
     
-    // Usar o controlador se disponível
-    if (typeof rouletteController !== 'undefined' && rouletteController.getAllRoulettes) {
-      return rouletteController.getAllRoulettes(req, res);
-    }
+    // Obter o parâmetro limit da query string ou usar um valor padrão
+    const numbersLimit = req.query.limit ? parseInt(req.query.limit) : 20;
+    console.log(`[API] Parâmetro limit: ${numbersLimit}`);
     
-    // Implementação alternativa caso não exista controlador
+    // Implementação alternativa caso não exista controlador ou MongoDB não esteja conectado
     if (!db) {
       console.log('[API] MongoDB não conectado, retornando dados simulados');
       return res.json([
@@ -532,6 +531,9 @@ app.get('/api/roulettes', async (req, res) => {
     const roulettes = await db.collection('roletas').find({}).toArray();
     console.log(`[API] Encontradas ${roulettes.length} roletas`);
     
+    let roletasCollection = 'roletas';
+    let roletas = roulettes;
+    
     if (roulettes.length === 0) {
       // Tentar coleção alternativa
       console.log('[API] Nenhuma roleta encontrada na coleção "roletas", tentando "roulettes"...');
@@ -539,27 +541,67 @@ app.get('/api/roulettes', async (req, res) => {
       
       if (altRoulettes.length > 0) {
         console.log(`[API] Encontradas ${altRoulettes.length} roletas na coleção "roulettes"`);
-        // Converter para usar "numero" em vez de "numeros"
-        const formatted = altRoulettes.map(r => ({
-          ...r,
-          numero: Array.isArray(r.numeros) ? r.numeros : (Array.isArray(r.numero) ? r.numero : []),
-          numeros: undefined
-        }));
-        return res.json(formatted);
+        roletasCollection = 'roulettes';
+        roletas = altRoulettes;
       }
     }
     
-    // Formatar roletas para uniformidade
-    const formattedRoulettes = roulettes.map(r => ({
-      id: r.id || r._id,
-      nome: r.nome || r.name,
-      numero: Array.isArray(r.numero) ? r.numero : (Array.isArray(r.numeros) ? r.numeros : []),
-      estado_estrategia: r.estado_estrategia || "NEUTRAL",
-      vitorias: r.vitorias || 0,
-      derrotas: r.derrotas || 0,
-      win_rate: (r.vitorias || 0) + (r.derrotas || 0) > 0 ? `${((r.vitorias || 0) / ((r.vitorias || 0) + (r.derrotas || 0)) * 100).toFixed(1)}%` : "N/A",
-      updated_at: r.updated_at || new Date().toISOString()
-    }));
+    // Array para armazenar as promessas de busca de números
+    const fetchPromises = [];
+    
+    // Para cada roleta, criar uma promessa para buscar os números mais recentes
+    roletas.forEach((roleta) => {
+      const id = roleta.id || roleta._id;
+      const promise = db.collection('roleta_numeros')
+        .find({ roleta_id: id.toString() })
+        .sort({ timestamp: -1 })
+        .limit(numbersLimit)
+        .toArray()
+        .then(numeros => {
+          console.log(`[API] Encontrados ${numeros.length} números para roleta ${id}`);
+          return { 
+            roletaId: id, 
+            numeros: numeros.map(n => ({
+              numero: n.numero,
+              roleta_id: n.roleta_id,
+              roleta_nome: n.roleta_nome,
+              cor: n.cor || determinarCorNumero(n.numero),
+              timestamp: n.timestamp || n.created_at || n.criado_em
+            }))
+          };
+        })
+        .catch(error => {
+          console.error(`[API] Erro ao buscar números para roleta ${id}:`, error);
+          return { roletaId: id, numeros: [] };
+        });
+      
+      fetchPromises.push(promise);
+    });
+    
+    // Aguardar todas as promessas de busca de números
+    const numerosResults = await Promise.all(fetchPromises);
+    
+    // Criar um mapa de ID da roleta para seus números
+    const numerosMap = {};
+    numerosResults.forEach(result => {
+      numerosMap[result.roletaId] = result.numeros;
+    });
+    
+    // Formatar roletas para uniformidade, incluindo os números
+    const formattedRoulettes = roletas.map(r => {
+      const id = r.id || r._id;
+      return {
+        id: id,
+        nome: r.nome || r.name,
+        // Incluir os números buscados ou usar um array vazio como fallback
+        numero: numerosMap[id] || [],
+        estado_estrategia: r.estado_estrategia || "NEUTRAL",
+        vitorias: r.vitorias || 0,
+        derrotas: r.derrotas || 0,
+        win_rate: (r.vitorias || 0) + (r.derrotas || 0) > 0 ? `${((r.vitorias || 0) / ((r.vitorias || 0) + (r.derrotas || 0)) * 100).toFixed(1)}%` : "N/A",
+        updated_at: r.updated_at || new Date().toISOString()
+      };
+    });
     
     return res.json(formattedRoulettes);
   } catch (error) {
