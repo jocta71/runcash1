@@ -688,6 +688,85 @@ app.get('/api/roulette-numero/:id', async (req, res) => {
   }
 });
 
+// Endpoint para obter números de uma roleta específica por ID - versão alternativa com nome no plural (para compatibilidade)
+app.get('/api/roulette-numbers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 100;
+    const skip = req.query.skip ? parseInt(req.query.skip) : 0;
+    
+    console.log(`[API] Requisição recebida para /api/roulette-numbers/${id} (limit: ${limit}, skip: ${skip})`);
+    console.log(`[API] Redirecionando para /api/roulette-numero/${id}`);
+
+    // Verificar se MongoDB está conectado
+    if (!db) {
+      console.error('[API] Erro: db não está inicializado');
+      return res.status(500).json({ 
+        error: 'Erro interno ao buscar números', 
+        details: 'Conexão com MongoDB não foi estabelecida' 
+      });
+    }
+
+    try {
+      // Buscar na coleção roleta_numeros
+      console.log(`[API] Buscando números para roleta ${id} no MongoDB...`);
+      const numeros = await db.collection('roleta_numeros')
+        .find({ roleta_id: id })
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray();
+
+      if (numeros.length === 0) {
+        console.log(`[API] Nenhum número encontrado para roleta ${id}`);
+        
+        // Verificar se a roleta existe
+        const roleta = await db.collection('roletas').findOne({ 
+          $or: [
+            { _id: id },
+            { id: id }
+          ]
+        });
+        
+        if (!roleta) {
+          console.log(`[API] Roleta ID ${id} não encontrada`);
+          return res.status(404).json({ 
+            error: 'Roleta não encontrada', 
+            details: `Nenhuma roleta encontrada com ID ${id}` 
+          });
+        }
+        
+        return res.json([]); // Retornar array vazio, não é erro
+      }
+
+      console.log(`[API] Encontrados ${numeros.length} números para roleta ${id}`);
+      
+      // Formatar os números para garantir consistência
+      const formattedNumbers = numeros.map(n => ({
+        numero: n.numero,
+        roleta_id: n.roleta_id,
+        roleta_nome: n.roleta_nome,
+        cor: n.cor || determinarCorNumero(n.numero),
+        timestamp: n.timestamp || n.created_at || n.criado_em
+      }));
+      
+      return res.json(formattedNumbers);
+    } catch (dbError) {
+      console.error('[API] Erro ao consultar MongoDB:', dbError);
+      return res.status(500).json({ 
+        error: 'Erro ao consultar banco de dados', 
+        details: dbError.message 
+      });
+    }
+  } catch (error) {
+    console.error(`[API] Erro ao buscar números para roleta ${req.params.id}:`, error);
+    res.status(500).json({ 
+      error: 'Erro interno ao buscar números', 
+      details: error.message 
+    });
+  }
+});
+
 // Função auxiliar para determinar a cor de um número da roleta
 function determinarCorNumero(numero) {
   if (numero === 0) return 'verde';
