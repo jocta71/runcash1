@@ -30,7 +30,17 @@ const LastNumbers = memo(({ numbers, isLoading = false, className = '', isBlurre
     if (safeNumbers.length > 0 && 
         JSON.stringify(safeNumbers) !== JSON.stringify(displayNumbersRef.current)) {
       console.log(`[LastNumbers] Atualizando displayNumbersRef com ${safeNumbers.length} números`);
-      displayNumbersRef.current = [...safeNumbers];
+      
+      // NOVA LÓGICA: Filtrar zeros de placeholder
+      // Se só temos um número e é zero, provavelmente é um placeholder
+      const isLikelyPlaceholder = safeNumbers.length === 1 && safeNumbers[0] === 0;
+      
+      // Só atualizar se não parece ser um placeholder
+      if (!isLikelyPlaceholder) {
+        displayNumbersRef.current = [...safeNumbers];
+      } else {
+        console.log('[LastNumbers] Ignorando possível zero de placeholder');
+      }
     }
   }, [safeNumbers]);
   
@@ -79,14 +89,29 @@ const LastNumbers = memo(({ numbers, isLoading = false, className = '', isBlurre
     );
   }
   
+  // Filtrar zeros que possam ser placeholders nas posições iniciais
+  // Se o primeiro número é zero e o array tem apenas uns poucos números, provavelmente é placeholder
+  const filteredNumbers = displayNumbers.length <= 2 && displayNumbers[0] === 0 
+    ? [] // Retornar array vazio se parece ser placeholder
+    : displayNumbers;
+  
+  // Se não temos dados válidos após filtragem
+  if (filteredNumbers.length === 0) {
+    return (
+      <div className={`flex flex-wrap gap-1.5 my-2 ${className}`}>
+        <div className="w-full text-center text-zinc-500">Sem dados disponíveis</div>
+      </div>
+    );
+  }
+  
   // Renderizar números
   return (
     <div 
       className={`h-[74px] flex flex-wrap content-start gap-1 my-2 w-full overflow-hidden ${className}`} 
       data-testid="last-numbers"
-      data-numbers-count={displayNumbers.length}
+      data-numbers-count={filteredNumbers.length}
     >
-      {displayNumbers.slice(0, 12).map((num, idx) => (
+      {filteredNumbers.slice(0, 12).map((num, idx) => (
         <div
           key={`${num}-${idx}`}
           className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-bold 

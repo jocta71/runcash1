@@ -653,7 +653,7 @@ const RouletteCard = memo(({
           <div className="w-12 h-12 flex items-center justify-center">
             <Loader2 className="animate-spin w-6 h-6 text-zinc-500" />
           </div>
-        ) : lastNumber !== null && (lastNumber > 0 || mappedNumbers.length > 1) ? (
+        ) : lastNumber !== null && ((lastNumber > 0) || (mappedNumbers.length > 5 && lastNumber === 0)) ? (
           <RouletteNumber 
             number={lastNumber} 
             size="lg" 
