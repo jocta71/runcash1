@@ -5,7 +5,8 @@ import {
   fetchRouletteLatestNumbersByName, 
   fetchRouletteStrategy,
   fetchRouletteById,
-  RouletteStrategy as ApiRouletteStrategy 
+  RouletteStrategy as ApiRouletteStrategy,
+  mapToCanonicalRouletteId  // Importar a função de mapeamento
 } from '@/integrations/api/rouletteService';
 import { toast } from '@/components/ui/use-toast';
 import SocketService from '@/services/SocketService';
@@ -50,16 +51,20 @@ type RouletteStrategy = ApiRouletteStrategy;
 /**
  * Função para buscar números da roleta pelo novo endpoint separado
  * @param roletaId ID da roleta
+ * @param nome Nome da roleta (para mapeamento)
  * @param limit Limite de números a serem retornados
  * @returns Array de objetos RouletteNumber
  */
-const fetchRouletteNumbers = async (roletaId: string, limit: number = 100): Promise<RouletteNumber[]> => {
+const fetchRouletteNumbers = async (roletaId: string, nome?: string, limit: number = 100): Promise<RouletteNumber[]> => {
   try {
-    console.log(`[useRouletteData] Buscando números para roleta ${roletaId} via novo endpoint...`);
-    const response = await api.get(`/roulette-numbers/${roletaId}?limit=${limit}`);
+    // Mapear para o ID canônico
+    const canonicalId = mapToCanonicalRouletteId(roletaId, nome);
+    console.log(`[useRouletteData] Buscando números para roleta ${roletaId} (canônico: ${canonicalId}) via novo endpoint...`);
+    
+    const response = await api.get(`/roulette-numbers/${canonicalId}?limit=${limit}`);
     
     if (response.data && Array.isArray(response.data)) {
-      console.log(`[useRouletteData] Recebidos ${response.data.length} números da API`);
+      console.log(`[useRouletteData] Recebidos ${response.data.length} números da API para ID: ${canonicalId}`);
       return response.data;
     }
     
@@ -183,7 +188,7 @@ export function useRouletteData(
       console.log(`[useRouletteData] Extraindo números para ${roletaNome} (ID: ${roletaId})`);
       
       // Usar o novo endpoint específico para números
-      let numerosArray = await fetchRouletteNumbers(roletaId, limit);
+      let numerosArray = await fetchRouletteNumbers(roletaId, roletaNome, limit);
       
       console.log(`[useRouletteData] Resposta do endpoint de números para ${roletaNome}:`, 
         numerosArray.length > 0 ? 

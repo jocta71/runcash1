@@ -1,6 +1,6 @@
 import axios from 'axios';
 import config from '@/config/env';
-import { filterAllowedRoulettes, isRouletteAllowed } from '@/config/allowedRoulettes';
+import { filterAllowedRoulettes, isRouletteAllowed, ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 
 // Usar a variável de ambiente centralizada do config
 const API_URL = config.apiBaseUrl;
@@ -148,28 +148,71 @@ export const extractRouletteNumbersByName = async (roletaNome: string, limit = 1
   }
 };
 
-/**
- * Extrai números de uma roleta pelo ID (sem simulação)
- */
+// Adicionar um mapeamento para IDs canônicos
+export const mapToCanonicalRouletteId = (uuid: string, nome?: string): string => {
+  // Verificar se o ID já é um dos IDs permitidos
+  if (ROLETAS_PERMITIDAS.includes(uuid)) {
+    console.log(`[API] ID ${uuid} já é um ID canônico válido`);
+    return uuid;
+  }
+
+  // Mapeamento fixo baseado nos nomes das roletas
+  const nameToIdMap: Record<string, string> = {
+    "Immersive Roulette": "2010016",
+    "Brazilian Mega Roulette": "2380335",
+    "Bucharest Auto-Roulette": "2010065",
+    "Speed Auto Roulette": "2010096",
+    "Auto-Roulette": "2010017",
+    "Auto-Roulette VIP": "2010098"
+  };
+
+  // Se temos o nome, e está no mapeamento, usar o ID mapeado
+  if (nome && nameToIdMap[nome]) {
+    console.log(`[API] Mapeando nome "${nome}" para ID canônico ${nameToIdMap[nome]}`);
+    return nameToIdMap[nome];
+  }
+
+  // Fallback: retornar o ID original
+  console.log(`[API] Não foi possível mapear UUID ${uuid} para ID canônico, usando original`);
+  return uuid;
+};
+
+// Modificar a função de extração de números para usar o ID canônico
 export const extractRouletteNumbersById = async (roletaId: string, limit = 10): Promise<any> => {
   try {
-    console.log(`[API] Extraindo ${limit} números para roleta ID ${roletaId}...`);
+    // Mapear para o ID canônico antes de fazer a requisição
+    const canonicalId = mapToCanonicalRouletteId(roletaId);
+    console.log(`[API] Extraindo ${limit} números para roleta ID ${roletaId} (canônico: ${canonicalId})...`);
+
+    // Tentar obter dados usando o endpoint novo com o ID canônico
+    try {
+      const response = await api.get(`/roulette-numbers/${canonicalId}?limit=${limit}`);
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        console.log(`[API] Encontrados ${response.data.length} números via novo endpoint para roleta ID ${canonicalId}`);
+        return response.data;
+      }
+    } catch (newEndpointError) {
+      console.warn(`[API] Erro ao usar novo endpoint para roleta ${canonicalId}:`, newEndpointError);
+      // Continuar para tentar o fallback
+    }
+
+    // Fallback: buscar da coleção de roletas
     const allRoulettes = await getAllRoulettesWithCache();
-    const roleta = allRoulettes.find(r => r.id === roletaId);
+    const roleta = allRoulettes.find(r => r.id === roletaId || r.id === canonicalId);
     
     if (roleta && roleta.numeros && roleta.numeros.length > 0) {
       // Transformar para formato esperado pela aplicação
       const numeros = Array.isArray(roleta.numeros) ? roleta.numeros.slice(0, limit).map(n => ({
         numero: n,
-        roleta_id: roletaId,
+        roleta_id: canonicalId,
         roleta_nome: roleta.nome
       })) : [];
       
-      console.log(`[API] Encontrados ${numeros.length} números para roleta ID ${roletaId}`);
+      console.log(`[API] Encontrados ${numeros.length} números (fallback) para roleta ID ${canonicalId}`);
       return numeros;
     }
     
-    console.warn(`[API] Roleta ID ${roletaId} sem números reais. Retornando array vazio.`);
+    console.warn(`[API] Roleta ID ${canonicalId} sem números reais. Retornando array vazio.`);
     return [];
   } catch (error) {
     console.error(`[API] Erro ao extrair números para roleta ${roletaId}:`, error);
