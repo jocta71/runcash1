@@ -514,70 +514,54 @@ app.get('/api/roulettes', async (req, res) => {
   try {
     console.log('[API] Requisição recebida para /api/roulettes');
     
-    // Se temos um controlador de roletas, vamos usá-lo
+    // Usar o controlador se disponível
     if (typeof rouletteController !== 'undefined' && rouletteController.getAllRoulettes) {
       return rouletteController.getAllRoulettes(req, res);
     }
     
-    // Caso contrário, tenta acessar o MongoDB diretamente
+    // Implementação alternativa caso não exista controlador
     if (!db) {
-      console.error('[API] Erro: db não está inicializado');
-      return res.status(500).json({ 
-        error: 'Erro interno ao buscar roletas', 
-        details: 'Conexão com MongoDB não foi estabelecida' 
-      });
+      console.log('[API] MongoDB não conectado, retornando dados simulados');
+      return res.json([
+        { id: '1', nome: 'Roleta Simulada 1', numero: [] },
+        { id: '2', nome: 'Roleta Simulada 2', numero: [] }
+      ]);
     }
     
-    try {
-      // Acessar a coleção 'roletas' do MongoDB
-      console.log('[API] Acessando coleção roletas no MongoDB...');
-      const roulettes = await db.collection('roletas').find({}).toArray();
-      console.log(`[API] Encontradas ${roulettes.length} roletas`);
+    // Buscar roletas diretamente
+    const roulettes = await db.collection('roletas').find({}).toArray();
+    console.log(`[API] Encontradas ${roulettes.length} roletas`);
+    
+    if (roulettes.length === 0) {
+      // Tentar coleção alternativa
+      console.log('[API] Nenhuma roleta encontrada na coleção "roletas", tentando "roulettes"...');
+      const altRoulettes = await db.collection('roulettes').find({}).toArray();
       
-      if (roulettes.length === 0) {
-        // Tentar outras coleções conhecidas
-        console.log('[API] Nenhuma roleta encontrada na coleção "roletas", tentando "roulettes"...');
-        const altRoulettes = await db.collection('roulettes').find({}).toArray();
-        
-        if (altRoulettes.length > 0) {
-          console.log(`[API] Encontradas ${altRoulettes.length} roletas na coleção "roulettes"`);
-          return res.json(altRoulettes);
-        }
-        
-        // Listar as coleções disponíveis para diagnóstico
-        const collections = await db.listCollections().toArray();
-        console.log('[API] Coleções disponíveis no banco:', collections.map(c => c.name));
+      if (altRoulettes.length > 0) {
+        console.log(`[API] Encontradas ${altRoulettes.length} roletas na coleção "roulettes"`);
+        // Converter para usar "numero" em vez de "numeros"
+        const formatted = altRoulettes.map(r => ({
+          ...r,
+          numero: Array.isArray(r.numeros) ? r.numeros : (Array.isArray(r.numero) ? r.numero : []),
+          numeros: undefined
+        }));
+        return res.json(formatted);
       }
-      
-      // Transformar os dados para garantir formato consistente
-      const formattedRoulettes = roulettes.map(r => ({
-        id: r._id || r.id,
-        nome: r.nome,
-        numeros: Array.isArray(r.numeros) ? r.numeros : [],
-        estado_estrategia: r.estado_estrategia || 'NEUTRAL',
-        vitorias: r.vitorias || 0,
-        derrotas: r.derrotas || 0,
-        win_rate: r.vitorias + r.derrotas > 0 
-          ? ((r.vitorias / (r.vitorias + r.derrotas)) * 100).toFixed(1) + '%' 
-          : 'N/A',
-        updated_at: r.updated_at || new Date().toISOString()
-      }));
-      
-      return res.json(formattedRoulettes);
-    } catch (dbError) {
-      console.error('[API] Erro ao consultar MongoDB:', dbError);
-      return res.status(500).json({ 
-        error: 'Erro ao consultar banco de dados', 
-        details: dbError.message 
-      });
     }
     
-    // Fallback para dados fictícios se não conseguir acessar o banco
-    console.log('[API] Retornando dados fictícios como fallback');
-    return res.json([
-      { id: 'dummy1', nome: 'Roleta Européia', numeros: [1,2,3,4,5], estado_estrategia: 'NEUTRAL', vitorias: 10, derrotas: 5 },
-      { id: 'dummy2', nome: 'Roleta Americana', numeros: [5,6,7,8,9], estado_estrategia: 'NEUTRAL', vitorias: 8, derrotas: 7 }
-    ]);
+    // Formatar roletas para uniformidade
+    const formattedRoulettes = roulettes.map(r => ({
+      id: r.id || r._id,
+      nome: r.nome || r.name,
+      numero: Array.isArray(r.numero) ? r.numero : (Array.isArray(r.numeros) ? r.numeros : []),
+      estado_estrategia: r.estado_estrategia || "NEUTRAL",
+      vitorias: r.vitorias || 0,
+      derrotas: r.derrotas || 0,
+      win_rate: (r.vitorias || 0) + (r.derrotas || 0) > 0 ? `${((r.vitorias || 0) / ((r.vitorias || 0) + (r.derrotas || 0)) * 100).toFixed(1)}%` : "N/A",
+      updated_at: r.updated_at || new Date().toISOString()
+    }));
+    
+    return res.json(formattedRoulettes);
   } catch (error) {
     console.error('[API] Erro ao buscar roletas:', error);
     res.status(500).json({ error: 'Erro interno ao buscar roletas', details: error.message });
@@ -585,13 +569,13 @@ app.get('/api/roulettes', async (req, res) => {
 });
 
 // Endpoint para obter números de uma roleta específica por ID
-app.get('/api/roulette-numbers/:id', async (req, res) => {
+app.get('/api/roulette-numero/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const limit = req.query.limit ? parseInt(req.query.limit) : 100;
     const skip = req.query.skip ? parseInt(req.query.skip) : 0;
     
-    console.log(`[API] Requisição recebida para /api/roulette-numbers/${id} (limit: ${limit}, skip: ${skip})`);
+    console.log(`[API] Requisição recebida para /api/roulette-numero/${id} (limit: ${limit}, skip: ${skip})`);
 
     // Verificar se MongoDB está conectado
     if (!db) {
