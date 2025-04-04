@@ -158,10 +158,10 @@ const RouletteCard = memo(({
     loading: isLoadingApi, 
     error, 
     isConnected = true, 
-    hasData = false, // Não assumir que temos dados
+    hasData = false,
     strategy: apiStrategy, 
     strategyLoading: isLoadingApiStrategy, 
-    refreshNumbers = () => {},
+    refreshNumbers,
     refreshStrategy = () => Promise.resolve(false)
   } = roletaId ? useRouletteData(roletaId, roletaNome) : {
     // Se não tivermos roletaId, não usar dados de fallback, mostrar como não disponível
@@ -172,7 +172,7 @@ const RouletteCard = memo(({
     hasData: false,
     strategy: null,
     strategyLoading: true,
-    refreshNumbers: () => {},
+    refreshNumbers: () => Promise.resolve(false),
     refreshStrategy: () => Promise.resolve(false)
   };
   
@@ -671,8 +671,7 @@ const RouletteCard = memo(({
                 numbers.length > 0 ? numbers : 
                 mappedNumbersOverride.length > 0 ? mappedNumbersOverride : 
                 mappedNumbers.length > 0 ? mappedNumbers.slice(0, 18) : 
-                // Gerar alguns números aleatórios quando não houver dados reais
-                Array.from({length: 10}, () => Math.floor(Math.random() * 37))
+                [] // Não gerar mais números aleatórios, melhor mostrar "Sem dados disponíveis"
               } 
               className="mb-4" 
               isBlurred={isBlurred}
@@ -685,7 +684,7 @@ const RouletteCard = memo(({
             
             {/* Insights */}
             <div className="mb-4 text-sm text-zinc-400 italic">
-              {mappedNumbers.length > 0 ? insight : "Gerando dados simulados para demonstração..."}
+              {mappedNumbers.length > 0 ? insight : "Aguardando dados da API..."}
             </div>
             
             {/* Estatísticas */}
@@ -706,28 +705,44 @@ const RouletteCard = memo(({
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation();
-                    // Gerar um número aleatório entre 0 e 36
-                    const randomNumber = Math.floor(Math.random() * 37);
-                    console.log(`[RouletteCard] Injetando número REAL de teste ${randomNumber} para ${roletaNome}`);
+                    // Recarregar dados reais em vez de injetar dados de teste
+                    console.log(`[RouletteCard] Forçando recarregamento de dados reais para ${roletaNome}`);
                     
-                    // Injetar evento de teste usando o SocketService
-                    const socketService = SocketService.getInstance();
-                    socketService.injectTestEvent(roletaNome, randomNumber);
+                    // Iniciar loading
+                    setIsLoading(true);
                     
-                    // Atualizar o estado isLoading
-                    setIsLoading(false);
-                    
-                    toast({
-                      title: "Dados de teste adicionados",
-                      description: `Carregado número ${randomNumber} para ${roletaNome}`,
-                      variant: "default"
-                    });
+                    try {
+                      // Chamar a função de refresh de forma assíncrona
+                      const success = await refreshNumbers();
+                      if (success) {
+                        toast({
+                          title: "Dados atualizados",
+                          description: `Dados reais carregados para ${roletaNome}`,
+                          variant: "default"
+                        });
+                      } else {
+                        toast({
+                          title: "Sem dados disponíveis",
+                          description: `Não foi possível carregar dados para ${roletaNome}`,
+                          variant: "destructive"
+                        });
+                      }
+                    } catch (error) {
+                      console.error(`Erro ao recarregar dados para ${roletaNome}:`, error);
+                      toast({
+                        title: "Erro",
+                        description: "Ocorreu um erro ao tentar recarregar os dados",
+                        variant: "destructive"
+                      });
+                    } finally {
+                      setIsLoading(false);
+                    }
                   }}
-                  className="w-full text-sm bg-amber-800 hover:bg-amber-700 text-white"
+                  className="w-full text-sm bg-blue-800 hover:bg-blue-700 text-white"
                 >
-                  Gerar dados de teste
+                  Recarregar dados reais
                 </Button>
               </div>
             )}
