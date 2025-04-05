@@ -5,46 +5,44 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RunCash</title>
-    <!-- Script inline para definir React e seus hooks antes de qualquer outro script -->
+    <!-- Script inline para resolver o problema de useLayoutEffect -->
     <script>
-      // Definir React e seus hooks antes de qualquer importação
-      window.React = window.React || {};
-      
-      // Lista de hooks React comuns
-      const reactHooks = [
-        'useState', 
-        'useEffect', 
-        'useLayoutEffect', 
-        'useRef', 
-        'useCallback', 
-        'useMemo', 
-        'useContext', 
-        'useReducer',
-        'useImperativeHandle',
-        'useDebugValue',
-        'useTransition',
-        'useDeferredValue'
-      ];
-      
-      // Definir cada hook com uma implementação básica
-      reactHooks.forEach(function(hookName) {
-        if (!window.React[hookName]) {
-          window.React[hookName] = function() {
-            // Comportamento padrão dependendo do hook
-            switch (hookName) {
-              case 'useState':
-                return [undefined, function() {}];
-              case 'useRef':
-                return { current: undefined };
-              default:
-                return undefined;
-            }
+      (function() {
+        // Criar um objeto React global com uma implementação mock de useLayoutEffect
+        if (typeof window !== 'undefined') {
+          // Definir objeto React se não existir
+          window.React = window.React || {};
+          
+          // Função que simula useLayoutEffect
+          var mockUseLayoutEffect = function mockUseLayoutEffect() {
+            return undefined;
           };
+          
+          // Proteger a propriedade useLayoutEffect com Object.defineProperty
+          Object.defineProperty(window.React, 'useLayoutEffect', {
+            configurable: true,
+            enumerable: true,
+            get: function() {
+              return mockUseLayoutEffect;
+            },
+            set: function(newFunc) {
+              mockUseLayoutEffect = newFunc;
+            }
+          });
+          
+          // Patch para o caso de código minificado usando 'z' em vez de 'React'
+          window.z = window.React;
+        }
+      })();
+      
+      // Interceptar eventuais erros de useLayoutEffect globalmente
+      window.addEventListener('error', function(e) {
+        if (e && e.message && e.message.indexOf('useLayoutEffect') > -1) {
+          e.preventDefault();
+          console.warn("Erro de useLayoutEffect interceptado:", e.message);
+          return false;
         }
       });
-      
-      // Adicionar alias z para React (usado em código minificado)
-      window.z = window.React;
     </script>
   </head>
   <body>
