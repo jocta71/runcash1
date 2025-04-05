@@ -143,8 +143,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const cardRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasInitialized = useRef(false);
-    const socketService = SocketService.getInstance();
+  const socketService = SocketService.getInstance();
   const { enableSound, enableNotifications } = useRouletteSettingsStore();
+
+  console.log(`[RouletteCard] Inicializando card para ${safeData.name} (${safeData.id}) com ${Array.isArray(safeData.lastNumbers) ? safeData.lastNumbers.length : 0} números`);
 
   // Função para processar um novo número em tempo real
   const processRealtimeNumber = (newNumberEvent: RouletteNumberEvent) => {
@@ -154,6 +156,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       return;
     }
 
+    console.log(`[RouletteCard] Processando número ${newNumberEvent.numero} para ${safeData.name}`);
     const newNumber = newNumberEvent.numero;
     
     // Atualizar o último número
@@ -161,6 +164,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Se o número for igual ao último, não fazer nada
       if (prevLastNumber === newNumber) return prevLastNumber;
       
+      console.log(`[RouletteCard] Atualizando último número de ${prevLastNumber} para ${newNumber}`);
       // Se for um número diferente, atualizar
       return newNumber;
     });
@@ -178,6 +182,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         return prevNumbers;
       }
       
+      console.log(`[RouletteCard] Adicionando ${newNumber} à lista de números recentes`);
       // Adicionar o novo número ao início e manter apenas os últimos X números
       return [newNumber, ...prevNumbers].slice(0, 20);
     });
@@ -198,105 +203,65 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       toast({
         title: `Novo número: ${newNumber}`,
         description: `${safeData.name}: ${newNumber}`,
-        variant: "default",
+        variant: "default"
       });
     }
-
-    // Remover destaque após alguns segundos
+    
+    // Desativar efeito após 1.5 segundos
     setTimeout(() => {
       setIsNewNumber(false);
-    }, 2000);
+    }, 1500);
   };
 
+  // IMPORTANTE: Garantir inscrição correta no evento global de números
   useEffect(() => {
-    // Inicializar referência ao elemento de áudio
-    audioRef.current = new Audio('/sounds/notification.mp3');
-    
-    // Evitar inicialização duplicada
-    if (hasInitialized.current) return;
-    
-    const roletaId = safeData.id;
-    const roletaNome = safeData.name;
-    
-    if (!roletaId || !roletaNome) {
-      console.warn('[RouletteCard] ID ou nome da roleta ausente:', safeData);
+    if (!safeData.id) {
+      console.warn('[RouletteCard] ID da roleta inválido, não é possível se inscrever em eventos');
       return;
     }
-        
-    console.log(`[RouletteCard] Inicializando card para ${roletaNome} (${roletaId})`);
-    hasInitialized.current = true;
-    
-    // Função para lidar com eventos de novos números
-    const handleNewNumber = (event: RouletteNumberEvent) => {
-      // Verificar se componente ainda está montado
-      if (!cardRef.current) {
-        console.warn(`[RouletteCard] Evento recebido após desmontagem para ${roletaNome}`);
-        return;
-      }
 
-      // Verificar se este evento é para esta roleta
-      if (event.roleta_id === roletaId || 
-          event.roleta_nome.toLowerCase().includes(roletaNome.toLowerCase()) || 
-          roletaNome.toLowerCase().includes(event.roleta_nome.toLowerCase())) {
-        console.log(`[RouletteCard] Número recebido para ${roletaNome}: ${event.numero}`);
-        
-        // Processar número de forma segura
-        try {
-          processRealtimeNumber(event);
-        } catch (error) {
-          console.error(`[RouletteCard] Erro ao processar número para ${roletaNome}:`, error);
-        }
+    console.log(`[RouletteCard] Inscrevendo para eventos da roleta: ${safeData.name} (${safeData.id})`);
+    
+    // Inscrever-se no evento global de "new_number" para capturar todos os números
+    const handleNewNumber = (event: RouletteNumberEvent) => {
+      // Verificar se o evento pertence a esta roleta específica
+      // Comparar todos os identificadores possíveis para maior segurança
+      const eventId = String(event.roleta_id || '');
+      const cardId = String(safeData.id || '');
+      const cardName = String(safeData.name || '').toLowerCase();
+      const eventName = String(event.roleta_nome || '').toLowerCase();
+      
+      const matchesId = eventId === cardId;
+      const matchesName = cardName && eventName && cardName === eventName;
+      
+      if (matchesId || matchesName) {
+        console.log(`[RouletteCard] Evento de número corresponde a esta roleta (${safeData.name})`, event);
+        processRealtimeNumber(event);
+      } else {
+        console.log(`[RouletteCard] Ignorando evento para outra roleta: ${event.roleta_nome} (${event.roleta_id})`);
       }
     };
     
-    // Registrar para eventos globais
+    // Inscrição para receber qualquer atualização de número novo
     EventService.getInstance().subscribe('new_number', handleNewNumber);
     
-    // Registrar para eventos específicos desta roleta
-    socketService.subscribe(roletaNome, handleNewNumber);
+    // Se inscrever diretamente no canal desta roleta específica
+    if (safeData.name) {
+      EventService.getInstance().subscribe(safeData.name, handleNewNumber);
+    }
     
-    // Iniciar polling agressivo para esta roleta em particular
-    socketService.startAggressivePolling(roletaId, roletaNome);
-    
-    // Função de limpeza para remover os listeners quando o componente for desmontado
+    if (safeData.id) {
+      // Iniciar polling agressivo para esta roleta
+      socketService.startAggressivePolling(safeData.id, safeData.name || 'Roleta sem nome');
+    }
+
     return () => {
-      console.log(`[RouletteCard] Desmontando card para ${roletaNome}`);
-      
-      // Remover listeners para evitar vazamento de memória
-      try {
-        EventService.getInstance().unsubscribe('new_number', handleNewNumber);
-      } catch (e) {
-        console.warn(`[RouletteCard] Erro ao remover listener do EventService:`, e);
+      // Limpar inscrições ao desmontar
+      EventService.getInstance().unsubscribe('new_number', handleNewNumber);
+      if (safeData.name) {
+        EventService.getInstance().unsubscribe(safeData.name, handleNewNumber);
       }
-      
-      try {
-        socketService.unsubscribe(roletaNome, handleNewNumber);
-      } catch (e) {
-        console.warn(`[RouletteCard] Erro ao remover listener do SocketService:`, e);
-      }
-      
-      try {
-        socketService.stopPollingForRoulette(roletaId);
-      } catch (e) {
-        console.warn(`[RouletteCard] Erro ao parar polling:`, e);
-      }
-      
-      // Limpar referência de áudio
-      if (audioRef.current) {
-        try {
-          // Garantir que o áudio está pausado
-          audioRef.current.pause();
-          audioRef.current.src = '';
-          audioRef.current = null;
-        } catch (e) {
-          console.warn(`[RouletteCard] Erro ao limpar referência de áudio:`, e);
-        }
-      }
-      
-      // Marcar que foi limpo
-      hasInitialized.current = false;
     };
-  // Usar safeData em vez de data diretamente
   }, [safeData.id, safeData.name]);
 
   // ... existing return

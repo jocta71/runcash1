@@ -375,19 +375,45 @@ const Index = () => {
       );
     }
 
-    return filteredRoulettes.map((roulette) => (
-      <RouletteCard
-        key={roulette.id}
-        data={{
-          id: roulette.id,
-          name: roulette.nome,
-          nome: roulette.nome,
-          lastNumbers: roulette.numeros || [],
-          vitorias: roulette.vitorias || 0,
-          derrotas: roulette.derrotas || 0
-        }}
-      />
-    ));
+    return filteredRoulettes.map((roulette) => {
+      // Tratar os lastNumbers adequadamente, garantindo que seja um array
+      let lastNumbers = [];
+      
+      // Verificar cada possível fonte de dados no objeto
+      if (Array.isArray(roulette.lastNumbers) && roulette.lastNumbers.length > 0) {
+        lastNumbers = roulette.lastNumbers;
+      } else if (Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
+        lastNumbers = roulette.numeros;
+      } else if (Array.isArray(roulette.numero) && roulette.numero.length > 0) {
+        lastNumbers = roulette.numero;
+      }
+      
+      // Converter elementos para garantir que são números
+      const safeNumbers = lastNumbers.map(n => typeof n === 'number' ? n : Number(n))
+                                    .filter(n => !isNaN(n));
+      
+      // Log detalhado para debug
+      console.log(`[Index] Renderizando card para roleta ${roulette.nome || roulette.name} (${roulette.id}):`, 
+                  { números: safeNumbers.length > 0 ? `${safeNumbers.length} números` : 'nenhum número' });
+      
+      // Criar objeto completo com todos os campos necessários e valores default
+      return (
+        <RouletteCard
+          key={roulette.id}
+          data={{
+            id: roulette.id || '',
+            _id: roulette._id || roulette.id || '',
+            name: roulette.name || roulette.nome || 'Roleta sem nome',
+            nome: roulette.nome || roulette.name || 'Roleta sem nome',
+            lastNumbers: safeNumbers,
+            numeros: safeNumbers,
+            vitorias: typeof roulette.vitorias === 'number' ? roulette.vitorias : 0,
+            derrotas: typeof roulette.derrotas === 'number' ? roulette.derrotas : 0,
+            estado_estrategia: roulette.estado_estrategia || ''
+          }}
+        />
+      );
+    });
   };
 
   return (
