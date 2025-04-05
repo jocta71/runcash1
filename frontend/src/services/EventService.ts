@@ -633,38 +633,6 @@ class EventService {
   }
 
   /**
-   * Envia um evento para todos os ouvintes registrados
-   * @param event Evento a ser enviado
-   */
-  public dispatchEvent(event: any): void {
-    console.log(`[EventService] Disparando evento ${event.type} para roleta ${event.roleta_nome || 'desconhecida'}`);
-    
-    // Notificar os listeners específicos para este tipo de evento
-    const callbacks = this.listeners.get(event.type);
-    if (callbacks) {
-      callbacks.forEach(callback => {
-        try {
-          callback(event);
-        } catch (error) {
-          console.error(`[EventService] Erro ao processar evento ${event.type}:`, error);
-        }
-      });
-    }
-    
-    // Notificar também os listeners globais
-    const globalCallbacks = this.listeners.get('*');
-    if (globalCallbacks) {
-      globalCallbacks.forEach(callback => {
-        try {
-          callback(event);
-        } catch (error) {
-          console.error(`[EventService] Erro ao processar evento global:`, error);
-        }
-      });
-    }
-  }
-
-  /**
    * Logs an event with the specified message and type
    */
   private logEvent(message: string, type: string = 'info'): void {
@@ -675,6 +643,21 @@ class EventService {
       } else {
           console.log(`[EventService] ${message}`);
       }
+  }
+
+  // Add this method to fix the reference issue
+  private emitGlobalEvent(eventType: string, payload: any): void {
+    debugLog(`[EventService] Emitindo evento global (instância): ${eventType}`, payload);
+    
+    // Criar um objeto de evento genérico
+    const event: any = {
+      type: eventType,
+      ...payload,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Notificar listeners globais
+    this.notifyListeners(event as any);
   }
 
   public receiveRealtimeUpdate(event: RouletteNumberEvent): void {
