@@ -9,6 +9,10 @@
       "source": "/api/(.*)", 
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1" 
     },
+    {
+      "source": "/historico/(.*)",
+      "destination": "/index.html"
+    },
     { 
       "source": "/(.*)", 
       "destination": "/index.html"
