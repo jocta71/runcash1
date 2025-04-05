@@ -460,7 +460,8 @@ const RouletteCard = memo(({
     // Atualizar o array de números em tempo real
     setNumbers(prevNumbers => {
       // Verificar se o número já existe para evitar duplicatas
-      if (prevNumbers.includes(numero)) {
+      const numberExists = prevNumbers.some(n => n === numero);
+      if (numberExists) {
         return prevNumbers;
       }
       
@@ -468,10 +469,11 @@ const RouletteCard = memo(({
       return newNumbers.slice(0, 20); // Manter apenas os últimos 20
     });
     
-    // Atualizar o estado de override para garantir exibição
+    // Atualizar o estado de override para garantir exibição imediata
     setMappedNumbersOverride(prevNumbers => {
       // Verificar se o número já existe
-      if (prevNumbers.includes(numero)) {
+      const numberExists = prevNumbers.some(n => n === numero);
+      if (numberExists) {
         return prevNumbers;
       }
       
@@ -484,6 +486,17 @@ const RouletteCard = memo(({
     
     // Acionar o destaque visual
     setHighlight(true);
+    
+    // Atualizar imediatamente a UI para mostrar o novo número
+    if (cardRef.current) {
+      // Aplicar classe de destaque para animação visual
+      cardRef.current.classList.add('highlight-card');
+      setTimeout(() => {
+        if (cardRef.current) {
+          cardRef.current.classList.remove('highlight-card');
+        }
+      }, 1000);
+    }
     
     // Mostrar notificação de novo número
     toast({
@@ -508,6 +521,7 @@ const RouletteCard = memo(({
   // Efeito para escutar eventos do websocket específicos para esta roleta
   useEffect(() => {
     const socketService = SocketService.getInstance();
+    const eventService = EventService.getInstance();
     
     // Função que processa eventos de novos números
     const handleEvent = (event: any) => {
@@ -517,7 +531,7 @@ const RouletteCard = memo(({
       // Verificar se o evento é para esta roleta
       const isForThisRoulette = 
         (event.roleta_nome && (event.roleta_nome === name || event.roleta_nome === roleta_nome)) ||
-        (event.roleta_id && event.roleta_id === roletaId);
+        (event.roleta_id && (event.roleta_id === roletaId || event.roleta_id === roletaId));
         
       if (!isForThisRoulette) return;
       
@@ -536,6 +550,8 @@ const RouletteCard = memo(({
           return;
         }
         
+        console.log(`[RouletteCard] EVENTO RECEBIDO PARA ${roletaNome}: Novo número ${numero}`);
+        
         // Processar via função dedicada
         processRealtimeNumber(numero);
       }
@@ -545,9 +561,21 @@ const RouletteCard = memo(({
     socketService.subscribe('*', handleEvent);
     socketService.subscribe(name || '', handleEvent);
     
+    // Registrar listener específico para eventos de roleta do EventService
+    EventService.on('roulette:new-number', handleEvent);
+    
     // Se temos ID da roleta, inscrever especificamente por ID
     if (roletaId) {
       socketService.subscribe(roletaId, handleEvent);
+      
+      // Registrar para atualizações específicas da API
+      socketService.subscribeToRouletteEndpoint(roletaId, roletaNome);
+      
+      // Iniciar polling agressivo para esta roleta
+      socketService.startAggressivePolling(roletaId, roletaNome);
+      
+      // Solicitar dados imediatamente
+      socketService.requestRouletteNumbers(roletaId);
     }
     
     // Limpar a inscrição quando o componente for desmontado
@@ -558,9 +586,11 @@ const RouletteCard = memo(({
       
       socketService.unsubscribe('*', handleEvent);
       socketService.unsubscribe(name || '', handleEvent);
+      EventService.off('roulette:new-number', handleEvent);
       
       if (roletaId) {
         socketService.unsubscribe(roletaId, handleEvent);
+        socketService.stopPollingForRoulette(roletaId);
       }
     };
   }, [name, roleta_nome, roletaId, roletaNome, processRealtimeNumber]);
@@ -730,221 +760,148 @@ const RouletteCard = memo(({
   return (
     <div 
       ref={cardRef}
-      className={`rounded-lg border bg-zinc-900 border-zinc-800 overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-200 relative ${highlight ? 'ring-2 ring-green-500' : ''}`}
+      className={`bg-gray-900 rounded-lg overflow-hidden shadow-lg flex flex-col transition-all duration-300 
+        ${highlight ? 'border-2 border-primary animate-pulse' : 'border border-gray-700'}`}
+      style={{ minHeight: '420px' }}
     >
-      {/* Barra superior com título */}
-      <div className="bg-zinc-950 px-4 py-2 border-b border-zinc-800 flex justify-between items-center">
+      <div className="p-4 flex justify-between items-center bg-gray-800 relative">
         <div className="flex items-center space-x-2">
-          <h3 className="font-semibold text-white">{roletaNome}</h3>
-          
-          {/* Indicadores visuais */}
-          {isConnected && (
-            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+          <h3 className="text-lg font-bold text-white">{roletaNome}</h3>
+          {isLoading ? (
+            <Loader2 className="w-4 h-4 text-white animate-spin ml-2" />
+          ) : null}
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="h-8 p-0 w-8"
+            onClick={reloadData}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="h-8 p-0 w-8"
+            onClick={toggleVisibility}
+          >
+            {showSuggestions ? (
+              <Eye className="h-4 w-4" />
+            ) : (
+              <EyeOff className="h-4 w-4" />
+            )}
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="h-8 p-0 w-8"
+            onClick={handleDetailsClick}
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="p-4 flex-grow flex flex-col justify-between">
+        {/* Seção do último número da roleta */}
+        <div className="flex items-center justify-center mb-4">
+          {lastNumber !== null ? (
+            <div className="relative">
+              <RouletteNumber 
+                number={lastNumber} 
+                size="xl" 
+                pulse={highlight}
+              />
+              <div className="mt-2 text-center text-sm text-gray-400">
+                Último número
+              </div>
+            </div>
+          ) : (
+            <div className="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center animate-pulse">
+              <span className="text-gray-600 text-2xl">?</span>
+            </div>
           )}
         </div>
-        
-        <div className="flex items-center space-x-2">
-          {/* Tendência */}
-          {Array.isArray(trend) && trend.length > 0 && trend[0]?.value > 0 && <ArrowUp className="w-4 h-4 text-green-500" />}
-          {Array.isArray(trend) && trend.length > 0 && trend[0]?.value < 0 && <ArrowDown className="w-4 h-4 text-red-500" />}
-          
-          {/* Botão de refresh */}
-          <button 
-            onClick={reloadData}
-            className="text-zinc-400 hover:text-white transition-colors duration-200"
+
+        {/* Seção de histórico */}
+        <div className="mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="text-gray-300 text-sm font-semibold">Histórico</h4>
+          </div>
+          <LastNumbers 
+            numbers={mappedNumbers} 
+            className="mb-2"
+            isBlurred={isBlurred}
+          />
+        </div>
+
+        {/* Seção de estatísticas */}
+        <div className="mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="text-gray-300 text-sm font-semibold">Desempenho</h4>
+          </div>
+          <div className="flex space-x-2">
+            <div className={`flex-1 bg-gray-800 p-2 rounded-lg ${highlightWins ? 'border border-green-500' : ''}`}>
+              <div className="text-xs text-gray-400">Vitórias</div>
+              <div className="text-lg font-bold text-green-500 flex items-center">
+                {strategyWins || wins}
+                {highlightWins && <ArrowUp className="w-4 h-4 ml-1 text-green-500" />}
+              </div>
+            </div>
+            <div className={`flex-1 bg-gray-800 p-2 rounded-lg ${highlightLosses ? 'border border-red-500' : ''}`}>
+              <div className="text-xs text-gray-400">Derrotas</div>
+              <div className="text-lg font-bold text-red-500 flex items-center">
+                {strategyLosses || losses}
+                {highlightLosses && <ArrowDown className="w-4 h-4 ml-1 text-red-500" />}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Seção de insights e tendências */}
+        <div className="mb-4">
+          <div className="text-sm text-gray-300 bg-gray-800 p-2 rounded-lg">
+            {currentStrategyState?.sugestao_display || strategyDisplay || getInsightMessage(mappedNumbers, wins, losses)}
+          </div>
+        </div>
+
+        {/* Seção de estratégia */}
+        <div className="mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="text-gray-300 text-sm font-semibold">Estratégia</h4>
+          </div>
+          <StrategySelector 
+            strategies={strategies}
+            selectedStrategy={currentStrategy}
+            onChange={setCurrentStrategy}
+            isDisabled={isLoading}
+          />
+        </div>
+
+        {/* Botões de ação */}
+        <div className="mt-4 flex justify-center space-x-2">
+          <Button
+            variant="default"
+            className="w-full"
+            disabled={isLoading}
+            onClick={handlePlayClick}
           >
-            <RefreshCw className="w-4 h-4" />
-          </button>
+            Jogar
+          </Button>
         </div>
       </div>
-      
-      {/* Corpo do Card */}
-      <div className="p-4">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-12">
-            <span className="text-zinc-500">Carregando dados...</span>
-          </div>
-        ) : error ? (
-          <div className="flex items-center justify-center h-12 text-red-500">
-            <span>Erro ao carregar dados</span>
-          </div>
-        ) : (
-          /* Sempre exibir algum conteúdo, mesmo sem dados */
-          <div>
-            {/* Últimos números - usar qualquer fonte de dados disponível */}
-            <LastNumbers 
-              numbers={
-                numbers.length > 0 ? numbers : 
-                mappedNumbersOverride.length > 0 ? mappedNumbersOverride : 
-                mappedNumbers.length > 0 ? mappedNumbers.slice(0, 18) : 
-                [] // Não gerar mais números aleatórios, melhor mostrar "Sem dados disponíveis"
-              } 
-              className="mb-4" 
-              isBlurred={isBlurred}
-            />
-            
-            {/* Informações de debug - mais detalhadas */}
-            <div className="mb-2 text-xs text-zinc-500">
-              {roletaNome} - ID: {roletaId || "N/A"} - Eventos: {numbers.length} | API: {mappedNumbers.length} | Override: {mappedNumbersOverride.length}
-            </div>
-            
-            {/* Insights */}
-            <div className="mb-4 text-sm text-zinc-400 italic">
-              {mappedNumbers.length > 0 ? insight : "Aguardando dados da API..."}
-            </div>
-            
-            {/* Estatísticas */}
-            <div className="flex justify-between mb-4">
-              <div className="flex items-center">
-                <span className="text-zinc-400 mr-2">Vitórias:</span>
-                <span className={winsClass}>{strategyWins || 0}</span>
-              </div>
-              <div className="flex items-center">
-                <span className="text-zinc-400 mr-2">Derrotas:</span>
-                <span className={lossesClass}>{strategyLosses || 0}</span>
-              </div>
-            </div>
-            
-            {/* Botão para gerar dados de teste */}
-            {(numbers.length === 0 && mappedNumbersOverride.length === 0 && mappedNumbers.length === 0) && (
-              <div className="mb-4">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    // Recarregar dados reais em vez de injetar dados de teste
-                    console.log(`[RouletteCard] Forçando recarregamento de dados reais para ${roletaNome}`);
-                    
-                    // Iniciar loading
-                    setIsLoading(true);
-                    
-                    try {
-                      // Chamar a função de refresh de forma assíncrona
-                      const success = await refreshNumbers();
-                      if (success) {
-                        toast({
-                          title: "Dados atualizados",
-                          description: `Dados reais carregados para ${roletaNome}`,
-                          variant: "default"
-                        });
-                      } else {
-                        toast({
-                          title: "Sem dados disponíveis",
-                          description: `Não foi possível carregar dados para ${roletaNome}`,
-                          variant: "destructive"
-                        });
-                      }
-                    } catch (error) {
-                      console.error(`Erro ao recarregar dados para ${roletaNome}:`, error);
-                      toast({
-                        title: "Erro",
-                        description: "Ocorreu um erro ao tentar recarregar os dados",
-                        variant: "destructive"
-                      });
-                    } finally {
-                      setIsLoading(false);
-                    }
-                  }}
-                  className="w-full text-sm bg-blue-800 hover:bg-blue-700 text-white"
-                >
-                  Recarregar dados reais
-                </Button>
-              </div>
-            )}
 
-            {/* Seletor de estratégia */}
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold mb-2">Estratégia</h3>
-              <StrategySelector 
-                roletaId={roletaId}
-                roletaNome={roletaNome}
-                onStrategyChange={setSelectedStrategy}
-              />
-            </div>
-
-            {/* Estado da estratégia */}
-            {strategyState && (
-              <div className="mb-4 p-2 bg-zinc-800 rounded">
-                <div className="text-sm">
-                  <span className="text-zinc-400">Estado: </span>
-                  <span className={`font-medium ${
-                    strategyState === 'TRIGGER' ? 'text-amber-500' : 
-                    strategyState === 'POST_GALE_NEUTRAL' ? 'text-blue-400' :
-                    'text-zinc-300'
-                  }`}>
-                    {strategyState}
-                  </span>
-                </div>
-                {strategyDisplay && (
-                  <div className="text-sm mt-1">
-                    <span className="text-zinc-400">Sugestão: </span>
-                    <span className="text-white">{strategyDisplay}</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      
-      {/* Rodapé com ações */}
-      <div className="p-4 bg-zinc-950 border-t border-zinc-800 flex justify-between">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={handleDetailsClick} 
-          className="text-xs text-zinc-400 hover:text-white">
-          Detalhes
-        </Button>
-        
-        {DEBUG_ENABLED && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              // Gerar um número aleatório entre 0 e 36
-              const randomNumber = Math.floor(Math.random() * 37);
-              console.log(`[RouletteCard] Injetando número REAL de teste ${randomNumber} para ${roletaNome}`);
-              
-              // Injetar evento de teste usando o SocketService
-              const socketService = SocketService.getInstance();
-              socketService.injectTestEvent(roletaNome, randomNumber);
-              
-              // Atualizar o estado isLoading
-              setIsLoading(false);
-              
-              toast({
-                title: "Dados reais adicionados",
-                description: `Carregado número ${randomNumber} para ${roletaNome}`,
-                variant: "default"
-              });
-            }}
-            className="text-xs bg-amber-800 hover:bg-amber-700 text-white"
-          >
-            Testar
-          </Button>
-        )}
-        
-        <Button 
-          variant="default" 
-          size="sm" 
-          onClick={handlePlayClick} 
-          className="text-xs bg-green-700 hover:bg-green-600">
-          Jogar
-        </Button>
-      </div>
-      
-      {/* Modal de estatísticas */}
-      <RouletteStatsModal 
-        open={statsOpen} 
-        onClose={setStatsOpen} 
-        roletaNome={roletaNome}
-        lastNumbers={mappedNumbers.slice(0, 100)}
-        wins={strategyWins}
-        losses={strategyLosses}
-      />
+      {statsOpen && (
+        <RouletteStatsModal
+          open={statsOpen}
+          onClose={() => setStatsOpen(false)}
+          roletaId={roletaId}
+          roletaNome={roletaNome}
+          numbers={mappedNumbers}
+          strategy={currentStrategyState}
+        />
+      )}
     </div>
   );
 });
