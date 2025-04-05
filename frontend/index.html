@@ -11,8 +11,7 @@
     <script>
       // Initialize variables before any modules are loaded
       window.Yo = window.Yo || { initialized: true, timestamp: Date.now() };
-      window.__INIT_REGISTRY__ = window.__INIT_REGISTRY__ || {};
-      window.__INIT_REGISTRY__['html-init'] = true;
+      window.__INIT_REGISTRY__ = window.__INIT_REGISTRY__ || { 'html-init': true };
       console.log('[html] Initialized global variables');
     </script>
     
@@ -26,6 +25,8 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Importar global-init.js primeiro para garantir inicialização -->
+    <script type="module" src="/src/global-init.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

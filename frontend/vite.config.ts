@@ -5,77 +5,29 @@ import path from "path";
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    // Custom plugin to inject global-init.js at the beginning of the bundle
+    // Custom plugin to handle initialization
     {
-      name: 'inject-global-init',
+      name: 'handle-global-init',
       enforce: 'pre',
       resolveId(id) {
-        if (id === 'virtual:global-init') {
-          return id;
+        if (id === 'global-init' || id === './global-init' || id === '../global-init') {
+          return path.resolve(__dirname, 'src/global-init.js');
         }
         return null;
-      },
-      load(id) {
-        if (id === 'virtual:global-init') {
-          // This code will be injected at the beginning of the bundle
-          return `
-            // Initialize global variables to prevent "Cannot access before initialization" errors
-            window.Yo = window.Yo || { initialized: true, timestamp: Date.now() };
-            console.log('[vite] Global variables initialized');
-          `;
-        }
-        return null;
-      },
-      transformIndexHtml(html) {
-        // Add a script tag to the HTML to ensure variables are initialized before any other scripts
-        return html.replace(
-          '<head>',
-          `<head>
-            <script>
-              // Pre-initialize variables that might be accessed before initialization
-              window.Yo = { initialized: true, timestamp: Date.now() };
-            </script>`
-        );
-      },
+      }
     },
     react()
   ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "global-init": path.resolve(__dirname, "./src/global-init.js")
     },
   },
-  // Add global-init.js as an entry point before the main entry
-  optimizeDeps: {
-    include: ['src/global-init.js'],
-    entries: ['src/global-init.js', 'index.html'],
-  },
-  server: {
-    port: 3000,
-    host: true,
-    // Configuração para o proxy de desenvolvimento
-    proxy: {
-      // Proxy para API principal (ROULETTES e outros endpoints)
-      '/api': {
-        target: 'https://backendapi-production-36b5.up.railway.app',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api'),
-        secure: false,
-      },
-      // Websocket proxy se necessário
-      '/socket.io': {
-        target: 'https://backend-production-2f96.up.railway.app',
-        changeOrigin: true,
-        ws: true,
-        secure: false,
-      }
-    },
-  },
-  // Configuração para garantir que o HTML5 History API funcione
+  // Ensure proper module loading order
   build: {
     outDir: "dist",
     assetsDir: "assets",
-    // Ensure proper module loading order in the final bundle
     rollupOptions: {
       input: {
         // The order here matters - globalInit should be first
@@ -110,5 +62,27 @@ export default defineConfig({
   // Define compilation-time constants to help with conditional code
   define: {
     '__GLOBAL_YO_INITIALIZED__': true,
+  },
+  // Configure the server in development
+  server: {
+    port: 3000,
+    host: true,
+    // Configuração para o proxy de desenvolvimento
+    proxy: {
+      // Proxy para API principal (ROULETTES e outros endpoints)
+      '/api': {
+        target: 'https://backendapi-production-36b5.up.railway.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '/api'),
+        secure: false,
+      },
+      // Websocket proxy se necessário
+      '/socket.io': {
+        target: 'https://backend-production-2f96.up.railway.app',
+        changeOrigin: true,
+        ws: true,
+        secure: false,
+      }
+    },
   }
 });

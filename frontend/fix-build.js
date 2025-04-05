@@ -136,9 +136,26 @@ function patchFiles() {
     
     // Check if we already have a reference to global-init
     if (!content.includes('global-init') && !content.includes('// PATCHED-TDZ-FIX')) {
-      // Calculate the correct relative path to global-init.js based on file location
-      const relativePath = path.relative(path.dirname(fullPath), path.join(__dirname, 'src'));
-      const importPath = path.join(relativePath, 'global-init').replace(/\\/g, '/');
+      // Determine the correct import path based on file location
+      let importPath;
+      
+      if (filePath === 'src/main.tsx') {
+        // For main.tsx in the src directory, use a direct import
+        importPath = './global-init';
+      } else if (filePath === 'src/App.tsx') {
+        // For App.tsx in the src directory, use a direct import
+        importPath = './global-init';
+      } else if (filePath.startsWith('src/components/')) {
+        // For files in components directory, go up one level
+        importPath = '../global-init';
+      } else {
+        // Default case - calculate relative path to src directory
+        const fileDir = path.dirname(filePath);
+        const srcDir = 'src';
+        const levels = fileDir.split('/').length - srcDir.split('/').length;
+        const relPath = '../'.repeat(levels) + 'global-init';
+        importPath = relPath;
+      }
       
       // Add comment and import at the top of the file
       content = `// PATCHED-TDZ-FIX: Ensure global variables are initialized
@@ -148,7 +165,7 @@ import '${importPath}';
 ${content}`;
       
       fs.writeFileSync(fullPath, content);
-      console.log(`Patched ${filePath} with initialization import`);
+      console.log(`Patched ${filePath} with initialization import (using path: ${importPath})`);
     } else {
       console.log(`${filePath} already patched or doesn't need patching`);
     }
