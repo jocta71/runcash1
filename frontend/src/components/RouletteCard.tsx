@@ -543,17 +543,23 @@ const RouletteCard = memo(({
     const handleEvent = (event: any) => {
       if (!event || typeof event !== 'object') return;
 
+      console.log(`[RouletteCard] Evento recebido para roleta ${roletaNome}:`, event);
+
       try {
-        // Verificar tipo de evento (pode ser 'numero', 'roleta_update', etc)
-        if (event.tipo === 'numero' || event.type === 'numero' || event.event_type === 'numero') {
+        // Verificar tipo de evento (pode ser 'new_number', 'numero', 'roleta_update', etc)
+        if (event.type === 'new_number' || event.tipo === 'numero' || event.type === 'numero' || event.event_type === 'numero') {
           if ('numero' in event) {
+            console.log(`[RouletteCard] Processando número ${event.numero} de evento WebSocket para ${roletaNome}`);
             processRealtimeNumber(event.numero);
           } else if ('value' in event) {
+            console.log(`[RouletteCard] Processando value ${event.value} de evento WebSocket para ${roletaNome}`);
             processRealtimeNumber(event.value);
           } else if ('number' in event) {
+            console.log(`[RouletteCard] Processando number ${event.number} de evento WebSocket para ${roletaNome}`);
             processRealtimeNumber(event.number);
           } else {
             // Se não encontramos o número em um campo específico, tenta processar o próprio evento
+            console.log(`[RouletteCard] Tentando processar evento WebSocket completo para ${roletaNome}`);
             processRealtimeNumber(event);
           }
         }
@@ -594,6 +600,29 @@ const RouletteCard = memo(({
       socketService.subscribe(roletaId, handleEvent);
     }
     
+    // NOVO: Adicionar listener para eventos customizados do navegador
+    const handleCustomEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const detail = customEvent.detail;
+      
+      if (!detail) return;
+      
+      // Verificar se este evento é para esta roleta
+      if ((roletaId && detail.roletaId === roletaId) || 
+          (roletaNome && detail.roletaNome === roletaNome)) {
+        
+        console.log(`[RouletteCard] CustomEvent recebido para ${roletaNome}:`, detail);
+        
+        if ('numero' in detail && detail.numero !== undefined) {
+          console.log(`[RouletteCard] Processando número ${detail.numero} de CustomEvent para ${roletaNome}`);
+          processRealtimeNumber(detail.numero);
+        }
+      }
+    };
+    
+    // Registrar para o evento customizado
+    window.addEventListener('roulette_update', handleCustomEvent);
+    
     // Limpar a inscrição quando o componente for desmontado
     return () => {
       if (highlightTimerRef.current) {
@@ -606,8 +635,11 @@ const RouletteCard = memo(({
       if (roletaId) {
         socketService.unsubscribe(roletaId, handleEvent);
       }
+      
+      // Remover listener de evento customizado
+      window.removeEventListener('roulette_update', handleCustomEvent);
     };
-  }, [name, roleta_nome, roletaId, roletaNome, processRealtimeNumber]);
+  }, [name, roleta_nome, roletaId, roletaNome, processRealtimeNumber, wins, losses]);
 
   // Effect para atualizar o lastNumber quando o mappedNumbers mudar
   useEffect(() => {
