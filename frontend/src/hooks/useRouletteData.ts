@@ -143,7 +143,7 @@ const processRouletteNumbers = (numbers: number[] | any[]): RouletteNumber[] => 
   if (!Array.isArray(numbers)) return [];
   
   // Mapear para formato padrão
-  return numbers.map((item) => {
+  const processedNumbers = numbers.map((item) => {
     // Verificar se o item já é um objeto com número
     if (typeof item === 'object' && item !== null) {
       // Garantir que número seja um valor numérico válido
@@ -187,6 +187,16 @@ const processRouletteNumbers = (numbers: number[] | any[]): RouletteNumber[] => 
       cor: determinarCorNumero(numeroValue),
       timestamp: new Date().toISOString()
     };
+  });
+  
+  // Ordenar para garantir que o número mais recente esteja no início (por timestamp)
+  return processedNumbers.sort((a, b) => {
+    // Se temos timestamps, ordenar por eles primeiro
+    if (a.timestamp && b.timestamp) {
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    }
+    // Se não tiver timestamps, assumir que a ordem original é cronológica reversa (mais recente primeiro)
+    return 0;
   });
 };
 

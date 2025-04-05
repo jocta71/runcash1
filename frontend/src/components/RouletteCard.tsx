@@ -205,7 +205,7 @@ const RouletteCard = memo(({
     refreshStrategy: () => Promise.resolve(false)
   };
   
-  // Converter os objetos RouletteNumber para números simples
+  // Mapear os números da API para o formato usado no componente
   const mappedNumbers = useMemo(() => {
     // Prioridade 1: Números recebidos diretamente do WebSocket
     if (mappedNumbersOverride.length > 0) {
@@ -247,25 +247,41 @@ const RouletteCard = memo(({
         debugLog(`[RouletteCard] Números mapeados da API para ${roletaNome}:`, mapped.slice(0, 5));
       }
       
+      // Se temos últimos números válidos, usar eles como fallback
+      if (mapped.length === 0 && Array.isArray(lastNumbers) && lastNumbers.length > 0) {
+        if (DEBUG_ENABLED) {
+          debugLog(`[RouletteCard] Usando lastNumbers como fallback para ${roletaNome}:`, lastNumbers.slice(0, 5));
+        }
+        return lastNumbers;
+      }
+      
       return mapped;
     }
     
-    // Prioridade 3: Números passados via props
+    // Prioridade 3: lastNumbers
     if (Array.isArray(lastNumbers) && lastNumbers.length > 0) {
-      // Usar números passados como props, se disponíveis
-      console.log(`[RouletteCard] Usando números de props para ${roletaNome}:`, lastNumbers.slice(0, 5));
-      return lastNumbers.map(num => {
-        if (typeof num === 'number') return num;
-        if (typeof num === 'string') return parseInt(num, 10);
-        if (typeof num === 'object' && num?.numero) return parseInt(num.numero, 10);
-        return 0;
-      });
+      if (DEBUG_ENABLED) {
+        debugLog(`[RouletteCard] Usando lastNumbers como único recurso para ${roletaNome}:`, lastNumbers.slice(0, 5));
+      }
+      return lastNumbers;
     }
     
-    // Sem dados reais, retornar array vazio
-    console.log(`[RouletteCard] Sem números reais para ${roletaNome}. Retornando array vazio.`);
+    // Fallback para array vazio
     return [];
   }, [apiNumbers, roletaNome, mappedNumbersOverride, lastNumbers]);
+
+  // NOVO EFEITO: Atualizar e garantir a ordem dos números recebidos
+  useEffect(() => {
+    // Se temos dados, garantir que estejam na ordem correta e que o último número seja sempre atualizado
+    if (mappedNumbers.length > 0) {
+      // Verificar se o primeiro número (mais recente) é diferente do último número conhecido
+      if (lastNumber !== mappedNumbers[0]) {
+        console.log(`[RouletteCard] Atualizando lastNumber de ${lastNumber} para ${mappedNumbers[0]} (${displayName})`);
+        // Atualizar o último número para garantir consistência
+        setLastNumber(mappedNumbers[0]);
+      }
+    }
+  }, [mappedNumbers, lastNumber, displayName]);
 
   // Otimizar trend com useMemo - não gerar dados simulados
   const trendData = useMemo(() => {
@@ -478,29 +494,29 @@ const RouletteCard = memo(({
       return;
     }
     
-    // Atualizar o último número
+    // Atualizar o último número - este deve ser sempre atualizado com o número recebido
     setLastNumber(numero);
     
     // Atualizar o array de números em tempo real
     setNumbers(prevNumbers => {
       // Verificar se o número já existe para evitar duplicatas
-      if (prevNumbers.includes(numero)) {
+      if (prevNumbers.length > 0 && prevNumbers[0] === numero) {
         return prevNumbers;
       }
       
-      const newNumbers = [numero, ...prevNumbers];
+      const newNumbers = [numero, ...prevNumbers.filter(n => n !== numero)];
       return newNumbers.slice(0, 20); // Manter apenas os últimos 20
     });
     
-    // Atualizar o estado de override para garantir exibição
+    // Atualizar o estado de override para garantir exibição, com o número mais recente sempre na posição 0
     setMappedNumbersOverride(prevNumbers => {
       // Verificar se o número já existe
-      if (prevNumbers.includes(numero)) {
+      if (prevNumbers.length > 0 && prevNumbers[0] === numero) {
         return prevNumbers;
       }
       
       // Adicionar o número no início e manter apenas os 20 últimos
-      const newArray = [numero, ...prevNumbers].slice(0, 20);
+      const newArray = [numero, ...prevNumbers.filter(n => n !== numero)].slice(0, 20);
       console.log(`[RouletteCard] Números atualizados em tempo real para ${displayName}:`, newArray.slice(0, 5));
       
       return newArray;
@@ -637,25 +653,6 @@ const RouletteCard = memo(({
       return () => clearTimeout(timer);
     }
   }, [isLoading, apiNumbers, mappedNumbersOverride, mappedNumbers, lastNumber, displayName]);
-
-  // Atualizar o lastNumber apenas quando tiver um número válido
-  useEffect(() => {
-    if (mappedNumbers.length > 0) {
-      const firstNumber = mappedNumbers[0];
-      // Garantir que é um número válido e não é um zero de placeholder
-      if (typeof firstNumber === 'number' && !isNaN(firstNumber)) {
-        // Só atualizar se o número for maior que zero ou se for um zero real da roleta
-        if (firstNumber > 0 || (firstNumber === 0 && mappedNumbers.length > 1)) {
-          console.log(`[RouletteCard] Atualizando lastNumber para ${displayName}: ${firstNumber}`);
-          setLastNumber(firstNumber);
-        } else {
-          console.log(`[RouletteCard] Ignorando possível zero de placeholder para ${displayName}`);
-        }
-      } else {
-        console.warn(`[RouletteCard] Ignorando número inválido para ${displayName}: ${firstNumber}`);
-      }
-    }
-  }, [mappedNumbers, displayName]);
 
   // Função para gerar sugestões
   const generateSuggestion = () => {

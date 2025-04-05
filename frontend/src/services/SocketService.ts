@@ -209,6 +209,19 @@ class SocketService {
     const roletaId = data.roleta_id || '';
     const roletaNome = data.roleta_nome;
     const combinedKey = `${roletaId}|${roletaNome}`;
+    
+    // Garantir que o número seja válido
+    let numero: number;
+    if (typeof data.numero === 'number' && !isNaN(data.numero)) {
+      numero = data.numero;
+    } else if (typeof data.numero === 'string' && data.numero.trim() !== '') {
+      const parsedValue = parseInt(data.numero, 10);
+      numero = !isNaN(parsedValue) ? parsedValue : 0;
+    } else {
+      console.warn(`[SocketService] Número inválido recebido para ${roletaNome}: ${data.numero}`);
+      numero = 0;
+    }
+    
     const lastReceived = this.lastReceivedData.get(combinedKey);
     
     // Se temos um número recente desta roleta, verificar se o atual é mais novo
@@ -220,19 +233,18 @@ class SocketService {
       // para evitar duplicações
       if (timeDiff < 1000) {
         const lastNumber = lastReceived.data.numero;
-        const newNumber = data.numero;
         
-        if (lastNumber === newNumber) {
-          console.log(`[SocketService] Ignorando número duplicado ${newNumber} para ${roletaNome}`);
+        if (lastNumber === numero) {
+          console.log(`[SocketService] Ignorando número duplicado ${numero} para ${roletaNome}`);
           return;
         }
       }
     }
     
-    // Armazenar este número como o mais recente
+    // Armazenar este número como o mais recente com timestamp atualizado
     this.lastReceivedData.set(combinedKey, {
       timestamp: Date.now(),
-      data
+      data: { ...data, numero }
     });
     
     // Transformar em formato de evento para notificar
@@ -240,21 +252,15 @@ class SocketService {
       type: 'new_number',
       roleta_id: data.roleta_id || '',
       roleta_nome: data.roleta_nome,
-      numero: typeof data.numero === 'number' ? data.numero : 
-              typeof data.numero === 'string' ? parseInt(data.numero, 10) : 0,
-      timestamp: data.timestamp || new Date().toISOString(),
+      numero: numero,
+      timestamp: new Date().toISOString(), // Atualizar timestamp para agora
       // Adicionar flag para preservar dados existentes
       preserve_existing: !!data.preserve_existing,
       // Adicionar flag para indicar se é atualização em tempo real
-      realtime_update: !!data.realtime
+      realtime_update: true // Forçar como realtime para garantir que UI seja atualizada
     };
     
-    if (isNaN(event.numero)) {
-      console.warn(`[SocketService] Número inválido (NaN) recebido para ${roletaNome}, usando 0`);
-      event.numero = 0;
-    }
-    
-    console.log(`[SocketService] Processando número ${event.numero} para roleta ${event.roleta_nome}`);
+    console.log(`[SocketService] Processando número ${event.numero} para roleta ${event.roleta_nome} (tempo real)`);
     
     // Notificar os listeners
     this.notifyListeners(event);
@@ -1233,12 +1239,8 @@ class SocketService {
         console.warn('[SocketService] Evento de estratégia recebido sem identificador de roleta');
         return;
       }
-
-      // Garantir que os valores de vitórias e derrotas sejam números válidos
-      const vitorias = data.vitorias !== undefined ? parseInt(data.vitorias) : 0;
-      const derrotas = data.derrotas !== undefined ? parseInt(data.derrotas) : 0;
-
-      // Criar objeto de evento padronizado
+      
+      // Garantir que os dados estão em um formato consistente
       const event: StrategyUpdateEvent = {
         type: 'strategy_update',
         roleta_id: data.roleta_id || 'unknown-id',
@@ -1246,9 +1248,10 @@ class SocketService {
         estado: data.estado || 'NEUTRAL',
         numero_gatilho: data.numero_gatilho || 0,
         terminais_gatilho: data.terminais_gatilho || [],
-        vitorias: vitorias,
-        derrotas: derrotas,
+        padrao: data.padrao || 'Padrão do Sistema',
         sugestao_display: data.sugestao_display || '',
+        vitorias: typeof data.vitorias === 'number' ? data.vitorias : 0,
+        derrotas: typeof data.derrotas === 'number' ? data.derrotas : 0,
         timestamp: data.timestamp || new Date().toISOString()
       };
 
@@ -1256,17 +1259,17 @@ class SocketService {
         roleta: event.roleta_nome,
         vitorias: event.vitorias,
         derrotas: event.derrotas,
-        timestamp: event.timestamp
+        estado: event.estado
       });
-
-      // Notificar diretamente os callbacks específicos para esta roleta
-      this.notifyListeners(event);
       
-      // Notificar também via EventService
-      const eventService = EventService.getInstance();
-      eventService.emitStrategyUpdate(event);
-    } catch (error) {
-      console.error('[SocketService] Erro ao processar evento de estratégia:', error);
+      // Atualizar o mapa de cache de estratégia
+      rouletteStrategyCache.set(event.roleta_id, event);
+      
+      this.notifyListeners(event);
+      EventService.getInstance().dispatchEvent(event);
+      
+    } catch (error: any) {
+      console.error('[SocketService] Erro ao processar evento de estratégia:', error.message);
     }
   }
 
@@ -1390,7 +1393,7 @@ class SocketService {
         this.processIncomingNumber({
           type: 'new_number',
             roleta_id: canonicalId,
-          roleta_nome: roletaNome,
+          roleta_name: roletaNome,
           numero: data.numero,
           timestamp: data.timestamp || new Date().toISOString(),
           realtime: true
@@ -1541,51 +1544,52 @@ class SocketService {
     this.fetchRouletteNumbersREST(canonicalId);
   }
 
+  /**
+   * Verifica se uma roleta está no sistema e inicia
+   * polling agressivo se necessário
+   */
   private addRouletteToQueue(roletaId: string, roletaNome: string, shouldStartPolling = true): void {
     try {
-      // Verificar se os parâmetros são válidos
+      // Verificar se o ID é válido
       if (!roletaId) {
-        console.warn(`[SocketService] addRouletteToQueue: ID da roleta inválido: ${roletaId}`);
+        console.warn('[SocketService] Tentativa de adicionar roleta sem ID');
         return;
       }
+
+      const canonicalId = mapToCanonicalRouletteId(roletaId);
       
-      // Converter o ID para canônico se necessário
-      // Se tivermos apenas o nome, tentar mapear pelo nome
-      let canonicalId = roletaId;
-      if (roletaNome) {
-        const roleta = ROLETAS_CANONICAS.find(r => r.nome === roletaNome);
-        if (roleta) {
-          canonicalId = roleta.id;
-        } else {
-          canonicalId = mapToCanonicalRouletteId(roletaId);
-        }
+      // Emitir mensagem via socket
+      if (this.socket && this.socket.connected) {
+        console.log(`[SocketService] Solicitando inscrição para roleta ${roletaNome} (${canonicalId})`);
+        this.socket.emit('subscribe_roulette', { 
+          roleta_id: canonicalId, 
+          roleta_nome: roletaNome 
+        });
+        
+        // Também solicitar últimos números
+        this.socket.emit('get_roulette_numbers', { 
+          roleta_id: canonicalId 
+        });
       } else {
-        canonicalId = mapToCanonicalRouletteId(roletaId);
+        console.warn(`[SocketService] Socket não está conectado. Não é possível inscrever para roleta ${roletaNome}`);
       }
       
-      // Log para debug
-      console.log(`[SocketService] Adicionando roleta à fila: ${roletaNome || 'Sem Nome'} (${canonicalId})`);
-      
-      // Se já estivermos monitorando esta roleta, não adicionar novamente
-      if (this.pollingIntervals.has(canonicalId)) {
-        console.log(`[SocketService] Roleta ${canonicalId} já está na fila de monitoramento`);
-        return;
-      }
-      
-      // Adicionar à lista de roletas para polling
-      this.pollingIntervals.set(canonicalId, setInterval(() => {
-        console.log(`[SocketService] Executando polling para ${roletaNome} (${canonicalId})`);
-        this.fetchRouletteNumbersREST(canonicalId);
-      }, 5000));
-      
-      // Emitir evento para sinalizar adição da roleta
-      EventService.emitGlobalEvent('roulette_added_to_queue', {
+      // Emitir evento global para possíveis captadores
+      EventService.getInstance().emitGlobalEvent('roulette_added_to_queue', {
         roleta_id: canonicalId,
         roleta_nome: roletaNome || `Roleta ${canonicalId}`
       });
       
-    } catch (error) {
-      console.error(`[SocketService] Erro ao adicionar roleta à fila: ${error}`);
+      // Iniciar polling agressivo se configurado
+      if (shouldStartPolling) {
+        this.startAggressivePolling(canonicalId, roletaNome);
+      }
+      
+      // Também cadastrar nome da roleta para inscrição de eventos
+      this.registerRouletteForRealTimeUpdates(roletaNome);
+      
+    } catch (error: any) {
+      console.error(`[SocketService] Erro ao adicionar roleta ${roletaNome} à fila:`, error.message);
     }
   }
 
@@ -1610,7 +1614,7 @@ class SocketService {
       if (this.socket && this.connectionActive) {
         this.socket.emit('subscribe_roulette', { 
           roleta_id: roletaId, 
-          roleta_nome: roletaNome 
+          roleta_name: roletaNome 
         });
         
         console.log(`[SocketService] ✅ Enviado pedido de subscrição para ${roletaNome} (${roletaId})`);
