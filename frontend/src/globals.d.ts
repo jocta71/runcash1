@@ -9,6 +9,9 @@ declare global {
   interface Window {
     // Registry of initialized variables
     __INIT_REGISTRY__?: Record<string, boolean>;
+    __REACT_POLYFILL_LOADED__?: boolean;
+    __REACT_LAYOUT_EFFECT_CLEANUP__?: Function;
+    __REACT_LAYOUT_EFFECT_CLEANUPS__?: Record<string, Function>;
     
     // Global Yo variable that's initialized early
     Yo: {

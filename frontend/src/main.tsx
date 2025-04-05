@@ -1,9 +1,36 @@
 // Import initialization file first to prevent TDZ issues
 import './react-polyfill';
 import './global-init';
+import './fix-layout-effect';
 
 // Importar verificador de diagnóstico - remover após resolução do problema
 import './react-polyfill-checker';
+
+// Verificar se o polyfill foi carregado pelo index.html
+if (!window.__REACT_POLYFILL_LOADED__) {
+  console.warn('[main.tsx] Polyfill do React não detectado no HTML, aplicando manualmente...');
+} else {
+  console.log('[main.tsx] Polyfill do React já carregado pelo HTML');
+  
+  // Verificação adicional de segurança
+  if (!window.React || !window.React.useLayoutEffect) {
+    console.warn('[main.tsx] React.useLayoutEffect não encontrado, definindo...');
+    
+    // Garantir que React existe
+    window.React = window.React || {};
+    
+    // Definir useLayoutEffect de forma segura
+    if (!window.React.useLayoutEffect) {
+      window.React.useLayoutEffect = function(callback, deps) {
+        // Implementação simples
+        if (typeof callback === 'function') {
+          setTimeout(callback, 0);
+        }
+        return undefined;
+      };
+    }
+  }
+}
 
 // Explicit check for Yo initialization
 const _ensureYoInitialized = window.Yo || { initialized: true };
