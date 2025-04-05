@@ -267,24 +267,28 @@ export function useRouletteData(
   roletaNome: string, 
   limit: number = 100
 ): UseRouletteDataResult {
-  // Estado para dados de números
+  // Estados locais
   const [numbers, setNumbers] = useState<RouletteNumber[]>([]);
   const [initialNumbers, setInitialNumbers] = useState<RouletteNumber[]>([]);
   const [newNumbers, setNewNumbers] = useState<RouletteNumber[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshLoading, setRefreshLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [strategy, setStrategy] = useState<RouletteStrategy | null>(null);
+  const [strategyLoading, setStrategyLoading] = useState<boolean>(true);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [hasData, setHasData] = useState<boolean>(false);
   
-  // Estado para dados de estratégia
-  const [strategy, setStrategy] = useState<RouletteStrategy | null>(null);
-  const [strategyLoading, setStrategyLoading] = useState<boolean>(true);
+  // Referência para manter o ID canônico consistente
+  const canonicalIdRef = useRef<string>(mapToCanonicalRouletteId(roletaId));
+  const initialLoadRef = useRef<boolean>(false);
+  const socketSubscribedRef = useRef<boolean>(false);
   
-  // Ref para controle de inicialização
-  const initialLoadCompleted = useRef<boolean>(false);
-  const initialDataLoaded = useRef<boolean>(false);
-  const hookInitialized = useRef<boolean>(false);
+  // Referência para limpeza do intervalo
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // ID para controle de polling
+  const pollingIdKey = `${canonicalIdRef.current}_${limit}`;
   
   // Socket Service para comunicação em tempo real
   const socketService = useMemo(() => SocketService.getInstance(), []);
@@ -292,9 +296,6 @@ export function useRouletteData(
   // EventService para eventos
   const eventService = useMemo(() => EventService.getInstance(), []);
   
-  // IDs canônicos para roletas
-  const canonicalId = useMemo(() => mapToCanonicalRouletteId(roletaId), [roletaId]);
-
   // Verifica se a roleta tem dados (números)
   const checkIfRouleteHasData = useCallback((roulette: any): boolean => {
     if (!roulette) return false;
@@ -418,7 +419,7 @@ export function useRouletteData(
   const loadNumbers = useCallback(async (isRefresh = false): Promise<boolean> => {
     try {
       // Se já temos dados iniciais e não é uma atualização manual, pular
-      if (initialDataLoaded.current && !isRefresh) {
+      if (initialLoadRef.current && !isRefresh) {
         logger.debug(`Ignorando carregamento de números para ${roletaNome} - dados já carregados`);
         setLoading(false);
         return true;
@@ -438,7 +439,7 @@ export function useRouletteData(
       logger.debug(`${isRefresh ? '🔄 RECARREGANDO' : '📥 CARREGANDO'} dados para ${roletaNome} (ID: ${roletaId})`);
       
       // Usar o throttler para obter os números com controle de taxa
-      const throttleKey = `roulette_numbers_${canonicalId}`;
+      const throttleKey = `roulette_numbers_${canonicalIdRef.current}`;
       
       // Subscrever para atualizações futuras
       const unsubscribe = RequestThrottler.subscribeToUpdates(throttleKey, (processedNumbers) => {
@@ -446,7 +447,7 @@ export function useRouletteData(
           logger.debug(`Recebida atualização via throttler para ${roletaNome}: ${processedNumbers.length} números`);
           setInitialNumbers(processedNumbers);
           setHasData(true);
-          initialDataLoaded.current = true;
+          initialLoadRef.current = true;
           setLoading(false);
         }
       });
@@ -460,13 +461,13 @@ export function useRouletteData(
       
       // Se não conseguimos dados do throttler, tente o cache
       if (!numerosArray || !Array.isArray(numerosArray) || numerosArray.length === 0) {
-        if (rouletteDataCache.has(canonicalId)) {
-          const cachedData = rouletteDataCache.get(canonicalId);
+        if (rouletteDataCache.has(canonicalIdRef.current)) {
+          const cachedData = rouletteDataCache.get(canonicalIdRef.current);
           if (cachedData && cachedData.length > 0) {
             logger.debug(`Usando ${cachedData.length} números do cache para ${roletaNome}`);
             setInitialNumbers(cachedData);
             setHasData(true);
-            initialDataLoaded.current = true;
+            initialLoadRef.current = true;
         setLoading(false);
             return true;
           }
@@ -476,7 +477,7 @@ export function useRouletteData(
         logger.warn(`⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
         setLoading(false);  
         setHasData(false);
-        initialLoadCompleted.current = true;
+        initialLoadRef.current = true;
         return false;
       }
       
@@ -487,14 +488,14 @@ export function useRouletteData(
       
       setLoading(false);
       setHasData(false);
-      initialLoadCompleted.current = true;
+      initialLoadRef.current = true;
       return false;
     } finally {
       // Garantir que loading e refreshLoading sejam sempre definidos como false ao final
       setLoading(false);
       setRefreshLoading(false);
     }
-  }, [roletaId, roletaNome, limit, canonicalId]);
+  }, [roletaId, roletaNome, limit, canonicalIdRef.current]);
   
   // Função para extrair e processar estratégia da API - MODIFICADA PARA USAR THROTTLER
   const loadStrategy = useCallback(async (): Promise<boolean> => {
@@ -504,7 +505,7 @@ export function useRouletteData(
     
     try {
       // Usar o throttler para obter a estratégia com controle de taxa
-      const throttleKey = `roulette_strategy_${canonicalId}`;
+      const throttleKey = `roulette_strategy_${canonicalIdRef.current}`;
       
       // Subscrever para atualizações futuras de estratégia
       const unsubscribe = RequestThrottler.subscribeToUpdates(throttleKey, (strategyData) => {
@@ -527,8 +528,8 @@ export function useRouletteData(
       // Se não tem dados de estratégia, tenta extrair da roleta por nome ou usar o cache
       if (!strategyData) {
         // Verificar se temos no cache
-        if (rouletteStrategyCache.has(canonicalId)) {
-          const cachedStrategy = rouletteStrategyCache.get(canonicalId);
+        if (rouletteStrategyCache.has(canonicalIdRef.current)) {
+          const cachedStrategy = rouletteStrategyCache.get(canonicalIdRef.current);
           if (cachedStrategy) {
             logger.debug(`Usando estratégia do cache para ${roletaNome}`);
             setStrategy(cachedStrategy);
@@ -538,7 +539,7 @@ export function useRouletteData(
         }
         
         // Tentar obter da roleta
-        const throttleKeyRoulette = `roulette_data_${canonicalId}`;
+        const throttleKeyRoulette = `roulette_data_${canonicalIdRef.current}`;
         const roletaData = await RequestThrottler.scheduleRequest(
           throttleKeyRoulette,
           async () => fetchRouletteById(roletaId)
@@ -555,7 +556,7 @@ export function useRouletteData(
           };
           
           // Armazenar no cache
-          rouletteStrategyCache.set(canonicalId, derivedStrategy);
+          rouletteStrategyCache.set(canonicalIdRef.current, derivedStrategy);
           
           setStrategy(derivedStrategy);
           setStrategyLoading(false);
@@ -563,7 +564,7 @@ export function useRouletteData(
         }
       } else {
         // Armazenar no cache
-        rouletteStrategyCache.set(canonicalId, strategyData);
+        rouletteStrategyCache.set(canonicalIdRef.current, strategyData);
       }
       
       // Não conseguimos obter a estratégia
@@ -580,18 +581,18 @@ export function useRouletteData(
       setStrategyLoading(false);
       return false;
     }
-  }, [roletaId, roletaNome, canonicalId]);
+  }, [roletaId, roletaNome, canonicalIdRef.current]);
   
   // useEffect para inicialização - MODIFICADO PARA USAR THROTTLER
   useEffect(() => {
     // Verificar se esta instância específica já foi inicializada para evitar carregamento duplo
-    if (hookInitialized.current) {
+    if (socketSubscribedRef.current) {
       logger.debug(`Hook já inicializado para ${roletaNome}, ignorando inicialização duplicada`);
       return;
     }
     
     // Marcar esta instância como inicializada
-    hookInitialized.current = true;
+    socketSubscribedRef.current = true;
     
     let isActive = true;
     logger.debug(`⭐ INICIANDO CARREGAMENTO ÚNICO para ${roletaNome} (ID: ${roletaId})`);
@@ -609,136 +610,104 @@ export function useRouletteData(
   
   // ===== EVENTOS E WEBSOCKETS =====
   
-  // Processar novos números recebidos via WebSocket
-  const handleNewNumber = useCallback((event: RouletteNumberEvent) => {
-    if (event.type !== 'new_number') return;
-    
-    // 1. EXTRAÇÃO: Obter número do evento
-    const numeroRaw = event.numero;
-    const numeroFormatado = typeof numeroRaw === 'string' ? parseInt(numeroRaw, 10) : numeroRaw;
-    
-    // Adicionar log para debug - mostrar a relação entre roleta e número recebido
-    console.log(`[useRouletteData] 📌 Número ${numeroFormatado} recebido para roleta ${event.roleta_nome} (${event.roleta_id}), hook está inscrito em: ${roletaNome} (${canonicalId})`);
-    
-    // Verificar se este evento é realmente para esta roleta
-    if (event.roleta_nome !== roletaNome && event.roleta_id !== roletaId && event.roleta_id !== canonicalId) {
-      console.warn(`[useRouletteData] ⚠️ EVENTO CRUZADO: Número ${numeroFormatado} da roleta ${event.roleta_nome} foi recebido pelo hook de ${roletaNome}`);
-      // Se o número não é para esta roleta, não processar
+  // Função para adicionar números em tempo real
+  const addRealTimeNumber = useCallback((newNumberData: RouletteNumberEvent) => {
+    // Verificar se o evento é para esta roleta
+    if (newNumberData.roleta_id !== canonicalIdRef.current && 
+        newNumberData.roleta_nome !== roletaNome) {
       return;
     }
-    
-    // Processar o novo número
-    const newNumber = processRouletteNumber(numeroFormatado, event.timestamp);
-    
-    // 2. PROCESSAMENTO: Atualizar estado dos novos números
+
+    const newNumber: RouletteNumber = {
+      numero: newNumberData.numero,
+      roleta_id: newNumberData.roleta_id,
+      roleta_nome: newNumberData.roleta_nome,
+      timestamp: newNumberData.timestamp,
+      cor: determinarCorNumero(newNumberData.numero)
+    };
+
+    logger.debug(`Adicionando número em tempo real: ${newNumber.numero} para ${newNumber.roleta_nome}`);
+
+    // Adicionar aos novos números
     setNewNumbers(prev => {
       // Verificar se o número já existe nos novos
       const isDuplicate = prev.some(num => 
-        num.numero === numeroFormatado && 
-        num.timestamp === event.timestamp
+        num.numero === newNumber.numero && 
+        num.timestamp === newNumber.timestamp
       );
       
       if (isDuplicate) return prev;
       
       // Adicionar o novo número ao array de novos números
-      console.log(`[useRouletteData] ✅ Adicionando novo número ${numeroFormatado} ao array de NOVOS números para ${roletaNome}`);
       return [newNumber, ...prev];
     });
-    
-    // 3. ADIÇÃO IMEDIATA: Adicionar também ao histórico initialNumbers
+
+    // Também adicionar ao histórico inicial para garantir consistência
     setInitialNumbers(prev => {
       // Verificar se o número já existe no histórico
       const isDuplicate = prev.some(num => 
-        num.numero === numeroFormatado && 
-        num.timestamp === event.timestamp
+        num.numero === newNumber.numero && 
+        num.timestamp === newNumber.timestamp
       );
       
       if (isDuplicate) return prev;
       
       // Adicionar o novo número também ao histórico
-      console.log(`[useRouletteData] ✅ Adicionando imediatamente o número ${numeroFormatado} ao HISTÓRICO para ${roletaNome}`);
       return [newNumber, ...prev];
     });
-    
-    // Atualizar estado de conexão e dados
+
     setHasData(true);
     setIsConnected(true);
-  }, [roletaNome, roletaId, canonicalId]);
-  
-  // Efeito para ancorar novos números periodicamente nos dados iniciais
+  }, [roletaNome]);
+
+  // Efeito para inscrever no EventService para receber atualizações em tempo real
   useEffect(() => {
-    // Se não temos novos números, não fazer nada
-    if (newNumbers.length === 0) return;
-    
-    // Criar um timer para ancorar os novos números nos dados iniciais a cada minuto
-    const anchorTimer = setInterval(() => {
-      // Ancorar os novos números nos dados iniciais
-      console.log(`[useRouletteData] ANCORANDO ${newNumbers.length} novos números nos dados iniciais para ${roletaNome}`);
-      
-      setInitialNumbers(prev => {
-        // Criar um novo array com os dados iniciais existentes
-        const updatedInitialData = [...prev];
-        
-        // Adicionar novos números que não existem nos dados iniciais
-        let numAdded = 0;
-        newNumbers.forEach(newNum => {
-          // Verificar se já existe nos dados iniciais
-          const exists = updatedInitialData.some(initial => 
-            initial.numero === newNum.numero && 
-            initial.timestamp === newNum.timestamp
-          );
-          
-          // Se não existe, adicionar
-          if (!exists) {
-            updatedInitialData.unshift(newNum); // Adicionar no início
-            numAdded++;
-          }
-        });
-        
-        console.log(`[useRouletteData] ${numAdded} novos números ancorados nos dados iniciais para ${roletaNome}`);
-        
-        // Retornar os dados iniciais atualizados
-        return updatedInitialData;
-      });
-      
-      // Limpar os novos números já ancorados
-      setNewNumbers([]);
-    }, 30000); // Ancorar a cada 30 segundos
-    
-    return () => {
-      clearInterval(anchorTimer);
+    if (socketSubscribedRef.current) return;
+
+    // Função para lidar com novos números em tempo real
+    const handleNewNumber = (event: RouletteNumberEvent) => {
+      if (event.roleta_id === canonicalIdRef.current || 
+          event.roleta_nome === roletaNome) {
+        logger.debug(`Novo número recebido via socket: ${event.numero} para ${event.roleta_nome || event.roleta_id}`);
+        addRealTimeNumber(event);
+      }
     };
-  }, [newNumbers, roletaNome]);
+
+    // Inscrever para eventos de novos números
+    EventService.on('roulette:new-number', handleNewNumber);
+    socketSubscribedRef.current = true;
+
+    // Iniciar polling de baixa frequência para verificar atualizações
+    if (!pollingIntervalRef.current && !pollingInitialized.has(pollingIdKey)) {
+      pollingInitialized.add(pollingIdKey);
+      pollingIntervalRef.current = setInterval(() => {
+        // Verificar silenciosamente por novos dados sem alterar estado de loading
+        const socketService = SocketService.getInstance();
+        socketService.requestRouletteNumbers(canonicalIdRef.current);
+      }, 5000); // 5 segundos
+    }
+
+    return () => {
+      EventService.off('roulette:new-number', handleNewNumber);
+      socketSubscribedRef.current = false;
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      pollingInitialized.delete(pollingIdKey);
+    };
+  }, [canonicalIdRef.current, roletaNome, pollingIdKey, addRealTimeNumber]);
   
-  // Subscrever para eventos via WebSocket
+  // Assinar explicitamente para atualizações da API
   useEffect(() => {
     const socketService = SocketService.getInstance();
-    
-    // Subscrever para eventos
-    debugLog(`[useRouletteData] Inscrevendo para eventos da roleta: ${roletaNome}`);
-    socketService.subscribe(roletaNome, handleNewNumber);
-    
-    // Atualizar status de conexão
-    const isSocketConnected = socketService.isSocketConnected();
-    debugLog(`[useRouletteData] Status da conexão Socket.IO: ${isSocketConnected ? 'Conectado' : 'Desconectado'}`);
-    setIsConnected(isSocketConnected);
-    
-    // Verificar conexão uma única vez - sem polling periódico
-    const connectionCheckInterval = setInterval(() => {
-      const currentStatus = socketService.isSocketConnected();
-      if (currentStatus !== isConnected) {
-        debugLog(`[useRouletteData] Mudança no status da conexão: ${currentStatus}`);
-        setIsConnected(currentStatus);
-      }
-    }, 10000);
+    socketService.subscribeToRouletteEndpoint(canonicalIdRef.current, roletaNome);
+    socketService.startAggressivePolling(canonicalIdRef.current, roletaNome);
     
     return () => {
-      // Remover subscrição ao desmontar
-      debugLog(`[useRouletteData] Removendo inscrição para eventos da roleta: ${roletaNome}`);
-      socketService.unsubscribe(roletaNome, handleNewNumber);
-      clearInterval(connectionCheckInterval);
+      socketService.stopPollingForRoulette(canonicalIdRef.current);
     };
-  }, [roletaNome, roletaId, handleNewNumber, isConnected]);
+  }, [canonicalIdRef.current, roletaNome]);
   
   // Eventos de atualização da estratégia
   useEffect(() => {
@@ -800,6 +769,37 @@ export function useRouletteData(
     console.log(`[useRouletteData] Atualizando manualmente estratégia para ${roletaNome}`);
     return await loadStrategy();
   }, [roletaNome, loadStrategy]);
+  
+  // Combinar todos os números (iniciais + novos) para retorno
+  useEffect(() => {
+    // Combinar números iniciais com novos números
+    const combinedNumbers = [...newNumbers, ...initialNumbers];
+    
+    // Remover duplicados (pode acontecer durante ancoragem)
+    const uniqueNumbers: RouletteNumber[] = [];
+    const seen = new Set<string>();
+    
+    for (const num of combinedNumbers) {
+      const key = `${num.numero}-${num.timestamp || ''}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueNumbers.push(num);
+      }
+    }
+    
+    // Ordenar por timestamp (mais recente primeiro)
+    uniqueNumbers.sort((a, b) => {
+      const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return bTime - aTime;
+    });
+    
+    // Limitar ao tamanho solicitado
+    const limitedNumbers = uniqueNumbers.slice(0, limit);
+    
+    // Atualizar o estado dos números
+    setNumbers(limitedNumbers);
+  }, [initialNumbers, newNumbers, limit]);
   
   // Retornar o resultado processado
   return {

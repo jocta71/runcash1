@@ -1229,7 +1229,7 @@ class SocketService {
   // Método para processar eventos de estratégia
   private processStrategyEvent(data: any): void {
     try {
-      if (!data || (!data.roleta_id && !data.roleta_nome)) {
+      if (!data || (!data.roleta_id && !data.roleta_name)) {
         console.warn('[SocketService] Evento de estratégia recebido sem identificador de roleta');
         return;
       }
@@ -1242,7 +1242,7 @@ class SocketService {
       const event: StrategyUpdateEvent = {
         type: 'strategy_update',
         roleta_id: data.roleta_id || 'unknown-id',
-        roleta_nome: data.roleta_nome || data.roleta_id || 'unknown',
+        roleta_nome: data.roleta_name || data.roleta_id || 'unknown',
         estado: data.estado || 'NEUTRAL',
         numero_gatilho: data.numero_gatilho || 0,
         terminais_gatilho: data.terminais_gatilho || [],
@@ -1253,7 +1253,7 @@ class SocketService {
       };
 
       console.log(`[SocketService] Processando evento de estratégia:`, {
-        roleta: event.roleta_nome,
+        roleta: event.roleta_name,
         vitorias: event.vitorias,
         derrotas: event.derrotas,
         timestamp: event.timestamp
@@ -1390,7 +1390,7 @@ class SocketService {
         this.processIncomingNumber({
           type: 'new_number',
             roleta_id: canonicalId,
-          roleta_nome: roletaNome,
+          roleta_name: roletaNome,
           numero: data.numero,
           timestamp: data.timestamp || new Date().toISOString(),
           realtime: true
@@ -1497,7 +1497,11 @@ class SocketService {
   }
 
   // Novo método para registrar em todos os canais de roleta conhecidos
-  private registerToAllRoulettes(): void {
+  /**
+   * Registra para atualizações de todas as roletas disponíveis
+   * Método público utilizado para páginas que exibem múltiplas roletas
+   */
+  public registerToAllRoulettes(): void {
     if (!this.socket || !this.socket.connected) {
       console.warn('[SocketService] Impossível registrar em canais: socket não conectado');
       return;
@@ -1523,113 +1527,19 @@ class SocketService {
         });
       }
     });
+    
+    // Iniciar polling agressivo para todas as roletas conhecidas
+    ROLETAS_CANONICAS.forEach(roleta => {
+      this.startAggressivePolling(roleta.id, roleta.nome);
+    });
+    
+    // Solicitar dados recentes de todas as roletas
+    this.requestRecentNumbers();
   }
 
-  // Método para testar uma roleta específica
-  public testRouletteData(roletaUuid: string, roletaNome: string): void {
-    if (!roletaUuid || !roletaNome) {
-      console.warn(`[SocketService] testRouletteData chamado com parâmetros inválidos: ${roletaUuid}, ${roletaNome}`);
-      return;
-    }
-    
-    console.log(`[SocketService] Testando dados para roleta ${roletaNome} (${roletaUuid})`);
-    
-    // Converter o UUID para ID canônico (se necessário)
-    const canonicalId = mapToCanonicalRouletteId(roletaUuid);
-    
-    // Simular evento de número ou buscar número real
-    this.fetchRouletteNumbersREST(canonicalId);
-  }
-
-  private addRouletteToQueue(roletaId: string, roletaNome: string, shouldStartPolling = true): void {
-    try {
-      // Verificar se os parâmetros são válidos
-      if (!roletaId) {
-        console.warn(`[SocketService] addRouletteToQueue: ID da roleta inválido: ${roletaId}`);
-        return;
-      }
-      
-      // Converter o ID para canônico se necessário
-      // Se tivermos apenas o nome, tentar mapear pelo nome
-      let canonicalId = roletaId;
-      if (roletaNome) {
-        const roleta = ROLETAS_CANONICAS.find(r => r.nome === roletaNome);
-        if (roleta) {
-          canonicalId = roleta.id;
-        } else {
-          canonicalId = mapToCanonicalRouletteId(roletaId);
-        }
-      } else {
-        canonicalId = mapToCanonicalRouletteId(roletaId);
-      }
-      
-      // Log para debug
-      console.log(`[SocketService] Adicionando roleta à fila: ${roletaNome || 'Sem Nome'} (${canonicalId})`);
-      
-      // Se já estivermos monitorando esta roleta, não adicionar novamente
-      if (this.pollingIntervals.has(canonicalId)) {
-        console.log(`[SocketService] Roleta ${canonicalId} já está na fila de monitoramento`);
-        return;
-      }
-      
-      // Adicionar à lista de roletas para polling
-      this.pollingIntervals.set(canonicalId, setInterval(() => {
-        console.log(`[SocketService] Executando polling para ${roletaNome} (${canonicalId})`);
-        this.fetchRouletteNumbersREST(canonicalId);
-      }, 5000));
-      
-      // Emitir evento para sinalizar adição da roleta
-      EventService.emitGlobalEvent('roulette_added_to_queue', {
-        roleta_id: canonicalId,
-        roleta_nome: roletaNome || `Roleta ${canonicalId}`
-      });
-      
-    } catch (error) {
-      console.error(`[SocketService] Erro ao adicionar roleta à fila: ${error}`);
-    }
-  }
-
-  /**
-   * Registra uma roleta para receber atualizações em tempo real
-   * 
-   * @param roletaNome Nome da roleta para registrar
-   */
-  private registerRouletteForRealTimeUpdates(roletaNome: string): void {
-    if (!roletaNome) return;
-    
-    console.log(`[SocketService] Registrando roleta ${roletaNome} para updates em tempo real`);
-    
-    // Buscar o ID canônico pelo nome
-    const roleta = ROLETAS_CANONICAS.find(r => r.nome === roletaNome);
-    
-    if (roleta) {
-      const roletaId = roleta.id;
-      console.log(`[SocketService] Roleta encontrada com ID: ${roletaId}`);
-      
-      // Emitir evento para o servidor registrar esta roleta para atualizações em tempo real
-      if (this.socket && this.connectionActive) {
-        this.socket.emit('subscribe_roulette', { 
-          roleta_id: roletaId, 
-          roleta_nome: roletaNome 
-        });
-        
-        console.log(`[SocketService] ✅ Enviado pedido de subscrição para ${roletaNome} (${roletaId})`);
-      } else {
-        console.log(`[SocketService] ⚠️ Socket não conectado, subscrição será feita quando reconectar`);
-      }
-      
-      // Buscar dados iniciais via REST
-      this.fetchRouletteNumbersREST(roletaId)
-        .then(success => {
-          if (success) {
-            console.log(`[SocketService] ✅ Dados iniciais obtidos com sucesso para ${roletaNome}`);
-          } else {
-            console.warn(`[SocketService] ⚠️ Falha ao obter dados iniciais para ${roletaNome}`);
-          }
-        });
-    } else {
-      console.warn(`[SocketService] ⚠️ Roleta não encontrada pelo nome: ${roletaNome}`);
-    }
+  // Método privado original
+  private registerAllRoulettes(): void {
+    // ... existing code ...
   }
 
 }
