@@ -4,72 +4,12 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [
-    // Custom plugin to handle initialization
-    {
-      name: 'handle-global-init',
-      enforce: 'pre',
-      resolveId(id) {
-        if (id === 'global-init' || id === './global-init' || id === '../global-init' || id === 'react-polyfill' || id === './react-polyfill') {
-          return path.resolve(__dirname, id.includes('polyfill') ? 'src/react-polyfill.js' : 'src/global-init.js');
-        }
-        return null;
-      }
-    },
-    react()
-  ],
+  plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "global-init": path.resolve(__dirname, "./src/global-init.js"),
-      "react-polyfill": path.resolve(__dirname, "./src/react-polyfill.js")
     },
   },
-  // Ensure proper module loading order
-  build: {
-    outDir: "dist",
-    assetsDir: "assets",
-    rollupOptions: {
-      input: {
-        // The order here matters - globalInit should be first
-        globalInit: path.resolve(__dirname, 'src/global-init.js'),
-        reactPolyfill: path.resolve(__dirname, 'src/react-polyfill.js'),
-        main: path.resolve(__dirname, 'index.html'),
-      },
-      output: {
-        // Make sure React and Yo are available in the global scope
-        intro: `
-          window.Yo = window.Yo || { initialized: true };
-          window.React = window.React || {};
-          window.React.useLayoutEffect = window.React.useLayoutEffect || function() {};
-        `,
-        // Chunks configuration for better loading order
-        manualChunks: (id) => {
-          // Put initialization code in a separate chunk that loads first
-          if (id.includes('global-init') || id.includes('react-polyfill') || id.includes('preload')) {
-            return 'init';
-          }
-          // Vendor chunk for libraries
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-              return 'vendor-react';
-            }
-            return 'vendor';
-          }
-          // UI components
-          if (id.includes('/components/ui')) {
-            return 'ui';
-          }
-          return undefined;
-        },
-      },
-    },
-  },
-  // Define compilation-time constants to help with conditional code
-  define: {
-    '__GLOBAL_YO_INITIALIZED__': true,
-  },
-  // Configure the server in development
   server: {
     port: 3000,
     host: true,
@@ -89,6 +29,19 @@ export default defineConfig({
         ws: true,
         secure: false,
       }
+    },
+  },
+  // Configuração para garantir que o HTML5 History API funcione
+  build: {
+    outDir: "dist",
+    assetsDir: "assets",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          ui: ['@/components/ui'], 
+        },
+      },
     },
   }
 });

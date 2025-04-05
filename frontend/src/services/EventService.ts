@@ -28,8 +28,6 @@ export interface RouletteNumberEvent {
   preserve_existing?: boolean;
   // Flag para indicar se é uma atualização em tempo real (após carregamento inicial)
   realtime_update?: boolean;
-  // Flag para indicar se este é o número mais recente ou um número histórico
-  isLatest?: boolean;
 }
 
 export interface StrategyUpdateEvent {
@@ -633,82 +631,78 @@ class EventService {
   }
 
   /**
-   * Logs an event with the specified message and type
+   * Envia um evento para todos os ouvintes registrados
+   * @param event Evento a ser enviado
    */
-  private logEvent(message: string, type: string = 'info'): void {
-      if (type === 'error') {
-          console.error(`[EventService] ${message}`);
-      } else if (type === 'warn') {
-          console.warn(`[EventService] ${message}`);
-      } else {
-          console.log(`[EventService] ${message}`);
-      }
+  public dispatchEvent(event: any): void {
+    console.log(`[EventService] Disparando evento ${event.type} para roleta ${event.roleta_nome || 'desconhecida'}`);
+    
+    // Notificar os listeners específicos para este tipo de evento
+    const callbacks = this.listeners.get(event.type);
+    if (callbacks) {
+      callbacks.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error(`[EventService] Erro ao processar evento ${event.type}:`, error);
+        }
+      });
+    }
+    
+    // Notificar também os listeners globais
+    const globalCallbacks = this.listeners.get('*');
+    if (globalCallbacks) {
+      globalCallbacks.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error(`[EventService] Erro ao processar evento global:`, error);
+        }
+      });
+    }
   }
 
-  // Improved implementation of the instance version of emitGlobalEvent
-  private emitGlobalEvent(eventType: string, payload: any): void {
-    // Use the debugLog function instead of direct console access for consistency
-    debugLog(`[EventService] Emitindo evento global (instância): ${eventType}`);
+  // Adicionar método para gerenciar atualizações em tempo real
+  public receiveRealtimeUpdate(event: RouletteNumberEvent | StrategyUpdateEvent): void {
+    if (!event) return;
     
-    // Create a properly typed event object
-    const event: any = {
-      type: eventType,
-      ...payload,
-      timestamp: new Date().toISOString()
-    };
+    debugLog(`[EventService] Recebendo atualização em tempo real para ${event.roleta_nome}`);
     
-    // Use the class's notifyListeners method
-    this.notifyListeners(event as any);
-  }
-
-  /**
-   * Handles realtime updates from various sources
-   */
-  public receiveRealtimeUpdate(event: RouletteNumberEvent): void {
-    try {
-      if (!event || !event.roleta_id) {
-        console.warn('[EventService] Recebido evento inválido:', event);
-        return;
-      }
-      
-      // Determinar se é um evento de alta prioridade (tempo real)
-      const isHighPriority = !!event.realtime_update;
-      
-      if (isHighPriority) {
-        console.log('[EventService] ⚡⚡ Processando evento prioritário em tempo real:', event);
-        
-        // Enviar imediatamente para ouvintes deste evento específico
-        this.dispatchEvent({
-          ...event,
-          priorityEvent: true,
-          timestamp: event.timestamp || new Date().toISOString()
+    // Marcar evento como atualização em tempo real
+    if (event.type === 'new_number') {
+      event.realtime_update = true;
+    }
+    
+    // Enviar para processamento normal de eventos
+    this.dispatchEvent(event);
+    
+    // Notificar os listeners específicos para atualizações em tempo real
+    if (this.listeners.has('realtime_updates')) {
+      const realtimeListeners = this.listeners.get('realtime_updates');
+      if (realtimeListeners) {
+        debugLog(`[EventService] Notificando ${realtimeListeners.size} listeners de atualizações em tempo real`);
+        realtimeListeners.forEach(callback => {
+          try {
+            callback(event);
+          } catch (error) {
+            console.error('[EventService] Erro ao chamar callback de atualização em tempo real:', error);
+          }
         });
-        
-        // Adicionar ao log de eventos
-        this.logEvent(`Novo número em tempo real: ${event.numero} para ${event.roleta_nome}`, 'realtime');
-        
-        // Para eventos de alta prioridade, notificar imediatamente todos os listeners
-        this.notifyListeners(event);
-        
-        // Emitir evento global específico para tempo real
-        this.emitGlobalEvent('realtime_update', {
-          roleta_id: event.roleta_id,
-          roleta_nome: event.roleta_nome,
-          numero: event.numero,
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        // Para eventos regulares, processar normalmente
-        console.log('[EventService] Processando evento regular:', event);
-        
-        // Disparar o evento para os ouvintes específicos
-        this.dispatchEvent(event);
-        
-        // Notificar listeners normalmente
-        this.notifyListeners(event);
       }
-    } catch (error) {
-      console.error('[EventService] Erro ao processar evento em tempo real:', error);
+    }
+    
+    // Também exibir notificação visual para destacar novos dados
+    if (event.type === 'new_number') {
+      const numero = event.numero;
+      const roletaNome = event.roleta_nome;
+      
+      // Mostrar pequena notificação para novos números
+      toast({
+        title: `Novo número: ${numero}`,
+        description: `${roletaNome}`,
+        variant: "default",
+        duration: 2000 // Duração curta para não incomodar
+      });
     }
   }
 
@@ -789,4 +783,4 @@ class EventService {
   }
 }
 
-export default EventService;
+export default EventService; 
