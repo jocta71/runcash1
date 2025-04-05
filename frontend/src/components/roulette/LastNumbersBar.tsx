@@ -2,10 +2,17 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import EventService from '@/services/EventService';
 import RouletteFeedService from '@/services/RouletteFeedService';
+import { cn } from '@/lib/utils';
+import { RouletteNumberEvent } from '@/types';
 
 interface RouletteNumbersProps {
   tableId: string;
   tableName: string;
+  className?: string;
+  onNumberClick?: (index: number, number: number) => void;
+  interactive?: boolean;
+  limit?: number;
+  isBlurred?: boolean;
 }
 
 // Função para determinar a classe CSS correta com base no número

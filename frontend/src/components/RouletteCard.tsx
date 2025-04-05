@@ -20,7 +20,7 @@ import RouletteNumber from './roulette/RouletteNumber';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
 import { getLogger } from '@/services/utils/logger';
 import { Card, CardContent } from "@/components/ui/card";
-import { RouletteData } from '@/types';
+import { RouletteData, RouletteNumberEvent } from '@/types';
 import NumberDisplay from './NumberDisplay';
 import { Badge } from "@/components/ui/badge";
 import { PieChart, Phone, Timer, Cpu, Zap, History } from "lucide-react";
@@ -143,7 +143,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const cardRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasInitialized = useRef(false);
-  const socketService = SocketService.getInstance();
+    const socketService = SocketService.getInstance();
   const { enableSound, enableNotifications } = useRouletteSettingsStore();
 
   // Função para processar um novo número em tempo real
@@ -330,7 +330,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             size="large" 
             highlight={isNewNumber}
           />
-        </div>
+      </div>
       
         {/* Últimos números */}
         <div className="flex flex-wrap gap-1 justify-center my-3">
@@ -342,24 +342,24 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
               highlight={idx === 0 && isNewNumber}
             />
           ))}
-        </div>
+            </div>
             
-        {/* Estatísticas */}
+            {/* Estatísticas */}
         <div className="mt-4 text-sm text-muted-foreground">
           <RouletteStats numbers={recentNumbers} />
         </div>
         
         {/* Indicadores */}
         <div className="flex justify-between mt-4 text-xs text-muted-foreground">
-          <div className="flex items-center">
+              <div className="flex items-center">
             <Zap className="h-3 w-3 mr-1" />
             <span>Tempo real</span>
-          </div>
-          <div className="flex items-center">
+              </div>
+              <div className="flex items-center">
             <History className="h-3 w-3 mr-1" />
             <span>{recentNumbers.length} números</span>
           </div>
-        </div>
+      </div>
       </CardContent>
     </Card>
   );
