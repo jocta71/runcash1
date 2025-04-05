@@ -9,7 +9,7 @@ import AnimatedInsights from '@/components/AnimatedInsights';
 import ProfileDropdown from '@/components/ProfileDropdown';
 import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
-import { RouletteData } from '../services/data/rouletteTransformer';
+import { RouletteData } from '@/types';
 import EventService from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
 
@@ -135,17 +135,12 @@ const Index = () => {
       merged[known.id] = {
         id: known.id,
         nome: known.name,
-        roleta_nome: known.name,
+        name: known.name,
         numeros: [],
-        updated_at: known.updated_at,
-        estado_estrategia: known.strategyState,
-        numero_gatilho: 0,
-        numero_gatilho_anterior: 0,
-        terminais_gatilho: [],
-        terminais_gatilho_anterior: [],
+        lastNumbers: [],
+        estado_estrategia: '',
         vitorias: 0,
-        derrotas: 0,
-        sugestao_display: ''
+        derrotas: 0
       };
     });
     
@@ -383,11 +378,14 @@ const Index = () => {
     return filteredRoulettes.map((roulette) => (
       <RouletteCard
         key={roulette.id}
-        roletaId={roulette.id}
-        name={roulette.nome}
-        lastNumbers={roulette.numeros || []}
-        wins={roulette.vitorias || 0}
-        losses={roulette.derrotas || 0}
+        data={{
+          id: roulette.id,
+          name: roulette.nome,
+          nome: roulette.nome,
+          lastNumbers: roulette.numeros || [],
+          vitorias: roulette.vitorias || 0,
+          derrotas: roulette.derrotas || 0
+        }}
       />
     ));
   };
