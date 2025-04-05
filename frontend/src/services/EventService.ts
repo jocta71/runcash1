@@ -670,6 +670,10 @@ class EventService {
    * @param type Tipo de log
    */
   private logEvent(message: string, type: string = 'info'): void {
+    console.log(`[EventService] [${type}] ${message}`);
+  }
+
+  // Método para processar atualizações em tempo real recebidas do socket
   public receiveRealtimeUpdate(event: RouletteNumberEvent): void {
     try {
       if (!event || !event.roleta_id) {
@@ -697,7 +701,7 @@ class EventService {
         this.notifyListeners(event);
         
         // Emitir evento global específico para tempo real
-        this.emitGlobalEvent('realtime_update', {
+        EventService.emitGlobalEvent('realtime_update', {
           roleta_id: event.roleta_id,
           roleta_nome: event.roleta_nome,
           numero: event.numero,

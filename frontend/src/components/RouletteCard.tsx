@@ -224,10 +224,10 @@ const RouletteCard = memo(({
         } else if (numObj && typeof numObj !== 'undefined') {
           // Verificar se o objeto tem uma propriedade 'numero'
           if (typeof numObj.numero !== 'undefined') {
-            if (typeof numObj.numero === 'number' && !isNaN(numObj.numero)) {
-              num = numObj.numero;
-            } else if (typeof numObj.numero === 'string' && numObj.numero.trim() !== '') {
-              const parsed = parseInt(numObj.numero, 10);
+          if (typeof numObj.numero === 'number' && !isNaN(numObj.numero)) {
+            num = numObj.numero;
+          } else if (typeof numObj.numero === 'string' && numObj.numero.trim() !== '') {
+            const parsed = parseInt(numObj.numero, 10);
               num = !isNaN(parsed) ? parsed : 0;
             }
           }
@@ -402,7 +402,7 @@ const RouletteCard = memo(({
     
     // Solicitação inicial de dados
     const socketService = SocketService.getInstance();
-    socketService.requestRouletteNumbers(roletaId);
+        socketService.requestRouletteNumbers(roletaId);
     
     // Limpar inscrições ao desmontar
     return () => {
@@ -496,26 +496,26 @@ const RouletteCard = memo(({
       setLastNumber(numero);
 
       // Acionar o destaque visual apenas para o número mais recente
-      setHighlight(true);
-        
-      // Mostrar notificação de novo número
-      toast({
-        title: `Novo número: ${numero}`,
+    setHighlight(true);
+    
+    // Mostrar notificação de novo número
+    toast({
+      title: `Novo número: ${numero}`,
         description: `${displayName}`,
-        variant: "default",
-        duration: 2000
-      });
-        
-      // Limpar o timer anterior se existir
-      if (highlightTimerRef.current) {
-        clearTimeout(highlightTimerRef.current);
-      }
-        
-      // Configurar novo timer para remover o destaque
-      highlightTimerRef.current = setTimeout(() => {
-        setHighlight(false);
-        highlightTimerRef.current = null;
-      }, 1500);
+      variant: "default",
+      duration: 2000
+    });
+    
+    // Limpar o timer anterior se existir
+    if (highlightTimerRef.current) {
+      clearTimeout(highlightTimerRef.current);
+    }
+    
+    // Configurar novo timer para remover o destaque
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlight(false);
+      highlightTimerRef.current = null;
+    }, 1500);
     }
     
     // Atualizar o estado local para refletir a atualização
