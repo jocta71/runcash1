@@ -50,6 +50,8 @@ class SocketService {
   private eventHandlers: Record<string, (data: any) => void> = {};
   private autoReconnect: boolean = true;
   private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
+  // Novo mapa para rastrear promessas pendentes de listeners assíncronos
+  private pendingPromises: Map<string, { promise: Promise<any>, timeout: NodeJS.Timeout }> = new Map();
   
   // Propriedade para o cliente MongoDB (pode ser undefined em alguns contextos)
   public client?: MongoClient;
@@ -80,6 +82,9 @@ class SocketService {
 
     // Adicionar event listener para quando a janela ficar visível novamente
     window.addEventListener('visibilitychange', this.handleVisibilityChange);
+    
+    // Configurar handler para rejeições de promise não tratadas
+    this.setupUnhandledRejectionHandler();
     
     // Tentar recarregar dados a cada 1 minuto
     setInterval(() => this.requestRecentNumbers(), 60000);
@@ -477,11 +482,7 @@ class SocketService {
     }
   }
   
-  /**
-   * Notifica os listeners sobre um evento de roleta
-   * 
-   * @param event Evento a ser notificado
-   */
+  // Melhorar o método notifyListeners para lidar com retornos assíncronos dos callbacks
   private notifyListeners(event: RouletteNumberEvent | StrategyUpdateEvent): void {
     try {
       if (!event) {
@@ -497,14 +498,24 @@ class SocketService {
       
       // 1. Notificar listeners específicos desta roleta
       if (roletaNome && this.listeners.has(roletaNome)) {
-        const specificListeners = this.listeners.get(roletaNome);
-        
-        console.log(`[SocketService] Notificando ${specificListeners?.size || 0} listeners específicos para ${roletaNome}`);
-        
-        if (specificListeners && specificListeners.size > 0) {
-          specificListeners.forEach(callback => {
+        const listeners = this.listeners.get(roletaNome);
+        if (listeners && listeners.size > 0) {
+          console.log(`[SocketService] Notificando ${listeners.size} listeners específicos para ${roletaNome}`);
+          
+          // Chamar cada callback com tratamento de erros por callback
+          listeners.forEach((callback, index) => {
             try {
-              callback(event);
+              // Verificar se o callback retorna uma promise
+              const result = callback(event);
+              if (result === true) {
+                // O callback indicou resposta assíncrona, vamos rastrear com timeout
+                console.log(`[SocketService] Callback #${index} para ${roletaNome} indicou resposta assíncrona`);
+                // Criamos uma promise que nunca será resolvida, apenas para rastrear o timeout
+                const dummyPromise = new Promise(resolve => {
+                  // Este resolve nunca será chamado, mas o timeout irá limpar esta entrada
+                });
+                this.trackPromise(`${roletaNome}_${index}_${Date.now()}`, dummyPromise);
+              }
             } catch (error) {
               console.error(`[SocketService] Erro ao chamar callback para ${roletaNome}:`, error);
             }
@@ -512,30 +523,37 @@ class SocketService {
         }
       }
       
-      // 2. Notificar listeners globais (apenas se houver algum)
+      // 2. Notificar listeners globais ('*')
       if (this.listeners.has('*')) {
         const globalListeners = this.listeners.get('*');
-        
-        console.log(`[SocketService] Notificando ${globalListeners?.size || 0} listeners globais (*)`);
-        
         if (globalListeners && globalListeners.size > 0) {
-          globalListeners.forEach(callback => {
+          console.log(`[SocketService] Notificando ${globalListeners.size} listeners globais`);
+          
+          globalListeners.forEach((callback, index) => {
             try {
-              callback(event);
+              const result = callback(event);
+              if (result === true) {
+                // O callback indicou resposta assíncrona
+                console.log(`[SocketService] Callback global #${index} indicou resposta assíncrona`);
+                const dummyPromise = new Promise(resolve => {});
+                this.trackPromise(`global_${index}_${Date.now()}`, dummyPromise);
+              }
             } catch (error) {
-              console.error(`[SocketService] Erro ao chamar callback global:`, error);
+              console.error('[SocketService] Erro ao chamar callback global:', error);
             }
           });
         }
       }
       
-      // 3. Log com estatísticas de notificação
-      console.log(`[SocketService] Total de listeners notificados: ${
-        (this.listeners.get(roletaNome)?.size || 0) + 
-        (this.listeners.get('*')?.size || 0)
-      }`);
-            } catch (error) {
-      console.error('[SocketService] Erro na notificação de listeners:', error);
+      // 3. Também emitir o evento via serviço de eventos
+      try {
+        EventService.getInstance().dispatchEvent(event);
+      } catch (error) {
+        console.error('[SocketService] Erro ao despachar evento via EventService:', error);
+      }
+      
+    } catch (error) {
+      console.error('[SocketService] Erro ao notificar listeners:', error);
     }
   }
   
@@ -1272,35 +1290,25 @@ class SocketService {
   }
 
   // Adicionar um método para forçar reconexão - melhorado para garantir verificação adequada
-  public reconnect(): Promise<boolean> {
-    return new Promise((resolve) => {
-      console.log("[SocketService] Forçando reconexão...");
-      
-      // Desconectar se estiver conectado
-      if (this.socket) {
-        if (this.socket.connected) {
-          this.socket.disconnect();
-        }
-        this.socket = null;
-      }
-      
-      // Reconectar
-      this.connect();
-      
-      // Verificar status após um tempo
-      setTimeout(() => {
-        const isConnected = this.isSocketConnected();
-        console.log(`[SocketService] Status após reconexão forçada: ${isConnected ? 'Conectado' : 'Desconectado'}`);
-        
-        // Se conectado, solicitar dados recentes
-        if (isConnected) {
-          this.requestRecentNumbers();
-          this.broadcastConnectionState();
-        }
-        
-        resolve(isConnected);
-      }, 1500);
-    });
+  public reconnect(): void {
+    console.log('[SocketService] Executando reconexão forçada...');
+    // Limpar todos os listeners pendentes
+    this.clearAllPendingPromises();
+    
+    // Desconectar socket existente
+    if (this.socket) {
+      // Remover todos os listeners para evitar duplicação
+      this.socket.offAny();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+    
+    // Reiniciar contadores
+    this.connectionAttempts = 0;
+    this.connectionActive = false;
+    
+    // Reconectar
+    this.connect();
   }
 
   // Adicionar um método para transmitir o estado da conexão
@@ -1588,6 +1596,98 @@ class SocketService {
         });
     } else {
       console.warn(`[SocketService] ⚠️ Roleta não encontrada pelo nome: ${roletaNome}`);
+    }
+  }
+
+  // Adicione este método após o construtor
+  private setupUnhandledRejectionHandler(): void {
+    // Handler global para promises não tratadas
+    window.addEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  // Handler para rejeições de promise não tratadas
+  private handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+    console.error('[SocketService] Erro de promise não tratado:', event.reason);
+    // Verificar se o erro está relacionado com canal fechado ou socket
+    const errorMessage = String(event.reason).toLowerCase();
+    if (
+      errorMessage.includes('message channel closed') || 
+      errorMessage.includes('socket') || 
+      errorMessage.includes('connection')
+    ) {
+      console.warn('[SocketService] Detectado erro de canal fechado, tentando reconectar...');
+      // Se for erro de socket, verificar conexão e tentar reconectar
+      if (!this.connectionActive || !this.socket?.connected) {
+        this.reconnect();
+      }
+    }
+  }
+
+  // Gerenciar promessas pendentes de listeners assíncronos
+  private trackPromise(id: string, promise: Promise<any>, timeoutMs: number = 5000): void {
+    // Criar timeout para a promessa
+    const timeoutId = setTimeout(() => {
+      console.warn(`[SocketService] Promessa do listener ${id} expirou após ${timeoutMs}ms`);
+      // Remover do mapa de promessas pendentes
+      this.pendingPromises.delete(id);
+    }, timeoutMs);
+    
+    // Adicionar ao mapa de promessas pendentes
+    this.pendingPromises.set(id, { promise, timeout: timeoutId });
+    
+    // Adicionar handler para quando a promessa resolver ou rejeitar
+    promise
+      .then(() => {
+        clearTimeout(timeoutId);
+        this.pendingPromises.delete(id);
+      })
+      .catch(error => {
+        console.error(`[SocketService] Erro na promessa ${id}:`, error);
+        clearTimeout(timeoutId);
+        this.pendingPromises.delete(id);
+      });
+  }
+  
+  private clearAllPendingPromises(): void {
+    // Limpar todos os timeouts de promessas pendentes
+    this.pendingPromises.forEach(({ timeout }) => {
+      clearTimeout(timeout);
+    });
+    this.pendingPromises.clear();
+  }
+
+  // Destruidor para limpeza adequada
+  public destroy(): void {
+    console.log('[SocketService] Destruindo instância do SocketService');
+    
+    // Remover event listener global
+    window.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    window.removeEventListener('unhandledrejection', this.handleUnhandledRejection);
+    
+    // Limpar todos os intervalos de polling
+    this.pollingIntervals.forEach((interval) => {
+      clearInterval(interval);
+    });
+    this.pollingIntervals.clear();
+    
+    // Limpar todos os timeouts
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+    
+    // Limpar todas as promessas pendentes
+    this.clearAllPendingPromises();
+    
+    // Desconectar socket
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
     }
   }
 

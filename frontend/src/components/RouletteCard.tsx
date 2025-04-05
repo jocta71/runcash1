@@ -117,7 +117,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
 
     const newNumber = newNumberEvent.numero;
-
+    
     // Atualizar o último número
     setLastNumber(prevLastNumber => {
       // Se o número for igual ao último, não fazer nada
@@ -178,18 +178,30 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       console.warn('RouletteCard: ID ou nome da roleta ausente:', data);
       return;
     }
-    
+        
     console.log(`[RouletteCard] Inicializando card para ${roletaNome} (${roletaId})`);
     hasInitialized.current = true;
     
     // Função para lidar com eventos de novos números
     const handleNewNumber = (event: RouletteNumberEvent) => {
+      // Verificar se componente ainda está montado
+      if (!cardRef.current) {
+        console.warn(`[RouletteCard] Evento recebido após desmontagem para ${roletaNome}`);
+        return;
+      }
+
       // Verificar se este evento é para esta roleta
       if (event.roleta_id === roletaId || 
           event.roleta_nome.toLowerCase().includes(roletaNome.toLowerCase()) || 
           roletaNome.toLowerCase().includes(event.roleta_nome.toLowerCase())) {
         console.log(`[RouletteCard] Número recebido para ${roletaNome}: ${event.numero}`);
-        processRealtimeNumber(event);
+        
+        // Processar número de forma segura
+        try {
+          processRealtimeNumber(event);
+        } catch (error) {
+          console.error(`[RouletteCard] Erro ao processar número para ${roletaNome}:`, error);
+        }
       }
     };
     
@@ -205,14 +217,40 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Função de limpeza para remover os listeners quando o componente for desmontado
     return () => {
       console.log(`[RouletteCard] Desmontando card para ${roletaNome}`);
-      EventService.getInstance().unsubscribe('new_number', handleNewNumber);
-      socketService.unsubscribe(roletaNome, handleNewNumber);
-      socketService.stopPollingForRoulette(roletaId);
+      
+      // Remover listeners para evitar vazamento de memória
+      try {
+        EventService.getInstance().unsubscribe('new_number', handleNewNumber);
+      } catch (e) {
+        console.warn(`[RouletteCard] Erro ao remover listener do EventService:`, e);
+      }
+      
+      try {
+        socketService.unsubscribe(roletaNome, handleNewNumber);
+      } catch (e) {
+        console.warn(`[RouletteCard] Erro ao remover listener do SocketService:`, e);
+      }
+      
+      try {
+        socketService.stopPollingForRoulette(roletaId);
+      } catch (e) {
+        console.warn(`[RouletteCard] Erro ao parar polling:`, e);
+      }
       
       // Limpar referência de áudio
       if (audioRef.current) {
-        audioRef.current = null;
+        try {
+          // Garantir que o áudio está pausado
+          audioRef.current.pause();
+          audioRef.current.src = '';
+          audioRef.current = null;
+        } catch (e) {
+          console.warn(`[RouletteCard] Erro ao limpar referência de áudio:`, e);
+        }
       }
+      
+      // Marcar que foi limpo
+      hasInitialized.current = false;
     };
   }, [data.id, data.name]); // Dependências reduzidas ao essencial
 
@@ -247,8 +285,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             size="large" 
             highlight={isNewNumber}
           />
-        </div>
-        
+      </div>
+      
         {/* Últimos números */}
         <div className="flex flex-wrap gap-1 justify-center my-3">
           {recentNumbers.slice(0, isDetailView ? 20 : 10).map((num, idx) => (
@@ -259,24 +297,24 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
               highlight={idx === 0 && isNewNumber}
             />
           ))}
-        </div>
-        
-        {/* Estatísticas */}
+            </div>
+            
+            {/* Estatísticas */}
         <div className="mt-4 text-sm text-muted-foreground">
           <RouletteStats numbers={recentNumbers} />
         </div>
         
         {/* Indicadores */}
         <div className="flex justify-between mt-4 text-xs text-muted-foreground">
-          <div className="flex items-center">
+              <div className="flex items-center">
             <Zap className="h-3 w-3 mr-1" />
             <span>Tempo real</span>
-          </div>
-          <div className="flex items-center">
+              </div>
+              <div className="flex items-center">
             <History className="h-3 w-3 mr-1" />
             <span>{recentNumbers.length} números</span>
           </div>
-        </div>
+      </div>
       </CardContent>
     </Card>
   );
