@@ -126,81 +126,88 @@ class CasinoAPIAdapter {
    * Processa os dados recebidos da API
    */
   private processLiveData(data: any): void {
-    // Verificar se temos dados de roletas (LiveTables)
-    if (!data || !data.LiveTables) {
-      console.warn('[CasinoAPIAdapter] Dados não contêm LiveTables');
-      return;
-    }
-    
-    const liveTables = data.LiveTables;
-    
-    // Para cada mesa de roleta, processar e emitir evento
-    Object.entries(liveTables).forEach(([tableId, tableData]: [string, any]) => {
-      // Verificar se é uma mesa de roleta (pelo nome ou outras características)
-      if (tableData && tableData.Name && 
-          tableData.Name.toLowerCase().includes('roulette') && 
-          tableData.RouletteLastNumbers && 
-          Array.isArray(tableData.RouletteLastNumbers)) {
-        
-        // Verificar se os dados mudaram
-        const lastDataForTable = this.lastData && this.lastData[tableId] ? this.lastData[tableId].RouletteLastNumbers : [];
-        const currentNumbers = tableData.RouletteLastNumbers;
-        
-        // LOG para depuração - mostrar apenas os primeiros 5 para evitar spam
-        console.log(`[CasinoAPIAdapter] Processando números para ${tableData.Name}:`, {
-          current: currentNumbers.slice(0, 5),
-          previous: lastDataForTable.slice(0, 5),
-          saoIguais: JSON.stringify(currentNumbers) === JSON.stringify(lastDataForTable)
-        });
-        
-        // Verificar se há novos números de forma mais robusta
-        const hasNewNumbers = 
-          // Verificar se os tamanhos são diferentes
-          currentNumbers.length !== lastDataForTable.length || 
-          // Ou se algum número é diferente na mesma posição
-          currentNumbers.some((num: any, idx: number) => num !== lastDataForTable[idx]);
-        
-        // Se detectou novos números, emitir eventos
-        if (hasNewNumbers) {
-          console.log(`[CasinoAPIAdapter] NOVOS NÚMEROS detectados para ${tableData.Name}:`, {
-            primeiro_novo: currentNumbers[0],
-            primeiro_anterior: lastDataForTable.length > 0 ? lastDataForTable[0] : 'nenhum'
+    try {
+      if (!data || !data.LiveTables || data.LiveTables.length === 0) {
+        console.warn('[CasinoAPIAdapter] Dados não contêm LiveTables');
+        return;
+      }
+
+      const liveTables = data.LiveTables;
+      
+      liveTables.forEach((tableData: any) => {
+        try {
+          // Verifica se é uma mesa de roleta
+          const tableName = tableData.Name ? String(tableData.Name) : '';
+          const isRouletteTable = tableName.toLowerCase().includes('roulette');
+          
+          if (!isRouletteTable || !tableData.RouletteLastNumbers) {
+            return;
+          }
+
+          // Verificar se os dados mudaram
+          const lastDataForTable = this.lastData && this.lastData[tableData.Id] ? this.lastData[tableData.Id].RouletteLastNumbers : [];
+          const currentNumbers = tableData.RouletteLastNumbers;
+          
+          // LOG para depuração - mostrar apenas os primeiros 5 para evitar spam
+          console.log(`[CasinoAPIAdapter] Processando números para ${tableData.Name}:`, {
+            current: currentNumbers.slice(0, 5),
+            previous: lastDataForTable.slice(0, 5),
+            saoIguais: JSON.stringify(currentNumbers) === JSON.stringify(lastDataForTable)
           });
           
-          // Formatar os dados para nosso padrão
-          const formattedData = {
-            tableId,
-            tableName: tableData.Name,
-            numbers: [...currentNumbers], // Clone para evitar referências
-            dealer: tableData.Dealer,
-            players: tableData.Players,
-            isOpen: tableData.IsOpen,
-            isNewNumber: true // Flag explícita indicando novos dados
-          };
+          // Verificar se há novos números de forma mais robusta
+          const hasNewNumbers = 
+            // Verificar se os tamanhos são diferentes
+            currentNumbers.length !== lastDataForTable.length || 
+            // Ou se algum número é diferente na mesma posição
+            currentNumbers.some((num: any, idx: number) => num !== lastDataForTable[idx]);
           
-          // Emitir evento com dados formatados
-          EventService.emit('roulette:numbers-updated', formattedData);
-          
-          // Emitir evento específico para o primeiro número (mais recente) se for novo
-          if (currentNumbers.length > 0 && 
-              (lastDataForTable.length === 0 || currentNumbers[0] !== lastDataForTable[0])) {
-            console.log(`[CasinoAPIAdapter] NOVO NÚMERO PRINCIPAL: ${tableData.Name}: ${currentNumbers[0]}`);
-            EventService.emit('roulette:new-number', {
-              tableId,
-              tableName: tableData.Name,
-              number: currentNumbers[0]
+          // Se detectou novos números, emitir eventos
+          if (hasNewNumbers) {
+            console.log(`[CasinoAPIAdapter] NOVOS NÚMEROS detectados para ${tableData.Name}:`, {
+              primeiro_novo: currentNumbers[0],
+              primeiro_anterior: lastDataForTable.length > 0 ? lastDataForTable[0] : 'nenhum'
             });
+            
+            // Formatar os dados para nosso padrão
+            const formattedData = {
+              tableId: tableData.Id,
+              tableName: tableData.Name,
+              numbers: [...currentNumbers], // Clone para evitar referências
+              dealer: tableData.Dealer,
+              players: tableData.Players,
+              isOpen: tableData.IsOpen,
+              isNewNumber: true // Flag explícita indicando novos dados
+            };
+            
+            // Emitir evento com dados formatados
+            EventService.emit('roulette:numbers-updated', formattedData);
+            
+            // Emitir evento específico para o primeiro número (mais recente) se for novo
+            if (currentNumbers.length > 0 && 
+                (lastDataForTable.length === 0 || currentNumbers[0] !== lastDataForTable[0])) {
+              console.log(`[CasinoAPIAdapter] NOVO NÚMERO PRINCIPAL: ${tableData.Name}: ${currentNumbers[0]}`);
+              EventService.emit('roulette:new-number', {
+                tableId: tableData.Id,
+                tableName: tableData.Name,
+                number: currentNumbers[0]
+              });
+            }
           }
+        } catch (error) {
+          console.error(`Erro ao processar mesa ${tableData?.Id || 'desconhecida'}:`, error);
         }
-      }
-    });
-    
-    // Atualizar último conjunto de dados com uma cópia profunda
-    // Isso evita problemas de referência quando comparamos dados em chamadas futuras
-    this.lastData = JSON.parse(JSON.stringify(liveTables));
-    
-    // Emitir evento geral de atualização
-    EventService.emit('casino:data-updated', data);
+      });
+      
+      // Atualizar último conjunto de dados com uma cópia profunda
+      // Isso evita problemas de referência quando comparamos dados em chamadas futuras
+      this.lastData = JSON.parse(JSON.stringify(liveTables));
+      
+      // Emitir evento geral de atualização
+      EventService.emit('casino:data-updated', data);
+    } catch (error) {
+      console.error('Erro ao processar dados ao vivo:', error);
+    }
   }
   
   /**

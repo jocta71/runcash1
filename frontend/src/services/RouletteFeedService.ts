@@ -1,6 +1,10 @@
 import axios from 'axios';
 import config from '@/config/env';
 import EventService from './EventService';
+import { ENDPOINTS } from '../config/constants';
+import { Logger } from './utils/logger';
+
+const logger = new Logger('RouletteFeedService');
 
 // Configurações
 const POLLING_INTERVAL = 5000; // 5 segundos entre cada verificação
@@ -185,6 +189,37 @@ class RouletteFeedService {
     });
     
     return result;
+  }
+
+  /**
+   * Processa tabelas ao vivo para identificar números novos
+   */
+  private processLiveTables(tables: any[]): void {
+    try {
+      if (!tables || !Array.isArray(tables) || tables.length === 0) {
+        return;
+      }
+
+      tables.forEach(table => {
+        try {
+          const tableName = table.Name ? String(table.Name) : '';
+          // Verifica se é uma mesa de roleta
+          if (!tableName.toLowerCase().includes('roulette') || !table.RouletteLastNumbers) {
+            return;
+          }
+
+          const tableId = table.Id;
+          const currentNumbers = table.RouletteLastNumbers;
+
+          // Resto do processamento
+          // ... existing code ...
+        } catch (error) {
+          logger.error(`Erro ao processar mesa ${table?.Id || 'desconhecida'}:`, error);
+        }
+      });
+    } catch (error) {
+      logger.error('Erro ao processar tabelas ao vivo:', error);
+    }
   }
 }
 

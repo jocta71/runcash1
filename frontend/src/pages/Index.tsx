@@ -237,9 +237,32 @@ const Index = () => {
   }, [loadRouletteData, knownRoulettes]);
   
   const filteredRoulettes = useMemo(() => {
-    return roulettes.filter(roulette => 
-      roulette.nome.toLowerCase().includes(search.toLowerCase())
-    );
+    try {
+      // Se não houver termo de busca, retorna todas as roletas
+      if (!search) {
+        return roulettes;
+      }
+
+      const searchTermLower = String(search).toLowerCase();
+
+      return roulettes.filter(roulette => {
+        // Verificação de segurança para evitar erro com valores undefined
+        if (!roulette || !roulette.nome) {
+          return false;
+        }
+        
+        try {
+          const nomeLower = String(roulette.nome).toLowerCase();
+          return nomeLower.includes(searchTermLower);
+        } catch (error) {
+          console.error('Erro ao processar nome da roleta:', roulette, error);
+          return false;
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao filtrar roletas:', error);
+      return roulettes;
+    }
   }, [roulettes, search]);
   
   const topRoulettes = useMemo(() => {

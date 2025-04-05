@@ -17,15 +17,26 @@ export const ColorDistributionChart: React.FC<ColorDistributionChartProps> = ({ 
 
   // Cores para cada categoria
   const getColorClass = (cor: string) => {
-    switch (cor.toLowerCase()) {
-      case 'vermelho':
-        return 'bg-red-600';
-      case 'preto':
-        return 'bg-black';
-      case 'verde':
-        return 'bg-green-600';
-      default:
-        return 'bg-gray-600';
+    if (!cor) {
+      return 'bg-gray-600'; // Valor padrão para cor indefinida
+    }
+    
+    try {
+      const corSafe = String(cor).toLowerCase();
+      
+      switch (corSafe) {
+        case 'vermelho':
+          return 'bg-red-600';
+        case 'preto':
+          return 'bg-black';
+        case 'verde':
+          return 'bg-green-600';
+        default:
+          return 'bg-gray-600';
+      }
+    } catch (error) {
+      console.error('Erro ao processar cor:', cor, error);
+      return 'bg-gray-600';
     }
   };
 
