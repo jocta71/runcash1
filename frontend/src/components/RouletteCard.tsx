@@ -150,7 +150,75 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
   // Função para processar um novo número em tempo real
   const processRealtimeNumber = (newNumberEvent: RouletteNumberEvent) => {
-    // Verificar se é um número válido
+    // Verificar se é um array de números
+    if (Array.isArray(newNumberEvent.numero)) {
+      console.log(`[RouletteCard] Recebido array de números para ${safeData.name}:`, newNumberEvent.numero);
+      
+      // Extrair os números do array (verificando se são válidos)
+      const validNumbers = newNumberEvent.numero
+        .map(n => typeof n === 'object' && n !== null ? n.numero : n)
+        .filter(n => typeof n === 'number' && !isNaN(n));
+      
+      if (validNumbers.length === 0) {
+        console.warn('[RouletteCard] Array de números não contém valores válidos:', newNumberEvent);
+        return;
+      }
+      
+      // Usar o primeiro número (mais recente) para update
+      const newNumber = validNumbers[0];
+      
+      // Atualizar o último número
+      setLastNumber(newNumber);
+      
+      // Atualizar a lista de números recentes
+      setRecentNumbers(prev => {
+        // Verificar se prevNumbers é um array válido
+        if (!Array.isArray(prev)) {
+          return validNumbers;
+        }
+        
+        // Combinar os novos números com os existentes, removendo duplicatas
+        const combined = [...validNumbers];
+        
+        // Adicionar números antigos que não estão na nova lista
+        prev.forEach(oldNum => {
+          if (!combined.includes(oldNum)) {
+            combined.push(oldNum);
+          }
+        });
+        
+        // Manter apenas os últimos 20 números
+        return combined.slice(0, 20);
+      });
+      
+      // Ativar efeito visual de novo número
+      setIsNewNumber(true);
+      
+      // Incrementar contador de atualizações
+      setUpdateCount(prev => prev + validNumbers.length);
+      
+      // Notificações e som
+      if (enableSound && audioRef.current) {
+        audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
+      }
+      
+      if (enableNotifications) {
+        toast({
+          title: `Novos números recebidos`,
+          description: `${safeData.name}: ${validNumbers.slice(0, 3).join(', ')}${validNumbers.length > 3 ? '...' : ''}`,
+          variant: "default"
+        });
+      }
+      
+      // Desativar efeito após 1.5 segundos
+      setTimeout(() => {
+        setIsNewNumber(false);
+      }, 1500);
+      
+      return;
+    }
+    
+    // Caso seja um número único (comportamento original)
     if (typeof newNumberEvent.numero !== 'number' || isNaN(newNumberEvent.numero)) {
       console.warn('[RouletteCard] Número inválido recebido:', newNumberEvent);
       return;
