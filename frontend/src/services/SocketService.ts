@@ -61,6 +61,10 @@ class SocketService {
   
   private _isLoadingHistoricalData: boolean = false;
   
+  // Adicionar uma propriedade para armazenar o histórico completo por roleta  
+  private rouletteHistory: Map<string, number[]> = new Map();
+  private historyLimit: number = 1000;
+  
   private constructor() {
     console.log('[SocketService] Inicializando serviço Socket.IO');
     
@@ -222,9 +226,9 @@ class SocketService {
       // Verificações de segurança
       if (!data) {
         console.warn('[SocketService] Dados nulos recebidos em processIncomingNumber');
-        return;
-      }
-      
+      return;
+    }
+    
       // Extrair informações importantes com validações
       const roletaId = data.roleta_id || 'unknown';
       const roletaNome = data.roleta_nome || `Roleta ${roletaId}`;
@@ -239,16 +243,16 @@ class SocketService {
       const numero = typeof data.numero === 'number' ? data.numero : parseInt(String(data.numero), 10);
       if (isNaN(numero)) {
         console.warn(`[SocketService] Conversão de número falhou para ${roletaNome}:`, data.numero);
-        return;
+          return;
       }
 
       // Usar um formato padrão de evento
-      const event: RouletteNumberEvent = {
-        type: 'new_number',
+    const event: RouletteNumberEvent = {
+      type: 'new_number',
         roleta_id: roletaId,
         roleta_nome: roletaNome,
         numero: numero,
-        timestamp: data.timestamp || new Date().toISOString(),
+      timestamp: data.timestamp || new Date().toISOString(),
         preserve_existing: data.preserve_existing ? true : false,
         realtime_update: data.realtime_update ? true : false
       };
@@ -266,15 +270,18 @@ class SocketService {
         timestamp: Date.now(),
         data: event
       });
-      
-      // Notificar os listeners
-      this.notifyListeners(event);
-      
+    
+    // Notificar os listeners
+    this.notifyListeners(event);
+    
       // Verificar se precisamos iniciar polling agressivo
       if (!this.pollingIntervals.has(roletaId)) {
         console.log(`[SocketService] Iniciando polling agressivo automático para ${roletaNome}`);
         this.startAggressivePolling(roletaId, roletaNome);
       }
+
+      // Adicionar ao histórico da roleta
+      this.addNumberToHistory(roletaId, numero);
     } catch (error) {
       console.error('[SocketService] Erro ao processar número recebido:', error);
     }
@@ -468,7 +475,7 @@ class SocketService {
       console.warn(`[SocketService] Roleta não encontrada pelo nome: ${roletaNome}`);
     }
   }
-
+  
   /**
    * Subscreve para eventos de uma roleta específica
    * 
@@ -574,7 +581,7 @@ class SocketService {
       // 3. Também emitir o evento via serviço de eventos
       try {
         EventService.getInstance().dispatchEvent(event);
-      } catch (error) {
+            } catch (error) {
         console.error('[SocketService] Erro ao despachar evento via EventService:', error);
       }
       
@@ -1061,7 +1068,7 @@ class SocketService {
   }
   
   // Método para buscar dados via REST como alternativa/complemento
-  private async fetchRouletteNumbersREST(roletaId: string): Promise<boolean> {
+  public async fetchRouletteNumbersREST(roletaId: string): Promise<boolean> {
     try {
       // Garantir que estamos usando o ID canônico
       const canonicalId = mapToCanonicalRouletteId(roletaId);
@@ -1123,6 +1130,16 @@ class SocketService {
           
           // Processar os números recebidos
           this.processNumbersData(targetRoulette.numero, { _id: canonicalId, nome: roletaNome });
+
+          // Converter e armazenar os números no histórico
+          const numbers = targetRoulette.numero
+            .map((num: any) => typeof num === 'number' ? num : parseInt(String(num), 10))
+            .filter((num: number) => !isNaN(num));
+          
+          if (numbers.length > 0) {
+            this.setRouletteHistory(roletaId, numbers);
+          }
+
           return true;
         } catch (jsonError) {
           // No modo no-cors, não conseguiremos parsear o JSON diretamente
@@ -1274,36 +1291,36 @@ class SocketService {
   private processStrategyEvent(data: any): void {
     if (!data || !data.roleta_id || !data.roleta_nome) {
       console.warn('[SocketService] Dados de estratégia inválidos:', data);
-      return;
-    }
-    
+        return;
+      }
+
     // Transformar em formato de evento para notificar
-    const event: StrategyUpdateEvent = {
-      type: 'strategy_update',
+      const event: StrategyUpdateEvent = {
+        type: 'strategy_update',
       roleta_id: data.roleta_id,
       roleta_nome: data.roleta_nome, // Corrigido de roleta_name para roleta_nome
       estado: data.estado || 'unknown',
-      numero_gatilho: data.numero_gatilho || 0,
-      terminais_gatilho: data.terminais_gatilho || [],
+        numero_gatilho: data.numero_gatilho || 0,
+        terminais_gatilho: data.terminais_gatilho || [],
       vitorias: data.vitorias || 0,
       derrotas: data.derrotas || 0,
       sugestao_display: data.sugestao_display,
-      timestamp: data.timestamp || new Date().toISOString()
-    };
+        timestamp: data.timestamp || new Date().toISOString()
+      };
 
-    console.log(`[SocketService] Processando evento de estratégia:`, {
+      console.log(`[SocketService] Processando evento de estratégia:`, {
       roleta: event.roleta_nome, // Corrigido de roleta_name para roleta_nome
-      vitorias: event.vitorias,
-      derrotas: event.derrotas,
-      timestamp: event.timestamp
-    });
+        vitorias: event.vitorias,
+        derrotas: event.derrotas,
+        timestamp: event.timestamp
+      });
 
-    // Notificar diretamente os callbacks específicos para esta roleta
-    this.notifyListeners(event);
-    
-    // Notificar também via EventService
-    const eventService = EventService.getInstance();
-    eventService.emitStrategyUpdate(event);
+      // Notificar diretamente os callbacks específicos para esta roleta
+      this.notifyListeners(event);
+      
+      // Notificar também via EventService
+      const eventService = EventService.getInstance();
+      eventService.emitStrategyUpdate(event);
   }
 
   private ensureConnection() {
@@ -1322,19 +1339,19 @@ class SocketService {
     this.clearAllPendingPromises();
     
     // Desconectar socket existente
-    if (this.socket) {
+      if (this.socket) {
       // Remover todos os listeners para evitar duplicação
       this.socket.offAny();
-      this.socket.disconnect();
-      this.socket = null;
-    }
+          this.socket.disconnect();
+        this.socket = null;
+      }
     
     // Reiniciar contadores
     this.connectionAttempts = 0;
     this.connectionActive = false;
-    
-    // Reconectar
-    this.connect();
+      
+      // Reconectar
+      this.connect();
   }
 
   // Adicionar um método para transmitir o estado da conexão
@@ -1469,7 +1486,7 @@ class SocketService {
       console.log(`[SocketService] Polling já ativo para ${roletaNome}`);
       return;
     }
-    
+
     console.log(`[SocketService] Iniciando polling inteligente para ${roletaNome} (${roletaId})`);
     
     // Estratégia de polling adaptativo:
@@ -1498,7 +1515,7 @@ class SocketService {
           // Voltar a um intervalo mais curto após receber dados
           currentInterval = minInterval;
           console.log(`[SocketService] Recebidos dados para ${roletaNome}, reduzindo intervalo para ${currentInterval}ms`);
-        } else {
+          } else {
           // Sem novos dados, aumentar o contador
           consecutiveEmptyResponses++;
           
@@ -1513,9 +1530,9 @@ class SocketService {
         console.error(`[SocketService] Erro ao solicitar dados para ${roletaNome}:`, error);
         // Em caso de erro, aumentar o intervalo
         currentInterval = Math.min(currentInterval * 1.5, maxInterval);
-      });
+        });
     };
-    
+
     // Executar imediatamente uma vez
     adaptivePolling();
     
@@ -1527,7 +1544,7 @@ class SocketService {
     // Armazenar o ID do intervalo para poder cancelá-lo depois
     this.pollingIntervals.set(roletaId, intervalId);
   }
-  
+
   // Novo método para solicitar dados específicos de uma roleta
   // Retorna Promise<boolean> indicando se novos dados foram recebidos
   private async requestRouletteUpdate(roletaId: string, roletaNome: string): Promise<boolean> {
@@ -1536,9 +1553,9 @@ class SocketService {
       if (!this.socket || !this.connectionActive) {
         console.log(`[SocketService] Socket não conectado ao tentar solicitar dados para ${roletaNome}`);
         resolve(false);
-        return;
-      }
-      
+      return;
+    }
+    
       // Flag para verificar se recebemos resposta
       let receivedResponse = false;
       let responseTimeout: NodeJS.Timeout;
@@ -1730,6 +1747,61 @@ class SocketService {
     
     // Solicitar dados recentes de todas as roletas
     this.requestRecentNumbers();
+  }
+
+  /**
+   * Adiciona um número ao histórico da roleta e mantém limitado a 1000 números
+   * @param roletaId ID da roleta
+   * @param numero Número a ser adicionado
+   */
+  public addNumberToHistory(roletaId: string, numero: number): void {
+    // Verificar se o ID é válido
+    if (!roletaId) return;
+    
+    // Garantir que temos uma entrada para esta roleta
+    if (!this.rouletteHistory.has(roletaId)) {
+      this.rouletteHistory.set(roletaId, []);
+    }
+    
+    // Obter o histórico atual
+    const history = this.rouletteHistory.get(roletaId)!;
+    
+    // Verificar se o número já está no início do histórico (evitar duplicatas)
+    if (history.length > 0 && history[0] === numero) {
+      return;
+    }
+    
+    // Adicionar o número no início e manter o limite
+    history.unshift(numero);
+    if (history.length > this.historyLimit) {
+      history.pop();
+    }
+  }
+
+  /**
+   * Obtém o histórico completo de uma roleta
+   * @param roletaId ID da roleta
+   * @returns Array com o histórico de números
+   */
+  public getRouletteHistory(roletaId: string): number[] {
+    // Verificar se temos histórico para esta roleta
+    if (!this.rouletteHistory.has(roletaId)) {
+      return [];
+    }
+    
+    // Retornar uma cópia do histórico para evitar modificações externas
+    return [...this.rouletteHistory.get(roletaId)!];
+  }
+
+  /**
+   * Atualiza o histórico completo de uma roleta
+   * @param roletaId ID da roleta
+   * @param numbers Array de números para definir como histórico
+   */
+  public setRouletteHistory(roletaId: string, numbers: number[]): void {
+    // Garantir que não excedemos o limite
+    const limitedNumbers = numbers.slice(0, this.historyLimit);
+    this.rouletteHistory.set(roletaId, limitedNumbers);
   }
 
 }

@@ -1,4 +1,4 @@
-import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle } from 'lucide-react';
+import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, BarChart3 } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -147,6 +147,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const hasInitialized = useRef(false);
   const socketService = SocketService.getInstance();
   const { enableSound, enableNotifications } = useRouletteSettingsStore();
+  const navigate = useNavigate();
 
   console.log(`[RouletteCard] Inicializando card para ${safeData.name} (${safeData.id}) com ${Array.isArray(safeData.lastNumbers) ? safeData.lastNumbers.length : 0} números`);
 
@@ -381,7 +382,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     };
   }, [safeData.id, safeData.name]);
 
-  // ... existing return
+  // Função para abrir o histórico completo
+  const openFullHistory = () => {
+    navigate(`/historico/${safeData.id}`);
+  };
 
   return (
     <Card 
@@ -395,10 +399,21 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       <CardContent className="p-4">
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-lg font-semibold truncate">{safeData.name}</h3>
-          <div className="flex gap-1">
+          <div className="flex gap-1 items-center">
             <Badge variant="outline" className="bg-muted text-xs">
               {updateCount > 0 ? `${updateCount} atualizações` : (hasRealData ? "Aguardando..." : "Sem dados")}
             </Badge>
+            
+            {/* Botão para acessar histórico completo */}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={openFullHistory}
+              className="h-7 w-7" 
+              title="Ver histórico completo"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </Button>
           </div>
         </div>
         
