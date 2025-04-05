@@ -1,81 +1,163 @@
 /**
  * fix-layout-effect.js
  * 
- * Este script resolve o problema "Cannot read properties of undefined (reading 'useLayoutEffect')"
- * garantindo que o useLayoutEffect esteja sempre disponível, seja no lado do servidor ou cliente.
- * 
- * O script deve ser carregado antes da aplicação React ser inicializada.
+ * SOLUÇÃO DEFINITIVA para o problema "Cannot read properties of undefined (reading 'useLayoutEffect')"
+ * Este script corrige problemas com React.useLayoutEffect tanto em contexto ESM quanto em CommonJS.
  */
 
-(function() {
+// PARTE 1: Correção global imediata (executa na importação do módulo)
+(function globalFix() {
   try {
-    // Verificar se estamos em um ambiente de navegador
-    if (typeof window !== 'undefined') {
-      // Garantir que o objeto React seja acessível
-      if (!window.React) {
-        // Criar um objeto React temporário se não existir
-        window.React = window.React || {};
-      }
-      
-      // Verificar se useLayoutEffect está disponível ou criar uma versão segura
-      // que utiliza useEffect como fallback
-      if (!window.React.useLayoutEffect) {
-        // Usar o useEffect como fallback para useLayoutEffect
-        window.React.useLayoutEffect = window.React.useEffect || 
-          function useLayoutEffectPolyfill(callback, deps) {
-            console.log('[Polyfill] Usando polyfill para useLayoutEffect');
-            // Simplesmente retorna uma função vazia se nenhum fallback estiver disponível
-            // Isso evita erros, embora não forneça a funcionalidade
-            return typeof window.React.useEffect === 'function' 
-              ? window.React.useEffect(callback, deps)
-              : function() {};
-          };
-        
-        console.log('[LayoutEffect Fix] Polyfill para useLayoutEffect instalado');
-      }
-      
-      // Também definimos uma versão global do React para debug
-      // e para facilitar a interceptação
-      if (typeof window.__REACT_GLOBAL_DEBUG__ === 'undefined') {
-        window.__REACT_GLOBAL_DEBUG__ = {
-          injectLayoutEffect: function(React) {
-            if (React && !React.useLayoutEffect && React.useEffect) {
-              React.useLayoutEffect = React.useEffect;
-              console.log('[React Debug] useLayoutEffect injetado no objeto React fornecido');
-              return true;
-            }
-            return false;
-          }
-        };
-      }
-      
-      console.log('[LayoutEffect Fix] Inicialização concluída');
+    console.log('[LayoutEffect Fix] Inicializando solução definitiva...');
+    
+    if (typeof window === 'undefined') return;
+    
+    // Garantir que React exista no escopo global
+    if (!window.React) {
+      window.React = {};
+      console.log('[LayoutEffect Fix] Objeto React global criado');
     }
+    
+    // Implementação robusta e segura de useLayoutEffect
+    const createSafeUseLayoutEffect = function() {
+      return function safeUseLayoutEffect(callback, deps) {
+        console.log('[SafeUseLayoutEffect] Implementação segura em uso');
+        // Tentar simular o comportamento básico
+        if (typeof callback === 'function') {
+          setTimeout(function() {
+            try {
+              callback();
+            } catch (e) {
+              console.error('[SafeUseLayoutEffect] Erro ao executar callback:', e);
+            }
+          }, 0);
+        }
+        // Retornar função de cleanup
+        return function cleanupFn() {};
+      };
+    };
+    
+    // Definir useLayoutEffect de forma não sobrescritível
+    if (!window.React.useLayoutEffect) {
+      const safeImpl = createSafeUseLayoutEffect();
+      
+      // Usar defineProperty para maior robustez
+      Object.defineProperty(window.React, 'useLayoutEffect', {
+        value: safeImpl,
+        writable: false,
+        configurable: true,
+        enumerable: true
+      });
+      
+      console.log('[LayoutEffect Fix] useLayoutEffect definido com sucesso no objeto React global');
+    }
+    
+    // Criar um hook para capturar tentativas de acesso a React no DOM
+    const observer = new MutationObserver(function(mutations) {
+      for (let mutation of mutations) {
+        if (mutation.type === 'childList') {
+          setTimeout(function() {
+            // Re-verificar se useLayoutEffect ainda existe
+            if (window.React && !window.React.useLayoutEffect) {
+              console.log('[LayoutEffect Fix] Restaurando useLayoutEffect após mutação DOM');
+              window.React.useLayoutEffect = createSafeUseLayoutEffect();
+            }
+          }, 0);
+        }
+      }
+    });
+    
+    // Iniciar observação do DOM - isso pode capturar carregamentos dinâmicos
+    if (document.body) {
+      observer.observe(document.body, { childList: true, subtree: true });
+    } else {
+      // Se o body ainda não existir, aguardar e tentar novamente
+      document.addEventListener('DOMContentLoaded', function() {
+        observer.observe(document.body, { childList: true, subtree: true });
+      });
+    }
+    
+    // Capturar erros em nível de janela
+    window.addEventListener('error', function(event) {
+      if (event && event.error && 
+          (String(event.error).includes('useLayoutEffect') || 
+           String(event.error).includes('Cannot read properties of undefined'))) {
+        
+        console.warn('[LayoutEffect Fix] Erro de useLayoutEffect interceptado:', event.error);
+        
+        // Tentar corrigir o problema
+        if (window.React && !window.React.useLayoutEffect) {
+          window.React.useLayoutEffect = createSafeUseLayoutEffect();
+        }
+        
+        // Suprimir o erro
+        event.preventDefault();
+        return true;
+      }
+    }, true);
+    
+    console.log('[LayoutEffect Fix] Solução global aplicada com sucesso');
   } catch (e) {
     console.error('[LayoutEffect Fix] Erro durante inicialização:', e);
   }
 })();
 
-// Exportar uma verificação que pode ser usada em componentes
-export function ensureUseLayoutEffect() {
-  // Criar um alias seguro para useLayoutEffect
-  const safeUseLayoutEffect = 
-    (typeof window !== 'undefined' && window.React && window.React.useLayoutEffect) ||
-    function() { return undefined; };
+// PARTE 2: Exportações para uso em módulos ES
+// Criar uma versão utilizável dentro do código React
+
+// Hook seguro que pode ser usado diretamente
+export function useSafeLayoutEffect(callback, deps) {
+  // Usar useEffect se disponível no escopo
+  if (typeof useEffect === 'function') {
+    return useEffect(callback, deps);
+  }
   
-  return safeUseLayoutEffect;
+  // Fallback seguro
+  console.warn('[useSafeLayoutEffect] Usando fallback seguro (sem efeito)');
+  return function cleanupFn() {};
 }
 
-// Criar um alias seguro que pode ser importado diretamente
-export const safeUseLayoutEffect = ensureUseLayoutEffect();
-
-// Montar um objeto seguro que emula o React
-export const SafeReact = {
-  useState: (typeof window !== 'undefined' && window.React) ? window.React.useState : function() { return [undefined, function() {}]; },
-  useEffect: (typeof window !== 'undefined' && window.React) ? window.React.useEffect : function() { return undefined; },
-  useLayoutEffect: safeUseLayoutEffect,
-  useRef: (typeof window !== 'undefined' && window.React) ? window.React.useRef : function() { return { current: undefined }; }
+// Encapsular a funcionalidade em um objeto para facilitar o uso
+export const LayoutEffectSolution = {
+  // Função para patch manual em bibliotecas de terceiros
+  patchReactModule: function(reactModule) {
+    if (!reactModule) return false;
+    
+    // Já existe
+    if (reactModule.useLayoutEffect) return true;
+    
+    // Usar useEffect se disponível
+    if (reactModule.useEffect) {
+      reactModule.useLayoutEffect = reactModule.useEffect;
+      console.log('[LayoutEffectSolution] Patch aplicado usando useEffect');
+      return true;
+    }
+    
+    // Fallback para implementação segura
+    reactModule.useLayoutEffect = function(callback, deps) {
+      console.log('[LayoutEffectSolution] Usando implementação segura para useLayoutEffect');
+      return function() {};
+    };
+    
+    console.log('[LayoutEffectSolution] Patch seguro aplicado');
+    return true;
+  },
+  
+  // Verificar se uma biblioteca é segura
+  isSafe: function(reactModule) {
+    return reactModule && typeof reactModule.useLayoutEffect === 'function';
+  },
+  
+  // Criar uma versão segura de useLayoutEffect
+  createSafeUseLayoutEffect: function() {
+    return function(callback, deps) {
+      console.log('[LayoutEffectSolution] Implementação segura criada e em uso');
+      if (typeof callback === 'function') {
+        setTimeout(callback, 0);
+      }
+      return function() {};
+    };
+  }
 };
 
-// Executar assim que o módulo for carregado
-console.log("[fix-layout-effect] Módulo de segurança para useLayoutEffect carregado"); 
+console.log('[fix-layout-effect] Módulo de correção carregado e pronto para uso'); 

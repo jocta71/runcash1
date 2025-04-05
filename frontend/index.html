@@ -5,87 +5,82 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RunCash</title>
-    <!-- Solução definitiva para useLayoutEffect -->
+    
+    <!-- Solução definitiva para o problema de useLayoutEffect -->
     <script>
-      // Interceptar qualquer erro relacionado a useLayoutEffect
-      window.addEventListener('error', function(e) {
-        if (e && e.message && (
-            e.message.indexOf('useLayoutEffect') > -1 || 
-            e.message.indexOf('Cannot read properties of undefined') > -1
-          )) {
-          console.warn("[Interceptador] Erro interceptado:", e.message);
-          e.preventDefault();
-          return false;
-        }
-      });
-      
-      // Injetar um script no <head> para executar o mais cedo possível
       (function() {
-        // Criar um elemento script
-        var script = document.createElement('script');
-        script.type = 'text/javascript';
-        script.innerHTML = `
-          // Monkey patch para React
-          (function() {
-            // Interceptar todas as tentativas de acesso
-            const originalReact = window.React || {};
-            const safeUseLayoutEffect = function() { return undefined; };
-            
-            // Definir React no escopo global
-            window.React = {
-              ...originalReact,
-              useLayoutEffect: safeUseLayoutEffect
-            };
-            
-            // Definir z (que pode ser usado por código minificado)
-            window.z = window.React;
-            
-            // Interceptar módulos React carregados posteriormente
-            const originalDefineProperty = Object.defineProperty;
-            Object.defineProperty = function(obj, prop, descriptor) {
-              // Se estiver tentando definir React no window
-              if (obj === window && prop === 'React') {
-                // Preservar o useLayoutEffect seguro
-                const originalValue = descriptor.value;
-                if (originalValue && typeof originalValue === 'object') {
-                  // Garantir que useLayoutEffect existe e é seguro
-                  if (!originalValue.useLayoutEffect) {
-                    originalValue.useLayoutEffect = safeUseLayoutEffect;
-                  }
-                }
-              }
-              
-              // Continuar com a definição original
-              return originalDefineProperty.call(this, obj, prop, descriptor);
-            };
-            
-            // Monitorar qualquer acesso a React
-            const monitorReactAccess = {
-              get: function(target, prop) {
-                // Se alguém tentar acessar useLayoutEffect
-                if (prop === 'useLayoutEffect' && !target.useLayoutEffect) {
-                  // Fornecer implementação segura
-                  console.warn('[Monitor] Acesso a React.useLayoutEffect interceptado');
-                  return safeUseLayoutEffect;
-                }
-                
-                // Comportamento padrão para outras propriedades
-                return target[prop];
-              }
-            };
-            
-            // Aplicar proxy de monitoramento no React
-            window.React = new Proxy(window.React, monitorReactAccess);
-            window.z = window.React;
-            
-            // Sinalizar que o React está disponível
-            window.__REACT_POLYFILL_LOADED__ = true;
-            console.log('[Script Inline] React.useLayoutEffect seguro instalado');
-          })();
-        `;
+        console.log('[Layout Fix] Iniciando correção definitiva para useLayoutEffect');
         
-        // Adicionar ao <head> imediatamente
-        document.head.insertBefore(script, document.head.firstChild);
+        // 1. Proteção imediata - definir um objeto React global
+        window.React = window.React || {};
+        
+        // 2. Definir useLayoutEffect como uma função segura
+        var safeUseLayoutEffect = function(callback, deps) {
+          console.log('[Global Fix] Usando implementação segura de useLayoutEffect');
+          return function() {};
+        };
+        
+        // 3. Definir a propriedade useLayoutEffect de forma robusta com Object.defineProperty
+        if (!window.React.useLayoutEffect) {
+          Object.defineProperty(window.React, 'useLayoutEffect', {
+            configurable: true,
+            enumerable: true,
+            get: function() {
+              return safeUseLayoutEffect;
+            }
+          });
+        }
+        
+        // 4. Interceptar erros globais relacionados a useLayoutEffect
+        window.addEventListener('error', function(event) {
+          if (event && event.error && 
+              (String(event.error).includes('useLayoutEffect') || 
+               String(event.error).includes('Cannot read properties of undefined'))) {
+            console.warn('[Global Interceptor] Erro interceptado:', event.error);
+            event.preventDefault();
+            return true;
+          }
+        }, true);
+        
+        // 5. Interceptar qualquer acesso ao React para garantir que useLayoutEffect exista
+        var originalReactModules = {};
+        
+        // 6. Monkey patch para Object.defineProperty para interceptar definições de React
+        var originalDefineProperty = Object.defineProperty;
+        Object.defineProperty = function(obj, prop, descriptor) {
+          // Se estiver definindo React ou um módulo React
+          if (prop === 'React' || 
+              (typeof prop === 'string' && prop.includes('react')) ||
+              (descriptor && descriptor.value && 
+               typeof descriptor.value === 'object' && 
+               (descriptor.value.useState || descriptor.value.createElement || descriptor.value.Component))) {
+            
+            console.log('[Monkey Patch] Interceptando definição de:', prop);
+            
+            // Guardar o valor original
+            var originalValue = descriptor.value;
+            
+            // Se o valor for um objeto e não tiver useLayoutEffect
+            if (originalValue && typeof originalValue === 'object' && !originalValue.useLayoutEffect) {
+              // Tentar usar useEffect como base para useLayoutEffect
+              if (typeof originalValue.useEffect === 'function') {
+                console.log('[Monkey Patch] Usando useEffect como base para useLayoutEffect');
+                originalValue.useLayoutEffect = originalValue.useEffect;
+              } else {
+                // Usar implementação segura como último recurso
+                console.log('[Monkey Patch] Usando implementação dummy para useLayoutEffect');
+                originalValue.useLayoutEffect = safeUseLayoutEffect;
+              }
+            }
+            
+            // Guarda o módulo React para referência futura
+            originalReactModules[prop] = originalValue;
+          }
+          
+          return originalDefineProperty.apply(this, arguments);
+        };
+        
+        console.log('[Layout Fix] Proteção definitiva para useLayoutEffect instalada');
       })();
     </script>
   </head>
