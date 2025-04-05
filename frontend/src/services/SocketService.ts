@@ -10,7 +10,7 @@ import { getRequiredEnvVar, isProduction } from '../config/env';
 import { mapToCanonicalRouletteId, ROLETAS_CANONICAS } from '../integrations/api/rouletteService';
 
 // Importando o serviço de estratégia para simular respostas
-import { StrategyService } from './StrategyService';
+import StrategyService from './StrategyService';
 
 // Interface para o cliente MongoDB
 interface MongoClient {
@@ -55,7 +55,7 @@ class SocketService {
   public client?: MongoClient;
   
   // Mapa para armazenar os intervalos de polling por roletaId
-  private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private pollingIntervals: Map<string, ReturnType<typeof setInterval>> = new Map();
   
   private _isLoadingHistoricalData: boolean = false;
   
@@ -1228,46 +1228,38 @@ class SocketService {
 
   // Método para processar eventos de estratégia
   private processStrategyEvent(data: any): void {
-    try {
-      if (!data || (!data.roleta_id && !data.roleta_name)) {
-        console.warn('[SocketService] Evento de estratégia recebido sem identificador de roleta');
-        return;
-      }
-
-      // Garantir que os valores de vitórias e derrotas sejam números válidos
-      const vitorias = data.vitorias !== undefined ? parseInt(data.vitorias) : 0;
-      const derrotas = data.derrotas !== undefined ? parseInt(data.derrotas) : 0;
-
-      // Criar objeto de evento padronizado
-      const event: StrategyUpdateEvent = {
-        type: 'strategy_update',
-        roleta_id: data.roleta_id || 'unknown-id',
-        roleta_nome: data.roleta_name || data.roleta_id || 'unknown',
-        estado: data.estado || 'NEUTRAL',
-        numero_gatilho: data.numero_gatilho || 0,
-        terminais_gatilho: data.terminais_gatilho || [],
-        vitorias: vitorias,
-        derrotas: derrotas,
-        sugestao_display: data.sugestao_display || '',
-        timestamp: data.timestamp || new Date().toISOString()
-      };
-
-      console.log(`[SocketService] Processando evento de estratégia:`, {
-        roleta: event.roleta_name,
-        vitorias: event.vitorias,
-        derrotas: event.derrotas,
-        timestamp: event.timestamp
-      });
-
-      // Notificar diretamente os callbacks específicos para esta roleta
-      this.notifyListeners(event);
-      
-      // Notificar também via EventService
-      const eventService = EventService.getInstance();
-      eventService.emitStrategyUpdate(event);
-    } catch (error) {
-      console.error('[SocketService] Erro ao processar evento de estratégia:', error);
+    if (!data || !data.roleta_id || !data.roleta_nome) {
+      console.warn('[SocketService] Dados de estratégia inválidos:', data);
+      return;
     }
+    
+    // Transformar em formato de evento para notificar
+    const event: StrategyUpdateEvent = {
+      type: 'strategy_update',
+      roleta_id: data.roleta_id,
+      roleta_nome: data.roleta_nome, // Usar roleta_nome em vez de roleta_name
+      estado: data.estado || 'unknown',
+      numero_gatilho: data.numero_gatilho || 0,
+      terminais_gatilho: data.terminais_gatilho || [],
+      vitorias: data.vitorias || 0,
+      derrotas: data.derrotas || 0,
+      sugestao_display: data.sugestao_display,
+      timestamp: data.timestamp || new Date().toISOString()
+    };
+
+    console.log(`[SocketService] Processando evento de estratégia:`, {
+      roleta: event.roleta_name,
+      vitorias: event.vitorias,
+      derrotas: event.derrotas,
+      timestamp: event.timestamp
+    });
+
+    // Notificar diretamente os callbacks específicos para esta roleta
+    this.notifyListeners(event);
+    
+    // Notificar também via EventService
+    const eventService = EventService.getInstance();
+    eventService.emitStrategyUpdate(event);
   }
 
   private ensureConnection() {
@@ -1433,21 +1425,24 @@ class SocketService {
     this.fetchRouletteNumbersREST(canonicalId);
   }
 
-  // Método para iniciar polling agressivo para uma roleta específica
+  /**
+   * Inicia polling agressivo para uma roleta específica
+   * para garantir que temos dados em tempo real mesmo se o websocket falhar
+   */
   public startAggressivePolling(roletaId: string, roletaNome: string): void {
     if (!roletaId) {
-      console.warn('[SocketService] ID da roleta não especificado para polling');
+      console.warn('[SocketService] startAggressivePolling: ID da roleta inválido');
       return;
     }
-
-    // Primeiro, cancelar qualquer intervalo existente para este ID
+    
+    // Cancelar polling existente se houver
     this.stopPollingForRoulette(roletaId);
-
-    console.log(`[SocketService] Iniciando polling agressivo para roleta ${roletaId} (${roletaNome})`);
-
-    // Função que será executada em cada intervalo
+    
+    console.log(`[SocketService] Iniciando polling agressivo para ${roletaNome}`);
+    
+    // Função que será executada a cada intervalo
     const pollFunction = () => {
-      console.log(`[SocketService] Executando polling para ${roletaNome} (${roletaId})`);
+      console.log(`[SocketService] Executando polling agressivo para ${roletaNome} (${roletaId})`);
       
       // Verificar se estamos conectados
       if (!this.isSocketConnected()) {
@@ -1458,9 +1453,7 @@ class SocketService {
       // Buscar dados via REST para garantir resultados imediatos
       this.fetchRouletteNumbersREST(roletaId)
         .then(success => {
-          if (success) {
-            console.log(`[SocketService] Polling REST bem-sucedido para ${roletaNome}`);
-          } else {
+          if (!success) {
             console.log(`[SocketService] Polling REST falhou, tentando via Socket para ${roletaNome}`);
             // Se REST falhar, tentar via Socket
             if (this.socket && this.socket.connected) {
@@ -1468,6 +1461,12 @@ class SocketService {
                 roletaId: roletaId,
                 endpoint: `/api/ROULETTES`,
                 count: 20
+              });
+              
+              // Também emitir um evento para solicitar atualização específica
+              this.socket.emit('subscribe_roulette', { 
+                roleta_id: roletaId, 
+                roleta_nome: roletaNome 
               });
             }
           }
@@ -1480,11 +1479,18 @@ class SocketService {
     // Executar imediatamente pela primeira vez
     pollFunction();
 
-    // Definir intervalo para execução regular (a cada 5 segundos)
-    const intervalId = setInterval(pollFunction, 5000);
+    // Definir intervalo para execução muito frequente (a cada 2 segundos)
+    const intervalId = setInterval(pollFunction, 2000);
     
     // Armazenar referência ao intervalo para poder cancelar depois
     this.pollingIntervals.set(roletaId, intervalId);
+    
+    // Emitir evento para notificar que o polling foi iniciado
+    EventService.emitGlobalEvent('polling_started', {
+      roleta_id: roletaId,
+      roleta_nome: roletaNome,
+      timestamp: new Date().toISOString()
+    });
   }
 
   // Método para parar o polling para uma roleta específica
