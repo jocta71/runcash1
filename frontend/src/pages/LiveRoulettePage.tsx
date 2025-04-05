@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
-import MainLayout from '@/components/layouts/MainLayout';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import { RouletteData } from '@/integrations/api/rouletteService';
 import axios from 'axios';
-import { Loader } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
 
@@ -16,6 +15,7 @@ const LiveRoulettePage: React.FC = () => {
   // Função para buscar os dados das roletas
   const fetchRoulettes = useCallback(async () => {
     try {
+      setLoading(true);
       const response = await axios.get('/api/ROULETTES');
       if (response.data && Array.isArray(response.data)) {
         setRoulettes(response.data);
@@ -109,28 +109,32 @@ const LiveRoulettePage: React.FC = () => {
   }, [addNewNumberToRoulette, fetchRoulettes]);
 
   return (
-    <MainLayout>
+    <>
       <Helmet>
         <title>Roletas ao vivo | RunCash</title>
       </Helmet>
       
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-white mb-6">Roletas ao Vivo</h1>
+        <h1 className="text-3xl font-bold mb-6">Roletas ao vivo</h1>
         
         {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <Loader className="animate-spin h-8 w-8 text-primary" />
-            <span className="ml-2 text-white">Carregando roletas...</span>
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2">Carregando roletas...</span>
           </div>
         ) : error ? (
-          <div className="bg-red-500 text-white p-4 rounded-md">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
             {error}
+          </div>
+        ) : roulettes.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-gray-500">Nenhuma roleta disponível no momento.</p>
           </div>
         ) : (
           <LiveRoulettesDisplay roulettesData={roulettes} />
         )}
       </div>
-    </MainLayout>
+    </>
   );
 };
 
