@@ -80,6 +80,38 @@ const Index = () => {
     };
   }, []);
   
+  // Escutar eventos de carregamento de dados históricos
+  useEffect(() => {
+    // Handler para evento de dados históricos carregados
+    const handleHistoricalDataLoaded = (data: any) => {
+      console.log('[Index] Evento historical_data_loaded recebido:', data);
+      if (data && data.success) {
+        console.log(`[Index] Dados históricos carregados com sucesso para ${data.count || 0} roletas`);
+        setDataFullyLoaded(true);
+      }
+    };
+    
+    // Handler para evento de dados reais carregados
+    const handleRealDataLoaded = () => {
+      console.log('[Index] Evento Dados reais carregados recebido');
+      setDataFullyLoaded(true);
+      setIsLoading(false);
+    };
+    
+    // Registrar listeners
+    EventService.getInstance().subscribe('historical_data_loaded', handleHistoricalDataLoaded);
+    EventService.getInstance().subscribe('roulettes_loaded', handleRealDataLoaded);
+    
+    console.log('[Index] Listeners para eventos de carregamento registrados');
+    
+    return () => {
+      // Remover listeners ao desmontar
+      EventService.getInstance().unsubscribe('historical_data_loaded', handleHistoricalDataLoaded);
+      EventService.getInstance().unsubscribe('roulettes_loaded', handleRealDataLoaded);
+      console.log('[Index] Listeners para eventos de carregamento removidos');
+    };
+  }, []);
+  
   // Função para mesclar roletas da API com roletas conhecidas
   const mergeRoulettes = useCallback((apiRoulettes: RouletteData[], knownRoulettes: RouletteData[]): RouletteData[] => {
     const merged: Record<string, RouletteData> = {};
@@ -151,11 +183,15 @@ const Index = () => {
         if (result.length > 0) {
           setKnownRoulettes(prev => mergeRoulettes(prev, result));
         }
+        
+        // Definir que os dados foram totalmente carregados
+        setDataFullyLoaded(true);
       } else {
         // Se falhar, usar roletas conhecidas
         if (knownRoulettes.length > 0) {
           console.log('⚠️ Usando roletas conhecidas como fallback');
           setRoulettes(knownRoulettes);
+          setDataFullyLoaded(true);
         } else {
           setError('Não foi possível carregar as roletas disponíveis.');
         }
@@ -167,6 +203,7 @@ const Index = () => {
       // Fallback para roletas conhecidas
       if (knownRoulettes.length > 0) {
         setRoulettes(knownRoulettes);
+        setDataFullyLoaded(true);
       }
     } finally {
       setIsLoading(false);
@@ -177,6 +214,15 @@ const Index = () => {
   useEffect(() => {
     // Inicialização
     loadRouletteData();
+    
+    // Timeout de segurança para garantir que a tela será liberada
+    const safetyTimeout = setTimeout(() => {
+      if (!dataFullyLoaded && isMounted.current) {
+        console.log('[Index] 🔄 Liberando tela após timeout de segurança');
+        setDataFullyLoaded(true);
+        setIsLoading(false);
+      }
+    }, 10000); // 10 segundos
     
     // Configurar atualização periódica usando o throttler
     const unsubscribe = RequestThrottler.subscribeToUpdates(
@@ -191,6 +237,9 @@ const Index = () => {
           
           // Atualizar roletas conhecidas
           setKnownRoulettes(prev => mergeRoulettes(prev, data));
+          
+          // Garantir que os dados são considerados carregados
+          setDataFullyLoaded(true);
         }
       }
     );
@@ -228,6 +277,8 @@ const Index = () => {
     return () => {
       isMounted.current = false;
       unsubscribe();
+      
+      clearTimeout(safetyTimeout);
       
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
@@ -301,8 +352,20 @@ const Index = () => {
       return (
         <div className="col-span-full flex flex-col items-center justify-center p-8 bg-zinc-900 rounded-lg">
           <div className="w-16 h-16 border-4 border-t-transparent border-blue-500 rounded-full animate-spin mb-4"></div>
-          <h3 className="text-xl font-bold text-white mb-2">Carregando dados completos</h3>
-          <p className="text-zinc-400 text-center">Aguarde enquanto carregamos todos os dados da API...</p>
+          <h3 className="text-xl font-bold text-white mb-2">Carregando dados reais</h3>
+          <p className="text-zinc-400 text-center mb-2">
+            Estamos buscando dados reais das roletas. Os dados já estão sendo carregados!
+          </p>
+          <div className="w-full max-w-md bg-zinc-800 rounded-full h-2.5 mb-4">
+            <div className="bg-blue-500 h-2.5 rounded-full animate-pulse"></div>
+          </div>
+          <p className="text-xs text-zinc-500">Aguarde 10 segundos ou clique no botão abaixo para continuar mesmo assim</p>
+          <button 
+            onClick={() => setDataFullyLoaded(true)}
+            className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm"
+          >
+            Continuar sem esperar os dados completos
+          </button>
         </div>
       );
     }
