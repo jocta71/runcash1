@@ -15,22 +15,40 @@
   // Criar um objeto simulado de React para caso o React ainda não tenha sido carregado
   // ou para quando o código minificado tenta acessar uma variável z indefinida
   if (typeof window !== 'undefined') {
+    // Definir explicitamente o objeto React
     window.React = window.React || {};
     
-    // Garantir que useLayoutEffect e useEffect existam no objeto React
-    if (!window.React.useLayoutEffect) {
-      window.React.useLayoutEffect = function() {
-        console.warn('[global-init] React.useLayoutEffect chamado antes do React ser inicializado');
-        return null;
-      };
-    }
+    // Definir explicitamente todos os hooks comuns do React
+    const reactHooks = [
+      'useState', 
+      'useEffect', 
+      'useLayoutEffect', 
+      'useRef', 
+      'useCallback', 
+      'useMemo', 
+      'useContext', 
+      'useReducer'
+    ];
     
-    if (!window.React.useEffect) {
-      window.React.useEffect = function() {
-        console.warn('[global-init] React.useEffect chamado antes do React ser inicializado');
-        return null;
-      };
-    }
+    // Implementa cada hook se não estiver definido
+    reactHooks.forEach(hookName => {
+      if (!window.React[hookName]) {
+        window.React[hookName] = function() {
+          if (process.env.NODE_ENV === 'production') {
+            return hookName === 'useRef' || hookName === 'useState' ? {} : undefined;
+          }
+          console.warn(`[global-init] React.${hookName} chamado antes do React ser inicializado`);
+          switch (hookName) {
+            case 'useState':
+              return [undefined, () => {}];
+            case 'useRef':
+              return { current: undefined };
+            default:
+              return undefined;
+          }
+        };
+      }
+    });
     
     // Adicionar safeguard para o objeto z que pode estar sendo usado no código minificado
     window.z = window.z || window.React;

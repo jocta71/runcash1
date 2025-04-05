@@ -1,4 +1,5 @@
 // Import initialization file first to prevent TDZ issues
+import './react-polyfill';
 import './global-init';
 
 // Explicit check for Yo initialization
