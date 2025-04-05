@@ -1542,6 +1542,49 @@ class SocketService {
     // ... existing code ...
   }
 
+  /**
+   * Registra uma roleta para receber atualizações em tempo real
+   * 
+   * @param roletaNome Nome da roleta para registrar
+   */
+  private registerRouletteForRealTimeUpdates(roletaNome: string): void {
+    if (!roletaNome) return;
+    
+    console.log(`[SocketService] Registrando roleta ${roletaNome} para updates em tempo real`);
+    
+    // Buscar o ID canônico pelo nome
+    const roleta = ROLETAS_CANONICAS.find(r => r.nome === roletaNome);
+    
+    if (roleta) {
+      const roletaId = roleta.id;
+      console.log(`[SocketService] Roleta encontrada com ID: ${roletaId}`);
+      
+      // Emitir evento para o servidor registrar esta roleta para atualizações em tempo real
+      if (this.socket && this.connectionActive) {
+        this.socket.emit('subscribe_roulette', { 
+          roleta_id: roletaId, 
+          roleta_nome: roletaNome 
+        });
+        
+        console.log(`[SocketService] ✅ Enviado pedido de subscrição para ${roletaNome} (${roletaId})`);
+      } else {
+        console.log(`[SocketService] ⚠️ Socket não conectado, subscrição será feita quando reconectar`);
+      }
+      
+      // Buscar dados iniciais via REST
+      this.fetchRouletteNumbersREST(roletaId)
+        .then(success => {
+          if (success) {
+            console.log(`[SocketService] ✅ Dados iniciais obtidos com sucesso para ${roletaNome}`);
+          } else {
+            console.warn(`[SocketService] ⚠️ Falha ao obter dados iniciais para ${roletaNome}`);
+          }
+        });
+    } else {
+      console.warn(`[SocketService] ⚠️ Roleta não encontrada pelo nome: ${roletaNome}`);
+    }
+  }
+
 }
 
 export default SocketService; 
