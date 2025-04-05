@@ -449,6 +449,26 @@ class SocketService {
     }, delay);
   }
   
+  // Método para registrar uma roleta para receber atualizações em tempo real
+  private registerRouletteForRealTimeUpdates(roletaNome: string): void {
+    if (!roletaNome) return;
+    
+    console.log(`[SocketService] Registrando roleta ${roletaNome} para updates em tempo real`);
+    
+    // Buscar o ID canônico pelo nome
+    const roleta = ROLETAS_CANONICAS.find(r => r.nome === roletaNome);
+    
+    if (roleta) {
+      const roletaId = roleta.id;
+      console.log(`[SocketService] Roleta encontrada com ID: ${roletaId}`);
+      
+      // Usar o método subscribeToRouletteEndpoint para registrar esta roleta
+      this.subscribeToRouletteEndpoint(roletaId, roletaNome);
+    } else {
+      console.warn(`[SocketService] Roleta não encontrada pelo nome: ${roletaNome}`);
+    }
+  }
+
   /**
    * Subscreve para eventos de uma roleta específica
    * 
@@ -518,15 +538,12 @@ class SocketService {
             try {
               // Verificar se o callback retorna uma promise
               const result = callback(event);
-              if (result === true) {
-                // O callback indicou resposta assíncrona, vamos rastrear com timeout
-                console.log(`[SocketService] Callback #${index} para ${roletaNome} indicou resposta assíncrona`);
-                // Criamos uma promise que nunca será resolvida, apenas para rastrear o timeout
-                const dummyPromise = new Promise(resolve => {
-                  // Este resolve nunca será chamado, mas o timeout irá limpar esta entrada
-                });
-                this.trackPromise(`${roletaNome}_${index}_${Date.now()}`, dummyPromise);
-              }
+              // Remover verificação de resultado === true que causa erro de tipo
+              // Criar uma promise que nunca será resolvida, apenas para rastrear o timeout
+              const dummyPromise = new Promise(resolve => {
+                // Este resolve nunca será chamado, mas o timeout irá limpar esta entrada
+              });
+              this.trackPromise(`${roletaNome}_${index}_${Date.now()}`, dummyPromise);
             } catch (error) {
               console.error(`[SocketService] Erro ao chamar callback para ${roletaNome}:`, error);
             }
@@ -543,12 +560,10 @@ class SocketService {
           globalListeners.forEach((callback, index) => {
             try {
               const result = callback(event);
-              if (result === true) {
-                // O callback indicou resposta assíncrona
-                console.log(`[SocketService] Callback global #${index} indicou resposta assíncrona`);
-                const dummyPromise = new Promise(resolve => {});
-                this.trackPromise(`global_${index}_${Date.now()}`, dummyPromise);
-              }
+              // Remover verificação de resultado === true que causa erro de tipo
+              // O callback indicou resposta assíncrona
+              const dummyPromise = new Promise(resolve => {});
+              this.trackPromise(`global_${index}_${Date.now()}`, dummyPromise);
             } catch (error) {
               console.error('[SocketService] Erro ao chamar callback global:', error);
             }
@@ -1257,7 +1272,7 @@ class SocketService {
 
   // Método para processar eventos de estratégia
   private processStrategyEvent(data: any): void {
-    if (!data || !data.roleta_id || !data.roleta_name) {
+    if (!data || !data.roleta_id || !data.roleta_nome) {
       console.warn('[SocketService] Dados de estratégia inválidos:', data);
       return;
     }
@@ -1266,7 +1281,7 @@ class SocketService {
     const event: StrategyUpdateEvent = {
       type: 'strategy_update',
       roleta_id: data.roleta_id,
-      roleta_nome: data.roleta_name, // Usar roleta_name em vez de roleta_name
+      roleta_nome: data.roleta_nome, // Corrigido de roleta_name para roleta_nome
       estado: data.estado || 'unknown',
       numero_gatilho: data.numero_gatilho || 0,
       terminais_gatilho: data.terminais_gatilho || [],
@@ -1277,7 +1292,7 @@ class SocketService {
     };
 
     console.log(`[SocketService] Processando evento de estratégia:`, {
-      roleta: event.roleta_name,
+      roleta: event.roleta_nome, // Corrigido de roleta_name para roleta_nome
       vitorias: event.vitorias,
       derrotas: event.derrotas,
       timestamp: event.timestamp
@@ -1351,7 +1366,7 @@ class SocketService {
     }
 
     // Garantir que estamos usando o ID canônico
-    const canonicalId = mapToCanonicalRouletteId(roletaId, roletaNome);
+    const canonicalId = mapToCanonicalRouletteId(roletaId);
     console.log(`[SocketService] Conectando ao endpoint específico de roleta: ${roletaId} (${roletaNome}) -> ID canônico: ${canonicalId}`);
     
     // Verificar se a conexão está ativa
