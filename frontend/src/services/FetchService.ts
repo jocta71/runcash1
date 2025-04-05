@@ -13,7 +13,7 @@ import { getCachedUUID, cacheUUID } from '@/lib/localStorage';
 const logger = getLogger('FetchService');
 
 // Configurações
-const POLLING_INTERVAL = 5000; // 5 segundos entre cada verificação
+const POLLING_INTERVAL = 2000; // Reduzido de 5s para 2s para atualizações mais frequentes
 const MAX_RETRIES = 3; // Número máximo de tentativas antes de desistir
 const ALLOWED_ROULETTES = [
   "2010016",  // Immersive Roulette
@@ -270,11 +270,15 @@ class FetchService {
         numbers: [...numbers]
       });
       
-      // Emitir o número mais recente como evento
-      const lastNumber = numbers[0];
-      if (lastNumber !== undefined && lastNumber !== null) {
-        this.emitNumberEvent(roletaId, roletaNome, lastNumber);
-      }
+      // Emitir todos os números recentes como eventos de inicialização (até 5 mais recentes)
+      numbers.slice(0, 5).forEach((num, index) => {
+        if (num !== undefined && num !== null) {
+          // Pequeno delay entre emissões para sequência correta
+          setTimeout(() => {
+            this.emitNumberEvent(roletaId, roletaNome, num, index === 0);
+          }, index * 100);
+        }
+      });
       
       return;
     }
@@ -291,23 +295,28 @@ class FetchService {
       return;
     }
     
-    const firstNewNumber = numbers[0];
-    const firstOldNumber = oldNumbers[0];
+    // Verificar todos os novos números (até 3) que não estavam no conjunto anterior
+    let foundNewNumbers = false;
+    for (let i = 0; i < Math.min(3, numbers.length); i++) {
+      const currentNumber = numbers[i];
+      if (!oldNumbers.includes(currentNumber)) {
+        foundNewNumbers = true;
+        logger.info(`Novo número detectado para ${roletaNome}: ${currentNumber} (posição ${i})`);
+        
+        // Emitir o novo número como evento (marcando apenas o primeiro como mais recente)
+        this.emitNumberEvent(roletaId, roletaNome, currentNumber, i === 0);
+      }
+    }
     
-    if (firstNewNumber !== firstOldNumber) {
-      logger.info(`Novo número detectado para ${roletaNome}: ${firstNewNumber} (anterior: ${firstOldNumber})`);
-      
+    if (foundNewNumbers) {
       // Atualizar a lista de números
       this.lastFetchedNumbers.set(roletaId, {
         timestamp: Date.now(),
         numbers: [...numbers]
       });
-      
-      // Emitir o novo número como evento
-      this.emitNumberEvent(roletaId, roletaNome, firstNewNumber);
     } else {
       // Apenas atualizar o timestamp sem emitir evento
-      logger.debug(`Nenhum número novo para ${roletaNome}, último: ${firstNewNumber}`);
+      logger.debug(`Nenhum número novo para ${roletaNome}, último: ${numbers[0]}`);
       this.lastFetchedNumbers.set(roletaId, {
         timestamp: Date.now(),
         numbers: oldNumbers
@@ -318,7 +327,7 @@ class FetchService {
   /**
    * Emite um evento com o novo número para o sistema
    */
-  private emitNumberEvent(roletaId: string, roletaNome: string, numero: number): void {
+  private emitNumberEvent(roletaId: string, roletaNome: string, numero: number, isLatest: boolean = true): void {
     // Verificar se o número é válido
     if (numero === undefined || numero === null || isNaN(numero)) {
       logger.warn(`Tentativa de emitir número inválido para ${roletaNome}: ${numero}`);
@@ -336,11 +345,13 @@ class FetchService {
       roleta_nome: correctName,
       numero: numero,
       timestamp: new Date().toISOString(),
+      // Flag que indica se este é o número mais recente ou um número histórico
+      isLatest: isLatest,
       // Adicionar flag para indicar que este evento NÃO deve substituir dados existentes
       preserve_existing: true
     };
     
-    logger.info(`Emitindo evento de novo número para ${correctName}: ${numero}`);
+    logger.info(`Emitindo evento de número ${isLatest ? 'recente' : 'histórico'} para ${correctName}: ${numero}`);
     
     // Emitir utilizando o EventService
     const eventService = EventService.getInstance();

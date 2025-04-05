@@ -1019,119 +1019,133 @@ class SocketService {
   // Método para buscar dados via REST como alternativa/complemento
   private async fetchRouletteNumbersREST(roletaId: string): Promise<boolean> {
     try {
-      // Garantir que estamos usando o ID canônico
-      const canonicalId = mapToCanonicalRouletteId(roletaId);
-      
-      const baseUrl = this.getApiBaseUrl();
-      // Usar o endpoint único /api/ROULETTES
-      const endpoint = `${baseUrl}/ROULETTES`;
-      
-      console.log(`[SocketService] Buscando dados via REST para roleta ${canonicalId}`);
-      
-      try {
-        const response = await fetch(endpoint, {
-          // Adicionar cache: no-store para garantir que não use cache
-          cache: 'no-store',
-          mode: 'no-cors', // Usar modo no-cors para evitar bloqueio de CORS
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
-        
-        // Com o modo no-cors, a resposta será do tipo 'opaque' e não poderemos acessar seu conteúdo diretamente
-        // Vamos usar um proxy para contornar essa limitação
-        if (!response.ok && response.type !== 'opaque') {
-          console.warn(`[SocketService] Falha na requisição REST (${response.status}): ${endpoint}`);
-          return false;
-        }
-        
-        // Tentativa de processar a resposta mesmo com limitações de CORS
-        try {
-          const allRoulettes = await response.json();
-          
-          if (!Array.isArray(allRoulettes)) {
-            console.warn(`[SocketService] Endpoint retornou formato inválido: ${endpoint}`);
-            return false;
-          }
-          
-          // Encontrar a roleta específica pelo ID canônico
-          const targetRoulette = allRoulettes.find((roleta: any) => {
-            const roletaCanonicalId = roleta.canonical_id || mapToCanonicalRouletteId(roleta.id || '');
-            return roletaCanonicalId === canonicalId || roleta.id === canonicalId;
-          });
-          
-          if (!targetRoulette) {
-            console.warn(`[SocketService] Roleta ${canonicalId} não encontrada nos dados retornados`);
-            return false;
-          }
-          
-          // Verificar se a roleta tem números
-          if (!targetRoulette.numero || !Array.isArray(targetRoulette.numero) || targetRoulette.numero.length === 0) {
-            console.warn(`[SocketService] Roleta ${canonicalId} não possui números válidos`);
-            return false;
-          }
-          
-          console.log(`[SocketService] ✅ Sucesso! Encontrados ${targetRoulette.numero.length} números para roleta ${canonicalId}`);
-          
-          // Encontrar o nome da roleta a partir dos dados retornados
-          const roletaNome = targetRoulette.nome || `Roleta ${canonicalId}`;
-          
-          // Processar os números recebidos
-          this.processNumbersData(targetRoulette.numero, { _id: canonicalId, nome: roletaNome });
-          return true;
-        } catch (jsonError) {
-          // No modo no-cors, não conseguiremos parsear o JSON diretamente
-          // Vamos tentar um fallback para obter dados predefinidos
-          console.warn(`[SocketService] Não foi possível processar JSON devido a restrições de CORS: ${jsonError}`);
-          
-          // Encontrar o nome da roleta com base no ID canônico
-          const roleta = ROLETAS_CANONICAS.find(r => r.id === canonicalId);
-          const roletaNome = roleta ? roleta.nome : `Roleta ${canonicalId}`;
-          
-          // Gerar alguns números aleatórios como fallback
-          const fakeNumbers = this.generateFallbackNumbers(canonicalId, roletaNome);
-          this.processNumbersData(fakeNumbers, { _id: canonicalId, nome: roletaNome });
-          
-          return true;
-          }
-        } catch (e) {
-        console.warn(`[SocketService] Erro ao acessar endpoint ${endpoint}:`, e);
+      if (!roletaId) {
         return false;
       }
-    } catch (error) {
-      console.error(`[SocketService] Erro geral no fetchRouletteNumbersREST:`, error);
-      return false;
-    }
-  }
-  
-  // Método auxiliar para gerar números de fallback em caso de erro de CORS
-  private generateFallbackNumbers(roletaId: string, roletaNome: string): any[] {
-    console.log(`[SocketService] Gerando números de fallback para ${roletaNome}`);
-    const numbers = [];
-    const count = 20;
-    
-    for (let i = 0; i < count; i++) {
-      const numero = Math.floor(Math.random() * 37); // 0-36
-      const timestamp = new Date(Date.now() - i * 60000).toISOString();
       
-      // Determinar cor
-      let cor = 'verde';
-      if (numero > 0) {
-        const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-        cor = numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
+      // Construir URL com chave de timestamp para evitar cache
+      const timestamp = Date.now();
+      const apiBaseUrl = this.getApiBaseUrl();
+      const url = `${apiBaseUrl}/ROULETTES?t=${timestamp}`;
+      
+      console.log(`[SocketService] Buscando dados REST para ${roletaId} em ${url}`);
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
       }
       
-      numbers.push({
-        numero,
-        cor,
+      const data = await response.json();
+      
+      if (!Array.isArray(data)) {
+        console.warn(`[SocketService] Resposta inválida da API para ${roletaId}:`, data);
+        return false;
+      }
+      
+      // Log para debug
+      console.log(`[SocketService] Recebidos dados de ${data.length} roletas`);
+      
+      // Encontrar a roleta específica
+      let foundRoulette = data.find(r => r._id === roletaId || r.id === roletaId);
+      
+      if (!foundRoulette) {
+        console.log(`[SocketService] Roleta ${roletaId} não encontrada. Tentando mapear por ID canônico...`);
+        // Tentar encontrar pelo ID canônico
+        const canonicalId = mapToCanonicalRouletteId(roletaId);
+        foundRoulette = data.find(r => r._id === canonicalId || r.id === canonicalId);
+      }
+      
+      if (!foundRoulette) {
+        console.warn(`[SocketService] Roleta ${roletaId} não encontrada nos dados.`);
+        return false;
+      }
+      
+      console.log(`[SocketService] ✅ Roleta encontrada: ${foundRoulette.nome || foundRoulette.name || roletaId}`);
+      
+      const roletaNome = foundRoulette.nome || foundRoulette.name || `Roleta ${roletaId}`;
+      const numeros = foundRoulette.numero || foundRoulette.numeros || [];
+      
+      // Verificar se temos dados válidos
+      if (!Array.isArray(numeros) || numeros.length === 0) {
+        console.warn(`[SocketService] Roleta ${roletaNome} não tem números válidos`);
+        return false;
+      }
+      
+      console.log(`[SocketService] Encontrados ${numeros.length} números para ${roletaNome}`);
+      
+      // Emitir eventos para cada número histórico, começando pelo mais antigo
+      // para manter a sequência cronológica correta
+      // Emitir até 5 números históricos com um pequeno delay entre eles
+      const recentNumbers = numeros.slice(0, 10);
+      
+      recentNumbers.forEach((num, index) => {
+        // Extrair o número numérico do objeto
+        let numero: number;
+        
+        if (typeof num === 'number') {
+          numero = num;
+        } else if (typeof num === 'object' && num !== null) {
+          numero = typeof num.numero !== 'undefined' ? num.numero : 
+                   typeof num.number !== 'undefined' ? num.number : 0;
+        } else {
+          numero = 0;
+        }
+        
+        // Ignorar números inválidos
+        if (numero === undefined || numero === null || isNaN(numero)) {
+          return;
+        }
+        
+        // Determinar se é o número mais recente (apenas o primeiro)
+        const isLatest = index === 0;
+        
+        // Enviar com pequeno delay para garantir ordem correta
+        setTimeout(() => {
+          // Criar objeto de evento
+          const event: RouletteNumberEvent = {
+            type: 'new_number',
+            roleta_id: roletaId,
+            roleta_nome: roletaNome,
+            numero: numero,
+            timestamp: new Date().toISOString(),
+            isLatest: isLatest,
+            preserve_existing: true
+          };
+          
+          // Log específico para o primeiro número (mais recente)
+          if (isLatest) {
+            console.log(`[SocketService] ⚡️ Emitindo número mais recente para ${roletaNome}: ${numero}`);
+          }
+          
+          // Emitir para os listeners
+          EventService.getInstance().receiveRealtimeUpdate(event);
+          
+          // Emitir evento global
+          EventService.emitGlobalEvent('new_number', event);
+        }, index * 50); // Pequeno delay escalonado para manter ordem
+      });
+      
+      // Emitir evento de números históricos carregados
+      EventService.emitGlobalEvent('historical_data_loaded', {
         roleta_id: roletaId,
         roleta_nome: roletaNome,
-        timestamp
+        success: true,
+        count: numeros.length,
+        timestamp: new Date().toISOString()
       });
+      
+      // Criar evento para armazenar a roleta como existente
+      EventService.emitGlobalEvent('roleta_exists', {
+        id: roletaId,
+        nome: roletaNome,
+        updated_at: new Date().toISOString()
+      });
+      
+      return true;
+    } catch (error) {
+      console.error(`[SocketService] Erro ao buscar números da roleta ${roletaId}:`, error);
+      return false;
     }
-    
-    return numbers;
   }
   
   // Obter a URL base da API

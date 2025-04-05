@@ -459,7 +459,12 @@ const RouletteCard = memo(({
           }
         });
       }
-    }, 10000); // Verificar a cada 10 segundos
+    }, 5000); // Atualizar a cada 5 segundos (reduzido de 10s)
+    
+    // Solicitação adicional de atualização após breve delay para garantir dados iniciais
+    setTimeout(() => {
+      socketService.requestRouletteNumbers(roletaId);
+    }, 1000);
     
     // Limpar intervalo quando o componente for desmontado
     return () => {
@@ -469,8 +474,8 @@ const RouletteCard = memo(({
   }, [roletaId, displayName]);
 
   // Função para processar atualizações em tempo real de números
-  const processRealtimeNumber = useCallback((numero: number) => {
-    console.log(`[RouletteCard] ⚡ Processando número em tempo real: ${numero} para ${displayName}`);
+  const processRealtimeNumber = useCallback((numero: number, isLatest: boolean = true) => {
+    console.log(`[RouletteCard] ⚡ Processando número em tempo real: ${numero} para ${displayName} (${isLatest ? 'mais recente' : 'histórico'})`);
     
     // Verificar se o número é válido
     if (typeof numero !== 'number' || isNaN(numero)) {
@@ -478,8 +483,10 @@ const RouletteCard = memo(({
       return;
     }
     
-    // Atualizar o último número
-    setLastNumber(numero);
+    // Atualizar o último número apenas se for o mais recente
+    if (isLatest) {
+      setLastNumber(numero);
+    }
     
     // Atualizar o array de números em tempo real
     setNumbers(prevNumbers => {
@@ -488,6 +495,15 @@ const RouletteCard = memo(({
         return prevNumbers;
       }
       
+      // Para números históricos, adicionar no final para manter ordem cronológica
+      if (!isLatest) {
+        // Ordenar para que os números mais recentes fiquem no início
+        const newNumbers = [...prevNumbers, numero];
+        // Manter apenas os últimos 20
+        return newNumbers.slice(0, 20);
+      }
+      
+      // Para o número mais recente, adicionar no início
       const newNumbers = [numero, ...prevNumbers];
       return newNumbers.slice(0, 20); // Manter apenas os últimos 20
     });
@@ -499,34 +515,42 @@ const RouletteCard = memo(({
         return prevNumbers;
       }
       
-      // Adicionar o número no início e manter apenas os 20 últimos
+      // Para números históricos, adicionar no final
+      if (!isLatest) {
+        const newArray = [...prevNumbers, numero].slice(0, 20);
+        return newArray;
+      }
+      
+      // Para o número mais recente, adicionar no início
       const newArray = [numero, ...prevNumbers].slice(0, 20);
       console.log(`[RouletteCard] Números atualizados em tempo real para ${displayName}:`, newArray.slice(0, 5));
       
       return newArray;
     });
     
-    // Acionar o destaque visual
-    setHighlight(true);
-    
-    // Mostrar notificação de novo número
-    toast({
-      title: `Novo número: ${numero}`,
-      description: `${displayName}`,
-      variant: "default",
-      duration: 2000
-    });
-    
-    // Limpar o timer anterior se existir
-    if (highlightTimerRef.current) {
-      clearTimeout(highlightTimerRef.current);
+    // Acionar o destaque visual apenas para o número mais recente
+    if (isLatest) {
+      setHighlight(true);
+      
+      // Mostrar notificação de novo número
+      toast({
+        title: `Novo número: ${numero}`,
+        description: `${displayName}`,
+        variant: "default",
+        duration: 2000
+      });
+      
+      // Limpar o timer anterior se existir
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+      }
+      
+      // Configurar novo timer para remover o destaque
+      highlightTimerRef.current = setTimeout(() => {
+        setHighlight(false);
+        highlightTimerRef.current = null;
+      }, 1500);
     }
-    
-    // Configurar novo timer para remover o destaque
-    highlightTimerRef.current = setTimeout(() => {
-      setHighlight(false);
-      highlightTimerRef.current = null;
-    }, 1500);
   }, [displayName, setLastNumber, setNumbers, setMappedNumbersOverride, setHighlight]);
 
   // Efeito para escutar eventos do websocket específicos para esta roleta
@@ -560,8 +584,11 @@ const RouletteCard = memo(({
           return;
         }
         
+        // Verificar se devemos tratar como número mais recente ou histórico
+        const isLatest = event.isLatest !== undefined ? event.isLatest : true;
+        
         // Processar via função dedicada
-        processRealtimeNumber(numero);
+        processRealtimeNumber(numero, isLatest);
       }
     };
     
@@ -572,6 +599,14 @@ const RouletteCard = memo(({
     // Se temos ID da roleta, inscrever especificamente por ID
     if (roletaId) {
       socketService.subscribe(roletaId, handleEvent);
+    }
+    
+    // Solicitar inicialização com dados reais imediatamente
+    if (roletaId) {
+      // Solicitar números da roleta com pequeno delay para garantir que a subscrição está ativa
+      setTimeout(() => {
+        socketService.requestRouletteNumbers(roletaId);
+      }, 200);
     }
     
     // Limpar a inscrição quando o componente for desmontado

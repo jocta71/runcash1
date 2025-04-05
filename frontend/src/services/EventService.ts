@@ -28,6 +28,8 @@ export interface RouletteNumberEvent {
   preserve_existing?: boolean;
   // Flag para indicar se é uma atualização em tempo real (após carregamento inicial)
   realtime_update?: boolean;
+  // Flag para indicar se este é o número mais recente ou um número histórico
+  isLatest?: boolean;
 }
 
 export interface StrategyUpdateEvent {
