@@ -664,47 +664,57 @@ class EventService {
     }
   }
 
-  // Adicionar método para gerenciar atualizações em tempo real
-  public receiveRealtimeUpdate(event: RouletteNumberEvent | StrategyUpdateEvent): void {
-    if (!event) return;
-    
-    debugLog(`[EventService] Recebendo atualização em tempo real para ${event.roleta_nome}`);
-    
-    // Marcar evento como atualização em tempo real
-    if (event.type === 'new_number') {
-      event.realtime_update = true;
-    }
-    
-    // Enviar para processamento normal de eventos
-    this.dispatchEvent(event);
-    
-    // Notificar os listeners específicos para atualizações em tempo real
-    if (this.listeners.has('realtime_updates')) {
-      const realtimeListeners = this.listeners.get('realtime_updates');
-      if (realtimeListeners) {
-        debugLog(`[EventService] Notificando ${realtimeListeners.size} listeners de atualizações em tempo real`);
-        realtimeListeners.forEach(callback => {
-          try {
-            callback(event);
-          } catch (error) {
-            console.error('[EventService] Erro ao chamar callback de atualização em tempo real:', error);
-          }
-        });
+  /**
+   * Adiciona um log de evento para diagnóstico
+   * @param message Mensagem a ser logada
+   * @param type Tipo de log
+   */
+  private logEvent(message: string, type: string = 'info'): void {
+  public receiveRealtimeUpdate(event: RouletteNumberEvent): void {
+    try {
+      if (!event || !event.roleta_id) {
+        console.warn('[EventService] Recebido evento inválido:', event);
+        return;
       }
-    }
-    
-    // Também exibir notificação visual para destacar novos dados
-    if (event.type === 'new_number') {
-      const numero = event.numero;
-      const roletaNome = event.roleta_nome;
       
-      // Mostrar pequena notificação para novos números
-      toast({
-        title: `Novo número: ${numero}`,
-        description: `${roletaNome}`,
-        variant: "default",
-        duration: 2000 // Duração curta para não incomodar
-      });
+      // Determinar se é um evento de alta prioridade (tempo real)
+      const isHighPriority = !!event.realtime_update;
+      
+      if (isHighPriority) {
+        console.log('[EventService] ⚡⚡ Processando evento prioritário em tempo real:', event);
+        
+        // Enviar imediatamente para ouvintes deste evento específico
+        this.dispatchEvent({
+          ...event,
+          priorityEvent: true,
+          timestamp: event.timestamp || new Date().toISOString()
+        });
+        
+        // Adicionar ao log de eventos
+        this.logEvent(`Novo número em tempo real: ${event.numero} para ${event.roleta_nome}`, 'realtime');
+        
+        // Para eventos de alta prioridade, notificar imediatamente todos os listeners
+        this.notifyListeners(event);
+        
+        // Emitir evento global específico para tempo real
+        this.emitGlobalEvent('realtime_update', {
+          roleta_id: event.roleta_id,
+          roleta_nome: event.roleta_nome,
+          numero: event.numero,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        // Para eventos regulares, processar normalmente
+        console.log('[EventService] Processando evento regular:', event);
+        
+        // Disparar o evento para os ouvintes específicos
+        this.dispatchEvent(event);
+        
+        // Notificar listeners normalmente
+        this.notifyListeners(event);
+      }
+    } catch (error) {
+      console.error('[EventService] Erro ao processar evento em tempo real:', error);
     }
   }
 

@@ -1030,7 +1030,15 @@ class SocketService {
       
       console.log(`[SocketService] Buscando dados REST para ${roletaId} em ${url}`);
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        // Forçar atualização com cabeçalhos de cache
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      
       if (!response.ok) {
         throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
       }
@@ -1071,70 +1079,96 @@ class SocketService {
         return false;
       }
       
-      console.log(`[SocketService] Encontrados ${numeros.length} números para ${roletaNome}`);
+      // Usar o identificador da roleta como chave para buscar dados anteriores
+      const cacheKey = `roleta_${roletaId}`;
+      const cachedData = this.lastReceivedData.get(cacheKey);
       
-      // Emitir eventos para cada número histórico, começando pelo mais antigo
-      // para manter a sequência cronológica correta
-      // Emitir até 5 números históricos com um pequeno delay entre eles
-      const recentNumbers = numeros.slice(0, 10);
+      // Processo especial para detecção de números em tempo real
+      let hasNewNumbers = false;
       
-      recentNumbers.forEach((num, index) => {
-        // Extrair o número numérico do objeto
-        let numero: number;
+      // Extrair o número mais recente do conjunto de dados
+      const lastNumber = this.extractNumberValue(numeros[0]);
+      
+      // Se temos cache anterior, comparar para ver se há novos números
+      if (cachedData && cachedData.data && Array.isArray(cachedData.data)) {
+        const oldNumeros = cachedData.data;
         
-        if (typeof num === 'number') {
-          numero = num;
-        } else if (typeof num === 'object' && num !== null) {
-          numero = typeof num.numero !== 'undefined' ? num.numero : 
-                   typeof num.number !== 'undefined' ? num.number : 0;
-        } else {
-          numero = 0;
-        }
+        // Extrair o último número que tínhamos anteriormente
+        const oldLastNumber = oldNumeros.length > 0 ? this.extractNumberValue(oldNumeros[0]) : null;
         
-        // Ignorar números inválidos
-        if (numero === undefined || numero === null || isNaN(numero)) {
-          return;
-        }
-        
-        // Determinar se é o número mais recente (apenas o primeiro)
-        const isLatest = index === 0;
-        
-        // Enviar com pequeno delay para garantir ordem correta
-        setTimeout(() => {
-          // Criar objeto de evento
-          const event: RouletteNumberEvent = {
-            type: 'new_number',
-            roleta_id: roletaId,
-            roleta_nome: roletaNome,
-            numero: numero,
-            timestamp: new Date().toISOString(),
-            isLatest: isLatest,
-            preserve_existing: true
-          };
+        // Verificar se o número mais recente é diferente (indica um número novo)
+        if (lastNumber !== null && oldLastNumber !== null && lastNumber !== oldLastNumber) {
+          hasNewNumbers = true;
+          console.log(`[SocketService] ⚡⚡ DETECÇÃO EM TEMPO REAL: Novo número ${lastNumber} para ${roletaNome} (anterior: ${oldLastNumber})`);
           
-          // Log específico para o primeiro número (mais recente)
-          if (isLatest) {
-            console.log(`[SocketService] ⚡️ Emitindo número mais recente para ${roletaNome}: ${numero}`);
+          // Emitir evento IMEDIATAMENTE para o número mais recente
+          this.emitRealtimeNumber(roletaId, roletaNome, lastNumber);
+          
+          // Exibir toast de notificação para alertar sobre número em tempo real
+          toast({
+            title: `Novo número detectado: ${lastNumber}`,
+            description: `${roletaNome}`,
+            variant: "default",
+            duration: 3000
+          });
+        }
+      }
+      
+      // Atualizar cache com os novos dados
+      this.lastReceivedData.set(cacheKey, {
+        timestamp: Date.now(),
+        data: numeros
+      });
+      
+      // Se não detectamos números novos, mas é a primeira vez, emitir histórico
+      if (!hasNewNumbers && !cachedData) {
+        console.log(`[SocketService] Emitindo histórico inicial para ${roletaNome} (${numeros.length} números)`);
+        
+        // Emitir até 5 números históricos com um pequeno delay entre eles
+        const recentNumbers = numeros.slice(0, 5);
+        
+        recentNumbers.forEach((num, index) => {
+          // Extrair o número
+          const numero = this.extractNumberValue(num);
+          
+          // Ignorar números inválidos
+          if (numero === null || isNaN(numero)) {
+            return;
           }
           
-          // Emitir para os listeners
-          EventService.getInstance().receiveRealtimeUpdate(event);
+          // Determinar se é o número mais recente (apenas o primeiro)
+          const isLatest = index === 0;
           
-          // Emitir evento global
-          EventService.emitGlobalEvent('new_number', event);
-        }, index * 50); // Pequeno delay escalonado para manter ordem
-      });
+          // Enviar com pequeno delay para garantir ordem correta
+          setTimeout(() => {
+            // Criar objeto de evento
+            const event: RouletteNumberEvent = {
+              type: 'new_number',
+              roleta_id: roletaId,
+              roleta_nome: roletaNome,
+              numero: numero,
+              timestamp: new Date().toISOString(),
+              isLatest: isLatest,
+              preserve_existing: true,
+              // Não é uma atualização em tempo real, apenas carregamento histórico
+              realtime_update: false
+            };
+            
+            // Log específico para o primeiro número (mais recente)
+            if (isLatest) {
+              console.log(`[SocketService] ⚡️ Emitindo número mais recente para ${roletaNome}: ${numero}`);
+            }
+            
+            // Emitir para os listeners
+            EventService.getInstance().receiveRealtimeUpdate(event);
+            
+            // Emitir evento global
+            EventService.emitGlobalEvent('new_number', event);
+          }, index * 50); // Pequeno delay escalonado para manter ordem
+        });
+      }
       
-      // Emitir evento de números históricos carregados
-      EventService.emitGlobalEvent('historical_data_loaded', {
-        roleta_id: roletaId,
-        roleta_nome: roletaNome,
-        success: true,
-        count: numeros.length,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Criar evento para armazenar a roleta como existente
+      // Emitir evento de roleta existente sempre
       EventService.emitGlobalEvent('roleta_exists', {
         id: roletaId,
         nome: roletaNome,
@@ -1148,6 +1182,66 @@ class SocketService {
     }
   }
   
+  // Método auxiliar para emitir evento de número em tempo real
+  private emitRealtimeNumber(roletaId: string, roletaNome: string, numero: number): void {
+    // Criar evento especificamente para o número mais recente
+    const event: RouletteNumberEvent = {
+      type: 'new_number',
+      roleta_id: roletaId,
+      roleta_nome: roletaNome,
+      numero: numero,
+      timestamp: new Date().toISOString(),
+      isLatest: true,
+      preserve_existing: true,
+      realtime_update: true // Importante marcar como atualização em tempo real
+    };
+    
+    // Emitir diretamente para o EventService como tendo alta prioridade
+    EventService.getInstance().receiveRealtimeUpdate(event);
+    
+    // Também emitir como evento global
+    EventService.emitGlobalEvent('realtime_number', event);
+    
+    // Emitir notificação de que recebemos um número em tempo real
+    EventService.emitGlobalEvent('realtime_update', {
+      success: true,
+      roleta_id: roletaId,
+      roleta_nome: roletaNome,
+      numero: numero,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  // Método auxiliar para extrair valor numérico de diferentes formatos
+  private extractNumberValue(input: any): number | null {
+    if (input === undefined || input === null) {
+      return null;
+    }
+    
+    // Se for um número diretamente
+    if (typeof input === 'number') {
+      return input;
+    }
+    
+    // Se for uma string que pode ser convertida para número
+    if (typeof input === 'string') {
+      const parsed = parseInt(input, 10);
+      return isNaN(parsed) ? null : parsed;
+    }
+    
+    // Se for um objeto que tem uma propriedade 'numero' ou 'number'
+    if (typeof input === 'object') {
+      if (typeof input.numero !== 'undefined') {
+        return this.extractNumberValue(input.numero);
+      }
+      if (typeof input.number !== 'undefined') {
+        return this.extractNumberValue(input.number);
+      }
+    }
+    
+    return null;
+  }
+
   // Obter a URL base da API
   private getApiBaseUrl(): string {
     // Em vez de usar a URL completa do Railway, usar o endpoint relativo para aproveitar o proxy
@@ -1416,35 +1510,43 @@ class SocketService {
     }
   }
 
-  // Método para solicitar números específicos de uma roleta
+  /**
+   * Solicita números para uma roleta específica
+   */
   public requestRouletteNumbers(roletaId: string): void {
     if (!roletaId) {
-      console.warn('[SocketService] ID da roleta não especificado para solicitação de números');
+      console.warn(`[SocketService] requestRouletteNumbers: ID inválido fornecido`);
       return;
     }
     
-    // Garantir que estamos usando o ID canônico
-    const canonicalId = mapToCanonicalRouletteId(roletaId);
+    console.log(`[SocketService] Solicitando números para roleta ${roletaId}`);
     
-    if (!this.socket || !this.socket.connected) {
-      console.log('[SocketService] Socket não conectado. Reconectando antes de solicitar dados.');
-      this.connect();
-      // Programar nova tentativa após conexão
-      setTimeout(() => this.requestRouletteNumbers(canonicalId), 1000);
-      return;
+    if (this.socket && this.connectionActive) {
+      // Adicionar timestamp para evitar cache
+      this.socket.emit('request_numbers', { 
+        roleta_id: roletaId,
+        timestamp: Date.now() 
+      });
+      
+      console.log(`[SocketService] ✅ Solicitação enviada para ${roletaId}`);
+    } else {
+      console.log(`[SocketService] ⚠️ Socket não conectado, usando REST como fallback`);
+      
+      // Usar abordagem REST como fallback
+      this.fetchRouletteNumbersREST(roletaId).then(success => {
+        if (success) {
+          console.log(`[SocketService] ✅ Números obtidos via REST para ${roletaId}`);
+        } else {
+          console.warn(`[SocketService] ❌ Falha ao obter números via REST para ${roletaId}`);
+        }
+      });
     }
     
-    console.log(`[SocketService] Solicitando números específicos para roleta ID: ${canonicalId} (original: ${roletaId})`);
-    
-    // Solicitar via socket usando ID canônico
-    this.socket.emit('get_roulette_numbers', {
-      roletaId: canonicalId,
-      endpoint: `/api/ROULETTES`,
-      count: 50 // Solicitar até 50 números para garantir boa amostra
-    });
-    
-    // Fazer também uma solicitação REST para garantir dados completos
-    this.fetchRouletteNumbersREST(canonicalId);
+    // Sempre atualizar via REST para garantir consistência com dados mais recentes
+    // Este segundo fetch garante que peguemos os dados mais recentes mesmo se o socket estiver lento
+    setTimeout(() => {
+      this.fetchRouletteNumbersREST(roletaId);
+    }, 300);
   }
 
   // Método para iniciar polling agressivo para uma roleta específica
