@@ -136,15 +136,21 @@ function patchFiles() {
     
     // Check if we already have a reference to global-init
     if (!content.includes('global-init') && !content.includes('// PATCHED-TDZ-FIX')) {
+      // Determine the correct relative path based on file location
+      const fileDir = path.dirname(filePath);
+      // Calculate relative path from file to src/global-init.js
+      const relativePath = path.relative(fileDir, 'src').replace(/\\/g, '/');
+      const importPath = relativePath ? `${relativePath}/global-init` : './global-init';
+      
       // Add comment and import at the top of the file
       content = `// PATCHED-TDZ-FIX: Ensure global variables are initialized
 // This import ensures that variables are initialized before they're accessed
-import '../global-init';
+import '${importPath}';
 
 ${content}`;
       
       fs.writeFileSync(fullPath, content);
-      console.log(`Patched ${filePath} with initialization import`);
+      console.log(`Patched ${filePath} with initialization import (using path: ${importPath})`);
     } else {
       console.log(`${filePath} already patched or doesn't need patching`);
     }
