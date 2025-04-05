@@ -1043,7 +1043,7 @@ class SocketService {
         throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
       }
       
-            const data = await response.json();
+      const data = await response.json();
       
       if (!Array.isArray(data)) {
         console.warn(`[SocketService] Resposta inválida da API para ${roletaId}:`, data);
@@ -1076,7 +1076,7 @@ class SocketService {
       // Verificar se temos dados válidos
       if (!Array.isArray(numeros) || numeros.length === 0) {
         console.warn(`[SocketService] Roleta ${roletaNome} não tem números válidos`);
-      return false;
+        return false;
       }
       
       // Usar o identificador da roleta como chave para buscar dados anteriores
@@ -1529,14 +1529,14 @@ class SocketService {
       });
       
       console.log(`[SocketService] ✅ Solicitação enviada para ${roletaId}`);
-              } else {
+    } else {
       console.log(`[SocketService] ⚠️ Socket não conectado, usando REST como fallback`);
       
       // Usar abordagem REST como fallback
       this.fetchRouletteNumbersREST(roletaId).then(success => {
         if (success) {
           console.log(`[SocketService] ✅ Números obtidos via REST para ${roletaId}`);
-          } else {
+        } else {
           console.warn(`[SocketService] ❌ Falha ao obter números via REST para ${roletaId}`);
         }
       });
