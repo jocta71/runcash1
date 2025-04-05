@@ -98,8 +98,46 @@ interface RouletteCardProps {
 }
 
 const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false }) => {
-  const [lastNumber, setLastNumber] = useState<number | null>(data.lastNumbers?.[0] || null);
-  const [recentNumbers, setRecentNumbers] = useState<number[]>(data.lastNumbers || []);
+  // Garantir que data é um objeto válido com valores padrão seguros
+  const safeData = useMemo(() => {
+    // Se data for null ou undefined, retornar objeto vazio com valores padrão
+    if (!data) {
+      console.warn('[RouletteCard] Dados inválidos: null ou undefined');
+      return {
+        id: 'unknown',
+        name: 'Roleta não identificada',
+        lastNumbers: [],
+      };
+    }
+    
+    // Certifique-se de que lastNumbers é sempre um array válido
+    const lastNumbers = Array.isArray(data.lastNumbers) 
+      ? data.lastNumbers 
+      : Array.isArray(data.numero) 
+        ? data.numero 
+        : [];
+    
+    return {
+      ...data,
+      id: data.id || data._id || 'unknown',
+      name: data.name || data.nome || 'Roleta sem nome',
+      lastNumbers,
+    };
+  }, [data]);
+  
+  // Usar safeData em vez de data diretamente para inicializar os estados
+  const [lastNumber, setLastNumber] = useState<number | null>(
+    Array.isArray(safeData.lastNumbers) && safeData.lastNumbers.length > 0 
+      ? Number(safeData.lastNumbers[0]) 
+      : null
+  );
+  
+  const [recentNumbers, setRecentNumbers] = useState<number[]>(
+    Array.isArray(safeData.lastNumbers) 
+      ? safeData.lastNumbers.map(n => Number(n)) 
+      : []
+  );
+  
   const [isNewNumber, setIsNewNumber] = useState(false);
   const [updateCount, setUpdateCount] = useState(0);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -112,7 +150,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const processRealtimeNumber = (newNumberEvent: RouletteNumberEvent) => {
     // Verificar se é um número válido
     if (typeof newNumberEvent.numero !== 'number' || isNaN(newNumberEvent.numero)) {
-      console.warn('Número inválido recebido:', newNumberEvent);
+      console.warn('[RouletteCard] Número inválido recebido:', newNumberEvent);
       return;
     }
 
@@ -129,6 +167,12 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
     // Atualizar a lista de números recentes
     setRecentNumbers(prevNumbers => {
+      // Verificar se prevNumbers é um array válido
+      if (!Array.isArray(prevNumbers)) {
+        console.warn('[RouletteCard] prevNumbers não é um array:', prevNumbers);
+        return [newNumber]; // Retornar array só com o novo número
+      }
+      
       // Evitar duplicação do mesmo número em sequência
       if (prevNumbers.length > 0 && prevNumbers[0] === newNumber) {
         return prevNumbers;
@@ -153,7 +197,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     if (enableNotifications) {
       toast({
         title: `Novo número: ${newNumber}`,
-        description: `${data.name}: ${newNumber}`,
+        description: `${safeData.name}: ${newNumber}`,
         variant: "default",
       });
     }
@@ -171,11 +215,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Evitar inicialização duplicada
     if (hasInitialized.current) return;
     
-    const roletaId = data.id;
-    const roletaNome = data.name;
+    const roletaId = safeData.id;
+    const roletaNome = safeData.name;
     
     if (!roletaId || !roletaNome) {
-      console.warn('RouletteCard: ID ou nome da roleta ausente:', data);
+      console.warn('[RouletteCard] ID ou nome da roleta ausente:', safeData);
       return;
     }
         
@@ -252,10 +296,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Marcar que foi limpo
       hasInitialized.current = false;
     };
-  }, [data.id, data.name]); // Dependências reduzidas ao essencial
+  // Usar safeData em vez de data diretamente
+  }, [safeData.id, safeData.name]);
 
-  // ... existing code com lógica de renderização ...
-  
+  // ... existing return
+
   return (
     <Card 
       ref={cardRef}
@@ -267,7 +312,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     >
       <CardContent className="p-4">
         <div className="flex justify-between items-center mb-2">
-          <h3 className="text-lg font-semibold truncate">{data.name}</h3>
+          <h3 className="text-lg font-semibold truncate">{safeData.name}</h3>
           <div className="flex gap-1">
             <Badge variant="outline" className="bg-muted text-xs">
               {updateCount > 0 ? `${updateCount} atualizações` : "Aguardando..."}
@@ -285,7 +330,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             size="large" 
             highlight={isNewNumber}
           />
-      </div>
+        </div>
       
         {/* Últimos números */}
         <div className="flex flex-wrap gap-1 justify-center my-3">
@@ -297,24 +342,24 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
               highlight={idx === 0 && isNewNumber}
             />
           ))}
-            </div>
+        </div>
             
-            {/* Estatísticas */}
+        {/* Estatísticas */}
         <div className="mt-4 text-sm text-muted-foreground">
           <RouletteStats numbers={recentNumbers} />
         </div>
         
         {/* Indicadores */}
         <div className="flex justify-between mt-4 text-xs text-muted-foreground">
-              <div className="flex items-center">
+          <div className="flex items-center">
             <Zap className="h-3 w-3 mr-1" />
             <span>Tempo real</span>
-              </div>
-              <div className="flex items-center">
+          </div>
+          <div className="flex items-center">
             <History className="h-3 w-3 mr-1" />
             <span>{recentNumbers.length} números</span>
           </div>
-      </div>
+        </div>
       </CardContent>
     </Card>
   );

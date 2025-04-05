@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import EventService from '@/services/EventService';
 import RouletteFeedService from '@/services/RouletteFeedService';
@@ -39,126 +39,102 @@ const LastNumbersBar = ({ tableId, tableName }: RouletteNumbersProps) => {
   // Usado para depuração
   const logUpdates = useRef<boolean>(true);
 
+  const feedService = RouletteFeedService.getInstance();
+
+  // Carregar números iniciais e configurar o estado
   useEffect(() => {
-    // Iniciar o serviço de dados se não estiver rodando
-    const feedService = RouletteFeedService.getInstance();
-    feedService.startPolling();
-
-    // Carregar números iniciais se disponíveis
-    const initialNumbers = feedService.getLastNumbersForTable(tableId);
-    if (initialNumbers && initialNumbers.length > 0) {
-      if (logUpdates.current) {
-        console.log(`[LastNumbersBar] Carregados ${initialNumbers.length} números iniciais para ${tableName}`);
+    try {
+      // Garantir que feedService é válido
+      if (!feedService) {
+        console.error('[LastNumbersBar] FeedService não está disponível');
+        setNumbers([]);
+        return;
       }
+
+      // Obter números iniciais com verificação defensiva
+      let initialNumbers = [];
+      try {
+        initialNumbers = feedService.getLastNumbersForTable(tableId) || [];
+        // Converter para números se for array de strings
+        initialNumbers = initialNumbers.map(n => typeof n === 'string' ? parseInt(n, 10) : n);
+        // Filtrar valores NaN
+        initialNumbers = initialNumbers.filter(n => !isNaN(n));
+      } catch (err) {
+        console.error(`[LastNumbersBar] Erro ao obter números iniciais para ${tableName}:`, err);
+        initialNumbers = [];
+      }
+
+      console.log(`[LastNumbersBar] Carregados ${initialNumbers.length} números iniciais para ${tableName}`);
       setNumbers(initialNumbers);
-      previousNumbersRef.current = [...initialNumbers];
-    }
-
-    // Função para receber atualizações
-    const handleNumbersUpdate = (data: any) => {
-      if (data.tableId === tableId) {
-        const newNumbers = data.numbers || [];
-        
-        // Verificar se há novos números (comparando com os anteriores)
-        const hasNewNumber = newNumbers.length > 0 && 
-                             (previousNumbersRef.current.length === 0 || 
-                              newNumbers[0] !== previousNumbersRef.current[0]);
-        
-        console.log(`[LastNumbersBar] Atualização para ${tableName}:`, {
-          novos: newNumbers.slice(0, 5),
-          anteriores: previousNumbersRef.current.slice(0, 5),
-          novoDetectado: hasNewNumber,
-          isNewNumber: data.isNewNumber,
-          contadorAtualizacoes: updateCounter.current
-        });
-        
-        // Atualizar os números apenas se houver mudança real
-        if (JSON.stringify(newNumbers) !== JSON.stringify(previousNumbersRef.current)) {
-          setNumbers(newNumbers);
-          previousNumbersRef.current = [...newNumbers];
-          updateCounter.current++; // Incrementar contador para forçar renderização
-          
-          // Destacar se há novo número ou se a flag isNewNumber estiver definida
-          if (hasNewNumber || data.isNewNumber) {
-            console.log(`[LastNumbersBar] NOVO NÚMERO DESTACADO para ${tableName}: ${newNumbers[0]}`);
-            setHighlightIndex(0);
-            
-            // Remover o destaque após 3 segundos
-            setTimeout(() => {
-              setHighlightIndex(null);
-            }, 3000);
-          }
-        }
-      }
-    };
-
-    // Função para receber notificação de novo número
-    const handleNewNumber = (data: any) => {
-      if (data.tableId === tableId) {
-        console.log(`[LastNumbersBar] Evento de novo número recebido para ${tableName}: ${data.number}`);
-        // Atualizar para garantir que temos os dados mais recentes
-        const updatedNumbers = feedService.getLastNumbersForTable(tableId);
-        
-        if (updatedNumbers.length > 0) {
-          setNumbers(updatedNumbers);
-          previousNumbersRef.current = [...updatedNumbers];
-          updateCounter.current++; // Incrementar contador
-          
-          // Destacar o número mais recente
-          setHighlightIndex(0);
-          
-          // Remover o destaque após 3 segundos
-          setTimeout(() => {
-            setHighlightIndex(null);
-          }, 3000);
-        }
-      }
-    };
-
-    // Configurar um intervalo para verificar atualizações regularmente
-    const intervalId = setInterval(() => {
-      // Obter os últimos números conhecidos para esta mesa
-      const latestNumbers = feedService.getLastNumbersForTable(tableId);
       
-      // Verificar se os números mudaram
-      if (JSON.stringify(latestNumbers) !== JSON.stringify(previousNumbersRef.current)) {
-        console.log(`[LastNumbersBar] Números atualizados durante verificação para ${tableName}:`, {
-          novos: latestNumbers.slice(0, 5),
-          anteriores: previousNumbersRef.current.slice(0, 5)
-        });
-        
-        setNumbers(latestNumbers);
-        previousNumbersRef.current = [...latestNumbers];
-        
-        // Se o primeiro número mudou, destacar
-        if (latestNumbers.length > 0 && 
-            (previousNumbersRef.current.length === 0 || 
-             latestNumbers[0] !== previousNumbersRef.current[0])) {
-          setHighlightIndex(0);
-          
-          // Remover o destaque após 3 segundos
-          setTimeout(() => {
-            setHighlightIndex(null);
-          }, 3000);
-        }
+      // Iniciar a animação se houver números
+      if (initialNumbers.length > 0) {
+        setHighlightIndex(initialNumbers[0]);
+        startHighlightAnimation();
       }
-    }, 5000); // Verificar a cada 5 segundos
+    } catch (error) {
+      console.error(`[LastNumbersBar] Erro durante inicialização para ${tableName}:`, error);
+      setNumbers([]);
+    }
+  }, [tableId, tableName]);
 
-    // Inscrever-se nos eventos de atualização
-    EventService.on('roulette:numbers-updated', handleNumbersUpdate);
-    EventService.on('roulette:new-number', handleNewNumber);
+  // Manipulador para quando um novo número é adicionado
+  const handleRouletteUpdate = useCallback((data: any) => {
+    try {
+      // Verificar se os dados do evento são válidos
+      if (!data || !data.tableId) {
+        console.warn('[LastNumbersBar] Dados de atualização inválidos:', data);
+        return;
+      }
 
-    // Limpar ao desmontar
-    return () => {
-      EventService.off('roulette:numbers-updated', handleNumbersUpdate);
-      EventService.off('roulette:new-number', handleNewNumber);
-      clearInterval(intervalId);
-    };
+      // Verificar se esta atualização é para nossa mesa
+      if (data.tableId !== tableId) {
+        return;
+      }
+
+      // Log para debug
+      console.log(`[LastNumbersBar] Atualização para ${tableName}:`, {
+        isNewNumber: data.isNewNumber,
+        numbersLength: data.numbers?.length || 0
+      });
+
+      // Verificar se temos novos números
+      if (data.isNewNumber && Array.isArray(data.numbers) && data.numbers.length > 0) {
+        // Obter números atualizados de forma segura
+        let updatedNumbers = [];
+        try {
+          updatedNumbers = data.numbers.map((n: any) => typeof n === 'string' ? parseInt(n, 10) : n);
+          updatedNumbers = updatedNumbers.filter((n: any) => !isNaN(n));
+        } catch (err) {
+          console.error(`[LastNumbersBar] Erro ao processar números:`, err);
+          return;
+        }
+
+        if (updatedNumbers.length === 0) {
+          console.warn('[LastNumbersBar] Nenhum número válido após processamento');
+          return;
+        }
+
+        // Atualizar estado de números
+        setNumbers(updatedNumbers);
+        
+        // Destacar o novo número
+        console.log(`[LastNumbersBar] NOVO NÚMERO DESTACADO para ${tableName}: ${updatedNumbers[0]}`);
+        setHighlightIndex(updatedNumbers[0]);
+        startHighlightAnimation();
+      }
+    } catch (error) {
+      console.error(`[LastNumbersBar] Erro ao processar atualização para ${tableName}:`, error);
+    }
   }, [tableId, tableName]);
 
   const handleClick = () => {
     // Navegar para página detalhada da roleta ao clicar
     navigate(`/roulette/${tableId}`);
+  };
+
+  const startHighlightAnimation = () => {
+    // Implemente a lógica para iniciar a animação de destaque
   };
 
   return (
