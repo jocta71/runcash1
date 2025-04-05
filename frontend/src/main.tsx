@@ -1,3 +1,8 @@
+// Import preloader first to ensure proper variable initialization
+import { ensurePreloaded, Yo } from './preload';
+// Ensure everything is preloaded
+ensurePreloaded();
+
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'

@@ -1,3 +1,6 @@
+// Import initializer first to ensure proper variable initialization
+import { Yo } from './roulette/RouletteInitializer';
+
 import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { toast } from '@/components/ui/use-toast';

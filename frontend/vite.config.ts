@@ -4,11 +4,38 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    // Custom plugin to inject global-init.js at the beginning of the bundle
+    {
+      name: 'inject-global-init',
+      enforce: 'pre',
+      resolveId(id) {
+        if (id === 'virtual:global-init') {
+          return id;
+        }
+        return null;
+      },
+      load(id) {
+        if (id === 'virtual:global-init') {
+          return `
+            // Initialize global variables
+            window.Yo = window.Yo || { initialized: true };
+            console.log('[vite] Global variables initialized');
+          `;
+        }
+        return null;
+      },
+    },
+    react()
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  // Add global-init.js as an entry point before the main entry
+  optimizeDeps: {
+    include: ['src/global-init.js'],
   },
   server: {
     port: 3000,
@@ -36,6 +63,10 @@ export default defineConfig({
     outDir: "dist",
     assetsDir: "assets",
     rollupOptions: {
+      input: {
+        globalInit: path.resolve(__dirname, 'src/global-init.js'),
+        main: path.resolve(__dirname, 'index.html'),
+      },
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
