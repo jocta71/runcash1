@@ -8,7 +8,9 @@
     { "source": "/api/strategies", "destination": "/api/proxy?path=/api/strategies" },
     { "source": "/emit-event", "destination": "/api/proxy?path=/emit-event" },
     { "source": "/test-cors", "destination": "/api/proxy?path=/test-cors" },
-    { "source": "/socket-status", "destination": "/api/proxy?path=/socket-status" }
+    { "source": "/socket-status", "destination": "/api/proxy?path=/socket-status" },
+    { "source": "/historico/:roletaId", "destination": "/index.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "env": {
     "VITE_WS_URL": "https://runcash1-production.up.railway.app",
