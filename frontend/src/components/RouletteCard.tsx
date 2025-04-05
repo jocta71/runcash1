@@ -124,30 +124,6 @@ const RouletteCard = memo(({
   // Verificar se o nome da roleta é válido, com fallback para roleta_nome
   const roletaNome = name || roleta_nome || "Roleta Desconhecida";
   
-  // Mapeamento de ID para nome canônico de roleta
-  const ID_TO_NAME_MAP: Record<string, string> = {
-    "2010016": "Immersive Roulette",
-    "2380335": "Brazilian Mega Roulette",
-    "2010065": "Bucharest Auto-Roulette",
-    "2010096": "Speed Auto Roulette",
-    "2010017": "Auto-Roulette",
-    "2010098": "Auto-Roulette VIP"
-  };
-  
-  // Usar o ID para determinar o nome correto se o nome estiver como "Roleta Desconhecida"
-  const displayName = useMemo(() => {
-    if (roletaNome !== "Roleta Desconhecida") {
-      return roletaNome;
-    }
-    
-    // Se temos um ID e o nome é "Roleta Desconhecida", verificar no mapeamento
-    if (roletaId && ID_TO_NAME_MAP[roletaId]) {
-      return ID_TO_NAME_MAP[roletaId];
-    }
-    
-    return roletaNome;
-  }, [roletaNome, roletaId]);
-  
   // Estado para controlar highlights de atualizações
   const [highlightWins, setHighlightWins] = useState(false);
   const [highlightLosses, setHighlightLosses] = useState(false);
@@ -205,7 +181,7 @@ const RouletteCard = memo(({
     refreshStrategy: () => Promise.resolve(false)
   };
   
-  // Mapear os números da API para o formato usado no componente
+  // Converter os objetos RouletteNumber para números simples
   const mappedNumbers = useMemo(() => {
     // Prioridade 1: Números recebidos diretamente do WebSocket
     if (mappedNumbersOverride.length > 0) {
@@ -247,41 +223,25 @@ const RouletteCard = memo(({
         debugLog(`[RouletteCard] Números mapeados da API para ${roletaNome}:`, mapped.slice(0, 5));
       }
       
-      // Se temos últimos números válidos, usar eles como fallback
-      if (mapped.length === 0 && Array.isArray(lastNumbers) && lastNumbers.length > 0) {
-        if (DEBUG_ENABLED) {
-          debugLog(`[RouletteCard] Usando lastNumbers como fallback para ${roletaNome}:`, lastNumbers.slice(0, 5));
-        }
-        return lastNumbers;
-      }
-      
       return mapped;
     }
     
-    // Prioridade 3: lastNumbers
+    // Prioridade 3: Números passados via props
     if (Array.isArray(lastNumbers) && lastNumbers.length > 0) {
-      if (DEBUG_ENABLED) {
-        debugLog(`[RouletteCard] Usando lastNumbers como único recurso para ${roletaNome}:`, lastNumbers.slice(0, 5));
-      }
-      return lastNumbers;
+      // Usar números passados como props, se disponíveis
+      console.log(`[RouletteCard] Usando números de props para ${roletaNome}:`, lastNumbers.slice(0, 5));
+      return lastNumbers.map(num => {
+        if (typeof num === 'number') return num;
+        if (typeof num === 'string') return parseInt(num, 10);
+        if (typeof num === 'object' && num?.numero) return parseInt(num.numero, 10);
+        return 0;
+      });
     }
     
-    // Fallback para array vazio
+    // Sem dados reais, retornar array vazio
+    console.log(`[RouletteCard] Sem números reais para ${roletaNome}. Retornando array vazio.`);
     return [];
   }, [apiNumbers, roletaNome, mappedNumbersOverride, lastNumbers]);
-
-  // NOVO EFEITO: Atualizar e garantir a ordem dos números recebidos
-  useEffect(() => {
-    // Se temos dados, garantir que estejam na ordem correta e que o último número seja sempre atualizado
-    if (mappedNumbers.length > 0) {
-      // Verificar se o primeiro número (mais recente) é diferente do último número conhecido
-      if (lastNumber !== mappedNumbers[0]) {
-        console.log(`[RouletteCard] Atualizando lastNumber de ${lastNumber} para ${mappedNumbers[0]} (${displayName})`);
-        // Atualizar o último número para garantir consistência
-        setLastNumber(mappedNumbers[0]);
-      }
-    }
-  }, [mappedNumbers, lastNumber, displayName]);
 
   // Otimizar trend com useMemo - não gerar dados simulados
   const trendData = useMemo(() => {
@@ -425,33 +385,33 @@ const RouletteCard = memo(({
   useEffect(() => {
     // Verificar se temos o ID da roleta
     if (!roletaId) {
-      console.log(`[RouletteCard] ID da roleta não disponível para ${displayName}, não será possível conectar ao endpoint específico`);
+      console.log(`[RouletteCard] ID da roleta não disponível para ${roletaNome}, não será possível conectar ao endpoint específico`);
       return;
     }
 
-    console.log(`[RouletteCard] ⚡️ Configurando conexão específica para roleta ${roletaId} (${displayName})`);
+    console.log(`[RouletteCard] ⚡️ Configurando conexão específica para roleta ${roletaId} (${roletaNome})`);
     
     // Obter instância do socketService
     const socketService = SocketService.getInstance();
     
     // Conectar ao endpoint específico desta roleta
-    socketService.subscribeToRouletteEndpoint(roletaId, displayName);
+    socketService.subscribeToRouletteEndpoint(roletaId, roletaNome);
     
     // Forçar reconexão para garantir que estamos recebendo eventos em tempo real
     socketService.reconnect().then(connected => {
       if (connected) {
-        console.log(`[RouletteCard] Reconexão bem-sucedida, solicitando dados para ${displayName}`);
+        console.log(`[RouletteCard] Reconexão bem-sucedida, solicitando dados para ${roletaNome}`);
         // Reinscrever no endpoint específico após reconexão
-        socketService.subscribeToRouletteEndpoint(roletaId, displayName);
+        socketService.subscribeToRouletteEndpoint(roletaId, roletaNome);
         // Solicitar dados imediatamente
         socketService.requestRouletteNumbers(roletaId);
       } else {
-        console.log(`[RouletteCard] Falha na reconexão para ${displayName}, tentando novamente em 3s`);
+        console.log(`[RouletteCard] Falha na reconexão para ${roletaNome}, tentando novamente em 3s`);
         // Tentar novamente após um breve delay
         setTimeout(() => {
           socketService.reconnect().then(success => {
             if (success) {
-              socketService.subscribeToRouletteEndpoint(roletaId, displayName);
+              socketService.subscribeToRouletteEndpoint(roletaId, roletaNome);
               socketService.requestRouletteNumbers(roletaId);
             }
           });
@@ -461,17 +421,17 @@ const RouletteCard = memo(({
     
     // Configurar verificação periódica para manter dados atualizados
     const dataRefreshInterval = setInterval(() => {
-      console.log(`[RouletteCard] Verificação periódica de dados para ${displayName}`);
+      console.log(`[RouletteCard] Verificação periódica de dados para ${roletaNome}`);
       
       if (socketService.isSocketConnected()) {
         // Adicionar timestamp para evitar cache
-        console.log(`[RouletteCard] Solicitando dados atualizados para ${displayName}`);
+        console.log(`[RouletteCard] Solicitando dados atualizados para ${roletaNome}`);
         socketService.requestRouletteNumbers(roletaId);
       } else {
-        console.log(`[RouletteCard] Socket desconectado, reconectando para ${displayName}`);
+        console.log(`[RouletteCard] Socket desconectado, reconectando para ${roletaNome}`);
         socketService.reconnect().then(connected => {
           if (connected) {
-            socketService.subscribeToRouletteEndpoint(roletaId, displayName);
+            socketService.subscribeToRouletteEndpoint(roletaId, roletaNome);
           }
         });
       }
@@ -479,61 +439,71 @@ const RouletteCard = memo(({
     
     // Limpar intervalo quando o componente for desmontado
     return () => {
-      console.log(`[RouletteCard] Limpando recursos para ${displayName}`);
+      console.log(`[RouletteCard] Limpando recursos para ${roletaNome}`);
       clearInterval(dataRefreshInterval);
     };
-  }, [roletaId, displayName]);
+  }, [roletaId, roletaNome]);
 
-  // Função para processar número recebido em tempo real
-  const processRealtimeNumber = useCallback((newNumber: any) => {
-    // Verificar se é um número ou objeto com propriedade número
-    let processedNumber: number = -1;
+  // Função para processar atualizações em tempo real de números
+  const processRealtimeNumber = useCallback((numero: number) => {
+    console.log(`[RouletteCard] ⚡ Processando número em tempo real: ${numero} para ${roletaNome}`);
     
-    // Se já é um número
-    if (typeof newNumber === 'number' && !isNaN(newNumber)) {
-      processedNumber = newNumber;
-    } 
-    // Se é um objeto
-    else if (typeof newNumber === 'object' && newNumber !== null) {
-      // Tenta extrair o número de várias propriedades possíveis
-      if ('numero' in newNumber && typeof newNumber.numero !== 'undefined') {
-        processedNumber = typeof newNumber.numero === 'number' 
-          ? newNumber.numero 
-          : parseInt(String(newNumber.numero), 10);
-      } else if ('value' in newNumber && typeof newNumber.value !== 'undefined') {
-        processedNumber = typeof newNumber.value === 'number'
-          ? newNumber.value
-          : parseInt(String(newNumber.value), 10);
-      } else if ('number' in newNumber && typeof newNumber.number !== 'undefined') {
-        processedNumber = typeof newNumber.number === 'number'
-          ? newNumber.number
-          : parseInt(String(newNumber.number), 10);
+    // Verificar se o número é válido
+    if (typeof numero !== 'number' || isNaN(numero)) {
+      console.warn(`[RouletteCard] Número inválido recebido: ${numero}, ignorando`);
+      return;
+    }
+    
+    // Atualizar o último número
+    setLastNumber(numero);
+    
+    // Atualizar o array de números em tempo real
+    setNumbers(prevNumbers => {
+      // Verificar se o número já existe para evitar duplicatas
+      if (prevNumbers.includes(numero)) {
+        return prevNumbers;
       }
-    }
-    // Se é uma string
-    else if (typeof newNumber === 'string') {
-      processedNumber = parseInt(newNumber, 10);
+      
+      const newNumbers = [numero, ...prevNumbers];
+      return newNumbers.slice(0, 20); // Manter apenas os últimos 20
+    });
+    
+    // Atualizar o estado de override para garantir exibição
+    setMappedNumbersOverride(prevNumbers => {
+      // Verificar se o número já existe
+      if (prevNumbers.includes(numero)) {
+        return prevNumbers;
+      }
+      
+      // Adicionar o número no início e manter apenas os 20 últimos
+      const newArray = [numero, ...prevNumbers].slice(0, 20);
+      console.log(`[RouletteCard] Números atualizados em tempo real para ${roletaNome}:`, newArray.slice(0, 5));
+      
+      return newArray;
+    });
+    
+    // Acionar o destaque visual
+    setHighlight(true);
+    
+    // Mostrar notificação de novo número
+    toast({
+      title: `Novo número: ${numero}`,
+      description: `${roletaNome}`,
+      variant: "default",
+      duration: 2000
+    });
+    
+    // Limpar o timer anterior se existir
+    if (highlightTimerRef.current) {
+      clearTimeout(highlightTimerRef.current);
     }
     
-    // Se conseguimos processar o número
-    if (!isNaN(processedNumber) && processedNumber >= 0) {
-      setLastNumber(processedNumber);
-      
-      // Atualizar a lista de números, mantendo o último número recebido sempre na primeira posição
-      setMappedNumbersOverride(prev => {
-        // Remover o número se já existir na lista para evitar duplicação
-        const filteredNumbers = prev.filter(n => n !== processedNumber);
-        // Adicionar o novo número no início
-        return [processedNumber, ...filteredNumbers].slice(0, 20);
-      });
-      
-      // Atualizar highlight para mostrar visualmente a nova chegada
-    setHighlight(true);
-      setTimeout(() => setHighlight(false), 1000);
-      return true;
-    }
-    return false;
-  }, []);
+    // Configurar novo timer para remover o destaque
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlight(false);
+      highlightTimerRef.current = null;
+    }, 1500);
+  }, [roletaNome, setLastNumber, setNumbers, setMappedNumbersOverride, setHighlight]);
 
   // Efeito para escutar eventos do websocket específicos para esta roleta
   useEffect(() => {
@@ -541,53 +511,33 @@ const RouletteCard = memo(({
     
     // Função que processa eventos de novos números
     const handleEvent = (event: any) => {
-      if (!event || typeof event !== 'object') return;
-
-      console.log(`[RouletteCard] Evento recebido para roleta ${roletaNome}:`, event);
-
-      try {
-        // Verificar tipo de evento (pode ser 'new_number', 'numero', 'roleta_update', etc)
-        if (event.type === 'new_number' || event.tipo === 'numero' || event.type === 'numero' || event.event_type === 'numero') {
-          if ('numero' in event) {
-            console.log(`[RouletteCard] Processando número ${event.numero} de evento WebSocket para ${roletaNome}`);
-            processRealtimeNumber(event.numero);
-          } else if ('value' in event) {
-            console.log(`[RouletteCard] Processando value ${event.value} de evento WebSocket para ${roletaNome}`);
-            processRealtimeNumber(event.value);
-          } else if ('number' in event) {
-            console.log(`[RouletteCard] Processando number ${event.number} de evento WebSocket para ${roletaNome}`);
-            processRealtimeNumber(event.number);
-          } else {
-            // Se não encontramos o número em um campo específico, tenta processar o próprio evento
-            console.log(`[RouletteCard] Tentando processar evento WebSocket completo para ${roletaNome}`);
-            processRealtimeNumber(event);
-          }
+      // Ignorar eventos não relacionados ou sem dados
+      if (!event || !event.type) return;
+      
+      // Verificar se o evento é para esta roleta
+      const isForThisRoulette = 
+        (event.roleta_nome && (event.roleta_nome === name || event.roleta_nome === roleta_nome)) ||
+        (event.roleta_id && event.roleta_id === roletaId);
+        
+      if (!isForThisRoulette) return;
+      
+      // Processar novo número
+      if (event.type === 'new_number' && event.numero !== undefined) {
+        let numero: number;
+        
+        // Validar e converter o número
+        if (typeof event.numero === 'number' && !isNaN(event.numero)) {
+          numero = event.numero;
+        } else if (typeof event.numero === 'string' && event.numero.trim() !== '') {
+          const parsed = parseInt(event.numero, 10);
+          numero = !isNaN(parsed) ? parsed : 0;
+        } else {
+          console.warn(`[RouletteCard] Número inválido recebido: ${event.numero}, ignorando`);
+          return;
         }
         
-        // Se o evento contém vitórias/derrotas, atualizar informações
-        if (('vitorias' in event && typeof event.vitorias === 'number') || 
-            ('wins' in event && typeof event.wins === 'number')) {
-          
-          const currentWins = ('vitorias' in event) ? event.vitorias : event.wins;
-          // Se o número é diferente do atual, destacar
-          if (currentWins !== wins) {
-            setHighlightWins(true);
-            setTimeout(() => setHighlightWins(false), 3000);
-          }
-        }
-        
-        if (('derrotas' in event && typeof event.derrotas === 'number') || 
-            ('losses' in event && typeof event.losses === 'number')) {
-          
-          const currentLosses = ('derrotas' in event) ? event.derrotas : event.losses;
-          // Se o número é diferente do atual, destacar
-          if (currentLosses !== losses) {
-            setHighlightLosses(true);
-            setTimeout(() => setHighlightLosses(false), 3000);
-          }
-        }
-      } catch (error) {
-        console.error(`[RouletteCard] Erro ao processar evento para ${roletaNome}:`, error);
+        // Processar via função dedicada
+        processRealtimeNumber(numero);
       }
     };
     
@@ -599,29 +549,6 @@ const RouletteCard = memo(({
     if (roletaId) {
       socketService.subscribe(roletaId, handleEvent);
     }
-    
-    // NOVO: Adicionar listener para eventos customizados do navegador
-    const handleCustomEvent = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const detail = customEvent.detail;
-      
-      if (!detail) return;
-      
-      // Verificar se este evento é para esta roleta
-      if ((roletaId && detail.roletaId === roletaId) || 
-          (roletaNome && detail.roletaNome === roletaNome)) {
-        
-        console.log(`[RouletteCard] CustomEvent recebido para ${roletaNome}:`, detail);
-        
-        if ('numero' in detail && detail.numero !== undefined) {
-          console.log(`[RouletteCard] Processando número ${detail.numero} de CustomEvent para ${roletaNome}`);
-          processRealtimeNumber(detail.numero);
-        }
-      }
-    };
-    
-    // Registrar para o evento customizado
-    window.addEventListener('roulette_update', handleCustomEvent);
     
     // Limpar a inscrição quando o componente for desmontado
     return () => {
@@ -635,99 +562,76 @@ const RouletteCard = memo(({
       if (roletaId) {
         socketService.unsubscribe(roletaId, handleEvent);
       }
-      
-      // Remover listener de evento customizado
-      window.removeEventListener('roulette_update', handleCustomEvent);
     };
-  }, [name, roleta_nome, roletaId, roletaNome, processRealtimeNumber, wins, losses]);
-
-  // Effect para atualizar o lastNumber quando o mappedNumbers mudar
-  useEffect(() => {
-    const combinedNumbers = getCombinedNumbers();
-    if (combinedNumbers.length > 0) {
-      setLastNumber(combinedNumbers[0]);
-    }
-  }, [mappedNumbersOverride, apiNumbers]);
-  
-  // Função para obter a lista combinada de números
-  const getCombinedNumbers = useCallback(() => {
-    // Prioridade 1: Números recebidos diretamente do WebSocket
-    if (mappedNumbersOverride.length > 0) {
-      return mappedNumbersOverride;
-    }
-    
-    // Prioridade 2: Números da API
-    if (Array.isArray(apiNumbers) && apiNumbers.length > 0) {
-      if (typeof apiNumbers[0] === 'number') {
-        return apiNumbers;
-      }
-      
-      // Converter objetos para números
-      return apiNumbers.map(numObj => {
-        if (typeof numObj === 'number') return numObj;
-        
-        if (typeof numObj === 'object' && numObj !== null) {
-          if ('numero' in numObj) {
-            return typeof numObj.numero === 'number' ? numObj.numero : parseInt(String(numObj.numero), 10);
-          }
-          if ('value' in numObj) {
-            return typeof numObj.value === 'number' ? numObj.value : parseInt(String(numObj.value), 10);
-          }
-          if ('number' in numObj) {
-            return typeof numObj.number === 'number' ? numObj.number : parseInt(String(numObj.number), 10);
-          }
-        }
-        
-        return 0; // Fallback
-      }).filter(num => !isNaN(num));
-    }
-    
-    // Prioridade 3: Números de lastNumbers das props
-    if (Array.isArray(lastNumbers) && lastNumbers.length > 0) {
-      return lastNumbers;
-    }
-    
-    return [];
-  }, [mappedNumbersOverride, apiNumbers, lastNumbers]);
+  }, [name, roleta_nome, roletaId, roletaNome, processRealtimeNumber]);
 
   // Adicionar um efeito para a detecção de dados carregados
   useEffect(() => {
-    // Se não tem ID, não continuar
-    if (!roletaId) {
+    // Log detalhado do estado dos dados no componente
+    console.log(`[RouletteCard] Estado do card para ${roletaNome}:`, {
+      isLoading,
+      hasApiData: apiNumbers.length > 0,
+      hasSocketData: mappedNumbersOverride.length > 0,
+      mappedNumbersLength: mappedNumbers.length,
+      lastNumberState: lastNumber,
+      currentTime: new Date().toISOString()
+    });
+    
+    // FORÇAR desativação do carregamento se temos QUALQUER tipo de dados
+    if (isLoading && (apiNumbers.length > 0 || mappedNumbersOverride.length > 0 || mappedNumbers.length > 0)) {
+      console.log(`[RouletteCard] FORÇANDO desativação do isLoading para ${roletaNome} - dados detectados`);
       setIsLoading(false);
-      return;
-    }
-
-    // Logica para detectar se temos dados úteis
-    const hasApiData = Array.isArray(apiNumbers) && apiNumbers.length > 0;
-    const hasSocketData = mappedNumbersOverride.length > 0;
-    const mappedNumbersLength = getCombinedNumbers().length;
-    
-    const lastNumberState = lastNumber;
-    
-    // Log para debug
-    if (DEBUG_ENABLED) {
-      debugLog(`[RouletteCard] Estado do card para ${roletaNome}:`, {
-        isLoading, hasApiData, hasSocketData, mappedNumbersLength, lastNumberState, apiStrategy
-      });
-    }
-    
-    // Verificar se temos algum tipo de dados e desativar loading
-    if (mappedNumbersLength > 0 || hasApiData || hasSocketData) {
-      if (isLoading) {
-        debugLog(`[RouletteCard] FORÇANDO desativação do isLoading para ${roletaNome} - dados detectados`);
-        setIsLoading(false);
+      
+      // Se temos dados e não temos lastNumber definido, definir usando os dados disponíveis
+      if (lastNumber === null) {
+        // Tentar todas as fontes possíveis de dados
+        const firstNumber = 
+          mappedNumbersOverride[0] || 
+          (apiNumbers[0] && (typeof apiNumbers[0] === 'number' ? apiNumbers[0] : apiNumbers[0].numero)) ||
+          mappedNumbers[0];
+          
+        if (firstNumber !== undefined && firstNumber !== null) {
+          console.log(`[RouletteCard] Definindo lastNumber para ${roletaNome} como ${firstNumber}`);
+          const parsedNumber = typeof firstNumber === 'number' ? 
+            firstNumber : 
+            parseInt(String(firstNumber), 10);
+            
+          if (!isNaN(parsedNumber)) {
+            setLastNumber(parsedNumber);
+          }
+        }
       }
     }
     
-    // Garantir que lastNumber seja definido se temos dados
-    if (lastNumberState === null && mappedNumbersLength > 0) {
-      const combinedNumbers = getCombinedNumbers();
-      debugLog(`[RouletteCard] Definindo lastNumber para ${roletaNome} como ${combinedNumbers[0]}`);
-      setLastNumber(combinedNumbers[0]);
+    // Segurança: desativar carregamento após timeout mesmo sem dados
+    if (isLoading) {
+      const timer = setTimeout(() => {
+        console.log(`[RouletteCard] Timeout de carregamento atingido para ${roletaNome} - forçando desativação`);
+        setIsLoading(false);
+      }, 3000); // 3 segundos de timeout
+      
+      return () => clearTimeout(timer);
     }
-    
-  }, [roletaId, apiNumbers, mappedNumbersOverride, isLoading, lastNumber, roletaNome, getCombinedNumbers]);
+  }, [isLoading, apiNumbers, mappedNumbersOverride, mappedNumbers, lastNumber, roletaNome]);
+
+  // Atualizar o lastNumber apenas quando tiver um número válido
+  useEffect(() => {
+    if (mappedNumbers.length > 0) {
+      const firstNumber = mappedNumbers[0];
+      // Garantir que é um número válido e não é um zero de placeholder
+      if (typeof firstNumber === 'number' && !isNaN(firstNumber)) {
+        // Só atualizar se o número for maior que zero ou se for um zero real da roleta
+        if (firstNumber > 0 || (firstNumber === 0 && mappedNumbers.length > 1)) {
+          console.log(`[RouletteCard] Atualizando lastNumber para ${roletaNome}: ${firstNumber}`);
+          setLastNumber(firstNumber);
+        } else {
+          console.log(`[RouletteCard] Ignorando possível zero de placeholder para ${roletaNome}`);
+        }
+      } else {
+        console.warn(`[RouletteCard] Ignorando número inválido para ${roletaNome}: ${firstNumber}`);
+      }
+    }
+  }, [mappedNumbers, roletaNome]);
 
   // Função para gerar sugestões
   const generateSuggestion = () => {
@@ -786,7 +690,7 @@ const RouletteCard = memo(({
       await RequestThrottler.scheduleRequest(
         throttleKey,
         async () => {
-          logger.debug(`Recarregando dados para roleta ${displayName}`);
+          logger.debug(`Recarregando dados para roleta ${roletaNome}`);
           const numbersSuccess = await refreshNumbers();
           const strategySuccess = await refreshStrategy();
           return { numbersSuccess, strategySuccess };
@@ -796,13 +700,13 @@ const RouletteCard = memo(({
       
       toast({
         title: "Dados atualizados",
-        description: `Os dados da ${displayName} foram atualizados com sucesso.`,
+        description: `Os dados da ${roletaNome} foram atualizados com sucesso.`,
         variant: "default"
       });
     } catch (error) {
       toast({
         title: "Erro ao atualizar",
-        description: `Não foi possível atualizar os dados da ${displayName}.`,
+        description: `Não foi possível atualizar os dados da ${roletaNome}.`,
         variant: "destructive"
       });
     } finally {
@@ -826,46 +730,32 @@ const RouletteCard = memo(({
   return (
     <div 
       ref={cardRef}
-      className={`
-        bg-gradient-to-br from-zinc-900 to-zinc-950 rounded-xl shadow-xl p-4 transition-all duration-300
-        ${highlight ? 'border-2 border-green-500' : 'border border-zinc-800'} 
-        ${isBlurred ? 'backdrop-blur-sm' : ''}
-        transform hover:translate-y-[-2px] hover:shadow-2xl
-      `}
+      className={`rounded-lg border bg-zinc-900 border-zinc-800 overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-200 relative ${highlight ? 'ring-2 ring-green-500' : ''}`}
     >
-      {/* Header do Card - Nome da Roleta */}
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="text-lg font-bold text-zinc-50 truncate">{displayName}</h3>
-        <div className="flex space-x-1">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="p-1 h-7 w-7" 
-            onClick={toggleVisibility}
-            title={isBlurred ? "Mostrar" : "Ocultar"}
-          >
-            {isBlurred ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-          </Button>
+      {/* Barra superior com título */}
+      <div className="bg-zinc-950 px-4 py-2 border-b border-zinc-800 flex justify-between items-center">
+        <div className="flex items-center space-x-2">
+          <h3 className="font-semibold text-white">{roletaNome}</h3>
           
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="p-1 h-7 w-7" 
-            onClick={reloadData}
-            title="Recarregar dados"
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </Button>
+          {/* Indicadores visuais */}
+          {isConnected && (
+            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+          )}
         </div>
-      </div>
-      
-      {/* Últimos Números */}
-      <div className={`mb-3 ${highlight ? 'animate-pulse' : ''}`}>
-        <LastNumbers 
-          numbers={getCombinedNumbers()} 
-          isBlurred={isBlurred}
-          roletaId={roletaId}
-        />
+        
+        <div className="flex items-center space-x-2">
+          {/* Tendência */}
+          {Array.isArray(trend) && trend.length > 0 && trend[0]?.value > 0 && <ArrowUp className="w-4 h-4 text-green-500" />}
+          {Array.isArray(trend) && trend.length > 0 && trend[0]?.value < 0 && <ArrowDown className="w-4 h-4 text-red-500" />}
+          
+          {/* Botão de refresh */}
+          <button 
+            onClick={reloadData}
+            className="text-zinc-400 hover:text-white transition-colors duration-200"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
       
       {/* Corpo do Card */}
@@ -895,7 +785,7 @@ const RouletteCard = memo(({
             
             {/* Informações de debug - mais detalhadas */}
             <div className="mb-2 text-xs text-zinc-500">
-              {displayName} - ID: {roletaId || "N/A"} - Eventos: {numbers.length} | API: {mappedNumbers.length} | Override: {mappedNumbersOverride.length}
+              {roletaNome} - ID: {roletaId || "N/A"} - Eventos: {numbers.length} | API: {mappedNumbers.length} | Override: {mappedNumbersOverride.length}
             </div>
             
             {/* Insights */}
@@ -924,7 +814,7 @@ const RouletteCard = memo(({
                   onClick={async (e) => {
                     e.stopPropagation();
                     // Recarregar dados reais em vez de injetar dados de teste
-                    console.log(`[RouletteCard] Forçando recarregamento de dados reais para ${displayName}`);
+                    console.log(`[RouletteCard] Forçando recarregamento de dados reais para ${roletaNome}`);
                     
                     // Iniciar loading
                     setIsLoading(true);
@@ -935,18 +825,18 @@ const RouletteCard = memo(({
                       if (success) {
                         toast({
                           title: "Dados atualizados",
-                          description: `Dados reais carregados para ${displayName}`,
+                          description: `Dados reais carregados para ${roletaNome}`,
                           variant: "default"
                         });
                       } else {
                         toast({
                           title: "Sem dados disponíveis",
-                          description: `Não foi possível carregar dados para ${displayName}`,
+                          description: `Não foi possível carregar dados para ${roletaNome}`,
                           variant: "destructive"
                         });
                       }
                     } catch (error) {
-                      console.error(`Erro ao recarregar dados para ${displayName}:`, error);
+                      console.error(`Erro ao recarregar dados para ${roletaNome}:`, error);
                       toast({
                         title: "Erro",
                         description: "Ocorreu um erro ao tentar recarregar os dados",
@@ -1016,18 +906,18 @@ const RouletteCard = memo(({
               e.stopPropagation();
               // Gerar um número aleatório entre 0 e 36
               const randomNumber = Math.floor(Math.random() * 37);
-              console.log(`[RouletteCard] Injetando número REAL de teste ${randomNumber} para ${displayName}`);
+              console.log(`[RouletteCard] Injetando número REAL de teste ${randomNumber} para ${roletaNome}`);
               
               // Injetar evento de teste usando o SocketService
               const socketService = SocketService.getInstance();
-              socketService.injectTestEvent(displayName, randomNumber);
+              socketService.injectTestEvent(roletaNome, randomNumber);
               
               // Atualizar o estado isLoading
               setIsLoading(false);
               
               toast({
                 title: "Dados reais adicionados",
-                description: `Carregado número ${randomNumber} para ${displayName}`,
+                description: `Carregado número ${randomNumber} para ${roletaNome}`,
                 variant: "default"
               });
             }}
