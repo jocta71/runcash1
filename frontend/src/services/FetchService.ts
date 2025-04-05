@@ -64,11 +64,11 @@ class FetchService {
    */
   public startPolling(): void {
     if (this.isPolling) {
-      console.log('[FetchService] Polling já está em execução');
+      logger.info('Polling já está em execução');
       return;
     }
     
-    console.log('[FetchService] Iniciando polling regular de dados');
+    logger.info('Iniciando polling regular de dados');
     this.isPolling = true;
     
     // Executar imediatamente a primeira vez
@@ -89,31 +89,31 @@ class FetchService {
       this.pollingIntervalId = null;
     }
     this.isPolling = false;
-    console.log('[FetchService] Polling parado');
+    logger.info('Polling parado');
   }
   
   /**
    * Busca dados de todas as roletas permitidas
    */
   private async fetchAllRouletteData(): Promise<void> {
-    console.log('[FetchService] Buscando dados das roletas...');
+    logger.debug('Buscando dados das roletas...');
     
     try {
       // Primeira etapa: buscar todas as roletas para obter informações básicas
       const roulettes = await this.fetchAllRoulettes();
       
       if (!roulettes || roulettes.length === 0) {
-        console.warn('[FetchService] Nenhuma roleta encontrada');
+        logger.warn('Nenhuma roleta encontrada');
         return;
       }
       
-      console.log(`[FetchService] Encontradas ${roulettes.length} roletas`);
+      logger.debug(`Encontradas ${roulettes.length} roletas`);
       
       // Segunda etapa: para cada roleta, buscar os números mais recentes
       for (const roulette of roulettes) {
         try {
           // Ignorar roletas sem id
-          if (!roulette.id) continue;
+          if (!roulette || !roulette.id) continue;
           
           // Buscar números para esta roleta
           const roletaId = this.getCanonicalId(roulette.id, roulette.nome);
@@ -123,7 +123,7 @@ class FetchService {
             continue;
           }
           
-          console.log(`[FetchService] Buscando números para ${roulette.nome} (ID: ${roletaId})`);
+          logger.debug(`Buscando números para ${roulette.nome || 'Roleta Desconhecida'} (ID: ${roletaId})`);
           
           const numbers = await this.fetchRouletteNumbers(roletaId);
           
@@ -132,11 +132,11 @@ class FetchService {
             this.processNewNumbers(roulette, numbers);
           }
         } catch (error) {
-          console.error(`[FetchService] Erro ao buscar números para roleta ${roulette.nome}:`, error);
+          logger.error(`Erro ao buscar números para roleta ${roulette?.nome || 'desconhecida'}:`, error);
         }
       }
     } catch (error) {
-      console.error('[FetchService] Erro ao buscar dados das roletas:', error);
+      logger.error('Erro ao buscar dados das roletas:', error);
     }
   }
   
@@ -176,7 +176,16 @@ class FetchService {
         if (response && Array.isArray(response)) {
           // Encontrar a roleta específica pelo ID canônico
           const targetRoulette = response.find((roleta: any) => {
-            const roletaCanonicalId = roleta.canonical_id || this.getCanonicalId(roleta.id || '', roleta.nome);
+            // Verificar se roleta existe e tem propriedades antes de acessá-las
+            if (!roleta) return false;
+            
+            // Usar valores padrão seguros se as propriedades forem undefined
+            const roletaId = roleta.id || '';
+            const roletaNome = roleta.nome || '';
+            
+            const roletaCanonicalId = roleta.canonical_id || 
+              this.getCanonicalId(roletaId, roletaNome);
+            
             return roletaCanonicalId === roletaId || roleta.id === roletaId;
           });
           
@@ -228,17 +237,21 @@ class FetchService {
    * Processa números novos, comparando com os últimos recebidos
    */
   private processNewNumbers(roulette: any, numbers: number[]): void {
-    if (!numbers || numbers.length === 0) return;
+    // Verificar se temos dados válidos
+    if (!roulette || !numbers || !Array.isArray(numbers) || numbers.length === 0) {
+      return;
+    }
     
+    // Garantir que temos um ID e nome válidos
     const roletaId = this.getCanonicalId(roulette.id, roulette.nome);
-    const roletaNome = roulette.nome;
+    const roletaNome = roulette.nome || 'Roleta Desconhecida';
     
     // Verificar se já temos números para esta roleta
     const lastData = this.lastFetchedNumbers.get(roletaId);
     
     if (!lastData) {
       // Primeiro conjunto de números para esta roleta
-      console.log(`[FetchService] Primeiros números obtidos para ${roletaNome}: [${numbers.slice(0, 5).join(', ')}...]`);
+      logger.info(`Primeiros números obtidos para ${roletaNome}: [${numbers.slice(0, 5).join(', ')}...]`);
       
       this.lastFetchedNumbers.set(roletaId, {
         timestamp: Date.now(),
@@ -247,17 +260,30 @@ class FetchService {
       
       // Emitir o número mais recente como evento
       const lastNumber = numbers[0];
-      this.emitNumberEvent(roletaId, roletaNome, lastNumber);
+      if (lastNumber !== undefined && lastNumber !== null) {
+        this.emitNumberEvent(roletaId, roletaNome, lastNumber);
+      }
       
       return;
     }
     
     // Verificar se temos números novos comparando com os últimos salvos
-    const oldNumbers = lastData.numbers;
-    const firstNewNumber = numbers[0];
+    const oldNumbers = lastData.numbers || [];
     
-    if (firstNewNumber !== oldNumbers[0]) {
-      console.log(`[FetchService] Novo número detectado para ${roletaNome}: ${firstNewNumber} (anterior: ${oldNumbers[0]})`);
+    // Verificar se temos números para comparar
+    if (oldNumbers.length === 0 || numbers.length === 0) {
+      this.lastFetchedNumbers.set(roletaId, {
+        timestamp: Date.now(),
+        numbers: [...numbers]
+      });
+      return;
+    }
+    
+    const firstNewNumber = numbers[0];
+    const firstOldNumber = oldNumbers[0];
+    
+    if (firstNewNumber !== firstOldNumber) {
+      logger.info(`Novo número detectado para ${roletaNome}: ${firstNewNumber} (anterior: ${firstOldNumber})`);
       
       // Atualizar a lista de números
       this.lastFetchedNumbers.set(roletaId, {
@@ -269,7 +295,7 @@ class FetchService {
       this.emitNumberEvent(roletaId, roletaNome, firstNewNumber);
     } else {
       // Apenas atualizar o timestamp sem emitir evento
-      console.log(`[FetchService] Nenhum número novo para ${roletaNome}, último: ${firstNewNumber}`);
+      logger.debug(`Nenhum número novo para ${roletaNome}, último: ${firstNewNumber}`);
       this.lastFetchedNumbers.set(roletaId, {
         timestamp: Date.now(),
         numbers: oldNumbers
@@ -283,22 +309,22 @@ class FetchService {
   private emitNumberEvent(roletaId: string, roletaNome: string, numero: number): void {
     // Verificar se o número é válido
     if (numero === undefined || numero === null || isNaN(numero)) {
-      console.warn(`[FetchService] Tentativa de emitir número inválido para ${roletaNome}: ${numero}`);
+      logger.warn(`Tentativa de emitir número inválido para ${roletaNome}: ${numero}`);
       return;
     }
     
     // Criar o evento
     const event: RouletteNumberEvent = {
       type: 'new_number',
-      roleta_id: roletaId,
-      roleta_nome: roletaNome,
+      roleta_id: roletaId || '',
+      roleta_nome: roletaNome || 'Roleta Desconhecida',
       numero: numero,
       timestamp: new Date().toISOString(),
       // Adicionar flag para indicar que este evento NÃO deve substituir dados existentes
       preserve_existing: true
     };
     
-    console.log(`[FetchService] Emitindo evento de novo número para ${roletaNome}: ${numero}`);
+    logger.info(`Emitindo evento de novo número para ${roletaNome}: ${numero}`);
     
     // Emitir utilizando o EventService
     const eventService = EventService.getInstance();
@@ -314,26 +340,29 @@ class FetchService {
   /**
    * Obtém o ID canônico para uma roleta, usando o nome como fallback
    */
-  private getCanonicalId(id: string, nome?: string): string {
+  private getCanonicalId(id: string = '', nome?: string): string {
+    // Garantir que id seja uma string
+    const safeId = id || '';
+    
     // Se o ID já é canônico, retorná-lo
-    if (ALLOWED_ROULETTES.includes(id)) {
-      return id;
+    if (ALLOWED_ROULETTES.includes(safeId)) {
+      return safeId;
     }
     
-    // Tentar mapear pelo nome
-    if (nome && NAME_TO_ID_MAP[nome]) {
+    // Tentar mapear pelo nome, verificando se o nome está definido e existe no mapa
+    if (nome && typeof nome === 'string' && NAME_TO_ID_MAP[nome]) {
       return NAME_TO_ID_MAP[nome];
     }
     
     // Retornar o ID original como último recurso
-    return id;
+    return safeId;
   }
   
   /**
    * Força uma atualização única das roletas
    */
   public forceUpdate(): void {
-    console.log('[FetchService] Forçando atualização imediata das roletas');
+    logger.info('Forçando atualização imediata das roletas');
     this.fetchAllRouletteData();
   }
 
