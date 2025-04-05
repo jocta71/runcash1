@@ -34,16 +34,6 @@ const NAME_TO_ID_MAP: Record<string, string> = {
   "Auto-Roulette VIP": "2010098"
 };
 
-// Mapear IDs canônicos para nomes
-const ID_TO_NAME_MAP: Record<string, string> = {
-  "2010016": "Immersive Roulette",
-  "2380335": "Brazilian Mega Roulette",
-  "2010065": "Bucharest Auto-Roulette",
-  "2010096": "Speed Auto Roulette",
-  "2010017": "Auto-Roulette",
-  "2010098": "Auto-Roulette VIP"
-};
-
 interface FetchOptions extends RequestInit {
   skipCache?: boolean;
   cacheTime?: number;
@@ -334,15 +324,11 @@ class FetchService {
       return;
     }
     
-    // Garantir que estamos usando o nome correto baseado no ID canônico
-    const canonicalId = this.getCanonicalId(roletaId, roletaNome);
-    const correctName = ID_TO_NAME_MAP[canonicalId] || roletaNome;
-    
     // Criar o evento
     const event: RouletteNumberEvent = {
       type: 'new_number',
-      roleta_id: canonicalId || '',
-      roleta_nome: correctName,
+      roleta_id: roletaId || '',
+      roleta_nome: roletaNome || 'Roleta Desconhecida',
       numero: numero,
       timestamp: new Date().toISOString(),
       // Flag que indica se este é o número mais recente ou um número histórico
@@ -351,7 +337,11 @@ class FetchService {
       preserve_existing: true
     };
     
+<<<<<<< HEAD
     logger.info(`Emitindo evento de número ${isLatest ? 'recente' : 'histórico'} para ${correctName}: ${numero}`);
+=======
+    logger.info(`Emitindo evento de novo número para ${roletaNome}: ${numero}`);
+>>>>>>> parent of 3e91e0c (fix: Corrige problema das roletas exibidas como 'Roleta Desconhecida')
     
     // Emitir utilizando o EventService
     const eventService = EventService.getInstance();
@@ -686,56 +676,6 @@ class FetchService {
     } catch (error) {
       logger.error(`Erro ao buscar roletas: ${error.message}`);
       throw error;
-    }
-  }
-
-  /**
-   * Processa dados brutos de roleta para o formato padronizado
-   */
-  private processRouletteData(rawData: any): any {
-    try {
-      // Se o dado bruto não existe, retornar objeto vazio
-      if (!rawData) return {};
-      
-      // Garantir que temos um ID válido
-      let roletaId = '';
-      
-      if (rawData.roleta_id) {
-        roletaId = String(rawData.roleta_id);
-      } else if (rawData.id) {
-        roletaId = String(rawData.id);
-      } else if (rawData._id) {
-        roletaId = String(rawData._id);
-      }
-      
-      // Obter ID canônico
-      const canonicalId = ALLOWED_ROULETTES.includes(roletaId) ? 
-        roletaId : this.getCanonicalId(roletaId, rawData.nome || rawData.name);
-      
-      // Determinar o nome correto baseado no ID canônico
-      const correctName = ID_TO_NAME_MAP[canonicalId] || rawData.nome || rawData.name || 'Roleta Desconhecida';
-      
-      // Construir objeto padronizado
-      return {
-        id: canonicalId,
-        roleta_id: canonicalId,
-        _id: rawData._id || rawData.id || canonicalId,
-        nome: correctName,
-        name: correctName,
-        numeros: Array.isArray(rawData.numero) ? rawData.numero : 
-                 Array.isArray(rawData.numeros) ? rawData.numeros : [],
-        ultima_atualizacao: rawData.updated_at || new Date().toISOString(),
-        updated_at: rawData.updated_at || new Date().toISOString(),
-        vitorias: rawData.vitorias || 0,
-        wins: rawData.vitorias || 0,
-        derrotas: rawData.derrotas || 0,
-        losses: rawData.derrotas || 0,
-        estado_estrategia: rawData.estado_estrategia || 'NEUTRAL',
-        strategyState: rawData.estado_estrategia || 'NEUTRAL'
-      };
-    } catch (error) {
-      logger.error('Erro ao processar dados da roleta:', error);
-      return { nome: 'Erro ao processar dados', id: '0' };
     }
   }
 }
