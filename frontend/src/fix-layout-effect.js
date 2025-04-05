@@ -1,57 +1,59 @@
-// fix-layout-effect.js - Versão otimizada de segurança para useLayoutEffect
-// Importar este arquivo em qualquer componente que use useLayoutEffect
+/**
+ * fix-layout-effect.js
+ * 
+ * Este script resolve o problema "Cannot read properties of undefined (reading 'useLayoutEffect')"
+ * garantindo que o useLayoutEffect esteja sempre disponível, seja no lado do servidor ou cliente.
+ * 
+ * O script deve ser carregado antes da aplicação React ser inicializada.
+ */
 
-// Função para fixar o useLayoutEffect
-(function fixUseLayoutEffect() {
-  // Verificação de ambiente
-  if (typeof window === 'undefined' || typeof window.React === 'undefined') {
-    console.warn("[fix-layout-effect] Ambiente sem window ou React detectado");
-    return;
-  }
-  
-  // Verificar se React.useLayoutEffect existe
-  if (!window.React.useLayoutEffect) {
-    console.warn("[fix-layout-effect] React.useLayoutEffect não encontrado, aplicando fix");
-    
-    // Implementação segura do useLayoutEffect
-    window.React.useLayoutEffect = window.React.useEffect || function(callback, deps) {
-      // Implementação mínima que não causa erro
-      if (typeof callback === 'function') {
-        setTimeout(() => {
-          try {
-            callback();
-          } catch (e) {
-            console.error("[fix-layout-effect] Erro ao executar callback:", e);
-          }
-        }, 0);
+(function() {
+  try {
+    // Verificar se estamos em um ambiente de navegador
+    if (typeof window !== 'undefined') {
+      // Garantir que o objeto React seja acessível
+      if (!window.React) {
+        // Criar um objeto React temporário se não existir
+        window.React = window.React || {};
       }
-      return undefined;
-    };
-    
-    // Atualizar também a variável 'z' usada em código minificado
-    if (window.z) {
-      window.z.useLayoutEffect = window.React.useLayoutEffect;
-    }
-    
-    console.log("[fix-layout-effect] Fix aplicado com sucesso");
-  }
-  
-  // Aplicar monkey patch no React que será carregado posteriormente
-  const originalDefineProperty = Object.defineProperty;
-  Object.defineProperty = function(obj, prop, descriptor) {
-    // Se estiver definindo o React no window
-    if (obj === window && prop === 'React' && descriptor && descriptor.value) {
-      const originalValue = descriptor.value;
       
-      // Manter a implementação segura de useLayoutEffect
-      if (!originalValue.useLayoutEffect) {
-        originalValue.useLayoutEffect = window.React.useLayoutEffect;
+      // Verificar se useLayoutEffect está disponível ou criar uma versão segura
+      // que utiliza useEffect como fallback
+      if (!window.React.useLayoutEffect) {
+        // Usar o useEffect como fallback para useLayoutEffect
+        window.React.useLayoutEffect = window.React.useEffect || 
+          function useLayoutEffectPolyfill(callback, deps) {
+            console.log('[Polyfill] Usando polyfill para useLayoutEffect');
+            // Simplesmente retorna uma função vazia se nenhum fallback estiver disponível
+            // Isso evita erros, embora não forneça a funcionalidade
+            return typeof window.React.useEffect === 'function' 
+              ? window.React.useEffect(callback, deps)
+              : function() {};
+          };
+        
+        console.log('[LayoutEffect Fix] Polyfill para useLayoutEffect instalado');
       }
+      
+      // Também definimos uma versão global do React para debug
+      // e para facilitar a interceptação
+      if (typeof window.__REACT_GLOBAL_DEBUG__ === 'undefined') {
+        window.__REACT_GLOBAL_DEBUG__ = {
+          injectLayoutEffect: function(React) {
+            if (React && !React.useLayoutEffect && React.useEffect) {
+              React.useLayoutEffect = React.useEffect;
+              console.log('[React Debug] useLayoutEffect injetado no objeto React fornecido');
+              return true;
+            }
+            return false;
+          }
+        };
+      }
+      
+      console.log('[LayoutEffect Fix] Inicialização concluída');
     }
-    
-    // Comportamento normal
-    return originalDefineProperty.apply(this, arguments);
-  };
+  } catch (e) {
+    console.error('[LayoutEffect Fix] Erro durante inicialização:', e);
+  }
 })();
 
 // Exportar uma verificação que pode ser usada em componentes

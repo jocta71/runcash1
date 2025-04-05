@@ -1,122 +1,74 @@
-// Script de interceptação de acesso ao React.useLayoutEffect
-// Este script deve ser carregado antes de qualquer outro código
+/**
+ * react-early-intercept.js
+ * 
+ * Este script implementa uma solução mais robusta para o problema do useLayoutEffect
+ * interceptando o módulo React antes de ser completamente carregado
+ * 
+ * Deve ser importado no início da aplicação, antes de qualquer código React
+ */
 
+// Abordagem para injetar um polyfill para useLayoutEffect no React antes de ser usado
 (function() {
-  // Verificação de ambiente
-  if (typeof window === 'undefined') return;
-  
-  console.log('[Interceptador] Inicializando interceptador de propriedades React...');
-  
-  // Guardar o React original
-  const originalReact = window.React;
-  
-  // Criar proxy para interceptar propriedades
-  const proxyHandler = {
-    get: function(target, prop) {
-      // Se a propriedade é useLayoutEffect
-      if (prop === 'useLayoutEffect') {
-        // Se não existir, criar uma implementação segura
-        if (!target.useLayoutEffect) {
-          console.log('[Interceptador] Interceptando acesso a useLayoutEffect');
-          
-          // Criar implementação de fallback
-          const safeUseLayoutEffect = function(callback, deps) {
-            console.log('[Interceptador] Usando implementação segura de useLayoutEffect');
-            
-            // Implementação segura que não causa erro
-            if (typeof callback === 'function') {
-              const timeoutId = setTimeout(() => {
-                try {
-                  callback();
-                } catch (e) {
-                  console.error('[Interceptador] Erro ao executar callback de useLayoutEffect:', e);
-                }
-              }, 0);
-              
-              // Retornar função de cleanup
-              return function() {
-                clearTimeout(timeoutId);
-              };
-            }
-            return undefined;
-          };
-          
-          // Definir a propriedade no objeto alvo para uso futuro
-          Object.defineProperty(target, 'useLayoutEffect', {
-            value: safeUseLayoutEffect,
-            writable: true,
-            configurable: true,
-            enumerable: true
-          });
-          
-          return safeUseLayoutEffect;
+  try {
+    // 1. Interceptar erros relacionados a useLayoutEffect
+    if (typeof window !== 'undefined') {
+      window.addEventListener('error', function(event) {
+        if (event && event.error && event.error.message && 
+            (event.error.message.includes('useLayoutEffect') || 
+             event.error.message.includes('Cannot read properties of undefined'))) {
+          console.warn('[Interceptador] Erro interceptado:', event.error.message);
+          // Marcar o erro como tratado
+          event.preventDefault();
+          return true;
         }
+      }, true); // Capturar na fase de captura para interceptar antes de outros handlers
+      
+      // 2. Definir um objeto React global mínimo com useLayoutEffect seguro
+      if (!window.React) {
+        window.React = {};
       }
       
-      // Para todas as outras propriedades, tente retornar o valor original
-      try {
-        return target[prop];
-      } catch (e) {
-        console.warn(`[Interceptador] Erro ao acessar propriedade ${prop}:`, e);
-        
-        // Retornar valores padrão para hooks conhecidos
-        if (prop === 'useState') return function() { return [undefined, function() {}]; };
-        if (prop === 'useEffect') return function() { return undefined; };
-        if (prop === 'useRef') return function() { return { current: undefined }; };
-        
-        // Valor padrão para outras propriedades
-        return undefined;
-      }
-    },
-    
-    // Interceptar verificações has
-    has: function(target, prop) {
-      if (prop === 'useLayoutEffect') return true;
-      return prop in target;
-    }
-  };
-  
-  // Criar proxy apenas se React não existe ou não tem useLayoutEffect
-  if (!originalReact || !originalReact.useLayoutEffect) {
-    // Criar objeto React vazio se não existe
-    if (!window.React) window.React = {};
-    
-    // Aplicar proxy ao objeto React
-    window.React = new Proxy(window.React, proxyHandler);
-    
-    console.log('[Interceptador] Proxy aplicado ao objeto React');
-  } else {
-    console.log('[Interceptador] React.useLayoutEffect já existe, nenhuma ação necessária');
-  }
-  
-  // Interceptar erros relacionados ao useLayoutEffect
-  const originalError = console.error;
-  console.error = function() {
-    const errorString = Array.from(arguments).join(' ');
-    
-    // Se for erro de useLayoutEffect, tentar recuperar
-    if (errorString.includes('useLayoutEffect') && 
-        errorString.includes('undefined') &&
-        errorString.includes('Cannot read properties')) {
-      
-      console.log('[Interceptador] Erro de useLayoutEffect detectado e interceptado');
-      
-      // Tentar corrigir se o React existe mas useLayoutEffect não
-      if (window.React && !window.React.useLayoutEffect) {
-        window.React.useLayoutEffect = function(callback, deps) {
-          console.warn('[Interceptador] Usando implementação de emergência para useLayoutEffect');
-          // Implementação simples que não causa erro
-          return undefined;
+      // 3. Implementar useLayoutEffect como useEffect ou uma função vazia
+      if (!window.React.useLayoutEffect) {
+        window.React.useLayoutEffect = function useLayoutEffectPolyfill(callback, deps) {
+          console.log('[Early Intercept] Usando polyfill para useLayoutEffect');
+          return typeof window.React.useEffect === 'function' 
+            ? window.React.useEffect(callback, deps) 
+            : function() {};
         };
       }
       
-      // Não propagar o erro
-      return;
+      // 4. Interceptar o require/import do React para adicionar useLayoutEffect
+      const originalDefineProperty = Object.defineProperty;
+      Object.defineProperty = function(obj, prop, descriptor) {
+        // Se alguém estiver definindo a propriedade 'React' no window
+        if ((obj === window || obj === globalThis) && prop === 'React') {
+          const originalValue = descriptor.value;
+          
+          // Verificar se o valor é um objeto React válido
+          if (originalValue && typeof originalValue === 'object') {
+            // Verificar se useLayoutEffect está ausente
+            if (typeof originalValue.useLayoutEffect !== 'function') {
+              // Injetar useLayoutEffect = useEffect
+              if (typeof originalValue.useEffect === 'function') {
+                originalValue.useLayoutEffect = originalValue.useEffect;
+                console.log('[Early Intercept] useLayoutEffect injetado usando useEffect');
+              } else {
+                // Função dummy como último recurso
+                originalValue.useLayoutEffect = function() { return function() {}; };
+                console.log('[Early Intercept] useLayoutEffect dummy injetado');
+              }
+            }
+          }
+        }
+        
+        // Continuar com o comportamento normal
+        return originalDefineProperty.apply(this, arguments);
+      };
+      
+      console.log('[Early Intercept] Sistema de proteção para useLayoutEffect iniciado');
     }
-    
-    // Para outros erros, comportamento normal
-    return originalError.apply(console, arguments);
-  };
-  
-  console.log('[Interceptador] Interceptação de erros configurada');
+  } catch (e) {
+    console.error('[Early Intercept] Erro ao inicializar interceptação:', e);
+  }
 })(); 

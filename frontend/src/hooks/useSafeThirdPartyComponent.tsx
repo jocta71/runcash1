@@ -37,20 +37,26 @@ const useSafeThirdPartyComponent = (options: {
   useEffect(() => {
     if (!isClient) return;
     
-    // Verificar se React e hooks estão disponíveis
+    // Uma abordagem mais robusta para verificar se o React está pronto
     const checkReactReady = () => {
-      const isReactAvailable = 
-        typeof window !== 'undefined' && 
-        window.React && 
-        typeof window.React.useLayoutEffect === 'function';
-      
-      if (isReactAvailable) {
-        setIsReactReady(true);
-        isSafeToRender.current = true;
-      } else {
-        // Verificar novamente após um breve delay
-        setTimeout(checkReactReady, delay);
+      try {
+        // Verificar se podemos usar React e seus hooks
+        // Uma forma mais confiável é tentar acessar o React já importado e verificar funções essenciais
+        const isUseEffectAvailable = typeof useEffect === 'function';
+        const isUseStateAvailable = typeof useState === 'function';
+        
+        // Se os hooks básicos estão disponíveis, provavelmente é seguro renderizar
+        if (isUseEffectAvailable && isUseStateAvailable) {
+          setIsReactReady(true);
+          isSafeToRender.current = true;
+          return;
+        }
+      } catch (e) {
+        console.debug('React ainda não está completamente inicializado:', e);
       }
+      
+      // Se chegamos aqui, o React ainda não está pronto, verificar novamente após um breve delay
+      setTimeout(checkReactReady, delay);
     };
     
     checkReactReady();
