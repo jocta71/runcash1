@@ -151,11 +151,15 @@ const Index = () => {
         if (result.length > 0) {
           setKnownRoulettes(prev => mergeRoulettes(prev, result));
         }
+        
+        // Definir que os dados foram completamente carregados
+        setDataFullyLoaded(true);
       } else {
         // Se falhar, usar roletas conhecidas
         if (knownRoulettes.length > 0) {
           console.log('⚠️ Usando roletas conhecidas como fallback');
           setRoulettes(knownRoulettes);
+          setDataFullyLoaded(true);
         } else {
           setError('Não foi possível carregar as roletas disponíveis.');
         }
@@ -167,6 +171,7 @@ const Index = () => {
       // Fallback para roletas conhecidas
       if (knownRoulettes.length > 0) {
         setRoulettes(knownRoulettes);
+        setDataFullyLoaded(true);
       }
     } finally {
       setIsLoading(false);
