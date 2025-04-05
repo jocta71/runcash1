@@ -665,11 +665,18 @@ class EventService {
   }
 
   /**
-   * Adiciona um log de evento para diagnóstico
-   * @param message Mensagem a ser logada
-   * @param type Tipo de log
+   * Logs an event with the specified message and type
    */
   private logEvent(message: string, type: string = 'info'): void {
+      if (type === 'error') {
+          console.error(`[EventService] ${message}`);
+      } else if (type === 'warn') {
+          console.warn(`[EventService] ${message}`);
+      } else {
+          console.log(`[EventService] ${message}`);
+      }
+  }
+
   public receiveRealtimeUpdate(event: RouletteNumberEvent): void {
     try {
       if (!event || !event.roleta_id) {
@@ -795,4 +802,4 @@ class EventService {
   }
 }
 
-export default EventService; 
+export default EventService;
