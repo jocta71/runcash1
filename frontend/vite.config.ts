@@ -10,8 +10,8 @@ export default defineConfig({
       name: 'handle-global-init',
       enforce: 'pre',
       resolveId(id) {
-        if (id === 'global-init' || id === './global-init' || id === '../global-init') {
-          return path.resolve(__dirname, 'src/global-init.js');
+        if (id === 'global-init' || id === './global-init' || id === '../global-init' || id === 'react-polyfill' || id === './react-polyfill') {
+          return path.resolve(__dirname, id.includes('polyfill') ? 'src/react-polyfill.js' : 'src/global-init.js');
         }
         return null;
       }
@@ -21,7 +21,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "global-init": path.resolve(__dirname, "./src/global-init.js")
+      "global-init": path.resolve(__dirname, "./src/global-init.js"),
+      "react-polyfill": path.resolve(__dirname, "./src/react-polyfill.js")
     },
   },
   // Ensure proper module loading order
@@ -32,15 +33,20 @@ export default defineConfig({
       input: {
         // The order here matters - globalInit should be first
         globalInit: path.resolve(__dirname, 'src/global-init.js'),
+        reactPolyfill: path.resolve(__dirname, 'src/react-polyfill.js'),
         main: path.resolve(__dirname, 'index.html'),
       },
       output: {
-        // Make sure Yo is available in the global scope
-        intro: 'window.Yo = window.Yo || { initialized: true };',
+        // Make sure React and Yo are available in the global scope
+        intro: `
+          window.Yo = window.Yo || { initialized: true };
+          window.React = window.React || {};
+          window.React.useLayoutEffect = window.React.useLayoutEffect || function() {};
+        `,
         // Chunks configuration for better loading order
         manualChunks: (id) => {
           // Put initialization code in a separate chunk that loads first
-          if (id.includes('global-init') || id.includes('preload')) {
+          if (id.includes('global-init') || id.includes('react-polyfill') || id.includes('preload')) {
             return 'init';
           }
           // Vendor chunk for libraries

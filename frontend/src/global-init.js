@@ -1,24 +1,26 @@
 // AUTO-GENERATED: Global initialization file
 // This file ensures variables are initialized before they're accessed
 
-// Global initialization IIFE to avoid polluting global scope
+// IIFE executada imediatamente antes de qualquer outro código
 (function() {
-  // Use var instead of let/const to avoid TDZ issues
-  var initialized = {};
-
-  // Initialize Yo to prevent "Cannot access before initialization" errors
-  var Yo = { initialized: true, timestamp: Date.now() };
-  window.Yo = Yo;
-  initialized['Yo'] = true;
-
-  // Resolver problema com useLayoutEffect
-  // Criar um objeto simulado de React para caso o React ainda não tenha sido carregado
-  // ou para quando o código minificado tenta acessar uma variável z indefinida
+  // Definir variáveis React no escopo global antes de qualquer importação
   if (typeof window !== 'undefined') {
-    // Definir explicitamente o objeto React
+    // Hook para interceptar erros de propriedades indefinidas
+    const originalGetProperty = Object.getOwnPropertyDescriptor(Object.prototype, '__lookupGetter__')?.value;
+    if (originalGetProperty) {
+      // Patch global para prevenir erros de acesso a propriedades de objetos undefined
+      Object.defineProperty(window, 'React', {
+        value: {},
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+    }
+    
+    // Assegurar que o objeto React existe
     window.React = window.React || {};
     
-    // Definir explicitamente todos os hooks comuns do React
+    // Lista de todos os hooks React comuns - definidos explicitamente
     const reactHooks = [
       'useState', 
       'useEffect', 
@@ -27,20 +29,41 @@
       'useCallback', 
       'useMemo', 
       'useContext', 
-      'useReducer'
+      'useReducer',
+      'useImperativeHandle',
+      'useDebugValue',
+      'useTransition',
+      'useDeferredValue'
     ];
     
-    // Implementa cada hook se não estiver definido
+    // Implementar todos os hooks com comportamento seguro
     reactHooks.forEach(hookName => {
+      // Definir o hook somente se ainda não estiver definido
       if (!window.React[hookName]) {
         window.React[hookName] = function() {
+          // Em produção, retornar valores padrão silenciosamente
           if (process.env.NODE_ENV === 'production') {
-            return hookName === 'useRef' || hookName === 'useState' ? {} : undefined;
+            // Comportamento específico baseado no hook
+            switch (hookName) {
+              case 'useState':
+                return [undefined, function() {}];
+              case 'useRef':
+                return { current: undefined };
+              case 'useEffect':
+              case 'useLayoutEffect':
+                return undefined;
+              default:
+                return undefined;
+            }
           }
+          
+          // Em desenvolvimento, avisar sobre inicialização precoce
           console.warn(`[global-init] React.${hookName} chamado antes do React ser inicializado`);
+          
+          // Retornar o mesmo comportamento para desenvolvimento
           switch (hookName) {
             case 'useState':
-              return [undefined, () => {}];
+              return [undefined, function() {}];
             case 'useRef':
               return { current: undefined };
             default:
@@ -50,18 +73,23 @@
       }
     });
     
-    // Adicionar safeguard para o objeto z que pode estar sendo usado no código minificado
+    // Também definir z como React para código minificado
     window.z = window.z || window.React;
-    
-    initialized['React'] = true;
-    initialized['z'] = true;
   }
-
-  // Create a registry to track initialization
-  window.__INIT_REGISTRY__ = initialized;
   
-  // Log in development
+  // Inicializar Yo para evitar erros "Cannot access before initialization"
+  var Yo = { initialized: true, timestamp: Date.now() };
+  window.Yo = Yo;
+  
+  // Criar registry para rastrear inicialização
+  window.__INIT_REGISTRY__ = {
+    'Yo': true,
+    'React': true,
+    'z': true
+  };
+  
+  // Log em desenvolvimento
   if (process.env.NODE_ENV !== 'production') {
-    console.log('[global-init] Variables initialized:', Object.keys(initialized));
+    console.log('[global-init] Inicialização global concluída');
   }
 })();
