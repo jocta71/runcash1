@@ -645,21 +645,25 @@ class EventService {
       }
   }
 
-  // Add this method to fix the reference issue
+  // Improved implementation of the instance version of emitGlobalEvent
   private emitGlobalEvent(eventType: string, payload: any): void {
-    debugLog(`[EventService] Emitindo evento global (instância): ${eventType}`, payload);
+    // Use the debugLog function instead of direct console access for consistency
+    debugLog(`[EventService] Emitindo evento global (instância): ${eventType}`);
     
-    // Criar um objeto de evento genérico
+    // Create a properly typed event object
     const event: any = {
       type: eventType,
       ...payload,
       timestamp: new Date().toISOString()
     };
     
-    // Notificar listeners globais
+    // Use the class's notifyListeners method
     this.notifyListeners(event as any);
   }
 
+  /**
+   * Handles realtime updates from various sources
+   */
   public receiveRealtimeUpdate(event: RouletteNumberEvent): void {
     try {
       if (!event || !event.roleta_id) {
