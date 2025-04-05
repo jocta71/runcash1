@@ -3,10 +3,13 @@
  * quando a conexão WebSocket falha
  */
 
-import axios from 'axios';
-import config from '@/config/env';
 import EventService from './EventService';
 import { RouletteNumberEvent } from './EventService';
+import { RequestThrottler } from './utils/requestThrottler';
+import { getLogger } from './utils/logger';
+import config from '@/config/env';
+
+const logger = getLogger('FetchService');
 
 // Configurações
 const POLLING_INTERVAL = 5000; // 5 segundos entre cada verificação
@@ -30,6 +33,13 @@ const NAME_TO_ID_MAP: Record<string, string> = {
   "Auto-Roulette VIP": "2010098"
 };
 
+interface FetchOptions extends RequestInit {
+  skipCache?: boolean;
+  cacheTime?: number;
+  throttleKey?: string;
+  forceRefresh?: boolean;
+}
+
 class FetchService {
   private static instance: FetchService;
   private pollingIntervalId: number | null = null;
@@ -39,7 +49,7 @@ class FetchService {
   
   constructor() {
     this.apiBaseUrl = config.apiBaseUrl;
-    console.log('[FetchService] Inicializado com URL base:', this.apiBaseUrl);
+    logger.info('Inicializado com URL base:', this.apiBaseUrl);
   }
   
   public static getInstance(): FetchService {
@@ -135,15 +145,18 @@ class FetchService {
    */
   private async fetchAllRoulettes(): Promise<any[]> {
     try {
-      const response = await axios.get(`${this.apiBaseUrl}/roulettes`);
+      const response = await this.get<any[]>(`${this.apiBaseUrl}/roulettes`, {
+        throttleKey: 'all_roulettes',
+        forceRefresh: false
+      });
       
-      if (response.status === 200 && Array.isArray(response.data)) {
-        return response.data;
+      if (response && Array.isArray(response)) {
+        return response;
       }
       
-      throw new Error(`Resposta inválida ao buscar roletas: ${response.status}`);
+      throw new Error(`Resposta inválida ao buscar roletas`);
     } catch (error) {
-      console.error('[FetchService] Erro ao buscar lista de roletas:', error);
+      logger.error('Erro ao buscar lista de roletas:', error);
       return [];
     }
   }
@@ -155,11 +168,14 @@ class FetchService {
     try {
       // Usar o endpoint único /api/ROULETTES e filtrar a roleta desejada
       try {
-        const response = await axios.get(`${this.apiBaseUrl}/ROULETTES`);
+        const response = await this.get<any[]>(`${this.apiBaseUrl}/ROULETTES`, {
+          throttleKey: 'all_roulettes_data',
+          forceRefresh: false
+        });
         
-        if (response.status === 200 && Array.isArray(response.data)) {
+        if (response && Array.isArray(response)) {
           // Encontrar a roleta específica pelo ID canônico
-          const targetRoulette = response.data.find((roleta: any) => {
+          const targetRoulette = response.find((roleta: any) => {
             const roletaCanonicalId = roleta.canonical_id || this.getCanonicalId(roleta.id || '', roleta.nome);
             return roletaCanonicalId === roletaId || roleta.id === roletaId;
           });
@@ -182,25 +198,28 @@ class FetchService {
               }
               
               // Se chegou aqui, é um valor inválido, retornar 0
-              console.warn(`[FetchService] Valor inválido de número para ${roletaId}: ${JSON.stringify(item)}, usando 0`);
+              logger.warn(`Valor inválido de número para ${roletaId}: ${JSON.stringify(item)}, usando 0`);
               return 0;
             });
           }
         }
       } catch (error) {
-        console.warn(`[FetchService] Erro no endpoint principal para ${roletaId}, tentando fallback:`, error);
+        logger.warn(`Erro no endpoint principal para ${roletaId}, tentando fallback:`, error);
       }
       
       // Se falhar, tentar o endpoint de roletas legado (mais lento)
-      const response = await axios.get(`${this.apiBaseUrl}/roulettes/${roletaId}`);
+      const response = await this.get<any>(`${this.apiBaseUrl}/roulettes/${roletaId}`, {
+        throttleKey: `roulette_${roletaId}`,
+        forceRefresh: false
+      });
       
-      if (response.status === 200 && response.data && Array.isArray(response.data.numeros)) {
-        return response.data.numeros;
+      if (response && response.numeros && Array.isArray(response.numeros)) {
+        return response.numeros;
       }
       
-      throw new Error(`Resposta inválida ao buscar números: ${response.status}`);
+      throw new Error(`Resposta inválida ao buscar números para roleta ${roletaId}`);
     } catch (error) {
-      console.error(`[FetchService] Erro ao buscar números para roleta ${roletaId}:`, error);
+      logger.error(`Erro ao buscar números para roleta ${roletaId}:`, error);
       return [];
     }
   }
@@ -316,6 +335,85 @@ class FetchService {
   public forceUpdate(): void {
     console.log('[FetchService] Forçando atualização imediata das roletas');
     this.fetchAllRouletteData();
+  }
+
+  /**
+   * Realiza uma requisição GET com controle de taxa
+   */
+  async get<T>(url: string, options: FetchOptions = {}): Promise<T | null> {
+    const throttleKey = options.throttleKey || `GET_${url}`;
+    
+    return RequestThrottler.scheduleRequest<T>(
+      throttleKey,
+      async () => {
+        const headers = RequestThrottler.getDefaultHeaders(options.headers as Record<string, string> || {});
+        
+        logger.debug(`Fazendo requisição GET para ${url}`);
+        const response = await fetch(url, {
+          method: 'GET',
+          ...options,
+          headers
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
+        }
+        
+        return await response.json();
+      },
+      !!options.forceRefresh,
+      !!options.skipCache,
+      options.cacheTime
+    );
+  }
+  
+  /**
+   * Realiza uma requisição POST com controle de taxa
+   */
+  async post<T>(url: string, data: any, options: FetchOptions = {}): Promise<T | null> {
+    const throttleKey = options.throttleKey || `POST_${url}`;
+    
+    return RequestThrottler.scheduleRequest<T>(
+      throttleKey,
+      async () => {
+        const headers = RequestThrottler.getDefaultHeaders({
+          'Content-Type': 'application/json',
+          ...(options.headers as Record<string, string> || {})
+        });
+        
+        logger.debug(`Fazendo requisição POST para ${url}`);
+        const response = await fetch(url, {
+          method: 'POST',
+          body: JSON.stringify(data),
+          ...options,
+          headers
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
+        }
+        
+        return await response.json();
+      },
+      !!options.forceRefresh,
+      !!options.skipCache,
+      options.cacheTime
+    );
+  }
+  
+  /**
+   * Limpa o cache para uma URL específica
+   */
+  clearCache(url: string, method: string = 'GET'): void {
+    const key = `${method}_${url}`;
+    RequestThrottler.clearCache(key);
+  }
+  
+  /**
+   * Limpa todo o cache
+   */
+  clearAllCache(): void {
+    RequestThrottler.clearCache();
   }
 }
 
