@@ -86,8 +86,19 @@ class SocketService {
     // Configurar handler para rejeições de promise não tratadas
     this.setupUnhandledRejectionHandler();
     
-    // Tentar recarregar dados a cada 1 minuto
-    setInterval(() => this.requestRecentNumbers(), 60000);
+    // Iniciar polling agressivo para roletas populares imediatamente
+    setTimeout(() => {
+      console.log('[SocketService] Iniciando polling agressivo para roletas principais');
+      this.startAggressivePolling('2010096', 'Speed Auto Roulette');
+      this.startAggressivePolling('2010098', 'Auto-Roulette VIP');
+      this.startAggressivePolling('2010017', 'Ruleta Automática');
+      this.startAggressivePolling('2380335', 'Brazilian Mega Roulette');
+      this.startAggressivePolling('2010065', 'Bucharest Auto-Roulette');
+      this.startAggressivePolling('2010016', 'Immersive Roulette');
+    }, 1000);
+    
+    // Tentar recarregar dados a cada 30 segundos (era 60 segundos)
+    setInterval(() => this.requestRecentNumbers(), 30000);
   }
 
   // Manipular alterações de visibilidade da página
@@ -204,69 +215,69 @@ class SocketService {
   }
 
   private processIncomingNumber(data: any): void {
-    // Verificar se dados são válidos
-    if (!data || !data.roleta_nome) {
-      console.warn('[SocketService] Dados de número inválidos:', data);
-      return;
-    }
+    // Log detalhado para debug
+    console.log('[SocketService] Processando número recebido:', data);
     
-    // Verificar se este número é mais recente que o último recebido para esta roleta
-    const roletaId = data.roleta_id || '';
-    const roletaNome = data.roleta_nome;
-    const combinedKey = `${roletaId}|${roletaNome}`;
-    const lastReceived = this.lastReceivedData.get(combinedKey);
-    
-    // Se temos um número recente desta roleta, verificar se o atual é mais novo
-    if (lastReceived) {
-      const currentTime = Date.now();
-      const timeDiff = currentTime - lastReceived.timestamp;
-      
-      // Se recebemos este número há menos de 1 segundo, verificar número e timestamp
-      // para evitar duplicações
-      if (timeDiff < 1000) {
-        const lastNumber = lastReceived.data.numero;
-        const newNumber = data.numero;
-        
-        if (lastNumber === newNumber) {
-          console.log(`[SocketService] Ignorando número duplicado ${newNumber} para ${roletaNome}`);
-          return;
-        }
+    try {
+      // Verificações de segurança
+      if (!data) {
+        console.warn('[SocketService] Dados nulos recebidos em processIncomingNumber');
+        return;
       }
+      
+      // Extrair informações importantes com validações
+      const roletaId = data.roleta_id || 'unknown';
+      const roletaNome = data.roleta_nome || `Roleta ${roletaId}`;
+      
+      // Verificar se o dado de número é válido
+      if (data.numero === undefined || data.numero === null) {
+        console.warn(`[SocketService] Número inválido recebido para ${roletaNome} (${roletaId}):`, data);
+        return;
+      }
+      
+      // Converter para número e validar
+      const numero = typeof data.numero === 'number' ? data.numero : parseInt(String(data.numero), 10);
+      if (isNaN(numero)) {
+        console.warn(`[SocketService] Conversão de número falhou para ${roletaNome}:`, data.numero);
+        return;
+      }
+
+      // Usar um formato padrão de evento
+      const event: RouletteNumberEvent = {
+        type: 'new_number',
+        roleta_id: roletaId,
+        roleta_nome: roletaNome,
+        numero: numero,
+        timestamp: data.timestamp || new Date().toISOString(),
+        preserve_existing: data.preserve_existing ? true : false,
+        realtime_update: data.realtime_update ? true : false
+      };
+      
+      // Log detalhado do evento formatado
+      console.log(`[SocketService] Evento formatado para ${roletaNome}: ${JSON.stringify(event)}`);
+      
+      // Usar sempre timestamps atualizados para eventos antigos
+      if (!data.realtime_update) {
+        event.timestamp = new Date().toISOString();
+      }
+      
+      // Adicionar à lista de última mensagem recebida
+      this.lastReceivedData.set(roletaId, {
+        timestamp: Date.now(),
+        data: event
+      });
+      
+      // Notificar os listeners
+      this.notifyListeners(event);
+      
+      // Verificar se precisamos iniciar polling agressivo
+      if (!this.pollingIntervals.has(roletaId)) {
+        console.log(`[SocketService] Iniciando polling agressivo automático para ${roletaNome}`);
+        this.startAggressivePolling(roletaId, roletaNome);
+      }
+    } catch (error) {
+      console.error('[SocketService] Erro ao processar número recebido:', error);
     }
-    
-    // Armazenar este número como o mais recente
-    this.lastReceivedData.set(combinedKey, {
-      timestamp: Date.now(),
-      data
-    });
-    
-    // Transformar em formato de evento para notificar
-    const event: RouletteNumberEvent = {
-      type: 'new_number',
-      roleta_id: data.roleta_id || '',
-      roleta_nome: data.roleta_nome,
-      numero: typeof data.numero === 'number' ? data.numero : 
-              typeof data.numero === 'string' ? parseInt(data.numero, 10) : 0,
-      timestamp: data.timestamp || new Date().toISOString(),
-      // Adicionar flag para preservar dados existentes
-      preserve_existing: !!data.preserve_existing,
-      // Adicionar flag para indicar se é atualização em tempo real
-      realtime_update: !!data.realtime
-    };
-    
-    if (isNaN(event.numero)) {
-      console.warn(`[SocketService] Número inválido (NaN) recebido para ${roletaNome}, usando 0`);
-      event.numero = 0;
-    }
-    
-    console.log(`[SocketService] Processando número ${event.numero} para roleta ${event.roleta_nome}`);
-    
-    // Notificar os listeners
-    this.notifyListeners(event);
-    
-    // Também notificar via EventService
-    const eventService = EventService.getInstance();
-    eventService.dispatchEvent(event);
   }
   
   public static getInstance(): SocketService {
