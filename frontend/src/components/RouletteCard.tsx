@@ -140,6 +140,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   
   const [isNewNumber, setIsNewNumber] = useState(false);
   const [updateCount, setUpdateCount] = useState(0);
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
+  const [hasRealData, setHasRealData] = useState(recentNumbers.length > 0);
   const cardRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasInitialized = useRef(false);
@@ -150,6 +152,21 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
   // Função para processar um novo número em tempo real
   const processRealtimeNumber = (newNumberEvent: RouletteNumberEvent) => {
+    // Ignorar atualizações muito frequentes (menos de 3 segundos entre elas)
+    // exceto se estivermos ainda sem dados reais
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastUpdateTime;
+    const isInitialData = !hasRealData && (
+      (Array.isArray(newNumberEvent.numero) && newNumberEvent.numero.length > 0) || 
+      (typeof newNumberEvent.numero === 'number')
+    );
+    
+    // Se não for dados iniciais e a atualização for muito recente, ignorar
+    if (!isInitialData && timeSinceLastUpdate < 3000) {
+      console.log(`[RouletteCard] Ignorando atualização muito frequente para ${safeData.name} (${timeSinceLastUpdate}ms)`);
+      return;
+    }
+    
     // Verificar se é um array de números
     if (Array.isArray(newNumberEvent.numero)) {
       console.log(`[RouletteCard] Recebido array de números para ${safeData.name}:`, newNumberEvent.numero);
@@ -164,17 +181,45 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         return;
       }
       
+      // Verificar se já temos esses números no estado atual
+      if (!isInitialData && validNumbers.every(num => recentNumbers.includes(num))) {
+        console.log(`[RouletteCard] Ignorando números já conhecidos para ${safeData.name}`);
+        return;
+      }
+      
       // Usar o primeiro número (mais recente) para update
       const newNumber = validNumbers[0];
       
-      // Atualizar o último número
-      setLastNumber(newNumber);
+      // Atualizar o último número apenas se for diferente do atual
+      if (lastNumber !== newNumber) {
+        setLastNumber(newNumber);
+        setLastUpdateTime(now);
+        setHasRealData(true);
+        
+        // Incrementar contador de atualizações apenas para novos números reais
+        setUpdateCount(prev => prev + 1);
+        
+        // Ativar efeito visual de novo número
+        setIsNewNumber(true);
+        
+        // Desativar efeito após 1.5 segundos
+        setTimeout(() => {
+          setIsNewNumber(false);
+        }, 1500);
+      }
       
       // Atualizar a lista de números recentes
       setRecentNumbers(prev => {
         // Verificar se prevNumbers é um array válido
         if (!Array.isArray(prev)) {
           return validNumbers;
+        }
+        
+        // Verificar se há novos números (que não estejam na lista atual)
+        const hasNewNumbers = validNumbers.some(num => !prev.includes(num));
+        
+        if (!hasNewNumbers) {
+          return prev; // Não atualizar se não há números novos
         }
         
         // Combinar os novos números com os existentes, removendo duplicatas
@@ -191,29 +236,20 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         return combined.slice(0, 20);
       });
       
-      // Ativar efeito visual de novo número
-      setIsNewNumber(true);
-      
-      // Incrementar contador de atualizações
-      setUpdateCount(prev => prev + validNumbers.length);
-      
-      // Notificações e som
-      if (enableSound && audioRef.current) {
-        audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
+      // Notificações e som - apenas para novos números
+      if (lastNumber !== newNumber) {
+        if (enableSound && audioRef.current) {
+          audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
+        }
+        
+        if (enableNotifications) {
+          toast({
+            title: `Novo número: ${newNumber}`,
+            description: `${safeData.name}: ${newNumber}`,
+            variant: "default"
+          });
+        }
       }
-      
-      if (enableNotifications) {
-        toast({
-          title: `Novos números recebidos`,
-          description: `${safeData.name}: ${validNumbers.slice(0, 3).join(', ')}${validNumbers.length > 3 ? '...' : ''}`,
-          variant: "default"
-        });
-      }
-      
-      // Desativar efeito após 1.5 segundos
-      setTimeout(() => {
-        setIsNewNumber(false);
-      }, 1500);
       
       return;
     }
@@ -227,6 +263,15 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     console.log(`[RouletteCard] Processando número ${newNumberEvent.numero} para ${safeData.name}`);
     const newNumber = newNumberEvent.numero;
     
+    // Verificar se o número é realmente novo
+    const isReallyNew = lastNumber !== newNumber && !recentNumbers.includes(newNumber);
+    
+    // Se não for novo e não estivermos sem dados, ignorar
+    if (!isReallyNew && hasRealData) {
+      console.log(`[RouletteCard] Ignorando número repetido ${newNumber} para ${safeData.name}`);
+      return;
+    }
+    
     // Atualizar o último número
     setLastNumber(prevLastNumber => {
       // Se o número for igual ao último, não fazer nada
@@ -234,6 +279,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       console.log(`[RouletteCard] Atualizando último número de ${prevLastNumber} para ${newNumber}`);
       // Se for um número diferente, atualizar
+      setLastUpdateTime(now);
+      setHasRealData(true);
       return newNumber;
     });
 
@@ -255,30 +302,32 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       return [newNumber, ...prevNumbers].slice(0, 20);
     });
 
-    // Ativar efeito visual de novo número
-    setIsNewNumber(true);
-    
-    // Incrementar contador de atualizações
-    setUpdateCount(prev => prev + 1);
-    
-    // Tocar som se habilitado
-    if (enableSound && audioRef.current) {
-      audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
+    // Incrementar contador apenas para novos números
+    if (isReallyNew) {
+      setUpdateCount(prev => prev + 1);
+      
+      // Ativar efeito visual de novo número
+      setIsNewNumber(true);
+      
+      // Tocar som se habilitado
+      if (enableSound && audioRef.current) {
+        audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
+      }
+      
+      // Mostrar notificação se habilitado
+      if (enableNotifications) {
+        toast({
+          title: `Novo número: ${newNumber}`,
+          description: `${safeData.name}: ${newNumber}`,
+          variant: "default"
+        });
+      }
+      
+      // Desativar efeito após 1.5 segundos
+      setTimeout(() => {
+        setIsNewNumber(false);
+      }, 1500);
     }
-    
-    // Mostrar notificação se habilitado
-    if (enableNotifications) {
-      toast({
-        title: `Novo número: ${newNumber}`,
-        description: `${safeData.name}: ${newNumber}`,
-        variant: "default"
-      });
-    }
-    
-    // Desativar efeito após 1.5 segundos
-    setTimeout(() => {
-      setIsNewNumber(false);
-    }, 1500);
   };
 
   // IMPORTANTE: Garantir inscrição correta no evento global de números
@@ -348,7 +397,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           <h3 className="text-lg font-semibold truncate">{safeData.name}</h3>
           <div className="flex gap-1">
             <Badge variant="outline" className="bg-muted text-xs">
-              {updateCount > 0 ? `${updateCount} atualizações` : "Aguardando..."}
+              {updateCount > 0 ? `${updateCount} atualizações` : (hasRealData ? "Aguardando..." : "Sem dados")}
             </Badge>
           </div>
         </div>
