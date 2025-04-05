@@ -55,14 +55,42 @@
       // Implementação segura do useLayoutEffect
       const safeImplementation = getBestUseLayoutEffectImplementation(originalReact);
       
-      // Definir useLayoutEffect no objeto React global
-      Object.defineProperty(window.React, 'useLayoutEffect', {
-        configurable: true,
-        enumerable: true,
-        value: safeImplementation
-      });
-      
-      console.log('[Interceptor] React.useLayoutEffect definido globalmente');
+      // Verificar se podemos definir a propriedade diretamente
+      try {
+        // Primeiro tentar atribuição direta, que é mais segura
+        window.React.useLayoutEffect = safeImplementation;
+        console.log('[Interceptor] React.useLayoutEffect definido por atribuição direta');
+      } catch (e) {
+        // Se falhar, tentar com defineProperty
+        try {
+          // Verificar se já existe como um getter
+          const descriptor = Object.getOwnPropertyDescriptor(window.React, 'useLayoutEffect');
+          
+          if (descriptor && !descriptor.writable && !descriptor.set && descriptor.configurable) {
+            // Redefinir como uma propriedade configurável e gravável
+            Object.defineProperty(window.React, 'useLayoutEffect', {
+              value: safeImplementation,
+              writable: true,
+              configurable: true,
+              enumerable: true
+            });
+            console.log('[Interceptor] React.useLayoutEffect redefinido de getter para valor gravável');
+          } else {
+            // Definir normalmente
+            Object.defineProperty(window.React, 'useLayoutEffect', {
+              value: safeImplementation,
+              writable: true,
+              configurable: true,
+              enumerable: true
+            });
+            console.log('[Interceptor] React.useLayoutEffect definido com defineProperty');
+          }
+        } catch (defineError) {
+          console.error('[Interceptor] Não foi possível definir React.useLayoutEffect:', defineError);
+        }
+      }
+    } else {
+      console.log('[Interceptor] React.useLayoutEffect já existe, não redefinindo');
     }
     
     // 3. Interceptar dinâmicamente o carregamento de módulos React

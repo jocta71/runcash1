@@ -25,9 +25,8 @@
           Object.defineProperty(window.React, 'useLayoutEffect', {
             configurable: true,
             enumerable: true,
-            get: function() {
-              return safeUseLayoutEffect;
-            }
+            writable: true,
+            value: safeUseLayoutEffect
           });
         }
         

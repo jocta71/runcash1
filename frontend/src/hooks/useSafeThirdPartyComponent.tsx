@@ -29,16 +29,24 @@ const useSafeThirdPartyComponent = (options: {
   
   // Garantir que React.useLayoutEffect exista - patch imediato
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.React) {
-      // Tentar corrigir o React global
-      LayoutEffectSolution.patchReactModule(window.React);
-    }
-    
-    // Tentar corrigir o React importado
-    if (React && !React.useLayoutEffect && React.useEffect) {
-      // @ts-ignore - isso é um patch de segurança
-      React.useLayoutEffect = React.useEffect;
-      debug && console.log('[useSafeThirdPartyComponent] React.useLayoutEffect patch aplicado ao módulo importado');
+    try {
+      if (typeof window !== 'undefined' && window.React) {
+        // Tentar corrigir o React global
+        LayoutEffectSolution.patchReactModule(window.React);
+      }
+      
+      // Tentar corrigir o React importado
+      if (React && !React.useLayoutEffect && React.useEffect) {
+        try {
+          // Tentar atribuição direta primeiro
+          React.useLayoutEffect = React.useEffect;
+          debug && console.log('[useSafeThirdPartyComponent] React.useLayoutEffect patch aplicado ao módulo importado');
+        } catch (e) {
+          debug && console.log('[useSafeThirdPartyComponent] Falha na atribuição direta, módulo React provavelmente imutável');
+        }
+      }
+    } catch (err) {
+      debug && console.error('[useSafeThirdPartyComponent] Erro ao aplicar patches:', err);
     }
   }, [debug]);
   

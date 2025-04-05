@@ -41,15 +41,27 @@
     if (!window.React.useLayoutEffect) {
       const safeImpl = createSafeUseLayoutEffect();
       
-      // Usar defineProperty para maior robustez
-      Object.defineProperty(window.React, 'useLayoutEffect', {
-        value: safeImpl,
-        writable: false,
-        configurable: true,
-        enumerable: true
-      });
-      
-      console.log('[LayoutEffect Fix] useLayoutEffect definido com sucesso no objeto React global');
+      // Abordagem mais cautelosa
+      try {
+        // Tentar atribuição direta primeiro
+        window.React.useLayoutEffect = safeImpl;
+        console.log('[LayoutEffect Fix] useLayoutEffect definido com atribuição direta');
+      } catch (e) {
+        // Se falhar, tentar com defineProperty
+        try {
+          Object.defineProperty(window.React, 'useLayoutEffect', {
+            value: safeImpl,
+            writable: true,  // Permitir sobrescrever para compatibilidade
+            configurable: true,
+            enumerable: true
+          });
+          console.log('[LayoutEffect Fix] useLayoutEffect definido com defineProperty');
+        } catch (defineError) {
+          console.error('[LayoutEffect Fix] Falha ao definir useLayoutEffect:', defineError);
+        }
+      }
+    } else {
+      console.log('[LayoutEffect Fix] useLayoutEffect já existe, não redefinindo');
     }
     
     // Criar um hook para capturar tentativas de acesso a React no DOM
@@ -128,19 +140,48 @@ export const LayoutEffectSolution = {
     
     // Usar useEffect se disponível
     if (reactModule.useEffect) {
-      reactModule.useLayoutEffect = reactModule.useEffect;
-      console.log('[LayoutEffectSolution] Patch aplicado usando useEffect');
-      return true;
+      try {
+        // Verificar se podemos definir propriedades neste objeto
+        const descriptor = Object.getOwnPropertyDescriptor(reactModule, 'useEffect');
+        
+        // Se useEffect é definido com configurações especiais, usar outra abordagem
+        if (descriptor && (!descriptor.writable || descriptor.set)) {
+          // Usar abordagem com defineProperty
+          Object.defineProperty(reactModule, 'useLayoutEffect', {
+            value: reactModule.useEffect,
+            writable: true,
+            configurable: true,
+            enumerable: true
+          });
+        } else {
+          // Usar atribuição simples
+          reactModule.useLayoutEffect = reactModule.useEffect;
+        }
+        
+        console.log('[LayoutEffectSolution] Patch aplicado usando useEffect');
+        return true;
+      } catch (e) {
+        console.warn('[LayoutEffectSolution] Erro ao aplicar patch (módulo protegido):', e);
+        // Continuar para o próximo método
+      }
     }
     
     // Fallback para implementação segura
-    reactModule.useLayoutEffect = function(callback, deps) {
-      console.log('[LayoutEffectSolution] Usando implementação segura para useLayoutEffect');
-      return function() {};
-    };
-    
-    console.log('[LayoutEffectSolution] Patch seguro aplicado');
-    return true;
+    try {
+      const safeImpl = function(callback, deps) {
+        console.log('[LayoutEffectSolution] Usando implementação segura para useLayoutEffect');
+        return function() {};
+      };
+      
+      // Tentar definir
+      reactModule.useLayoutEffect = safeImpl;
+      
+      console.log('[LayoutEffectSolution] Patch seguro aplicado');
+      return true;
+    } catch (e) {
+      console.warn('[LayoutEffectSolution] Não foi possível aplicar patch:', e);
+      return false;
+    }
   },
   
   // Verificar se uma biblioteca é segura
