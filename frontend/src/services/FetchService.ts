@@ -337,11 +337,7 @@ class FetchService {
       preserve_existing: true
     };
     
-<<<<<<< HEAD
-    logger.info(`Emitindo evento de número ${isLatest ? 'recente' : 'histórico'} para ${correctName}: ${numero}`);
-=======
-    logger.info(`Emitindo evento de novo número para ${roletaNome}: ${numero}`);
->>>>>>> parent of 3e91e0c (fix: Corrige problema das roletas exibidas como 'Roleta Desconhecida')
+    logger.info(`Emitindo evento de número ${isLatest ? 'recente' : 'histórico'} para ${roletaNome}: ${numero}`);
     
     // Emitir utilizando o EventService
     const eventService = EventService.getInstance();
