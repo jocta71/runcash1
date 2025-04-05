@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { fetchRoulettesWithNumbers } from '../integrations/api/rouletteApi';
+import SafeLayoutExample from '../components/SafeLayoutExample';
+import { SafeThirdPartyWrapper } from '../components';
+import styles from '../styles/TestPage.module.css';
 
 interface RouletteData {
   id: string;
@@ -8,12 +11,36 @@ interface RouletteData {
   name?: string;
   numero?: any[];
   canonicalId?: string;
+  estado_estrategia?: string;
+  vitorias?: number;
+  derrotas?: number;
 }
+
+interface MockThirdPartyProps {
+  text?: string;
+}
+
+/**
+ * Este componente simula um componente de terceiros que usa useLayoutEffect
+ * Na vida real, esse componente estaria em uma biblioteca externa
+ */
+const MockThirdPartyComponent: React.FC<MockThirdPartyProps> = ({ text = "Componente de terceiros carregado!" }) => {
+  // Simulando um componente que usa useLayoutEffect
+  return (
+    <div className={styles.mockComponent}>
+      <h3>Componente de Biblioteca de Terceiros</h3>
+      <p>{text}</p>
+      <p><small>Este componente simula um que usaria useLayoutEffect internamente</small></p>
+    </div>
+  );
+};
 
 const TestPage: React.FC = () => {
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showLayoutTest, setShowLayoutTest] = useState(false);
+  const [showThirdPartyTest, setShowThirdPartyTest] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -48,8 +75,32 @@ const TestPage: React.FC = () => {
   }
   
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Teste de Dados das Roletas</h1>
+    <div className={styles.container}>
+      <h1>Página de Teste</h1>
+      
+      {/* Demonstração da solução para useLayoutEffect */}
+      <div className={styles.demoSection}>
+        <h2>Demonstração de Solução para useLayoutEffect</h2>
+        <p>Esta seção demonstra o uso do componente <code>SafeLayoutExample</code> para resolver o problema do useLayoutEffect em componentes de terceiros.</p>
+        
+        <div className={styles.demoControls}>
+          <button 
+            onClick={() => setShowLayoutTest(!showLayoutTest)}
+            className={styles.demoButton}
+          >
+            {showLayoutTest ? 'Esconder' : 'Mostrar'} Demonstração
+          </button>
+        </div>
+
+        {showLayoutTest && (
+          <div className={styles.demoContainer}>
+            <h3>Exemplo de Wrapper para Componentes de Terceiros</h3>
+            <p>Este wrapper garante que componentes de terceiros que usam useLayoutEffect sejam renderizados apenas quando for seguro:</p>
+            
+            <SafeLayoutExample />
+          </div>
+        )}
+      </div>
       
       <h2 className="text-xl font-semibold mt-6 mb-2">Roletas com Números Incluídos:</h2>
       
@@ -79,6 +130,34 @@ const TestPage: React.FC = () => {
           </pre>
         </div>
       ))}
+
+      <div className={styles.demoSection}>
+        <h2>Demonstração da Solução para useLayoutEffect</h2>
+        <p>Esta seção demonstra o uso do componente <code>SafeThirdPartyWrapper</code> para resolver o problema do useLayoutEffect em componentes de terceiros.</p>
+        
+        <div className={styles.demoControls}>
+          <button 
+            onClick={() => setShowThirdPartyTest(!showThirdPartyTest)}
+            className={styles.demoButton}
+          >
+            {showThirdPartyTest ? 'Esconder' : 'Mostrar'} Demonstração
+          </button>
+        </div>
+
+        {showThirdPartyTest && (
+          <div className={styles.demoContainer}>
+            <h3>Exemplo de Wrapper para Componentes de Terceiros</h3>
+            <p>Este wrapper garante que componentes de terceiros que usam useLayoutEffect sejam renderizados apenas quando for seguro:</p>
+            
+            <SafeThirdPartyWrapper 
+              loadingMessage="Carregando componente de terceiros de forma segura..."
+              delay={1500} // Delay maior para demonstração
+            >
+              <MockThirdPartyComponent />
+            </SafeThirdPartyWrapper>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
