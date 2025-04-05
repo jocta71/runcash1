@@ -237,9 +237,16 @@ const Index = () => {
   }, [loadRouletteData, knownRoulettes]);
   
   const filteredRoulettes = useMemo(() => {
-    return roulettes.filter(roulette => 
-      roulette.nome.toLowerCase().includes(search.toLowerCase())
-    );
+    if (!search || search.trim() === '') {
+      return roulettes;
+    }
+    
+    const searchTerm = search.toLowerCase();
+    return roulettes.filter(roulette => {
+      // Verificar se roulette e roulette.nome existem antes de chamar toLowerCase
+      const nome = roulette?.nome || '';
+      return nome.toLowerCase().includes(searchTerm);
+    });
   }, [roulettes, search]);
   
   const topRoulettes = useMemo(() => {
