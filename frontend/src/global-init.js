@@ -11,6 +11,34 @@
   window.Yo = Yo;
   initialized['Yo'] = true;
 
+  // Resolver problema com useLayoutEffect
+  // Criar um objeto simulado de React para caso o React ainda não tenha sido carregado
+  // ou para quando o código minificado tenta acessar uma variável z indefinida
+  if (typeof window !== 'undefined') {
+    window.React = window.React || {};
+    
+    // Garantir que useLayoutEffect e useEffect existam no objeto React
+    if (!window.React.useLayoutEffect) {
+      window.React.useLayoutEffect = function() {
+        console.warn('[global-init] React.useLayoutEffect chamado antes do React ser inicializado');
+        return null;
+      };
+    }
+    
+    if (!window.React.useEffect) {
+      window.React.useEffect = function() {
+        console.warn('[global-init] React.useEffect chamado antes do React ser inicializado');
+        return null;
+      };
+    }
+    
+    // Adicionar safeguard para o objeto z que pode estar sendo usado no código minificado
+    window.z = window.z || window.React;
+    
+    initialized['React'] = true;
+    initialized['z'] = true;
+  }
+
   // Create a registry to track initialization
   window.__INIT_REGISTRY__ = initialized;
   

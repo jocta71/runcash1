@@ -16,6 +16,16 @@ declare global {
       timestamp?: number;
     };
     
+    // Objeto React global
+    React: {
+      useLayoutEffect?: Function;
+      useEffect?: Function;
+      [key: string]: any;
+    };
+    
+    // Variável z que pode ser usada em código minificado
+    z?: any;
+    
     // Any other variables that might need initialization
     __GLOBAL_INIT__?: {
       initialized: Record<string, any>;
