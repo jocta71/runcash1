@@ -151,15 +151,11 @@ const Index = () => {
         if (result.length > 0) {
           setKnownRoulettes(prev => mergeRoulettes(prev, result));
         }
-        
-        // Definir que os dados foram completamente carregados
-        setDataFullyLoaded(true);
       } else {
         // Se falhar, usar roletas conhecidas
         if (knownRoulettes.length > 0) {
           console.log('⚠️ Usando roletas conhecidas como fallback');
           setRoulettes(knownRoulettes);
-          setDataFullyLoaded(true);
         } else {
           setError('Não foi possível carregar as roletas disponíveis.');
         }
@@ -171,7 +167,6 @@ const Index = () => {
       // Fallback para roletas conhecidas
       if (knownRoulettes.length > 0) {
         setRoulettes(knownRoulettes);
-        setDataFullyLoaded(true);
       }
     } finally {
       setIsLoading(false);
@@ -242,16 +237,9 @@ const Index = () => {
   }, [loadRouletteData, knownRoulettes]);
   
   const filteredRoulettes = useMemo(() => {
-    if (!search || search.trim() === '') {
-      return roulettes;
-    }
-    
-    const searchTerm = search.toLowerCase();
-    return roulettes.filter(roulette => {
-      // Verificar se roulette e roulette.nome existem antes de chamar toLowerCase
-      const nome = roulette?.nome || '';
-      return nome.toLowerCase().includes(searchTerm);
-    });
+    return roulettes.filter(roulette => 
+      roulette.nome.toLowerCase().includes(search.toLowerCase())
+    );
   }, [roulettes, search]);
   
   const topRoulettes = useMemo(() => {

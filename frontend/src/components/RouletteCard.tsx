@@ -790,19 +790,7 @@ const RouletteCard = memo(({
             
             {/* Insights */}
             <div className="mb-4 text-sm text-zinc-400 italic">
-              {mappedNumbers.length > 0 ? insight : (
-                <div className="flex flex-col items-center space-y-2">
-                  <span>Aguardando dados da API...</span>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={reloadData}
-                    className="w-full text-sm bg-blue-800 hover:bg-blue-700 text-white"
-                  >
-                    Recarregar dados
-                  </Button>
-                </div>
-              )}
+              {mappedNumbers.length > 0 ? insight : "Aguardando dados da API..."}
             </div>
             
             {/* Estatísticas */}

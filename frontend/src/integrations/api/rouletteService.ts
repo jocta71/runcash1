@@ -262,8 +262,8 @@ async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Pro
     const url = `https://backendapi-production-36b5.up.railway.app/api/ROULETTES`;
     
     const response = await axios.get(url);
-    
-    if (response.data && Array.isArray(response.data)) {
+        
+        if (response.data && Array.isArray(response.data)) {
       // Encontrar a roleta específica pelo ID canônico
       const targetRoulette = response.data.find((roleta: any) => {
         const roletaCanonicalId = roleta.canonical_id || mapToCanonicalRouletteId(roleta.id || '');
@@ -312,8 +312,8 @@ function generateRandomNumbers(count: number, roletaId: string, roletaNome: stri
     });
   }
   
-  return numbers;
-}
+    return numbers;
+  }
 
 /**
  * Busca uma roleta específica pelo ID usando o resultado de fetchRoulettes
@@ -329,8 +329,8 @@ export const fetchRouletteById = async (roletaId: string): Promise<RouletteData 
       r.id === roletaId || 
       mapToCanonicalRouletteId(r.id || '') === roletaId
     );
-    
-    if (roleta) {
+  
+  if (roleta) {
       console.log(`[API] ✅ Roleta encontrada para ID: ${roletaId}`);
       return roleta;
     }

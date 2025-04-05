@@ -534,7 +534,7 @@ class SocketService {
         (this.listeners.get(roletaNome)?.size || 0) + 
         (this.listeners.get('*')?.size || 0)
       }`);
-    } catch (error) {
+            } catch (error) {
       console.error('[SocketService] Erro na notificação de listeners:', error);
     }
   }
@@ -698,7 +698,7 @@ class SocketService {
       }
       
       // Extrair o ID e nome da roleta
-      const roletaId = roulette._id || roulette.id;
+    const roletaId = roulette._id || roulette.id;
       const roletaNome = roulette.nome || roulette.name || `Roleta ${roletaId}`;
       
       if (!roletaId) {
@@ -768,10 +768,10 @@ class SocketService {
       if (numbersData.length <= 10) {
         // Emitir cada número como um evento separado
         normalizeDados.forEach(item => {
-          const event: RouletteNumberEvent = {
-            type: 'new_number',
+                  const event: RouletteNumberEvent = {
+                    type: 'new_number',
             roleta_id: roletaId,
-            roleta_nome: roletaNome,
+        roleta_nome: roletaNome,
             numero: item.numero,
             timestamp: item.timestamp
           };
@@ -780,8 +780,8 @@ class SocketService {
           console.log(`[SocketService] Emitindo número ${item.numero} para ${roletaNome}`);
           
           // Notificar os ouvintes deste evento
-          this.notifyListeners(event);
-        });
+                  this.notifyListeners(event);
+    });
       } else {
         console.log(`[SocketService] Emitindo apenas evento em lote para ${numbersData.length} números da roleta ${roletaNome}`);
       }
@@ -935,11 +935,11 @@ class SocketService {
       
       try {
         console.log(`[SocketService] Buscando roletas em: ${endpoint}`);
-        const response = await fetch(endpoint);
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data) && data.length > 0) {
+          const response = await fetch(endpoint);
+          
+          if (response.ok) {
+      const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
             console.log(`[SocketService] ✅ Recebidas ${data.length} roletas da API`);
             
             // Mapear os UUIDs para IDs canônicos para uso posterior
@@ -972,7 +972,7 @@ class SocketService {
         
         console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback`);
         return roletasFallback;
-      } catch (e) {
+        } catch (e) {
         console.warn(`[SocketService] Erro ao acessar endpoint ${endpoint}:`, e);
         
         // Se ocorrer erro, usar a lista local como fallback
@@ -1039,7 +1039,7 @@ class SocketService {
         // Verificar se a roleta tem números
         if (!targetRoulette.numero || !Array.isArray(targetRoulette.numero) || targetRoulette.numero.length === 0) {
           console.warn(`[SocketService] Roleta ${canonicalId} não possui números válidos`);
-          return false;
+      return false;
         }
         
         console.log(`[SocketService] ✅ Sucesso! Encontrados ${targetRoulette.numero.length} números para roleta ${canonicalId}`);
@@ -1059,7 +1059,7 @@ class SocketService {
       return false;
     }
   }
-
+  
   // Obter a URL base da API
   private getApiBaseUrl(): string {
     // Em vez de usar a URL completa, usar apenas /api para que o proxy do Vite funcione
@@ -1286,43 +1286,43 @@ class SocketService {
     try {
       // Enviar inscrição para canal específico desta roleta usando ID canônico
       console.log(`[SocketService] Enviando solicitação para assinar canal da roleta: ${canonicalId} (originalmente: ${roletaId})`);
-      this.socket.emit('subscribe_roulette', {
+    this.socket.emit('subscribe_roulette', {
         roletaId: canonicalId,
         originalId: roletaId,
-        roletaNome: roletaNome,
+      roletaNome: roletaNome,
         channel: `roulette:${canonicalId}`
-      });
-      
+    });
+    
       // Solicitar dados iniciais para esta roleta usando ID canônico
       this.requestRouletteNumbers(canonicalId);
-      
-      // Configurar um ouvinte específico para esta roleta, se ainda não existir
+    
+    // Configurar um ouvinte específico para esta roleta, se ainda não existir
       const channelName = `roulette:${canonicalId}`;
+    
+    // Remover listener existente para evitar duplicação
+    this.socket.off(channelName);
+    
+    // Adicionar novo listener
+    console.log(`[SocketService] Configurando listener específico para canal ${channelName}`);
+    
+    this.socket.on(channelName, (data: any) => {
+      console.log(`[SocketService] Dados recebidos no canal ${channelName}:`, data);
       
-      // Remover listener existente para evitar duplicação
-      this.socket.off(channelName);
-      
-      // Adicionar novo listener
-      console.log(`[SocketService] Configurando listener específico para canal ${channelName}`);
-      
-      this.socket.on(channelName, (data: any) => {
-        console.log(`[SocketService] Dados recebidos no canal ${channelName}:`, data);
-        
-        if (data && data.numeros && Array.isArray(data.numeros)) {
-          // Processar números recebidos
+      if (data && data.numeros && Array.isArray(data.numeros)) {
+        // Processar números recebidos
           this.processNumbersData(data.numeros, { _id: canonicalId, nome: roletaNome });
-        } else if (data && data.numero !== undefined) {
-          // Processar número único
-          this.processIncomingNumber({
-            type: 'new_number',
+      } else if (data && data.numero !== undefined) {
+        // Processar número único
+        this.processIncomingNumber({
+          type: 'new_number',
             roleta_id: canonicalId,
-            roleta_nome: roletaNome,
-            numero: data.numero,
-            timestamp: data.timestamp || new Date().toISOString(),
-            realtime: true
-          });
-        }
-      });
+          roleta_nome: roletaNome,
+          numero: data.numero,
+          timestamp: data.timestamp || new Date().toISOString(),
+          realtime: true
+        });
+      }
+    });
     } catch (error) {
       console.error(`[SocketService] Erro ao configurar assinatura para ${roletaNome}:`, error);
     }

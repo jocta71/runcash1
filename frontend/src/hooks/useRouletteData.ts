@@ -467,7 +467,7 @@ export function useRouletteData(
             setInitialNumbers(cachedData);
             setHasData(true);
             initialDataLoaded.current = true;
-            setLoading(false);
+        setLoading(false);
             return true;
           }
         }
