@@ -5,6 +5,47 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RunCash</title>
+    <!-- Script inline para definir React e seus hooks antes de qualquer outro script -->
+    <script>
+      // Definir React e seus hooks antes de qualquer importação
+      window.React = window.React || {};
+      
+      // Lista de hooks React comuns
+      const reactHooks = [
+        'useState', 
+        'useEffect', 
+        'useLayoutEffect', 
+        'useRef', 
+        'useCallback', 
+        'useMemo', 
+        'useContext', 
+        'useReducer',
+        'useImperativeHandle',
+        'useDebugValue',
+        'useTransition',
+        'useDeferredValue'
+      ];
+      
+      // Definir cada hook com uma implementação básica
+      reactHooks.forEach(function(hookName) {
+        if (!window.React[hookName]) {
+          window.React[hookName] = function() {
+            // Comportamento padrão dependendo do hook
+            switch (hookName) {
+              case 'useState':
+                return [undefined, function() {}];
+              case 'useRef':
+                return { current: undefined };
+              default:
+                return undefined;
+            }
+          };
+        }
+      });
+      
+      // Adicionar alias z para React (usado em código minificado)
+      window.z = window.React;
+    </script>
   </head>
   <body>
     <div id="root"></div>
