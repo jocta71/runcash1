@@ -1257,7 +1257,7 @@ class SocketService {
 
   // Método para processar eventos de estratégia
   private processStrategyEvent(data: any): void {
-    if (!data || !data.roleta_id || !data.roleta_nome) {
+    if (!data || !data.roleta_id || !data.roleta_name) {
       console.warn('[SocketService] Dados de estratégia inválidos:', data);
       return;
     }
@@ -1266,7 +1266,7 @@ class SocketService {
     const event: StrategyUpdateEvent = {
       type: 'strategy_update',
       roleta_id: data.roleta_id,
-      roleta_nome: data.roleta_nome, // Usar roleta_nome em vez de roleta_name
+      roleta_nome: data.roleta_name, // Usar roleta_name em vez de roleta_name
       estado: data.estado || 'unknown',
       numero_gatilho: data.numero_gatilho || 0,
       terminais_gatilho: data.terminais_gatilho || [],
@@ -1449,164 +1449,137 @@ class SocketService {
    * para garantir que temos dados em tempo real mesmo se o websocket falhar
    */
   public startAggressivePolling(roletaId: string, roletaNome: string): void {
-    if (!roletaId) {
-      console.warn('[SocketService] startAggressivePolling: ID da roleta inválido');
+    // Verificar se já existe um intervalo para esta roleta
+    if (this.pollingIntervals.has(roletaId)) {
+      console.log(`[SocketService] Polling já ativo para ${roletaNome}`);
       return;
     }
     
-    // Cancelar polling existente se houver
-    this.stopPollingForRoulette(roletaId);
+    console.log(`[SocketService] Iniciando polling inteligente para ${roletaNome} (${roletaId})`);
     
-    console.log(`[SocketService] Iniciando polling agressivo para ${roletaNome}`);
+    // Estratégia de polling adaptativo:
+    // - Inicialmente, verificar com mais frequência para obter dados rápido
+    // - Depois de receber dados, reduzir a frequência para economizar recursos
+    // - Aumentar o intervalo progressivamente até um máximo
     
-    // Função que será executada a cada intervalo
-    const pollFunction = () => {
-      console.log(`[SocketService] Executando polling agressivo para ${roletaNome} (${roletaId})`);
+    let currentInterval = 5000; // Início com 5 segundos
+    const maxInterval = 30000;  // Máximo de 30 segundos
+    const minInterval = 5000;   // Mínimo de 5 segundos
+    let consecutiveEmptyResponses = 0;
+    let lastReceivedDataTime = 0;
+    
+    const adaptivePolling = () => {
+      // Verificar se é hora de ajustar o intervalo
+      const now = Date.now();
+      const timeSinceLastData = now - lastReceivedDataTime;
       
-      // Verificar se estamos conectados
-      if (!this.isSocketConnected()) {
-        console.log(`[SocketService] Socket desconectado durante polling. Reconectando...`);
-        this.reconnect();
-      }
-
-      // Buscar dados via REST para garantir resultados imediatos
-      this.fetchRouletteNumbersREST(roletaId)
-        .then(success => {
-          if (!success) {
-            console.log(`[SocketService] Polling REST falhou, tentando via Socket para ${roletaNome}`);
-            // Se REST falhar, tentar via Socket
-            if (this.socket && this.socket.connected) {
-              this.socket.emit('get_roulette_numbers', {
-                roletaId: roletaId,
-                endpoint: `/api/ROULETTES`,
-                count: 20
-              });
-              
-              // Também emitir um evento para solicitar atualização específica
-              this.socket.emit('subscribe_roulette', { 
-                roleta_id: roletaId, 
-                roleta_nome: roletaNome 
-              });
-            }
+      // Primeiro, solicitar os dados
+      this.requestRouletteUpdate(roletaId, roletaNome).then(hasData => {
+        if (hasData) {
+          // Recebemos dados! Resetar o contador e armazenar timestamp
+          consecutiveEmptyResponses = 0;
+          lastReceivedDataTime = now;
+          
+          // Voltar a um intervalo mais curto após receber dados
+          currentInterval = minInterval;
+          console.log(`[SocketService] Recebidos dados para ${roletaNome}, reduzindo intervalo para ${currentInterval}ms`);
+        } else {
+          // Sem novos dados, aumentar o contador
+          consecutiveEmptyResponses++;
+          
+          // Aumentar o intervalo gradualmente após várias respostas vazias
+          if (consecutiveEmptyResponses > 3) {
+            // Aumentar o intervalo em 25% até atingir o máximo
+            currentInterval = Math.min(currentInterval * 1.25, maxInterval);
+            console.log(`[SocketService] Sem dados para ${roletaNome} após ${consecutiveEmptyResponses} tentativas, aumentando intervalo para ${currentInterval}ms`);
           }
-        })
-        .catch(error => {
-          console.error(`[SocketService] Erro no polling para ${roletaNome}:`, error);
-        });
+        }
+      }).catch(error => {
+        console.error(`[SocketService] Erro ao solicitar dados para ${roletaNome}:`, error);
+        // Em caso de erro, aumentar o intervalo
+        currentInterval = Math.min(currentInterval * 1.5, maxInterval);
+      });
     };
-
-    // Executar imediatamente pela primeira vez
-    pollFunction();
-
-    // Definir intervalo para execução muito frequente (a cada 2 segundos)
-    const intervalId = setInterval(pollFunction, 2000);
     
-    // Armazenar referência ao intervalo para poder cancelar depois
+    // Executar imediatamente uma vez
+    adaptivePolling();
+    
+    // Configurar o intervalo adaptativo
+    const intervalId = setInterval(() => {
+      adaptivePolling();
+    }, currentInterval);
+    
+    // Armazenar o ID do intervalo para poder cancelá-lo depois
     this.pollingIntervals.set(roletaId, intervalId);
-    
-    // Emitir evento para notificar que o polling foi iniciado
-    EventService.emitGlobalEvent('polling_started', {
-      roleta_id: roletaId,
-      roleta_nome: roletaNome,
-      timestamp: new Date().toISOString()
+  }
+  
+  // Novo método para solicitar dados específicos de uma roleta
+  // Retorna Promise<boolean> indicando se novos dados foram recebidos
+  private async requestRouletteUpdate(roletaId: string, roletaNome: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      // Verificar se temos socket ativo
+      if (!this.socket || !this.connectionActive) {
+        console.log(`[SocketService] Socket não conectado ao tentar solicitar dados para ${roletaNome}`);
+        resolve(false);
+        return;
+      }
+      
+      // Flag para verificar se recebemos resposta
+      let receivedResponse = false;
+      let responseTimeout: NodeJS.Timeout;
+      
+      // Função de callback para quando receber os dados
+      const onData = (data: any) => {
+        // Limpar o timeout
+        clearTimeout(responseTimeout);
+        
+        // Verificar se temos dados válidos
+        const hasValidData = data && 
+          (Array.isArray(data.numeros) && data.numeros.length > 0 || 
+           Array.isArray(data.numero) && data.numero.length > 0);
+        
+        if (hasValidData) {
+          console.log(`[SocketService] Recebidos dados reais para ${roletaNome}`);
+          receivedResponse = true;
+          resolve(true);
+        } else {
+          console.log(`[SocketService] Resposta sem dados novos para ${roletaNome}`);
+          resolve(false);
+        }
+        
+        // Remover este listener após a resposta
+        this.socket?.off(`roulette_update_${roletaId}`, onData);
+      };
+      
+      // Configurar timeout para caso não receba resposta
+      responseTimeout = setTimeout(() => {
+        // Se não recebeu resposta em tempo hábil
+        if (!receivedResponse) {
+          this.socket?.off(`roulette_update_${roletaId}`, onData);
+          console.log(`[SocketService] Timeout ao aguardar resposta para ${roletaNome}`);
+          resolve(false);
+        }
+      }, 3000);
+      
+      // Registrar o evento para receber a resposta
+      this.socket.on(`roulette_update_${roletaId}`, onData);
+      
+      // Solicitar os dados da roleta
+      console.log(`[SocketService] Solicitando dados para ${roletaNome} (${roletaId})`);
+      this.socket.emit('get_roulette_data', {
+        roleta_id: roletaId,
+        roleta_nome: roletaNome,
+        timestamp: new Date().toISOString()
+      });
     });
   }
-
+  
   // Método para parar o polling para uma roleta específica
   public stopPollingForRoulette(roletaId: string): void {
-    const intervalId = this.pollingIntervals.get(roletaId);
-    if (intervalId) {
-      clearInterval(intervalId);
+    if (this.pollingIntervals.has(roletaId)) {
+      clearInterval(this.pollingIntervals.get(roletaId) as NodeJS.Timeout);
       this.pollingIntervals.delete(roletaId);
-    }
-  }
-
-  // Novo método para registrar em todos os canais de roleta conhecidos
-  /**
-   * Registra para atualizações de todas as roletas disponíveis
-   * Método público utilizado para páginas que exibem múltiplas roletas
-   */
-  public registerToAllRoulettes(): void {
-    if (!this.socket || !this.socket.connected) {
-      console.warn('[SocketService] Impossível registrar em canais: socket não conectado');
-      return;
-    }
-    
-    console.log('[SocketService] Registrando em canais de atualização em tempo real');
-    
-    // Emitir um evento para informar o servidor que queremos receber todas as atualizações
-    this.socket.emit('subscribe_all_roulettes', { subscribe: true });
-    
-    // Recuperar lista conhecida de roletas e subscrever individualmente
-    this.fetchRealRoulettes().then(roulettes => {
-      if (Array.isArray(roulettes) && roulettes.length > 0) {
-        console.log(`[SocketService] Registrando em ${roulettes.length} canais de roleta individuais`);
-        
-        roulettes.forEach(roulette => {
-          const roletaId = roulette._id || roulette.id;
-          const roletaNome = roulette.nome || roulette.name || `Roleta ${roletaId}`;
-          
-          if (roletaId) {
-            this.subscribeToRouletteEndpoint(roletaId, roletaNome);
-          }
-        });
-      }
-    });
-    
-    // Iniciar polling agressivo para todas as roletas conhecidas
-    ROLETAS_CANONICAS.forEach(roleta => {
-      this.startAggressivePolling(roleta.id, roleta.nome);
-    });
-    
-    // Solicitar dados recentes de todas as roletas
-    this.requestRecentNumbers();
-  }
-
-  // Método privado original
-  private registerAllRoulettes(): void {
-    // ... existing code ...
-  }
-
-  /**
-   * Registra uma roleta para receber atualizações em tempo real
-   * 
-   * @param roletaNome Nome da roleta para registrar
-   */
-  private registerRouletteForRealTimeUpdates(roletaNome: string): void {
-    if (!roletaNome) return;
-    
-    console.log(`[SocketService] Registrando roleta ${roletaNome} para updates em tempo real`);
-    
-    // Buscar o ID canônico pelo nome
-    const roleta = ROLETAS_CANONICAS.find(r => r.nome === roletaNome);
-    
-    if (roleta) {
-      const roletaId = roleta.id;
-      console.log(`[SocketService] Roleta encontrada com ID: ${roletaId}`);
-      
-      // Emitir evento para o servidor registrar esta roleta para atualizações em tempo real
-      if (this.socket && this.connectionActive) {
-        this.socket.emit('subscribe_roulette', { 
-          roleta_id: roletaId, 
-          roleta_nome: roletaNome 
-        });
-        
-        console.log(`[SocketService] ✅ Enviado pedido de subscrição para ${roletaNome} (${roletaId})`);
-      } else {
-        console.log(`[SocketService] ⚠️ Socket não conectado, subscrição será feita quando reconectar`);
-      }
-      
-      // Buscar dados iniciais via REST
-      this.fetchRouletteNumbersREST(roletaId)
-        .then(success => {
-          if (success) {
-            console.log(`[SocketService] ✅ Dados iniciais obtidos com sucesso para ${roletaNome}`);
-          } else {
-            console.warn(`[SocketService] ⚠️ Falha ao obter dados iniciais para ${roletaNome}`);
-          }
-        });
-    } else {
-      console.warn(`[SocketService] ⚠️ Roleta não encontrada pelo nome: ${roletaNome}`);
+      console.log(`[SocketService] Polling interrompido para roleta ${roletaId}`);
     }
   }
 
@@ -1700,6 +1673,48 @@ class SocketService {
       this.socket.disconnect();
       this.socket = null;
     }
+  }
+
+  // Readicionando o método para registrar em todos os canais de roleta (chamado por outros componentes)
+  /**
+   * Registra para atualizações de todas as roletas disponíveis
+   * Método público utilizado para páginas que exibem múltiplas roletas
+   */
+  public registerToAllRoulettes(): void {
+    if (!this.socket || !this.socket.connected) {
+      console.warn('[SocketService] Impossível registrar em canais: socket não conectado');
+      return;
+    }
+    
+    console.log('[SocketService] Registrando em canais de atualização em tempo real');
+    
+    // Emitir um evento para informar o servidor que queremos receber todas as atualizações
+    this.socket.emit('subscribe_all_roulettes', { subscribe: true });
+    
+    // Recuperar lista conhecida de roletas e subscrever individualmente
+    this.fetchRealRoulettes().then(roulettes => {
+      if (Array.isArray(roulettes) && roulettes.length > 0) {
+        console.log(`[SocketService] Registrando em ${roulettes.length} canais de roleta individuais`);
+        
+        roulettes.forEach(roulette => {
+          const roletaId = roulette._id || roulette.id;
+          const roletaNome = roulette.nome || roulette.name || `Roleta ${roletaId}`;
+          
+          if (roletaId) {
+            // Usar método adaptado de subscrição
+            this.subscribeToRouletteEndpoint(roletaId, roletaNome);
+          }
+        });
+      }
+    });
+    
+    // Iniciar polling adaptativo para todas as roletas conhecidas
+    ROLETAS_CANONICAS.forEach(roleta => {
+      this.startAggressivePolling(roleta.id, roleta.nome);
+    });
+    
+    // Solicitar dados recentes de todas as roletas
+    this.requestRecentNumbers();
   }
 
 }
