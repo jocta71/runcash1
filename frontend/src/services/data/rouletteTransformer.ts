@@ -31,7 +31,7 @@ export const ROULETTE_NAMES = {
   "2380335": "Brazilian Mega Roulette",
   "2010065": "Bucharest Auto-Roulette",
   "2010096": "Speed Auto Roulette",
-  "2010017": "Ruleta Automática",
+  "2010017": "Auto-Roulette",
   "2010098": "Auto-Roulette VIP"
 };
 
@@ -161,14 +161,17 @@ export function transformRouletteData(rawData: any) {
       .map(transformRouletteNumber)
       .filter(Boolean);
     
-    // Nome
-    const name = rawData.nome || rawData.name || ROULETTE_NAMES[numericId] || `Roleta ${numericId}`;
+    // Nome - usar o mapeamento de ID para nome como primeira prioridade
+    const name = ROULETTE_NAMES[numericId] || rawData.nome || rawData.name || `Roleta ${numericId}`;
     
     return {
       id: numericId,
       uuid: rawData._id || rawData.id,
       name,
+      nome: name, // Adicionar nome em português também
+      roleta_nome: name, // Campo usado por alguns componentes
       numbers: processedNumbers,
+      numeros: processedNumbers, // Campo em português para compatibilidade
       active: rawData.ativa !== false,
       strategyState: rawData.estado_estrategia || 'NEUTRAL',
       wins: rawData.vitorias || 0,
@@ -180,7 +183,10 @@ export function transformRouletteData(rawData: any) {
       id: '2010096', // Speed Auto como fallback
       uuid: '0',
       name: 'Erro',
+      nome: 'Erro',
+      roleta_nome: 'Erro',
       numbers: [],
+      numeros: [],
       active: false,
       strategyState: 'ERROR',
       wins: 0,
