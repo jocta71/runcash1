@@ -8,12 +8,11 @@ import { RouletteNumberEvent } from './EventService';
 import { RequestThrottler } from './utils/requestThrottler';
 import { getLogger } from './utils/logger';
 import config from '@/config/env';
-import { getCachedUUID, cacheUUID } from '@/lib/localStorage';
 
 const logger = getLogger('FetchService');
 
 // Configurações
-const POLLING_INTERVAL = 2000; // Reduzido de 5s para 2s para atualizações mais frequentes
+const POLLING_INTERVAL = 5000; // 5 segundos entre cada verificação
 const MAX_RETRIES = 3; // Número máximo de tentativas antes de desistir
 const ALLOWED_ROULETTES = [
   "2010016",  // Immersive Roulette
@@ -34,16 +33,6 @@ const NAME_TO_ID_MAP: Record<string, string> = {
   "Auto-Roulette VIP": "2010098"
 };
 
-// Mapear IDs canônicos para nomes
-const ID_TO_NAME_MAP: Record<string, string> = {
-  "2010016": "Immersive Roulette",
-  "2380335": "Brazilian Mega Roulette",
-  "2010065": "Bucharest Auto-Roulette",
-  "2010096": "Speed Auto Roulette",
-  "2010017": "Auto-Roulette",
-  "2010098": "Auto-Roulette VIP"
-};
-
 interface FetchOptions extends RequestInit {
   skipCache?: boolean;
   cacheTime?: number;
@@ -57,7 +46,6 @@ class FetchService {
   private lastFetchedNumbers: Map<string, { timestamp: number, numbers: number[] }> = new Map();
   private isPolling: boolean = false;
   private apiBaseUrl: string;
-  private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
   
   constructor() {
     this.apiBaseUrl = config.apiBaseUrl;
@@ -270,15 +258,11 @@ class FetchService {
         numbers: [...numbers]
       });
       
-      // Emitir todos os números recentes como eventos de inicialização (até 5 mais recentes)
-      numbers.slice(0, 5).forEach((num, index) => {
-        if (num !== undefined && num !== null) {
-          // Pequeno delay entre emissões para sequência correta
-          setTimeout(() => {
-            this.emitNumberEvent(roletaId, roletaNome, num, index === 0);
-          }, index * 100);
-        }
-      });
+      // Emitir o número mais recente como evento
+      const lastNumber = numbers[0];
+      if (lastNumber !== undefined && lastNumber !== null) {
+        this.emitNumberEvent(roletaId, roletaNome, lastNumber);
+      }
       
       return;
     }
@@ -295,28 +279,23 @@ class FetchService {
       return;
     }
     
-    // Verificar todos os novos números (até 3) que não estavam no conjunto anterior
-    let foundNewNumbers = false;
-    for (let i = 0; i < Math.min(3, numbers.length); i++) {
-      const currentNumber = numbers[i];
-      if (!oldNumbers.includes(currentNumber)) {
-        foundNewNumbers = true;
-        logger.info(`Novo número detectado para ${roletaNome}: ${currentNumber} (posição ${i})`);
-        
-        // Emitir o novo número como evento (marcando apenas o primeiro como mais recente)
-        this.emitNumberEvent(roletaId, roletaNome, currentNumber, i === 0);
-      }
-    }
+    const firstNewNumber = numbers[0];
+    const firstOldNumber = oldNumbers[0];
     
-    if (foundNewNumbers) {
+    if (firstNewNumber !== firstOldNumber) {
+      logger.info(`Novo número detectado para ${roletaNome}: ${firstNewNumber} (anterior: ${firstOldNumber})`);
+      
       // Atualizar a lista de números
       this.lastFetchedNumbers.set(roletaId, {
         timestamp: Date.now(),
         numbers: [...numbers]
       });
+      
+      // Emitir o novo número como evento
+      this.emitNumberEvent(roletaId, roletaNome, firstNewNumber);
     } else {
       // Apenas atualizar o timestamp sem emitir evento
-      logger.debug(`Nenhum número novo para ${roletaNome}, último: ${numbers[0]}`);
+      logger.debug(`Nenhum número novo para ${roletaNome}, último: ${firstNewNumber}`);
       this.lastFetchedNumbers.set(roletaId, {
         timestamp: Date.now(),
         numbers: oldNumbers
@@ -327,31 +306,25 @@ class FetchService {
   /**
    * Emite um evento com o novo número para o sistema
    */
-  private emitNumberEvent(roletaId: string, roletaNome: string, numero: number, isLatest: boolean = true): void {
+  private emitNumberEvent(roletaId: string, roletaNome: string, numero: number): void {
     // Verificar se o número é válido
     if (numero === undefined || numero === null || isNaN(numero)) {
       logger.warn(`Tentativa de emitir número inválido para ${roletaNome}: ${numero}`);
       return;
     }
     
-    // Garantir que estamos usando o nome correto baseado no ID canônico
-    const canonicalId = this.getCanonicalId(roletaId, roletaNome);
-    const correctName = ID_TO_NAME_MAP[canonicalId] || roletaNome;
-    
     // Criar o evento
     const event: RouletteNumberEvent = {
       type: 'new_number',
-      roleta_id: canonicalId || '',
-      roleta_nome: correctName,
+      roleta_id: roletaId || '',
+      roleta_nome: roletaNome || 'Roleta Desconhecida',
       numero: numero,
       timestamp: new Date().toISOString(),
-      // Flag que indica se este é o número mais recente ou um número histórico
-      isLatest: isLatest,
       // Adicionar flag para indicar que este evento NÃO deve substituir dados existentes
       preserve_existing: true
     };
     
-    logger.info(`Emitindo evento de número ${isLatest ? 'recente' : 'histórico'} para ${correctName}: ${numero}`);
+    logger.info(`Emitindo evento de novo número para ${roletaNome}: ${numero}`);
     
     // Emitir utilizando o EventService
     const eventService = EventService.getInstance();
@@ -470,273 +443,6 @@ class FetchService {
    */
   clearAllCache(): void {
     RequestThrottler.clearCache();
-  }
-
-  /**
-   * Obtém dados de um endpoint com suporte a retry automático
-   */
-  public async fetchData<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    let retries = 0;
-    const maxRetries = 3;
-
-    while (retries < maxRetries) {
-      try {
-        const response = await fetch(endpoint, {
-          ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            ...(options?.headers || {})
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        
-        // Emitir evento sinalizando que os dados foram carregados com sucesso
-        EventService.emitGlobalEvent('data_loaded', {
-          endpoint,
-          success: true,
-          timestamp: new Date().toISOString()
-        });
-        
-        return data as T;
-      } catch (error) {
-        retries++;
-        logger.warn(`Erro ao buscar dados de ${endpoint}. Tentativa ${retries}/${maxRetries}: ${error.message}`);
-        
-        if (retries >= maxRetries) {
-          logger.error(`Máximo de tentativas alcançado para ${endpoint}`);
-          throw error;
-        }
-        
-        // Aguardar antes da próxima tentativa
-        await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL));
-      }
-    }
-
-    throw new Error(`Não foi possível obter dados de ${endpoint} após ${maxRetries} tentativas`);
-  }
-
-  /**
-   * Processa novos números recebidos da API
-   */
-  public processNewNumbers(roleta: any, numerosAtuais: any[], ultimosNumeros: any[]): boolean {
-    try {
-      // Verificar se temos dados válidos
-      if (!roleta || !roleta.nome) {
-        logger.warn("Tentativa de processar roleta sem nome ou ID");
-        return false;
-      }
-      
-      // Se não temos números anteriores ou atuais, não podemos processar
-      if (!Array.isArray(numerosAtuais) || numerosAtuais.length === 0) {
-        logger.warn(`Roleta ${roleta.nome}: Números atuais vazios ou inválidos`);
-        return false;
-      }
-      
-      if (!Array.isArray(ultimosNumeros)) {
-        logger.warn(`Roleta ${roleta.nome}: Últimos números não são um array`);
-        ultimosNumeros = [];
-      }
-      
-      // Comparar primeiro número atual com o primeiro dos últimos conhecidos
-      const firstNewNumber = numerosAtuais[0];
-      const firstKnownNumber = ultimosNumeros.length > 0 ? ultimosNumeros[0] : null;
-      
-      // Se não temos número conhecido anterior, todos são novos
-      if (!firstKnownNumber) {
-        logger.info(`Roleta ${roleta.nome}: Primeiro carregamento de números`);
-        
-        // Emitir evento indicando que dados reais foram carregados
-        EventService.emitGlobalEvent('roulettes_loaded', {
-          roleta_id: roleta.id || roleta._id,
-          roleta_nome: roleta.nome,
-          success: true,
-          timestamp: new Date().toISOString()
-        });
-        
-        return true;
-      }
-      
-      // Verificar se o primeiro número atual é diferente do primeiro conhecido
-      if (firstNewNumber !== firstKnownNumber) {
-        logger.debug(`Roleta ${roleta.nome}: Novos números detectados. Atual: ${firstNewNumber}, Anterior: ${firstKnownNumber}`);
-        
-        // Emitir evento sinalizando que novos números foram encontrados
-        EventService.emitGlobalEvent('new_numbers_found', {
-          roleta_id: roleta.id || roleta._id,
-          roleta_nome: roleta.nome,
-          numeros: numerosAtuais,
-          timestamp: new Date().toISOString()
-        });
-        
-        return true;
-      }
-      
-      logger.debug(`Roleta ${roleta.nome}: Sem novos números detectados`);
-      return false;
-    } catch (error) {
-      logger.error(`Erro ao processar novos números: ${error.message}`, error);
-      return false;
-    }
-  }
-
-  /**
-   * Inicia polling para buscar dados da roleta com intervalo regular
-   */
-  public startPolling(roletaId: string, callback: (data: any) => void, interval = 5000): void {
-    if (this.pollingIntervals.has(roletaId)) {
-      logger.debug(`Polling já ativo para roleta ${roletaId}. Reiniciando.`);
-      this.stopPolling(roletaId);
-    }
-
-    logger.info(`Iniciando polling para roleta ${roletaId} a cada ${interval}ms`);
-    
-    // Função para buscar dados da roleta
-    const fetchRouletteData = async () => {
-      try {
-        const endpoint = `${config.API_URL}/api/ROULETTES`;
-        logger.debug(`Buscando dados da roleta ${roletaId} em ${endpoint}`);
-        
-        const data = await this.fetchData<any[]>(endpoint);
-        
-        if (!Array.isArray(data)) {
-          logger.warn(`Resposta inválida para roleta ${roletaId}: não é um array`);
-          return;
-        }
-        
-        // Encontrar a roleta específica
-        const roleta = data.find(r => r.id === roletaId || r._id === roletaId);
-        
-        if (roleta) {
-          logger.debug(`Dados obtidos para roleta ${roleta.nome || roletaId}`);
-          
-          // Emitir evento sinalizando que os dados foram carregados com sucesso
-          EventService.emitGlobalEvent('roulettes_loaded', {
-            success: true,
-            count: data.length,
-            timestamp: new Date().toISOString()
-          });
-          
-          callback(roleta);
-        } else {
-          logger.warn(`Roleta ${roletaId} não encontrada na resposta`);
-        }
-      } catch (error) {
-        logger.error(`Erro ao buscar dados da roleta ${roletaId}: ${error.message}`);
-      }
-    };
-    
-    // Executar imediatamente na primeira vez
-    fetchRouletteData();
-    
-    // Agendar execuções periódicas
-    const timerId = setInterval(fetchRouletteData, interval);
-    this.pollingIntervals.set(roletaId, timerId);
-  }
-
-  /**
-   * Para o polling para uma roleta específica
-   */
-  public stopPolling(roletaId: string): void {
-    const timerId = this.pollingIntervals.get(roletaId);
-    if (timerId) {
-      logger.info(`Parando polling para roleta ${roletaId}`);
-      clearInterval(timerId);
-      this.pollingIntervals.delete(roletaId);
-    }
-  }
-
-  async getAllRoulettes() {
-    try {
-      logger.debug('Buscando todas as roletas disponíveis');
-      
-      // Construir URL com base nas configurações
-      const url = `${this.apiBaseUrl}/ROULETTES`;
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar roletas: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!Array.isArray(data)) {
-        throw new Error('Resposta inválida da API: não é um array');
-      }
-      
-      // Processar dados com o transformador de objetos
-      const processedData = data.map(this.processRouletteData);
-      
-      logger.info(`✅ Encontradas ${processedData.length} roletas`);
-      
-      // Emitir evento que os dados de roletas foram carregados completamente
-      EventService.emitGlobalEvent('roulettes_loaded', {
-        success: true,
-        count: processedData.length,
-        timestamp: new Date().toISOString()
-      });
-      
-      return processedData;
-    } catch (error) {
-      logger.error(`Erro ao buscar roletas: ${error.message}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Processa dados brutos de roleta para o formato padronizado
-   */
-  private processRouletteData(rawData: any): any {
-    try {
-      // Se o dado bruto não existe, retornar objeto vazio
-      if (!rawData) return {};
-      
-      // Garantir que temos um ID válido
-      let roletaId = '';
-      
-      if (rawData.roleta_id) {
-        roletaId = String(rawData.roleta_id);
-      } else if (rawData.id) {
-        roletaId = String(rawData.id);
-      } else if (rawData._id) {
-        roletaId = String(rawData._id);
-      }
-      
-      // Obter ID canônico
-      const canonicalId = ALLOWED_ROULETTES.includes(roletaId) ? 
-        roletaId : this.getCanonicalId(roletaId, rawData.nome || rawData.name);
-      
-      // Determinar o nome correto baseado no ID canônico
-      const correctName = ID_TO_NAME_MAP[canonicalId] || rawData.nome || rawData.name || 'Roleta Desconhecida';
-      
-      // Construir objeto padronizado
-      return {
-        id: canonicalId,
-        roleta_id: canonicalId,
-        _id: rawData._id || rawData.id || canonicalId,
-        nome: correctName,
-        name: correctName,
-        numeros: Array.isArray(rawData.numero) ? rawData.numero : 
-                 Array.isArray(rawData.numeros) ? rawData.numeros : [],
-        ultima_atualizacao: rawData.updated_at || new Date().toISOString(),
-        updated_at: rawData.updated_at || new Date().toISOString(),
-        vitorias: rawData.vitorias || 0,
-        wins: rawData.vitorias || 0,
-        derrotas: rawData.derrotas || 0,
-        losses: rawData.derrotas || 0,
-        estado_estrategia: rawData.estado_estrategia || 'NEUTRAL',
-        strategyState: rawData.estado_estrategia || 'NEUTRAL'
-      };
-    } catch (error) {
-      logger.error('Erro ao processar dados da roleta:', error);
-      return { nome: 'Erro ao processar dados', id: '0' };
-    }
   }
 }
 
