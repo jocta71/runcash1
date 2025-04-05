@@ -111,6 +111,29 @@ let lastProcessedIds = new Set();
 let db, collection;
 let isConnected = false;
 
+// Importar serviços necessários
+const mongodb = require('./api/libs/mongodb');
+const RouletteHistory = require('./api/models/RouletteHistory');
+
+// Inicializar o modelo de histórico quando MongoDB estiver conectado
+let historyModel = null;
+
+// Conectar ao MongoDB e inicializar modelos
+async function initializeModels() {
+  try {
+    if (!mongodb.isConnected()) {
+      await mongodb.connect();
+    }
+    
+    if (!historyModel && mongodb.getDb()) {
+      historyModel = new RouletteHistory(mongodb.getDb());
+      console.log('Modelo de histórico inicializado com sucesso');
+    }
+  } catch (error) {
+    console.error('Erro ao inicializar modelos:', error);
+  }
+}
+
 async function connectToMongoDB() {
   try {
     console.log('Attempting to connect to MongoDB at:', MONGODB_URI);
@@ -138,6 +161,9 @@ async function connectToMongoDB() {
     
     // Broadcast dos estados de estratégia atualizados
     setTimeout(broadcastAllStrategies, 2000);
+    
+    // Conectar ao MongoDB e inicializar modelos
+    await initializeModels();
     
     return true;
   } catch (error) {
@@ -650,41 +676,94 @@ app.get('/api/numbers', async (req, res) => {
   }
 });
 
-// Configuração do Socket.IO
-io.on('connection', (socket) => {
-  console.log(`Cliente conectado: ${socket.id}`);
+// Socket.IO connection handler
+io.on('connection', async (socket) => {
+  console.log(`Novo cliente conectado: ${socket.id}`);
   
-  // Enviar status de conexão para o cliente
-  socket.emit('connection_status', { connected: true, mongodb: isConnected });
-  
-  // Cliente se inscrevendo para receber atualizações de uma roleta específica
-  socket.on('subscribe_to_roleta', (roletaNome) => {
-    console.log(`Cliente ${socket.id} se inscreveu para roleta: ${roletaNome}`);
-    socket.join(roletaNome);
+  // Enviar dados iniciais para o cliente
+  if (isConnected) {
+    socket.emit('connection_success', { status: 'connected' });
     
-    // Enviar números recentes para o cliente quando ele se inscrever
-    if (isConnected) {
-      collection
-        .find({ roleta_nome: roletaNome })
-        .sort({ timestamp: -1 })
-        .limit(20)
-        .toArray()
-        .then(numbers => {
-          socket.emit('recent_history', numbers);
-        })
-        .catch(err => {
-          console.error('Erro ao buscar histórico recente:', err);
-        });
+    // Enviar os últimos números conhecidos para cada roleta
+    socket.emit('initial_data', rouletteStatus);
+    
+    console.log('Enviados dados iniciais para o cliente');
+  } else {
+    socket.emit('connection_error', { status: 'MongoDB not connected' });
+  }
+  
+  // Subscrever a uma roleta específica
+  socket.on('subscribe', (roletaNome) => {
+    if (typeof roletaNome === 'string' && roletaNome.trim()) {
+      socket.join(roletaNome);
+      console.log(`Cliente ${socket.id} subscrito à roleta: ${roletaNome}`);
     }
   });
   
-  // Cliente cancelando inscrição
-  socket.on('unsubscribe_from_roleta', (roletaNome) => {
-    console.log(`Cliente ${socket.id} cancelou inscrição da roleta: ${roletaNome}`);
-    socket.leave(roletaNome);
+  // Cancelar subscrição a uma roleta específica
+  socket.on('unsubscribe', (roletaNome) => {
+    if (typeof roletaNome === 'string' && roletaNome.trim()) {
+      socket.leave(roletaNome);
+      console.log(`Cliente ${socket.id} cancelou subscrição à roleta: ${roletaNome}`);
+    }
   });
   
-  // Desconexão do cliente
+  // Handler para novo número
+  socket.on('new_number', async (data) => {
+    try {
+      console.log('[WebSocket] Recebido novo número:', data);
+      
+      // Adicionar o número ao histórico
+      if (historyModel && data.roletaId && data.numero !== undefined) {
+        await historyModel.addNumberToHistory(
+          data.roletaId,
+          data.roletaNome || `Roleta ${data.roletaId}`,
+          data.numero
+        );
+        console.log(`[WebSocket] Número ${data.numero} adicionado ao histórico da roleta ${data.roletaId}`);
+      }
+      
+      // Broadcast para todos os clientes inscritos nesta roleta
+      if (data.roletaNome) {
+        io.to(data.roletaNome).emit('new_number', data);
+        console.log(`[WebSocket] Evento 'new_number' emitido para sala ${data.roletaNome}`);
+      }
+      
+      // Broadcast global para todos os clientes
+      io.emit('global_new_number', data);
+    } catch (error) {
+      console.error('[WebSocket] Erro ao processar novo número:', error);
+    }
+  });
+  
+  // Handler para solicitar histórico completo de uma roleta
+  socket.on('request_history', async (data) => {
+    try {
+      if (!historyModel) {
+        await initializeModels();
+      }
+      
+      if (!data || !data.roletaId) {
+        return socket.emit('history_error', { error: 'ID da roleta é obrigatório' });
+      }
+      
+      console.log(`[WebSocket] Solicitação de histórico para roleta ${data.roletaId}`);
+      
+      const history = await historyModel.getHistoryByRouletteId(data.roletaId);
+      
+      socket.emit('history_data', {
+        roletaId: data.roletaId,
+        ...history
+      });
+      
+      console.log(`[WebSocket] Histórico enviado: ${history.numeros ? history.numeros.length : 0} números`);
+    } catch (error) {
+      console.error('[WebSocket] Erro ao buscar histórico:', error);
+      socket.emit('history_error', { error: 'Erro ao buscar histórico' });
+    }
+  });
+  
+  // Evento de desconexão
   socket.on('disconnect', () => {
     console.log(`Cliente desconectado: ${socket.id}`);
   });
@@ -692,9 +771,9 @@ io.on('connection', (socket) => {
 
 // Iniciar o servidor
 server.listen(PORT, async () => {
-  console.log(`Servidor WebSocket iniciado na porta ${PORT}`);
+  console.log(`Servidor WebSocket rodando na porta ${PORT}`);
   
-  // Tentar conectar ao MongoDB
+  // Inicializar conexão com MongoDB e modelos
   await connectToMongoDB();
 });
 
@@ -703,68 +782,3 @@ process.on('SIGINT', () => {
   console.log('Encerrando servidor...');
   process.exit(0);
 });
-
-// Modificar a função pollLastStrategies para incluir logs detalhados
-
-async function pollLastStrategies() {
-  if (!isConnected || !db) return;
-  
-  try {
-    console.log('Verificando atualizações de estratégia...');
-    
-    // Buscar os últimos estados de estratégia
-    const lastStrategies = await db.collection('estrategia_historico_novo')
-      .find({})
-      .sort({ timestamp: -1 })
-      .limit(10)
-      .toArray();
-    
-    console.log(`Encontrados ${lastStrategies.length} registros de estratégia recentes`);
-    
-    // Mapear por roleta para remover duplicatas
-    const uniqueStrategies = {};
-    
-    lastStrategies.forEach(strategy => {
-      const roleta_id = strategy.roleta_id;
-      if (!uniqueStrategies[roleta_id] || new Date(strategy.timestamp) > new Date(uniqueStrategies[roleta_id].timestamp)) {
-        uniqueStrategies[roleta_id] = strategy;
-      }
-    });
-    
-    // Emit events
-    for (const [roleta_id, strategy] of Object.entries(uniqueStrategies)) {
-      const roletaNome = strategy.roleta_nome;
-      
-      // Adicionar debug para mostrar detalhes da estratégia
-      console.log('\n=== DETALHES DA ESTRATÉGIA ===');
-      console.log(`Roleta: ${roletaNome} (ID: ${roleta_id})`);
-      console.log(`Estado: ${strategy.estado || 'Nenhum'}`);
-      console.log(`Número gatilho: ${strategy.numero_gatilho}`);
-      console.log(`Terminais: ${JSON.stringify(strategy.terminais_gatilho)}`);
-      console.log(`Sugestão display: ${strategy.sugestao_display || 'Nenhuma'}`);
-      console.log('===========================\n');
-      
-      const strategyEvent = {
-        type: 'strategy_update',
-        roleta_id,
-        roleta_nome: roletaNome,
-        estado: strategy.estado,
-        numero_gatilho: strategy.numero_gatilho || 0,
-        terminais_gatilho: strategy.terminais_gatilho || [],
-        vitorias: strategy.vitorias || 0,
-        derrotas: strategy.derrotas || 0,
-        sugestao_display: strategy.sugestao_display || ''
-      };
-      
-      // Log detalhado do evento que será enviado
-      console.log(`Enviando evento detalhado: ${JSON.stringify(strategyEvent)}`);
-      
-      io.to(roletaNome).emit('strategy_update', strategyEvent);
-      io.emit('global_strategy_update', strategyEvent);
-      
-      console.log(`Enviado evento de estratégia para roleta ${roletaNome}: estado ${strategy.estado}`);
-    }
-  } catch (error) {
-    console.error('Erro ao verificar estratégias:', error);
-  }
-}

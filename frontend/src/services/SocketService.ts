@@ -35,6 +35,25 @@ interface Roulette {
   name?: string;
 }
 
+// Adicionar tipos para histórico
+export interface HistoryRequest {
+  roletaId: string;
+}
+
+export interface HistoryData {
+  roletaId: string;
+  roletaNome?: string;
+  numeros: {
+    numero: number;
+    timestamp: Date;
+  }[];
+  createdAt?: Date;
+  updatedAt?: Date;
+  totalRegistros?: number;
+  message?: string;
+  error?: string;
+}
+
 /**
  * Serviço que gerencia a conexão WebSocket via Socket.IO
  * para receber dados em tempo real do MongoDB
@@ -1804,6 +1823,52 @@ class SocketService {
     this.rouletteHistory.set(roletaId, limitedNumbers);
   }
 
+  /**
+   * Solicita o histórico completo de uma roleta
+   * @param roletaId ID da roleta
+   * @returns Promise que resolve com os dados do histórico
+   */
+  requestRouletteHistory(roletaId: string): Promise<HistoryData> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket || !this.isConnected()) {
+        console.error('Socket não conectado. Impossível solicitar histórico.');
+        return reject(new Error('Socket não conectado'));
+      }
+      
+      console.log(`Solicitando histórico para roleta: ${roletaId}`);
+      
+      // Configurar handler para resposta
+      const onHistoryData = (data: HistoryData) => {
+        if (data.roletaId === roletaId) {
+          console.log(`Recebido histórico com ${data.numeros?.length || 0} registros para roleta ${roletaId}`);
+          this.socket?.off('history_data', onHistoryData);
+          this.socket?.off('history_error', onHistoryError);
+          resolve(data);
+        }
+      };
+      
+      const onHistoryError = (error: any) => {
+        console.error('Erro ao buscar histórico:', error);
+        this.socket?.off('history_data', onHistoryData);
+        this.socket?.off('history_error', onHistoryError);
+        reject(error);
+      };
+      
+      // Registrar handlers
+      this.socket.on('history_data', onHistoryData);
+      this.socket.on('history_error', onHistoryError);
+      
+      // Enviar solicitação
+      this.socket.emit('request_history', { roletaId });
+      
+      // Timeout para evitar que a Promise fique pendente para sempre
+      setTimeout(() => {
+        this.socket?.off('history_data', onHistoryData);
+        this.socket?.off('history_error', onHistoryError);
+        reject(new Error('Timeout ao solicitar histórico'));
+      }, 30000); // 30 segundos de timeout
+    });
+  }
 }
 
 export default SocketService; 

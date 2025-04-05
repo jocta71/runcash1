@@ -9,6 +9,10 @@ import SocketService from '@/services/SocketService';
 import LoadingScreen from './components/LoadingScreen';
 import RoulettesPage from './pages/Roulettes';
 import './App.css';
+import RouletteHistoryPage from './pages/RouletteHistoryPage';
+import { ThemeProvider } from './components/theme-provider';
+import { ErrorBoundary } from 'react-error-boundary';
+import ErrorPage from './pages/ErrorPage';
 
 // Importação de componentes principais
 const Index = lazy(() => import("@/pages/Index"));
@@ -69,59 +73,66 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient.current}>
-      <SubscriptionProvider>
-        <TooltipProvider>
-          <Toaster />
-          <BrowserRouter>
-            <Suspense fallback={<LoadingScreen />}>
-              <Routes>
-                {/* Rota de autenticação */}
-                <Route path="/auth" element={<AuthPage />} />
-                
-                {/* Página para popular números das roletas */}
-                <Route path="/seed-numbers" element={<SeedPage />} />
-                
-                {/* Rota principal (com dados reais do MongoDB) */}
-                <Route path="/" element={<Index />} />
-                
-                {/* Nova rota para roletas ao vivo */}
-                <Route path="/live-roulettes" element={<LiveRoulettePage />} />
-                
-                {/* Página de teste */}
-                <Route path="/test" element={<TestPage />} />
-                
-                {/* Rotas relacionadas a planos e pagamentos */}
-                <Route path="/planos" element={<PlansPage />} />
-                <Route path="/payment-success" element={<PaymentSuccess />} />
-                <Route path="/payment-canceled" element={<PaymentCanceled />} />
-                
-                {/* Rota de perfil do usuário */}
-                <Route path="/profile" element={<ProfilePage />} />
-                
-                {/* Rota para página não encontrada */}
-                <Route path="*" element={<NotFound />} />
+    <div className="App">
+      <ErrorBoundary fallback={<ErrorPage />}>
+        <SubscriptionProvider>
+          <TooltipProvider>
+            <Toaster />
+            <ThemeProvider defaultTheme="dark" storageKey="runcash-theme">
+              <BrowserRouter>
+                <Suspense fallback={<LoadingScreen />}>
+                  <Routes>
+                    {/* Rota de autenticação */}
+                    <Route path="/auth" element={<AuthPage />} />
+                    
+                    {/* Página para popular números das roletas */}
+                    <Route path="/seed-numbers" element={<SeedPage />} />
+                    
+                    {/* Rota principal (com dados reais do MongoDB) */}
+                    <Route path="/" element={<Index />} />
+                    
+                    {/* Nova rota para roletas ao vivo */}
+                    <Route path="/live-roulettes" element={<LiveRoulettePage />} />
+                    
+                    {/* Página de teste */}
+                    <Route path="/test" element={<TestPage />} />
+                    
+                    {/* Rotas relacionadas a planos e pagamentos */}
+                    <Route path="/planos" element={<PlansPage />} />
+                    <Route path="/payment-success" element={<PaymentSuccess />} />
+                    <Route path="/payment-canceled" element={<PaymentCanceled />} />
+                    
+                    {/* Rota de perfil do usuário */}
+                    <Route path="/profile" element={<ProfilePage />} />
+                    
+                    {/* Rota para página não encontrada */}
+                    <Route path="*" element={<NotFound />} />
 
-                {/* Rota para página de análise */}
-                <Route path="/analise" element={<RouletteAnalysisPage />} />
-                
-                {/* Rotas para estratégias */}
-                <Route path="/strategies" element={<StrategiesPage />} />
-                <Route path="/strategies/create" element={<StrategyFormPage />} />
-                <Route path="/strategies/edit/:id" element={<StrategyFormPage />} />
-                <Route path="/strategies/view/:id" element={<StrategiesPage />} />
-                
-                {/* Redirecionamento da antiga rota de tempo real para a página principal */}
-                <Route path="/realtime" element={<Navigate to="/" />} />
+                    {/* Rota para página de análise */}
+                    <Route path="/analise" element={<RouletteAnalysisPage />} />
+                    
+                    {/* Rotas para estratégias */}
+                    <Route path="/strategies" element={<StrategiesPage />} />
+                    <Route path="/strategies/create" element={<StrategyFormPage />} />
+                    <Route path="/strategies/edit/:id" element={<StrategyFormPage />} />
+                    <Route path="/strategies/view/:id" element={<StrategiesPage />} />
+                    
+                    {/* Redirecionamento da antiga rota de tempo real para a página principal */}
+                    <Route path="/realtime" element={<Navigate to="/" />} />
 
-                {/* Nova rota para roletas */}
-                <Route path="/roulettes" element={<RoulettesPage />} />
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
-        </TooltipProvider>
-      </SubscriptionProvider>
-    </QueryClientProvider>
+                    {/* Nova rota para roletas */}
+                    <Route path="/roulettes" element={<RoulettesPage />} />
+                    
+                    {/* Nova rota para histórico de roletas */}
+                    <Route path="/historico/:roletaId" element={<RouletteHistoryPage />} />
+                  </Routes>
+                </Suspense>
+              </BrowserRouter>
+            </ThemeProvider>
+          </TooltipProvider>
+        </SubscriptionProvider>
+      </ErrorBoundary>
+    </div>
   );
 };
 

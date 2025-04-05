@@ -1,8 +1,8 @@
 import axios from 'axios';
 import config from '@/config/env';
 import EventService from './EventService';
-import { ENDPOINTS } from '../config/constants';
 import { Logger } from './utils/logger';
+import { HistoryData } from './SocketService';
 
 const logger = new Logger('RouletteFeedService');
 
@@ -15,6 +15,7 @@ class RouletteFeedService {
   private isPolling: boolean = false;
   private apiBaseUrl: string;
   private lastRouletteNumbers: Map<string, string[]> = new Map();
+  private socketService: any; // Assuming a type for socketService
   
   constructor() {
     this.apiBaseUrl = config.apiBaseUrl;
@@ -219,6 +220,43 @@ class RouletteFeedService {
       });
     } catch (error) {
       logger.error('Erro ao processar tabelas ao vivo:', error);
+    }
+  }
+
+  /**
+   * Obtém o histórico completo de números para uma roleta específica
+   * @param roletaId ID da roleta
+   * @returns Promise com os dados do histórico
+   */
+  async getCompleteHistory(roletaId: string): Promise<HistoryData> {
+    try {
+      console.log(`[RouletteFeedService] Solicitando histórico completo para roleta ${roletaId}`);
+      
+      if (!this.socketService) {
+        throw new Error('SocketService não está inicializado');
+      }
+      
+      const historyData = await this.socketService.requestRouletteHistory(roletaId);
+      
+      console.log(`[RouletteFeedService] Histórico recebido: ${historyData.numeros?.length || 0} números`);
+      
+      // Notificar via EventService
+      EventService.emit('roulette:complete-history', {
+        roletaId,
+        history: historyData
+      });
+      
+      return historyData;
+    } catch (error) {
+      console.error('[RouletteFeedService] Erro ao obter histórico completo:', error);
+      
+      // Notificar erro via EventService
+      EventService.emit('roulette:complete-history-error', {
+        roletaId,
+        error
+      });
+      
+      throw error;
     }
   }
 }
