@@ -7,6 +7,15 @@
     <meta name="description" content="RunCash - Acompanhamento e análise de roletas em tempo real" />
     <title>RunCash</title>
     
+    <!-- Global variable initialization to prevent "Cannot access before initialization" errors -->
+    <script>
+      // Initialize variables before any modules are loaded
+      window.Yo = window.Yo || { initialized: true, timestamp: Date.now() };
+      window.__INIT_REGISTRY__ = window.__INIT_REGISTRY__ || {};
+      window.__INIT_REGISTRY__['html-init'] = true;
+      console.log('[html] Initialized global variables');
+    </script>
+    
     <!-- Fontes e estilos globais -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

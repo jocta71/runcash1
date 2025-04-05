@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "node fix-build.js && vite",
-    "build": "node fix-build.js && vite build",
+    "prebuild": "node fix-build.js",
+    "build": "vite build",
     "vercel-build": "node fix-build.js && vite build",
     "build:dev": "node fix-build.js && vite build --mode development",
+    "init": "node fix-build.js",
     "fix": "node fix-build.js",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"

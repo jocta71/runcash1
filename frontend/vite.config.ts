@@ -17,13 +17,25 @@ export default defineConfig({
       },
       load(id) {
         if (id === 'virtual:global-init') {
+          // This code will be injected at the beginning of the bundle
           return `
-            // Initialize global variables
-            window.Yo = window.Yo || { initialized: true };
+            // Initialize global variables to prevent "Cannot access before initialization" errors
+            window.Yo = window.Yo || { initialized: true, timestamp: Date.now() };
             console.log('[vite] Global variables initialized');
           `;
         }
         return null;
+      },
+      transformIndexHtml(html) {
+        // Add a script tag to the HTML to ensure variables are initialized before any other scripts
+        return html.replace(
+          '<head>',
+          `<head>
+            <script>
+              // Pre-initialize variables that might be accessed before initialization
+              window.Yo = { initialized: true, timestamp: Date.now() };
+            </script>`
+        );
       },
     },
     react()
@@ -36,6 +48,7 @@ export default defineConfig({
   // Add global-init.js as an entry point before the main entry
   optimizeDeps: {
     include: ['src/global-init.js'],
+    entries: ['src/global-init.js', 'index.html'],
   },
   server: {
     port: 3000,
@@ -62,17 +75,40 @@ export default defineConfig({
   build: {
     outDir: "dist",
     assetsDir: "assets",
+    // Ensure proper module loading order in the final bundle
     rollupOptions: {
       input: {
+        // The order here matters - globalInit should be first
         globalInit: path.resolve(__dirname, 'src/global-init.js'),
         main: path.resolve(__dirname, 'index.html'),
       },
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          ui: ['@/components/ui'], 
+        // Make sure Yo is available in the global scope
+        intro: 'window.Yo = window.Yo || { initialized: true };',
+        // Chunks configuration for better loading order
+        manualChunks: (id) => {
+          // Put initialization code in a separate chunk that loads first
+          if (id.includes('global-init') || id.includes('preload')) {
+            return 'init';
+          }
+          // Vendor chunk for libraries
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'vendor-react';
+            }
+            return 'vendor';
+          }
+          // UI components
+          if (id.includes('/components/ui')) {
+            return 'ui';
+          }
+          return undefined;
         },
       },
     },
+  },
+  // Define compilation-time constants to help with conditional code
+  define: {
+    '__GLOBAL_YO_INITIALIZED__': true,
   }
 });

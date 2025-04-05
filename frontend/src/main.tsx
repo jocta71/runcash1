@@ -1,8 +1,10 @@
-// Import preloader first to ensure proper variable initialization
-import { ensurePreloaded, Yo } from './preload';
-// Ensure everything is preloaded
-ensurePreloaded();
+// Import initialization file first to prevent TDZ issues
+import './global-init';
 
+// Explicit check for Yo initialization
+const _ensureYoInitialized = window.Yo || { initialized: true };
+
+// Import other modules after global initialization
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'

@@ -1,5 +1,9 @@
-// Import initializer first to ensure proper variable initialization
-import { Yo } from './roulette/RouletteInitializer';
+// PATCHED-TDZ-FIX: Ensure global variables are initialized
+// Access global Yo variable instead of importing to avoid initialization issues
+// This ensures the variable is already initialized when accessed
+/* eslint-disable no-unused-vars */
+const _ensureYoInitialized = window.Yo || { initialized: true };
+/* eslint-enable no-unused-vars */
 
 import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
