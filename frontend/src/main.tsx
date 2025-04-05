@@ -2,6 +2,9 @@
 import './react-polyfill';
 import './global-init';
 
+// Importar verificador de diagnóstico - remover após resolução do problema
+import './react-polyfill-checker';
+
 // Explicit check for Yo initialization
 const _ensureYoInitialized = window.Yo || { initialized: true };
 

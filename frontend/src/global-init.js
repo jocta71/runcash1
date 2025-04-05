@@ -20,11 +20,73 @@
     // Assegurar que o objeto React existe
     window.React = window.React || {};
     
+    // Implementação especial para useLayoutEffect
+    if (!window.React.useLayoutEffect) {
+      // Em ambiente de servidor, useLayoutEffect deve ser useEffect
+      if (typeof document === 'undefined') {
+        window.React.useLayoutEffect = function() {
+          if (window.React.useEffect) {
+            return window.React.useEffect.apply(null, arguments);
+          }
+          return undefined;
+        };
+      } else {
+        // Implementação para cliente com segurança para TDZ
+        window.React.useLayoutEffect = function(callback, deps) {
+          // Usar setTimeout para simular o comportamento
+          if (typeof callback === 'function') {
+            // Em produção, executar a callback em um setTimeout
+            try {
+              const id = setTimeout(() => {
+                try {
+                  const cleanup = callback();
+                  
+                  // Armazenar function de limpeza
+                  if (typeof cleanup === 'function') {
+                    window.__REACT_LAYOUT_EFFECT_CLEANUPS__ = window.__REACT_LAYOUT_EFFECT_CLEANUPS__ || {};
+                    const cleanupId = Date.now() + Math.random().toString(36).substring(2, 9);
+                    window.__REACT_LAYOUT_EFFECT_CLEANUPS__[cleanupId] = cleanup;
+                  }
+                } catch (e) {
+                  console.error('[global-init] Erro ao executar useLayoutEffect:', e);
+                }
+              }, 0);
+              
+              // Retornar mock de função de cleanup
+              return function() {
+                clearTimeout(id);
+                // Limpar todos os cleanups registrados
+                if (window.__REACT_LAYOUT_EFFECT_CLEANUPS__) {
+                  Object.values(window.__REACT_LAYOUT_EFFECT_CLEANUPS__).forEach(cleanup => {
+                    if (typeof cleanup === 'function') {
+                      try {
+                        cleanup();
+                      } catch (e) {
+                        console.error('[global-init] Erro ao executar limpeza de useLayoutEffect:', e);
+                      }
+                    }
+                  });
+                  window.__REACT_LAYOUT_EFFECT_CLEANUPS__ = {};
+                }
+              };
+            } catch (e) {
+              console.error('[global-init] Erro ao configurar useLayoutEffect:', e);
+              return undefined;
+            }
+          }
+          return undefined;
+        };
+      }
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[global-init] useLayoutEffect inicializado especialmente');
+      }
+    }
+    
     // Lista de todos os hooks React comuns - definidos explicitamente
     const reactHooks = [
       'useState', 
       'useEffect', 
-      'useLayoutEffect', 
       'useRef', 
       'useCallback', 
       'useMemo', 
@@ -50,7 +112,6 @@
               case 'useRef':
                 return { current: undefined };
               case 'useEffect':
-              case 'useLayoutEffect':
                 return undefined;
               default:
                 return undefined;
@@ -85,7 +146,8 @@
   window.__INIT_REGISTRY__ = {
     'Yo': true,
     'React': true,
-    'z': true
+    'z': true,
+    'useLayoutEffect': true
   };
   
   // Log em desenvolvimento

@@ -43,18 +43,88 @@ function createGlobalInit() {
   if (typeof window !== 'undefined') {
     window.React = window.React || {};
     
-    // Garantir que useLayoutEffect e useEffect existam no objeto React
+    // Implementação específica para useLayoutEffect que é mais robusta
     if (!window.React.useLayoutEffect) {
-      window.React.useLayoutEffect = function() {
-        console.warn('[global-init] React.useLayoutEffect chamado antes do React ser inicializado');
-        return null;
-      };
+      // Em ambiente de servidor, useLayoutEffect deve ser useEffect
+      if (typeof document === 'undefined') {
+        window.React.useLayoutEffect = function(effect, deps) {
+          if (window.React.useEffect) {
+            return window.React.useEffect(effect, deps);
+          }
+          return undefined;
+        };
+      } else {
+        // Implementação para cliente com segurança para TDZ
+        window.React.useLayoutEffect = function(callback, deps) {
+          // Registro de debug
+          console.log('[global-init] useLayoutEffect interceptado');
+          
+          // Usar setTimeout para simular o comportamento
+          if (typeof callback === 'function') {
+            // Em produção, executar a callback em um setTimeout
+            try {
+              const id = setTimeout(() => {
+                try {
+                  const cleanup = callback();
+                  
+                  // Armazenar função de limpeza
+                  if (typeof cleanup === 'function') {
+                    window.__REACT_LAYOUT_EFFECT_CLEANUPS__ = window.__REACT_LAYOUT_EFFECT_CLEANUPS__ || {};
+                    const cleanupId = Date.now() + Math.random().toString(36).substring(2, 9);
+                    window.__REACT_LAYOUT_EFFECT_CLEANUPS__[cleanupId] = cleanup;
+                  }
+                } catch (e) {
+                  console.error('[global-init] Erro ao executar useLayoutEffect:', e);
+                }
+              }, 0);
+              
+              // Retornar mock de função de cleanup
+              return function() {
+                clearTimeout(id);
+                // Limpar todos os cleanups registrados
+                if (window.__REACT_LAYOUT_EFFECT_CLEANUPS__) {
+                  Object.values(window.__REACT_LAYOUT_EFFECT_CLEANUPS__).forEach(cleanup => {
+                    if (typeof cleanup === 'function') {
+                      try {
+                        cleanup();
+                      } catch (e) {
+                        console.error('[global-init] Erro ao executar limpeza de useLayoutEffect:', e);
+                      }
+                    }
+                  });
+                  window.__REACT_LAYOUT_EFFECT_CLEANUPS__ = {};
+                }
+              };
+            } catch (e) {
+              console.error('[global-init] Erro ao configurar useLayoutEffect:', e);
+              return undefined;
+            }
+          }
+          return undefined;
+        };
+      }
     }
     
+    // Garantir que useEffect também exista no objeto React
     if (!window.React.useEffect) {
-      window.React.useEffect = function() {
+      window.React.useEffect = function(callback, deps) {
         console.warn('[global-init] React.useEffect chamado antes do React ser inicializado');
-        return null;
+        
+        // Similar ao useLayoutEffect mas sem necessidade de executar imediatamente
+        if (typeof callback === 'function') {
+          const id = setTimeout(() => {
+            try {
+              callback();
+            } catch (e) {
+              console.error('[global-init] Erro ao executar useEffect:', e);
+            }
+          }, 0);
+          
+          return function() {
+            clearTimeout(id);
+          };
+        }
+        return undefined;
       };
     }
     
@@ -63,6 +133,7 @@ function createGlobalInit() {
     
     initialized['React'] = true;
     initialized['z'] = true;
+    initialized['useLayoutEffect'] = true;
   }
 
   // Create a registry to track initialization
@@ -70,7 +141,7 @@ function createGlobalInit() {
   
   // Log in development
   if (process.env.NODE_ENV !== 'production') {
-    console.log('[global-init] Variables initialized:', Object.keys(initialized));
+    console.log('[global-init] Inicialização global concluída');
   }
 })();
 `;
@@ -95,11 +166,58 @@ if (typeof window !== 'undefined') {
   // Garante que o objeto React exista
   window.React = window.React || {};
   
+  // Implementação específica para useLayoutEffect - mais robusta
+  if (!window.React.useLayoutEffect) {
+    // Se estamos no ambiente de servidor, useLayoutEffect deve se comportar como useEffect
+    if (typeof document === 'undefined') {
+      window.React.useLayoutEffect = function(effect, deps) {
+        if (window.React.useEffect) {
+          return window.React.useEffect(effect, deps);
+        }
+        return undefined;
+      };
+    } else {
+      // Implementação simplificada para cliente
+      window.React.useLayoutEffect = function(effect, deps) {
+        // Simular o comportamento básico no cliente
+        if (typeof effect === 'function') {
+          // Executar o efeito de forma assíncrona para evitar bloqueio
+          const cleanup = setTimeout(() => {
+            try {
+              const cleanupFn = effect();
+              if (typeof cleanupFn === 'function') {
+                // Armazenar a função de limpeza para possível uso posterior
+                window.__REACT_LAYOUT_EFFECT_CLEANUP__ = cleanupFn;
+              }
+            } catch (e) {
+              console.error('[react-polyfill] Erro ao executar useLayoutEffect:', e);
+            }
+          }, 0);
+          
+          // Retornar uma função de limpeza stub
+          return function() {
+            clearTimeout(cleanup);
+            if (typeof window.__REACT_LAYOUT_EFFECT_CLEANUP__ === 'function') {
+              try {
+                window.__REACT_LAYOUT_EFFECT_CLEANUP__();
+              } catch (e) {
+                console.error('[react-polyfill] Erro ao executar limpeza de useLayoutEffect:', e);
+              }
+              window.__REACT_LAYOUT_EFFECT_CLEANUP__ = null;
+            }
+          };
+        }
+        return undefined;
+      };
+    }
+    
+    console.log('[react-polyfill] useLayoutEffect polyfilled');
+  }
+  
   // Lista de hooks comuns do React que podem ser acessados
   const reactHooks = [
     'useState', 
     'useEffect', 
-    'useLayoutEffect', 
     'useRef', 
     'useCallback', 
     'useMemo', 

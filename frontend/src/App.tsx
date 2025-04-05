@@ -1,3 +1,10 @@
+// Importações de inicialização
+import './react-polyfill';
+import './global-init';
+
+// Verificação explícita da inicialização
+const _ensureReactInitialized = window.React?.useLayoutEffect || (window.React = window.React || {});
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "./components/ui/tooltip";

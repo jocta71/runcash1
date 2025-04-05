@@ -7,11 +7,58 @@ if (typeof window !== 'undefined') {
   // Garante que o objeto React exista
   window.React = window.React || {};
   
+  // Implementação específica para useLayoutEffect - verificação mais rigorosa
+  if (!window.React.useLayoutEffect) {
+    // Se estamos no ambiente de servidor, useLayoutEffect deve se comportar como useEffect
+    if (typeof document === 'undefined') {
+      window.React.useLayoutEffect = function(effect, deps) {
+        if (window.React.useEffect) {
+          return window.React.useEffect(effect, deps);
+        }
+        return undefined;
+      };
+    } else {
+      // Implementação simplificada para cliente
+      window.React.useLayoutEffect = function(effect, deps) {
+        // Simular o comportamento básico no cliente
+        if (typeof effect === 'function') {
+          // Executar o efeito de forma assíncrona para evitar bloqueio
+          const cleanup = setTimeout(() => {
+            try {
+              const cleanupFn = effect();
+              if (typeof cleanupFn === 'function') {
+                // Armazenar a função de limpeza para possível uso posterior
+                window.__REACT_LAYOUT_EFFECT_CLEANUP__ = cleanupFn;
+              }
+            } catch (e) {
+              console.error('[react-polyfill] Erro ao executar useLayoutEffect:', e);
+            }
+          }, 0);
+          
+          // Retornar uma função de limpeza stub
+          return function() {
+            clearTimeout(cleanup);
+            if (typeof window.__REACT_LAYOUT_EFFECT_CLEANUP__ === 'function') {
+              try {
+                window.__REACT_LAYOUT_EFFECT_CLEANUP__();
+              } catch (e) {
+                console.error('[react-polyfill] Erro ao executar limpeza de useLayoutEffect:', e);
+              }
+              window.__REACT_LAYOUT_EFFECT_CLEANUP__ = null;
+            }
+          };
+        }
+        return undefined;
+      };
+    }
+    
+    console.log('[react-polyfill] useLayoutEffect polyfilled');
+  }
+  
   // Lista de hooks comuns do React que podem ser acessados
   const reactHooks = [
     'useState', 
     'useEffect', 
-    'useLayoutEffect', 
     'useRef', 
     'useCallback', 
     'useMemo', 
