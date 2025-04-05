@@ -4,7 +4,7 @@ const http = require('http');
 const url = require('url');
 
 // URL do backend no Railway
-const BACKEND_URL = 'https://runcash1-production.up.railway.app';
+const BACKEND_URL = 'https://backendapi-production-36b5.up.railway.app';
 
 // Função para encaminhar a requisição
 function proxyRequest(req, res, path) {
@@ -22,7 +22,7 @@ function proxyRequest(req, res, path) {
     const options = {
       hostname: parsedUrl.hostname,
       port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
-      path: path || req.url.replace('/api/proxy', ''),
+      path: path || req.url.replace('/api', '/api'),
       method: req.method,
       headers: {
         ...req.headers,
@@ -32,6 +32,9 @@ function proxyRequest(req, res, path) {
     
     // Remover headers problemáticos
     delete options.headers['content-length'];
+    
+    // Debugar requisição
+    console.log(`Proxy reenviando requisição para: ${BACKEND_URL}${options.path}`);
     
     // Escolher o protocolo correto (http ou https)
     const protocol = parsedUrl.protocol === 'https:' ? https : http;
@@ -77,7 +80,8 @@ module.exports = (req, res) => {
   
   // Obter o path específico, se fornecido como query parameter
   const { path } = url.parse(req.url, true).query;
+  const targetPath = path || req.url;
   
   // Encaminhar a requisição para o backend
-  proxyRequest(req, res, path);
+  proxyRequest(req, res, targetPath);
 }; 
