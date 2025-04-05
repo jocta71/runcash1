@@ -112,7 +112,7 @@ export function mapToCanonicalRouletteId(uuid: string): string {
 }
 
 // Configuração básica para todas as APIs
-const apiBaseUrl = '/api'; // Usar o proxy local para evitar problemas de CORS
+const apiBaseUrl = 'https://backendapi-production-36b5.up.railway.app/api'; // URL completa do Railway
 
 // Cache para evitar múltiplas solicitações para os mesmos dados
 const cache: Record<string, { data: any, timestamp: number }> = {};

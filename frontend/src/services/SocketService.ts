@@ -1062,8 +1062,8 @@ class SocketService {
   
   // Obter a URL base da API
   private getApiBaseUrl(): string {
-    // Em vez de usar a URL completa, usar apenas /api para que o proxy do Vite funcione
-    return '/api';
+    // Usar a URL completa do Railway em vez de /api local
+    return 'https://backendapi-production-36b5.up.railway.app/api';
   }
 
   // Adicionando um evento artificial para teste (deve ser removido em produção)
