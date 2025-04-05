@@ -875,10 +875,19 @@ class SocketService {
         console.log(`[SocketService] ${countWithRealData} de ${connectedRoulettes.length} roletas têm dados históricos reais`);
         
         if (countWithRealData > 0) {
+          // Emitir dois eventos para garantir que os componentes serão notificados
+          // Evento para o carregamento de dados históricos
           EventService.emitGlobalEvent('historical_data_loaded', { 
             success: true,
             count: countWithRealData,
             isRealData: true
+          });
+          
+          // Evento específico para roletas carregadas (usado pelo Index.tsx)
+          EventService.emitGlobalEvent('roulettes_loaded', {
+            success: true,
+            count: countWithRealData,
+            timestamp: new Date().toISOString()
           });
           
           toast({
@@ -894,6 +903,14 @@ class SocketService {
       
       // Se chegamos aqui, não conseguimos dados reais de nenhuma roleta
       console.warn('[SocketService] Nenhuma roleta com dados reais encontrada');
+      
+      // Emitir mesmo assim um evento de carregamento para liberar a interface
+      EventService.emitGlobalEvent('roulettes_loaded', {
+        success: false,
+        message: "Sem dados reais disponíveis",
+        timestamp: new Date().toISOString()
+      });
+      
       EventService.emitGlobalEvent('historical_data_loaded', { 
         success: false,
         message: "Sem dados reais disponíveis"
@@ -907,6 +924,14 @@ class SocketService {
       
     } catch (error) {
       console.error('[SocketService] Erro ao carregar dados históricos:', error);
+      
+      // Emitir mesmo assim um evento de carregamento para liberar a interface
+      EventService.emitGlobalEvent('roulettes_loaded', {
+        success: false,
+        error: String(error),
+        timestamp: new Date().toISOString()
+      });
+      
       EventService.emitGlobalEvent('historical_data_loaded', { 
         success: false,
         error: String(error)
@@ -1069,8 +1094,8 @@ class SocketService {
           this.processNumbersData(fakeNumbers, { _id: canonicalId, nome: roletaNome });
           
           return true;
-        }
-      } catch (e) {
+          }
+        } catch (e) {
         console.warn(`[SocketService] Erro ao acessar endpoint ${endpoint}:`, e);
         return false;
       }
@@ -1108,7 +1133,7 @@ class SocketService {
     
     return numbers;
   }
-
+  
   // Obter a URL base da API
   private getApiBaseUrl(): string {
     // Em vez de usar a URL completa do Railway, usar o endpoint relativo para aproveitar o proxy
@@ -1542,22 +1567,16 @@ class SocketService {
       console.log(`[SocketService] Adicionando roleta à fila: ${roletaNome || 'Sem Nome'} (${canonicalId})`);
       
       // Se já estivermos monitorando esta roleta, não adicionar novamente
-      if (this.pollingRoulettes.has(canonicalId)) {
+      if (this.pollingIntervals.has(canonicalId)) {
         console.log(`[SocketService] Roleta ${canonicalId} já está na fila de monitoramento`);
         return;
       }
       
       // Adicionar à lista de roletas para polling
-      this.pollingRoulettes.set(canonicalId, {
-        id: canonicalId,
-        nome: roletaNome || `Roleta ${canonicalId}`,
-        lastPolled: Date.now()
-      });
-      
-      // Iniciar polling se solicitado
-      if (shouldStartPolling) {
-        this.startPollingForRoulette(canonicalId);
-      }
+      this.pollingIntervals.set(canonicalId, setInterval(() => {
+        console.log(`[SocketService] Executando polling para ${roletaNome} (${canonicalId})`);
+        this.fetchRouletteNumbersREST(canonicalId);
+      }, 5000));
       
       // Emitir evento para sinalizar adição da roleta
       EventService.emitGlobalEvent('roulette_added_to_queue', {

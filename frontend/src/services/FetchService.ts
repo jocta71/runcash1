@@ -8,6 +8,7 @@ import { RouletteNumberEvent } from './EventService';
 import { RequestThrottler } from './utils/requestThrottler';
 import { getLogger } from './utils/logger';
 import config from '@/config/env';
+import { getCachedUUID, cacheUUID } from '@/lib/localStorage';
 
 const logger = getLogger('FetchService');
 
@@ -46,6 +47,7 @@ class FetchService {
   private lastFetchedNumbers: Map<string, { timestamp: number, numbers: number[] }> = new Map();
   private isPolling: boolean = false;
   private apiBaseUrl: string;
+  private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
   
   constructor() {
     this.apiBaseUrl = config.apiBaseUrl;
@@ -443,6 +445,223 @@ class FetchService {
    */
   clearAllCache(): void {
     RequestThrottler.clearCache();
+  }
+
+  /**
+   * Obtém dados de um endpoint com suporte a retry automático
+   */
+  public async fetchData<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    let retries = 0;
+    const maxRetries = 3;
+
+    while (retries < maxRetries) {
+      try {
+        const response = await fetch(endpoint, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(options?.headers || {})
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // Emitir evento sinalizando que os dados foram carregados com sucesso
+        EventService.emitGlobalEvent('data_loaded', {
+          endpoint,
+          success: true,
+          timestamp: new Date().toISOString()
+        });
+        
+        return data as T;
+      } catch (error) {
+        retries++;
+        logger.warn(`Erro ao buscar dados de ${endpoint}. Tentativa ${retries}/${maxRetries}: ${error.message}`);
+        
+        if (retries >= maxRetries) {
+          logger.error(`Máximo de tentativas alcançado para ${endpoint}`);
+          throw error;
+        }
+        
+        // Aguardar antes da próxima tentativa
+        await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL));
+      }
+    }
+
+    throw new Error(`Não foi possível obter dados de ${endpoint} após ${maxRetries} tentativas`);
+  }
+
+  /**
+   * Processa novos números recebidos da API
+   */
+  public processNewNumbers(roleta: any, numerosAtuais: any[], ultimosNumeros: any[]): boolean {
+    try {
+      // Verificar se temos dados válidos
+      if (!roleta || !roleta.nome) {
+        logger.warn("Tentativa de processar roleta sem nome ou ID");
+        return false;
+      }
+      
+      // Se não temos números anteriores ou atuais, não podemos processar
+      if (!Array.isArray(numerosAtuais) || numerosAtuais.length === 0) {
+        logger.warn(`Roleta ${roleta.nome}: Números atuais vazios ou inválidos`);
+        return false;
+      }
+      
+      if (!Array.isArray(ultimosNumeros)) {
+        logger.warn(`Roleta ${roleta.nome}: Últimos números não são um array`);
+        ultimosNumeros = [];
+      }
+      
+      // Comparar primeiro número atual com o primeiro dos últimos conhecidos
+      const firstNewNumber = numerosAtuais[0];
+      const firstKnownNumber = ultimosNumeros.length > 0 ? ultimosNumeros[0] : null;
+      
+      // Se não temos número conhecido anterior, todos são novos
+      if (!firstKnownNumber) {
+        logger.info(`Roleta ${roleta.nome}: Primeiro carregamento de números`);
+        
+        // Emitir evento indicando que dados reais foram carregados
+        EventService.emitGlobalEvent('roulettes_loaded', {
+          roleta_id: roleta.id || roleta._id,
+          roleta_nome: roleta.nome,
+          success: true,
+          timestamp: new Date().toISOString()
+        });
+        
+        return true;
+      }
+      
+      // Verificar se o primeiro número atual é diferente do primeiro conhecido
+      if (firstNewNumber !== firstKnownNumber) {
+        logger.debug(`Roleta ${roleta.nome}: Novos números detectados. Atual: ${firstNewNumber}, Anterior: ${firstKnownNumber}`);
+        
+        // Emitir evento sinalizando que novos números foram encontrados
+        EventService.emitGlobalEvent('new_numbers_found', {
+          roleta_id: roleta.id || roleta._id,
+          roleta_nome: roleta.nome,
+          numeros: numerosAtuais,
+          timestamp: new Date().toISOString()
+        });
+        
+        return true;
+      }
+      
+      logger.debug(`Roleta ${roleta.nome}: Sem novos números detectados`);
+      return false;
+    } catch (error) {
+      logger.error(`Erro ao processar novos números: ${error.message}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Inicia polling para buscar dados da roleta com intervalo regular
+   */
+  public startPolling(roletaId: string, callback: (data: any) => void, interval = 5000): void {
+    if (this.pollingIntervals.has(roletaId)) {
+      logger.debug(`Polling já ativo para roleta ${roletaId}. Reiniciando.`);
+      this.stopPolling(roletaId);
+    }
+
+    logger.info(`Iniciando polling para roleta ${roletaId} a cada ${interval}ms`);
+    
+    // Função para buscar dados da roleta
+    const fetchRouletteData = async () => {
+      try {
+        const endpoint = `${config.API_URL}/api/ROULETTES`;
+        logger.debug(`Buscando dados da roleta ${roletaId} em ${endpoint}`);
+        
+        const data = await this.fetchData<any[]>(endpoint);
+        
+        if (!Array.isArray(data)) {
+          logger.warn(`Resposta inválida para roleta ${roletaId}: não é um array`);
+          return;
+        }
+        
+        // Encontrar a roleta específica
+        const roleta = data.find(r => r.id === roletaId || r._id === roletaId);
+        
+        if (roleta) {
+          logger.debug(`Dados obtidos para roleta ${roleta.nome || roletaId}`);
+          
+          // Emitir evento sinalizando que os dados foram carregados com sucesso
+          EventService.emitGlobalEvent('roulettes_loaded', {
+            success: true,
+            count: data.length,
+            timestamp: new Date().toISOString()
+          });
+          
+          callback(roleta);
+        } else {
+          logger.warn(`Roleta ${roletaId} não encontrada na resposta`);
+        }
+      } catch (error) {
+        logger.error(`Erro ao buscar dados da roleta ${roletaId}: ${error.message}`);
+      }
+    };
+    
+    // Executar imediatamente na primeira vez
+    fetchRouletteData();
+    
+    // Agendar execuções periódicas
+    const timerId = setInterval(fetchRouletteData, interval);
+    this.pollingIntervals.set(roletaId, timerId);
+  }
+
+  /**
+   * Para o polling para uma roleta específica
+   */
+  public stopPolling(roletaId: string): void {
+    const timerId = this.pollingIntervals.get(roletaId);
+    if (timerId) {
+      logger.info(`Parando polling para roleta ${roletaId}`);
+      clearInterval(timerId);
+      this.pollingIntervals.delete(roletaId);
+    }
+  }
+
+  async getAllRoulettes() {
+    try {
+      logger.debug('Buscando todas as roletas disponíveis');
+      
+      // Construir URL com base nas configurações
+      const url = `${this.apiBaseUrl}/ROULETTES`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar roletas: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!Array.isArray(data)) {
+        throw new Error('Resposta inválida da API: não é um array');
+      }
+      
+      // Processar dados com o transformador de objetos
+      const processedData = data.map(this.processRouletteData);
+      
+      logger.info(`✅ Encontradas ${processedData.length} roletas`);
+      
+      // Emitir evento que os dados de roletas foram carregados completamente
+      EventService.emitGlobalEvent('roulettes_loaded', {
+        success: true,
+        count: processedData.length,
+        timestamp: new Date().toISOString()
+      });
+      
+      return processedData;
+    } catch (error) {
+      logger.error(`Erro ao buscar roletas: ${error.message}`);
+      throw error;
+    }
   }
 }
 
