@@ -17,9 +17,14 @@ import SocketService from '@/services/SocketService';
 import StrategySelector from '@/components/StrategySelector';
 import { Strategy } from '@/services/StrategyService';
 import RouletteNumber from './roulette/RouletteNumber';
+import { RequestThrottler } from '@/services/utils/requestThrottler';
+import { getLogger } from '@/services/utils/logger';
+
+// Logger específico para este componente
+const logger = getLogger('RouletteCard');
 
 // Debug flag - set to false to disable logs in production
-const DEBUG_ENABLED = true;
+const DEBUG_ENABLED = false;
 
 // Helper function for controlled logging
 const debugLog = (...args: any[]) => {
@@ -136,7 +141,7 @@ const RouletteCard = memo(({
   const [isLoading, setIsLoading] = useState(true);
   
   // Referência ao timer de destaque
-  const highlightTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Estado para controlar o destaque visual após um novo número
   const [highlight, setHighlight] = useState(false);
@@ -662,32 +667,50 @@ const RouletteCard = memo(({
     });
   };
 
-  // Função para recarregar dados
+  // Função para recarregar dados usando o throttler
   const reloadData = async (e: any) => {
     e.stopPropagation();
     
-    try {
-      // Mostrar toast de recarregamento
+    if (!roletaId) {
       toast({
-        title: "Recarregando dados",
-        description: `Atualizando dados para ${roletaNome}...`,
+        title: "Erro",
+        description: "ID da roleta não informado. Não é possível recarregar dados.",
+        variant: "destructive"
       });
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
       
-      // Recarregar números e estratégia
-      await refreshNumbers();
-      await refreshStrategy();
+      // Usar o throttler para controlar a taxa de requisições
+      const throttleKey = `roulette_refresh_${roletaId}`;
+      
+      // Forçar atualização imediata independente do intervalo
+      await RequestThrottler.scheduleRequest(
+        throttleKey,
+        async () => {
+          logger.debug(`Recarregando dados para roleta ${roletaNome}`);
+          const numbersSuccess = await refreshNumbers();
+          const strategySuccess = await refreshStrategy();
+          return { numbersSuccess, strategySuccess };
+        },
+        true // Forçar execução imediata
+      );
       
       toast({
         title: "Dados atualizados",
-        description: `Os dados de ${roletaNome} foram atualizados com sucesso.`,
+        description: `Os dados da ${roletaNome} foram atualizados com sucesso.`,
+        variant: "default"
       });
     } catch (error) {
-      console.error(`Erro ao recarregar dados: ${error}`);
       toast({
-        title: "Erro",
-        description: "Falha ao atualizar os dados. Tente novamente mais tarde.",
-        variant: "destructive",
+        title: "Erro ao atualizar",
+        description: `Não foi possível atualizar os dados da ${roletaNome}.`,
+        variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 

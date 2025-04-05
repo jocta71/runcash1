@@ -17,6 +17,11 @@ import SocketService from '@/services/SocketService';
 import axios from 'axios';
 import config from '@/config/env';
 import FetchService from '@/services/FetchService';
+import { RequestThrottler } from '@/services/utils/requestThrottler';
+import { getLogger } from '@/services/utils/logger';
+
+// Logger específico para este componente
+const logger = getLogger('RouletteData');
 
 // Debug flag - set to false to disable logs in production
 const DEBUG = false;
@@ -56,6 +61,12 @@ type RouletteStrategy = ApiRouletteStrategy;
 // Criar um registro global de polling para evitar duplicações
 const pollingInitialized = new Set<string>();
 
+// Mapa para armazenar os dados mais recentes de cada roleta
+const rouletteDataCache: Map<string, RouletteNumber[]> = new Map();
+
+// Mapa para armazenar os dados de estratégia mais recentes de cada roleta
+const rouletteStrategyCache: Map<string, RouletteStrategy> = new Map();
+
 /**
  * Função para buscar números da roleta pelo endpoint único
  */
@@ -69,32 +80,58 @@ const fetchRouletteNumbers = async (roletaId: string, nome?: string, limit: numb
 
     // Mapeamento para o ID canônico
     const canonicalId = mapToCanonicalRouletteId(roletaId);
-    console.log(`[useRouletteData] Buscando números para roleta ${roletaId} (nome: ${nome || 'desconhecido'}, canônico: ${canonicalId})`);
+    logger.debug(`Buscando números para roleta ${roletaId} (nome: ${nome || 'desconhecido'}, canônico: ${canonicalId})`);
     
-    // Fazer a requisição à API usando a função otimizada
-    const numbers = await fetchRouletteNumbersById(canonicalId, limit);
+    // Usar o RequestThrottler para evitar múltiplas requisições simultâneas
+    const throttleKey = `roulette_numbers_${canonicalId}`;
+    const numbers = await RequestThrottler.scheduleRequest(
+      throttleKey,
+      async () => fetchRouletteNumbersById(canonicalId, limit)
+    );
     
     if (numbers && Array.isArray(numbers) && numbers.length > 0) {
-      console.log(`[useRouletteData] ✅ Recebidos ${numbers.length} números da API para ID: ${canonicalId}`);
+      logger.debug(`✅ Recebidos ${numbers.length} números da API para ID: ${canonicalId}`);
+      // Armazenar no cache
+      rouletteDataCache.set(canonicalId, numbers);
       return numbers;
     }
     
-    console.log(`[useRouletteData] ⚠️ Resposta da API não é um array válido para ID: ${canonicalId}`);
+    logger.warn(`⚠️ Resposta da API não é um array válido para ID: ${canonicalId}`);
     
     // Tentar novamente com fallback para nome da roleta
     if (nome) {
-      console.log(`[useRouletteData] Tentando fallback para nome: ${nome}`);
-      const numbersByName = await fetchRouletteLatestNumbersByName(nome, limit);
+      logger.debug(`Tentando fallback para nome: ${nome}`);
+      const throttleKeyByName = `roulette_numbers_name_${nome}`;
+      const numbersByName = await RequestThrottler.scheduleRequest(
+        throttleKeyByName,
+        async () => fetchRouletteLatestNumbersByName(nome, limit)
+      );
       
       if (numbersByName && Array.isArray(numbersByName) && numbersByName.length > 0) {
-        console.log(`[useRouletteData] ✅ Recebidos ${numbersByName.length} números pelo nome: ${nome}`);
+        logger.debug(`✅ Recebidos ${numbersByName.length} números pelo nome: ${nome}`);
+        // Armazenar no cache
+        rouletteDataCache.set(nome, numbersByName);
         return numbersByName;
       }
     }
     
+    // Verificar se temos no cache
+    if (rouletteDataCache.has(canonicalId)) {
+      logger.debug(`Usando ${rouletteDataCache.get(canonicalId)?.length} números do cache para ${canonicalId}`);
+      return rouletteDataCache.get(canonicalId) || [];
+    }
+    
     return [];
   } catch (error: any) {
-    console.error(`[useRouletteData] ❌ Erro ao buscar números da roleta ${nome || roletaId}:`, error.message);
+    logger.error(`❌ Erro ao buscar números da roleta ${nome || roletaId}:`, error.message);
+    
+    // Tentar usar cache em caso de erro
+    const canonicalId = mapToCanonicalRouletteId(roletaId);
+    if (rouletteDataCache.has(canonicalId)) {
+      logger.debug(`Usando cache após erro para ${canonicalId}`);
+      return rouletteDataCache.get(canonicalId) || [];
+    }
+    
     return [];
   }
 };
@@ -232,8 +269,8 @@ export function useRouletteData(
 ): UseRouletteDataResult {
   // Estado para dados de números
   const [numbers, setNumbers] = useState<RouletteNumber[]>([]);
-  const [initialNumbers, setInitialNumbers] = useState<RouletteNumber[]>([]); // Dados iniciais
-  const [newNumbers, setNewNumbers] = useState<RouletteNumber[]>([]); // Novos números
+  const [initialNumbers, setInitialNumbers] = useState<RouletteNumber[]>([]);
+  const [newNumbers, setNewNumbers] = useState<RouletteNumber[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshLoading, setRefreshLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -377,13 +414,13 @@ export function useRouletteData(
     updateCombinedNumbers();
   }, [initialNumbers, newNumbers, updateCombinedNumbers]);
 
-  // Função para extrair e processar números da API - MODIFICADA PARA RESPOSTA MAIS RÁPIDA
+  // Função para extrair e processar números da API - MODIFICADA PARA USAR THROTTLER
   const loadNumbers = useCallback(async (isRefresh = false): Promise<boolean> => {
     try {
       // Se já temos dados iniciais e não é uma atualização manual, pular
       if (initialDataLoaded.current && !isRefresh) {
-        console.log(`[useRouletteData] Ignorando carregamento de números para ${roletaNome} - dados já carregados`);
-        setLoading(false); // GARANTIR loading false imediatamente
+        logger.debug(`Ignorando carregamento de números para ${roletaNome} - dados já carregados`);
+        setLoading(false);
         return true;
       }
       
@@ -391,79 +428,63 @@ export function useRouletteData(
       setError(null);
       
       if (!roletaId) {
-        console.log(`[useRouletteData] ID de roleta inválido ou vazio: "${roletaId}"`);
+        logger.warn(`ID de roleta inválido ou vazio: "${roletaId}"`);
         setLoading(false);
         setHasData(false);
         return false;
       }
       
       // Registrar explicitamente o início do carregamento
-      console.log(`[useRouletteData] ${isRefresh ? '🔄 RECARREGANDO' : '📥 CARREGANDO'} dados para ${roletaNome} (ID: ${roletaId})`);
+      logger.debug(`${isRefresh ? '🔄 RECARREGANDO' : '📥 CARREGANDO'} dados para ${roletaNome} (ID: ${roletaId})`);
       
-      // 1. EXTRAÇÃO: Obter números brutos do novo endpoint
-      let numerosArray = await fetchRouletteNumbers(roletaId, roletaNome, limit);
+      // Usar o throttler para obter os números com controle de taxa
+      const throttleKey = `roulette_numbers_${canonicalId}`;
       
-      console.log(`[useRouletteData] Resposta do endpoint de números para ${roletaNome}:`, 
-        numerosArray.length > 0 ? 
-        `${numerosArray.length} números, primeiro: ${numerosArray[0]?.numero}` : 
-        'Sem números'
+      // Subscrever para atualizações futuras
+      const unsubscribe = RequestThrottler.subscribeToUpdates(throttleKey, (processedNumbers) => {
+        if (processedNumbers && Array.isArray(processedNumbers) && processedNumbers.length > 0) {
+          logger.debug(`Recebida atualização via throttler para ${roletaNome}: ${processedNumbers.length} números`);
+          setInitialNumbers(processedNumbers);
+          setHasData(true);
+          initialDataLoaded.current = true;
+          setLoading(false);
+        }
+      });
+      
+      // Agendar a requisição
+      const numerosArray = await RequestThrottler.scheduleRequest(
+        throttleKey,
+        async () => fetchRouletteNumbers(roletaId, roletaNome, limit),
+        isRefresh // Forçar execução imediata apenas em caso de refresh manual
       );
       
-      // Tentar obter por nome como fallback se não conseguir por ID
-      if (!numerosArray || numerosArray.length === 0) {
-        console.log(`[useRouletteData] Tentando obter números por nome da roleta: ${roletaNome}`);
-        numerosArray = await fetchRouletteLatestNumbersByName(roletaNome, limit);
-        
-        // Log do resultado da busca por nome
-        console.log(`[useRouletteData] Resposta da busca por nome (${roletaNome}):`, 
-          numerosArray.length > 0 ? 
-          `${numerosArray.length} números, primeiro: ${numerosArray[0]}` : 
-          'Sem números'
-        );
-      }
-      
-      // 2. PROCESSAMENTO: Converter para formato RouletteNumber
-      if (numerosArray && Array.isArray(numerosArray) && numerosArray.length > 0) {
-        // Processar os números em formato adequado - não precisamos mais processar
-        // se vierem do novo endpoint, pois já estão formatados
-        const processedNumbers = Array.isArray(numerosArray[0]?.numero) ? 
-          processRouletteNumbers(numerosArray) : 
-          numerosArray as RouletteNumber[];
-        
-        console.log(`[useRouletteData] Dados processados para ${roletaNome}:`, {
-          total: processedNumbers.length,
-          primeiros: processedNumbers.slice(0, 3).map(n => n.numero)
-        });
-        
-        // IMPORTANTE: Salvar os dados iniciais apenas uma vez ou se for refresh manual
-        if (!initialDataLoaded.current || isRefresh) {
-          console.log(`[useRouletteData] ${initialDataLoaded.current ? 'Atualizando' : 'Salvando pela primeira vez'} dados iniciais para ${roletaNome}: ${processedNumbers.length} números`);
-          setInitialNumbers(processedNumbers);
-          initialDataLoaded.current = true;
+      // Se não conseguimos dados do throttler, tente o cache
+      if (!numerosArray || !Array.isArray(numerosArray) || numerosArray.length === 0) {
+        if (rouletteDataCache.has(canonicalId)) {
+          const cachedData = rouletteDataCache.get(canonicalId);
+          if (cachedData && cachedData.length > 0) {
+            logger.debug(`Usando ${cachedData.length} números do cache para ${roletaNome}`);
+            setInitialNumbers(cachedData);
+            setHasData(true);
+            initialDataLoaded.current = true;
+            setLoading(false);
+            return true;
+          }
         }
         
-        // NOVA ADIÇÃO: Definir loading como false IMEDIATAMENTE após ter os dados
-        setLoading(false);
-        setHasData(true);
-        initialLoadCompleted.current = true;
-        
-        return true;
-      } else {
         // Sem dados disponíveis
-        console.warn(`[useRouletteData] ⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
-        
-        // NOVA ADIÇÃO: Definir loading como false mesmo sem dados
+        logger.warn(`⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
         setLoading(false);  
         setHasData(false);
         initialLoadCompleted.current = true;
-                
         return false;
       }
+      
+      return true;
     } catch (err: any) {
-      console.error(`[useRouletteData] ❌ Erro ao carregar números para ${roletaNome}: ${err.message}`);
+      logger.error(`❌ Erro ao carregar números para ${roletaNome}: ${err.message}`);
       setError(`Erro ao carregar números: ${err.message}`);
       
-      // NOVA ADIÇÃO: Garantir que loading seja false mesmo em caso de erro
       setLoading(false);
       setHasData(false);
       initialLoadCompleted.current = true;
@@ -473,30 +494,58 @@ export function useRouletteData(
       setLoading(false);
       setRefreshLoading(false);
     }
-  }, [roletaId, roletaNome, limit]);
+  }, [roletaId, roletaNome, limit, canonicalId]);
   
-  // Função para extrair e processar estratégia da API
+  // Função para extrair e processar estratégia da API - MODIFICADA PARA USAR THROTTLER
   const loadStrategy = useCallback(async (): Promise<boolean> => {
     if (!roletaId) return false;
     
     setStrategyLoading(true);
     
     try {
-      // 1. EXTRAÇÃO: Obter estratégia da API
-      console.log(`[useRouletteData] Extraindo estratégia para ${roletaNome} (ID: ${roletaId})...`);
-      let strategyData = await fetchRouletteStrategy(roletaId);
+      // Usar o throttler para obter a estratégia com controle de taxa
+      const throttleKey = `roulette_strategy_${canonicalId}`;
       
-      console.log(`[useRouletteData] Resposta da API de estratégia para ${roletaNome}:`, strategyData);
+      // Subscrever para atualizações futuras de estratégia
+      const unsubscribe = RequestThrottler.subscribeToUpdates(throttleKey, (strategyData) => {
+        if (strategyData) {
+          logger.debug(`Recebida atualização de estratégia via throttler para ${roletaNome}`);
+          setStrategy(strategyData);
+          setStrategyLoading(false);
+        }
+      });
       
-      // Se não tem dados de estratégia, tenta extrair da roleta por nome
+      // Agendar a requisição
+      const strategyData = await RequestThrottler.scheduleRequest(
+        throttleKey,
+        async () => {
+          logger.debug(`Extraindo estratégia para ${roletaNome} (ID: ${roletaId})...`);
+          return fetchRouletteStrategy(roletaId);
+        }
+      );
+      
+      // Se não tem dados de estratégia, tenta extrair da roleta por nome ou usar o cache
       if (!strategyData) {
-        console.log(`[useRouletteData] Tentando extrair estratégia da roleta por nome: ${roletaNome}`);
-        const roletaData = await fetchRouletteById(roletaId);
+        // Verificar se temos no cache
+        if (rouletteStrategyCache.has(canonicalId)) {
+          const cachedStrategy = rouletteStrategyCache.get(canonicalId);
+          if (cachedStrategy) {
+            logger.debug(`Usando estratégia do cache para ${roletaNome}`);
+            setStrategy(cachedStrategy);
+            setStrategyLoading(false);
+            return true;
+          }
+        }
         
-        console.log(`[useRouletteData] Dados da roleta obtidos:`, roletaData);
+        // Tentar obter da roleta
+        const throttleKeyRoulette = `roulette_data_${canonicalId}`;
+        const roletaData = await RequestThrottler.scheduleRequest(
+          throttleKeyRoulette,
+          async () => fetchRouletteById(roletaId)
+        );
         
         if (roletaData) {
-          strategyData = {
+          const derivedStrategy = {
             estado: roletaData.estado_estrategia || 'NEUTRAL',
             numero_gatilho: roletaData.numero_gatilho || null,
             terminais_gatilho: roletaData.terminais_gatilho || [],
@@ -504,38 +553,40 @@ export function useRouletteData(
             derrotas: roletaData.derrotas || 0,
             sugestao_display: roletaData.sugestao_display || ''
           };
+          
+          // Armazenar no cache
+          rouletteStrategyCache.set(canonicalId, derivedStrategy);
+          
+          setStrategy(derivedStrategy);
+          setStrategyLoading(false);
+          return true;
         }
+      } else {
+        // Armazenar no cache
+        rouletteStrategyCache.set(canonicalId, strategyData);
       }
       
-      // 2. PROCESSAMENTO: Atualizar estado com dados obtidos
-      if (strategyData) {
-        console.log(`[useRouletteData] Estratégia processada para ${roletaNome}:`, {
-          estado: strategyData.estado,
-          vitorias: strategyData.vitorias,
-          derrotas: strategyData.derrotas
-        });
-        
-        setStrategy(strategyData);
-        setStrategyLoading(false);
-        return true;
-      } else {
-        console.log(`[useRouletteData] ⚠️ Nenhuma estratégia encontrada para ${roletaNome}`);
+      // Não conseguimos obter a estratégia
+      if (!strategyData) {
+        logger.warn(`⚠️ Nenhuma estratégia encontrada para ${roletaNome}`);
         setStrategy(null);
         setStrategyLoading(false);
         return false;
       }
+      
+      return true;
     } catch (error) {
-      console.error(`[useRouletteData] ❌ Erro ao extrair estratégia: ${error}`);
+      logger.error(`❌ Erro ao extrair estratégia: ${error}`);
       setStrategyLoading(false);
       return false;
     }
-  }, [roletaId, roletaNome]);
+  }, [roletaId, roletaNome, canonicalId]);
   
-  // useEffect para inicialização - GARANTINDO CARREGAMENTO ÚNICO
+  // useEffect para inicialização - MODIFICADO PARA USAR THROTTLER
   useEffect(() => {
     // Verificar se esta instância específica já foi inicializada para evitar carregamento duplo
     if (hookInitialized.current) {
-      console.log(`[useRouletteData] Hook já inicializado para ${roletaNome}, ignorando inicialização duplicada`);
+      logger.debug(`Hook já inicializado para ${roletaNome}, ignorando inicialização duplicada`);
       return;
     }
     
@@ -543,72 +594,22 @@ export function useRouletteData(
     hookInitialized.current = true;
     
     let isActive = true;
-    console.log(`[useRouletteData] ⭐ INICIANDO CARREGAMENTO ÚNICO para ${roletaNome} (ID: ${roletaId})`);
+    logger.debug(`⭐ INICIANDO CARREGAMENTO ÚNICO para ${roletaNome} (ID: ${roletaId})`);
     
-    // Função para carregar dados iniciais
-    const loadInitialData = async () => {
-      if (loading && !initialDataLoaded.current) {
-        try {
-          console.log(`[useRouletteData] Iniciando carregamento de dados para ${roletaId} (${roletaNome})`);
-          
-          // Definir status de carregamento
-          setLoading(true);
-          setError(null);
-          initialDataLoaded.current = false;
-          
-          // Obter o ID canônico da roleta
-          const canonicalId = mapToCanonicalRouletteId(roletaId);
-          console.log(`[useRouletteData] ID canônico para ${roletaId}: ${canonicalId}`);
-          
-          // Buscar dados de números diretamente - sempre buscar novos dados
-          const rawNumbers = await fetchRouletteNumbers(canonicalId, roletaNome, limit);
-          
-          if (rawNumbers && Array.isArray(rawNumbers)) {
-            // Processar números para formato padrão
-            const processedNumbers = processRouletteNumbers(rawNumbers);
-            console.log(`[useRouletteData] Processados ${processedNumbers.length} números para ${roletaNome}`);
-            
-            // Salvar os dados iniciais e atualizar a exibição
-            setInitialNumbers(processedNumbers);
-            setHasData(processedNumbers.length > 0);
-            initialDataLoaded.current = true;
-            
-            // Atualizar números combinados
-            updateCombinedNumbers();
-          } else {
-            console.error(`[useRouletteData] Erro: Dados de números inválidos para ${roletaNome}`);
-            setError(`Dados de números inválidos para ${roletaNome}`);
-            setHasData(false);
-          }
-          
-          // Buscar dados de estratégia - sempre buscar dados atualizados
-          await refreshStrategy();
-          
-        } catch (error: any) {
-          console.error(`[useRouletteData] Erro no carregamento inicial para ${roletaNome}:`, error);
-          setError(`Erro ao carregar dados: ${error.message || 'Erro desconhecido'}`);
-          setHasData(false);
-        } finally {
-          // Concluir o carregamento
-          setLoading(false);
-          initialLoadCompleted.current = true;
-        }
-      }
-    };
-    
-    // ALTERAÇÃO: Iniciar carregamento imediatamente sem atrasos
-    loadInitialData();
+    // Carregar dados iniciais
+    loadNumbers();
+    loadStrategy();
     
     // Cleanup
     return () => {
       isActive = false;
-      console.log(`[useRouletteData] Componente desmontado, limpeza realizada para ${roletaNome}`);
+      logger.debug(`Componente desmontado, limpeza realizada para ${roletaNome}`);
     };
-  }, [loadNumbers, loadStrategy, roletaId, roletaNome]); // Dependências mínimas necessárias
+  }, [loadNumbers, loadStrategy, roletaId, roletaNome]);
   
   // ===== EVENTOS E WEBSOCKETS =====
   
-  // Processar novos números recebidos via WebSocket - MODIFICADA PARA ATUALIZAR AMBOS newNumbers E initialNumbers
+  // Processar novos números recebidos via WebSocket
   const handleNewNumber = useCallback((event: RouletteNumberEvent) => {
     if (event.type !== 'new_number') return;
     
@@ -803,7 +804,7 @@ export function useRouletteData(
   // Retornar o resultado processado
   return {
     numbers,
-    loading, // This will only be true during initial loading
+    loading,
     error,
     isConnected,
     hasData,

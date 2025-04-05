@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Search, Wallet, Menu, MessageSquare, AlertCircle } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import RouletteCard from '@/components/RouletteCard';
@@ -11,6 +11,7 @@ import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '../services/data/rouletteTransformer';
 import EventService from '@/services/EventService';
+import { RequestThrottler } from '@/services/utils/requestThrottler';
 
 interface ChatMessage {
   id: string;
@@ -41,8 +42,14 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [knownRoulettes, setKnownRoulettes] = useState<Record<string, KnownRoulette>>({});
+  const [knownRoulettes, setKnownRoulettes] = useState<RouletteData[]>([]);
   const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(false);
+  
+  // Referência para controlar se o componente está montado
+  const isMounted = useRef(true);
+
+  // Referência para timeout de atualização
+  const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Escutar eventos de roletas existentes para persistência
   useEffect(() => {
@@ -55,11 +62,8 @@ const Index = () => {
       console.log(`[Index] Evento roleta_exists recebido para: ${data.nome} (ID: ${data.id})`);
       
       setKnownRoulettes(prev => {
-        const updated = {
-          ...prev,
-          [data.id]: data
-        };
-        console.log(`[Index] Atualizado registro de roletas conhecidas. Total: ${Object.keys(updated).length}`);
+        const updated = [...prev, data];
+        console.log(`[Index] Atualizado registro de roletas conhecidas. Total: ${updated.length}`);
         return updated;
       });
     };
@@ -77,7 +81,7 @@ const Index = () => {
   }, []);
   
   // Função para mesclar roletas da API com roletas conhecidas
-  const mergeRoulettes = useCallback((apiRoulettes: RouletteData[]): RouletteData[] => {
+  const mergeRoulettes = useCallback((apiRoulettes: RouletteData[], knownRoulettes: RouletteData[]): RouletteData[] => {
     const merged: Record<string, RouletteData> = {};
     
     // Primeiro, adicionar todas as roletas da API
@@ -86,7 +90,7 @@ const Index = () => {
     });
     
     // Depois, adicionar ou atualizar com roletas conhecidas
-    Object.values(knownRoulettes).forEach(known => {
+    knownRoulettes.forEach(known => {
       // Se a roleta já existe na lista da API, não precisamos fazer nada
       if (merged[known.id]) {
         console.log(`[Index] Roleta já existe na API: ${known.nome} (ID: ${known.id})`);
@@ -98,11 +102,11 @@ const Index = () => {
       // Criar uma roleta a partir da roleta conhecida
       merged[known.id] = {
         id: known.id,
-        nome: known.nome,
-        roleta_nome: known.nome,
+        nome: known.name,
+        roleta_nome: known.name,
         numeros: [],
-        updated_at: known.ultima_atualizacao,
-        estado_estrategia: 'NEUTRAL',
+        updated_at: known.updated_at,
+        estado_estrategia: known.strategyState,
         numero_gatilho: 0,
         numero_gatilho_anterior: 0,
         terminais_gatilho: [],
@@ -114,158 +118,123 @@ const Index = () => {
     });
     
     const result = Object.values(merged);
-    console.log(`[Index] Total após mesclagem: ${result.length} roletas (API: ${apiRoulettes.length}, Conhecidas: ${Object.keys(knownRoulettes).length})`);
+    console.log(`[Index] Total após mesclagem: ${result.length} roletas (API: ${apiRoulettes.length}, Conhecidas: ${knownRoulettes.length})`);
     
     return result;
-  }, [knownRoulettes]);
+  }, []);
   
-  // Buscar dados da API ao carregar a página
-  useEffect(() => {
-    const loadRoulettes = async () => {
-      try {
-        setIsLoading(true);
-        setDataFullyLoaded(false);
-        
-        // Buscar todas as roletas da API usando o novo repositório
-        const data = await RouletteRepository.fetchAllRoulettesWithNumbers();
-        console.log('Dados da API:', data);
-        
-        // Verificar se os dados são válidos
-        if (!data || !Array.isArray(data)) {
-          throw new Error('Dados inválidos retornados pela API');
+  // Função para carregar dados da API de forma centralizada
+  const loadRouletteData = useCallback(async () => {
+    if (!isMounted.current) return;
+    
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Usar o throttler para evitar múltiplas chamadas simultâneas
+      const result = await RequestThrottler.scheduleRequest(
+        'index_roulettes',
+        async () => {
+          console.log('📊 Buscando roletas disponíveis...');
+          const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
+          console.log(`✅ ${response.length} roletas encontradas`);
+          return response;
         }
+      );
+      
+      if (result && Array.isArray(result)) {
+        // Mesclar com roletas conhecidas
+        const merged = mergeRoulettes(result, knownRoulettes);
+        setRoulettes(merged);
         
-        // Mesclar com roletas conhecidas e também preservar dados existentes
-        setRoulettes(prevRoulettes => {
-          // Criar um mapa das roletas anteriores por ID para preservar os dados
-          const existingRoulettesMap = new Map();
-          prevRoulettes.forEach(roleta => {
-            existingRoulettesMap.set(roleta.id, roleta);
-          });
-          
-          // Mesclar novas roletas com dados existentes para preservar os números
-          const mergedRoulettes = data.map(newRoulette => {
-            const existingRoulette = existingRoulettesMap.get(newRoulette.id);
-            
-            // Se a roleta já existe, preservar os números e apenas atualizar outros dados
-            if (existingRoulette) {
-              // Se não há números no objeto novo ou a lista está vazia, manter os números existentes
-              const shouldKeepExistingNumbers = !newRoulette.numbers || newRoulette.numbers.length === 0;
-              
-              return {
-                ...newRoulette,
-                numeros: shouldKeepExistingNumbers ? existingRoulette.numeros : newRoulette.numbers,
-                // Preservar dados de vitórias/derrotas se eles não mudaram
-                vitorias: newRoulette.wins || existingRoulette.vitorias,
-                derrotas: newRoulette.losses || existingRoulette.derrotas
-              };
-            }
-            
-            // Se é uma nova roleta, usá-la como está e mapear para o formato antigo
-            return {
-              id: newRoulette.id,
-              nome: newRoulette.name,
-              roleta_nome: newRoulette.name,
-              numeros: newRoulette.numbers,
-              updated_at: new Date().toISOString(),
-              estado_estrategia: newRoulette.strategyState,
-              numero_gatilho: 0,
-              numero_gatilho_anterior: 0,
-              terminais_gatilho: [],
-              terminais_gatilho_anterior: [],
-              vitorias: newRoulette.wins,
-              derrotas: newRoulette.losses,
-              sugestao_display: ''
-            };
-          });
-          
-          // Mesclar com roletas conhecidas também
-          const finalRoulettes = mergeRoulettes(mergedRoulettes);
-          console.log(`[Index] Total de roletas após mesclagem: ${finalRoulettes.length} (API: ${data.length}, Anteriores: ${prevRoulettes.length})`);
-          
-          return finalRoulettes;
-        });
-        
-        setError(null);
-        setDataFullyLoaded(true);
-      } catch (err) {
-        console.error('Erro ao buscar dados da API:', err);
-        setError('Não foi possível carregar os dados das roletas. Por favor, tente novamente.');
-        
-        // Em caso de erro, tentar usar apenas as roletas conhecidas
-        if (Object.keys(knownRoulettes).length > 0) {
-          const fallbackRoulettes = mergeRoulettes([]);
-          setRoulettes(fallbackRoulettes);
-          console.log(`[Index] Usando ${fallbackRoulettes.length} roletas conhecidas como fallback`);
-          setDataFullyLoaded(true);
+        // Atualizar roletas conhecidas se tivermos novos dados
+        if (result.length > 0) {
+          setKnownRoulettes(prev => mergeRoulettes(prev, result));
         }
-      } finally {
-        setIsLoading(false);
+      } else {
+        // Se falhar, usar roletas conhecidas
+        if (knownRoulettes.length > 0) {
+          console.log('⚠️ Usando roletas conhecidas como fallback');
+          setRoulettes(knownRoulettes);
+        } else {
+          setError('Não foi possível carregar as roletas disponíveis.');
+        }
       }
+    } catch (err: any) {
+      console.error('❌ Erro ao buscar roletas:', err);
+      setError(`Erro ao buscar roletas: ${err.message}`);
+      
+      // Fallback para roletas conhecidas
+      if (knownRoulettes.length > 0) {
+        setRoulettes(knownRoulettes);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [knownRoulettes]);
+
+  // Efeito para inicialização e atualização periódica
+  useEffect(() => {
+    // Inicialização
+    loadRouletteData();
+    
+    // Configurar atualização periódica usando o throttler
+    const unsubscribe = RequestThrottler.subscribeToUpdates(
+      'index_roulettes', 
+      (data) => {
+        if (data && Array.isArray(data) && isMounted.current) {
+          console.log(`📊 Atualização periódica: ${data.length} roletas`);
+          
+          // Mesclar com roletas conhecidas e atualizar estado
+          const merged = mergeRoulettes(data, knownRoulettes);
+          setRoulettes(merged);
+          
+          // Atualizar roletas conhecidas
+          setKnownRoulettes(prev => mergeRoulettes(prev, data));
+        }
+      }
+    );
+    
+    // Agendar atualizações periódicas
+    const scheduleUpdate = () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+      
+      updateTimeoutRef.current = setTimeout(() => {
+        // Agendar próxima atualização usando o throttler (sem forçar execução imediata)
+        RequestThrottler.scheduleRequest(
+          'index_roulettes',
+          async () => {
+            console.log('🔄 Atualizando roletas periodicamente...');
+            const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
+            console.log(`✅ ${response.length} roletas atualizadas`);
+            return response;
+          },
+          false // Não forçar execução, respeitar o intervalo mínimo
+        );
+        
+        // Agendar próxima verificação
+        if (isMounted.current) {
+          scheduleUpdate();
+        }
+      }, 60000); // Verificar a cada 60 segundos
     };
     
-    loadRoulettes();
-  }, [knownRoulettes, mergeRoulettes]);
-  
-  // Recarregar periodicamente as roletas para garantir dados atualizados
-  useEffect(() => {
-    // Recarregar a cada 60 segundos
-    const interval = setInterval(async () => {
-      try {
-        if (!dataFullyLoaded) return; // Não recarregar se os dados iniciais não foram carregados
-        
-        console.log('[Index] Atualizando dados das roletas...');
-        const data = await RouletteRepository.fetchAllRoulettesWithNumbers();
-        
-        // Mesclar novos dados com os existentes, preservando números
-        setRoulettes(prevRoulettes => {
-          // Criar um mapa das roletas anteriores por ID
-          const existingRoulettesMap = new Map();
-          prevRoulettes.forEach(roleta => {
-            existingRoulettesMap.set(roleta.id, roleta);
-          });
-          
-          // Mesclar novos dados com dados existentes
-          const mergedRoulettes = data.map(newRoulette => {
-            const existingRoulette = existingRoulettesMap.get(newRoulette.id);
-            
-            // Se a roleta já existe, preservar os números e apenas atualizar outros dados
-            if (existingRoulette) {
-              // Se não há números no objeto novo ou há menos números que no existente, manter os números existentes
-              const shouldKeepExistingNumbers = !newRoulette.numbers || (existingRoulette.numbers && existingRoulette.numbers.length > newRoulette.numbers.length);
-              
-              // Mesclar listas de números para não perder dados
-              let mergedNumbers = newRoulette.numbers || [];
-              if (shouldKeepExistingNumbers && existingRoulette.numbers) {
-                // Usar conjunto para eliminar duplicatas
-                const numbersSet = new Set([...mergedNumbers, ...existingRoulette.numbers]);
-                mergedNumbers = Array.from(numbersSet);
-              }
-              
-              return {
-                ...newRoulette,
-                numeros: mergedNumbers,
-                // Preservar dados de estratégia se não mudaram
-                vitorias: newRoulette.wins || existingRoulette.vitorias,
-                derrotas: newRoulette.losses || existingRoulette.derrotas
-              };
-            }
-            
-            // Se é uma nova roleta, usá-la como está
-            return newRoulette;
-          });
-          
-          const finalMerged = mergeRoulettes(mergedRoulettes);
-          console.log('[Index] Roletas atualizadas, preservando dados existentes');
-          return finalMerged;
-        });
-      } catch (err) {
-        console.error('[Index] Erro ao recarregar roletas:', err);
-      }
-    }, 60000);
+    // Iniciar agendamento
+    scheduleUpdate();
     
-    return () => clearInterval(interval);
-  }, [mergeRoulettes, dataFullyLoaded]);
+    // Cleanup
+    return () => {
+      isMounted.current = false;
+      unsubscribe();
+      
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+    };
+  }, [loadRouletteData, knownRoulettes]);
   
   const filteredRoulettes = useMemo(() => {
     return roulettes.filter(roulette => 
