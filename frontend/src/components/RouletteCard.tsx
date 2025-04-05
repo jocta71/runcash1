@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { PieChart, Phone, Timer, Cpu, Zap, History } from "lucide-react";
 import RouletteStats from './RouletteStats';
 import { useRouletteSettingsStore } from '@/stores/routleteStore';
+import { cn } from '@/lib/utils';
 
 // Logger específico para este componente
 const logger = getLogger('RouletteCard');
