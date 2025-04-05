@@ -1624,7 +1624,7 @@ class SocketService {
       });
     });
   }
-  
+
   // Método para parar o polling para uma roleta específica
   public stopPollingForRoulette(roletaId: string): void {
     if (this.pollingIntervals.has(roletaId)) {
@@ -1787,9 +1787,9 @@ class SocketService {
     
     // Verificar se o número já está no início do histórico (evitar duplicatas)
     if (history.length > 0 && history[0] === numero) {
-      return;
-    }
-    
+        return;
+      }
+      
     // Adicionar o número no início e manter o limite
     history.unshift(numero);
     if (history.length > this.historyLimit) {
