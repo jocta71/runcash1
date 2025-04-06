@@ -6,6 +6,7 @@ import LastNumbersBar from './LastNumbersBar';
 import EventService from '@/services/EventService';
 import CasinoAPIAdapter from '@/services/CasinoAPIAdapter';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
+import RouletteStatsModal from '@/components/RouletteStatsModal';
 
 interface RouletteTable {
   tableId: string;
@@ -23,6 +24,8 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   const [tables, setTables] = useState<RouletteTable[]>([]);
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
+  const [showStatsInline, setShowStatsInline] = useState(false);
 
   // Usar os dados passados como prop ou manter lógica antiga
   useEffect(() => {
@@ -51,20 +54,88 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     }
   }, [roulettesData]);
 
+  // Função para selecionar uma roleta e mostrar estatísticas ao lado
+  const handleRouletteSelect = (roleta: RouletteData) => {
+    setSelectedRoulette(roleta);
+    setShowStatsInline(true);
+  };
+
+  // Função para fechar a visualização de estatísticas
+  const handleCloseStats = () => {
+    setSelectedRoulette(null);
+    setShowStatsInline(false);
+  };
+
   // Se temos dados passados por props, mostrar eles diretamente
   if (roulettesData && roulettesData.length > 0) {
     return (
       <div className="container mx-auto px-4 py-8">
         <h2 className="text-2xl font-bold mb-6 text-white">Roletas ao Vivo</h2>
         
+        {showStatsInline && selectedRoulette ? (
+          // Layout com roleta selecionada e estatísticas ao lado
+          <div className="flex flex-col lg:flex-row gap-6 mb-8">
+            <div className="lg:w-1/3">
+              <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                <div className="p-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-xl font-semibold text-white">{selectedRoulette.nome}</h3>
+                    <button 
+                      onClick={handleCloseStats}
+                      className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+                      title="Fechar estatísticas"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  {Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0 ? (
+                    <RouletteMiniStats 
+                      roletaId={selectedRoulette.id}
+                      roletaNome={selectedRoulette.nome}
+                      numbers={selectedRoulette.numero.map(n => n.numero)}
+                    />
+                  ) : (
+                    <p className="text-gray-400">Aguardando números da roleta...</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="lg:w-2/3">
+              <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg h-full">
+                {Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0 ? (
+                  <div className="p-0 h-full">
+                    {/* Conteúdo das estatísticas inline */}
+                    <RouletteStatsInline 
+                      roletaNome={selectedRoulette.nome}
+                      lastNumbers={selectedRoulette.numero.map(n => n.numero)}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full p-6">
+                    <p className="text-gray-400">Não há dados suficientes para exibir estatísticas.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+        
         {/* Grid de roletas com os dados da API */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {roulettes.map(roleta => (
-            <div key={roleta.id} className="bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+            <div 
+              key={roleta.id} 
+              className="bg-gray-800 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-750 transition-colors"
+              onClick={() => handleRouletteSelect(roleta)}
+            >
               <div className="p-4">
                 <h3 className="text-xl font-semibold text-white mb-2">{roleta.nome}</h3>
                 
-                {/* Usar RouletteMiniStats para mostrar estatísticas e abrir o modal */}
                 {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? (
                   <RouletteMiniStats 
                     roletaId={roleta.id}
@@ -81,6 +152,193 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       </div>
     );
   }
+  
+  // Componente de estatísticas inline 
+  const RouletteStatsInline = ({ roletaNome, lastNumbers }: { roletaNome: string, lastNumbers: number[] }) => {
+    return (
+      <div className="p-4 h-full overflow-y-auto">
+        <h3 className="text-xl font-bold text-[#00ff00] mb-4 flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+            <path d="M3 3v18h18"></path>
+            <path d="M18 12V8"></path>
+            <path d="M12 18v-2"></path>
+            <path d="M6 18v-6"></path>
+          </svg>
+          Estatísticas da {roletaNome}
+        </h3>
+        
+        {/* Histórico de números */}
+        <div className="mb-6 bg-gray-900 rounded-lg p-4">
+          <h4 className="text-lg text-[#00ff00] mb-3">Histórico de Números</h4>
+          <div className="grid grid-cols-10 gap-1 max-h-[300px] overflow-y-auto">
+            {lastNumbers.slice(0, 200).map((num, idx) => {
+              const bgColor = num === 0 
+                ? "bg-green-600" 
+                : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
+                  ? "bg-red-600"
+                  : "bg-black";
+              
+              return (
+                <div 
+                  key={idx} 
+                  className={`${bgColor} text-white w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-medium`}
+                >
+                  {num}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* Estatísticas resumidas - mostrar tabelas de estatísticas simples */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="bg-gray-900 rounded-lg p-4">
+            <h4 className="text-lg text-white mb-3">Distribuição por Cor</h4>
+            <div className="space-y-2">
+              {[
+                { label: "Vermelho", color: "bg-red-600", count: lastNumbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length },
+                { label: "Preto", color: "bg-black", count: lastNumbers.filter(n => n !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length },
+                { label: "Verde (0)", color: "bg-green-600", count: lastNumbers.filter(n => n === 0).length }
+              ].map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className={`w-4 h-4 ${item.color} rounded-full mr-2`}></div>
+                    <span className="text-gray-300">{item.label}</span>
+                  </div>
+                  <span className="font-bold text-white">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div className="bg-gray-900 rounded-lg p-4">
+            <h4 className="text-lg text-white mb-3">Par/Ímpar</h4>
+            <div className="space-y-2">
+              {[
+                { label: "Par", count: lastNumbers.filter(n => n !== 0 && n % 2 === 0).length },
+                { label: "Ímpar", count: lastNumbers.filter(n => n % 2 === 1).length }
+              ].map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between">
+                  <span className="text-gray-300">{item.label}</span>
+                  <span className="font-bold text-white">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div className="bg-gray-900 rounded-lg p-4">
+            <h4 className="text-lg text-white mb-3">Faixas</h4>
+            <div className="space-y-2">
+              {[
+                { label: "Baixo (1-18)", count: lastNumbers.filter(n => n >= 1 && n <= 18).length },
+                { label: "Alto (19-36)", count: lastNumbers.filter(n => n >= 19 && n <= 36).length }
+              ].map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between">
+                  <span className="text-gray-300">{item.label}</span>
+                  <span className="font-bold text-white">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {/* Números quentes e frios */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-gray-900 rounded-lg p-4">
+            <h4 className="text-lg text-white mb-3">Números Quentes</h4>
+            <div className="flex flex-wrap gap-2">
+              {getHotNumbers(lastNumbers).map((num, idx) => {
+                const bgColor = num.number === 0 
+                  ? "bg-green-600" 
+                  : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num.number)
+                    ? "bg-red-600"
+                    : "bg-black";
+                
+                return (
+                  <div key={idx} className="flex items-center">
+                    <div className={`${bgColor} w-8 h-8 rounded-full flex items-center justify-center text-white mr-1`}>
+                      {num.number}
+                    </div>
+                    <span className="text-gray-400 text-sm">({num.count}x)</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+          <div className="bg-gray-900 rounded-lg p-4">
+            <h4 className="text-lg text-white mb-3">Números Frios</h4>
+            <div className="flex flex-wrap gap-2">
+              {getColdNumbers(lastNumbers).map((num, idx) => {
+                const bgColor = num.number === 0 
+                  ? "bg-green-600" 
+                  : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num.number)
+                    ? "bg-red-600"
+                    : "bg-black";
+                
+                return (
+                  <div key={idx} className="flex items-center">
+                    <div className={`${bgColor} w-8 h-8 rounded-full flex items-center justify-center text-white mr-1`}>
+                      {num.number}
+                    </div>
+                    <span className="text-gray-400 text-sm">({num.count}x)</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // Função para obter os números mais frequentes
+  const getHotNumbers = (numbers: number[]) => {
+    const frequency: Record<number, number> = {};
+    
+    // Inicializar todos os números possíveis
+    for (let i = 0; i <= 36; i++) {
+      frequency[i] = 0;
+    }
+    
+    // Contar a frequência
+    numbers.forEach(num => {
+      if (frequency[num] !== undefined) {
+        frequency[num]++;
+      }
+    });
+    
+    // Converter para array e ordenar do mais frequente para o menos frequente
+    return Object.keys(frequency)
+      .map(num => ({ number: parseInt(num), count: frequency[parseInt(num)] }))
+      .filter(item => item.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  };
+  
+  // Função para obter os números menos frequentes
+  const getColdNumbers = (numbers: number[]) => {
+    const frequency: Record<number, number> = {};
+    
+    // Inicializar todos os números possíveis
+    for (let i = 0; i <= 36; i++) {
+      frequency[i] = 0;
+    }
+    
+    // Contar a frequência
+    numbers.forEach(num => {
+      if (frequency[num] !== undefined) {
+        frequency[num]++;
+      }
+    });
+    
+    // Converter para array e ordenar do menos frequente para o mais frequente
+    return Object.keys(frequency)
+      .map(num => ({ number: parseInt(num), count: frequency[parseInt(num)] }))
+      .filter(item => numbers.includes(item.number) && item.count > 0)
+      .sort((a, b) => a.count - b.count)
+      .slice(0, 5);
+  };
 
   // Lógica antiga do componente (mantida para compatibilidade)
   useEffect(() => {
