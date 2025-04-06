@@ -29,20 +29,33 @@ const app = express();
 
 // Configurar CORS para permitir apenas origens específicas
 app.use((req, res, next) => {
-  const allowedOrigins = ['https://runcash11-ten.vercel.app', 'http://localhost:3000'];
+  console.log(`[CORS] Requisição recebida de origem: ${req.headers.origin || 'desconhecida'}`);
+  console.log(`[CORS] Path: ${req.path}`);
+  
+  const allowedOrigins = [
+    'https://runcash11-ten.vercel.app',
+    'http://runcash11-ten.vercel.app',
+    'https://runcashh1-ten.vercel.app',
+    'http://runcashh1-ten.vercel.app',
+    'https://runcash1-ten.vercel.app',
+    'http://runcash1-ten.vercel.app',
+    'http://localhost:3000'
+  ];
   const origin = req.headers.origin;
   
   if (allowedOrigins.includes(origin)) {
+    console.log(`[CORS] Origem permitida: ${origin}`);
     res.header('Access-Control-Allow-Origin', origin);
   } else {
     // Para requisições sem origem ou de outras origens não permitidas
-    console.log(`Requisição de origem não permitida: ${origin || 'desconhecida'}`);
+    console.log(`[CORS] Requisição de origem não permitida: ${origin || 'desconhecida'}`);
   }
   
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
   if (req.method === 'OPTIONS') {
+    console.log('[CORS] Respondendo à requisição OPTIONS');
     return res.status(200).end();
   }
   next();
@@ -70,10 +83,26 @@ app.get('/', (req, res) => {
 
 // Endpoint para testar CORS
 app.get('/test-cors', (req, res) => {
+  const origin = req.headers.origin || 'unknown';
+  const allowedOrigins = [
+    'https://runcash11-ten.vercel.app',
+    'http://runcash11-ten.vercel.app',
+    'https://runcashh1-ten.vercel.app',
+    'http://runcashh1-ten.vercel.app',
+    'https://runcash1-ten.vercel.app', 
+    'http://runcash1-ten.vercel.app',
+    'http://localhost:3000'
+  ];
+  
+  const isAllowed = allowedOrigins.includes(origin);
+  
   res.json({
     success: true,
-    message: 'CORS desativado - permitindo tudo',
-    origin: req.headers.origin || 'unknown'
+    message: isAllowed ? 'CORS permitido para esta origem' : 'Origem não está na lista de permitidas',
+    origin: origin,
+    allowed: isAllowed,
+    headers: req.headers,
+    allowedOrigins: allowedOrigins
   });
 });
 
@@ -104,7 +133,15 @@ const server = http.createServer(app);
 // Inicializar Socket.IO com configurações de CORS específicas
 const io = new Server(server, {
   cors: {
-    origin: ['https://runcash11-ten.vercel.app', 'http://localhost:3000'],
+    origin: [
+      'https://runcash11-ten.vercel.app',
+      'http://runcash11-ten.vercel.app',
+      'https://runcashh1-ten.vercel.app',
+      'http://runcashh1-ten.vercel.app',
+      'https://runcash1-ten.vercel.app',
+      'http://runcash1-ten.vercel.app',
+      'http://localhost:3000'
+    ],
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -452,6 +489,30 @@ app.get('/api/status', (req, res) => {
 // Rota para listar todas as roletas (endpoint em inglês)
 app.get('/api/roulettes', async (req, res) => {
   console.log('[API] Requisição recebida para /api/roulettes');
+  
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json([]);
+    }
+    
+    // Obter roletas únicas da coleção
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
+    
+    console.log(`[API] Processadas ${roulettes.length} roletas`);
+    res.json(roulettes);
+  } catch (error) {
+    console.error('[API] Erro ao listar roletas:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+  }
+});
+
+// Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
+app.get('/api/ROULETTES', async (req, res) => {
+  console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
   
   try {
     if (!isConnected || !collection) {
