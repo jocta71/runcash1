@@ -26,22 +26,22 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
   try {
     console.log(`[API] Buscando dados históricos para: ${rouletteName}`);
     
-    // Usar o proxy local em vez da URL absoluta para evitar problemas de CORS
-    const response = await fetch(`/api/roulette-history?limit=1000`);
+    // Usar o endpoint /api/ROULETTES que é redirecionado pelo Vercel para o Railway
+    const response = await fetch(`/api/ROULETTES`);
     
     if (response.ok) {
       const data = await response.json();
       
-      if (data && data.data && Array.isArray(data.data)) {
-        // Filtrar os números da roleta específica pelo nome
-        const numbersForRoulette = data.data.filter((item: any) => {
-          const roletaName = item.roleta_nome || '';
+      if (data && Array.isArray(data)) {
+        // Encontrar a roleta específica pelo nome
+        const targetRoulette = data.find((roleta: any) => {
+          const roletaName = roleta.nome || roleta.name || '';
           return roletaName.toLowerCase() === rouletteName.toLowerCase();
         });
         
-        if (numbersForRoulette.length > 0) {
+        if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
           // Extrair apenas os números da roleta encontrada
-          const processedNumbers = numbersForRoulette
+          const processedNumbers = targetRoulette.numero
             .map((n: any) => Number(n.numero))
             .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
           
@@ -51,7 +51,7 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
           console.log(`[API] Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
         }
       } else {
-        console.log(`[API] Resposta inválida da API: dados não estão no formato esperado`);
+        console.log(`[API] Resposta inválida da API: dados não são um array`);
       }
     } else {
       console.log(`[API] Erro ao buscar dados: ${response.status} ${response.statusText}`);
