@@ -148,6 +148,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const socketService = SocketService.getInstance();
   const { enableSound, enableNotifications } = useRouletteSettingsStore();
   const navigate = useNavigate();
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
 
   console.log(`[RouletteCard] Inicializando card para ${safeData.name} (${safeData.id}) com ${Array.isArray(safeData.lastNumbers) ? safeData.lastNumbers.length : 0} números`);
 
@@ -382,9 +383,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     };
   }, [safeData.id, safeData.name]);
 
-  // Função para abrir o histórico completo
-  const openFullHistory = () => {
-    navigate(`/historico/${safeData.id}`);
+  // Substituir a função para navegar para o histórico com função que abre o modal
+  const openStatsModal = () => {
+    setIsStatsModalOpen(true);
   };
 
   return (
@@ -404,13 +405,13 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
               {updateCount > 0 ? `${updateCount} atualizações` : (hasRealData ? "Aguardando..." : "Sem dados")}
             </Badge>
             
-            {/* Botão para acessar histórico completo */}
+            {/* Botão para abrir modal de estatísticas */}
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={openFullHistory}
+              onClick={openStatsModal}
               className="h-7 w-7" 
-              title="Ver histórico completo"
+              title="Ver estatísticas detalhadas"
             >
               <BarChart3 className="h-4 w-4" />
             </Button>
@@ -458,6 +459,16 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           </div>
       </div>
       </CardContent>
+
+      {/* Modal de estatísticas completas */}
+      <RouletteStatsModal
+        open={isStatsModalOpen}
+        onClose={() => setIsStatsModalOpen(false)}
+        roletaNome={safeData.name}
+        lastNumbers={recentNumbers}
+        wins={0}
+        losses={0}
+      />
     </Card>
   );
 };
