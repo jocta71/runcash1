@@ -4,12 +4,17 @@ import './index.css'
 import SocketService from './services/SocketService';
 import { initializeLogging } from './services/utils/initLogger';
 import { getLogger } from './services/utils/logger';
+import { setupGlobalErrorHandlers } from './utils/error-handlers';
 
 // Inicializar o sistema de log
 initializeLogging();
 
 // Obter logger para o componente principal
 const logger = getLogger('Main');
+
+// Configurar manipuladores globais de erro
+setupGlobalErrorHandlers();
+logger.info('Manipuladores globais de erro configurados');
 
 // Inicializar o SocketService logo no início para estabelecer conexão antecipada
 logger.info('Inicializando SocketService antes do render...');

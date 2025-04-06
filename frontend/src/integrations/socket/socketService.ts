@@ -87,12 +87,15 @@ class SocketService {
         
         // Iniciar socket real com reconexão limitada
         this.socket = io(this.socketUrl, {
-          reconnectionAttempts: 3,           // Limitar o número de tentativas
+          reconnectionAttempts: 5,           // Aumentar número de tentativas
           reconnectionDelay: 1000,           // Iniciar com 1s de delay
-          reconnectionDelayMax: 5000,        // Máximo de 5s de delay
-          timeout: 5000,                     // Timeout da conexão
+          reconnectionDelayMax: 10000,       // Aumentar para 10s de delay máximo
+          timeout: 10000,                    // Aumentar o timeout para 10s
           autoConnect: true,
-          transports: ['websocket']
+          transports: ['websocket', 'polling'], // Adicionar polling como fallback
+          forceNew: true,                    // Forçar nova conexão
+          pingTimeout: 30000,                // Aumentar ping timeout
+          pingInterval: 10000                // Diminuir intervalo de ping
         });
         
         // Tratamento de eventos
@@ -311,14 +314,56 @@ class SocketService {
     return socketUrl;
   }
 
-  // Método para solicitar números recentes ao servidor
+  /**
+   * Solicita dados recentes com um mecanismo de timeout e retry
+   */
   requestRecentNumbers(): void {
-    if (this.socket && this.isConnected) {
-      console.log('[SocketService] Solicitando números recentes');
-      this.socket.emit('get_recent_numbers', { limit: 50 });
-    } else {
-      console.warn('[SocketService] Não é possível solicitar números recentes: socket não conectado');
+    if (!this.socket || this.simulationMode) {
+      console.log('[Socket] Não é possível solicitar dados recentes (simulação ou sem socket)');
+      return;
     }
+    
+    console.log('[Socket] Solicitando dados recentes...');
+    
+    // Implementar um mecanismo de timeout para evitar problemas
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Timeout ao solicitar dados recentes'));
+      }, 8000); // 8s timeout
+    });
+    
+    // Função para emitir o evento com Promise
+    const emitWithPromise = () => {
+      return new Promise<void>((resolve, reject) => {
+        try {
+          // Criar um callback que resolve a promise
+          const callback = (data: any) => {
+            console.log('[Socket] Dados recentes recebidos');
+            resolve();
+          };
+          
+          // Emitir com callback (timeout implícito do Socket.IO)
+          this.socket?.emit('get_recent_data', {}, callback);
+          
+          // Adicionar um listener de fallback para dados iniciais
+          this.socket?.once('initial_data', (data) => {
+            console.log('[Socket] Dados iniciais recebidos');
+            resolve();
+          });
+        } catch (error) {
+          reject(error);
+        }
+      });
+    };
+    
+    // Executar com proteção de timeout
+    Promise.race([emitWithPromise(), timeoutPromise])
+      .catch(error => {
+        console.error(`[Socket] Erro ao solicitar dados recentes: ${error.message}`);
+        
+        // Tentar uma solução alternativa em caso de falha - recurso assíncrono com dados da API
+        this.loadHistoricalRouletteNumbers();
+      });
   }
   
   // Método para carregar dados históricos via REST API
@@ -475,6 +520,43 @@ class SocketService {
         }
       });
     }
+  }
+
+  /**
+   * Força a reconexão de todos os sockets
+   * Útil quando ocorrem erros de canal fechado
+   */
+  public reconnectAllSockets(): void {
+    console.log('[Socket] Forçando reconexão de todos os sockets');
+    
+    // Desconectar o socket atual se estiver ativo
+    if (this.socket) {
+      try {
+        console.log('[Socket] Desconectando socket atual');
+        this.socket.disconnect();
+      } catch (error) {
+        console.error('[Socket] Erro ao desconectar socket:', error);
+      }
+      
+      // Limpar referência
+      this.socket = null;
+    }
+    
+    // Resetar estado
+    this.isConnected = false;
+    this.reconnectAttempts = 0;
+    this.simulationMode = false;
+    
+    // Tentar reconectar após um pequeno delay
+    setTimeout(() => {
+      console.log('[Socket] Tentando reconectar após reset');
+      this.connect();
+      
+      // Carregar dados históricos novamente
+      this.loadHistoricalRouletteNumbers().catch(err => {
+        console.error('[Socket] Erro ao recarregar dados históricos:', err);
+      });
+    }, 1000);
   }
 }
 
