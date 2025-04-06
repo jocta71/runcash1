@@ -1152,6 +1152,26 @@ class SocketService {
             // Armazenar os números no histórico
             this.setRouletteHistory(roletaId, numeros);
             console.log(`[SocketService] Histórico atualizado para ${roletaNome}: ${numeros.length} números`);
+            
+            // CORREÇÃO: Processar os números recebidos para os cards
+            // Precisamos criar os objetos com o formato esperado pelo processNumbersData
+            const numbersForProcessing = targetRoulette.numero.map((num: any) => {
+              if (typeof num === 'object') {
+                return num; // Já é um objeto com formato adequado
+              } else {
+                // Criar objeto no formato esperado
+                return {
+                  numero: parseInt(String(num), 10),
+                  roleta_id: canonicalId,
+                  roleta_nome: roletaNome,
+                  timestamp: new Date().toISOString()
+                };
+              }
+            });
+            
+            // Processar os números para atualizar os cards
+            this.processNumbersData(numbersForProcessing, { _id: canonicalId, nome: roletaNome });
+            
             return true;
           } else {
             console.warn(`[SocketService] Nenhum número extraído para ${roletaNome}`);
@@ -1185,7 +1205,7 @@ class SocketService {
     const numeros = fakeNumbers.map(item => item.numero);
     this.setRouletteHistory(canonicalId, numeros);
     
-    // Processar os dados completos para o sistema de eventos
+    // Processar os dados completos para o sistema de eventos e para os cards
     this.processNumbersData(fakeNumbers, { _id: canonicalId, nome: roletaNome });
     
     return true;
