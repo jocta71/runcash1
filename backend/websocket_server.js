@@ -23,18 +23,45 @@ console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 // Inicializar Express
 const app = express();
 
-// Configuração CORS básica - permitindo todas as origens
+// Configuração CORS aprimorada
 app.use((req, res, next) => {
+  // Logar a origem para depuração
+  console.log(`[CORS] Requisição recebida de origem: ${req.headers.origin || 'desconhecida'}`);
+  
+  // Configurar todos os cabeçalhos CORS necessários
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
+  res.header('Access-Control-Allow-Credentials', 'true');
   
   // Responder imediatamente para requisições preflight (OPTIONS)
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    console.log('[CORS] Requisição preflight OPTIONS recebida e respondida com sucesso');
+    return res.status(204).end();
   }
   
   next();
+});
+
+// Endpoint para testar CORS
+app.get('/cors-test', (req, res) => {
+  console.log(`[CORS] Teste CORS recebido de origem: ${req.headers.origin || 'desconhecida'}`);
+  
+  res.json({
+    success: true,
+    message: 'CORS está configurado corretamente!',
+    origin: req.headers.origin || 'desconhecida',
+    headers: {
+      received: req.headers,
+      sent: {
+        'Access-Control-Allow-Origin': res.getHeader('Access-Control-Allow-Origin'),
+        'Access-Control-Allow-Methods': res.getHeader('Access-Control-Allow-Methods'),
+        'Access-Control-Allow-Headers': res.getHeader('Access-Control-Allow-Headers')
+      }
+    },
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.use(express.json());
@@ -81,17 +108,21 @@ app.post('/emit-event', (req, res) => {
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO com configurações CORS básicas
+// Inicializar Socket.IO com configurações CORS aprimoradas
 const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    credentials: true
+    credentials: true,
+    allowEIO3: true
   },
   transports: ['websocket', 'polling'],
   pingTimeout: 60000, // Aumentar timeout para 60s
-  pingInterval: 25000 // Verificar conexão a cada 25s
+  pingInterval: 25000, // Verificar conexão a cada 25s
+  connectTimeout: 45000 // Aumentar tempo limite de conexão
 });
+
+console.log('[Socket.IO] Inicializado com configuração CORS para aceitar todas as origens');
 
 // Status e números das roletas
 let rouletteStatus = {};
@@ -454,6 +485,12 @@ app.get('/api/ROULETTES', async (req, res) => {
   console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
   console.log('[API] Query params:', req.query);
   console.log('[API] Headers:', req.headers);
+  console.log('[API] Origin:', req.headers.origin);
+  
+  // Aplicar cabeçalhos CORS explicitamente para esta rota
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
   try {
     if (!isConnected || !collection) {
@@ -777,6 +814,11 @@ app.get('/api/historico', async (req, res) => {
 app.get('/api/ROULETTES/historico', async (req, res) => {
   console.log('[API] Requisição recebida para /api/ROULETTES/historico');
   
+  // Aplicar cabeçalhos CORS explicitamente para esta rota
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
   try {
     if (!isConnected || !collection) {
       console.log('[API] MongoDB não conectado, retornando array vazio');
@@ -799,6 +841,29 @@ app.get('/api/ROULETTES/historico', async (req, res) => {
     console.error('[API] Erro ao buscar histórico:', error);
     res.status(500).json({ error: 'Erro interno ao buscar histórico' });
   }
+});
+
+// Adicionar manipuladores específicos para preflight OPTIONS nos endpoints problemáticos
+app.options('/api/ROULETTES', (req, res) => {
+  console.log('[CORS] Requisição OPTIONS recebida para /api/ROULETTES');
+  
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
+  
+  return res.status(204).end();
+});
+
+app.options('/api/ROULETTES/historico', (req, res) => {
+  console.log('[CORS] Requisição OPTIONS recebida para /api/ROULETTES/historico');
+  
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
+  
+  return res.status(204).end();
 });
 
 // Socket.IO connection handler
