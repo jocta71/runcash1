@@ -29,17 +29,21 @@ const app = express();
 
 // Configurar CORS para permitir qualquer origem
 app.use((req, res, next) => {
-  console.log(`[CORS] Requisição recebida de origem: ${req.headers.origin || 'desconhecida'}`);
+  const origin = req.headers.origin || 'desconhecida';
+  console.log(`[CORS] Requisição ${req.method} recebida de origem: ${origin} para ${req.url}`);
   
   // Permitir qualquer origem
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Max-Age', '86400'); // Cache preflight por 24 horas
   
+  // Tratar solicitações preflight OPTIONS
   if (req.method === 'OPTIONS') {
-    console.log('[CORS] Respondendo à requisição OPTIONS');
+    console.log(`[CORS] Respondendo à requisição preflight OPTIONS para ${req.url}`);
     return res.status(200).end();
   }
+  
   next();
 });
 
@@ -476,6 +480,12 @@ app.get('/api/roulettes', async (req, res) => {
 app.get('/api/ROULETTES', async (req, res) => {
   console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
   console.log('[API] Query params:', req.query);
+  console.log('[API] Headers:', req.headers);
+  
+  // Garantir cabeçalhos CORS
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
   try {
     if (!isConnected || !collection) {
@@ -487,7 +497,22 @@ app.get('/api/ROULETTES', async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     console.log(`[API] Usando limit: ${limit}`);
     
-    // Obter roletas únicas da coleção
+    // Se um limite maior for solicitado, estamos buscando o histórico de números
+    if (limit > 100) {
+      console.log(`[API] Solicitação de histórico com ${limit} registros`);
+      
+      // Buscar histórico de números ordenados por timestamp
+      const numeros = await collection
+        .find({})
+        .sort({ timestamp: -1 })
+        .limit(limit)
+        .toArray();
+      
+      console.log(`[API] Retornando ${numeros.length} números do histórico`);
+      return res.json(numeros);
+    }
+    
+    // Caso contrário, retorna a lista de roletas únicas (comportamento original)
     const roulettes = await collection.aggregate([
       { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
       { $project: { _id: 0, id: 1, nome: "$_id" } }
@@ -496,8 +521,8 @@ app.get('/api/ROULETTES', async (req, res) => {
     console.log(`[API] Processadas ${roulettes.length} roletas`);
     res.json(roulettes);
   } catch (error) {
-    console.error('[API] Erro ao listar roletas:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+    console.error('[API] Erro ao listar roletas ou histórico:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar dados' });
   }
 });
 
@@ -747,6 +772,92 @@ app.get('/disable-cors-check', (req, res) => {
     cors: 'disabled',
     origin: req.headers.origin || 'unknown'
   });
+});
+
+// Endpoint específico para buscar histórico completo
+app.get('/api/historico', async (req, res) => {
+  console.log('[API] Requisição recebida para /api/historico');
+  console.log('[API] Query params:', req.query);
+  
+  // Garantir cabeçalhos CORS
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json({ data: [], total: 0 });
+    }
+    
+    // Parâmetros de consulta
+    const limit = parseInt(req.query.limit) || 1000;
+    const skip = parseInt(req.query.skip) || 0;
+    
+    // Filtros opcionais
+    const filtros = {};
+    if (req.query.roleta_id) filtros.roleta_id = req.query.roleta_id;
+    if (req.query.roleta_nome) filtros.roleta_nome = req.query.roleta_nome;
+    
+    console.log(`[API] Buscando histórico com filtros:`, filtros);
+    console.log(`[API] Limit: ${limit}, Skip: ${skip}`);
+    
+    // Buscar dados com paginação
+    const numeros = await collection
+      .find(filtros)
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    
+    // Contar total de documentos
+    const total = await collection.countDocuments(filtros);
+    
+    console.log(`[API] Retornando ${numeros.length} registros de um total de ${total}`);
+    
+    res.json({
+      data: numeros,
+      total,
+      limit,
+      skip
+    });
+  } catch (error) {
+    console.error('[API] Erro ao buscar histórico:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar histórico' });
+  }
+});
+
+// Rota específica para o histórico de números usando o mesmo endpoint que o frontend espera
+app.get('/api/ROULETTES/historico', async (req, res) => {
+  console.log('[API] Requisição recebida para /api/ROULETTES/historico');
+  
+  // Garantir cabeçalhos CORS em todos os endpoints críticos
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json([]);
+    }
+    
+    const limit = parseInt(req.query.limit) || 1000;
+    console.log(`[API] Buscando histórico com limit=${limit}`);
+    
+    // Buscar os últimos números jogados
+    const historico = await collection
+      .find({})
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .toArray();
+    
+    console.log(`[API] Retornando ${historico.length} números do histórico`);
+    res.json(historico);
+  } catch (error) {
+    console.error('[API] Erro ao buscar histórico:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar histórico' });
+  }
 });
 
 // Socket.IO connection handler
