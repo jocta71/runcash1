@@ -130,7 +130,7 @@ export const generateGroupDistribution = (numbers: number[]) => {
 };
 
 // Gerar dados de média de cores por hora
-const generateColorHourlyStats = (numbers: number[]) => {
+export const generateColorHourlyStats = (numbers: number[]) => {
   const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
   const total = numbers.length;
   
@@ -171,7 +171,7 @@ const generateColorHourlyStats = (numbers: number[]) => {
 };
 
 // Determine color for a roulette number
-const getRouletteNumberColor = (num: number) => {
+export const getRouletteNumberColor = (num: number) => {
   if (num === 0) return "bg-vegas-green text-black";
   
   // Red numbers

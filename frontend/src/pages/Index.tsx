@@ -25,7 +25,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { getHistoricalNumbers, fetchRouletteHistoricalNumbers, generateFrequencyData, getHotColdNumbers, generateGroupDistribution } from '@/components/RouletteStatsModal';
+import { getHistoricalNumbers, fetchRouletteHistoricalNumbers, generateFrequencyData, getHotColdNumbers, generateGroupDistribution, generateColorHourlyStats, getRouletteNumberColor } from '@/components/RouletteStatsModal';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LiveRoulettesDisplay } from '@/components/roulette/LiveRoulettesDisplay';
@@ -403,14 +403,6 @@ const Index = () => {
     });
   };
 
-  // Função auxiliar para extrair números com segurança
-  const safeExtractNumber = (n: any): number => {
-    if (typeof n === 'object' && n !== null && 'numero' in n) {
-      return Number(n.numero || 0);
-    }
-    return Number(n || 0);
-  };
-
   // Efeito para carregar dados históricos quando uma roleta é selecionada
   useEffect(() => {
     const loadHistoricalData = async () => {
@@ -418,33 +410,42 @@ const Index = () => {
         setIsLoadingStats(true);
         
         try {
+          // Extrair o nome da roleta de forma consistente
           const roletaNome = selectedRoulette.nome || selectedRoulette.name || '';
-          console.log(`Buscando histórico para ${roletaNome}...`);
-          let numbers = await fetchRouletteHistoricalNumbers(roletaNome);
+          console.log(`[Index] Buscando histórico para ${roletaNome}...`);
           
-          // Extrair números da roleta selecionada
-          const extractLastNumbers = () => {
+          // Extrair lastNumbers do objeto selectedRoulette de forma segura
+          const lastNumbers = (() => {
+            // Verificar se há números no formato .numero[]
             if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-              return selectedRoulette.numero.map(safeExtractNumber).filter(n => !isNaN(n));
-            } 
+              return selectedRoulette.numero.map(n => {
+                if (typeof n === 'object' && n !== null && 'numero' in n) {
+                  return Number(n.numero || 0);
+                }
+                return Number(n || 0);
+              }).filter(n => !isNaN(n));
+            }
             
+            // Verificar se há números no formato .lastNumbers[]
             if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
               return selectedRoulette.lastNumbers.map(n => Number(n || 0)).filter(n => !isNaN(n));
             }
             
+            // Verificar se há números no formato .numeros[]
             if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
               return selectedRoulette.numeros.map(n => Number(n || 0)).filter(n => !isNaN(n));
             }
             
             return [];
-          };
-
-          const lastNumbers = extractLastNumbers();
+          })();
+          
           console.log(`[Index] LastNumbers extraídos: ${lastNumbers.length}`, lastNumbers);
-
-          // Se houver lastNumbers, garantir que eles estão incluídos no início do histórico
+          
+          // Buscar histórico da API
+          let numbers = await fetchRouletteHistoricalNumbers(roletaNome);
+          
+          // Combinar números da roleta atual com histórico
           if (lastNumbers && lastNumbers.length > 0) {
-            // Combinar lastNumbers com os números históricos, removendo duplicatas
             const combinedNumbers = [...lastNumbers];
             numbers.forEach(num => {
               if (!combinedNumbers.includes(num)) {
@@ -456,33 +457,43 @@ const Index = () => {
           
           console.log(`[Index] Após combinação: ${numbers.length} números históricos para ${roletaNome}`);
           
+          // Usar os números históricos ou fallback para dados gerados
           if (numbers && numbers.length > 20) {
-            console.log(`Encontrados ${numbers.length} números históricos para ${roletaNome}`);
-            setHistoricalNumbers(numbers.slice(0, 100)); // Limitamos a 100 números para melhor performance
+            console.log(`[Index] Encontrados ${numbers.length} números históricos para ${roletaNome}`);
+            // Não estamos mais limitando a 100, para manter consistência com o modal
+            setHistoricalNumbers(numbers);
           } else {
-            console.log(`Histórico insuficiente para ${roletaNome}, usando dados gerados`);
+            console.log(`[Index] Histórico insuficiente para ${roletaNome}, usando dados disponíveis`);
+            // Se temos lastNumbers, usar eles; senão, gerar números aleatórios
             setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
           }
         } catch (error) {
-          console.error('Erro ao carregar dados históricos:', error);
+          console.error('[Index] Erro ao carregar dados históricos:', error);
           // Se falhar, usar os lastNumbers passados nas props ou gerar números aleatórios
-          const extractLastNumbers = () => {
+          const lastNumbers = (() => {
+            // Verificar se há números no formato .numero[]
             if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-              return selectedRoulette.numero.map(safeExtractNumber).filter(n => !isNaN(n));
-            } 
+              return selectedRoulette.numero.map(n => {
+                if (typeof n === 'object' && n !== null && 'numero' in n) {
+                  return Number(n.numero || 0);
+                }
+                return Number(n || 0);
+              }).filter(n => !isNaN(n));
+            }
             
+            // Verificar se há números no formato .lastNumbers[]
             if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
               return selectedRoulette.lastNumbers.map(n => Number(n || 0)).filter(n => !isNaN(n));
             }
             
+            // Verificar se há números no formato .numeros[]
             if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
               return selectedRoulette.numeros.map(n => Number(n || 0)).filter(n => !isNaN(n));
             }
             
             return [];
-          };
+          })();
           
-          const lastNumbers = extractLastNumbers();
           setHistoricalNumbers(lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
         } finally {
           setIsLoadingStats(false);
