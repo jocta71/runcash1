@@ -71,7 +71,7 @@ const RoutetteSidePanelStats = ({
         
         try {
           const roletaNome = selectedRoulette.nome || selectedRoulette.name || '';
-          console.log(`[SidePanel] Carregando dados para ${roletaNome}...`);
+          console.log(`[SidePanel] Buscando histórico para ${roletaNome}...`);
           
           // Extrair números diretamente do objeto da roleta selecionada
           const extractSafeNumbers = () => {
@@ -105,16 +105,74 @@ const RoutetteSidePanelStats = ({
           };
           
           const lastNumbers = extractSafeNumbers();
-          console.log(`[SidePanel] Números extraídos: ${lastNumbers.length}`, lastNumbers);
+          console.log(`[SidePanel] Números extraídos do card: ${lastNumbers.length}`, lastNumbers);
           
-          setHistoricalNumbers(lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
+          // IMPORTANTE: Buscar histórico da API, exatamente como o modal faz
+          let numbers = await fetchRouletteHistoricalNumbers(roletaNome);
+          
+          // Combinar lastNumbers com os números históricos, exatamente como o modal faz
+          if (lastNumbers && lastNumbers.length > 0) {
+            const combinedNumbers = [...lastNumbers];
+            numbers.forEach(num => {
+              if (!combinedNumbers.includes(num)) {
+                combinedNumbers.push(num);
+              }
+            });
+            numbers = combinedNumbers;
+          }
+          
+          console.log(`[SidePanel] Após combinação: ${numbers.length} números históricos para ${roletaNome}`);
+          
+          // Usar os números históricos ou fallback para dados gerados, seguindo a lógica do modal
+          if (numbers && numbers.length > 20) {
+            console.log(`[SidePanel] Encontrados ${numbers.length} números históricos para ${roletaNome}`);
+            setHistoricalNumbers(numbers);
+          } else {
+            console.log(`[SidePanel] Histórico insuficiente para ${roletaNome}, usando dados disponíveis`);
+            setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
+          }
         } catch (error) {
-          console.error('[SidePanel] Erro ao carregar dados:', error);
-          setHistoricalNumbers(getHistoricalNumbers());
+          console.error('[SidePanel] Erro ao carregar dados históricos:', error);
+          // Se falhar, usar os lastNumbers extraídos ou gerar números aleatórios
+          const lastNumbers = extractSafeNumbers();
+          setHistoricalNumbers(lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
         } finally {
           setIsLoadingStats(false);
         }
       }
+    };
+    
+    // Função auxiliar para extrair números com segurança
+    const extractSafeNumbers = () => {
+      if (!selectedRoulette) return [];
+      
+      // Números no formato .numero[]
+      if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
+        return selectedRoulette.numero
+          .map(n => {
+            if (typeof n === 'object' && n !== null && 'numero' in n) {
+              return Number(n.numero || 0);
+            }
+            return Number(n || 0);
+          })
+          .filter(n => !isNaN(n));
+      }
+      
+      // Números no formato .lastNumbers[]
+      if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
+        return selectedRoulette.lastNumbers
+          .map(n => Number(n || 0))
+          .filter(n => !isNaN(n));
+      }
+      
+      // Números no formato .numeros[]
+      if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
+        return selectedRoulette.numeros
+          .map(n => Number(n || 0))
+          .filter(n => !isNaN(n));
+      }
+      
+      return [];
     };
     
     loadHistoricalData();
