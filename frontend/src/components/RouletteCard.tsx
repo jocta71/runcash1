@@ -234,8 +234,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           }
         });
         
-        // Manter apenas os últimos 20 números
-        return combined.slice(0, 20);
+        // Manter até 1000 números no histórico
+        return combined.slice(0, 1000);
       });
       
       // Notificações e som - apenas para novos números
@@ -300,8 +300,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       }
       
       console.log(`[RouletteCard] Adicionando ${newNumber} à lista de números recentes`);
-      // Adicionar o novo número ao início e manter apenas os últimos X números
-      return [newNumber, ...prevNumbers].slice(0, 20);
+      // Adicionar o novo número ao início e manter até 1000 números
+      return [newNumber, ...prevNumbers].slice(0, 1000);
     });
 
     // Incrementar contador apenas para novos números
@@ -460,7 +460,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       </div>
       </CardContent>
 
-      {/* Modal de estatísticas completas */}
+      {/* Modal de estatísticas completas - agora com até 1000 números */}
       <RouletteStatsModal
         open={isStatsModalOpen}
         onClose={() => setIsStatsModalOpen(false)}
