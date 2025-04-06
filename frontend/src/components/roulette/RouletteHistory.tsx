@@ -210,7 +210,7 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
       <div className="round-history w-full flex flex-col space-y-2">
         <div className="flex space-x-2">
           <div className="w-full">
-            <div className="grid-row flex flex-1 flex-row items-center justify-start gap-2" style={{ minHeight: '50px' }}>
+            <div className="grid-row flex flex-1 flex-row items-center justify-between" style={{ minHeight: '50px' }}>
               {/* Células de grade agrupadas em linhas de 15 */}
               {Array.from({ length: Math.min(15, historyNumbers.length) }).map((_, index) => (
                 <div key={index} className="group relative flex items-center justify-center" style={{ minWidth: '40px', minHeight: '40px' }}>
@@ -229,7 +229,7 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
         {isExpanded && Array.from({ length: Math.ceil(historyNumbers.length / 15) - 1 }).map((_, rowIndex) => (
           <div key={`row-${rowIndex + 1}`} className="flex space-x-2">
             <div className="w-full">
-              <div className="grid-row flex flex-1 flex-row items-center justify-start gap-2" style={{ minHeight: '50px' }}>
+              <div className="grid-row flex flex-1 flex-row items-center justify-between" style={{ minHeight: '50px' }}>
                 {Array.from({ length: 15 }).map((_, colIndex) => {
                   const numIndex = (rowIndex + 1) * 15 + colIndex;
                   if (numIndex >= historyNumbers.length) return null;
