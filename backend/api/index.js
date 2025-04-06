@@ -3,6 +3,9 @@ const cors = require('cors');
 const { MongoClient } = require('mongodb');
 require('dotenv').config();
 
+// Importar roteadores
+const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
+
 // Configuração MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/runcash';
 let db = null;
@@ -39,6 +42,12 @@ app.use(cors({
 
 // Middleware
 app.use(express.json());
+
+// Disponibilizar o banco de dados para os roteadores
+app.locals.db = db;
+
+// Configurar rotas
+app.use('/api/roulettes/history', rouletteHistoryRouter);
 
 // Garantir que a rota /api/roulettes funcione
 app.get('/api/ROULETTES', async (req, res) => {

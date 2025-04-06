@@ -111,5 +111,29 @@ export const RouletteApi = {
       console.error(`[API] Erro ao buscar estratégia para roleta ${id}:`, error);
       return null;
     }
+  },
+  
+  /**
+   * Busca o histórico de números de uma roleta específica
+   * @param rouletteName Nome da roleta
+   * @returns Array com até 1000 números históricos
+   */
+  async fetchRouletteHistory(rouletteName: string) {
+    try {
+      console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
+      
+      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
+      
+      if (!response.data || !Array.isArray(response.data)) {
+        console.error('[API] Resposta inválida do histórico:', response.data);
+        return [];
+      }
+      
+      console.log(`[API] ✅ Obtidos ${response.data.length} números históricos`);
+      return response.data;
+    } catch (error) {
+      console.error(`[API] Erro ao buscar histórico da roleta ${rouletteName}:`, error);
+      return [];
+    }
   }
 }; 
