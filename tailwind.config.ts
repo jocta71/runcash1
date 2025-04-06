@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss";
 
 export default {
@@ -15,7 +14,7 @@ export default {
 			center: true,
 			padding: '1rem',
 			screens: {
-				'2xl': '1400px'
+				'2xl': '1700px'
 			}
 		},
 		extend: {
