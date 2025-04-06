@@ -72,9 +72,8 @@ const RoutetteSidePanelStats = ({
         const roletaNome = selectedRoulette.nome || selectedRoulette.name || '';
         console.log(`[SidePanel] Carregando dados do card para ${roletaNome}...`, selectedRoulette);
         
-        // Função para extrair APENAS os números do card da roleta selecionada
+        // Função para extrair números do card da roleta
         const extractCardNumbers = (): number[] => {
-          // Tentar extrair da forma mais segura possível
           let cardNumbers: number[] = [];
           
           console.log("[SidePanel] Conteúdo completo da roleta:", JSON.stringify(selectedRoulette));
@@ -156,35 +155,71 @@ const RoutetteSidePanelStats = ({
             }
           }
           
-          // SOLUÇÃO DE EMERGÊNCIA: VERIFICAR PROPRIEDADE customizada para último número
-          // @ts-ignore - Ignoramos erro de TypeScript aqui para propriedades customizadas
-          if (selectedRoulette.lastNumber && typeof selectedRoulette.lastNumber === 'number') {
-            console.log(`[SidePanel] Usando lastNumber como emergência: ${selectedRoulette.lastNumber}`);
-            // @ts-ignore
-            return [selectedRoulette.lastNumber];
-          }
-          
-          // COMO ÚLTIMO RECURSO, USAR O NÚMERO VISÍVEL NA IMAGEM (9)
+          // Como último recurso, usar o número 9 (visível na imagem)
           console.warn(`[SidePanel] EMERGÊNCIA: Usando número fixo 9 para testes`);
-          return [9]; // Número visível na imagem atual
+          return [9];
         };
         
-        // IMPORTANTE: Obter SOMENTE os números do card, sem buscar dados da API
+        // Extrair os números visíveis no card
         const cardNumbers = extractCardNumbers();
+        console.log(`[SidePanel] Números extraídos do card: ${cardNumbers.length}`, cardNumbers);
         
-        if (cardNumbers.length > 0) {
-          console.log(`[SidePanel] Usando EXATAMENTE os ${cardNumbers.length} números visíveis no card:`, cardNumbers);
-          setHistoricalNumbers(cardNumbers);
-        } else {
-          console.warn(`[SidePanel] ATENÇÃO: Nenhum número encontrado no card para ${roletaNome}`);
-          // Usar número de emergência para testes
-          setHistoricalNumbers([9]);
-        }
+        // Tentar buscar números históricos da API (como o modal faz)
+        const loadHistoricalData = async () => {
+          try {
+            console.log(`[SidePanel] Buscando histórico para ${roletaNome}...`);
+            let apiNumbers: number[] = [];
+            
+            // Usar a mesma função que o modal usa para buscar dados históricos
+            if (roletaNome) {
+              apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
+              console.log(`[SidePanel] Números históricos da API para ${roletaNome}: ${apiNumbers.length}`);
+            }
+            
+            // Se temos números tanto no card quanto da API
+            if (cardNumbers.length > 0 && apiNumbers.length > 0) {
+              // Começamos com os números do card (são os mais atuais)
+              const combinedNumbers = [...cardNumbers];
+              
+              // Adicionar números da API que não estão no card
+              apiNumbers.forEach(num => {
+                if (!combinedNumbers.includes(num)) {
+                  combinedNumbers.push(num);
+                }
+              });
+              
+              console.log(`[SidePanel] Combinados ${combinedNumbers.length} números totais`);
+              setHistoricalNumbers(combinedNumbers);
+            } 
+            // Se só temos os números do card
+            else if (cardNumbers.length > 0) {
+              console.log(`[SidePanel] Usando apenas números do card: ${cardNumbers.length}`);
+              setHistoricalNumbers(cardNumbers);
+            }
+            // Como último recurso, tentar dados da API ou gerar números aleatórios
+            else if (apiNumbers.length > 0) {
+              console.log(`[SidePanel] Usando apenas números da API: ${apiNumbers.length}`);
+              setHistoricalNumbers(apiNumbers);
+            }
+            // Sem dados do card ou API, usar número de emergência
+            else {
+              console.warn(`[SidePanel] Sem dados disponíveis, usando emergência: [9]`);
+              setHistoricalNumbers([9]);
+            }
+          } catch (error) {
+            console.error('[SidePanel] Erro ao carregar histórico:', error);
+            // Em caso de erro, usar os números do card ou o número de emergência
+            setHistoricalNumbers(cardNumbers.length > 0 ? cardNumbers : [9]);
+          } finally {
+            setIsLoadingStats(false);
+          }
+        };
+        
+        // Chamar a função de carregamento 
+        loadHistoricalData();
       } catch (error) {
-        console.error('[SidePanel] Erro ao processar dados do card:', error);
-        // Em caso de erro, usar número de emergência
+        console.error('[SidePanel] Erro ao processar dados:', error);
         setHistoricalNumbers([9]);
-      } finally {
         setIsLoadingStats(false);
       }
     }
