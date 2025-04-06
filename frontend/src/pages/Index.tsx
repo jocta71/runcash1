@@ -25,7 +25,8 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { getHistoricalNumbers, fetchRouletteHistoricalNumbers, generateFrequencyData, getHotColdNumbers, generateGroupDistribution, generateColorHourlyStats, getRouletteNumberColor, RouletteSidePanelStats } from '@/components/RouletteStatsModal';
+import { fetchRouletteHistoricalNumbers, generateFrequencyData, getHotColdNumbers, generateGroupDistribution, generateColorHourlyStats, getRouletteNumberColor } from '@/components/RouletteStatsModal';
+import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
