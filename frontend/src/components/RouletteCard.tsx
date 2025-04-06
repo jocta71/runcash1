@@ -149,8 +149,16 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const { enableSound, enableNotifications } = useRouletteSettingsStore();
   const navigate = useNavigate();
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
+  const [showStats, setShowStats] = useState(false); // Estado para controlar exibição das estatísticas
 
   console.log(`[RouletteCard] Inicializando card para ${safeData.name} (${safeData.id}) com ${Array.isArray(safeData.lastNumbers) ? safeData.lastNumbers.length : 0} números`);
+
+  // Função para alternar exibição de estatísticas
+  const toggleStats = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowStats(!showStats);
+  };
 
   // Função para processar um novo número em tempo real
   const processRealtimeNumber = (newNumberEvent: RouletteNumberEvent) => {
@@ -383,11 +391,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     };
   }, [safeData.id, safeData.name]);
 
-  // Substituir a função para navegar para o histórico com função que abre o modal
-  const openStatsModal = () => {
-    setIsStatsModalOpen(true);
-  };
-
   return (
     <Card 
       ref={cardRef}
@@ -409,7 +412,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={openStatsModal}
+              onClick={toggleStats}
               className="h-7 w-7" 
               title="Ver estatísticas detalhadas"
             >
@@ -428,8 +431,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             size="large" 
             highlight={isNewNumber}
           />
-      </div>
-      
+        </div>
+        
         {/* Últimos números */}
         <div className="flex flex-wrap gap-1 justify-center my-3">
           {recentNumbers.slice(0, isDetailView ? 20 : 10).map((num, idx) => (
@@ -440,27 +443,115 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
               highlight={idx === 0 && isNewNumber}
             />
           ))}
-            </div>
-            
-            {/* Estatísticas */}
-        <div className="mt-4 text-sm text-muted-foreground">
-          <RouletteStats numbers={recentNumbers} />
         </div>
         
-        {/* Indicadores */}
-        <div className="flex justify-between mt-4 text-xs text-muted-foreground">
-              <div className="flex items-center">
-            <Zap className="h-3 w-3 mr-1" />
-            <span>Tempo real</span>
-              </div>
-              <div className="flex items-center">
-            <History className="h-3 w-3 mr-1" />
-            <span>{recentNumbers.length} números</span>
+        {/* Botões de ação */}
+        <div className="mt-2 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline" 
+              size="sm"
+              className="bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-300"
+              onClick={toggleStats}
+            >
+              <BarChart3 className="h-4 w-4 mr-1" />
+              <span className="text-xs">Estatísticas</span>
+            </Button>
           </div>
-      </div>
+          
+          <div className="flex items-center text-xs text-gray-400">
+            <Timer className="h-3 w-3 mr-1" />
+            <span>
+              {updateCount > 0 ? `${updateCount} atualizações` : 'Sem atualizações'}
+            </span>
+          </div>
+        </div>
       </CardContent>
 
-      {/* Modal de estatísticas completas - agora com até 1000 números */}
+      {/* Painel de estatísticas */}
+      {showStats && (
+        <div className="mt-4 bg-gray-800 p-3 rounded-lg border border-gray-700">
+          <h3 className="text-sm font-medium text-green-500 mb-2 flex items-center">
+            <BarChart3 className="h-3 w-3 mr-1" />
+            Estatísticas
+          </h3>
+          
+          {/* Grid de estatísticas */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {/* Contadores */}
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">Vermelho</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
+              </div>
+            </div>
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">Preto</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => n !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
+              </div>
+            </div>
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">Par</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => n !== 0 && n % 2 === 0).length}
+              </div>
+            </div>
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">Ímpar</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => n % 2 === 1).length}
+              </div>
+            </div>
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">1-18</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => n >= 1 && n <= 18).length}
+              </div>
+            </div>
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">19-36</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => n >= 19 && n <= 36).length}
+              </div>
+            </div>
+          </div>
+          
+          {/* Últimos 8 números em linha */}
+          <div className="mt-3">
+            <div className="text-xs text-gray-400 mb-1">Últimos 8 números</div>
+            <div className="flex flex-wrap gap-1">
+              {recentNumbers.slice(0, 8).map((num, idx) => {
+                const bgColor = num === 0 
+                  ? "bg-green-600" 
+                  : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
+                    ? "bg-red-600"
+                    : "bg-black";
+                
+                return (
+                  <div 
+                    key={idx} 
+                    className={`${bgColor} text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium`}
+                  >
+                    {num}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+          {/* Link para estatísticas completas */}
+          <button 
+            onClick={() => setIsStatsModalOpen(true)}
+            className="mt-3 text-xs text-green-500 hover:text-green-400 flex items-center"
+          >
+            <PieChart className="h-3 w-3 mr-1" />
+            Ver estatísticas completas
+          </button>
+        </div>
+      )}
+      
+      {/* Modal de estatísticas completas */}
       <RouletteStatsModal
         open={isStatsModalOpen}
         onClose={() => setIsStatsModalOpen(false)}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { Search, Wallet, Menu, MessageSquare, AlertCircle } from 'lucide-react';
+import { Search, Wallet, Menu, MessageSquare, AlertCircle, BarChart3 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import RouletteCard from '@/components/RouletteCard';
 import { Input } from '@/components/ui/input';
@@ -44,6 +44,7 @@ const Index = () => {
   const [error, setError] = useState<string | null>(null);
   const [knownRoulettes, setKnownRoulettes] = useState<RouletteData[]>([]);
   const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(false);
+  const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
   
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
@@ -319,99 +320,65 @@ const Index = () => {
     }).slice(0, 3);
   }, [roulettes]);
 
-  // Renderizar cards de roleta
+  // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
-    if (isLoading) {
-      return Array(6).fill(0).map((_, index) => (
-        <div key={`skeleton-${index}`} className="bg-zinc-900 rounded-lg shadow-lg h-[250px] animate-pulse"></div>
-      ));
-    }
-
-    if (error) {
+    if (!Array.isArray(roulettes) || roulettes.length === 0) {
       return (
-        <div className="col-span-full flex flex-col items-center justify-center p-8 bg-zinc-900 rounded-lg">
-          <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">Erro ao carregar roletas</h3>
-          <p className="text-zinc-400 text-center">{error}</p>
-          <Button 
-            className="mt-4" 
-            onClick={() => window.location.reload()}
-          >
-            Tentar novamente
-          </Button>
+        <div className="col-span-full text-center py-8">
+          <p className="text-muted-foreground">Nenhuma roleta disponível no momento.</p>
         </div>
       );
     }
 
-    if (!dataFullyLoaded) {
-      return (
-        <div className="col-span-full flex flex-col items-center justify-center p-8 bg-zinc-900 rounded-lg">
-          <div className="w-16 h-16 border-4 border-t-transparent border-blue-500 rounded-full animate-spin mb-4"></div>
-          <h3 className="text-xl font-bold text-white mb-2">Carregando dados reais</h3>
-          <p className="text-zinc-400 text-center mb-2">
-            Estamos buscando dados reais das roletas. Os dados já estão sendo carregados!
-          </p>
-          <div className="w-full max-w-md bg-zinc-800 rounded-full h-2.5 mb-4">
-            <div className="bg-blue-500 h-2.5 rounded-full animate-pulse"></div>
+    let filteredRoulettes = roulettes;
+    
+    // Aplicar filtro de busca se houver
+    if (search.trim()) {
+      const searchLower = search.toLowerCase().trim();
+      filteredRoulettes = roulettes.filter(roulette => 
+        (roulette.nome || '').toLowerCase().includes(searchLower) ||
+        (roulette.name || '').toLowerCase().includes(searchLower)
+      );
+      
+      if (filteredRoulettes.length === 0) {
+        return (
+          <div className="col-span-full text-center py-8">
+            <p className="text-muted-foreground">Nenhuma roleta encontrada com o termo "{search}".</p>
           </div>
-          <p className="text-xs text-zinc-500">Aguarde 10 segundos ou clique no botão abaixo para continuar mesmo assim</p>
-          <button 
-            onClick={() => setDataFullyLoaded(true)}
-            className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm"
-          >
-            Continuar sem esperar os dados completos
-          </button>
-        </div>
-      );
-    }
-
-    if (filteredRoulettes.length === 0) {
-      return (
-        <div className="col-span-full flex flex-col items-center justify-center p-8 bg-zinc-900 rounded-lg">
-          <Search className="w-16 h-16 text-zinc-600 mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">Nenhuma roleta encontrada</h3>
-          <p className="text-zinc-400 text-center">Não foram encontradas roletas com o termo de busca.</p>
-        </div>
-      );
-    }
-
-    return filteredRoulettes.map((roulette) => {
-      // Tratar os lastNumbers adequadamente, garantindo que seja um array
-      let lastNumbers = [];
-      
-      // Verificar cada possível fonte de dados no objeto
-      if (Array.isArray(roulette.lastNumbers) && roulette.lastNumbers.length > 0) {
-        lastNumbers = roulette.lastNumbers;
-      } else if (Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
-        lastNumbers = roulette.numeros;
-      } else if (Array.isArray(roulette.numero) && roulette.numero.length > 0) {
-        lastNumbers = roulette.numero;
+        );
       }
+    }
+
+    return filteredRoulettes.map(roulette => {
+      // Garantir que temos números válidos
+      const safeNumbers = Array.isArray(roulette.numero) 
+        ? roulette.numero.map(n => typeof n === 'object' && n !== null && 'numero' in n ? n.numero : n)
+        : Array.isArray(roulette.lastNumbers)
+          ? roulette.lastNumbers
+          : Array.isArray(roulette.numeros)
+            ? roulette.numeros
+            : [];
       
-      // Converter elementos para garantir que são números
-      const safeNumbers = lastNumbers.map(n => typeof n === 'number' ? n : Number(n))
-                                    .filter(n => !isNaN(n));
-      
-      // Log detalhado para debug
-      console.log(`[Index] Renderizando card para roleta ${roulette.nome || roulette.name} (${roulette.id}):`, 
-                  { números: safeNumbers.length > 0 ? `${safeNumbers.length} números` : 'nenhum número' });
-      
-      // Criar objeto completo com todos os campos necessários e valores default
       return (
-        <RouletteCard
-          key={roulette.id}
-          data={{
-            id: roulette.id || '',
-            _id: roulette._id || roulette.id || '',
-            name: roulette.name || roulette.nome || 'Roleta sem nome',
-            nome: roulette.nome || roulette.name || 'Roleta sem nome',
-            lastNumbers: safeNumbers,
-            numeros: safeNumbers,
-            vitorias: typeof roulette.vitorias === 'number' ? roulette.vitorias : 0,
-            derrotas: typeof roulette.derrotas === 'number' ? roulette.derrotas : 0,
-            estado_estrategia: roulette.estado_estrategia || ''
-          }}
-        />
+        <div 
+          key={roulette.id} 
+          className={`cursor-pointer transition-all ${selectedRoulette?.id === roulette.id ? 'ring-2 ring-green-500' : ''}`}
+          onClick={() => setSelectedRoulette(roulette)}
+        >
+          <RouletteCard
+            data={{
+              id: roulette.id || '',
+              _id: roulette._id || roulette.id || '',
+              name: roulette.name || roulette.nome || 'Roleta sem nome',
+              nome: roulette.nome || roulette.name || 'Roleta sem nome',
+              lastNumbers: safeNumbers,
+              numeros: safeNumbers,
+              vitorias: typeof roulette.vitorias === 'number' ? roulette.vitorias : 0,
+              derrotas: typeof roulette.derrotas === 'number' ? roulette.derrotas : 0,
+              estado_estrategia: roulette.estado_estrategia || ''
+            }}
+          />
+        </div>
       );
     });
   };
@@ -458,8 +425,198 @@ const Index = () => {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {renderRouletteCards()}
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Cards de roleta à esquerda (2/3 da largura em desktop) */}
+            <div className="w-full lg:w-2/3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {renderRouletteCards()}
+              </div>
+            </div>
+            
+            {/* Painel de estatísticas à direita (1/3 da largura em desktop) */}
+            <div className="w-full lg:w-1/3 bg-gray-900 rounded-lg p-4 h-fit sticky top-4">
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center">
+                <BarChart3 className="h-5 w-5 mr-2 text-green-500" />
+                {selectedRoulette 
+                  ? `Estatísticas: ${selectedRoulette.nome || selectedRoulette.name}`
+                  : 'Estatísticas da Roleta'
+                }
+              </h2>
+              
+              {/* Conteúdo do painel de estatísticas */}
+              {!selectedRoulette ? (
+                <div className="text-gray-400 text-sm mb-4">
+                  Selecione uma roleta para ver estatísticas detalhadas
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Estatísticas para a roleta selecionada */}
+                  <div className="bg-gray-800 p-3 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-2">Distribuição de Cores</h3>
+                    
+                    {/* Obter números da roleta selecionada */}
+                    {(() => {
+                      const numbers = Array.isArray(selectedRoulette.numero) 
+                        ? selectedRoulette.numero.map(n => typeof n === 'object' && n !== null && 'numero' in n ? n.numero : n)
+                        : Array.isArray(selectedRoulette.lastNumbers)
+                          ? selectedRoulette.lastNumbers
+                          : [];
+                          
+                      // Verificar se temos números válidos
+                      if (!numbers || numbers.length === 0) {
+                        return <p className="text-gray-400 text-sm">Nenhum dado disponível</p>;
+                      }
+                      
+                      // Calcular estatísticas
+                      const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+                      const redCount = numbers.filter(n => redNumbers.includes(Number(n))).length;
+                      const blackCount = numbers.filter(n => n !== 0 && !redNumbers.includes(Number(n))).length;
+                      const zeroCount = numbers.filter(n => Number(n) === 0).length;
+                      const total = numbers.length;
+                      
+                      // Calcular porcentagens
+                      const redPercent = Math.round((redCount / total) * 100) || 0;
+                      const blackPercent = Math.round((blackCount / total) * 100) || 0;
+                      const zeroPercent = Math.round((zeroCount / total) * 100) || 0;
+                      
+                      return (
+                        <>
+                          {/* Barra de progresso para vermelho */}
+                          <div className="mb-2">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-red-500">Vermelho</span>
+                              <span className="text-white">{redCount} ({redPercent}%)</span>
+                            </div>
+                            <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                              <div 
+                                className="bg-red-600 h-full" 
+                                style={{ width: `${redPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Barra de progresso para preto */}
+                          <div className="mb-2">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-gray-300">Preto</span>
+                              <span className="text-white">{blackCount} ({blackPercent}%)</span>
+                            </div>
+                            <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                              <div 
+                                className="bg-gray-900 h-full" 
+                                style={{ width: `${blackPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Barra de progresso para zero */}
+                          <div>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-green-500">Zero</span>
+                              <span className="text-white">{zeroCount} ({zeroPercent}%)</span>
+                            </div>
+                            <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                              <div 
+                                className="bg-green-600 h-full" 
+                                style={{ width: `${zeroPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                  
+                  {/* Últimos números */}
+                  <div className="bg-gray-800 p-3 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-2">Últimos Números</h3>
+                    <div className="flex flex-wrap gap-1">
+                      {(() => {
+                        const numbers = Array.isArray(selectedRoulette.numero) 
+                          ? selectedRoulette.numero.map(n => typeof n === 'object' && n !== null && 'numero' in n ? n.numero : n)
+                          : Array.isArray(selectedRoulette.lastNumbers)
+                            ? selectedRoulette.lastNumbers
+                            : [];
+                            
+                        if (!numbers || numbers.length === 0) {
+                          return <p className="text-gray-400 text-sm">Nenhum dado disponível</p>;
+                        }
+                        
+                        const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+                        
+                        return numbers.slice(0, 20).map((num, idx) => {
+                          const numValue = Number(num);
+                          const bgColor = numValue === 0 
+                            ? "bg-green-600" 
+                            : redNumbers.includes(numValue)
+                              ? "bg-red-600"
+                              : "bg-black";
+                          
+                          return (
+                            <div 
+                              key={idx} 
+                              className={`${bgColor} text-white w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium`}
+                            >
+                              {numValue}
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                  
+                  {/* Outras estatísticas em grid */}
+                  <div className="bg-gray-800 p-3 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-2">Outras Estatísticas</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(() => {
+                        const numbers = Array.isArray(selectedRoulette.numero) 
+                          ? selectedRoulette.numero.map(n => typeof n === 'object' && n !== null && 'numero' in n ? n.numero : n)
+                          : Array.isArray(selectedRoulette.lastNumbers)
+                            ? selectedRoulette.lastNumbers
+                            : [];
+                            
+                        if (!numbers || numbers.length === 0) {
+                          return <p className="text-gray-400 text-sm col-span-2">Nenhum dado disponível</p>;
+                        }
+                        
+                        // Converter para números
+                        const numArray = numbers.map(n => Number(n));
+                        
+                        return (
+                          <>
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">Par</div>
+                              <div className="text-sm text-white font-medium">
+                                {numArray.filter(n => n !== 0 && n % 2 === 0).length}
+                              </div>
+                            </div>
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">Ímpar</div>
+                              <div className="text-sm text-white font-medium">
+                                {numArray.filter(n => n % 2 === 1).length}
+                              </div>
+                            </div>
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">1-18</div>
+                              <div className="text-sm text-white font-medium">
+                                {numArray.filter(n => n >= 1 && n <= 18).length}
+                              </div>
+                            </div>
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">19-36</div>
+                              <div className="text-sm text-white font-medium">
+                                {numArray.filter(n => n >= 19 && n <= 36).length}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
