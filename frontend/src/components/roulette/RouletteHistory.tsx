@@ -48,6 +48,9 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [isExpanded, setIsExpanded] = useState(false);
   
+  // Log inicial para diagnóstico
+  console.log(`[RouletteHistory] Inicializando com ${initialNumbers.length} números para ${roletaNome}`);
+  
   // Stats
   const [stats, setStats] = useState({
     red: 0,
@@ -134,6 +137,7 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
     // Handler para novos números
     const handleNewNumber = (event: RouletteNumberEvent) => {
       if (event.roleta_id === roletaId && typeof event.numero === 'number') {
+        console.log(`[RouletteHistory] Novo número recebido para ${roletaNome}: ${event.numero}`);
         setHistoryNumbers(prev => {
           // Verificar se o número já existe no início do array
           if (prev.length > 0 && prev[0] === event.numero) {
@@ -152,9 +156,19 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
     
     // Buscar histórico inicial se não fornecido
     if (initialNumbers.length === 0) {
+      console.log(`[RouletteHistory] Não há números iniciais, buscando para ${roletaId}`);
       SocketService.getInstance().fetchRouletteNumbersREST(roletaId)
         .then(success => {
-          console.log(`[RouletteHistory] Buscou histórico para ${roletaNome}: ${success}`);
+          if (success) {
+            const history = SocketService.getInstance().getRouletteHistory(roletaId);
+            console.log(`[RouletteHistory] Dados obtidos com sucesso: ${history.length} números`);
+            setHistoryNumbers(history);
+          } else {
+            console.warn(`[RouletteHistory] Falha ao buscar histórico para ${roletaNome}`);
+          }
+        })
+        .catch(err => {
+          console.error(`[RouletteHistory] Erro ao buscar histórico:`, err);
         });
     }
     
@@ -163,6 +177,32 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
       EventService.getInstance().unsubscribe('new_number', handleNewNumber);
     };
   }, [roletaId, roletaNome, initialNumbers]);
+  
+  // Renderizar mensagem se não houver dados
+  if (historyNumbers.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <div className="mb-4 rounded-full bg-yellow-100 p-3 text-yellow-600">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <h3 className="mb-2 text-lg font-medium">Nenhum número registrado</h3>
+        <p className="mb-4 text-sm text-gray-500">
+          Não há histórico disponível para esta roleta no momento.
+        </p>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => SocketService.getInstance().fetchRouletteNumbersREST(roletaId)}
+        >
+          Tentar Carregar Novamente
+        </Button>
+      </div>
+    );
+  }
   
   // Renderizar grade de números
   const renderGrid = () => {

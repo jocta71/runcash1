@@ -1100,29 +1100,24 @@ class SocketService {
       
       try {
         const response = await fetch(endpoint, {
-          // Adicionar cache: no-store para garantir que não use cache
-          cache: 'no-store',
-          mode: 'no-cors', // Usar modo no-cors para evitar bloqueio de CORS
+          // Remover o modo no-cors para permitir acesso aos dados JSON
           headers: {
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache'
           }
         });
         
-        // Com o modo no-cors, a resposta será do tipo 'opaque' e não poderemos acessar seu conteúdo diretamente
-        // Vamos usar um proxy para contornar essa limitação
-        if (!response.ok && response.type !== 'opaque') {
+        if (!response.ok) {
           console.warn(`[SocketService] Falha na requisição REST (${response.status}): ${endpoint}`);
-          return false;
+          return this.useFallbackData(canonicalId);
         }
         
-        // Tentativa de processar a resposta mesmo com limitações de CORS
         try {
           const allRoulettes = await response.json();
           
           if (!Array.isArray(allRoulettes)) {
             console.warn(`[SocketService] Endpoint retornou formato inválido: ${endpoint}`);
-            return false;
+            return this.useFallbackData(canonicalId);
           }
           
           // Encontrar a roleta específica pelo ID canônico
@@ -1133,56 +1128,67 @@ class SocketService {
           
           if (!targetRoulette) {
             console.warn(`[SocketService] Roleta ${canonicalId} não encontrada nos dados retornados`);
-            return false;
+            return this.useFallbackData(canonicalId);
           }
           
-          // Verificar se a roleta tem números
-          if (!targetRoulette.numero || !Array.isArray(targetRoulette.numero) || targetRoulette.numero.length === 0) {
-            console.warn(`[SocketService] Roleta ${canonicalId} não possui números válidos`);
-            return false;
+          // Extrair os números da roleta
+          const numeros = [];
+          if (targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+            // Se temos o campo 'numero' diretamente, usá-lo
+            for (const item of targetRoulette.numero) {
+              const num = typeof item === 'object' ? item.numero : item;
+              if (num !== undefined && num !== null) {
+                numeros.push(parseInt(String(num), 10));
+              }
+            }
           }
           
-          console.log(`[SocketService] ✅ Sucesso! Encontrados ${targetRoulette.numero.length} números para roleta ${canonicalId}`);
+          console.log(`[SocketService] ✅ Extraídos ${numeros.length} números para roleta ${canonicalId}`);
           
           // Encontrar o nome da roleta a partir dos dados retornados
           const roletaNome = targetRoulette.nome || `Roleta ${canonicalId}`;
           
-          // Processar os números recebidos
-          this.processNumbersData(targetRoulette.numero, { _id: canonicalId, nome: roletaNome });
-
-          // Converter e armazenar os números no histórico
-          const numbers = targetRoulette.numero
-            .map((num: any) => typeof num === 'number' ? num : parseInt(String(num), 10))
-            .filter((num: number) => !isNaN(num));
-          
-          if (numbers.length > 0) {
-            this.setRouletteHistory(roletaId, numbers);
+          if (numeros.length > 0) {
+            // Armazenar os números no histórico
+            this.setRouletteHistory(roletaId, numeros);
+            console.log(`[SocketService] Histórico atualizado para ${roletaNome}: ${numeros.length} números`);
+            return true;
+          } else {
+            console.warn(`[SocketService] Nenhum número extraído para ${roletaNome}`);
+            return this.useFallbackData(canonicalId);
           }
-
-          return true;
         } catch (jsonError) {
-          // No modo no-cors, não conseguiremos parsear o JSON diretamente
-          // Vamos tentar um fallback para obter dados predefinidos
-          console.warn(`[SocketService] Não foi possível processar JSON devido a restrições de CORS: ${jsonError}`);
-          
-          // Encontrar o nome da roleta com base no ID canônico
-          const roleta = ROLETAS_CANONICAS.find(r => r.id === canonicalId);
-          const roletaNome = roleta ? roleta.nome : `Roleta ${canonicalId}`;
-          
-          // Gerar alguns números aleatórios como fallback
-          const fakeNumbers = this.generateFallbackNumbers(canonicalId, roletaNome);
-          this.processNumbersData(fakeNumbers, { _id: canonicalId, nome: roletaNome });
-          
-          return true;
-          }
-        } catch (e) {
+          console.error(`[SocketService] Erro ao processar JSON: ${jsonError}`);
+          return this.useFallbackData(canonicalId);
+        }
+      } catch (e) {
         console.warn(`[SocketService] Erro ao acessar endpoint ${endpoint}:`, e);
-        return false;
+        return this.useFallbackData(canonicalId);
       }
     } catch (error) {
       console.error(`[SocketService] Erro geral no fetchRouletteNumbersREST:`, error);
-      return false;
+      return this.useFallbackData(mapToCanonicalRouletteId(roletaId));
     }
+  }
+
+  // Método auxiliar para usar dados de fallback quando necessário
+  private useFallbackData(canonicalId: string): boolean {
+    const roleta = ROLETAS_CANONICAS.find(r => r.id === canonicalId);
+    const roletaNome = roleta ? roleta.nome : `Roleta ${canonicalId}`;
+    
+    console.log(`[SocketService] Usando dados de fallback para ${roletaNome}`);
+    
+    // Gerar alguns números aleatórios como fallback
+    const fakeNumbers = this.generateFallbackNumbers(canonicalId, roletaNome);
+    
+    // Extrair apenas os números e armazenar no histórico
+    const numeros = fakeNumbers.map(item => item.numero);
+    this.setRouletteHistory(canonicalId, numeros);
+    
+    // Processar os dados completos para o sistema de eventos
+    this.processNumbersData(fakeNumbers, { _id: canonicalId, nome: roletaNome });
+    
+    return true;
   }
   
   // Método auxiliar para gerar números de fallback em caso de erro de CORS
