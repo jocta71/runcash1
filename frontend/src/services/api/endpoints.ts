@@ -1,28 +1,24 @@
 // URLs para os endpoints da API
 export const ENDPOINTS = {
   // Endpoint principal para roletas (agora unificado)
-  get ROULETTES() { return `${getApiBaseUrl()}/ROULETTES` },
+  ROULETTES: '/api/ROULETTES',
   
   // Endpoint para histórico de roletas
-  get ROULETTE_HISTORY() { return `${getApiBaseUrl()}/roulettes/history` },
+  ROULETTE_HISTORY: '/api/roulettes/history',
   
   // Endpoint para eventos em tempo real
-  get EVENTS() { return `${getApiBaseUrl()}/events` },
+  EVENTS: '/api/events',
   
   // Endpoint para estratégias
-  get STRATEGIES() { return `${getApiBaseUrl()}/strategies` }
+  STRATEGIES: '/api/strategies'
 };
 
-// Obtém a URL base da API a partir de variáveis de ambiente ou usa o Railway por padrão
+// Obtém a URL base da API a partir de variáveis de ambiente
 export const getApiBaseUrl = (): string => {
-  return import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api';
+  return import.meta.env.VITE_API_BASE_URL || '/api';
 };
 
 // Obtém a URL completa para um endpoint
 export const getFullUrl = (endpoint: string): string => {
-  // Se o endpoint já começar com http, retorna o próprio endpoint
-  if (endpoint.startsWith('http')) {
-    return endpoint;
-  }
   return `${getApiBaseUrl()}${endpoint}`;
 }; 
