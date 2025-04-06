@@ -207,21 +207,21 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   // Renderizar grade de números
   const renderGrid = () => {
     return (
-      <div className="round-history w-full flex flex-col space-y-2">
-        <div className="flex space-x-2">
+      <div className="round-history w-full flex flex-col space-y-1">
+        <div className="flex space-x-1">
           <div className="w-full">
-            <div className="grid-row flex flex-1 flex-row items-start justify-between" style={{ height: '78px' }}>
+            <div className="grid-row flex flex-1 flex-row items-start justify-start gap-1" style={{ height: '70px' }}>
               {/* Células de grade agrupadas em linhas de 15 */}
               {Array.from({ length: Math.min(15, historyNumbers.length) }).map((_, index) => (
-                <div key={index} className="group relative" style={{ width: '52px', height: '78px' }}>
+                <div key={index} className="group relative" style={{ width: '46px', height: '70px' }}>
                   <button
                     type="button"
-                    className={`tooltip pointer-events-auto relative h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-700 p-2 text-center text-xs text-white opacity-0 delay-300 before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:-translate-y-px before:border-t-zinc-700 group-hover:opacity-100 data-[state=delayed-open]:opacity-100 transition`}
+                    className={`tooltip pointer-events-auto relative h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-700 p-2 text-center text-xs text-white opacity-0 delay-300 before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:-translate-y-px before:border-t-zinc-700 group-hover:opacity-100 data-[state=delayed-open]:opacity-100 transition`}
                   >
                     {historyNumbers[index]}
                   </button>
                   <div
-                    className={`${getNumberColor(historyNumbers[index])} cell-number-${historyNumbers[index]} cell-state-default flex h-12 w-12 items-center justify-center rounded-full text-lg font-medium`}
+                    className={`${getNumberColor(historyNumbers[index])} cell-number-${historyNumbers[index]} cell-state-default flex h-10 w-10 items-center justify-center rounded-full text-lg font-medium`}
                   >
                     {historyNumbers[index]}
                   </div>
@@ -233,23 +233,23 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
         
         {/* Mostrar mais linhas se expandido */}
         {isExpanded && Array.from({ length: Math.ceil(historyNumbers.length / 15) - 1 }).map((_, rowIndex) => (
-          <div key={`row-${rowIndex + 1}`} className="flex space-x-2">
+          <div key={`row-${rowIndex + 1}`} className="flex space-x-1">
             <div className="w-full">
-              <div className="grid-row flex flex-1 flex-row items-start justify-between" style={{ height: '78px' }}>
+              <div className="grid-row flex flex-1 flex-row items-start justify-start gap-1" style={{ height: '70px' }}>
                 {Array.from({ length: 15 }).map((_, colIndex) => {
                   const numIndex = (rowIndex + 1) * 15 + colIndex;
                   if (numIndex >= historyNumbers.length) return null;
                   
                   return (
-                    <div key={numIndex} className="group relative" style={{ width: '52px', height: '78px' }}>
+                    <div key={numIndex} className="group relative" style={{ width: '46px', height: '70px' }}>
                       <button
                         type="button"
-                        className={`tooltip pointer-events-auto relative h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-700 p-2 text-center text-xs text-white opacity-0 delay-300 before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:-translate-y-px before:border-t-zinc-700 group-hover:opacity-100 data-[state=delayed-open]:opacity-100 transition`}
+                        className={`tooltip pointer-events-auto relative h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded bg-zinc-700 p-2 text-center text-xs text-white opacity-0 delay-300 before:absolute before:top-full before:left-1/2 before:-translate-x-1/2 before:-translate-y-px before:border-t-zinc-700 group-hover:opacity-100 data-[state=delayed-open]:opacity-100 transition`}
                       >
                         {historyNumbers[numIndex]}
                       </button>
                       <div
-                        className={`${getNumberColor(historyNumbers[numIndex])} cell-number-${historyNumbers[numIndex]} cell-state-default flex h-12 w-12 items-center justify-center rounded-full text-lg font-medium`}
+                        className={`${getNumberColor(historyNumbers[numIndex])} cell-number-${historyNumbers[numIndex]} cell-state-default flex h-10 w-10 items-center justify-center rounded-full text-lg font-medium`}
                       >
                         {historyNumbers[numIndex]}
                       </div>
@@ -279,11 +279,11 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   const renderList = () => {
     return (
       <ScrollArea className="h-[400px] rounded-md border">
-        <div className="grid grid-cols-10 gap-1 p-4">
+        <div className="grid grid-cols-12 gap-1 p-2">
           {historyNumbers.map((num, index) => (
             <div 
               key={`list-${index}`} 
-              className={`${getNumberColor(num)} flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium`}
+              className={`${getNumberColor(num)} flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium`}
             >
               {num}
             </div>
