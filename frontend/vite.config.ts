@@ -19,7 +19,7 @@ export default defineConfig({
       '/api': {
         target: 'https://backendapi-production-36b5.up.railway.app',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api'),
+        rewrite: (path) => path,
         secure: false,
       },
       // Websocket proxy se necessário

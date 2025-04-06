@@ -40,15 +40,8 @@ export function getApiBaseUrl(): string {
     } catch (error) {
       console.warn('[ENV] Não foi possível encontrar URL da API nas variáveis de ambiente');
       
-      // Em produção, usar a origem da página
-      if (isProduction) {
-        const origin = window.location.origin;
-        console.log(`[ENV] Usando origem da página como URL da API: ${origin}/api`);
-        return `${origin}/api`;
-      }
-      
-      // Em desenvolvimento, retornar URL padrão
-      console.log('[ENV] Usando URL padrão da API para desenvolvimento');
+      // Sempre usar a URL direta do backend, independente do ambiente
+      console.log('[ENV] Usando URL fixa do backend no Railway');
       return 'https://backendapi-production-36b5.up.railway.app/api';
     }
   }
