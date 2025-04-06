@@ -8,7 +8,7 @@ import WinRateDisplay from './roulette/WinRateDisplay';
 import RouletteTrendChart from './roulette/RouletteTrendChart';
 import SuggestionDisplay from './roulette/SuggestionDisplay';
 import RouletteActionButtons from './roulette/RouletteActionButtons';
-import RouletteStatsModal from './RouletteStatsModal';
+import RouletteSidePanelStats from './RouletteSidePanelStats';
 import { useRouletteData } from '@/hooks/useRouletteData';
 import { Button } from '@/components/ui/button';
 import { StrategyUpdateEvent } from '@/services/EventService';
@@ -552,14 +552,29 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       )}
       
       {/* Modal de estatísticas completas */}
-      <RouletteStatsModal
-        open={isStatsModalOpen}
-        onClose={() => setIsStatsModalOpen(false)}
-        roletaNome={safeData.name}
-        lastNumbers={recentNumbers}
-        wins={0}
-        losses={0}
-      />
+      <div className={`fixed inset-0 z-50 ${isStatsModalOpen ? 'flex' : 'hidden'} items-center justify-center bg-black/70`}>
+        <div className="bg-gray-900 w-11/12 max-w-6xl h-[90vh] rounded-lg overflow-y-auto">
+          <div className="flex justify-between items-center p-4 border-b border-gray-800">
+            <h2 className="text-[#00ff00] text-xl font-bold">Estatísticas da {safeData.name}</h2>
+            <button 
+              onClick={() => setIsStatsModalOpen(false)}
+              className="text-gray-400 hover:text-white"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="p-4">
+            <RouletteSidePanelStats
+              roletaNome={safeData.name}
+              lastNumbers={recentNumbers}
+              wins={0}
+              losses={0}
+            />
+          </div>
+        </div>
+      </div>
     </Card>
   );
 };

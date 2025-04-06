@@ -25,12 +25,11 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { fetchRouletteHistoricalNumbers, generateFrequencyData, getHotColdNumbers, generateGroupDistribution, generateColorHourlyStats, getRouletteNumberColor } from '@/components/RouletteStatsModal';
+import { fetchRouletteHistoricalNumbers, generateFrequencyData, getHotColdNumbers, generateGroupDistribution, generateColorHourlyStats, getRouletteNumberColor } from '@/components/RouletteSidePanelStats';
 import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
-import RouletteStatsModal from '@/components/RouletteStatsModal';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
 
 interface ChatMessage {
