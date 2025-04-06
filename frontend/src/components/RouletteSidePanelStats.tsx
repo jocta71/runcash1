@@ -13,6 +13,7 @@ import {
   Legend,
 } from "recharts";
 import { useState, useEffect } from 'react';
+import { fetchWithCorsSupport } from '../utils/api-helpers';
 
 interface RouletteSidePanelStatsProps {
   roletaNome: string;
@@ -81,66 +82,12 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
   try {
     console.log(`[API] Buscando dados históricos para: ${rouletteName}`);
     
-    // URL da API do Railway
-    const apiUrl = 'https://backendapi-production-36b5.up.railway.app/api/ROULETTES';
+    // Usar nossa função utilitária com suporte a CORS
+    const data = await fetchWithCorsSupport<any[]>('/api/ROULETTES');
     
-    // Tentar múltiplas abordagens em ordem de preferência
-    const methods = [
-      { name: 'Proxy CORS', fn: async () => {
-        const corsProxy = 'https://corsproxy.io/?';
-        const proxiedUrl = `${corsProxy}${encodeURIComponent(apiUrl)}`;
-        console.log(`[API] Tentando método Proxy CORS: ${proxiedUrl}`);
-        
-        const response = await fetch(proxiedUrl, {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' }
-        });
-        
-        if (!response.ok) throw new Error(`Status: ${response.status}`);
-        return await response.json();
-      }},
-      { name: 'Fetch direto', fn: async () => {
-        console.log(`[API] Tentando método fetch direto: ${apiUrl}`);
-        const response = await fetch(apiUrl, {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' },
-          // No-cors não permite acessar os dados da resposta,
-          // mas pode ajudar a evitar erros no console
-          mode: 'cors' 
-        });
-        
-        if (!response.ok) throw new Error(`Status: ${response.status}`);
-        return await response.json();
-      }},
-      { name: 'JSONP', fn: async () => {
-        console.log(`[API] Tentando método JSONP: ${apiUrl}`);
-        // JSONP só funciona se o servidor suportar callback JSONP
-        return await loadViaJsonp(apiUrl);
-      }}
-    ];
-    
-    // Tentar cada método em sequência
-    let data = null;
-    let methodWorked = '';
-    
-    for (const method of methods) {
-      try {
-        console.log(`[API] Tentando método: ${method.name}`);
-        data = await method.fn();
-        
-        if (data) {
-          methodWorked = method.name;
-          console.log(`[API] Método '${method.name}' funcionou!`);
-          break;
-        }
-      } catch (methodError) {
-        console.error(`[API] Método '${method.name}' falhou:`, methodError);
-      }
-    }
-    
-    // Processar os dados se algum método funcionou
+    // Processar os dados se foram obtidos com sucesso
     if (data && Array.isArray(data)) {
-      console.log(`[API] Dados obtidos com sucesso usando '${methodWorked}'`);
+      console.log(`[API] Dados obtidos com sucesso. Processando ${data.length} roletas.`);
       
       // Encontrar a roleta específica pelo nome
       const targetRoulette = data.find((roleta: any) => {
@@ -160,10 +107,10 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
         console.log(`[API] Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
       }
     } else {
-      console.log(`[API] Nenhum método funcionou ou resposta inválida`);
+      console.log(`[API] Resposta inválida da API`);
     }
     
-    // Se chegou aqui, nenhum método funcionou ou não encontrou a roleta
+    // Se chegou aqui, algo deu errado
     // Usar dados de fallback
     return generateFallbackNumbers(50);
   } catch (error) {
