@@ -67,7 +67,8 @@ const RouletteHistoryPage: React.FC = () => {
       const socketService = SocketService.getInstance();
       console.log(`[HistoryPage] Iniciando busca de dados para ${canonicalId}`);
       
-      const success = await socketService.fetchRouletteNumbersREST(canonicalId);
+      // Solicitar 200 números para a página de histórico
+      const success = await socketService.fetchRouletteNumbersREST(canonicalId, 200);
       
       if (success) {
         const updatedHistory = socketService.getRouletteHistory(canonicalId);

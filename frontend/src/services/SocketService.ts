@@ -1087,16 +1087,16 @@ class SocketService {
   }
   
   // Método para buscar dados via REST como alternativa/complemento
-  public async fetchRouletteNumbersREST(roletaId: string): Promise<boolean> {
+  public async fetchRouletteNumbersREST(roletaId: string, limit: number = 100): Promise<boolean> {
     try {
       // Garantir que estamos usando o ID canônico
       const canonicalId = mapToCanonicalRouletteId(roletaId);
       
       const baseUrl = this.getApiBaseUrl();
-      // Usar o endpoint único /api/ROULETTES
-      const endpoint = `${baseUrl}/ROULETTES`;
+      // Usar o endpoint único /api/ROULETTES e adicionar o parâmetro limit
+      const endpoint = `${baseUrl}/ROULETTES?limit=${limit}`;
       
-      console.log(`[SocketService] Buscando dados via REST para roleta ${canonicalId}`);
+      console.log(`[SocketService] Buscando dados via REST para roleta ${canonicalId} (limit: ${limit})`);
       
       try {
         const response = await fetch(endpoint, {
@@ -1518,7 +1518,8 @@ class SocketService {
     });
     
     // Fazer também uma solicitação REST para garantir dados completos
-    this.fetchRouletteNumbersREST(canonicalId);
+    // Usar um valor intermediário para dados em tempo real
+    this.fetchRouletteNumbersREST(canonicalId, 50);
   }
 
   /**
@@ -1894,6 +1895,25 @@ class SocketService {
         reject(new Error('Timeout ao solicitar histórico'));
       }, 30000); // 30 segundos de timeout
     });
+  }
+
+  public async fetchAllRoulettesWithRealData(): Promise<RouletteWithData[]> {
+    const roulettes = await this.fetchRoulettes();
+    
+    // Para cada roleta, buscar dados de números
+    for (const roulette of roulettes) {
+      try {
+        // Usar um valor mais baixo para os cards principais
+        const hasRealData = await this.fetchRouletteNumbersREST(roulette._id, 30);
+        if (hasRealData) {
+          console.log(`[SocketService] Dados reais obtidos para ${roulette.name || roulette._id}`);
+        }
+      } catch (error) {
+        console.warn(`[SocketService] Erro ao buscar dados para ${roulette.name || roulette._id}:`, error);
+      }
+    }
+    
+    return roulettes;
   }
 }
 

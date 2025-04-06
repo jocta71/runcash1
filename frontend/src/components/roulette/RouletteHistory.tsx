@@ -157,7 +157,7 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
     // Buscar histórico inicial se não fornecido
     if (initialNumbers.length === 0) {
       console.log(`[RouletteHistory] Não há números iniciais, buscando para ${roletaId}`);
-      SocketService.getInstance().fetchRouletteNumbersREST(roletaId)
+      SocketService.getInstance().fetchRouletteNumbersREST(roletaId, 200)
         .then(success => {
           if (success) {
             const history = SocketService.getInstance().getRouletteHistory(roletaId);
@@ -196,7 +196,7 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => SocketService.getInstance().fetchRouletteNumbersREST(roletaId)}
+          onClick={() => SocketService.getInstance().fetchRouletteNumbersREST(roletaId, 200)}
         >
           Tentar Carregar Novamente
         </Button>
