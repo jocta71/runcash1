@@ -45,7 +45,7 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   initialNumbers = [] 
 }) => {
   const [historyNumbers, setHistoryNumbers] = useState<number[]>(initialNumbers);
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>('stats');
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Log inicial para diagnóstico
@@ -398,11 +398,11 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
         <Badge variant="outline" className="px-2 py-1">
           {historyNumbers.length} números registrados
         </Badge>
-        <Tabs defaultValue="grid" onValueChange={(value) => setViewMode(value as ViewMode)}>
+        <Tabs defaultValue="stats" onValueChange={(value) => setViewMode(value as ViewMode)}>
           <TabsList>
+            <TabsTrigger value="stats">Estatísticas</TabsTrigger>
             <TabsTrigger value="grid">Grade</TabsTrigger>
             <TabsTrigger value="list">Lista</TabsTrigger>
-            <TabsTrigger value="stats">Estatísticas</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
