@@ -614,6 +614,216 @@ const Index = () => {
                       })()}
                     </div>
                   </div>
+                  
+                  {/* Números quentes e frios */}
+                  <div className="bg-gray-800 p-3 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-2">Números Quentes e Frios</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {(() => {
+                        const numbers = Array.isArray(selectedRoulette.numero) 
+                          ? selectedRoulette.numero.map(n => typeof n === 'object' && n !== null && 'numero' in n ? n.numero : n)
+                          : Array.isArray(selectedRoulette.lastNumbers)
+                            ? selectedRoulette.lastNumbers
+                            : [];
+                            
+                        if (!numbers || numbers.length === 0) {
+                          return <p className="text-gray-400 text-sm col-span-2">Nenhum dado disponível</p>;
+                        }
+                        
+                        // Converter para números
+                        const numArray = numbers.map(n => Number(n));
+                        
+                        // Calcular frequência dos números
+                        const frequency: Record<number, number> = {};
+                        
+                        // Inicializar todos os números da roleta (0-36)
+                        for (let i = 0; i <= 36; i++) {
+                          frequency[i] = 0;
+                        }
+                        
+                        // Contar frequência de cada número
+                        numArray.forEach(num => {
+                          if (frequency[num] !== undefined) {
+                            frequency[num]++;
+                          }
+                        });
+                        
+                        // Converter para array e ordenar
+                        const frequencyData = Object.keys(frequency).map(key => ({
+                          number: parseInt(key),
+                          frequency: frequency[parseInt(key)]
+                        }));
+                        
+                        // Obter 5 números mais frequentes e 5 menos frequentes
+                        const hotNumbers = [...frequencyData]
+                          .filter(item => item.frequency > 0)
+                          .sort((a, b) => b.frequency - a.frequency)
+                          .slice(0, 5);
+                        
+                        const coldNumbers = [...frequencyData]
+                          .filter(item => item.frequency > 0)
+                          .sort((a, b) => a.frequency - b.frequency)
+                          .slice(0, 5);
+                        
+                        const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+                        
+                        return (
+                          <>
+                            {/* Números quentes */}
+                            <div>
+                              <h4 className="text-xs font-medium text-red-500 mb-2 flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                  <polyline points="18 15 12 9 6 15"></polyline>
+                                </svg>
+                                Mais Frequentes
+                              </h4>
+                              <div className="flex flex-wrap gap-2">
+                                {hotNumbers.map(({number, frequency}) => {
+                                  const bgColor = number === 0 
+                                    ? "bg-green-600" 
+                                    : redNumbers.includes(number) ? "bg-red-600" : "bg-black";
+                                  
+                                  return (
+                                    <div key={number} className="flex flex-col items-center">
+                                      <div 
+                                        className={`${bgColor} w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-medium mb-1`}
+                                      >
+                                        {number}
+                                      </div>
+                                      <span className="text-xs text-gray-400">{frequency}x</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                            
+                            {/* Números frios */}
+                            <div>
+                              <h4 className="text-xs font-medium text-blue-500 mb-2 flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                  <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                                Menos Frequentes
+                              </h4>
+                              <div className="flex flex-wrap gap-2">
+                                {coldNumbers.map(({number, frequency}) => {
+                                  const bgColor = number === 0 
+                                    ? "bg-green-600" 
+                                    : redNumbers.includes(number) ? "bg-red-600" : "bg-black";
+                                  
+                                  return (
+                                    <div key={number} className="flex flex-col items-center">
+                                      <div 
+                                        className={`${bgColor} w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-medium mb-1`}
+                                      >
+                                        {number}
+                                      </div>
+                                      <span className="text-xs text-gray-400">{frequency}x</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                  
+                  {/* Resumo de estatísticas */}
+                  <div className="bg-gray-800 p-3 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-2">Resumo Detalhado</h3>
+                    {(() => {
+                      const numbers = Array.isArray(selectedRoulette.numero) 
+                        ? selectedRoulette.numero.map(n => typeof n === 'object' && n !== null && 'numero' in n ? n.numero : n)
+                        : Array.isArray(selectedRoulette.lastNumbers)
+                          ? selectedRoulette.lastNumbers
+                          : [];
+                          
+                      if (!numbers || numbers.length === 0) {
+                        return <p className="text-gray-400 text-sm">Nenhum dado disponível</p>;
+                      }
+                      
+                      // Converter para números
+                      const numArray = numbers.map(n => Number(n));
+                      
+                      // Estatísticas por dúzias
+                      const firstDozen = numArray.filter(n => n >= 1 && n <= 12).length;
+                      const secondDozen = numArray.filter(n => n >= 13 && n <= 24).length;
+                      const thirdDozen = numArray.filter(n => n >= 25 && n <= 36).length;
+                      
+                      // Estatísticas por colunas
+                      const firstColumn = numArray.filter(n => n > 0 && n % 3 === 1).length;
+                      const secondColumn = numArray.filter(n => n > 0 && n % 3 === 2).length;
+                      const thirdColumn = numArray.filter(n => n > 0 && n % 3 === 0).length;
+                      
+                      const total = numArray.length;
+                      
+                      return (
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {/* Dúzias */}
+                          <div className="bg-gray-900 p-2 rounded">
+                            <div className="text-xs text-gray-400">1ª dúzia (1-12)</div>
+                            <div className="flex justify-between items-center">
+                              <div className="text-sm text-white font-medium">{firstDozen}</div>
+                              <div className="text-xs text-green-400">{Math.round((firstDozen / total) * 100)}%</div>
+                            </div>
+                          </div>
+                          <div className="bg-gray-900 p-2 rounded">
+                            <div className="text-xs text-gray-400">2ª dúzia (13-24)</div>
+                            <div className="flex justify-between items-center">
+                              <div className="text-sm text-white font-medium">{secondDozen}</div>
+                              <div className="text-xs text-green-400">{Math.round((secondDozen / total) * 100)}%</div>
+                            </div>
+                          </div>
+                          <div className="bg-gray-900 p-2 rounded">
+                            <div className="text-xs text-gray-400">3ª dúzia (25-36)</div>
+                            <div className="flex justify-between items-center">
+                              <div className="text-sm text-white font-medium">{thirdDozen}</div>
+                              <div className="text-xs text-green-400">{Math.round((thirdDozen / total) * 100)}%</div>
+                            </div>
+                          </div>
+                          <div className="bg-gray-900 p-2 rounded">
+                            <div className="text-xs text-gray-400">Zero</div>
+                            <div className="flex justify-between items-center">
+                              <div className="text-sm text-white font-medium">{numArray.filter(n => n === 0).length}</div>
+                              <div className="text-xs text-green-400">{Math.round((numArray.filter(n => n === 0).length / total) * 100)}%</div>
+                            </div>
+                          </div>
+                          
+                          {/* Colunas */}
+                          <div className="bg-gray-900 p-2 rounded">
+                            <div className="text-xs text-gray-400">1ª coluna (1,4,7...)</div>
+                            <div className="flex justify-between items-center">
+                              <div className="text-sm text-white font-medium">{firstColumn}</div>
+                              <div className="text-xs text-green-400">{Math.round((firstColumn / total) * 100)}%</div>
+                            </div>
+                          </div>
+                          <div className="bg-gray-900 p-2 rounded">
+                            <div className="text-xs text-gray-400">2ª coluna (2,5,8...)</div>
+                            <div className="flex justify-between items-center">
+                              <div className="text-sm text-white font-medium">{secondColumn}</div>
+                              <div className="text-xs text-green-400">{Math.round((secondColumn / total) * 100)}%</div>
+                            </div>
+                          </div>
+                          <div className="bg-gray-900 p-2 rounded">
+                            <div className="text-xs text-gray-400">3ª coluna (3,6,9...)</div>
+                            <div className="flex justify-between items-center">
+                              <div className="text-sm text-white font-medium">{thirdColumn}</div>
+                              <div className="text-xs text-green-400">{Math.round((thirdColumn / total) * 100)}%</div>
+                            </div>
+                          </div>
+                          <div className="bg-gray-900 p-2 rounded">
+                            <div className="text-xs text-gray-400">Total de números</div>
+                            <div className="flex justify-between items-center">
+                              <div className="text-sm text-white font-medium">{total}</div>
+                              <div className="text-xs text-blue-400">100%</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
             </div>
