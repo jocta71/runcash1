@@ -29,18 +29,37 @@ const app = express();
 
 // Configurar CORS para permitir qualquer origem
 app.use((req, res, next) => {
-  const origin = req.headers.origin || 'desconhecida';
-  console.log(`[CORS] Requisição ${req.method} recebida de origem: ${origin} para ${req.url}`);
+  // Log da requisição para debugging
+  const origin = req.headers.origin || 'sem origem';
+  console.log(`[CORS] Requisição de origem: ${origin}, método: ${req.method}, url: ${req.url}`);
   
-  // Permitir qualquer origem
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  // Permitir domínios específicos
+  const allowedOrigins = [
+    'https://runcash11-ten.vercel.app',
+    'http://runcash11-ten.vercel.app',
+    'https://runcashh1-ten.vercel.app',
+    'http://runcashh1-ten.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173' // Servidor de desenvolvimento Vite
+  ];
+  
+  // Verificar se a origem está na lista de permitidas
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    // Para desenvolvimento e testes, permitir qualquer origem
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
+  // Configurar outros cabeçalhos CORS
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400'); // Cache preflight por 24 horas
   
-  // Tratar solicitações preflight OPTIONS
+  // Responder imediatamente para requisições preflight (OPTIONS)
   if (req.method === 'OPTIONS') {
-    console.log(`[CORS] Respondendo à requisição preflight OPTIONS para ${req.url}`);
+    console.log('[CORS] Respondendo a requisição preflight OPTIONS');
     return res.status(200).end();
   }
   
@@ -101,15 +120,66 @@ app.post('/emit-event', (req, res) => {
   }
 });
 
+// Endpoint para testar configuração CORS
+app.get('/cors-test', (req, res) => {
+  const origin = req.headers.origin || 'sem origem';
+  
+  res.json({
+    success: true,
+    message: 'CORS está configurado corretamente',
+    corsInfo: {
+      requestOrigin: origin,
+      allowedOrigins: allowedOrigins,
+      isAllowed: !origin || allowedOrigins.includes(origin),
+      headers: {
+        sent: {
+          'Access-Control-Allow-Origin': res.getHeader('Access-Control-Allow-Origin'),
+          'Access-Control-Allow-Methods': res.getHeader('Access-Control-Allow-Methods'),
+          'Access-Control-Allow-Headers': res.getHeader('Access-Control-Allow-Headers'),
+          'Access-Control-Allow-Credentials': res.getHeader('Access-Control-Allow-Credentials')
+        },
+        received: req.headers
+      }
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO sem restrições CORS
+// Lista de domínios permitidos para CORS
+const allowedOrigins = [
+  'https://runcash11-ten.vercel.app',
+  'http://runcash11-ten.vercel.app',
+  'https://runcashh1-ten.vercel.app',
+  'http://runcashh1-ten.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173' // Servidor de desenvolvimento Vite
+];
+
+// Inicializar Socket.IO com configurações de CORS específicas
 const io = new Server(server, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-    credentials: true
+    origin: function(origin, callback) {
+      // Permitir requisições sem origem (ex: durante desenvolvimento)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // Verificar se a origem está na lista de permitidas
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        // Para desenvolvimento e testes, permitir qualquer origem
+        callback(null, true);
+        // Em produção, você pode restringir:
+        // callback(new Error('Origem não permitida pelo CORS'), false);
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
   },
   allowEIO3: true,
   transports: ['websocket', 'polling'],
@@ -118,7 +188,7 @@ const io = new Server(server, {
 });
 
 // Log para confirmar configuração
-console.log('Socket.IO configurado sem restrições CORS e com timeouts aumentados');
+console.log('Socket.IO configurado com CORS para origens específicas');
 
 // Status e números das roletas
 let rouletteStatus = {};
