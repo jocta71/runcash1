@@ -69,85 +69,88 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   // Se temos dados passados por props, mostrar eles diretamente
   if (roulettesData && roulettesData.length > 0) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold mb-6 text-white">Roletas ao Vivo</h2>
+      <div className="container mx-auto px-4 py-6">
+        <h2 className="text-2xl font-bold mb-6 text-white">Roletas Disponíveis</h2>
         
-        {showStatsInline && selectedRoulette ? (
-          // Layout com roleta selecionada e estatísticas ao lado
-          <div className="flex flex-col lg:flex-row gap-6 mb-8">
-            <div className="lg:w-1/3">
-              <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg">
-                <div className="p-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-xl font-semibold text-white">{selectedRoulette.nome}</h3>
-                    <button 
-                      onClick={handleCloseStats}
-                      className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-                      title="Fechar estatísticas"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
-                    </button>
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Lista de roletas à esquerda */}
+          <div className="lg:w-1/4">
+            <div className="bg-gray-900 rounded-lg p-4 mb-4">
+              <h3 className="text-xl font-bold text-white mb-4">Roletas</h3>
+              <div className="space-y-3 max-h-[80vh] overflow-y-auto pr-2">
+                {roulettes.map(roleta => (
+                  <div 
+                    key={roleta.id} 
+                    className={`bg-gray-800 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-750 transition-colors p-3 ${selectedRoulette?.id === roleta.id ? 'border-2 border-[#00ff00]' : ''}`}
+                    onClick={() => handleRouletteSelect(roleta)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-semibold text-white">{roleta.nome}</h3>
+                      {Array.isArray(roleta.numero) && roleta.numero.length > 0 && (
+                        <div 
+                          className={`${
+                            roleta.numero[0].numero === 0 
+                              ? "bg-green-600" 
+                              : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(roleta.numero[0].numero)
+                                ? "bg-red-600"
+                                : "bg-black"
+                          } w-8 h-8 rounded-full flex items-center justify-center text-white font-medium`}
+                        >
+                          {roleta.numero[0].numero}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {roleta.numero.slice(0, 8).map((n, index) => {
+                          const num = n.numero;
+                          const bgColor = num === 0 
+                            ? "bg-green-600" 
+                            : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
+                              ? "bg-red-600"
+                              : "bg-black";
+                          
+                          return (
+                            <div 
+                              key={index} 
+                              className={`${bgColor} text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium`}
+                            >
+                              {num}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-sm">Aguardando números...</p>
+                    )}
                   </div>
-                  
-                  {Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0 ? (
-                    <RouletteMiniStats 
-                      roletaId={selectedRoulette.id}
-                      roletaNome={selectedRoulette.nome}
-                      numbers={selectedRoulette.numero.map(n => n.numero)}
-                    />
-                  ) : (
-                    <p className="text-gray-400">Aguardando números da roleta...</p>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            <div className="lg:w-2/3">
-              <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg h-full">
-                {Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0 ? (
-                  <div className="p-0 h-full">
-                    {/* Conteúdo das estatísticas inline */}
-                    <RouletteStatsInline 
-                      roletaNome={selectedRoulette.nome}
-                      lastNumbers={selectedRoulette.numero.map(n => n.numero)}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full p-6">
-                    <p className="text-gray-400">Não há dados suficientes para exibir estatísticas.</p>
-                  </div>
-                )}
+                ))}
               </div>
             </div>
           </div>
-        ) : null}
-        
-        {/* Grid de roletas com os dados da API */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {roulettes.map(roleta => (
-            <div 
-              key={roleta.id} 
-              className="bg-gray-800 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-750 transition-colors"
-              onClick={() => handleRouletteSelect(roleta)}
-            >
-              <div className="p-4">
-                <h3 className="text-xl font-semibold text-white mb-2">{roleta.nome}</h3>
-                
-                {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? (
-                  <RouletteMiniStats 
-                    roletaId={roleta.id}
-                    roletaNome={roleta.nome}
-                    numbers={roleta.numero.map(n => n.numero)}
+          
+          {/* Estatísticas detalhadas à direita */}
+          <div className="lg:w-3/4">
+            {selectedRoulette && Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0 ? (
+              <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg h-full">
+                <div className="h-full">
+                  <RouletteStatsInline 
+                    roletaNome={selectedRoulette.nome}
+                    lastNumbers={selectedRoulette.numero.map(n => n.numero)}
                   />
-                ) : (
-                  <p className="text-gray-400">Aguardando números da roleta...</p>
-                )}
+                </div>
               </div>
-            </div>
-          ))}
+            ) : (
+              <div className="bg-gray-800 rounded-lg flex items-center justify-center p-12 h-64 text-center">
+                <p className="text-gray-400 text-lg">
+                  {selectedRoulette 
+                    ? "Não há dados suficientes para exibir estatísticas." 
+                    : "Selecione uma roleta para ver estatísticas detalhadas"}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
