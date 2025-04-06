@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { BarChart } from 'lucide-react';
-import RouletteHistory from './roulette/RouletteHistory';
+import RouletteStatsModal from './RouletteStatsModal';
 
 interface RouletteMiniStatsProps {
   roletaId: string;
@@ -164,12 +164,13 @@ const RouletteMiniStats: React.FC<RouletteMiniStatsProps> = ({
       </div>
       
       {/* Modal de estatísticas completas */}
-      <RouletteHistory
-        roletaId={roletaId}
-        roletaNome={roletaNome}
-        initialNumbers={numbers}
-        isOpen={isStatsModalOpen}
+      <RouletteStatsModal
+        open={isStatsModalOpen}
         onClose={() => setIsStatsModalOpen(false)}
+        roletaNome={roletaNome}
+        lastNumbers={numbers}
+        wins={0}
+        losses={0}
       />
     </div>
   );
