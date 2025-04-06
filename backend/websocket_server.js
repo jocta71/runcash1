@@ -22,46 +22,17 @@ console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
 console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 
 // Desativando completamente CORS - conforme solicitado
-console.log('CORS configurado para permitir apenas origens específicas');
+console.log('CORS completamente desativado - permitindo requisições de qualquer origem');
 
 // Inicializar Express
 const app = express();
 
-// Configurar CORS para permitir apenas origens específicas
+// Configurar CORS para permitir qualquer origem
 app.use((req, res, next) => {
   console.log(`[CORS] Requisição recebida de origem: ${req.headers.origin || 'desconhecida'}`);
-  console.log(`[CORS] Path: ${req.path}`);
-  console.log(`[CORS] URL completa: ${req.originalUrl}`);
   
-  // Extrair o domínio base da origem (sem o caminho)
-  const origin = req.headers.origin;
-  const originBase = origin ? origin.split('/').slice(0, 3).join('/') : null;
-  
-  console.log(`[CORS] Origem base extraída: ${originBase || 'nenhuma'}`);
-  
-  const allowedOriginBases = [
-    'https://runcash11-ten.vercel.app',
-    'http://runcash11-ten.vercel.app',
-    'https://runcashh1-ten.vercel.app',
-    'http://runcashh1-ten.vercel.app',
-    'https://runcash1-ten.vercel.app',
-    'http://runcash1-ten.vercel.app'
-  ];
-  
-  // Verificar se a parte base da origem está na lista de permitidas
-  if (originBase && allowedOriginBases.includes(originBase)) {
-    console.log(`[CORS] Origem base permitida: ${originBase}`);
-    // Permitir a origem completa original
-    res.header('Access-Control-Allow-Origin', origin);
-  } else if (origin && origin.includes('localhost')) {
-    // Permitir localhost para desenvolvimento
-    console.log(`[CORS] Origem localhost permitida: ${origin}`);
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    // Para requisições sem origem ou de outras origens não permitidas
-    console.log(`[CORS] Requisição de origem não permitida: ${origin || 'desconhecida'}`);
-  }
-  
+  // Permitir qualquer origem
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
@@ -95,25 +66,13 @@ app.get('/', (req, res) => {
 // Endpoint para testar CORS
 app.get('/test-cors', (req, res) => {
   const origin = req.headers.origin || 'unknown';
-  const allowedOrigins = [
-    'https://runcash11-ten.vercel.app',
-    'http://runcash11-ten.vercel.app',
-    'https://runcashh1-ten.vercel.app',
-    'http://runcashh1-ten.vercel.app',
-    'https://runcash1-ten.vercel.app', 
-    'http://runcash1-ten.vercel.app',
-    'http://localhost:3000'
-  ];
-  
-  const isAllowed = allowedOrigins.includes(origin);
   
   res.json({
     success: true,
-    message: isAllowed ? 'CORS permitido para esta origem' : 'Origem não está na lista de permitidas',
+    message: 'CORS completamente desativado - aceitando requisições de qualquer origem',
     origin: origin,
-    allowed: isAllowed,
-    headers: req.headers,
-    allowedOrigins: allowedOrigins
+    allowed: true,
+    headers: req.headers
   });
 });
 
@@ -141,41 +100,10 @@ app.post('/emit-event', (req, res) => {
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Lista de domínios base permitidos
-const allowedOriginBases = [
-  'https://runcash11-ten.vercel.app',
-  'http://runcash11-ten.vercel.app',
-  'https://runcashh1-ten.vercel.app',
-  'http://runcashh1-ten.vercel.app',
-  'https://runcash1-ten.vercel.app',
-  'http://runcash1-ten.vercel.app'
-];
-
-// Inicializar Socket.IO com configurações de CORS flexíveis
+// Inicializar Socket.IO sem restrições CORS
 const io = new Server(server, {
   cors: {
-    origin: function(origin, callback) {
-      // Verificar se a origem é nula (requisição local/sem origem)
-      if (!origin) {
-        console.log('[Socket.IO] Requisição sem origem, permitindo para desenvolvimento');
-        return callback(null, true);
-      }
-      
-      // Extrair a base da origem
-      const originBase = origin.split('/').slice(0, 3).join('/');
-      console.log(`[Socket.IO] Verificando origem: ${origin}, base: ${originBase}`);
-      
-      // Verificar se a base da origem está na lista de permitidas
-      const allowed = allowedOriginBases.includes(originBase) || origin.includes('localhost');
-      
-      if (allowed) {
-        console.log(`[Socket.IO] Origem permitida: ${origin}`);
-        callback(null, true);
-      } else {
-        console.log(`[Socket.IO] Origem não permitida: ${origin}`);
-        callback(new Error('Origem não permitida'));
-      }
-    },
+    origin: '*',
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -186,7 +114,7 @@ const io = new Server(server, {
 });
 
 // Log para confirmar configuração
-console.log('Socket.IO configurado com CORS para origens específicas e com timeouts aumentados');
+console.log('Socket.IO configurado sem restrições CORS e com timeouts aumentados');
 
 // Status e números das roletas
 let rouletteStatus = {};
@@ -801,8 +729,8 @@ app.get('/api/ROULETTES-test', (req, res) => {
       host: req.headers.host
     },
     cors: {
-      enabled: true,
-      allowedOriginBases
+      enabled: false,
+      permitindo_qualquer_origem: true
     }
   });
 });
