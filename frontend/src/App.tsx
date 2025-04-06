@@ -120,10 +120,11 @@ const App = () => {
                     {/* Redirecionamento da antiga rota de tempo real para a página principal */}
                     <Route path="/realtime" element={<Navigate to="/" />} />
 
-                    {/* Nova rota para roletas */}
-                    <Route path="/roulettes" element={<RoulettesPage />} />
+                    {/* Rota para roletas */}
+                    <Route path="/roulettes" element={<LiveRoulettePage />} />
                     
-                    {/* Nova rota para histórico de roletas */}
+                    {/* Rota para histórico de roletas */}
+                    <Route path="/historico" element={<LiveRoulettePage />} />
                     <Route path="/historico/:roletaId" element={<RouletteHistoryPage />} />
                   </Routes>
                 </Suspense>
