@@ -22,16 +22,26 @@ console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
 console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 
 // Desativando completamente CORS - conforme solicitado
-console.log('CORS completamente desativado - ignorando configurações CORS');
+console.log('CORS configurado para permitir apenas origens específicas');
 
 // Inicializar Express
 const app = express();
 
-// Remover todas as configurações CORS
+// Configurar CORS para permitir apenas origens específicas
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', '*');
-  res.header('Access-Control-Allow-Headers', '*');
+  const allowedOrigins = ['https://runcash11-ten.vercel.app', 'http://localhost:3000'];
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    // Para requisições sem origem ou de outras origens não permitidas
+    console.log(`Requisição de origem não permitida: ${origin || 'desconhecida'}`);
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -91,9 +101,13 @@ app.post('/emit-event', (req, res) => {
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO sem configurações de CORS, mas com timeouts aumentados
+// Inicializar Socket.IO com configurações de CORS específicas
 const io = new Server(server, {
-  cors: false,
+  cors: {
+    origin: ['https://runcash11-ten.vercel.app', 'http://localhost:3000'],
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
   allowEIO3: true,
   transports: ['websocket', 'polling'],
   pingTimeout: 60000, // Aumentar timeout para 60s
@@ -101,7 +115,7 @@ const io = new Server(server, {
 });
 
 // Log para confirmar configuração
-console.log('Socket.IO configurado SEM CORS e com timeouts aumentados');
+console.log('Socket.IO configurado com CORS para origens específicas e com timeouts aumentados');
 
 // Status e números das roletas
 let rouletteStatus = {};
