@@ -3,12 +3,10 @@
   "buildCommand": "vite build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/events", "destination": "/api/proxy?path=/api/events" },
-    { "source": "/api/roulettes", "destination": "/api/proxy?path=/api/roulettes" },
-    { "source": "/api/strategies", "destination": "/api/proxy?path=/api/strategies" },
-    { "source": "/emit-event", "destination": "/api/proxy?path=/emit-event" },
-    { "source": "/test-cors", "destination": "/api/proxy?path=/test-cors" },
-    { "source": "/socket-status", "destination": "/api/proxy?path=/socket-status" },
+    { "source": "/api/:path*", "destination": "https://backendapi-production-36b5.up.railway.app/api/:path*" },
+    { "source": "/emit-event", "destination": "https://backendapi-production-36b5.up.railway.app/emit-event" },
+    { "source": "/test-cors", "destination": "https://backendapi-production-36b5.up.railway.app/test-cors" },
+    { "source": "/socket-status", "destination": "https://backendapi-production-36b5.up.railway.app/socket-status" },
     { "source": "/historico/:roletaId", "destination": "/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
