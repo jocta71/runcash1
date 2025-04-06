@@ -214,7 +214,8 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
             {Array.from({ length: Math.min(isExpanded ? historyNumbers.length : 15, historyNumbers.length) }).map((_, index) => (
               <div key={index} className="flex items-center justify-center">
                 <div
-                  className={`${getNumberColor(historyNumbers[index])} cell-number-${historyNumbers[index]} cell-state-default flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium`}
+                  className={`${getNumberColor(historyNumbers[index])} cell-number-${historyNumbers[index]} cell-state-default flex h-6 w-6 items-center justify-center rounded-full font-medium`}
+                  style={{ fontSize: '0.85rem' }}
                 >
                   {historyNumbers[index]}
                 </div>
@@ -245,7 +246,8 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
           {historyNumbers.map((num, index) => (
             <div 
               key={`list-${index}`} 
-              className={`${getNumberColor(num)} flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium`}
+              className={`${getNumberColor(num)} flex h-6 w-6 items-center justify-center rounded-full font-medium`}
+              style={{ fontSize: '0.85rem' }}
             >
               {num}
             </div>
