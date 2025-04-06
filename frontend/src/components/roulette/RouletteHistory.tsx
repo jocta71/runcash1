@@ -207,15 +207,15 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   // Renderizar grade de números
   const renderGrid = () => {
     return (
-      <div className="round-history w-full flex flex-col space-y-2">
-        <div className="flex space-x-2">
+      <div className="round-history w-full flex flex-col space-y-1">
+        <div className="flex space-x-0">
           <div className="w-full">
-            <div className="grid-row flex flex-1 flex-row items-center justify-between" style={{ minHeight: '50px' }}>
+            <div className="grid-row flex flex-1 flex-row items-center justify-between gap-0" style={{ minHeight: '40px' }}>
               {/* Células de grade agrupadas em linhas de 15 */}
               {Array.from({ length: Math.min(15, historyNumbers.length) }).map((_, index) => (
-                <div key={index} className="group relative flex items-center justify-center" style={{ minWidth: '40px', minHeight: '40px' }}>
+                <div key={index} className="group relative flex items-center justify-center" style={{ minWidth: '32px', minHeight: '32px' }}>
                   <div
-                    className={`${getNumberColor(historyNumbers[index])} cell-number-${historyNumbers[index]} cell-state-default flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium`}
+                    className={`${getNumberColor(historyNumbers[index])} cell-number-${historyNumbers[index]} cell-state-default flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium`}
                   >
                     {historyNumbers[index]}
                   </div>
@@ -227,17 +227,17 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
         
         {/* Mostrar mais linhas se expandido */}
         {isExpanded && Array.from({ length: Math.ceil(historyNumbers.length / 15) - 1 }).map((_, rowIndex) => (
-          <div key={`row-${rowIndex + 1}`} className="flex space-x-2">
+          <div key={`row-${rowIndex + 1}`} className="flex space-x-0">
             <div className="w-full">
-              <div className="grid-row flex flex-1 flex-row items-center justify-between" style={{ minHeight: '50px' }}>
+              <div className="grid-row flex flex-1 flex-row items-center justify-between gap-0" style={{ minHeight: '40px' }}>
                 {Array.from({ length: 15 }).map((_, colIndex) => {
                   const numIndex = (rowIndex + 1) * 15 + colIndex;
                   if (numIndex >= historyNumbers.length) return null;
                   
                   return (
-                    <div key={numIndex} className="group relative flex items-center justify-center" style={{ minWidth: '40px', minHeight: '40px' }}>
+                    <div key={numIndex} className="group relative flex items-center justify-center" style={{ minWidth: '32px', minHeight: '32px' }}>
                       <div
-                        className={`${getNumberColor(historyNumbers[numIndex])} cell-number-${historyNumbers[numIndex]} cell-state-default flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium`}
+                        className={`${getNumberColor(historyNumbers[numIndex])} cell-number-${historyNumbers[numIndex]} cell-state-default flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium`}
                       >
                         {historyNumbers[numIndex]}
                       </div>
@@ -267,11 +267,11 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   const renderList = () => {
     return (
       <ScrollArea className="h-[400px] rounded-md border">
-        <div className="grid grid-cols-12 gap-1 p-2">
+        <div className="grid grid-cols-15 gap-0 p-1">
           {historyNumbers.map((num, index) => (
             <div 
               key={`list-${index}`} 
-              className={`${getNumberColor(num)} flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium`}
+              className={`${getNumberColor(num)} flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium`}
             >
               {num}
             </div>
