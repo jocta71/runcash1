@@ -8,6 +8,7 @@ import EventService from '@/services/EventService';
 import { RouletteNumberEvent } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import RouletteStatsModal from '@/components/RouletteStatsModal';
+import { BarChart } from 'lucide-react';
 
 interface RouletteHistoryProps {
   roletaId: string;
@@ -268,16 +269,6 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   const renderStats = () => {
     return (
       <div className="space-y-4">
-        <div className="flex justify-end">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setIsStatsModalOpen(true)}
-            className="mb-2"
-          >
-            Visualização Avançada
-          </Button>
-        </div>
         <div className="grid grid-cols-2 gap-4 p-4">
           <Card>
             <CardContent className="pt-6">
@@ -412,13 +403,22 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
         <Badge variant="outline" className="px-2 py-1">
           {historyNumbers.length} números registrados
         </Badge>
-        <Tabs defaultValue="stats" onValueChange={(value) => setViewMode(value as ViewMode)}>
-          <TabsList>
-            <TabsTrigger value="stats">Estatísticas</TabsTrigger>
-            <TabsTrigger value="grid">Grade</TabsTrigger>
-            <TabsTrigger value="list">Lista</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsStatsModalOpen(true)}
+            className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors"
+            title="Abrir estatísticas avançadas"
+          >
+            <BarChart className="h-5 w-5 text-primary" />
+          </button>
+          <Tabs defaultValue="stats" onValueChange={(value) => setViewMode(value as ViewMode)}>
+            <TabsList>
+              <TabsTrigger value="stats">Estatísticas</TabsTrigger>
+              <TabsTrigger value="grid">Grade</TabsTrigger>
+              <TabsTrigger value="list">Lista</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
       
       {viewMode === 'grid' && renderGrid()}
