@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { Search, Wallet, Menu, MessageSquare, AlertCircle, BarChart3 } from 'lucide-react';
+import { Search, Wallet, Menu, MessageSquare, AlertCircle, BarChart3, ArrowUp, ArrowDown, X, ChartBar, BarChart, Percent } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import RouletteCard from '@/components/RouletteCard';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,19 @@ import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
+import { 
+  ResponsiveContainer, 
+  BarChart as RechartsBarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
 
 interface ChatMessage {
   id: string;
@@ -34,6 +47,82 @@ interface KnownRoulette {
   ultima_atualizacao: string;
 }
 
+// Função para buscar histórico da roleta - adaptada do modal
+const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<number[]> => {
+  try {
+    const response = await fetch(`/api/roulettes/history/${rouletteName}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      
+      if (data && Array.isArray(data.numbers) && data.numbers.length > 0) {
+        // Obter apenas os números da resposta da API
+        const reversedNumbers = [...data.numbers].reverse().map(
+          (n: any) => typeof n === 'object' && n !== null ? 
+            (n.numero !== undefined ? Number(n.numero) : Number(n)) : 
+            Number(n)
+        ).filter((n: number) => !isNaN(n));
+        
+        console.log(`[${new Date().toLocaleTimeString()}] Números válidos para ${rouletteName}: ${reversedNumbers.length}`);
+        
+        return reversedNumbers;
+      } else {
+        console.log(`[${new Date().toLocaleTimeString()}] Nenhum dado encontrado para ${rouletteName}`);
+      }
+    }
+    
+    return [];
+  } catch (error) {
+    console.error(`[${new Date().toLocaleTimeString()}] Erro ao buscar números históricos:`, error);
+    return [];
+  }
+};
+
+// Generate frequency data for numbers - adaptada do modal
+const generateFrequencyData = (numbers: number[]) => {
+  const frequency: Record<number, number> = {};
+  
+  // Initialize all roulette numbers (0-36)
+  for (let i = 0; i <= 36; i++) {
+    frequency[i] = 0;
+  }
+  
+  // Count frequency of each number
+  numbers.forEach(num => {
+    if (frequency[num] !== undefined) {
+      frequency[num]++;
+    }
+  });
+  
+  // Convert to array format needed for charts
+  return Object.keys(frequency).map(key => ({
+    number: parseInt(key),
+    frequency: frequency[parseInt(key)]
+  })).sort((a, b) => a.number - b.number);
+};
+
+// Generate pie chart data for number groups - adaptada do modal
+const generateGroupDistribution = (numbers: number[]) => {
+  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  const groups = [
+    { name: "Vermelhos", value: 0, color: "#ef4444" },
+    { name: "Pretos", value: 0, color: "#111827" },
+    { name: "Zero", value: 0, color: "#059669" },
+  ];
+  
+  numbers.forEach(num => {
+    if (num === 0) {
+      groups[2].value += 1;
+    } else if (redNumbers.includes(num)) {
+      groups[0].value += 1;
+    } else {
+      groups[1].value += 1;
+    }
+  });
+  
+  return groups;
+};
+
 const Index = () => {
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -45,6 +134,8 @@ const Index = () => {
   const [knownRoulettes, setKnownRoulettes] = useState<RouletteData[]>([]);
   const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(false);
   const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
+  const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
   
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
@@ -383,6 +474,71 @@ const Index = () => {
     });
   };
 
+  // Efeito para carregar dados históricos quando uma roleta é selecionada
+  useEffect(() => {
+    const loadHistoricalData = async () => {
+      if (selectedRoulette) {
+        setIsLoadingStats(true);
+        
+        try {
+          console.log(`Buscando histórico para ${selectedRoulette.nome || selectedRoulette.name}...`);
+          let numbers = await fetchRouletteHistoricalNumbers(selectedRoulette.nome || selectedRoulette.name || '');
+          
+          // Extrair números da roleta selecionada - ajustado para lidar com qualquer formato
+          const extractNumbers = () => {
+            if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
+              return selectedRoulette.numero.map(n => 
+                typeof n === 'object' && n !== null && 'numero' in n ? Number(n.numero || 0) : Number(n || 0)
+              ).filter(n => !isNaN(n));
+            } 
+            
+            if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
+              return selectedRoulette.lastNumbers.map(n => Number(n || 0)).filter(n => !isNaN(n));
+            }
+            
+            if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
+              return selectedRoulette.numeros.map(n => Number(n || 0)).filter(n => !isNaN(n));
+            }
+            
+            return [];
+          };
+
+          const currentNumbers = extractNumbers();
+
+          // Se houver lastNumbers na roleta, garantir que eles estão incluídos no início do histórico
+          if (currentNumbers && currentNumbers.length > 0) {
+            // Combinar currentNumbers com os números históricos, removendo duplicatas
+            const combinedNumbers = [...currentNumbers];
+            numbers.forEach(num => {
+              if (!combinedNumbers.includes(num)) {
+                combinedNumbers.push(num);
+              }
+            });
+            numbers = combinedNumbers;
+          }
+          
+          if (numbers && numbers.length > 10) {
+            console.log(`Encontrados ${numbers.length} números históricos`);
+            setHistoricalNumbers(numbers);
+          } else {
+            console.log(`Histórico insuficiente, usando dados existentes`);
+            // Se não temos dados históricos suficientes, usar apenas os números atuais
+            setHistoricalNumbers(currentNumbers.length > 0 ? currentNumbers : 
+              [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10]); // dados de exemplo
+          }
+        } catch (error) {
+          console.error('Erro ao carregar dados históricos:', error);
+          // Dados de exemplo se falhar
+          setHistoricalNumbers([0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10]);
+        } finally {
+          setIsLoadingStats(false);
+        }
+      }
+    };
+    
+    loadHistoricalData();
+  }, [selectedRoulette]);
+
   return (
     <Layout preloadData={true}>
       <div className="container mx-auto px-4 pt-4 md:pt-8">
@@ -434,7 +590,7 @@ const Index = () => {
             </div>
             
             {/* Painel de estatísticas à direita (1/3 da largura em desktop) */}
-            <div className="w-full lg:w-1/3 bg-gray-900 rounded-lg p-4 h-fit sticky top-4">
+            <div className="w-full lg:w-1/3 bg-gray-900 rounded-lg p-4 h-fit overflow-y-auto max-h-[calc(100vh-100px)] sticky top-4">
               <h2 className="text-xl font-bold text-white mb-4 flex items-center">
                 <BarChart3 className="h-5 w-5 mr-2 text-green-500" />
                 {selectedRoulette 
@@ -444,206 +600,135 @@ const Index = () => {
               </h2>
               
               {/* Conteúdo do painel de estatísticas */}
-              {!selectedRoulette ? (
+              {isLoadingStats ? (
+                <div className="text-white text-center py-10">
+                  <div className="animate-spin w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                  <p>Carregando estatísticas...</p>
+                </div>
+              ) : !selectedRoulette ? (
                 <div className="text-gray-400 text-sm mb-4">
                   Selecione uma roleta para ver estatísticas detalhadas
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Estatísticas para a roleta selecionada */}
+                  {/* Histórico de Números */}
                   <div className="bg-gray-800 p-3 rounded-lg">
-                    <h3 className="text-sm font-medium text-white mb-2">Distribuição de Cores</h3>
-                    
+                    <h3 className="text-sm font-medium text-white mb-2 flex items-center">
+                      <BarChart className="h-4 w-4 mr-2 text-green-500" />
+                      Histórico de Números (Mostrando: {Math.min(historicalNumbers.length, 100)})
+                    </h3>
+                    <div className="grid grid-cols-8 sm:grid-cols-10 gap-1 max-h-[150px] overflow-y-auto p-1">
+                      {historicalNumbers.slice(0, 100).map((num, idx) => {
+                        const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+                        const bgColor = num === 0 
+                          ? "bg-green-600"
+                          : redNumbers.includes(num) ? "bg-red-600" : "bg-black";
+                        
+                        return (
+                          <div 
+                            key={idx} 
+                            className={`${bgColor} w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium text-white`}
+                          >
+                            {num}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* Distribuição de Cores */}
+                  <div className="bg-gray-800 p-3 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-2 flex items-center">
+                      <ChartBar className="h-4 w-4 mr-2 text-green-500" />
+                      Distribuição por Cor
+                    </h3>
+                    <div className="h-[180px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={generateGroupDistribution(historicalNumbers)}
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={60}
+                            fill="#00ff00"
+                            dataKey="value"
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          >
+                            {generateGroupDistribution(historicalNumbers).map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Legend />
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  
+                  {/* Taxa de Vitória */}
+                  <div className="bg-gray-800 p-3 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-2 flex items-center">
+                      <Percent className="h-4 w-4 mr-2 text-green-500" />
+                      Taxa de Vitória
+                    </h3>
                     {(() => {
-                      // Extrair números da roleta selecionada - ajustado para lidar com qualquer formato
-                      const extractNumbers = () => {
-                        if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-                          return selectedRoulette.numero.map(n => 
-                            typeof n === 'object' && n !== null && 'numero' in n ? Number(n.numero) : Number(n)
-                          ).filter(n => !isNaN(n));
-                        } 
-                        
-                        if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
-                          return selectedRoulette.lastNumbers.map(n => Number(n)).filter(n => !isNaN(n));
-                        }
-                        
-                        if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
-                          return selectedRoulette.numeros.map(n => Number(n)).filter(n => !isNaN(n));
-                        }
-                        
-                        // Se não encontrar dados em nenhum lugar, usar números fictícios para exemplo
-                        console.warn("Nenhum dado encontrado para a roleta, usando dados de exemplo");
-                        return [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10];
-                      };
-                      
-                      const numbers = extractNumbers();
-                      
-                      // A partir daqui continuamos com a lógica normal
-                      const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-                      const redCount = numbers.filter(n => redNumbers.includes(n)).length;
-                      const blackCount = numbers.filter(n => n !== 0 && !redNumbers.includes(n)).length;
-                      const zeroCount = numbers.filter(n => n === 0).length;
-                      const total = numbers.length || 1; // Evitar divisão por zero
-                      
-                      // Calcular porcentagens
-                      const redPercent = Math.round((redCount / total) * 100) || 0;
-                      const blackPercent = Math.round((blackCount / total) * 100) || 0;
-                      const zeroPercent = Math.round((zeroCount / total) * 100) || 0;
+                      const wins = typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0;
+                      const losses = typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0;
+                      const total = wins + losses;
+                      const winRate = total > 0 ? (wins / total) * 100 : 0;
                       
                       return (
-                        <>
-                          {/* Barra de progresso para vermelho */}
-                          <div className="mb-2">
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="text-red-500">Vermelho</span>
-                              <span className="text-white">{redCount} ({redPercent}%)</span>
-                            </div>
-                            <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
-                              <div 
-                                className="bg-red-600 h-full" 
-                                style={{ width: `${redPercent}%` }}
-                              />
-                            </div>
-                          </div>
-                          
-                          {/* Barra de progresso para preto */}
-                          <div className="mb-2">
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="text-gray-300">Preto</span>
-                              <span className="text-white">{blackCount} ({blackPercent}%)</span>
-                            </div>
-                            <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
-                              <div 
-                                className="bg-gray-900 h-full" 
-                                style={{ width: `${blackPercent}%` }}
-                              />
-                            </div>
-                          </div>
-                          
-                          {/* Barra de progresso para zero */}
-                          <div>
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="text-green-500">Zero</span>
-                              <span className="text-white">{zeroCount} ({zeroPercent}%)</span>
-                            </div>
-                            <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
-                              <div 
-                                className="bg-green-600 h-full" 
-                                style={{ width: `${zeroPercent}%` }}
-                              />
-                            </div>
-                          </div>
-                        </>
+                        <div className="h-[180px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={[
+                                  { name: "Vitórias", value: wins || 1 },
+                                  { name: "Derrotas", value: losses || 1 }
+                                ]}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={40}
+                                outerRadius={60}
+                                fill="#00ff00"
+                                paddingAngle={5}
+                                dataKey="value"
+                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                              >
+                                <Cell key="wins" fill="#00ff00" />
+                                <Cell key="losses" fill="#ef4444" />
+                              </Pie>
+                              <Legend />
+                              <Tooltip />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
                       );
                     })()}
                   </div>
                   
-                  {/* Últimos números */}
+                  {/* Frequência de Números */}
                   <div className="bg-gray-800 p-3 rounded-lg">
-                    <h3 className="text-sm font-medium text-white mb-2">Últimos Números</h3>
-                    <div className="flex flex-wrap gap-1">
-                      {(() => {
-                        // Extrair números da roleta selecionada - mesma função de acima
-                        const extractNumbers = () => {
-                          if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-                            return selectedRoulette.numero.map(n => 
-                              typeof n === 'object' && n !== null && 'numero' in n ? Number(n.numero) : Number(n)
-                            ).filter(n => !isNaN(n));
-                          } 
-                          
-                          if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
-                            return selectedRoulette.lastNumbers.map(n => Number(n)).filter(n => !isNaN(n));
-                          }
-                          
-                          if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
-                            return selectedRoulette.numeros.map(n => Number(n)).filter(n => !isNaN(n));
-                          }
-                          
-                          // Se não encontrar dados em nenhum lugar, usar números fictícios para exemplo
-                          console.warn("Nenhum dado encontrado para a roleta, usando dados de exemplo");
-                          return [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10];
-                        };
-                        
-                        const numbers = extractNumbers();
-                        const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-                        
-                        return numbers.slice(0, 20).map((num, idx) => {
-                          const bgColor = num === 0 
-                            ? "bg-green-600" 
-                            : redNumbers.includes(num)
-                              ? "bg-red-600"
-                              : "bg-black";
-                          
-                          return (
-                            <div 
-                              key={idx} 
-                              className={`${bgColor} text-white w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium`}
-                            >
-                              {num}
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  </div>
-                  
-                  {/* Outras estatísticas em grid */}
-                  <div className="bg-gray-800 p-3 rounded-lg">
-                    <h3 className="text-sm font-medium text-white mb-2">Outras Estatísticas</h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      {(() => {
-                        // Extrair números da roleta selecionada - mesma função de acima
-                        const extractNumbers = () => {
-                          if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-                            return selectedRoulette.numero.map(n => 
-                              typeof n === 'object' && n !== null && 'numero' in n ? Number(n.numero) : Number(n)
-                            ).filter(n => !isNaN(n));
-                          } 
-                          
-                          if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
-                            return selectedRoulette.lastNumbers.map(n => Number(n)).filter(n => !isNaN(n));
-                          }
-                          
-                          if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
-                            return selectedRoulette.numeros.map(n => Number(n)).filter(n => !isNaN(n));
-                          }
-                          
-                          // Se não encontrar dados em nenhum lugar, usar números fictícios para exemplo
-                          console.warn("Nenhum dado encontrado para a roleta, usando dados de exemplo");
-                          return [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10];
-                        };
-                        
-                        const numArray = extractNumbers();
-                        
-                        return (
-                          <>
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">Par</div>
-                              <div className="text-sm text-white font-medium">
-                                {numArray.filter(n => n !== 0 && n % 2 === 0).length}
-                              </div>
-                            </div>
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">Ímpar</div>
-                              <div className="text-sm text-white font-medium">
-                                {numArray.filter(n => n % 2 === 1).length}
-                              </div>
-                            </div>
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">1-18</div>
-                              <div className="text-sm text-white font-medium">
-                                {numArray.filter(n => n >= 1 && n <= 18).length}
-                              </div>
-                            </div>
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">19-36</div>
-                              <div className="text-sm text-white font-medium">
-                                {numArray.filter(n => n >= 19 && n <= 36).length}
-                              </div>
-                            </div>
-                          </>
-                        );
-                      })()}
+                    <h3 className="text-sm font-medium text-white mb-2 flex items-center">
+                      <ChartBar className="h-4 w-4 mr-2 text-green-500" />
+                      Frequência de Números
+                    </h3>
+                    <div className="h-[180px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RechartsBarChart 
+                          data={generateFrequencyData(historicalNumbers).filter(item => item.frequency > 0)} 
+                          margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                          <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 10}} />
+                          <YAxis stroke="#ccc" tick={{fontSize: 10}} />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#222', borderColor: '#00ff00' }} 
+                            labelStyle={{ color: '#00ff00' }}
+                          />
+                          <Bar dataKey="frequency" fill="#00ff00" />
+                        </RechartsBarChart>
+                      </ResponsiveContainer>
                     </div>
                   </div>
                   
@@ -652,49 +737,7 @@ const Index = () => {
                     <h3 className="text-sm font-medium text-white mb-2">Números Quentes e Frios</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {(() => {
-                        // Extrair números da roleta selecionada - mesma função de acima
-                        const extractNumbers = () => {
-                          if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-                            return selectedRoulette.numero.map(n => 
-                              typeof n === 'object' && n !== null && 'numero' in n ? Number(n.numero) : Number(n)
-                            ).filter(n => !isNaN(n));
-                          } 
-                          
-                          if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
-                            return selectedRoulette.lastNumbers.map(n => Number(n)).filter(n => !isNaN(n));
-                          }
-                          
-                          if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
-                            return selectedRoulette.numeros.map(n => Number(n)).filter(n => !isNaN(n));
-                          }
-                          
-                          // Se não encontrar dados em nenhum lugar, usar números fictícios para exemplo
-                          console.warn("Nenhum dado encontrado para a roleta, usando dados de exemplo");
-                          return [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10];
-                        };
-                        
-                        const numArray = extractNumbers();
-                        
-                        // Calcular frequência dos números
-                        const frequency: Record<number, number> = {};
-                        
-                        // Inicializar todos os números da roleta (0-36)
-                        for (let i = 0; i <= 36; i++) {
-                          frequency[i] = 0;
-                        }
-                        
-                        // Contar frequência de cada número
-                        numArray.forEach(num => {
-                          if (frequency[num] !== undefined) {
-                            frequency[num]++;
-                          }
-                        });
-                        
-                        // Converter para array e ordenar
-                        const frequencyData = Object.keys(frequency).map(key => ({
-                          number: parseInt(key),
-                          frequency: frequency[parseInt(key)]
-                        }));
+                        const frequencyData = generateFrequencyData(historicalNumbers);
                         
                         // Obter 5 números mais frequentes e 5 menos frequentes
                         const hotNumbers = [...frequencyData]
@@ -741,12 +784,9 @@ const Index = () => {
                         return (
                           <>
                             {/* Números quentes */}
-                            <div>
+                            <div className="p-2 bg-gray-900 rounded-lg">
                               <h4 className="text-xs font-medium text-red-500 mb-2 flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                                  <polyline points="18 15 12 9 6 15"></polyline>
-                                </svg>
-                                Mais Frequentes
+                                <ArrowUp className="h-3 w-3 mr-1" /> Mais Frequentes
                               </h4>
                               <div className="flex flex-wrap gap-2">
                                 {hotNumbers.map(({number, frequency}) => {
@@ -769,12 +809,9 @@ const Index = () => {
                             </div>
                             
                             {/* Números frios */}
-                            <div>
+                            <div className="p-2 bg-gray-900 rounded-lg">
                               <h4 className="text-xs font-medium text-blue-500 mb-2 flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                                  <polyline points="6 9 12 15 18 9"></polyline>
-                                </svg>
-                                Menos Frequentes
+                                <ArrowDown className="h-3 w-3 mr-1" /> Menos Frequentes
                               </h4>
                               <div className="flex flex-wrap gap-2">
                                 {coldNumbers.map(({number, frequency}) => {
@@ -805,104 +842,81 @@ const Index = () => {
                   <div className="bg-gray-800 p-3 rounded-lg">
                     <h3 className="text-sm font-medium text-white mb-2">Resumo Detalhado</h3>
                     {(() => {
-                        // Extrair números da roleta selecionada - mesma função de acima
-                        const extractNumbers = () => {
-                          if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-                            return selectedRoulette.numero.map(n => 
-                              typeof n === 'object' && n !== null && 'numero' in n ? Number(n.numero) : Number(n)
-                            ).filter(n => !isNaN(n));
-                          } 
-                          
-                          if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
-                            return selectedRoulette.lastNumbers.map(n => Number(n)).filter(n => !isNaN(n));
-                          }
-                          
-                          if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
-                            return selectedRoulette.numeros.map(n => Number(n)).filter(n => !isNaN(n));
-                          }
-                          
-                          // Se não encontrar dados em nenhum lugar, usar números fictícios para exemplo
-                          console.warn("Nenhum dado encontrado para a roleta, usando dados de exemplo");
-                          return [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10];
-                        };
+                        // Estatísticas por dúzias
+                        const firstDozen = historicalNumbers.filter(n => n >= 1 && n <= 12).length;
+                        const secondDozen = historicalNumbers.filter(n => n >= 13 && n <= 24).length;
+                        const thirdDozen = historicalNumbers.filter(n => n >= 25 && n <= 36).length;
                         
-                        const numArray = extractNumbers();
-                      
-                      // Estatísticas por dúzias
-                      const firstDozen = numArray.filter(n => n >= 1 && n <= 12).length;
-                      const secondDozen = numArray.filter(n => n >= 13 && n <= 24).length;
-                      const thirdDozen = numArray.filter(n => n >= 25 && n <= 36).length;
-                      
-                      // Estatísticas por colunas
-                      const firstColumn = numArray.filter(n => n > 0 && n % 3 === 1).length;
-                      const secondColumn = numArray.filter(n => n > 0 && n % 3 === 2).length;
-                      const thirdColumn = numArray.filter(n => n > 0 && n % 3 === 0).length;
-                      
-                      const total = numArray.length || 1; // Evitar divisão por zero
-                      
-                      return (
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          {/* Dúzias */}
-                          <div className="bg-gray-900 p-2 rounded">
-                            <div className="text-xs text-gray-400">1ª dúzia (1-12)</div>
-                            <div className="flex justify-between items-center">
-                              <div className="text-sm text-white font-medium">{firstDozen}</div>
-                              <div className="text-xs text-green-400">{Math.round((firstDozen / total) * 100)}%</div>
+                        // Estatísticas por colunas
+                        const firstColumn = historicalNumbers.filter(n => n > 0 && n % 3 === 1).length;
+                        const secondColumn = historicalNumbers.filter(n => n > 0 && n % 3 === 2).length;
+                        const thirdColumn = historicalNumbers.filter(n => n > 0 && n % 3 === 0).length;
+                        
+                        const total = historicalNumbers.length || 1; // Evitar divisão por zero
+                        
+                        return (
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {/* Dúzias */}
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">1ª dúzia (1-12)</div>
+                              <div className="flex justify-between items-center">
+                                <div className="text-sm text-white font-medium">{firstDozen}</div>
+                                <div className="text-xs text-green-400">{Math.round((firstDozen / total) * 100)}%</div>
+                              </div>
+                            </div>
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">2ª dúzia (13-24)</div>
+                              <div className="flex justify-between items-center">
+                                <div className="text-sm text-white font-medium">{secondDozen}</div>
+                                <div className="text-xs text-green-400">{Math.round((secondDozen / total) * 100)}%</div>
+                              </div>
+                            </div>
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">3ª dúzia (25-36)</div>
+                              <div className="flex justify-between items-center">
+                                <div className="text-sm text-white font-medium">{thirdDozen}</div>
+                                <div className="text-xs text-green-400">{Math.round((thirdDozen / total) * 100)}%</div>
+                              </div>
+                            </div>
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">Zero</div>
+                              <div className="flex justify-between items-center">
+                                <div className="text-sm text-white font-medium">{historicalNumbers.filter(n => n === 0).length}</div>
+                                <div className="text-xs text-green-400">{Math.round((historicalNumbers.filter(n => n === 0).length / total) * 100)}%</div>
+                              </div>
+                            </div>
+                            
+                            {/* Colunas */}
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">1ª coluna (1,4,7...)</div>
+                              <div className="flex justify-between items-center">
+                                <div className="text-sm text-white font-medium">{firstColumn}</div>
+                                <div className="text-xs text-green-400">{Math.round((firstColumn / total) * 100)}%</div>
+                              </div>
+                            </div>
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">2ª coluna (2,5,8...)</div>
+                              <div className="flex justify-between items-center">
+                                <div className="text-sm text-white font-medium">{secondColumn}</div>
+                                <div className="text-xs text-green-400">{Math.round((secondColumn / total) * 100)}%</div>
+                              </div>
+                            </div>
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">3ª coluna (3,6,9...)</div>
+                              <div className="flex justify-between items-center">
+                                <div className="text-sm text-white font-medium">{thirdColumn}</div>
+                                <div className="text-xs text-green-400">{Math.round((thirdColumn / total) * 100)}%</div>
+                              </div>
+                            </div>
+                            <div className="bg-gray-900 p-2 rounded">
+                              <div className="text-xs text-gray-400">Total de números</div>
+                              <div className="flex justify-between items-center">
+                                <div className="text-sm text-white font-medium">{total}</div>
+                                <div className="text-xs text-blue-400">100%</div>
+                              </div>
                             </div>
                           </div>
-                          <div className="bg-gray-900 p-2 rounded">
-                            <div className="text-xs text-gray-400">2ª dúzia (13-24)</div>
-                            <div className="flex justify-between items-center">
-                              <div className="text-sm text-white font-medium">{secondDozen}</div>
-                              <div className="text-xs text-green-400">{Math.round((secondDozen / total) * 100)}%</div>
-                            </div>
-                          </div>
-                          <div className="bg-gray-900 p-2 rounded">
-                            <div className="text-xs text-gray-400">3ª dúzia (25-36)</div>
-                            <div className="flex justify-between items-center">
-                              <div className="text-sm text-white font-medium">{thirdDozen}</div>
-                              <div className="text-xs text-green-400">{Math.round((thirdDozen / total) * 100)}%</div>
-                            </div>
-                          </div>
-                          <div className="bg-gray-900 p-2 rounded">
-                            <div className="text-xs text-gray-400">Zero</div>
-                            <div className="flex justify-between items-center">
-                              <div className="text-sm text-white font-medium">{numArray.filter(n => n === 0).length}</div>
-                              <div className="text-xs text-green-400">{Math.round((numArray.filter(n => n === 0).length / total) * 100)}%</div>
-                            </div>
-                          </div>
-                          
-                          {/* Colunas */}
-                          <div className="bg-gray-900 p-2 rounded">
-                            <div className="text-xs text-gray-400">1ª coluna (1,4,7...)</div>
-                            <div className="flex justify-between items-center">
-                              <div className="text-sm text-white font-medium">{firstColumn}</div>
-                              <div className="text-xs text-green-400">{Math.round((firstColumn / total) * 100)}%</div>
-                            </div>
-                          </div>
-                          <div className="bg-gray-900 p-2 rounded">
-                            <div className="text-xs text-gray-400">2ª coluna (2,5,8...)</div>
-                            <div className="flex justify-between items-center">
-                              <div className="text-sm text-white font-medium">{secondColumn}</div>
-                              <div className="text-xs text-green-400">{Math.round((secondColumn / total) * 100)}%</div>
-                            </div>
-                          </div>
-                          <div className="bg-gray-900 p-2 rounded">
-                            <div className="text-xs text-gray-400">3ª coluna (3,6,9...)</div>
-                            <div className="flex justify-between items-center">
-                              <div className="text-sm text-white font-medium">{thirdColumn}</div>
-                              <div className="text-xs text-green-400">{Math.round((thirdColumn / total) * 100)}%</div>
-                            </div>
-                          </div>
-                          <div className="bg-gray-900 p-2 rounded">
-                            <div className="text-xs text-gray-400">Total de números</div>
-                            <div className="flex justify-between items-center">
-                              <div className="text-sm text-white font-medium">{total}</div>
-                              <div className="text-xs text-blue-400">100%</div>
-                            </div>
-                          </div>
-                        </div>
-                      );
+                        );
                     })()}
                   </div>
                 </div>
