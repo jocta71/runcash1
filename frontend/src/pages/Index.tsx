@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { Search, Wallet, Menu, MessageSquare, AlertCircle, BarChart3, ArrowUp, ArrowDown, X, ChartBar, BarChart, Percent } from 'lucide-react';
+import { Search, Wallet, Menu, MessageSquare, AlertCircle, BarChart3, ArrowUp, ArrowDown, X, ChartBar, BarChart, Percent, CircleX, Share, Home, Sparkles, RefreshCw, MonitorSmartphone, ExternalLink, ChevronRight } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import RouletteCard from '@/components/RouletteCard';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,11 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { fetchRouletteHistoricalNumbers, getHistoricalNumbers, generateFrequencyData, getHotColdNumbers, generateGroupDistribution } from '@/components/RouletteStatsModal';
+import { getHistoricalNumbers, fetchRouletteHistoricalNumbers, generateFrequencyData, getHotColdNumbers, generateGroupDistribution } from '@/components/RouletteStatsModal';
+import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { LiveRoulettesDisplay } from '@/components/roulette/LiveRoulettesDisplay';
+import RouletteStatsModal from '@/components/RouletteStatsModal';
 
 interface ChatMessage {
   id: string;
@@ -47,82 +51,6 @@ interface KnownRoulette {
   nome: string;
   ultima_atualizacao: string;
 }
-
-// Função para buscar histórico da roleta - adaptada do modal
-const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<number[]> => {
-  try {
-    const response = await fetch(`/api/roulettes/history/${rouletteName}`);
-    
-    if (response.ok) {
-      const data = await response.json();
-      
-      if (data && Array.isArray(data.numbers) && data.numbers.length > 0) {
-        // Obter apenas os números da resposta da API
-        const reversedNumbers = [...data.numbers].reverse().map(
-          (n: any) => typeof n === 'object' && n !== null ? 
-            (n.numero !== undefined ? Number(n.numero) : Number(n)) : 
-            Number(n)
-        ).filter((n: number) => !isNaN(n));
-        
-        console.log(`[${new Date().toLocaleTimeString()}] Números válidos para ${rouletteName}: ${reversedNumbers.length}`);
-        
-        return reversedNumbers;
-      } else {
-        console.log(`[${new Date().toLocaleTimeString()}] Nenhum dado encontrado para ${rouletteName}`);
-      }
-    }
-    
-    return [];
-  } catch (error) {
-    console.error(`[${new Date().toLocaleTimeString()}] Erro ao buscar números históricos:`, error);
-    return [];
-  }
-};
-
-// Generate frequency data for numbers - adaptada do modal
-const generateFrequencyData = (numbers: number[]) => {
-  const frequency: Record<number, number> = {};
-  
-  // Initialize all roulette numbers (0-36)
-  for (let i = 0; i <= 36; i++) {
-    frequency[i] = 0;
-  }
-  
-  // Count frequency of each number
-  numbers.forEach(num => {
-    if (frequency[num] !== undefined) {
-      frequency[num]++;
-    }
-  });
-  
-  // Convert to array format needed for charts
-  return Object.keys(frequency).map(key => ({
-    number: parseInt(key),
-    frequency: frequency[parseInt(key)]
-  })).sort((a, b) => a.number - b.number);
-};
-
-// Generate pie chart data for number groups - adaptada do modal
-const generateGroupDistribution = (numbers: number[]) => {
-  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-  const groups = [
-    { name: "Vermelhos", value: 0, color: "#ef4444" },
-    { name: "Pretos", value: 0, color: "#111827" },
-    { name: "Zero", value: 0, color: "#059669" },
-  ];
-  
-  numbers.forEach(num => {
-    if (num === 0) {
-      groups[2].value += 1;
-    } else if (redNumbers.includes(num)) {
-      groups[0].value += 1;
-    } else {
-      groups[1].value += 1;
-    }
-  });
-  
-  return groups;
-};
 
 const Index = () => {
   const [search, setSearch] = useState("");
@@ -475,6 +403,14 @@ const Index = () => {
     });
   };
 
+  // Função auxiliar para extrair números com segurança
+  const safeExtractNumber = (n: any): number => {
+    if (typeof n === 'object' && n !== null && 'numero' in n) {
+      return Number(n.numero || 0);
+    }
+    return Number(n || 0);
+  };
+
   // Efeito para carregar dados históricos quando uma roleta é selecionada
   useEffect(() => {
     const loadHistoricalData = async () => {
@@ -486,12 +422,10 @@ const Index = () => {
           console.log(`Buscando histórico para ${roletaNome}...`);
           let numbers = await fetchRouletteHistoricalNumbers(roletaNome);
           
-          // Extrair números da roleta selecionada para usar como lastNumbers
+          // Extrair números da roleta selecionada
           const extractLastNumbers = () => {
             if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-              return selectedRoulette.numero.map(n => 
-                typeof n === 'object' && n !== null && 'numero' in n ? Number(n.numero || 0) : Number(n || 0)
-              ).filter(n => !isNaN(n));
+              return selectedRoulette.numero.map(safeExtractNumber).filter(n => !isNaN(n));
             } 
             
             if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
@@ -506,8 +440,9 @@ const Index = () => {
           };
 
           const lastNumbers = extractLastNumbers();
+          console.log(`[Index] LastNumbers extraídos: ${lastNumbers.length}`, lastNumbers);
 
-          // Se houver lastNumbers nas props, garantir que eles estão incluídos no início do histórico
+          // Se houver lastNumbers, garantir que eles estão incluídos no início do histórico
           if (lastNumbers && lastNumbers.length > 0) {
             // Combinar lastNumbers com os números históricos, removendo duplicatas
             const combinedNumbers = [...lastNumbers];
@@ -519,17 +454,35 @@ const Index = () => {
             numbers = combinedNumbers;
           }
           
+          console.log(`[Index] Após combinação: ${numbers.length} números históricos para ${roletaNome}`);
+          
           if (numbers && numbers.length > 20) {
             console.log(`Encontrados ${numbers.length} números históricos para ${roletaNome}`);
-            setHistoricalNumbers(numbers);
+            setHistoricalNumbers(numbers.slice(0, 100)); // Limitamos a 100 números para melhor performance
           } else {
             console.log(`Histórico insuficiente para ${roletaNome}, usando dados gerados`);
             setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
           }
         } catch (error) {
           console.error('Erro ao carregar dados históricos:', error);
-          // Se falhar, usar os lastNumbers ou gerar números aleatórios seguindo a mesma lógica do modal
-          const lastNumbers = selectedRoulette.lastNumbers || selectedRoulette.numero || [];
+          // Se falhar, usar os lastNumbers passados nas props ou gerar números aleatórios
+          const extractLastNumbers = () => {
+            if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
+              return selectedRoulette.numero.map(safeExtractNumber).filter(n => !isNaN(n));
+            } 
+            
+            if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
+              return selectedRoulette.lastNumbers.map(n => Number(n || 0)).filter(n => !isNaN(n));
+            }
+            
+            if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
+              return selectedRoulette.numeros.map(n => Number(n || 0)).filter(n => !isNaN(n));
+            }
+            
+            return [];
+          };
+          
+          const lastNumbers = extractLastNumbers();
           setHistoricalNumbers(lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
         } finally {
           setIsLoadingStats(false);
