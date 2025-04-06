@@ -582,15 +582,15 @@ const Index = () => {
           </div>
         ) : (
           <div className="flex flex-col lg:flex-row gap-6">
-            {/* Cards de roleta à esquerda (25% da largura em desktop) */}
-            <div className="w-full lg:w-1/4">
+            {/* Cards de roleta à esquerda */}
+            <div className="w-full">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
                 {renderRouletteCards()}
               </div>
             </div>
             
-            {/* Painel de estatísticas à direita (75% da largura em desktop) */}
-            <div className="w-full lg:w-3/4 bg-gray-900 rounded-lg p-4 h-fit overflow-y-auto max-h-[calc(100vh-100px)] sticky top-4">
+            {/* Painel de estatísticas à direita */}
+            <div className="w-full bg-gray-900 rounded-lg p-4 h-fit overflow-y-auto max-h-[calc(100vh-100px)] sticky top-4">
               <h2 className="text-xl font-bold text-white mb-4 flex items-center">
                 <BarChart3 className="h-5 w-5 mr-2 text-green-500" />
                 {selectedRoulette 
