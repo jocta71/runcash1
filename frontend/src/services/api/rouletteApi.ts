@@ -122,7 +122,11 @@ export const RouletteApi = {
     try {
       console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
       
-      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
+      // Usar diretamente a URL completa do backend
+      const historyUrl = `https://backendapi-production-36b5.up.railway.app/api/roulettes/history/${encodeURIComponent(rouletteName)}`;
+      console.log(`[API] URL do histórico: ${historyUrl}`);
+      
+      const response = await axios.get(historyUrl);
       
       if (!response.data || !Array.isArray(response.data)) {
         console.error('[API] Resposta inválida do histórico:', response.data);

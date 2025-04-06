@@ -1086,21 +1086,30 @@ class SocketService {
     }
   }
   
+  // Método para obter a URL base para as APIs
+  private getApiBaseUrl(): string {
+    // Usar diretamente a URL do Railway em vez de uma URL relativa
+    return 'https://backendapi-production-36b5.up.railway.app/api';
+  }
+
   // Método para buscar dados via REST como alternativa/complemento
   public async fetchRouletteNumbersREST(roletaId: string, limit: number = 100): Promise<boolean> {
     try {
       // Garantir que estamos usando o ID canônico
       const canonicalId = mapToCanonicalRouletteId(roletaId);
       
-      const baseUrl = this.getApiBaseUrl();
-      // Usar o endpoint único /api/ROULETTES e adicionar o parâmetro limit
-      const endpoint = `${baseUrl}/ROULETTES?limit=${limit}`;
+      // Encontrar o nome da roleta a partir do ID canônico
+      const roleta = ROLETAS_CANONICAS.find(r => r.id === canonicalId);
+      const roletaNome = roleta ? roleta.nome : `Roleta ${canonicalId}`;
       
-      console.log(`[SocketService] Buscando dados via REST para roleta ${canonicalId} (limit: ${limit})`);
+      console.log(`[SocketService] Buscando dados de histórico para ${roletaNome} (ID: ${canonicalId})`);
+      
+      // Usar endpoint completo direto para o backend
+      const historyUrl = `https://backendapi-production-36b5.up.railway.app/api/roulettes/history/${encodeURIComponent(roletaNome)}`;
+      console.log(`[SocketService] URL do histórico: ${historyUrl}`);
       
       try {
-        const response = await fetch(endpoint, {
-          // Remover o modo no-cors para permitir acesso aos dados JSON
+        const response = await fetch(historyUrl, {
           headers: {
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache'
@@ -1108,58 +1117,34 @@ class SocketService {
         });
         
         if (!response.ok) {
-          console.warn(`[SocketService] Falha na requisição REST (${response.status}): ${endpoint}`);
+          console.warn(`[SocketService] Falha na requisição de histórico (${response.status}): ${historyUrl}`);
           return this.useFallbackData(canonicalId);
         }
         
         try {
-          const allRoulettes = await response.json();
+          const historicalData = await response.json();
           
-          if (!Array.isArray(allRoulettes)) {
-            console.warn(`[SocketService] Endpoint retornou formato inválido: ${endpoint}`);
+          if (!Array.isArray(historicalData)) {
+            console.warn(`[SocketService] Endpoint retornou formato inválido para histórico`);
             return this.useFallbackData(canonicalId);
           }
           
-          // Encontrar a roleta específica pelo ID canônico
-          const targetRoulette = allRoulettes.find((roleta: any) => {
-            const roletaCanonicalId = roleta.canonical_id || mapToCanonicalRouletteId(roleta.id || '');
-            return roletaCanonicalId === canonicalId || roleta.id === canonicalId;
-          });
+          console.log(`[SocketService] ✅ Recebidos ${historicalData.length} números históricos para ${roletaNome}`);
           
-          if (!targetRoulette) {
-            console.warn(`[SocketService] Roleta ${canonicalId} não encontrada nos dados retornados`);
-            return this.useFallbackData(canonicalId);
-          }
-          
-          // Extrair os números da roleta
-          const numeros = [];
-          if (targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-            // Se temos o campo 'numero' diretamente, usá-lo
-            for (const item of targetRoulette.numero) {
-              const num = typeof item === 'object' ? item.numero : item;
-              if (num !== undefined && num !== null) {
-                numeros.push(parseInt(String(num), 10));
-              }
-            }
-          }
-          
-          console.log(`[SocketService] ✅ Extraídos ${numeros.length} números para roleta ${canonicalId}`);
-          
-          // Encontrar o nome da roleta a partir dos dados retornados
-          const roletaNome = targetRoulette.nome || `Roleta ${canonicalId}`;
-          
-          if (numeros.length > 0) {
+          if (historicalData.length > 0) {
             // Armazenar os números no histórico
-            this.setRouletteHistory(roletaId, numeros);
-            console.log(`[SocketService] Histórico atualizado para ${roletaNome}: ${numeros.length} números`);
+            this.setRouletteHistory(roletaId, historicalData);
             
-            // CORREÇÃO: Processar os números recebidos para os cards
-            // Precisamos criar os objetos com o formato esperado pelo processNumbersData
-            const numbersForProcessing = targetRoulette.numero.map((num: any) => {
+            // Processar os números recebidos para os cards
+            const numbersForProcessing = historicalData.map((num: any) => {
               if (typeof num === 'object') {
-                return num; // Já é um objeto com formato adequado
+                return {
+                  numero: num.numero || num,
+                  roleta_id: canonicalId,
+                  roleta_nome: roletaNome,
+                  timestamp: num.timestamp || new Date().toISOString()
+                };
               } else {
-                // Criar objeto no formato esperado
                 return {
                   numero: parseInt(String(num), 10),
                   roleta_id: canonicalId,
@@ -1174,15 +1159,15 @@ class SocketService {
             
             return true;
           } else {
-            console.warn(`[SocketService] Nenhum número extraído para ${roletaNome}`);
+            console.warn(`[SocketService] Nenhum número histórico encontrado para ${roletaNome}`);
             return this.useFallbackData(canonicalId);
           }
         } catch (jsonError) {
-          console.error(`[SocketService] Erro ao processar JSON: ${jsonError}`);
+          console.error(`[SocketService] Erro ao processar dados de histórico: ${jsonError}`);
           return this.useFallbackData(canonicalId);
         }
       } catch (e) {
-        console.warn(`[SocketService] Erro ao acessar endpoint ${endpoint}:`, e);
+        console.warn(`[SocketService] Erro ao acessar endpoint de histórico:`, e);
         return this.useFallbackData(canonicalId);
       }
     } catch (error) {
@@ -1240,12 +1225,6 @@ class SocketService {
     return numbers;
   }
   
-  // Método para obter a URL base para as APIs
-  private getApiBaseUrl(): string {
-    // Usar diretamente a URL do Railway em vez de uma URL relativa
-    return 'https://backendapi-production-36b5.up.railway.app/api';
-  }
-
   // Adicionando um evento artificial para teste (deve ser removido em produção)
   public injectTestEvent(roleta: string, numero: number): void {
     if (!this.connectionActive) {
