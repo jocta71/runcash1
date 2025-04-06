@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
 import { RouletteNumberEvent } from '@/types';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import RouletteStatsModal from '@/components/RouletteStatsModal';
 import { BarChart } from 'lucide-react';
 
@@ -28,112 +25,16 @@ const getNumberColor = (num: number): string => {
     : 'bg-zinc-900 text-white';
 };
 
-// Função para obter classe de estilo com base nas colunas
-const getColumnStyle = (num: number): string => {
-  if (num === 0) return '';
-  
-  const column = num % 3;
-  if (column === 0) return 'col-3';
-  if (column === 1) return 'col-1';
-  return 'col-2';
-};
-
-// Tipos de visualização
-type ViewMode = 'grid' | 'list' | 'stats';
-
 const RouletteHistory: React.FC<RouletteHistoryProps> = ({ 
   roletaId, 
   roletaNome, 
   initialNumbers = [] 
 }) => {
   const [historyNumbers, setHistoryNumbers] = useState<number[]>(initialNumbers);
-  const [viewMode, setViewMode] = useState<ViewMode>('stats');
-  const [isExpanded, setIsExpanded] = useState(false);
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
   
   // Log inicial para diagnóstico
   console.log(`[RouletteHistory] Inicializando com ${initialNumbers.length} números para ${roletaNome}`);
-  
-  // Stats
-  const [stats, setStats] = useState({
-    red: 0,
-    black: 0,
-    green: 0,
-    odd: 0,
-    even: 0,
-    high: 0,  // 19-36
-    low: 0,   // 1-18
-    dozens: [0, 0, 0],  // [1-12, 13-24, 25-36]
-    columns: [0, 0, 0]  // [col1, col2, col3]
-  });
-  
-  // Atualizar estatísticas quando o histórico muda
-  useEffect(() => {
-    if (historyNumbers.length === 0) return;
-    
-    const newStats = {
-      red: 0,
-      black: 0,
-      green: 0,
-      odd: 0,
-      even: 0,
-      high: 0,
-      low: 0,
-      dozens: [0, 0, 0],
-      columns: [0, 0, 0]
-    };
-    
-    historyNumbers.forEach(num => {
-      // Verde (zero)
-      if (num === 0) {
-        newStats.green++;
-        return;
-      }
-      
-      // Vermelho ou preto
-      const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-      if (redNumbers.includes(num)) {
-        newStats.red++;
-      } else {
-        newStats.black++;
-      }
-      
-      // Par ou ímpar
-      if (num % 2 === 0) {
-        newStats.even++;
-      } else {
-        newStats.odd++;
-      }
-      
-      // Alto ou baixo
-      if (num >= 1 && num <= 18) {
-        newStats.low++;
-      } else if (num >= 19 && num <= 36) {
-        newStats.high++;
-      }
-      
-      // Dúzias
-      if (num >= 1 && num <= 12) {
-        newStats.dozens[0]++;
-      } else if (num >= 13 && num <= 24) {
-        newStats.dozens[1]++;
-      } else if (num >= 25 && num <= 36) {
-        newStats.dozens[2]++;
-      }
-      
-      // Colunas
-      const column = num % 3;
-      if (column === 1) {
-        newStats.columns[0]++;
-      } else if (column === 2) {
-        newStats.columns[1]++;
-      } else if (column === 0) {
-        newStats.columns[2]++;
-      }
-    });
-    
-    setStats(newStats);
-  }, [historyNumbers]);
   
   // Inscrever-se para receber atualizações de números
   useEffect(() => {
@@ -207,223 +108,33 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
     );
   }
   
-  // Renderizar grade de números
-  const renderGrid = () => {
-    // Número de colunas por linha
-    const colsPerRow = 37;
-    // Exibir 3 linhas por padrão (37 * 3 = 111 números)
-    const defaultVisibleItems = colsPerRow * 3;
-    
-    return (
-      <div className="round-history w-full flex flex-col space-y-0">
-        <div className="w-full">
-          <div className="grid grid-cols-37 gap-[5px] p-0" style={{ gridTemplateColumns: 'repeat(37, 1fr)' }}>
-            {/* Exibir 3 linhas ou todos os números se expandido */}
-            {Array.from({ length: Math.min(isExpanded ? historyNumbers.length : defaultVisibleItems, historyNumbers.length) }).map((_, index) => (
-              <div key={index} className="flex items-center justify-center">
-                <div
-                  className={`${getNumberColor(historyNumbers[index])} cell-number-${historyNumbers[index]} cell-state-default flex h-6 w-6 items-center justify-center rounded-full font-medium`}
-                  style={{ fontSize: '0.85rem' }}
-                >
-                  {historyNumbers[index]}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        {historyNumbers.length > defaultVisibleItems && (
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="mt-2 w-full"
-          >
-            {isExpanded ? "Mostrar Menos" : `Mostrar Mais (${historyNumbers.length} números)`}
-          </Button>
-        )}
-      </div>
-    );
-  };
-  
-  // Renderizar lista simples de números
-  const renderList = () => {
-    return (
-      <ScrollArea className="h-[400px] rounded-md border">
-        <div className="grid gap-[5px] p-0" style={{ gridTemplateColumns: 'repeat(37, 1fr)' }}>
-          {historyNumbers.map((num, index) => (
-            <div 
-              key={`list-${index}`} 
-              className={`${getNumberColor(num)} flex h-6 w-6 items-center justify-center rounded-full font-medium`}
-              style={{ fontSize: '0.85rem' }}
-            >
-              {num}
-            </div>
-          ))}
-        </div>
-      </ScrollArea>
-    );
-  };
-  
-  // Renderizar estatísticas
-  const renderStats = () => {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4 p-4">
-          <Card>
-            <CardContent className="pt-6">
-              <h3 className="text-sm font-medium">Cores</h3>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                <div className="flex flex-col items-center">
-                  <Badge variant="outline" className="bg-red-600 text-white px-2 py-1 w-full text-center">
-                    Vermelho
-                  </Badge>
-                  <span className="mt-1 text-lg font-bold">{stats.red}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {historyNumbers.length > 0 ? `${Math.round((stats.red / historyNumbers.length) * 100)}%` : '0%'}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <Badge variant="outline" className="bg-zinc-900 text-white px-2 py-1 w-full text-center">
-                    Preto
-                  </Badge>
-                  <span className="mt-1 text-lg font-bold">{stats.black}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {historyNumbers.length > 0 ? `${Math.round((stats.black / historyNumbers.length) * 100)}%` : '0%'}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <Badge variant="outline" className="bg-green-600 text-white px-2 py-1 w-full text-center">
-                    Verde
-                  </Badge>
-                  <span className="mt-1 text-lg font-bold">{stats.green}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {historyNumbers.length > 0 ? `${Math.round((stats.green / historyNumbers.length) * 100)}%` : '0%'}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <h3 className="text-sm font-medium">Par/Ímpar</h3>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <div className="flex flex-col items-center">
-                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                    Pares
-                  </Badge>
-                  <span className="mt-1 text-lg font-bold">{stats.even}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {historyNumbers.length > 0 ? `${Math.round((stats.even / historyNumbers.length) * 100)}%` : '0%'}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                    Ímpares
-                  </Badge>
-                  <span className="mt-1 text-lg font-bold">{stats.odd}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {historyNumbers.length > 0 ? `${Math.round((stats.odd / historyNumbers.length) * 100)}%` : '0%'}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <h3 className="text-sm font-medium">Baixo/Alto</h3>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <div className="flex flex-col items-center">
-                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                    1-18
-                  </Badge>
-                  <span className="mt-1 text-lg font-bold">{stats.low}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {historyNumbers.length > 0 ? `${Math.round((stats.low / historyNumbers.length) * 100)}%` : '0%'}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                    19-36
-                  </Badge>
-                  <span className="mt-1 text-lg font-bold">{stats.high}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {historyNumbers.length > 0 ? `${Math.round((stats.high / historyNumbers.length) * 100)}%` : '0%'}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <h3 className="text-sm font-medium">Dúzias</h3>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                <div className="flex flex-col items-center">
-                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                    1-12
-                  </Badge>
-                  <span className="mt-1 text-lg font-bold">{stats.dozens[0]}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {historyNumbers.length > 0 ? `${Math.round((stats.dozens[0] / historyNumbers.length) * 100)}%` : '0%'}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                    13-24
-                  </Badge>
-                  <span className="mt-1 text-lg font-bold">{stats.dozens[1]}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {historyNumbers.length > 0 ? `${Math.round((stats.dozens[1] / historyNumbers.length) * 100)}%` : '0%'}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                    25-36
-                  </Badge>
-                  <span className="mt-1 text-lg font-bold">{stats.dozens[2]}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {historyNumbers.length > 0 ? `${Math.round((stats.dozens[2] / historyNumbers.length) * 100)}%` : '0%'}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  };
-  
   return (
     <div className="w-full">
-      <h2 className="mb-4 text-xl font-bold">Histórico de {roletaNome}</h2>
-      <div className="mb-4 flex justify-between items-center">
-        <Badge variant="outline" className="px-2 py-1">
-          {historyNumbers.length} números registrados
-        </Badge>
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setIsStatsModalOpen(true)}
-            className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors"
-            title="Abrir estatísticas avançadas"
-          >
-            <BarChart className="h-5 w-5 text-primary" />
-          </button>
-          <Tabs defaultValue="stats" onValueChange={(value) => setViewMode(value as ViewMode)}>
-            <TabsList>
-              <TabsTrigger value="stats">Estatísticas</TabsTrigger>
-              <TabsTrigger value="grid">Grade</TabsTrigger>
-              <TabsTrigger value="list">Lista</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">Histórico de {roletaNome}</h2>
+        <button 
+          onClick={() => setIsStatsModalOpen(true)}
+          className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors"
+          title="Abrir estatísticas avançadas"
+        >
+          <BarChart className="h-5 w-5 text-primary" />
+        </button>
       </div>
+
+      <Badge variant="outline" className="px-2 py-1 mb-4 inline-block">
+        {historyNumbers.length} números registrados
+      </Badge>
       
-      {viewMode === 'grid' && renderGrid()}
-      {viewMode === 'list' && renderList()}
-      {viewMode === 'stats' && renderStats()}
+      <div className="flex flex-wrap gap-2">
+        {historyNumbers.slice(0, 200).map((num, index) => (
+          <div 
+            key={index}
+            className={`${getNumberColor(num)} flex h-10 w-10 items-center justify-center rounded-full font-medium`}
+          >
+            {num}
+          </div>
+        ))}
+      </div>
       
       <RouletteStatsModal
         open={isStatsModalOpen}
