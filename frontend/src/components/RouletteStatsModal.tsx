@@ -47,30 +47,52 @@ export const getHistoricalNumbers = (): number[] => {
 // Buscar histórico de números da roleta
 export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<number[]> => {
   try {
-    const response = await fetch(`/api/roulettes/history/${rouletteName}`);
+    console.log(`[API] Buscando dados históricos reais para: ${rouletteName}`);
+    
+    // Usar o endpoint correto da API - /api/ROULETTES em vez de /api/roulettes/history
+    const response = await fetch(`/api/ROULETTES`);
     
     if (response.ok) {
       const data = await response.json();
       
-      if (data && Array.isArray(data.numbers) && data.numbers.length > 0) {
-        // Obter apenas os números da resposta da API
-        const reversedNumbers = [...data.numbers].reverse().map(
-          (n: any) => typeof n === 'object' && n !== null ? 
-            (n.numero !== undefined ? Number(n.numero) : Number(n)) : 
-            Number(n)
-        ).filter((n: number) => !isNaN(n));
+      if (data && Array.isArray(data)) {
+        // Encontrar a roleta específica pelo nome
+        const targetRoulette = data.find((roleta: any) => {
+          const roletaName = roleta.nome || roleta.name || '';
+          return roletaName.toLowerCase() === rouletteName.toLowerCase();
+        });
         
-        console.log(`[${new Date().toLocaleTimeString()}] Números válidos para ${rouletteName}: ${reversedNumbers.length}`);
-        
-        return reversedNumbers;
+        if (targetRoulette) {
+          // Obter números da roleta encontrada (podem estar em campo numero ou numeros)
+          const numbers = Array.isArray(targetRoulette.numero) 
+            ? targetRoulette.numero 
+            : Array.isArray(targetRoulette.numeros) 
+              ? targetRoulette.numeros 
+              : [];
+          
+          // Processar os números encontrados
+          const processedNumbers = numbers.map(
+            (n: any) => typeof n === 'object' && n !== null ? 
+              (n.numero !== undefined ? Number(n.numero) : Number(n)) : 
+              Number(n)
+          ).filter((n: number) => !isNaN(n));
+          
+          console.log(`[API] Obtidos ${processedNumbers.length} números reais para ${rouletteName}`);
+          return processedNumbers;
+        } else {
+          console.log(`[API] Roleta "${rouletteName}" não encontrada nos dados retornados`);
+        }
       } else {
-        console.log(`[${new Date().toLocaleTimeString()}] Nenhum dado encontrado para ${rouletteName}`);
+        console.log(`[API] Resposta inválida da API: dados não são um array`);
       }
+    } else {
+      console.log(`[API] Erro na resposta da API: ${response.status} ${response.statusText}`);
     }
     
+    console.log(`[API] Sem dados históricos para ${rouletteName}, retornando array vazio`);
     return [];
   } catch (error) {
-    console.error(`[${new Date().toLocaleTimeString()}] Erro ao buscar números históricos:`, error);
+    console.error(`[API] Erro ao buscar números históricos:`, error);
     return [];
   }
 };
@@ -201,32 +223,38 @@ const RouletteStatsModal = ({
         setIsLoading(true);
         
         try {
-          console.log(`Buscando histórico para ${roletaNome}...`);
-          let numbers = await fetchRouletteHistoricalNumbers(roletaNome);
+          console.log(`[Modal] Buscando histórico real para ${roletaNome}...`);
+          // Buscar dados históricos da API
+          let apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
           
-          // Se houver lastNumbers nas props, garantir que eles estão incluídos no início do histórico
+          // Se houver lastNumbers nas props, garantir que eles estão incluídos
           if (lastNumbers && lastNumbers.length > 0) {
+            console.log(`[Modal] Combinando ${lastNumbers.length} números recentes com ${apiNumbers.length} números históricos`);
             // Combinar lastNumbers com os números históricos, removendo duplicatas
             const combinedNumbers = [...lastNumbers];
-            numbers.forEach(num => {
+            apiNumbers.forEach(num => {
               if (!combinedNumbers.includes(num)) {
                 combinedNumbers.push(num);
               }
             });
-            numbers = combinedNumbers;
-          }
-          
-          if (numbers && numbers.length > 20) {
-            console.log(`Encontrados ${numbers.length} números históricos para ${roletaNome}`);
-            setHistoricalNumbers(numbers);
-          } else {
-            console.log(`Histórico insuficiente para ${roletaNome}, usando dados gerados`);
-            setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
+            
+            console.log(`[Modal] Total após combinação: ${combinedNumbers.length} números`);
+            setHistoricalNumbers(combinedNumbers);
+          } 
+          else if (apiNumbers.length > 0) {
+            // Se não temos lastNumbers mas temos dados da API
+            console.log(`[Modal] Usando apenas números da API: ${apiNumbers.length}`);
+            setHistoricalNumbers(apiNumbers);
+          } 
+          else {
+            // Se não temos nenhum dado, usar apenas os números recentes (ou array vazio)
+            console.log(`[Modal] Sem dados históricos, usando apenas números recentes: ${(lastNumbers || []).length}`);
+            setHistoricalNumbers(lastNumbers || []);
           }
         } catch (error) {
-          console.error('Erro ao carregar dados históricos:', error);
-          // Se falhar, usar os lastNumbers passados nas props ou gerar números aleatórios
-          setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
+          console.error('[Modal] Erro ao carregar dados históricos:', error);
+          // Em caso de erro, usar apenas os números recentes em vez de gerar aleatórios
+          setHistoricalNumbers(lastNumbers || []);
         } finally {
           setIsLoading(false);
         }
@@ -444,32 +472,38 @@ export const RouletteSidePanelStats = ({
       setIsLoading(true);
       
       try {
-        console.log(`Buscando histórico para ${roletaNome}...`);
-        let numbers = await fetchRouletteHistoricalNumbers(roletaNome);
+        console.log(`[SidePanel] Buscando histórico real para ${roletaNome}...`);
+        // Buscar dados históricos da API
+        let apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
         
-        // Se houver lastNumbers nas props, garantir que eles estão incluídos no início do histórico
+        // Se houver lastNumbers nas props, garantir que eles estão incluídos
         if (lastNumbers && lastNumbers.length > 0) {
+          console.log(`[SidePanel] Combinando ${lastNumbers.length} números recentes com ${apiNumbers.length} números históricos`);
           // Combinar lastNumbers com os números históricos, removendo duplicatas
           const combinedNumbers = [...lastNumbers];
-          numbers.forEach(num => {
+          apiNumbers.forEach(num => {
             if (!combinedNumbers.includes(num)) {
               combinedNumbers.push(num);
             }
           });
-          numbers = combinedNumbers;
-        }
-        
-        if (numbers && numbers.length > 20) {
-          console.log(`Encontrados ${numbers.length} números históricos para ${roletaNome}`);
-          setHistoricalNumbers(numbers);
-        } else {
-          console.log(`Histórico insuficiente para ${roletaNome}, usando dados gerados`);
-          setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
+          
+          console.log(`[SidePanel] Total após combinação: ${combinedNumbers.length} números`);
+          setHistoricalNumbers(combinedNumbers);
+        } 
+        else if (apiNumbers.length > 0) {
+          // Se não temos lastNumbers mas temos dados da API
+          console.log(`[SidePanel] Usando apenas números da API: ${apiNumbers.length}`);
+          setHistoricalNumbers(apiNumbers);
+        } 
+        else {
+          // Se não temos nenhum dado, usar apenas os números recentes (ou array vazio)
+          console.log(`[SidePanel] Sem dados históricos, usando apenas números recentes: ${(lastNumbers || []).length}`);
+          setHistoricalNumbers(lastNumbers || []);
         }
       } catch (error) {
-        console.error('Erro ao carregar dados históricos:', error);
-        // Se falhar, usar os lastNumbers passados nas props ou gerar números aleatórios
-        setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
+        console.error('[SidePanel] Erro ao carregar dados históricos:', error);
+        // Em caso de erro, usar apenas os números recentes em vez de gerar aleatórios
+        setHistoricalNumbers(lastNumbers || []);
       } finally {
         setIsLoading(false);
       }
