@@ -103,42 +103,48 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
           {roulettes.map(roleta => (
             <div 
               key={roleta.id} 
-              className="bg-gray-800/90 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-750 transition-colors border border-gray-700"
+              className="bg-gray-900 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-800 transition-colors border border-gray-800"
+              onClick={() => handleRouletteSelect(roleta)}
             >
               <div className="p-4">
                 {/* Cabeçalho do card */}
-                <div className="flex justify-between items-center mb-3">
-                  <div className="flex items-center">
-                    <h3 className="text-lg font-semibold text-white mr-2">{roleta.nome}</h3>
-                    {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? (
-                      <span className="bg-gray-700 text-xs text-gray-300 px-2 py-0.5 rounded">
-                        {roleta.numero.length} atualizações
+                <div className="flex justify-between items-center mb-2">
+                  <div className="flex items-center gap-2">
+                    {/* Nome da roleta com contagem de atualizações */}
+                    <h3 className="text-lg font-semibold text-white">{roleta.nome}</h3>
+                    
+                    {/* Ícone do número de atualizações */}
+                    <div className="flex items-center">
+                      <span className="bg-gray-800 text-xs text-gray-300 px-2 py-0.5 rounded">
+                        {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? roleta.numero.length : 0} atualizações
                       </span>
-                    ) : null}
+                    </div>
                   </div>
                   
                   {/* Ícone de informações */}
-                  <button className="text-gray-400 hover:text-white">
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      width="16" 
-                      height="16" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M12 16v-4" />
-                      <path d="M12 8h.01" />
-                    </svg>
-                  </button>
+                  <div className="flex">
+                    <button className="text-gray-400 hover:text-white">
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        width="20" 
+                        height="20" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                      >
+                        <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z"></path>
+                        <path d="M12 16v-4"></path>
+                        <path d="M12 8h.01"></path>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 
                 {/* Número atual em destaque */}
-                <div className="flex justify-center my-4">
+                <div className="flex justify-center my-3">
                   {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? (
                     <div 
                       className={`${
@@ -159,8 +165,8 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
                 </div>
                 
                 {/* Linha de números recentes */}
-                <div className="flex flex-wrap gap-1 justify-center my-3">
-                  {Array.isArray(roleta.numero) && roleta.numero.slice(0, 8).map((n, index) => {
+                <div className="flex flex-wrap gap-1 justify-center my-2">
+                  {Array.isArray(roleta.numero) && roleta.numero.slice(1, 9).map((n, index) => {
                     const num = n.numero;
                     const bgColor = num === 0 
                       ? "bg-green-600" 
@@ -179,74 +185,73 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
                   })}
                 </div>
                 
-                {/* Estatísticas do card */}
-                <div className="grid grid-cols-2 gap-2 mt-4 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Vermelho:</span>
-                    <span className="text-white font-medium">
+                {/* Estatísticas em formato tabular, como na imagem */}
+                <div className="mt-3 text-sm">
+                  {/* Linha para vermelho/preto */}
+                  <div className="grid grid-cols-4 mb-1">
+                    <div className="text-right pr-2 text-gray-400">Vermelho:</div>
+                    <div className="text-white font-medium">
                       {Array.isArray(roleta.numero) 
                         ? roleta.numero.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n.numero)).length 
                         : 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Preto:</span>
-                    <span className="text-white font-medium">
+                    </div>
+                    <div className="text-right pr-2 text-gray-400">Preto:</div>
+                    <div className="text-white font-medium">
                       {Array.isArray(roleta.numero) 
                         ? roleta.numero.filter(n => n.numero !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n.numero)).length 
                         : 0}
-                    </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Par:</span>
-                    <span className="text-white font-medium">
+                  
+                  {/* Linha para par/ímpar */}
+                  <div className="grid grid-cols-4 mb-1">
+                    <div className="text-right pr-2 text-gray-400">Par:</div>
+                    <div className="text-white font-medium">
                       {Array.isArray(roleta.numero) 
                         ? roleta.numero.filter(n => n.numero !== 0 && n.numero % 2 === 0).length 
                         : 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Ímpar:</span>
-                    <span className="text-white font-medium">
+                    </div>
+                    <div className="text-right pr-2 text-gray-400">Ímpar:</div>
+                    <div className="text-white font-medium">
                       {Array.isArray(roleta.numero) 
                         ? roleta.numero.filter(n => n.numero % 2 === 1).length 
                         : 0}
-                    </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Alto:</span>
-                    <span className="text-white font-medium">
+                  
+                  {/* Linha para alto/baixo */}
+                  <div className="grid grid-cols-4 mb-1">
+                    <div className="text-right pr-2 text-gray-400">Alto (19-36):</div>
+                    <div className="text-white font-medium">
                       {Array.isArray(roleta.numero) 
                         ? roleta.numero.filter(n => n.numero >= 19 && n.numero <= 36).length 
                         : 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Baixo:</span>
-                    <span className="text-white font-medium">
+                    </div>
+                    <div className="text-right pr-2 text-gray-400">Baixo (1-18):</div>
+                    <div className="text-white font-medium">
                       {Array.isArray(roleta.numero) 
                         ? roleta.numero.filter(n => n.numero >= 1 && n.numero <= 18).length 
                         : 0}
-                    </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Verde (0):</span>
-                    <span className="text-white font-medium">
+                  
+                  {/* Linha para verde/total */}
+                  <div className="grid grid-cols-4 mb-1">
+                    <div className="text-right pr-2 text-gray-400">Verde (0):</div>
+                    <div className="text-white font-medium">
                       {Array.isArray(roleta.numero) 
                         ? roleta.numero.filter(n => n.numero === 0).length 
                         : 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Total:</span>
-                    <span className="text-white font-medium">
+                    </div>
+                    <div className="text-right pr-2 text-gray-400">Total:</div>
+                    <div className="text-white font-medium">
                       {Array.isArray(roleta.numero) ? roleta.numero.length : 0}
-                    </span>
+                    </div>
                   </div>
                 </div>
                 
-                {/* Rodapé do card */}
-                <div className="flex items-center justify-between mt-4 text-xs text-gray-500 border-t border-gray-700 pt-3">
+                {/* Rodapé do card com ícone de tempo real */}
+                <div className="flex items-center justify-between mt-3 text-xs text-gray-500 border-t border-gray-800 pt-2">
                   <div className="flex items-center gap-1">
                     <svg 
                       xmlns="http://www.w3.org/2000/svg" 
@@ -259,29 +264,15 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <path d="M12 2v10l4.24 4.24"></path>
                       <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
                     </svg>
                     <span>Tempo real</span>
                   </div>
                   
-                  <button className="flex items-center gap-1 hover:text-white transition-colors">
-                    <span>Ver mais</span>
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      width="12" 
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M5 12h14"></path>
-                      <path d="m12 5 7 7-7 7"></path>
-                    </svg>
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <span>{Array.isArray(roleta.numero) ? roleta.numero.length : 0} números</span>
+                  </div>
                 </div>
               </div>
             </div>
