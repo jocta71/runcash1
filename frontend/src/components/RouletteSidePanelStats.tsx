@@ -26,48 +26,71 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
   try {
     console.log(`[API] Buscando dados históricos reais para: ${rouletteName}`);
     
-    // Usar o endpoint correto da API - /api/ROULETTES em vez de /api/roulettes/history
-    const response = await fetch(`/api/ROULETTES`);
+    // Usar o endpoint específico para histórico, que deve retornar até 1000 números
+    // No formato /api/roulettes/history/NOME_DA_ROLETA
+    const response = await fetch(`/api/roulettes/history/${encodeURIComponent(rouletteName)}`);
     
     if (response.ok) {
       const data = await response.json();
       
       if (data && Array.isArray(data)) {
-        // Encontrar a roleta específica pelo nome
-        const targetRoulette = data.find((roleta: any) => {
-          const roletaName = roleta.nome || roleta.name || '';
-          return roletaName.toLowerCase() === rouletteName.toLowerCase();
-        });
+        // Processar os números encontrados - garantindo que sejam números válidos
+        const processedNumbers = data
+          .filter((n: any) => n !== null && n !== undefined) // Filtrar valores nulos
+          .map((n: any) => {
+            if (typeof n === 'object' && n !== null && 'numero' in n) {
+              return Number(n.numero);
+            }
+            return Number(n);
+          })
+          .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36); // Garantir que são números válidos de roleta
         
-        if (targetRoulette) {
-          // Obter números da roleta encontrada (podem estar em campo numero ou numeros)
-          const numbers = Array.isArray(targetRoulette.numero) 
-            ? targetRoulette.numero 
-            : Array.isArray(targetRoulette.numeros) 
-              ? targetRoulette.numeros 
-              : [];
-          
-          // Processar os números encontrados - corrigindo os problemas de tipagem
-          const processedNumbers = numbers
-            .filter((n: any) => n !== null && n !== undefined) // Filtrar valores nulos
-            .map((n: any) => {
-              if (typeof n === 'object' && n !== null && 'numero' in n) {
-                return Number(n.numero);
-              }
-              return Number(n);
-            })
-            .filter((n: number) => !isNaN(n));
-          
-          console.log(`[API] Obtidos ${processedNumbers.length} números reais para ${rouletteName}`);
-          return processedNumbers;
-        } else {
-          console.log(`[API] Roleta "${rouletteName}" não encontrada nos dados retornados`);
-        }
+        console.log(`[API] Obtidos ${processedNumbers.length} números históricos para ${rouletteName}`);
+        return processedNumbers;
       } else {
-        console.log(`[API] Resposta inválida da API: dados não são um array`);
+        console.log(`[API] Resposta inválida da API de histórico: dados não são um array`);
       }
     } else {
-      console.log(`[API] Erro na resposta da API: ${response.status} ${response.statusText}`);
+      // Se falhar com o endpoint específico, tentar o endpoint genérico como fallback
+      console.log(`[API] Falha ao buscar histórico específico, tentando endpoint genérico`);
+      const fallbackResponse = await fetch(`/api/ROULETTES`);
+      
+      if (fallbackResponse.ok) {
+        const fallbackData = await fallbackResponse.json();
+        
+        if (fallbackData && Array.isArray(fallbackData)) {
+          // Encontrar a roleta específica pelo nome
+          const targetRoulette = fallbackData.find((roleta: any) => {
+            const roletaName = roleta.nome || roleta.name || '';
+            return roletaName.toLowerCase() === rouletteName.toLowerCase();
+          });
+          
+          if (targetRoulette) {
+            // Obter números da roleta encontrada (podem estar em campo numero ou numeros)
+            const numbers = Array.isArray(targetRoulette.numero) 
+              ? targetRoulette.numero 
+              : Array.isArray(targetRoulette.numeros) 
+                ? targetRoulette.numeros 
+                : [];
+            
+            // Processar os números encontrados - corrigindo os problemas de tipagem
+            const processedNumbers = numbers
+              .filter((n: any) => n !== null && n !== undefined) // Filtrar valores nulos
+              .map((n: any) => {
+                if (typeof n === 'object' && n !== null && 'numero' in n) {
+                  return Number(n.numero);
+                }
+                return Number(n);
+              })
+              .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+            
+            console.log(`[API] Obtidos ${processedNumbers.length} números via fallback para ${rouletteName}`);
+            return processedNumbers;
+          } else {
+            console.log(`[API] Roleta "${rouletteName}" não encontrada nos dados retornados`);
+          }
+        }
+      }
     }
     
     console.log(`[API] Sem dados históricos para ${rouletteName}, retornando array vazio`);
@@ -202,7 +225,7 @@ const RouletteSidePanelStats = ({
       
       try {
         console.log(`[SidePanel] Buscando histórico real para ${roletaNome}...`);
-        // Buscar dados históricos da API
+        // Buscar dados históricos da API - buscando até 1000 números
         let apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
         
         // Se houver lastNumbers nas props, garantir que eles estão incluídos
@@ -217,12 +240,14 @@ const RouletteSidePanelStats = ({
           });
           
           console.log(`[SidePanel] Total após combinação: ${combinedNumbers.length} números`);
-          setHistoricalNumbers(combinedNumbers);
+          // Limitando a 1000 números no máximo
+          setHistoricalNumbers(combinedNumbers.slice(0, 1000));
         } 
         else if (apiNumbers.length > 0) {
           // Se não temos lastNumbers mas temos dados da API
           console.log(`[SidePanel] Usando apenas números da API: ${apiNumbers.length}`);
-          setHistoricalNumbers(apiNumbers);
+          // Limitando a 1000 números no máximo
+          setHistoricalNumbers(apiNumbers.slice(0, 1000));
         } 
         else {
           // Se não temos nenhum dado, usar apenas os números recentes (ou array vazio)
@@ -275,7 +300,7 @@ const RouletteSidePanelStats = ({
               <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {historicalNumbers.length})
             </h3>
             <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-15 lg:grid-cols-20 gap-1 max-h-[200px] overflow-y-auto p-3">
-              {historicalNumbers.slice(0, 100).map((num, idx) => (
+              {historicalNumbers.map((num, idx) => (
                 <div 
                   key={idx} 
                   className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
