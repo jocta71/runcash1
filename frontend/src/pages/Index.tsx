@@ -53,7 +53,7 @@ interface KnownRoulette {
   ultima_atualizacao: string;
 }
 
-// Componente para exibir as estatísticas da roleta lateralmente
+// Componente para exibir as estatísticas da roleta lateralmente (adaptado do RouletteStatsModal)
 const RoutetteSidePanelStats = ({ 
   selectedRoulette,
   isLoading
@@ -68,160 +68,98 @@ const RoutetteSidePanelStats = ({
     if (selectedRoulette) {
       setIsLoadingStats(true);
       
-      try {
-        const roletaNome = selectedRoulette.nome || selectedRoulette.name || '';
-        console.log(`[SidePanel] Carregando dados do card para ${roletaNome}...`, selectedRoulette);
-        
-        // Função para extrair números do card da roleta
-        const extractCardNumbers = (): number[] => {
-          let cardNumbers: number[] = [];
+      const loadHistoricalData = async () => {
+        try {
+          const roletaNome = selectedRoulette.nome || selectedRoulette.name || '';
+          console.log(`[SidePanel] Buscando histórico para ${roletaNome}...`);
           
-          console.log("[SidePanel] Conteúdo completo da roleta:", JSON.stringify(selectedRoulette));
-          
-          // VERIFICAR NÚMERO PRINCIPAL VISÍVEL NA IMAGEM
-          // Verificar o número principal que aparece no círculo grande (9 na imagem)
-          if (selectedRoulette.numero !== undefined) {
-            // Se numero for um número simples
-            if (typeof selectedRoulette.numero === 'number') {
-              cardNumbers = [selectedRoulette.numero];
-              console.log(`[SidePanel] Extraído número principal simples: ${selectedRoulette.numero}`);
-              return cardNumbers;
-            }
+          // Extrair números da roleta selecionada
+          const extractCardNumbers = (): number[] => {
+            let cardNumbers: number[] = [];
             
-            // Se numero for um array e o primeiro item for um número simples
-            if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-              const firstNumber = selectedRoulette.numero[0];
-              if (typeof firstNumber === 'number') {
-                cardNumbers = [firstNumber];
-                console.log(`[SidePanel] Extraído primeiro número do array: ${firstNumber}`);
-                return cardNumbers;
+            // Se número for um valor simples
+            if (selectedRoulette.numero !== undefined) {
+              if (typeof selectedRoulette.numero === 'number') {
+                return [selectedRoulette.numero];
               }
               
-              // Se o primeiro item for um objeto com propriedade numero
-              if (firstNumber && typeof firstNumber === 'object' && firstNumber !== null && 'numero' in firstNumber) {
-                const numeroValue = firstNumber.numero;
-                const num = Number(numeroValue);
-                if (!isNaN(num)) {
-                  cardNumbers = [num];
-                  console.log(`[SidePanel] Extraído número do primeiro objeto: ${num}`);
-                  return cardNumbers;
-                }
+              // Se número for array
+              if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
+                return selectedRoulette.numero
+                  .filter(n => n !== null && n !== undefined)
+                  .map(n => {
+                    if (n && typeof n === 'object' && n !== null && 'numero' in n) {
+                      return Number(n.numero || 0);
+                    }
+                    return Number(n || 0);
+                  })
+                  .filter(n => !isNaN(n) && n >= 0 && n <= 36);
               }
             }
+            
+            // Tentar lastNumbers
+            if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
+              return selectedRoulette.lastNumbers
+                .map(n => Number(n || 0))
+                .filter(n => !isNaN(n) && n >= 0 && n <= 36);
+            }
+            
+            // Tentar numeros
+            if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
+              return selectedRoulette.numeros
+                .map(n => Number(n || 0))
+                .filter(n => !isNaN(n) && n >= 0 && n <= 36);
+            }
+            
+            // Número de emergência se nenhum número for encontrado
+            return [9];
+          };
+          
+          const cardNumbers = extractCardNumbers();
+          
+          // Buscar números históricos da API
+          let apiNumbers: number[] = [];
+          if (roletaNome) {
+            apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
           }
           
-          // VERIFICAR NÚMEROS NO FORMATO .numero[] (COMO OBJETOS)
-          if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-            console.log(`[SidePanel] Tentando extrair de 'numero[]':`, selectedRoulette.numero);
+          // Combinar números do card com históricos
+          let finalNumbers: number[] = [];
+          
+          if (cardNumbers.length > 0 && apiNumbers.length > 0) {
+            // Começar com os números do card
+            finalNumbers = [...cardNumbers];
             
-            cardNumbers = selectedRoulette.numero
-              .filter(n => n !== null && n !== undefined) // Filtrar nulos e undefined primeiro
-              .map(n => {
-                if (n && typeof n === 'object' && n !== null && 'numero' in n) {
-                  return Number(n.numero || 0);
-                }
-                return Number(n || 0);
-              }).filter(n => !isNaN(n) && n >= 0 && n <= 36); // Garantir que são números válidos de roleta
-            
-            if (cardNumbers.length > 0) {
-              console.log(`[SidePanel] Extraídos ${cardNumbers.length} números do atributo 'numero'`, cardNumbers);
-              return cardNumbers;
-            }
+            // Adicionar números da API que não estão no card
+            apiNumbers.forEach(num => {
+              if (!finalNumbers.includes(num)) {
+                finalNumbers.push(num);
+              }
+            });
+          } 
+          else if (cardNumbers.length > 0) {
+            finalNumbers = cardNumbers;
+          }
+          else if (apiNumbers.length > 0) {
+            finalNumbers = apiNumbers;
+          }
+          else {
+            // Sem dados, usar números de exemplo ou aleatórios
+            finalNumbers = getHistoricalNumbers();
           }
           
-          // VERIFICAR NÚMEROS NO FORMATO .lastNumbers[]
-          if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
-            console.log(`[SidePanel] Tentando extrair de 'lastNumbers[]':`, selectedRoulette.lastNumbers);
-            
-            cardNumbers = selectedRoulette.lastNumbers.map(n => Number(n || 0))
-              .filter(n => !isNaN(n) && n >= 0 && n <= 36);
-            
-            if (cardNumbers.length > 0) {
-              console.log(`[SidePanel] Extraídos ${cardNumbers.length} números do atributo 'lastNumbers'`, cardNumbers);
-              return cardNumbers;
-            }
-          }
-          
-          // VERIFICAR NÚMEROS NO FORMATO .numeros[]
-          if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
-            console.log(`[SidePanel] Tentando extrair de 'numeros[]':`, selectedRoulette.numeros);
-            
-            cardNumbers = selectedRoulette.numeros.map(n => Number(n || 0))
-              .filter(n => !isNaN(n) && n >= 0 && n <= 36);
-            
-            if (cardNumbers.length > 0) {
-              console.log(`[SidePanel] Extraídos ${cardNumbers.length} números do atributo 'numeros'`, cardNumbers);
-              return cardNumbers;
-            }
-          }
-          
-          // Como último recurso, usar o número 9 (visível na imagem)
-          console.warn(`[SidePanel] EMERGÊNCIA: Usando número fixo 9 para testes`);
-          return [9];
-        };
-        
-        // Extrair os números visíveis no card
-        const cardNumbers = extractCardNumbers();
-        console.log(`[SidePanel] Números extraídos do card: ${cardNumbers.length}`, cardNumbers);
-        
-        // Tentar buscar números históricos da API (como o modal faz)
-        const loadHistoricalData = async () => {
-          try {
-            console.log(`[SidePanel] Buscando histórico para ${roletaNome}...`);
-            let apiNumbers: number[] = [];
-            
-            // Usar a mesma função que o modal usa para buscar dados históricos
-            if (roletaNome) {
-              apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
-              console.log(`[SidePanel] Números históricos da API para ${roletaNome}: ${apiNumbers.length}`);
-            }
-            
-            // Se temos números tanto no card quanto da API
-            if (cardNumbers.length > 0 && apiNumbers.length > 0) {
-              // Começamos com os números do card (são os mais atuais)
-              const combinedNumbers = [...cardNumbers];
-              
-              // Adicionar números da API que não estão no card
-              apiNumbers.forEach(num => {
-                if (!combinedNumbers.includes(num)) {
-                  combinedNumbers.push(num);
-                }
-              });
-              
-              console.log(`[SidePanel] Combinados ${combinedNumbers.length} números totais`);
-              setHistoricalNumbers(combinedNumbers);
-            } 
-            // Se só temos os números do card
-            else if (cardNumbers.length > 0) {
-              console.log(`[SidePanel] Usando apenas números do card: ${cardNumbers.length}`);
-              setHistoricalNumbers(cardNumbers);
-            }
-            // Como último recurso, tentar dados da API ou gerar números aleatórios
-            else if (apiNumbers.length > 0) {
-              console.log(`[SidePanel] Usando apenas números da API: ${apiNumbers.length}`);
-              setHistoricalNumbers(apiNumbers);
-            }
-            // Sem dados do card ou API, usar número de emergência
-            else {
-              console.warn(`[SidePanel] Sem dados disponíveis, usando emergência: [9]`);
-              setHistoricalNumbers([9]);
-            }
-          } catch (error) {
-            console.error('[SidePanel] Erro ao carregar histórico:', error);
-            // Em caso de erro, usar os números do card ou o número de emergência
-            setHistoricalNumbers(cardNumbers.length > 0 ? cardNumbers : [9]);
-          } finally {
-            setIsLoadingStats(false);
-          }
-        };
-        
-        // Chamar a função de carregamento 
-        loadHistoricalData();
-      } catch (error) {
-        console.error('[SidePanel] Erro ao processar dados:', error);
-        setHistoricalNumbers([9]);
-        setIsLoadingStats(false);
-      }
+          console.log(`[SidePanel] Total de ${finalNumbers.length} números para ${roletaNome}`);
+          setHistoricalNumbers(finalNumbers);
+        } catch (error) {
+          console.error('[SidePanel] Erro ao carregar histórico:', error);
+          // Em caso de erro, gerar números aleatórios para demonstração
+          setHistoricalNumbers(getHistoricalNumbers());
+        } finally {
+          setIsLoadingStats(false);
+        }
+      };
+      
+      loadHistoricalData();
     }
   }, [selectedRoulette]);
 
@@ -238,8 +176,8 @@ const RoutetteSidePanelStats = ({
   return (
     <div className="w-full bg-gray-900 rounded-lg overflow-y-auto sticky top-4">
       <div className="p-4">
-        <h2 className="text-xl font-bold text-white mb-2 flex items-center">
-          <BarChart className="h-5 w-5 mr-2 text-[#00ff00]" />
+        <h2 className="text-xl font-bold text-[#00ff00] mb-2 flex items-center">
+          <BarChart className="h-5 w-5 mr-2" />
           {selectedRoulette 
             ? `Estatísticas: ${selectedRoulette.nome || selectedRoulette.name}`
             : 'Estatísticas da Roleta'
@@ -311,59 +249,6 @@ const RoutetteSidePanelStats = ({
             </div>
           </div>
           
-          {/* Taxa de Vitória */}
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <Percent className="h-4 w-4 mr-2 text-[#00ff00]" /> Taxa de Vitória
-            </h3>
-            <div className="h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: "Vitórias", value: wins || 1 },
-                      { name: "Derrotas", value: losses || 1 }
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
-                    fill="#00ff00"
-                    paddingAngle={5}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    <Cell key="wins" fill="#00ff00" />
-                    <Cell key="losses" fill="#ef4444" />
-                  </Pie>
-                  <Legend />
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          
-          {/* Frequency Chart */}
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <ChartBar className="h-4 w-4 mr-2 text-[#00ff00]" /> Frequência de Números
-            </h3>
-            <div className="h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <RechartsBarChart data={frequencyData} margin={{ top: 10, right: 30, left: 20, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 12}} />
-                  <YAxis stroke="#ccc" tick={{fontSize: 12}} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#222', borderColor: '#00ff00' }} 
-                    labelStyle={{ color: '#00ff00' }}
-                  />
-                  <Bar dataKey="frequency" fill="#00ff00" />
-                </RechartsBarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          
           {/* Hot & Cold Numbers */}
           <div className="bg-gray-800 p-4 rounded-lg">
             <h3 className="text-sm font-medium text-white mb-3">Números Quentes & Frios</h3>
@@ -401,6 +286,59 @@ const RoutetteSidePanelStats = ({
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+          
+          {/* Frequency Chart */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+              <ChartBar className="h-4 w-4 mr-2 text-[#00ff00]" /> Frequência de Números
+            </h3>
+            <div className="h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsBarChart data={frequencyData} margin={{ top: 10, right: 30, left: 20, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                  <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 12}} />
+                  <YAxis stroke="#ccc" tick={{fontSize: 12}} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#222', borderColor: '#00ff00' }} 
+                    labelStyle={{ color: '#00ff00' }}
+                  />
+                  <Bar dataKey="frequency" fill="#00ff00" />
+                </RechartsBarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          
+          {/* Taxa de Vitória */}
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+              <Percent className="h-4 w-4 mr-2 text-[#00ff00]" /> Taxa de Vitória
+            </h3>
+            <div className="h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "Vitórias", value: wins || 1 },
+                      { name: "Derrotas", value: losses || 1 }
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={60}
+                    fill="#00ff00"
+                    paddingAngle={5}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    <Cell key="wins" fill="#00ff00" />
+                    <Cell key="losses" fill="#ef4444" />
+                  </Pie>
+                  <Legend />
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </div>
           
