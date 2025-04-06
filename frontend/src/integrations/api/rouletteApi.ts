@@ -1,6 +1,9 @@
 import axios from 'axios';
 import { mapToCanonicalRouletteId } from './rouletteService';
 
+// URL base do backend no Railway
+const API_BASE_URL = 'https://backendapi-production-36b5.up.railway.app';
+
 // Cache para otimizar as requisições
 const cache: Record<string, { data: any, timestamp: number }> = {};
 const CACHE_TTL = 60000; // 1 minuto em milissegundos
@@ -20,7 +23,7 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
 
     // Passo 1: Buscar todas as roletas disponíveis
     console.log('[API] Buscando roletas e seus números');
-    const roulettesResponse = await axios.get('/api/ROULETTES');
+    const roulettesResponse = await axios.get(`${API_BASE_URL}/api/ROULETTES?limit=${limit}`);
     
     if (!roulettesResponse.data || !Array.isArray(roulettesResponse.data)) {
       console.error('[API] Resposta inválida da API de roletas');
@@ -100,7 +103,7 @@ export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Pr
     const canonicalId = mapToCanonicalRouletteId(roletaId);
     
     // Buscar todas as roletas para encontrar a desejada
-    const roulettesResponse = await axios.get('/api/ROULETTES');
+    const roulettesResponse = await axios.get(`${API_BASE_URL}/api/ROULETTES?limit=${limit}`);
     
     if (!roulettesResponse.data || !Array.isArray(roulettesResponse.data)) {
       console.error('[API] Resposta inválida da API de roletas');

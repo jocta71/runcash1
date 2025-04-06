@@ -1240,10 +1240,10 @@ class SocketService {
     return numbers;
   }
   
-  // Obter a URL base da API
+  // Método para obter a URL base para as APIs
   private getApiBaseUrl(): string {
-    // Em vez de usar a URL completa do Railway, usar o endpoint relativo para aproveitar o proxy
-    return '/api';
+    // Usar diretamente a URL do Railway em vez de uma URL relativa
+    return 'https://backendapi-production-36b5.up.railway.app/api';
   }
 
   // Adicionando um evento artificial para teste (deve ser removido em produção)

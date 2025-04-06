@@ -7,6 +7,9 @@ import { Loader2 } from 'lucide-react';
 import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
 
+// URL base do backend no Railway
+const API_BASE_URL = 'https://backendapi-production-36b5.up.railway.app';
+
 const LiveRoulettePage: React.FC = () => {
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -16,7 +19,7 @@ const LiveRoulettePage: React.FC = () => {
   const fetchRoulettes = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/ROULETTES');
+      const response = await axios.get(`${API_BASE_URL}/api/ROULETTES?limit=50`);
       if (response.data && Array.isArray(response.data)) {
         setRoulettes(response.data);
       } else {
