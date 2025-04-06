@@ -26,7 +26,7 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
   try {
     console.log(`[API] Buscando dados históricos para: ${rouletteName}`);
     
-    // Usar a URL absoluta para o backend Railway
+    // Usar a URL completa do backend no Railway diretamente
     const response = await fetch(`https://backendapi-production-36b5.up.railway.app/api/ROULETTES?limit=1000`);
     
     if (response.ok) {
