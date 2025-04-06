@@ -209,9 +209,9 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
     return (
       <div className="round-history w-full flex flex-col space-y-0">
         <div className="w-full">
-          <div className="grid grid-cols-15 gap-0 p-0" style={{ gridTemplateColumns: 'repeat(15, 1fr)' }}>
-            {/* Exibir todos os números ou apenas os primeiros 15 */}
-            {Array.from({ length: Math.min(isExpanded ? historyNumbers.length : 15, historyNumbers.length) }).map((_, index) => (
+          <div className="grid grid-cols-31 gap-[5px] p-0" style={{ gridTemplateColumns: 'repeat(31, 1fr)' }}>
+            {/* Exibir todos os números ou apenas os primeiros 31 */}
+            {Array.from({ length: Math.min(isExpanded ? historyNumbers.length : 31, historyNumbers.length) }).map((_, index) => (
               <div key={index} className="flex items-center justify-center">
                 <div
                   className={`${getNumberColor(historyNumbers[index])} cell-number-${historyNumbers[index]} cell-state-default flex h-6 w-6 items-center justify-center rounded-full font-medium`}
@@ -224,7 +224,7 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
           </div>
         </div>
         
-        {historyNumbers.length > 15 && (
+        {historyNumbers.length > 31 && (
           <Button 
             variant="outline" 
             size="sm"
@@ -242,7 +242,7 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   const renderList = () => {
     return (
       <ScrollArea className="h-[400px] rounded-md border">
-        <div className="grid gap-0 p-0" style={{ gridTemplateColumns: 'repeat(15, 1fr)' }}>
+        <div className="grid gap-[5px] p-0" style={{ gridTemplateColumns: 'repeat(31, 1fr)' }}>
           {historyNumbers.map((num, index) => (
             <div 
               key={`list-${index}`} 
