@@ -7,6 +7,7 @@ import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
 import { RouletteNumberEvent } from '@/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import RouletteStatsModal from '@/components/RouletteStatsModal';
 
 interface RouletteHistoryProps {
   roletaId: string;
@@ -47,6 +48,7 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   const [historyNumbers, setHistoryNumbers] = useState<number[]>(initialNumbers);
   const [viewMode, setViewMode] = useState<ViewMode>('stats');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
   
   // Log inicial para diagnóstico
   console.log(`[RouletteHistory] Inicializando com ${initialNumbers.length} números para ${roletaNome}`);
@@ -265,128 +267,140 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   // Renderizar estatísticas
   const renderStats = () => {
     return (
-      <div className="grid grid-cols-2 gap-4 p-4">
-        <Card>
-          <CardContent className="pt-6">
-            <h3 className="text-sm font-medium">Cores</h3>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <div className="flex flex-col items-center">
-                <Badge variant="outline" className="bg-red-600 text-white px-2 py-1 w-full text-center">
-                  Vermelho
-                </Badge>
-                <span className="mt-1 text-lg font-bold">{stats.red}</span>
-                <span className="text-xs text-muted-foreground">
-                  {historyNumbers.length > 0 ? `${Math.round((stats.red / historyNumbers.length) * 100)}%` : '0%'}
-                </span>
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setIsStatsModalOpen(true)}
+            className="mb-2"
+          >
+            Visualização Avançada
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-4 p-4">
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-sm font-medium">Cores</h3>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <div className="flex flex-col items-center">
+                  <Badge variant="outline" className="bg-red-600 text-white px-2 py-1 w-full text-center">
+                    Vermelho
+                  </Badge>
+                  <span className="mt-1 text-lg font-bold">{stats.red}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {historyNumbers.length > 0 ? `${Math.round((stats.red / historyNumbers.length) * 100)}%` : '0%'}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Badge variant="outline" className="bg-zinc-900 text-white px-2 py-1 w-full text-center">
+                    Preto
+                  </Badge>
+                  <span className="mt-1 text-lg font-bold">{stats.black}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {historyNumbers.length > 0 ? `${Math.round((stats.black / historyNumbers.length) * 100)}%` : '0%'}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Badge variant="outline" className="bg-green-600 text-white px-2 py-1 w-full text-center">
+                    Verde
+                  </Badge>
+                  <span className="mt-1 text-lg font-bold">{stats.green}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {historyNumbers.length > 0 ? `${Math.round((stats.green / historyNumbers.length) * 100)}%` : '0%'}
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col items-center">
-                <Badge variant="outline" className="bg-zinc-900 text-white px-2 py-1 w-full text-center">
-                  Preto
-                </Badge>
-                <span className="mt-1 text-lg font-bold">{stats.black}</span>
-                <span className="text-xs text-muted-foreground">
-                  {historyNumbers.length > 0 ? `${Math.round((stats.black / historyNumbers.length) * 100)}%` : '0%'}
-                </span>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-sm font-medium">Par/Ímpar</h3>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="flex flex-col items-center">
+                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
+                    Pares
+                  </Badge>
+                  <span className="mt-1 text-lg font-bold">{stats.even}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {historyNumbers.length > 0 ? `${Math.round((stats.even / historyNumbers.length) * 100)}%` : '0%'}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
+                    Ímpares
+                  </Badge>
+                  <span className="mt-1 text-lg font-bold">{stats.odd}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {historyNumbers.length > 0 ? `${Math.round((stats.odd / historyNumbers.length) * 100)}%` : '0%'}
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col items-center">
-                <Badge variant="outline" className="bg-green-600 text-white px-2 py-1 w-full text-center">
-                  Verde
-                </Badge>
-                <span className="mt-1 text-lg font-bold">{stats.green}</span>
-                <span className="text-xs text-muted-foreground">
-                  {historyNumbers.length > 0 ? `${Math.round((stats.green / historyNumbers.length) * 100)}%` : '0%'}
-                </span>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-sm font-medium">Baixo/Alto</h3>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="flex flex-col items-center">
+                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
+                    1-18
+                  </Badge>
+                  <span className="mt-1 text-lg font-bold">{stats.low}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {historyNumbers.length > 0 ? `${Math.round((stats.low / historyNumbers.length) * 100)}%` : '0%'}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
+                    19-36
+                  </Badge>
+                  <span className="mt-1 text-lg font-bold">{stats.high}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {historyNumbers.length > 0 ? `${Math.round((stats.high / historyNumbers.length) * 100)}%` : '0%'}
+                  </span>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <h3 className="text-sm font-medium">Par/Ímpar</h3>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <div className="flex flex-col items-center">
-                <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                  Pares
-                </Badge>
-                <span className="mt-1 text-lg font-bold">{stats.even}</span>
-                <span className="text-xs text-muted-foreground">
-                  {historyNumbers.length > 0 ? `${Math.round((stats.even / historyNumbers.length) * 100)}%` : '0%'}
-                </span>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-sm font-medium">Dúzias</h3>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <div className="flex flex-col items-center">
+                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
+                    1-12
+                  </Badge>
+                  <span className="mt-1 text-lg font-bold">{stats.dozens[0]}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {historyNumbers.length > 0 ? `${Math.round((stats.dozens[0] / historyNumbers.length) * 100)}%` : '0%'}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
+                    13-24
+                  </Badge>
+                  <span className="mt-1 text-lg font-bold">{stats.dozens[1]}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {historyNumbers.length > 0 ? `${Math.round((stats.dozens[1] / historyNumbers.length) * 100)}%` : '0%'}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Badge variant="outline" className="px-2 py-1 w-full text-center">
+                    25-36
+                  </Badge>
+                  <span className="mt-1 text-lg font-bold">{stats.dozens[2]}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {historyNumbers.length > 0 ? `${Math.round((stats.dozens[2] / historyNumbers.length) * 100)}%` : '0%'}
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col items-center">
-                <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                  Ímpares
-                </Badge>
-                <span className="mt-1 text-lg font-bold">{stats.odd}</span>
-                <span className="text-xs text-muted-foreground">
-                  {historyNumbers.length > 0 ? `${Math.round((stats.odd / historyNumbers.length) * 100)}%` : '0%'}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <h3 className="text-sm font-medium">Baixo/Alto</h3>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <div className="flex flex-col items-center">
-                <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                  1-18
-                </Badge>
-                <span className="mt-1 text-lg font-bold">{stats.low}</span>
-                <span className="text-xs text-muted-foreground">
-                  {historyNumbers.length > 0 ? `${Math.round((stats.low / historyNumbers.length) * 100)}%` : '0%'}
-                </span>
-              </div>
-              <div className="flex flex-col items-center">
-                <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                  19-36
-                </Badge>
-                <span className="mt-1 text-lg font-bold">{stats.high}</span>
-                <span className="text-xs text-muted-foreground">
-                  {historyNumbers.length > 0 ? `${Math.round((stats.high / historyNumbers.length) * 100)}%` : '0%'}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <h3 className="text-sm font-medium">Dúzias</h3>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <div className="flex flex-col items-center">
-                <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                  1-12
-                </Badge>
-                <span className="mt-1 text-lg font-bold">{stats.dozens[0]}</span>
-                <span className="text-xs text-muted-foreground">
-                  {historyNumbers.length > 0 ? `${Math.round((stats.dozens[0] / historyNumbers.length) * 100)}%` : '0%'}
-                </span>
-              </div>
-              <div className="flex flex-col items-center">
-                <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                  13-24
-                </Badge>
-                <span className="mt-1 text-lg font-bold">{stats.dozens[1]}</span>
-                <span className="text-xs text-muted-foreground">
-                  {historyNumbers.length > 0 ? `${Math.round((stats.dozens[1] / historyNumbers.length) * 100)}%` : '0%'}
-                </span>
-              </div>
-              <div className="flex flex-col items-center">
-                <Badge variant="outline" className="px-2 py-1 w-full text-center">
-                  25-36
-                </Badge>
-                <span className="mt-1 text-lg font-bold">{stats.dozens[2]}</span>
-                <span className="text-xs text-muted-foreground">
-                  {historyNumbers.length > 0 ? `${Math.round((stats.dozens[2] / historyNumbers.length) * 100)}%` : '0%'}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   };
@@ -410,6 +424,15 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
       {viewMode === 'grid' && renderGrid()}
       {viewMode === 'list' && renderList()}
       {viewMode === 'stats' && renderStats()}
+      
+      <RouletteStatsModal
+        open={isStatsModalOpen}
+        onClose={() => setIsStatsModalOpen(false)}
+        roletaNome={roletaNome}
+        lastNumbers={historyNumbers}
+        wins={0}
+        losses={0}
+      />
     </div>
   );
 };
