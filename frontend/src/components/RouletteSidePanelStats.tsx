@@ -26,8 +26,9 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
   try {
     console.log(`[API] Buscando dados históricos para: ${rouletteName}`);
     
-    // Usar o endpoint /api/ROULETTES que é redirecionado pelo Vercel para o Railway
-    const response = await fetch(`/api/ROULETTES`);
+    // Usar a variável de ambiente para acessar o backend diretamente
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api';
+    const response = await fetch(`${apiBaseUrl}/ROULETTES`);
     
     if (response.ok) {
       const data = await response.json();
