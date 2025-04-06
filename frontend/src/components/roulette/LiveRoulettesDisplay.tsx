@@ -158,136 +158,288 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   
   // Componente de estatísticas inline 
   const RouletteStatsInline = ({ roletaNome, lastNumbers }: { roletaNome: string, lastNumbers: number[] }) => {
+    // Calcular estatísticas
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    const redCount = lastNumbers.filter(n => redNumbers.includes(n)).length;
+    const blackCount = lastNumbers.filter(n => n !== 0 && !redNumbers.includes(n)).length;
+    const zeroCount = lastNumbers.filter(n => n === 0).length;
+    const total = lastNumbers.length;
+    
+    // Calcular porcentagens
+    const redPercent = Math.round((redCount / total) * 100);
+    const blackPercent = Math.round((blackCount / total) * 100);
+    const zeroPercent = Math.round((zeroCount / total) * 100);
+    
+    // Calcular frequência de números
+    const numberFrequency: Record<number, number> = {};
+    for (let i = 0; i <= 36; i++) {
+      numberFrequency[i] = 0;
+    }
+    lastNumbers.forEach(num => {
+      if (numberFrequency[num] !== undefined) {
+        numberFrequency[num]++;
+      }
+    });
+    
+    // Obter números quentes e frios
+    const hotNumbers = getHotNumbers(lastNumbers).slice(0, 5);
+    const coldNumbers = getColdNumbers(lastNumbers).slice(0, 5);
+    
     return (
-      <div className="p-4 h-full overflow-y-auto">
-        <h3 className="text-xl font-bold text-[#00ff00] mb-4 flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-            <path d="M3 3v18h18"></path>
-            <path d="M18 12V8"></path>
-            <path d="M12 18v-2"></path>
-            <path d="M6 18v-6"></path>
-          </svg>
-          Estatísticas da {roletaNome}
-        </h3>
+      <div className="p-4 h-full overflow-y-auto bg-gray-900 text-white">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold text-[#00ff00] flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+              <path d="M3 3v18h18"></path>
+              <path d="M18 12V8"></path>
+              <path d="M12 18v-2"></path>
+              <path d="M6 18v-6"></path>
+            </svg>
+            Estatísticas da {roletaNome}
+          </h3>
+          <p className="text-gray-400 text-sm">Análise detalhada dos últimos {lastNumbers.length} números e tendências</p>
+        </div>
         
-        {/* Histórico de números */}
-        <div className="mb-6 bg-gray-900 rounded-lg p-4">
-          <h4 className="text-lg text-[#00ff00] mb-3">Histórico de Números</h4>
-          <div className="grid grid-cols-10 gap-1 max-h-[300px] overflow-y-auto">
-            {lastNumbers.slice(0, 200).map((num, idx) => {
-              const bgColor = num === 0 
-                ? "bg-green-600" 
-                : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
-                  ? "bg-red-600"
-                  : "bg-black";
-              
-              return (
-                <div 
-                  key={idx} 
-                  className={`${bgColor} text-white w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-medium`}
-                >
-                  {num}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+          {/* Histórico de números */}
+          <div className="bg-gray-800 rounded-lg p-4 overflow-hidden">
+            <h4 className="text-base flex items-center text-[#00ff00] mb-3 font-bold">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                <path d="M3 3v18h18"></path>
+              </svg>
+              Histórico de Números (Mostrando: {Math.min(lastNumbers.length, 50)})
+            </h4>
+            <div className="grid grid-cols-10 gap-1">
+              {lastNumbers.slice(0, 50).map((num, idx) => {
+                const bgColor = num === 0 
+                  ? "bg-green-600" 
+                  : redNumbers.includes(num)
+                    ? "bg-red-600"
+                    : "bg-black";
+                
+                return (
+                  <div 
+                    key={idx} 
+                    className={`${bgColor} text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium`}
+                  >
+                    {num}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+          {/* Taxa de Vitória */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h4 className="text-base flex items-center text-[#00ff00] mb-3 font-bold">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path>
+              </svg>
+              Taxa de Vitória
+            </h4>
+            <div className="flex items-center justify-center h-44">
+              <div className="relative h-40 w-40 rounded-full border-8 border-gray-700 flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xl font-bold text-[#00ff00]">Simule suas apostas</span>
                 </div>
-              );
-            })}
+                <div className="absolute bottom-0 left-0 right-0 flex justify-center -mb-12">
+                  <div className="flex space-x-4 text-xs">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-[#00ff00] rounded-full mr-1"></div>
+                      <span>Vitórias</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-red-500 rounded-full mr-1"></div>
+                      <span>Derrotas</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Frequência de Números */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h4 className="text-base flex items-center text-[#00ff00] mb-3 font-bold">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                <path d="M3 3v18h18"></path>
+                <path d="M18 12V8"></path>
+                <path d="M12 18v-2"></path>
+                <path d="M6 18v-6"></path>
+              </svg>
+              Frequência de Números
+            </h4>
+            <div className="h-44 bg-gray-900 rounded relative">
+              {/* Simular um gráfico de barras */}
+              <div className="absolute inset-0 flex items-end justify-between px-1">
+                {[...Array(10)].map((_, idx) => {
+                  const height = Math.max(10, Math.floor(Math.random() * 80)); // Altura aleatória para ilustração
+                  return (
+                    <div 
+                      key={idx} 
+                      className="w-2 bg-[#00ff00] rounded-t"
+                      style={{ height: `${height}%` }}
+                    ></div>
+                  );
+                })}
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-5 flex justify-between px-1 text-[10px] text-gray-400">
+                {[0, 6, 12, 18, 24, 30, 36].map(num => (
+                  <span key={num}>{num}</span>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
         
-        {/* Estatísticas resumidas - mostrar tabelas de estatísticas simples */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          <div className="bg-gray-900 rounded-lg p-4">
-            <h4 className="text-lg text-white mb-3">Distribuição por Cor</h4>
-            <div className="space-y-2">
-              {[
-                { label: "Vermelho", color: "bg-red-600", count: lastNumbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length },
-                { label: "Preto", color: "bg-black", count: lastNumbers.filter(n => n !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length },
-                { label: "Verde (0)", color: "bg-green-600", count: lastNumbers.filter(n => n === 0).length }
-              ].map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className={`w-4 h-4 ${item.color} rounded-full mr-2`}></div>
-                    <span className="text-gray-300">{item.label}</span>
-                  </div>
-                  <span className="font-bold text-white">{item.count}</span>
+        {/* Segunda linha de gráficos */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          {/* Distribuição por Cor */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h4 className="text-base flex items-center text-[#00ff00] mb-3 font-bold">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path>
+              </svg>
+              Distribuição por Cor
+            </h4>
+            <div className="flex items-center justify-center mt-4">
+              <div className="w-40 h-40 relative">
+                {/* Circle chart */}
+                <svg viewBox="0 0 100 100" className="w-full h-full">
+                  {/* Red section */}
+                  <path 
+                    d={`M 50,50 L 50,0 A 50,50 0 ${redPercent > 50 ? 1 : 0},1 ${50 + 50 * Math.sin(2 * Math.PI * redPercent / 100)},${50 - 50 * Math.cos(2 * Math.PI * redPercent / 100)} Z`} 
+                    fill="#ef4444" 
+                  />
+                  {/* Black section */}
+                  <path 
+                    d={`M 50,50 L ${50 + 50 * Math.sin(2 * Math.PI * redPercent / 100)},${50 - 50 * Math.cos(2 * Math.PI * redPercent / 100)} A 50,50 0 ${100 - redPercent - zeroPercent > 50 ? 1 : 0},1 ${50 + 50 * Math.sin(2 * Math.PI * (redPercent + zeroPercent) / 100)},${50 - 50 * Math.cos(2 * Math.PI * (redPercent + zeroPercent) / 100)} Z`} 
+                    fill="#111827" 
+                  />
+                  {/* Green section */}
+                  <path 
+                    d={`M 50,50 L ${50 + 50 * Math.sin(2 * Math.PI * (redPercent + zeroPercent) / 100)},${50 - 50 * Math.cos(2 * Math.PI * (redPercent + zeroPercent) / 100)} A 50,50 0 ${zeroPercent > 50 ? 1 : 0},1 ${50 + 50 * Math.sin(0)},${50 - 50 * Math.cos(0)} Z`} 
+                    fill="#059669" 
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-20 h-20 bg-gray-900 rounded-full"></div>
                 </div>
-              ))}
+              </div>
+            </div>
+            <div className="flex justify-between mt-4 text-sm">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-red-600 rounded-full mr-1"></div>
+                <span>Vermelhos {redPercent}%</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-black rounded-full mr-1"></div>
+                <span>Pretos {blackPercent}%</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-green-600 rounded-full mr-1"></div>
+                <span>Zero {zeroPercent}%</span>
+              </div>
             </div>
           </div>
           
-          <div className="bg-gray-900 rounded-lg p-4">
-            <h4 className="text-lg text-white mb-3">Par/Ímpar</h4>
-            <div className="space-y-2">
-              {[
-                { label: "Par", count: lastNumbers.filter(n => n !== 0 && n % 2 === 0).length },
-                { label: "Ímpar", count: lastNumbers.filter(n => n % 2 === 1).length }
-              ].map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between">
-                  <span className="text-gray-300">{item.label}</span>
-                  <span className="font-bold text-white">{item.count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <div className="bg-gray-900 rounded-lg p-4">
-            <h4 className="text-lg text-white mb-3">Faixas</h4>
-            <div className="space-y-2">
-              {[
-                { label: "Baixo (1-18)", count: lastNumbers.filter(n => n >= 1 && n <= 18).length },
-                { label: "Alto (19-36)", count: lastNumbers.filter(n => n >= 19 && n <= 36).length }
-              ].map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between">
-                  <span className="text-gray-300">{item.label}</span>
-                  <span className="font-bold text-white">{item.count}</span>
-                </div>
-              ))}
+          {/* Estatísticas resumidas */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h4 className="text-base flex items-center text-[#00ff00] mb-3 font-bold">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path>
+                <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path>
+                <path d="M7 21h10"></path>
+                <path d="M12 3v18"></path>
+                <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path>
+              </svg>
+              Resumo
+            </h4>
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <div className="bg-gray-900 p-3 rounded">
+                <div className="text-xs text-gray-400">Par</div>
+                <div className="text-lg font-bold mt-1">{lastNumbers.filter(n => n !== 0 && n % 2 === 0).length}</div>
+                <div className="text-xs text-gray-400 mt-2">Ímpar</div>
+                <div className="text-lg font-bold mt-1">{lastNumbers.filter(n => n % 2 === 1).length}</div>
+              </div>
+              <div className="bg-gray-900 p-3 rounded">
+                <div className="text-xs text-gray-400">Baixo (1-18)</div>
+                <div className="text-lg font-bold mt-1">{lastNumbers.filter(n => n >= 1 && n <= 18).length}</div>
+                <div className="text-xs text-gray-400 mt-2">Alto (19-36)</div>
+                <div className="text-lg font-bold mt-1">{lastNumbers.filter(n => n >= 19 && n <= 36).length}</div>
+              </div>
+              <div className="bg-gray-900 p-3 rounded">
+                <div className="text-xs text-gray-400">1ª dúzia (1-12)</div>
+                <div className="text-lg font-bold mt-1">{lastNumbers.filter(n => n >= 1 && n <= 12).length}</div>
+              </div>
+              <div className="bg-gray-900 p-3 rounded">
+                <div className="text-xs text-gray-400">2ª dúzia (13-24)</div>
+                <div className="text-lg font-bold mt-1">{lastNumbers.filter(n => n >= 13 && n <= 24).length}</div>
+              </div>
+              <div className="bg-gray-900 p-3 rounded col-span-2">
+                <div className="text-xs text-gray-400">3ª dúzia (25-36)</div>
+                <div className="text-lg font-bold mt-1">{lastNumbers.filter(n => n >= 25 && n <= 36).length}</div>
+              </div>
             </div>
           </div>
         </div>
         
         {/* Números quentes e frios */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-gray-900 rounded-lg p-4">
-            <h4 className="text-lg text-white mb-3">Números Quentes</h4>
-            <div className="flex flex-wrap gap-2">
-              {getHotNumbers(lastNumbers).map((num, idx) => {
-                const bgColor = num.number === 0 
-                  ? "bg-green-600" 
-                  : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num.number)
-                    ? "bg-red-600"
-                    : "bg-black";
-                
-                return (
-                  <div key={idx} className="flex items-center">
-                    <div className={`${bgColor} w-8 h-8 rounded-full flex items-center justify-center text-white mr-1`}>
-                      {num.number}
+        <div className="bg-gray-800 rounded-lg p-4 mb-6">
+          <h4 className="text-lg text-white mb-4 font-bold">Números Quentes & Frios</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h5 className="text-base font-semibold flex items-center text-red-500 mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                  <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+                Números Quentes (Mais Frequentes)
+              </h5>
+              <div className="flex flex-wrap gap-2">
+                {hotNumbers.map((num, idx) => {
+                  const bgColor = num.number === 0 
+                    ? "bg-green-600" 
+                    : redNumbers.includes(num.number)
+                      ? "bg-red-600"
+                      : "bg-black";
+                  
+                  return (
+                    <div key={idx} className="flex items-center">
+                      <div className={`${bgColor} w-8 h-8 rounded-full flex items-center justify-center text-white mr-1`}>
+                        {num.number}
+                      </div>
+                      <span className="text-gray-400 text-sm">({num.count}x)</span>
                     </div>
-                    <span className="text-gray-400 text-sm">({num.count}x)</span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-          
-          <div className="bg-gray-900 rounded-lg p-4">
-            <h4 className="text-lg text-white mb-3">Números Frios</h4>
-            <div className="flex flex-wrap gap-2">
-              {getColdNumbers(lastNumbers).map((num, idx) => {
-                const bgColor = num.number === 0 
-                  ? "bg-green-600" 
-                  : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num.number)
-                    ? "bg-red-600"
-                    : "bg-black";
-                
-                return (
-                  <div key={idx} className="flex items-center">
-                    <div className={`${bgColor} w-8 h-8 rounded-full flex items-center justify-center text-white mr-1`}>
-                      {num.number}
+            
+            <div>
+              <h5 className="text-base font-semibold flex items-center text-blue-500 mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+                Números Frios (Menos Frequentes)
+              </h5>
+              <div className="flex flex-wrap gap-2">
+                {coldNumbers.map((num, idx) => {
+                  const bgColor = num.number === 0 
+                    ? "bg-green-600" 
+                    : redNumbers.includes(num.number)
+                      ? "bg-red-600"
+                      : "bg-black";
+                  
+                  return (
+                    <div key={idx} className="flex items-center">
+                      <div className={`${bgColor} w-8 h-8 rounded-full flex items-center justify-center text-white mr-1`}>
+                        {num.number}
+                      </div>
+                      <span className="text-gray-400 text-sm">({num.count}x)</span>
                     </div>
-                    <span className="text-gray-400 text-sm">({num.count}x)</span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
