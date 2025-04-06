@@ -83,7 +83,7 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
     console.log(`[API] Buscando dados históricos para: ${rouletteName}`);
     
     // Usar nossa função utilitária com suporte a CORS
-    const data = await fetchWithCorsSupport<any[]>('/api/ROULETTES');
+    const data = await fetchWithCorsSupport<any[]>('/api/ROULETTES?limit=1000');
     
     // Processar os dados se foram obtidos com sucesso
     if (data && Array.isArray(data)) {
