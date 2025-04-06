@@ -306,11 +306,11 @@ const RouletteStatsModal = ({
             <h3 className="text-[#00ff00] flex items-center text-base md:text-lg mb-3 font-bold">
               <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {Math.min(historicalNumbers.length, 1000)})
             </h3>
-            <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-15 xl:grid-cols-18 gap-2 max-h-[500px] overflow-y-auto p-3">
+            <div className="grid grid-cols-6 sm:grid-cols-10 md:grid-cols-15 lg:grid-cols-20 xl:grid-cols-25 gap-1 max-h-[700px] overflow-y-auto p-3">
               {historicalNumbers.slice(0, 1000).map((num, idx) => (
                 <div 
                   key={idx} 
-                  className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm md:text-base font-bold ${getRouletteNumberColor(num)}`}
+                  className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
                 >
                   {num}
                 </div>
