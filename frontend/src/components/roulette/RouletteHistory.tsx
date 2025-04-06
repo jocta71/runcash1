@@ -206,12 +206,17 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   
   // Renderizar grade de números
   const renderGrid = () => {
+    // Número de colunas por linha
+    const colsPerRow = 37;
+    // Exibir 3 linhas por padrão (37 * 3 = 111 números)
+    const defaultVisibleItems = colsPerRow * 3;
+    
     return (
       <div className="round-history w-full flex flex-col space-y-0">
         <div className="w-full">
           <div className="grid grid-cols-37 gap-[5px] p-0" style={{ gridTemplateColumns: 'repeat(37, 1fr)' }}>
-            {/* Exibir todos os números ou apenas os primeiros 37 */}
-            {Array.from({ length: Math.min(isExpanded ? historyNumbers.length : 37, historyNumbers.length) }).map((_, index) => (
+            {/* Exibir 3 linhas ou todos os números se expandido */}
+            {Array.from({ length: Math.min(isExpanded ? historyNumbers.length : defaultVisibleItems, historyNumbers.length) }).map((_, index) => (
               <div key={index} className="flex items-center justify-center">
                 <div
                   className={`${getNumberColor(historyNumbers[index])} cell-number-${historyNumbers[index]} cell-state-default flex h-6 w-6 items-center justify-center rounded-full font-medium`}
@@ -224,7 +229,7 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
           </div>
         </div>
         
-        {historyNumbers.length > 37 && (
+        {historyNumbers.length > defaultVisibleItems && (
           <Button 
             variant="outline" 
             size="sm"
