@@ -69,88 +69,225 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   // Se temos dados passados por props, mostrar eles diretamente
   if (roulettesData && roulettesData.length > 0) {
     return (
-      <div className="container mx-auto px-4 py-6">
-        <h2 className="text-2xl font-bold mb-6 text-white">Roletas Disponíveis</h2>
+      <div className="max-w-[1200px] mx-auto px-4 py-6">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-white">Roletas Disponíveis</h2>
+          <p className="text-gray-400">Escolha uma roleta para começar a jogar</p>
+        </div>
         
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Lista de roletas à esquerda */}
-          <div className="lg:w-1/4">
-            <div className="bg-gray-900 rounded-lg p-4 mb-4">
-              <h3 className="text-xl font-bold text-white mb-4">Roletas</h3>
-              <div className="space-y-3 max-h-[80vh] overflow-y-auto pr-2">
-                {roulettes.map(roleta => (
-                  <div 
-                    key={roleta.id} 
-                    className={`bg-gray-800 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-750 transition-colors p-3 ${selectedRoulette?.id === roleta.id ? 'border-2 border-[#00ff00]' : ''}`}
-                    onClick={() => handleRouletteSelect(roleta)}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-semibold text-white">{roleta.nome}</h3>
-                      {Array.isArray(roleta.numero) && roleta.numero.length > 0 && (
-                        <div 
-                          className={`${
-                            roleta.numero[0].numero === 0 
-                              ? "bg-green-600" 
-                              : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(roleta.numero[0].numero)
-                                ? "bg-red-600"
-                                : "bg-black"
-                          } w-8 h-8 rounded-full flex items-center justify-center text-white font-medium`}
-                        >
-                          {roleta.numero[0].numero}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {roleta.numero.slice(0, 8).map((n, index) => {
-                          const num = n.numero;
-                          const bgColor = num === 0 
-                            ? "bg-green-600" 
-                            : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
-                              ? "bg-red-600"
-                              : "bg-black";
-                          
-                          return (
-                            <div 
-                              key={index} 
-                              className={`${bgColor} text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium`}
-                            >
-                              {num}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-gray-400 text-sm">Aguardando números...</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="mb-4">
+          <div className="relative w-full max-w-md">
+            <input 
+              type="text" 
+              placeholder="Buscar roleta..." 
+              className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            <svg 
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+              width="16" 
+              height="16" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
           </div>
-          
-          {/* Estatísticas detalhadas à direita */}
-          <div className="lg:w-3/4">
-            {selectedRoulette && Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0 ? (
-              <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg h-full">
-                <div className="h-full">
-                  <RouletteStatsInline 
-                    roletaNome={selectedRoulette.nome}
-                    lastNumbers={selectedRoulette.numero.map(n => n.numero)}
-                  />
+        </div>
+        
+        {/* Grid de roletas principal */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {roulettes.map(roleta => (
+            <div 
+              key={roleta.id} 
+              className={`bg-gray-800/80 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-750 transition-colors border border-gray-700 ${selectedRoulette?.id === roleta.id ? 'ring-2 ring-green-500' : ''}`}
+              onClick={() => handleRouletteSelect(roleta)}
+            >
+              <div className="p-3">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="flex items-center">
+                    <h3 className="text-lg font-semibold text-white mr-2">{roleta.nome.length > 12 ? roleta.nome.substring(0, 12) + "..." : roleta.nome}</h3>
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      width="16" 
+                      height="16" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      className="text-gray-400"
+                    >
+                      <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0Z"></path>
+                      <path d="M12 17v.01"></path>
+                      <path d="M12 14.5a1.5 1.5 0 0 1-1-2.5V10a1 1 0 0 1 1-1h0a1 1 0 0 1 1 1v2.5a1.5 1.5 0 0 1-1 2.5Z"></path>
+                    </svg>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    <span className="bg-gray-700 text-xs text-gray-300 px-2 py-0.5 rounded">
+                      {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? roleta.numero.length : 0} atualizações
+                    </span>
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      width="18" 
+                      height="18" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      className="text-gray-400"
+                    >
+                      <path d="M17 15V7M20 11h-6"></path>
+                      <path d="M7 9H3m0 0v4m0-4 4 4"></path>
+                    </svg>
+                  </div>
+                </div>
+                
+                {/* Número atual destacado */}
+                <div className="flex justify-center my-4">
+                  {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? (
+                    <div 
+                      className={`${
+                        roleta.numero[0].numero === 0 
+                          ? "bg-green-600" 
+                          : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(roleta.numero[0].numero)
+                            ? "bg-red-600"
+                            : "bg-black"
+                      } w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-bold`}
+                    >
+                      {roleta.numero[0].numero}
+                    </div>
+                  ) : (
+                    <div className="bg-gray-700 text-gray-400 w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold">
+                      ?
+                    </div>
+                  )}
+                </div>
+                
+                {/* Últimos números */}
+                <div className="flex flex-wrap justify-center gap-1 my-2">
+                  {Array.isArray(roleta.numero) && roleta.numero.slice(0, 10).map((n, index) => {
+                    const num = n.numero;
+                    const bgColor = num === 0 
+                      ? "bg-green-600" 
+                      : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
+                        ? "bg-red-600"
+                        : "bg-black";
+                    
+                    return (
+                      <div 
+                        key={index} 
+                        className={`${bgColor} text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium`}
+                      >
+                        {num}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Estatísticas resumidas */}
+                <div className="grid grid-cols-2 gap-1 mt-3 text-xs text-gray-400">
+                  <div className="flex justify-between">
+                    <span>Vermelho:</span>
+                    <span className="text-white font-medium">
+                      {Array.isArray(roleta.numero) 
+                        ? roleta.numero.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n.numero)).length 
+                        : 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Preto:</span>
+                    <span className="text-white font-medium">
+                      {Array.isArray(roleta.numero) 
+                        ? roleta.numero.filter(n => n.numero !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n.numero)).length 
+                        : 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Par:</span>
+                    <span className="text-white font-medium">
+                      {Array.isArray(roleta.numero) 
+                        ? roleta.numero.filter(n => n.numero !== 0 && n.numero % 2 === 0).length 
+                        : 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Ímpar:</span>
+                    <span className="text-white font-medium">
+                      {Array.isArray(roleta.numero) 
+                        ? roleta.numero.filter(n => n.numero % 2 === 1).length 
+                        : 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Alto (19-36):</span>
+                    <span className="text-white font-medium">
+                      {Array.isArray(roleta.numero) 
+                        ? roleta.numero.filter(n => n.numero >= 19 && n.numero <= 36).length 
+                        : 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Baixo (1-18):</span>
+                    <span className="text-white font-medium">
+                      {Array.isArray(roleta.numero) 
+                        ? roleta.numero.filter(n => n.numero >= 1 && n.numero <= 18).length 
+                        : 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Verde (0):</span>
+                    <span className="text-white font-medium">
+                      {Array.isArray(roleta.numero) 
+                        ? roleta.numero.filter(n => n.numero === 0).length 
+                        : 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total:</span>
+                    <span className="text-white font-medium">
+                      {Array.isArray(roleta.numero) ? roleta.numero.length : 0}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Rodapé */}
+                <div className="flex items-center justify-between mt-3 text-xs text-gray-500 border-t border-gray-700 pt-2">
+                  <div className="flex items-center gap-1">
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      width="12" 
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                      <path d="M13 2v7h7"></path>
+                    </svg>
+                    <span>Tempo real</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    <span>
+                      {Array.isArray(roleta.numero) ? roleta.numero.length : 0} números
+                    </span>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="bg-gray-800 rounded-lg flex items-center justify-center p-12 h-64 text-center">
-                <p className="text-gray-400 text-lg">
-                  {selectedRoulette 
-                    ? "Não há dados suficientes para exibir estatísticas." 
-                    : "Selecione uma roleta para ver estatísticas detalhadas"}
-                </p>
-              </div>
-            )}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
     );
