@@ -576,36 +576,31 @@ const Index = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Histórico de Números */}
-                  <div className="bg-gray-800 p-3 rounded-lg">
-                    <h3 className="text-sm font-medium text-white mb-2 flex items-center">
-                      <BarChart className="h-4 w-4 mr-2 text-green-500" />
-                      Histórico de Números (Mostrando: {Math.min(historicalNumbers.length, 100)})
-                    </h3>
-                    <div className="grid grid-cols-8 sm:grid-cols-10 gap-1 max-h-[150px] overflow-y-auto p-1">
-                      {historicalNumbers.slice(0, 100).map((num, idx) => {
-                        const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-                        const bgColor = num === 0 
-                          ? "bg-green-600"
-                          : redNumbers.includes(num) ? "bg-red-600" : "bg-black";
-                        
-                        return (
-                          <div 
-                            key={idx} 
-                            className={`${bgColor} w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium text-white`}
-                          >
-                            {num}
-                          </div>
-                        );
-                      })}
-                    </div>
+                  <div className="text-sm md:text-base text-gray-400 mb-4">
+                    Análise detalhada dos últimos {historicalNumbers.length} números e tendências
                   </div>
                   
-                  {/* Distribuição de Cores */}
-                  <div className="bg-gray-800 p-3 rounded-lg">
-                    <h3 className="text-sm font-medium text-white mb-2 flex items-center">
-                      <ChartBar className="h-4 w-4 mr-2 text-green-500" />
-                      Distribuição por Cor
+                  {/* Historical Numbers Section */}
+                  <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-gray-800">
+                    <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
+                      <BarChart className="mr-2 h-4 w-4" /> Histórico de Números (Mostrando: {Math.min(historicalNumbers.length, 100)})
+                    </h3>
+                    <div className="grid grid-cols-8 sm:grid-cols-10 gap-1 max-h-[150px] overflow-y-auto p-1">
+                      {historicalNumbers.slice(0, 100).map((num, idx) => (
+                        <div 
+                          key={idx} 
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
+                        >
+                          {num}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Distribution Pie Chart */}
+                  <div className="bg-gray-800 p-4 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+                      <ChartBar className="h-4 w-4 mr-2 text-green-500" /> Distribuição por Cor
                     </h3>
                     <div className="h-[180px]">
                       <ResponsiveContainer width="100%" height="100%">
@@ -631,16 +626,13 @@ const Index = () => {
                   </div>
                   
                   {/* Taxa de Vitória */}
-                  <div className="bg-gray-800 p-3 rounded-lg">
-                    <h3 className="text-sm font-medium text-white mb-2 flex items-center">
-                      <Percent className="h-4 w-4 mr-2 text-green-500" />
-                      Taxa de Vitória
+                  <div className="bg-gray-800 p-4 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+                      <Percent className="h-4 w-4 mr-2 text-green-500" /> Taxa de Vitória
                     </h3>
                     {(() => {
                       const wins = typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0;
                       const losses = typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0;
-                      const total = wins + losses;
-                      const winRate = total > 0 ? (wins / total) * 100 : 0;
                       
                       return (
                         <div className="h-[180px]">
@@ -672,21 +664,17 @@ const Index = () => {
                     })()}
                   </div>
                   
-                  {/* Frequência de Números */}
-                  <div className="bg-gray-800 p-3 rounded-lg">
-                    <h3 className="text-sm font-medium text-white mb-2 flex items-center">
-                      <ChartBar className="h-4 w-4 mr-2 text-green-500" />
-                      Frequência de Números
+                  {/* Frequency Chart */}
+                  <div className="bg-gray-800 p-4 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+                      <ChartBar className="h-4 w-4 mr-2 text-green-500" /> Frequência de Números
                     </h3>
                     <div className="h-[180px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <RechartsBarChart 
-                          data={generateFrequencyData(historicalNumbers).filter(item => item.frequency > 0)} 
-                          margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
-                        >
+                        <RechartsBarChart data={generateFrequencyData(historicalNumbers)} margin={{ top: 10, right: 30, left: 20, bottom: 10 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                          <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 10}} />
-                          <YAxis stroke="#ccc" tick={{fontSize: 10}} />
+                          <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 12}} />
+                          <YAxis stroke="#ccc" tick={{fontSize: 12}} />
                           <Tooltip 
                             contentStyle={{ backgroundColor: '#222', borderColor: '#00ff00' }} 
                             labelStyle={{ color: '#00ff00' }}
@@ -697,65 +685,47 @@ const Index = () => {
                     </div>
                   </div>
                   
-                  {/* Números quentes e frios */}
-                  <div className="bg-gray-800 p-3 rounded-lg">
-                    <h3 className="text-sm font-medium text-white mb-2">Números Quentes e Frios</h3>
+                  {/* Hot & Cold Numbers */}
+                  <div className="bg-gray-800 p-4 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-3">Números Quentes & Frios</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {(() => {
                         const frequencyData = generateFrequencyData(historicalNumbers);
                         const { hot, cold } = getHotColdNumbers(frequencyData);
-                        
-                        const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
                         
                         return (
                           <>
                             {/* Números quentes */}
                             <div className="p-2 bg-gray-900 rounded-lg">
                               <h4 className="text-xs font-medium text-red-500 mb-2 flex items-center">
-                                <ArrowUp className="h-3 w-3 mr-1" /> Mais Frequentes
+                                <ArrowUp className="h-3 w-3 mr-1" /> Números Quentes (Mais Frequentes)
                               </h4>
                               <div className="flex flex-wrap gap-2">
-                                {hot.map(({number, frequency}) => {
-                                  const bgColor = number === 0 
-                                    ? "bg-green-600" 
-                                    : redNumbers.includes(number) ? "bg-red-600" : "bg-black";
-                                  
-                                  return (
-                                    <div key={number} className="flex flex-col items-center">
-                                      <div 
-                                        className={`${bgColor} w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-medium mb-1`}
-                                      >
-                                        {number}
-                                      </div>
-                                      <span className="text-xs text-gray-400">{frequency}x</span>
+                                {hot.map((item, i) => (
+                                  <div key={i} className="flex items-center space-x-2">
+                                    <div className={`w-7 h-7 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium`}>
+                                      {item.number}
                                     </div>
-                                  );
-                                })}
+                                    <span className="text-vegas-gold text-xs">({item.frequency}x)</span>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                             
                             {/* Números frios */}
                             <div className="p-2 bg-gray-900 rounded-lg">
                               <h4 className="text-xs font-medium text-blue-500 mb-2 flex items-center">
-                                <ArrowDown className="h-3 w-3 mr-1" /> Menos Frequentes
+                                <ArrowDown className="h-3 w-3 mr-1" /> Números Frios (Menos Frequentes)
                               </h4>
                               <div className="flex flex-wrap gap-2">
-                                {cold.map(({number, frequency}) => {
-                                  const bgColor = number === 0 
-                                    ? "bg-green-600" 
-                                    : redNumbers.includes(number) ? "bg-red-600" : "bg-black";
-                                  
-                                  return (
-                                    <div key={number} className="flex flex-col items-center">
-                                      <div 
-                                        className={`${bgColor} w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-medium mb-1`}
-                                      >
-                                        {number}
-                                      </div>
-                                      <span className="text-xs text-gray-400">{frequency}x</span>
+                                {cold.map((item, i) => (
+                                  <div key={i} className="flex items-center space-x-2">
+                                    <div className={`w-7 h-7 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium`}>
+                                      {item.number}
                                     </div>
-                                  );
-                                })}
+                                    <span className="text-vegas-gold text-xs">({item.frequency}x)</span>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           </>
@@ -764,86 +734,27 @@ const Index = () => {
                     </div>
                   </div>
                   
-                  {/* Resumo de estatísticas */}
-                  <div className="bg-gray-800 p-3 rounded-lg">
-                    <h3 className="text-sm font-medium text-white mb-2">Resumo Detalhado</h3>
-                    {(() => {
-                        // Estatísticas por dúzias
-                        const firstDozen = historicalNumbers.filter(n => n >= 1 && n <= 12).length;
-                        const secondDozen = historicalNumbers.filter(n => n >= 13 && n <= 24).length;
-                        const thirdDozen = historicalNumbers.filter(n => n >= 25 && n <= 36).length;
-                        
-                        // Estatísticas por colunas
-                        const firstColumn = historicalNumbers.filter(n => n > 0 && n % 3 === 1).length;
-                        const secondColumn = historicalNumbers.filter(n => n > 0 && n % 3 === 2).length;
-                        const thirdColumn = historicalNumbers.filter(n => n > 0 && n % 3 === 0).length;
-                        
-                        const total = historicalNumbers.length || 1; // Evitar divisão por zero
-                        
-                        return (
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            {/* Dúzias */}
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">1ª dúzia (1-12)</div>
-                              <div className="flex justify-between items-center">
-                                <div className="text-sm text-white font-medium">{firstDozen}</div>
-                                <div className="text-xs text-green-400">{Math.round((firstDozen / total) * 100)}%</div>
-                              </div>
+                  {/* Média de cores por hora */}
+                  <div className="bg-gray-800 p-4 rounded-lg">
+                    <h3 className="text-sm font-medium text-white mb-3">Média de cores por hora</h3>
+                    <div className="space-y-3">
+                      {generateColorHourlyStats(historicalNumbers).map((stat, index) => (
+                        <div key={`color-stat-${index}`} className="bg-gray-900 rounded-md p-3">
+                          <div className="flex items-center">
+                            <div 
+                              className="w-8 h-8 rounded-md mr-3 flex items-center justify-center" 
+                              style={{ backgroundColor: stat.color === "#111827" ? "black" : stat.color }}
+                            >
+                              <div className="w-5 h-5 rounded-full border-2 border-white"></div>
                             </div>
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">2ª dúzia (13-24)</div>
-                              <div className="flex justify-between items-center">
-                                <div className="text-sm text-white font-medium">{secondDozen}</div>
-                                <div className="text-xs text-green-400">{Math.round((secondDozen / total) * 100)}%</div>
-                              </div>
-                            </div>
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">3ª dúzia (25-36)</div>
-                              <div className="flex justify-between items-center">
-                                <div className="text-sm text-white font-medium">{thirdDozen}</div>
-                                <div className="text-xs text-green-400">{Math.round((thirdDozen / total) * 100)}%</div>
-                              </div>
-                            </div>
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">Zero</div>
-                              <div className="flex justify-between items-center">
-                                <div className="text-sm text-white font-medium">{historicalNumbers.filter(n => n === 0).length}</div>
-                                <div className="text-xs text-green-400">{Math.round((historicalNumbers.filter(n => n === 0).length / total) * 100)}%</div>
-                              </div>
-                            </div>
-                            
-                            {/* Colunas */}
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">1ª coluna (1,4,7...)</div>
-                              <div className="flex justify-between items-center">
-                                <div className="text-sm text-white font-medium">{firstColumn}</div>
-                                <div className="text-xs text-green-400">{Math.round((firstColumn / total) * 100)}%</div>
-                              </div>
-                            </div>
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">2ª coluna (2,5,8...)</div>
-                              <div className="flex justify-between items-center">
-                                <div className="text-sm text-white font-medium">{secondColumn}</div>
-                                <div className="text-xs text-green-400">{Math.round((secondColumn / total) * 100)}%</div>
-                              </div>
-                            </div>
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">3ª coluna (3,6,9...)</div>
-                              <div className="flex justify-between items-center">
-                                <div className="text-sm text-white font-medium">{thirdColumn}</div>
-                                <div className="text-xs text-green-400">{Math.round((thirdColumn / total) * 100)}%</div>
-                              </div>
-                            </div>
-                            <div className="bg-gray-900 p-2 rounded">
-                              <div className="text-xs text-gray-400">Total de números</div>
-                              <div className="flex justify-between items-center">
-                                <div className="text-sm text-white font-medium">{total}</div>
-                                <div className="text-xs text-blue-400">100%</div>
-                              </div>
+                            <div>
+                              <p className="text-sm font-medium text-white">{stat.name}</p>
+                              <p className="text-xs text-gray-400">Total de {stat.total} <span className="bg-gray-800 text-xs px-1.5 py-0.5 rounded ml-1">{stat.percentage}%</span></p>
                             </div>
                           </div>
-                        );
-                    })()}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
