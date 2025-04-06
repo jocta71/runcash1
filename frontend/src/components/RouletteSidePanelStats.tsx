@@ -26,22 +26,22 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
   try {
     console.log(`[API] Buscando dados históricos para: ${rouletteName}`);
     
-    // Usar a URL absoluta para o backend Railway
-    const response = await fetch(`https://backendapi-production-36b5.up.railway.app/api/ROULETTES?limit=1000`);
+    // Usar o proxy local em vez da URL absoluta para evitar problemas de CORS
+    const response = await fetch(`/api/roulette-history?limit=1000`);
     
     if (response.ok) {
       const data = await response.json();
       
-      if (data && Array.isArray(data)) {
-        // Encontrar a roleta específica pelo nome
-        const targetRoulette = data.find((roleta: any) => {
-          const roletaName = roleta.nome || roleta.name || '';
+      if (data && data.data && Array.isArray(data.data)) {
+        // Filtrar os números da roleta específica pelo nome
+        const numbersForRoulette = data.data.filter((item: any) => {
+          const roletaName = item.roleta_nome || '';
           return roletaName.toLowerCase() === rouletteName.toLowerCase();
         });
         
-        if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+        if (numbersForRoulette.length > 0) {
           // Extrair apenas os números da roleta encontrada
-          const processedNumbers = targetRoulette.numero
+          const processedNumbers = numbersForRoulette
             .map((n: any) => Number(n.numero))
             .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
           
@@ -51,7 +51,7 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
           console.log(`[API] Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
         }
       } else {
-        console.log(`[API] Resposta inválida da API: dados não são um array`);
+        console.log(`[API] Resposta inválida da API: dados não estão no formato esperado`);
       }
     } else {
       console.log(`[API] Erro ao buscar dados: ${response.status} ${response.statusText}`);
