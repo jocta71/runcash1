@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
 import { RouletteNumberEvent } from '@/types';
-import RouletteStatsModal from '@/components/RouletteStatsModal';
+import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 
 interface RouletteHistoryProps {
   roletaId: string;
@@ -84,16 +84,31 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
     };
   }, [roletaId, roletaNome, initialNumbers]);
   
-  // Componente agora retorna apenas o modal, sem nenhuma outra interface
+  // Componente agora retorna um modal customizado com RouletteSidePanelStats
   return (
-    <RouletteStatsModal
-      open={isStatsModalOpen}
-      onClose={handleCloseModal}
-      roletaNome={roletaNome}
-      lastNumbers={historyNumbers}
-      wins={0}
-      losses={0}
-    />
+    <div className={`fixed inset-0 z-50 ${isStatsModalOpen ? 'flex' : 'hidden'} items-center justify-center bg-black/70`}>
+      <div className="bg-gray-900 w-11/12 max-w-6xl h-[90vh] rounded-lg overflow-y-auto">
+        <div className="flex justify-between items-center p-4 border-b border-gray-800">
+          <h2 className="text-[#00ff00] text-xl font-bold">Estatísticas da {roletaNome}</h2>
+          <button 
+            onClick={handleCloseModal}
+            className="text-gray-400 hover:text-white"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-4">
+          <RouletteSidePanelStats
+            roletaNome={roletaNome}
+            lastNumbers={historyNumbers}
+            wins={0}
+            losses={0}
+          />
+        </div>
+      </div>
+    </div>
   );
 };
 
