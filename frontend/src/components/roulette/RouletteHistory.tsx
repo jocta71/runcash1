@@ -207,47 +207,21 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   // Renderizar grade de números
   const renderGrid = () => {
     return (
-      <div className="round-history w-full flex flex-col space-y-1">
-        <div className="flex space-x-0">
-          <div className="w-full">
-            <div className="grid-row flex flex-1 flex-row items-center justify-between gap-0" style={{ minHeight: '40px' }}>
-              {/* Células de grade agrupadas em linhas de 15 */}
-              {Array.from({ length: Math.min(15, historyNumbers.length) }).map((_, index) => (
-                <div key={index} className="group relative flex items-center justify-center" style={{ minWidth: '32px', minHeight: '32px' }}>
-                  <div
-                    className={`${getNumberColor(historyNumbers[index])} cell-number-${historyNumbers[index]} cell-state-default flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium`}
-                  >
-                    {historyNumbers[index]}
-                  </div>
+      <div className="round-history w-full flex flex-col space-y-0">
+        <div className="w-full">
+          <div className="grid grid-cols-15 gap-0" style={{ width: '100%' }}>
+            {/* Primeira linha (ou todas se não expandido) */}
+            {Array.from({ length: Math.min(isExpanded ? historyNumbers.length : 15, historyNumbers.length) }).map((_, index) => (
+              <div key={index} className="flex items-center justify-center p-0" style={{ width: '100%', margin: '0' }}>
+                <div
+                  className={`${getNumberColor(historyNumbers[index])} cell-number-${historyNumbers[index]} cell-state-default flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium m-0`}
+                >
+                  {historyNumbers[index]}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </div>
-        
-        {/* Mostrar mais linhas se expandido */}
-        {isExpanded && Array.from({ length: Math.ceil(historyNumbers.length / 15) - 1 }).map((_, rowIndex) => (
-          <div key={`row-${rowIndex + 1}`} className="flex space-x-0">
-            <div className="w-full">
-              <div className="grid-row flex flex-1 flex-row items-center justify-between gap-0" style={{ minHeight: '40px' }}>
-                {Array.from({ length: 15 }).map((_, colIndex) => {
-                  const numIndex = (rowIndex + 1) * 15 + colIndex;
-                  if (numIndex >= historyNumbers.length) return null;
-                  
-                  return (
-                    <div key={numIndex} className="group relative flex items-center justify-center" style={{ minWidth: '32px', minHeight: '32px' }}>
-                      <div
-                        className={`${getNumberColor(historyNumbers[numIndex])} cell-number-${historyNumbers[numIndex]} cell-state-default flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium`}
-                      >
-                        {historyNumbers[numIndex]}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        ))}
         
         {historyNumbers.length > 15 && (
           <Button 
@@ -267,11 +241,11 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   const renderList = () => {
     return (
       <ScrollArea className="h-[400px] rounded-md border">
-        <div className="grid grid-cols-15 gap-0 p-1">
+        <div className="grid grid-cols-20 gap-0 p-0">
           {historyNumbers.map((num, index) => (
             <div 
               key={`list-${index}`} 
-              className={`${getNumberColor(num)} flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium`}
+              className={`${getNumberColor(num)} flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium m-0`}
             >
               {num}
             </div>
