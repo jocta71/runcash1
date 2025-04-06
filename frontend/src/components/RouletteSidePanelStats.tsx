@@ -26,31 +26,39 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
   try {
     console.log(`[API] Buscando dados históricos para: ${rouletteName}`);
     
-    // Usar o novo endpoint específico para histórico, que retorna até 1000 números
-    const response = await fetch(`/api/roulettes/history/${encodeURIComponent(rouletteName)}`);
+    // Usar o endpoint existente que já retorna até 1000 números
+    const response = await fetch(`/api/ROULETTES?limit=1000`);
     
     if (response.ok) {
       const data = await response.json();
       
       if (data && Array.isArray(data)) {
-        // Os números já vêm processados do backend, basta verificar se são válidos
-        const processedNumbers = data
-          .filter((n: any) => n !== null && n !== undefined)
-          .map((n: any) => Number(n))
-          .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+        // Encontrar a roleta específica pelo nome
+        const targetRoulette = data.find((roleta: any) => {
+          const roletaName = roleta.nome || roleta.name || '';
+          return roletaName.toLowerCase() === rouletteName.toLowerCase();
+        });
         
-        console.log(`[API] Obtidos ${processedNumbers.length} números históricos para ${rouletteName}`);
-        return processedNumbers;
+        if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+          // Extrair apenas os números da roleta encontrada
+          const processedNumbers = targetRoulette.numero
+            .map((n: any) => Number(n.numero))
+            .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+          
+          console.log(`[API] Obtidos ${processedNumbers.length} números históricos para ${rouletteName}`);
+          return processedNumbers;
+        } else {
+          console.log(`[API] Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
+        }
       } else {
-        console.log(`[API] Resposta inválida da API de histórico: dados não são um array`);
+        console.log(`[API] Resposta inválida da API: dados não são um array`);
       }
     } else {
-      console.log(`[API] Erro ao buscar histórico: ${response.status} ${response.statusText}`);
+      console.log(`[API] Erro ao buscar dados: ${response.status} ${response.statusText}`);
     }
     
-    // Se falhar com o endpoint específico, tentar o endpoint genérico como fallback
-    console.log(`[API] Tentando endpoint genérico como fallback`);
-    return []; // O componente usará os lastNumbers disponíveis se não conseguir buscar históricos
+    console.log(`[API] Sem dados históricos para ${rouletteName}, retornando array vazio`);
+    return [];
   } catch (error) {
     console.error(`[API] Erro ao buscar números históricos:`, error);
     return [];
