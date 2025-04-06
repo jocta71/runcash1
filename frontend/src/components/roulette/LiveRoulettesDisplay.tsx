@@ -5,6 +5,7 @@ import RouletteFeedService from '@/services/RouletteFeedService';
 import LastNumbersBar from './LastNumbersBar';
 import EventService from '@/services/EventService';
 import CasinoAPIAdapter from '@/services/CasinoAPIAdapter';
+import RouletteMiniStats from '@/components/RouletteMiniStats';
 
 interface RouletteTable {
   tableId: string;
@@ -61,69 +62,18 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
           {roulettes.map(roleta => (
             <div key={roleta.id} className="bg-gray-800 rounded-lg overflow-hidden shadow-lg">
               <div className="p-4">
-                <h3 className="text-xl font-bold text-white mb-2">{roleta.nome || roleta.name}</h3>
-                <p className="text-gray-400 text-sm mb-4">ID: {roleta.canonicalId || roleta._id || roleta.id}</p>
+                <h3 className="text-xl font-semibold text-white mb-2">{roleta.nome}</h3>
                 
-                {/* Exibir os últimos 20 números */}
-                <div className="mb-4">
-                  <h4 className="text-lg font-semibold text-white mb-2">Últimos números:</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? (
-                      roleta.numero.slice(0, 20).map((numero, index) => {
-                        // Determinar a cor do número para exibição
-                        let bgColor = 'bg-green-500'; // Verde para zero
-                        if (numero.numero > 0) {
-                          bgColor = numero.cor === 'vermelho' ? 'bg-red-600' : 'bg-black';
-                        }
-                        
-                        return (
-                          <div 
-                            key={index} 
-                            className={`${bgColor} w-8 h-8 rounded-full flex items-center justify-center text-white font-bold`}
-                          >
-                            {numero.numero}
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <p className="text-gray-500">Nenhum número disponível</p>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Estatísticas básicas */}
-                <div className="mt-4 grid grid-cols-2 gap-4">
-                  <div className="bg-gray-700 p-2 rounded text-center">
-                    <span className="text-gray-300 text-sm">Vermelhos</span>
-                    <p className="text-white font-bold">
-                      {Array.isArray(roleta.numero) 
-                        ? roleta.numero.filter(n => n.cor === 'vermelho').length 
-                        : 0}
-                    </p>
-                  </div>
-                  <div className="bg-gray-700 p-2 rounded text-center">
-                    <span className="text-gray-300 text-sm">Pretos</span>
-                    <p className="text-white font-bold">
-                      {Array.isArray(roleta.numero) 
-                        ? roleta.numero.filter(n => n.cor === 'preto').length 
-                        : 0}
-                    </p>
-                  </div>
-                  <div className="bg-gray-700 p-2 rounded text-center">
-                    <span className="text-gray-300 text-sm">Zeros</span>
-                    <p className="text-white font-bold">
-                      {Array.isArray(roleta.numero) 
-                        ? roleta.numero.filter(n => n.numero === 0).length 
-                        : 0}
-                    </p>
-                  </div>
-                  <div className="bg-gray-700 p-2 rounded text-center">
-                    <span className="text-gray-300 text-sm">Total</span>
-                    <p className="text-white font-bold">
-                      {Array.isArray(roleta.numero) ? roleta.numero.length : 0}
-                    </p>
-                  </div>
-                </div>
+                {/* Usar RouletteMiniStats para mostrar estatísticas e abrir o modal */}
+                {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? (
+                  <RouletteMiniStats 
+                    roletaId={roleta.id}
+                    roletaNome={roleta.nome}
+                    numbers={roleta.numero.map(n => n.numero)}
+                  />
+                ) : (
+                  <p className="text-gray-400">Aguardando números da roleta...</p>
+                )}
               </div>
             </div>
           ))}
