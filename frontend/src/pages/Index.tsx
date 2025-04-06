@@ -31,6 +31,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import RouletteStatsModal from '@/components/RouletteStatsModal';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
+import { RouletteSidePanelStats } from '@/components/RouletteStatsModal';
 
 interface ChatMessage {
   id: string;
@@ -52,323 +53,6 @@ interface KnownRoulette {
   nome: string;
   ultima_atualizacao: string;
 }
-
-// Componente para exibir as estatísticas da roleta lateralmente (adaptado do RouletteStatsModal)
-const RoutetteSidePanelStats = ({ 
-  selectedRoulette,
-  isLoading
-}: { 
-  selectedRoulette: RouletteData | null,
-  isLoading: boolean
-}) => {
-  const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
-  const [isLoadingStats, setIsLoadingStats] = useState(true);
-  
-  useEffect(() => {
-    if (selectedRoulette) {
-      setIsLoadingStats(true);
-      
-      const loadHistoricalData = async () => {
-        try {
-          const roletaNome = selectedRoulette.nome || selectedRoulette.name || '';
-          console.log(`[SidePanel] Buscando histórico para ${roletaNome}...`);
-          
-          // Extrair números da roleta selecionada
-          const extractCardNumbers = (): number[] => {
-            let cardNumbers: number[] = [];
-            
-            // Se número for um valor simples
-            if (selectedRoulette.numero !== undefined) {
-              if (typeof selectedRoulette.numero === 'number') {
-                return [selectedRoulette.numero];
-              }
-              
-              // Se número for array
-              if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-                return selectedRoulette.numero
-                  .filter(n => n !== null && n !== undefined)
-                  .map(n => {
-                    if (n && typeof n === 'object' && n !== null && 'numero' in n) {
-                      return Number(n.numero || 0);
-                    }
-                    return Number(n || 0);
-                  })
-                  .filter(n => !isNaN(n) && n >= 0 && n <= 36);
-              }
-            }
-            
-            // Tentar lastNumbers
-            if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
-              return selectedRoulette.lastNumbers
-                .map(n => Number(n || 0))
-                .filter(n => !isNaN(n) && n >= 0 && n <= 36);
-            }
-            
-            // Tentar numeros
-            if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
-              return selectedRoulette.numeros
-                .map(n => Number(n || 0))
-                .filter(n => !isNaN(n) && n >= 0 && n <= 36);
-            }
-            
-            // Número de emergência se nenhum número for encontrado
-            return [9];
-          };
-          
-          const cardNumbers = extractCardNumbers();
-          
-          // Buscar números históricos da API
-          let apiNumbers: number[] = [];
-          if (roletaNome) {
-            apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
-          }
-          
-          // Combinar números do card com históricos
-          let finalNumbers: number[] = [];
-          
-          if (cardNumbers.length > 0 && apiNumbers.length > 0) {
-            // Começar com os números do card
-            finalNumbers = [...cardNumbers];
-            
-            // Adicionar números da API que não estão no card
-            apiNumbers.forEach(num => {
-              if (!finalNumbers.includes(num)) {
-                finalNumbers.push(num);
-              }
-            });
-          } 
-          else if (cardNumbers.length > 0) {
-            finalNumbers = cardNumbers;
-          }
-          else if (apiNumbers.length > 0) {
-            finalNumbers = apiNumbers;
-          }
-          else {
-            // Sem dados, usar números de exemplo ou aleatórios
-            finalNumbers = getHistoricalNumbers();
-          }
-          
-          console.log(`[SidePanel] Total de ${finalNumbers.length} números para ${roletaNome}`);
-          setHistoricalNumbers(finalNumbers);
-        } catch (error) {
-          console.error('[SidePanel] Erro ao carregar histórico:', error);
-          // Em caso de erro, gerar números aleatórios para demonstração
-          setHistoricalNumbers(getHistoricalNumbers());
-        } finally {
-          setIsLoadingStats(false);
-        }
-      };
-      
-      loadHistoricalData();
-    }
-  }, [selectedRoulette]);
-
-  // Calcular estatísticas derivadas apenas se tivermos números
-  const frequencyData = generateFrequencyData(historicalNumbers);
-  const { hot, cold } = getHotColdNumbers(frequencyData);
-  const pieData = generateGroupDistribution(historicalNumbers);
-  const colorHourlyStats = generateColorHourlyStats(historicalNumbers);
-  
-  // Calcular taxa de vitória se disponível
-  const wins = typeof selectedRoulette?.vitorias === 'number' ? selectedRoulette.vitorias : 0;
-  const losses = typeof selectedRoulette?.derrotas === 'number' ? selectedRoulette.derrotas : 0;
-  
-  return (
-    <div className="w-full bg-gray-900 rounded-lg overflow-y-auto sticky top-4">
-      <div className="p-4">
-        <h2 className="text-xl font-bold text-[#00ff00] mb-2 flex items-center">
-          <BarChart className="h-5 w-5 mr-2" />
-          {selectedRoulette 
-            ? `Estatísticas: ${selectedRoulette.nome || selectedRoulette.name}`
-            : 'Estatísticas da Roleta'
-          }
-        </h2>
-        
-        <div className="text-sm text-gray-400 mb-4">
-          {isLoadingStats ? (
-            "Carregando dados estatísticos..."
-          ) : (
-            `Análise detalhada dos últimos ${historicalNumbers.length} números e tendências`
-          )}
-        </div>
-      </div>
-      
-      {isLoadingStats ? (
-        <div className="text-white text-center py-10">
-          <div className="animate-spin w-10 h-10 border-4 border-[#00ff00] border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p>Carregando estatísticas...</p>
-        </div>
-      ) : !selectedRoulette ? (
-        <div className="text-gray-400 text-sm p-4">
-          Selecione uma roleta para ver estatísticas detalhadas
-        </div>
-      ) : (
-        <div className="space-y-4 p-4">
-          {/* Historical Numbers Section */}
-          <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-gray-800">
-            <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
-              <BarChart className="mr-2 h-4 w-4" /> Histórico de Números (Mostrando: {Math.min(historicalNumbers.length, 100)})
-            </h3>
-            <div className="grid grid-cols-8 sm:grid-cols-10 gap-1 max-h-[150px] overflow-y-auto p-1">
-              {historicalNumbers.slice(0, 100).map((num, idx) => (
-                <div 
-                  key={idx} 
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
-                >
-                  {num}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Distribution Pie Chart */}
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <ChartBar className="h-4 w-4 mr-2 text-[#00ff00]" /> Distribuição por Cor
-            </h3>
-            <div className="h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={60}
-                    fill="#00ff00"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Legend />
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          
-          {/* Hot & Cold Numbers */}
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3">Números Quentes & Frios</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Números quentes */}
-              <div className="p-2 bg-gray-900 rounded-lg">
-                <h4 className="text-xs font-medium text-red-500 mb-2 flex items-center">
-                  <ArrowUp className="h-3 w-3 mr-1" /> Números Quentes (Mais Frequentes)
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {hot.map((item, i) => (
-                    <div key={i} className="flex items-center space-x-2">
-                      <div className={`w-7 h-7 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium`}>
-                        {item.number}
-                      </div>
-                      <span className="text-vegas-gold text-xs">({item.frequency}x)</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Números frios */}
-              <div className="p-2 bg-gray-900 rounded-lg">
-                <h4 className="text-xs font-medium text-blue-500 mb-2 flex items-center">
-                  <ArrowDown className="h-3 w-3 mr-1" /> Números Frios (Menos Frequentes)
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {cold.map((item, i) => (
-                    <div key={i} className="flex items-center space-x-2">
-                      <div className={`w-7 h-7 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium`}>
-                        {item.number}
-                      </div>
-                      <span className="text-vegas-gold text-xs">({item.frequency}x)</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Frequency Chart */}
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <ChartBar className="h-4 w-4 mr-2 text-[#00ff00]" /> Frequência de Números
-            </h3>
-            <div className="h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <RechartsBarChart data={frequencyData} margin={{ top: 10, right: 30, left: 20, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 12}} />
-                  <YAxis stroke="#ccc" tick={{fontSize: 12}} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#222', borderColor: '#00ff00' }} 
-                    labelStyle={{ color: '#00ff00' }}
-                  />
-                  <Bar dataKey="frequency" fill="#00ff00" />
-                </RechartsBarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          
-          {/* Taxa de Vitória */}
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <Percent className="h-4 w-4 mr-2 text-[#00ff00]" /> Taxa de Vitória
-            </h3>
-            <div className="h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: "Vitórias", value: wins || 1 },
-                      { name: "Derrotas", value: losses || 1 }
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
-                    fill="#00ff00"
-                    paddingAngle={5}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    <Cell key="wins" fill="#00ff00" />
-                    <Cell key="losses" fill="#ef4444" />
-                  </Pie>
-                  <Legend />
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          
-          {/* Média de cores por hora */}
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3">Média de cores por hora</h3>
-            <div className="space-y-3">
-              {colorHourlyStats.map((stat, index) => (
-                <div key={`color-stat-${index}`} className="bg-gray-900 rounded-md p-3">
-                  <div className="flex items-center">
-                    <div 
-                      className="w-8 h-8 rounded-md mr-3 flex items-center justify-center" 
-                      style={{ backgroundColor: stat.color === "#111827" ? "black" : stat.color }}
-                    >
-                      <div className="w-5 h-5 rounded-full border-2 border-white"></div>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">{stat.name}</p>
-                      <p className="text-xs text-gray-400">Total de {stat.total} <span className="bg-gray-800 text-xs px-1.5 py-0.5 rounded ml-1">{stat.percentage}%</span></p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 const Index = () => {
   const [search, setSearch] = useState("");
@@ -778,12 +462,24 @@ const Index = () => {
               </div>
             </div>
             
-            {/* Painel de estatísticas à direita - SUBSTITUÍDO PELO NOVO COMPONENTE */}
+            {/* Painel de estatísticas à direita - USANDO O COMPONENTE EXPORTADO DO MODAL */}
             <div className="w-full lg:w-1/3">
-              <RoutetteSidePanelStats
-                selectedRoulette={selectedRoulette}
-                isLoading={isLoadingStats}
-              />
+              {selectedRoulette ? (
+                <RouletteSidePanelStats
+                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
+                  lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
+                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
+                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                />
+              ) : (
+                <div className="w-full bg-gray-900 rounded-lg p-6 text-center">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-[#00ff00] opacity-50" />
+                  <h3 className="text-lg font-medium text-white mb-2">Estatísticas da Roleta</h3>
+                  <p className="text-sm text-gray-400">
+                    Selecione uma roleta para ver estatísticas detalhadas
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}

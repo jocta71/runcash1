@@ -429,5 +429,246 @@ const RouletteStatsModal = ({
   );
 };
 
+// Exportar versão inline/painel do componente sem o Dialog wrapper
+export const RouletteSidePanelStats = ({ 
+  roletaNome, 
+  lastNumbers, 
+  wins, 
+  losses 
+}: Omit<RouletteStatsModalProps, 'open' | 'onClose'>) => {
+  const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadHistoricalData = async () => {
+      setIsLoading(true);
+      
+      try {
+        console.log(`Buscando histórico para ${roletaNome}...`);
+        let numbers = await fetchRouletteHistoricalNumbers(roletaNome);
+        
+        // Se houver lastNumbers nas props, garantir que eles estão incluídos no início do histórico
+        if (lastNumbers && lastNumbers.length > 0) {
+          // Combinar lastNumbers com os números históricos, removendo duplicatas
+          const combinedNumbers = [...lastNumbers];
+          numbers.forEach(num => {
+            if (!combinedNumbers.includes(num)) {
+              combinedNumbers.push(num);
+            }
+          });
+          numbers = combinedNumbers;
+        }
+        
+        if (numbers && numbers.length > 20) {
+          console.log(`Encontrados ${numbers.length} números históricos para ${roletaNome}`);
+          setHistoricalNumbers(numbers);
+        } else {
+          console.log(`Histórico insuficiente para ${roletaNome}, usando dados gerados`);
+          setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados históricos:', error);
+        // Se falhar, usar os lastNumbers passados nas props ou gerar números aleatórios
+        setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadHistoricalData();
+  }, [roletaNome, lastNumbers]);
+  
+  const frequencyData = generateFrequencyData(historicalNumbers);
+  const { hot, cold } = getHotColdNumbers(frequencyData);
+  const pieData = generateGroupDistribution(historicalNumbers);
+  const colorHourlyStats = generateColorHourlyStats(historicalNumbers);
+  
+  const winRate = (wins / (wins + losses)) * 100;
+
+  return (
+    <div className="w-full bg-gray-900 rounded-lg overflow-y-auto max-h-screen">
+      <div className="p-4">
+        <h2 className="text-[#00ff00] flex items-center text-xl font-bold mb-2">
+          <BarChart className="mr-3" /> Estatísticas da {roletaNome}
+        </h2>
+        <p className="text-sm text-gray-400 mb-4">
+          {isLoading ? (
+            "Carregando dados históricos..."
+          ) : (
+            `Análise detalhada dos últimos ${historicalNumbers.length} números e tendências`
+          )}
+        </p>
+      </div>
+      
+      {isLoading ? (
+        <div className="flex items-center justify-center p-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00ff00]"></div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 p-4">
+          {/* Historical Numbers Section */}
+          <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light">
+            <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
+              <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {Math.min(historicalNumbers.length, 100)})
+            </h3>
+            <div className="grid grid-cols-6 sm:grid-cols-10 gap-1 max-h-[150px] overflow-y-auto p-3">
+              {historicalNumbers.slice(0, 100).map((num, idx) => (
+                <div 
+                  key={idx} 
+                  className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
+                >
+                  {num}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Distribution Pie Chart */}
+          <div className="glass-card p-4 space-y-3">
+            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+              <ChartBar size={20} className="text-[#00ff00] mr-2" /> Distribuição por Cor
+            </h3>
+            <div className="h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={60}
+                    fill="#00ff00"
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Legend />
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          
+          {/* Hot & Cold Numbers */}
+          <div className="glass-card p-4 space-y-3">
+            <h3 className="text-sm font-medium text-white mb-3">Números Quentes & Frios</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="p-2 bg-vegas-darkgray rounded-lg">
+                <h4 className="text-xs font-medium text-red-500 mb-2 flex items-center">
+                  <ArrowUp size={18} className="mr-2" /> Números Quentes
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {hot.map((item, i) => (
+                    <div key={i} className="flex items-center space-x-2">
+                      <div className={`w-7 h-7 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium`}>
+                        {item.number}
+                      </div>
+                      <span className="text-vegas-gold text-xs">({item.frequency}x)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="p-2 bg-vegas-darkgray rounded-lg">
+                <h4 className="text-xs font-medium text-blue-500 mb-2 flex items-center">
+                  <ArrowDown size={18} className="mr-2" /> Números Frios
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {cold.map((item, i) => (
+                    <div key={i} className="flex items-center space-x-2">
+                      <div className={`w-7 h-7 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium`}>
+                        {item.number}
+                      </div>
+                      <span className="text-vegas-gold text-xs">({item.frequency}x)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Frequency Chart */}
+          <div className="glass-card p-4 space-y-3">
+            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+              <ChartBar size={20} className="text-[#00ff00] mr-2" /> Frequência de Números
+            </h3>
+            <div className="h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsBarChart data={frequencyData} margin={{ top: 10, right: 30, left: 20, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                  <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 12}} />
+                  <YAxis stroke="#ccc" tick={{fontSize: 12}} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#222', borderColor: '#00ff00' }} 
+                    labelStyle={{ color: '#00ff00' }}
+                  />
+                  <Bar dataKey="frequency" fill="#00ff00" />
+                </RechartsBarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          
+          {/* Win Rate Chart */}
+          <div className="glass-card p-4 space-y-3">
+            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+              <PercentIcon size={20} className="text-[#00ff00] mr-2" /> Taxa de Vitória
+            </h3>
+            <div className="h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "Vitórias", value: wins || 1 },
+                      { name: "Derrotas", value: losses || 1 }
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={60}
+                    fill="#00ff00"
+                    paddingAngle={5}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    <Cell key="wins" fill="#00ff00" />
+                    <Cell key="losses" fill="#ef4444" />
+                  </Pie>
+                  <Legend />
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          
+          {/* Média de cores por hora */}
+          <div className="glass-card p-4 space-y-3">
+            <h3 className="text-sm font-medium text-white mb-3">Média de cores por hora</h3>
+            <div className="grid grid-cols-1 gap-3">
+              {colorHourlyStats.map((stat, index) => (
+                <div key={`color-stat-${index}`} className="bg-gray-100/10 rounded-md p-3">
+                  <div className="flex items-center">
+                    <div 
+                      className="w-8 h-8 rounded-md mr-3 flex items-center justify-center" 
+                      style={{ backgroundColor: stat.color === "#111827" ? "black" : stat.color }}
+                    >
+                      <div className="w-5 h-5 rounded-full border-2 border-white"></div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">{stat.name}</p>
+                      <p className="text-xs text-gray-400">Total de {stat.total} <span className="bg-gray-800 text-xs px-1.5 py-0.5 rounded ml-1">{stat.percentage}%</span></p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default RouletteStatsModal;
 
