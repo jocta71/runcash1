@@ -25,6 +25,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import { fetchRouletteHistoricalNumbers, getHistoricalNumbers, generateFrequencyData, getHotColdNumbers, generateGroupDistribution } from '@/components/RouletteStatsModal';
 
 interface ChatMessage {
   id: string;
@@ -481,11 +482,12 @@ const Index = () => {
         setIsLoadingStats(true);
         
         try {
-          console.log(`Buscando histórico para ${selectedRoulette.nome || selectedRoulette.name}...`);
-          let numbers = await fetchRouletteHistoricalNumbers(selectedRoulette.nome || selectedRoulette.name || '');
+          const roletaNome = selectedRoulette.nome || selectedRoulette.name || '';
+          console.log(`Buscando histórico para ${roletaNome}...`);
+          let numbers = await fetchRouletteHistoricalNumbers(roletaNome);
           
-          // Extrair números da roleta selecionada - ajustado para lidar com qualquer formato
-          const extractNumbers = () => {
+          // Extrair números da roleta selecionada para usar como lastNumbers
+          const extractLastNumbers = () => {
             if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
               return selectedRoulette.numero.map(n => 
                 typeof n === 'object' && n !== null && 'numero' in n ? Number(n.numero || 0) : Number(n || 0)
@@ -503,12 +505,12 @@ const Index = () => {
             return [];
           };
 
-          const currentNumbers = extractNumbers();
+          const lastNumbers = extractLastNumbers();
 
-          // Se houver lastNumbers na roleta, garantir que eles estão incluídos no início do histórico
-          if (currentNumbers && currentNumbers.length > 0) {
-            // Combinar currentNumbers com os números históricos, removendo duplicatas
-            const combinedNumbers = [...currentNumbers];
+          // Se houver lastNumbers nas props, garantir que eles estão incluídos no início do histórico
+          if (lastNumbers && lastNumbers.length > 0) {
+            // Combinar lastNumbers com os números históricos, removendo duplicatas
+            const combinedNumbers = [...lastNumbers];
             numbers.forEach(num => {
               if (!combinedNumbers.includes(num)) {
                 combinedNumbers.push(num);
@@ -517,19 +519,18 @@ const Index = () => {
             numbers = combinedNumbers;
           }
           
-          if (numbers && numbers.length > 10) {
-            console.log(`Encontrados ${numbers.length} números históricos`);
+          if (numbers && numbers.length > 20) {
+            console.log(`Encontrados ${numbers.length} números históricos para ${roletaNome}`);
             setHistoricalNumbers(numbers);
           } else {
-            console.log(`Histórico insuficiente, usando dados existentes`);
-            // Se não temos dados históricos suficientes, usar apenas os números atuais
-            setHistoricalNumbers(currentNumbers.length > 0 ? currentNumbers : 
-              [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10]); // dados de exemplo
+            console.log(`Histórico insuficiente para ${roletaNome}, usando dados gerados`);
+            setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
           }
         } catch (error) {
           console.error('Erro ao carregar dados históricos:', error);
-          // Dados de exemplo se falhar
-          setHistoricalNumbers([0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10]);
+          // Se falhar, usar os lastNumbers ou gerar números aleatórios seguindo a mesma lógica do modal
+          const lastNumbers = selectedRoulette.lastNumbers || selectedRoulette.numero || [];
+          setHistoricalNumbers(lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
         } finally {
           setIsLoadingStats(false);
         }
@@ -738,46 +739,7 @@ const Index = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {(() => {
                         const frequencyData = generateFrequencyData(historicalNumbers);
-                        
-                        // Obter 5 números mais frequentes e 5 menos frequentes
-                        const hotNumbers = [...frequencyData]
-                          .filter(item => item.frequency > 0)
-                          .sort((a, b) => b.frequency - a.frequency)
-                          .slice(0, 5);
-                        
-                        // Se não tivermos 5 números quentes, adicionar alguns fíctícios
-                        if (hotNumbers.length < 5) {
-                          const existingNumbers = hotNumbers.map(item => item.number);
-                          for (let i = 0; i < 5 - hotNumbers.length; i++) {
-                            let randomNum = Math.floor(Math.random() * 36);
-                            while (existingNumbers.includes(randomNum)) {
-                              randomNum = Math.floor(Math.random() * 36);
-                            }
-                            hotNumbers.push({ number: randomNum, frequency: 1 });
-                            existingNumbers.push(randomNum);
-                          }
-                        }
-                        
-                        const coldNumbers = [...frequencyData]
-                          .filter(item => item.frequency > 0)
-                          .sort((a, b) => a.frequency - b.frequency)
-                          .slice(0, 5);
-                            
-                        // Se não tivermos 5 números frios, adicionar alguns fíctícios
-                        if (coldNumbers.length < 5) {
-                          const existingHotNumbers = hotNumbers.map(item => item.number);
-                          const existingColdNumbers = coldNumbers.map(item => item.number);
-                          const allExisting = [...existingHotNumbers, ...existingColdNumbers];
-                          
-                          for (let i = 0; i < 5 - coldNumbers.length; i++) {
-                            let randomNum = Math.floor(Math.random() * 36);
-                            while (allExisting.includes(randomNum)) {
-                              randomNum = Math.floor(Math.random() * 36);
-                            }
-                            coldNumbers.push({ number: randomNum, frequency: 1 });
-                            allExisting.push(randomNum);
-                          }
-                        }
+                        const { hot, cold } = getHotColdNumbers(frequencyData);
                         
                         const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
                         
@@ -789,7 +751,7 @@ const Index = () => {
                                 <ArrowUp className="h-3 w-3 mr-1" /> Mais Frequentes
                               </h4>
                               <div className="flex flex-wrap gap-2">
-                                {hotNumbers.map(({number, frequency}) => {
+                                {hot.map(({number, frequency}) => {
                                   const bgColor = number === 0 
                                     ? "bg-green-600" 
                                     : redNumbers.includes(number) ? "bg-red-600" : "bg-black";
@@ -814,7 +776,7 @@ const Index = () => {
                                 <ArrowDown className="h-3 w-3 mr-1" /> Menos Frequentes
                               </h4>
                               <div className="flex flex-wrap gap-2">
-                                {coldNumbers.map(({number, frequency}) => {
+                                {cold.map(({number, frequency}) => {
                                   const bgColor = number === 0 
                                     ? "bg-green-600" 
                                     : redNumbers.includes(number) ? "bg-red-600" : "bg-black";

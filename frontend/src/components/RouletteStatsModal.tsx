@@ -34,74 +34,38 @@ interface RouletteStatsModalProps {
   losses: number;
 }
 
-// Função para obter dados históricos - retorna array vazio quando não há dados
-const getHistoricalNumbers = () => {
-  return [];
+// Função para gerar números históricos aleatórios
+export const getHistoricalNumbers = (): number[] => {
+  // Generate some random historical numbers for demonstration
+  const numbers: number[] = [];
+  for (let i = 0; i < 100; i++) {
+    numbers.push(Math.floor(Math.random() * 37)); // 0-36 for roulette
+  }
+  return numbers;
 };
 
-// Função para buscar números do banco para uma roleta específica
-const fetchRouletteHistoricalNumbers = async (rouletteName: string) => {
+// Buscar histórico de números da roleta
+export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<number[]> => {
   try {
-    console.log(`[${new Date().toLocaleTimeString()}] Buscando histórico para ${rouletteName}...`);
+    const response = await fetch(`/api/roulettes/history/${rouletteName}`);
     
-    // Primeiro obtemos o ID da roleta
-    const idResponse = await fetch(
-      `https://evzqzghxuttctbxgohpx.supabase.co/rest/v1/roletas?nome=eq.${encodeURIComponent(rouletteName)}&select=id`,
-      {
-        headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2enF6Z2h4dXR0Y3RieGdvaHB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExNzc5OTEsImV4cCI6MjA1Njc1Mzk5MX0.CmoM_y0i36nbBx2iN0DlOIob3yAgVRM1xY_XiOFBZLQ',
-          'Content-Type': 'application/json'
-        }
+    if (response.ok) {
+      const data = await response.json();
+      
+      if (data && Array.isArray(data.numbers) && data.numbers.length > 0) {
+        // Obter apenas os números da resposta da API
+        const reversedNumbers = [...data.numbers].reverse().map(
+          (n: any) => typeof n === 'object' && n !== null ? 
+            (n.numero !== undefined ? Number(n.numero) : Number(n)) : 
+            Number(n)
+        ).filter((n: number) => !isNaN(n));
+        
+        console.log(`[${new Date().toLocaleTimeString()}] Números válidos para ${rouletteName}: ${reversedNumbers.length}`);
+        
+        return reversedNumbers;
+      } else {
+        console.log(`[${new Date().toLocaleTimeString()}] Nenhum dado encontrado para ${rouletteName}`);
       }
-    );
-    
-    if (!idResponse.ok) {
-      throw new Error(`Erro ao buscar ID da roleta: ${idResponse.statusText}`);
-    }
-    
-    const idData = await idResponse.json();
-    if (!idData || idData.length === 0) {
-      console.log(`[${new Date().toLocaleTimeString()}] Roleta não encontrada: ${rouletteName}`);
-      return [];
-    }
-    
-    const roletaId = idData[0].id;
-    console.log(`[${new Date().toLocaleTimeString()}] ID da roleta ${rouletteName}: ${roletaId}`);
-    
-    // Agora buscamos até 500 números da tabela roleta_numeros
-    const response = await fetch(
-      `https://evzqzghxuttctbxgohpx.supabase.co/rest/v1/roleta_numeros?roleta_id=eq.${roletaId}&select=numero,timestamp&order=timestamp.desc&limit=1000`,
-      {
-        headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2enF6Z2h4dXR0Y3RieGdvaHB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExNzc5OTEsImV4cCI6MjA1Njc1Mzk5MX0.CmoM_y0i36nbBx2iN0DlOIob3yAgVRM1xY_XiOFBZLQ',
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    
-    if (!response.ok) {
-      throw new Error('Falha ao buscar dados históricos');
-    }
-    
-    const data = await response.json();
-    console.log(`[${new Date().toLocaleTimeString()}] Resposta do Supabase para ${rouletteName}:`, data);
-    
-    if (data && Array.isArray(data) && data.length > 0) {
-      console.log(`[${new Date().toLocaleTimeString()}] Dados históricos encontrados para ${rouletteName}: ${data.length} números`);
-      
-      // Extrair apenas os números e converter para inteiros se necessário
-      const validNumbers = data
-        .map(item => typeof item.numero === 'string' ? parseInt(item.numero, 10) : Number(item.numero))
-        .filter(num => !isNaN(num) && num >= 0 && num <= 36);
-      
-      // Invertemos a ordem para ter do mais antigo para o mais recente
-      const reversedNumbers = validNumbers.reverse();
-      
-      console.log(`[${new Date().toLocaleTimeString()}] Números válidos para ${rouletteName}: ${reversedNumbers.length}`);
-      
-      return reversedNumbers;
-    } else {
-      console.log(`[${new Date().toLocaleTimeString()}] Nenhum dado encontrado para ${rouletteName}`);
     }
     
     return [];
@@ -112,7 +76,7 @@ const fetchRouletteHistoricalNumbers = async (rouletteName: string) => {
 };
 
 // Generate frequency data for numbers
-const generateFrequencyData = (numbers: number[]) => {
+export const generateFrequencyData = (numbers: number[]) => {
   const frequency: Record<number, number> = {};
   
   // Initialize all roulette numbers (0-36)
@@ -135,7 +99,7 @@ const generateFrequencyData = (numbers: number[]) => {
 };
 
 // Calculate hot and cold numbers
-const getHotColdNumbers = (frequencyData: {number: number, frequency: number}[]) => {
+export const getHotColdNumbers = (frequencyData: {number: number, frequency: number}[]) => {
   const sorted = [...frequencyData].sort((a, b) => b.frequency - a.frequency);
   return {
     hot: sorted.slice(0, 5),  // 5 most frequent
@@ -144,7 +108,7 @@ const getHotColdNumbers = (frequencyData: {number: number, frequency: number}[])
 };
 
 // Generate pie chart data for number groups
-const generateGroupDistribution = (numbers: number[]) => {
+export const generateGroupDistribution = (numbers: number[]) => {
   const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
   const groups = [
     { name: "Vermelhos", value: 0, color: "#ef4444" },
