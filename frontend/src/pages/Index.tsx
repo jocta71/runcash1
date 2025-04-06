@@ -31,7 +31,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import RouletteStatsModal from '@/components/RouletteStatsModal';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
-import { RouletteSidePanelStats } from '@/components/RouletteStatsModal';
 
 interface ChatMessage {
   id: string;
@@ -462,15 +461,19 @@ const Index = () => {
               </div>
             </div>
             
-            {/* Painel de estatísticas à direita - USANDO O COMPONENTE EXPORTADO DO MODAL */}
+            {/* Painel de estatísticas à direita - SUBSTITUÍDO PELO MODAL COMPLETO */}
             <div className="w-full lg:w-1/3">
               {selectedRoulette ? (
-                <RouletteSidePanelStats
-                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
-                  lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
-                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
-                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
-                />
+                <div className="bg-gray-900 rounded-lg h-full overflow-hidden">
+                  <RouletteStatsModal
+                    open={true}
+                    onClose={() => {}} // Não fecha porque não é um modal removível
+                    roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
+                    lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
+                    wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
+                    losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                  />
+                </div>
               ) : (
                 <div className="w-full bg-gray-900 rounded-lg p-6 text-center">
                   <BarChart3 className="h-12 w-12 mx-auto mb-4 text-[#00ff00] opacity-50" />
