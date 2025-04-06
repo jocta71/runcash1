@@ -70,7 +70,7 @@ const fetchRouletteHistoricalNumbers = async (rouletteName: string) => {
     
     // Agora buscamos até 500 números da tabela roleta_numeros
     const response = await fetch(
-      `https://evzqzghxuttctbxgohpx.supabase.co/rest/v1/roleta_numeros?roleta_id=eq.${roletaId}&select=numero,timestamp&order=timestamp.desc&limit=500`,
+      `https://evzqzghxuttctbxgohpx.supabase.co/rest/v1/roleta_numeros?roleta_id=eq.${roletaId}&select=numero,timestamp&order=timestamp.desc&limit=1000`,
       {
         headers: {
           'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2enF6Z2h4dXR0Y3RieGdvaHB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExNzc5OTEsImV4cCI6MjA1Njc1Mzk5MX0.CmoM_y0i36nbBx2iN0DlOIob3yAgVRM1xY_XiOFBZLQ',
@@ -304,10 +304,10 @@ const RouletteStatsModal = ({
           {/* Historical Numbers Section */}
           <div className="p-4 md:p-6 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light">
             <h3 className="text-[#00ff00] flex items-center text-base md:text-lg mb-3 font-bold">
-              <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {Math.min(historicalNumbers.length, 500)})
+              <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {Math.min(historicalNumbers.length, 1000)})
             </h3>
             <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-15 xl:grid-cols-18 gap-2 max-h-[500px] overflow-y-auto p-3">
-              {historicalNumbers.map((num, idx) => (
+              {historicalNumbers.slice(0, 1000).map((num, idx) => (
                 <div 
                   key={idx} 
                   className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm md:text-base font-bold ${getRouletteNumberColor(num)}`}
