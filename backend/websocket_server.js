@@ -23,6 +23,20 @@ console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 // Inicializar Express
 const app = express();
 
+// Configuração CORS básica - permitindo todas as origens
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Responder imediatamente para requisições preflight (OPTIONS)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
 app.use(express.json());
 
 // Add a status endpoint to check if the server is working
@@ -67,8 +81,13 @@ app.post('/emit-event', (req, res) => {
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO sem configurações específicas de CORS
+// Inicializar Socket.IO com configurações CORS básicas
 const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true
+  },
   transports: ['websocket', 'polling'],
   pingTimeout: 60000, // Aumentar timeout para 60s
   pingInterval: 25000 // Verificar conexão a cada 25s
