@@ -268,13 +268,13 @@ const RouletteSidePanelStats = ({
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00ff00]"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 p-4">
-          {/* Historical Numbers Section - MOSTRANDO EXATAMENTE 100 NÚMEROS */}
-          <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+          {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
+          <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light md:col-span-2">
             <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
               <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: 100)
             </h3>
-            <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-15 lg:grid-cols-20 gap-1 max-h-[250px] overflow-y-auto p-3">
+            <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-15 lg:grid-cols-20 gap-1 max-h-[200px] overflow-y-auto p-3">
               {historicalNumbers.slice(0, 100).map((num, idx) => (
                 <div 
                   key={idx} 
@@ -314,8 +314,40 @@ const RouletteSidePanelStats = ({
             </div>
           </div>
           
-          {/* Hot & Cold Numbers */}
+          {/* Win Rate Chart */}
           <div className="glass-card p-4 space-y-3">
+            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+              <PercentIcon size={20} className="text-[#00ff00] mr-2" /> Taxa de Vitória
+            </h3>
+            <div className="h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "Vitórias", value: wins || 1 },
+                      { name: "Derrotas", value: losses || 1 }
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={60}
+                    fill="#00ff00"
+                    paddingAngle={5}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    <Cell key="wins" fill="#00ff00" />
+                    <Cell key="losses" fill="#ef4444" />
+                  </Pie>
+                  <Legend />
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          
+          {/* Hot & Cold Numbers */}
+          <div className="glass-card p-4 space-y-3 md:col-span-2">
             <h3 className="text-sm font-medium text-white mb-3">Números Quentes & Frios</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="p-2 bg-vegas-darkgray rounded-lg">
@@ -353,7 +385,7 @@ const RouletteSidePanelStats = ({
           </div>
           
           {/* Frequency Chart */}
-          <div className="glass-card p-4 space-y-3">
+          <div className="glass-card p-4 space-y-3 md:col-span-2">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
               <ChartBar size={20} className="text-[#00ff00] mr-2" /> Frequência de Números
             </h3>
@@ -373,42 +405,10 @@ const RouletteSidePanelStats = ({
             </div>
           </div>
           
-          {/* Win Rate Chart */}
-          <div className="glass-card p-4 space-y-3">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <PercentIcon size={20} className="text-[#00ff00] mr-2" /> Taxa de Vitória
-            </h3>
-            <div className="h-[180px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: "Vitórias", value: wins || 1 },
-                      { name: "Derrotas", value: losses || 1 }
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
-                    fill="#00ff00"
-                    paddingAngle={5}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    <Cell key="wins" fill="#00ff00" />
-                    <Cell key="losses" fill="#ef4444" />
-                  </Pie>
-                  <Legend />
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          
           {/* Média de cores por hora */}
-          <div className="glass-card p-4 space-y-3">
+          <div className="glass-card p-4 space-y-3 md:col-span-2">
             <h3 className="text-sm font-medium text-white mb-3">Média de cores por hora</h3>
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {colorHourlyStats.map((stat, index) => (
                 <div key={`color-stat-${index}`} className="bg-gray-100/10 rounded-md p-3">
                   <div className="flex items-center">
