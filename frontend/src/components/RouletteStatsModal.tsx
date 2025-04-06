@@ -540,13 +540,13 @@ export const RouletteSidePanelStats = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 p-4">
-          {/* Historical Numbers Section */}
+          {/* Historical Numbers Section - MODIFICADO PARA MOSTRAR APENAS 20 NÚMEROS */}
           <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light">
             <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
-              <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {Math.min(historicalNumbers.length, 100)})
+              <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {Math.min(historicalNumbers.length, 20)})
             </h3>
-            <div className="grid grid-cols-6 sm:grid-cols-10 gap-1 max-h-[150px] overflow-y-auto p-3">
-              {historicalNumbers.slice(0, 100).map((num, idx) => (
+            <div className="grid grid-cols-5 sm:grid-cols-10 gap-1 max-h-[100px] overflow-y-auto p-3">
+              {historicalNumbers.slice(0, 20).map((num, idx) => (
                 <div 
                   key={idx} 
                   className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
