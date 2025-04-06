@@ -65,120 +65,80 @@ const RoutetteSidePanelStats = ({
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   
   useEffect(() => {
-    const loadHistoricalData = async () => {
-      if (selectedRoulette) {
-        setIsLoadingStats(true);
+    if (selectedRoulette) {
+      setIsLoadingStats(true);
+      
+      try {
+        const roletaNome = selectedRoulette.nome || selectedRoulette.name || '';
+        console.log(`[SidePanel] Carregando dados do card para ${roletaNome}...`);
         
-        try {
-          const roletaNome = selectedRoulette.nome || selectedRoulette.name || '';
-          console.log(`[SidePanel] Buscando histórico para ${roletaNome}...`);
+        // Função para extrair APENAS os números do card da roleta selecionada
+        const extractCardNumbers = (): number[] => {
+          // Tentar extrair da forma mais segura possível
+          let cardNumbers: number[] = [];
           
-          // Extrair números diretamente do objeto da roleta selecionada
-          const extractSafeNumbers = () => {
-            // Números no formato .numero[]
-            if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-              return selectedRoulette.numero
-                .map(n => {
-                  if (typeof n === 'object' && n !== null && 'numero' in n) {
-                    return Number(n.numero || 0);
-                  }
-                  return Number(n || 0);
-                })
-                .filter(n => !isNaN(n));
-            }
-            
-            // Números no formato .lastNumbers[]
-            if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
-              return selectedRoulette.lastNumbers
-                .map(n => Number(n || 0))
-                .filter(n => !isNaN(n));
-            }
-            
-            // Números no formato .numeros[]
-            if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
-              return selectedRoulette.numeros
-                .map(n => Number(n || 0))
-                .filter(n => !isNaN(n));
-            }
-            
-            return [];
-          };
-          
-          const lastNumbers = extractSafeNumbers();
-          console.log(`[SidePanel] Números extraídos do card: ${lastNumbers.length}`, lastNumbers);
-          
-          // IMPORTANTE: Buscar histórico da API, exatamente como o modal faz
-          let numbers = await fetchRouletteHistoricalNumbers(roletaNome);
-          
-          // Combinar lastNumbers com os números históricos, exatamente como o modal faz
-          if (lastNumbers && lastNumbers.length > 0) {
-            const combinedNumbers = [...lastNumbers];
-            numbers.forEach(num => {
-              if (!combinedNumbers.includes(num)) {
-                combinedNumbers.push(num);
+          // VERIFICAR NÚMEROS NO FORMATO .numero[]
+          if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
+            cardNumbers = selectedRoulette.numero.map(n => {
+              if (typeof n === 'object' && n !== null && 'numero' in n) {
+                return Number(n.numero || 0);
               }
-            });
-            numbers = combinedNumbers;
-          }
-          
-          console.log(`[SidePanel] Após combinação: ${numbers.length} números históricos para ${roletaNome}`);
-          
-          // Usar os números históricos ou fallback para dados gerados, seguindo a lógica do modal
-          if (numbers && numbers.length > 20) {
-            console.log(`[SidePanel] Encontrados ${numbers.length} números históricos para ${roletaNome}`);
-            setHistoricalNumbers(numbers);
-          } else {
-            console.log(`[SidePanel] Histórico insuficiente para ${roletaNome}, usando dados disponíveis`);
-            setHistoricalNumbers(lastNumbers && lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
-          }
-        } catch (error) {
-          console.error('[SidePanel] Erro ao carregar dados históricos:', error);
-          // Se falhar, usar os lastNumbers extraídos ou gerar números aleatórios
-          const lastNumbers = extractSafeNumbers();
-          setHistoricalNumbers(lastNumbers.length > 0 ? lastNumbers : getHistoricalNumbers());
-        } finally {
-          setIsLoadingStats(false);
-        }
-      }
-    };
-    
-    // Função auxiliar para extrair números com segurança
-    const extractSafeNumbers = () => {
-      if (!selectedRoulette) return [];
-      
-      // Números no formato .numero[]
-      if (Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0) {
-        return selectedRoulette.numero
-          .map(n => {
-            if (typeof n === 'object' && n !== null && 'numero' in n) {
-              return Number(n.numero || 0);
+              return Number(n || 0);
+            }).filter(n => !isNaN(n) && n >= 0 && n <= 36); // Garantir que são números válidos de roleta
+            
+            if (cardNumbers.length > 0) {
+              console.log(`[SidePanel] Extraídos ${cardNumbers.length} números do atributo 'numero'`, cardNumbers);
+              return cardNumbers;
             }
-            return Number(n || 0);
-          })
-          .filter(n => !isNaN(n));
+          }
+          
+          // VERIFICAR NÚMEROS NO FORMATO .lastNumbers[]
+          if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
+            cardNumbers = selectedRoulette.lastNumbers.map(n => Number(n || 0))
+              .filter(n => !isNaN(n) && n >= 0 && n <= 36);
+            
+            if (cardNumbers.length > 0) {
+              console.log(`[SidePanel] Extraídos ${cardNumbers.length} números do atributo 'lastNumbers'`, cardNumbers);
+              return cardNumbers;
+            }
+          }
+          
+          // VERIFICAR NÚMEROS NO FORMATO .numeros[]
+          if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
+            cardNumbers = selectedRoulette.numeros.map(n => Number(n || 0))
+              .filter(n => !isNaN(n) && n >= 0 && n <= 36);
+            
+            if (cardNumbers.length > 0) {
+              console.log(`[SidePanel] Extraídos ${cardNumbers.length} números do atributo 'numeros'`, cardNumbers);
+              return cardNumbers;
+            }
+          }
+          
+          console.warn(`[SidePanel] Não foi possível extrair números do card para ${roletaNome}`);
+          return [];
+        };
+        
+        // IMPORTANTE: Obter SOMENTE os números do card, sem buscar dados da API
+        const cardNumbers = extractCardNumbers();
+        
+        if (cardNumbers.length > 0) {
+          console.log(`[SidePanel] Usando EXATAMENTE os ${cardNumbers.length} números visíveis no card`);
+          setHistoricalNumbers(cardNumbers);
+        } else {
+          console.warn(`[SidePanel] ATENÇÃO: Nenhum número encontrado no card para ${roletaNome}`);
+          // Deixar a lista vazia em vez de gerar números aleatórios
+          setHistoricalNumbers([]);
+        }
+      } catch (error) {
+        console.error('[SidePanel] Erro ao processar dados do card:', error);
+        setHistoricalNumbers([]);
+      } finally {
+        setIsLoadingStats(false);
       }
-      
-      // Números no formato .lastNumbers[]
-      if (Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0) {
-        return selectedRoulette.lastNumbers
-          .map(n => Number(n || 0))
-          .filter(n => !isNaN(n));
-      }
-      
-      // Números no formato .numeros[]
-      if (Array.isArray(selectedRoulette.numeros) && selectedRoulette.numeros.length > 0) {
-        return selectedRoulette.numeros
-          .map(n => Number(n || 0))
-          .filter(n => !isNaN(n));
-      }
-      
-      return [];
-    };
-    
-    loadHistoricalData();
+    }
   }, [selectedRoulette]);
 
-  // Calcular estatísticas derivadas
+  // Calcular estatísticas derivadas apenas se tivermos números
   const frequencyData = generateFrequencyData(historicalNumbers);
   const { hot, cold } = getHotColdNumbers(frequencyData);
   const pieData = generateGroupDistribution(historicalNumbers);
