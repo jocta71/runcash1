@@ -1,7 +1,6 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 
@@ -21,50 +20,8 @@ console.log(`MONGODB_URI: ${MONGODB_URI.replace(/:.*@/, ':****@')}`);
 console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
 console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 
-// Desativando completamente CORS - conforme solicitado
-console.log('CORS completamente desativado - permitindo requisições de qualquer origem');
-
 // Inicializar Express
 const app = express();
-
-// Configurar CORS para permitir qualquer origem
-app.use((req, res, next) => {
-  // Log da requisição para debugging
-  const origin = req.headers.origin || 'sem origem';
-  console.log(`[CORS] Requisição de origem: ${origin}, método: ${req.method}, url: ${req.url}`);
-  
-  // Permitir domínios específicos
-  const allowedOrigins = [
-    'https://runcash11-ten.vercel.app',
-    'http://runcash11-ten.vercel.app',
-    'https://runcashh1-ten.vercel.app',
-    'http://runcashh1-ten.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:5173' // Servidor de desenvolvimento Vite
-  ];
-  
-  // Verificar se a origem está na lista de permitidas
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    // Para desenvolvimento e testes, permitir qualquer origem
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
-  // Configurar outros cabeçalhos CORS
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '86400'); // Cache preflight por 24 horas
-  
-  // Responder imediatamente para requisições preflight (OPTIONS)
-  if (req.method === 'OPTIONS') {
-    console.log('[CORS] Respondendo a requisição preflight OPTIONS');
-    return res.status(200).end();
-  }
-  
-  next();
-});
 
 app.use(express.json());
 
@@ -83,19 +40,6 @@ app.get('/', (req, res) => {
     status: 'online',
     service: 'RunCash WebSocket Server',
     timestamp: new Date().toISOString()
-  });
-});
-
-// Endpoint para testar CORS
-app.get('/test-cors', (req, res) => {
-  const origin = req.headers.origin || 'unknown';
-  
-  res.json({
-    success: true,
-    message: 'CORS completamente desativado - aceitando requisições de qualquer origem',
-    origin: origin,
-    allowed: true,
-    headers: req.headers
   });
 });
 
@@ -120,75 +64,15 @@ app.post('/emit-event', (req, res) => {
   }
 });
 
-// Endpoint para testar configuração CORS
-app.get('/cors-test', (req, res) => {
-  const origin = req.headers.origin || 'sem origem';
-  
-  res.json({
-    success: true,
-    message: 'CORS está configurado corretamente',
-    corsInfo: {
-      requestOrigin: origin,
-      allowedOrigins: allowedOrigins,
-      isAllowed: !origin || allowedOrigins.includes(origin),
-      headers: {
-        sent: {
-          'Access-Control-Allow-Origin': res.getHeader('Access-Control-Allow-Origin'),
-          'Access-Control-Allow-Methods': res.getHeader('Access-Control-Allow-Methods'),
-          'Access-Control-Allow-Headers': res.getHeader('Access-Control-Allow-Headers'),
-          'Access-Control-Allow-Credentials': res.getHeader('Access-Control-Allow-Credentials')
-        },
-        received: req.headers
-      }
-    },
-    timestamp: new Date().toISOString()
-  });
-});
-
 // Criar servidor HTTP
 const server = http.createServer(app);
 
-// Lista de domínios permitidos para CORS
-const allowedOrigins = [
-  'https://runcash11-ten.vercel.app',
-  'http://runcash11-ten.vercel.app',
-  'https://runcashh1-ten.vercel.app',
-  'http://runcashh1-ten.vercel.app',
-  'http://localhost:3000',
-  'http://localhost:5173' // Servidor de desenvolvimento Vite
-];
-
-// Inicializar Socket.IO com configurações de CORS específicas
+// Inicializar Socket.IO sem configurações específicas de CORS
 const io = new Server(server, {
-  cors: {
-    origin: function(origin, callback) {
-      // Permitir requisições sem origem (ex: durante desenvolvimento)
-      if (!origin) {
-        return callback(null, true);
-      }
-      
-      // Verificar se a origem está na lista de permitidas
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        // Para desenvolvimento e testes, permitir qualquer origem
-        callback(null, true);
-        // Em produção, você pode restringir:
-        // callback(new Error('Origem não permitida pelo CORS'), false);
-      }
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    credentials: true,
-    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
-  },
-  allowEIO3: true,
   transports: ['websocket', 'polling'],
   pingTimeout: 60000, // Aumentar timeout para 60s
   pingInterval: 25000 // Verificar conexão a cada 25s
 });
-
-// Log para confirmar configuração
-console.log('Socket.IO configurado com CORS para origens específicas');
 
 // Status e números das roletas
 let rouletteStatus = {};
@@ -552,11 +436,6 @@ app.get('/api/ROULETTES', async (req, res) => {
   console.log('[API] Query params:', req.query);
   console.log('[API] Headers:', req.headers);
   
-  // Garantir cabeçalhos CORS
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
   try {
     if (!isConnected || !collection) {
       console.log('[API] MongoDB não conectado, retornando array vazio');
@@ -813,23 +692,6 @@ app.get('/api/numbers', async (req, res) => {
   }
 });
 
-// Endpoint para testar o caminho específico que está causando problemas CORS
-app.get('/api/ROULETTES-test', (req, res) => {
-  res.json({
-    message: 'Teste CORS específico para /api/ROULETTES',
-    query: req.query,
-    headers: {
-      origin: req.headers.origin,
-      referer: req.headers.referer,
-      host: req.headers.host
-    },
-    cors: {
-      enabled: false,
-      permitindo_qualquer_origem: true
-    }
-  });
-});
-
 // Endpoint para forçar retorno com cabeçalho CORS para qualquer origem
 app.get('/disable-cors-check', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -848,11 +710,6 @@ app.get('/disable-cors-check', (req, res) => {
 app.get('/api/historico', async (req, res) => {
   console.log('[API] Requisição recebida para /api/historico');
   console.log('[API] Query params:', req.query);
-  
-  // Garantir cabeçalhos CORS
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
   try {
     if (!isConnected || !collection) {
@@ -900,11 +757,6 @@ app.get('/api/historico', async (req, res) => {
 // Rota específica para o histórico de números usando o mesmo endpoint que o frontend espera
 app.get('/api/ROULETTES/historico', async (req, res) => {
   console.log('[API] Requisição recebida para /api/ROULETTES/historico');
-  
-  // Garantir cabeçalhos CORS em todos os endpoints críticos
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
   try {
     if (!isConnected || !collection) {
