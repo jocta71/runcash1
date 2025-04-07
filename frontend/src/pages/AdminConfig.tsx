@@ -39,17 +39,33 @@ const AdminConfigPage: React.FC = () => {
     setError(null);
     
     try {
-      const apiUrl = `${config.apiBaseUrl}/config/allowed-roulettes`;
-      const response = await fetch(apiUrl);
+      // Usar a URL base da API configurada ou fallback para a URL do Railway
+      const apiBaseUrl = config.apiBaseUrl || 'https://backendapi-production-36b5.up.railway.app/api';
+      const apiUrl = `${apiBaseUrl}/config/allowed-roulettes`;
+      
+      console.log(`[CONFIG] Buscando roletas permitidas em: ${apiUrl}`);
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        // Importante para CORS
+        credentials: 'include'
+      });
       
       if (!response.ok) {
-        throw new Error(`Erro ao buscar roletas permitidas: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Erro ao buscar roletas permitidas (${response.status}): ${errorText}`);
       }
       
       const data = await response.json();
+      console.log(`[CONFIG] Roletas carregadas com sucesso: ${data.totalCount} roletas`);
       setAllowedRoulettes(data.allowedRoulettes || []);
     } catch (err) {
-      setError(`Falha ao carregar a configuração: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(`Falha ao carregar a configuração: ${errorMessage}`);
       console.error('Erro ao buscar roletas permitidas:', err);
     } finally {
       setLoading(false);
@@ -63,17 +79,27 @@ const AdminConfigPage: React.FC = () => {
     setSuccess(null);
     
     try {
-      const apiUrl = `${config.apiBaseUrl}/config/allowed-roulettes`;
+      // Usar a URL base da API configurada ou fallback para a URL do Railway
+      const apiBaseUrl = config.apiBaseUrl || 'https://backendapi-production-36b5.up.railway.app/api';
+      const apiUrl = `${apiBaseUrl}/config/allowed-roulettes`;
+      
+      console.log(`[CONFIG] Salvando roletas permitidas em: ${apiUrl}`);
+      console.log(`[CONFIG] Dados enviados: ${JSON.stringify({ allowedRoulettes })}`);
+      
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ allowedRoulettes })
+        body: JSON.stringify({ allowedRoulettes }),
+        // Importante para CORS
+        credentials: 'include'
       });
       
       if (!response.ok) {
-        throw new Error(`Erro ao salvar roletas permitidas: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Erro ao salvar roletas permitidas (${response.status}): ${errorText}`);
       }
       
       const data = await response.json();
@@ -85,12 +111,13 @@ const AdminConfigPage: React.FC = () => {
         variant: "default"
       });
     } catch (err) {
-      setError(`Falha ao salvar a configuração: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(`Falha ao salvar a configuração: ${errorMessage}`);
       console.error('Erro ao salvar roletas permitidas:', err);
       
       toast({
         title: "Erro",
-        description: `Falha ao salvar a configuração: ${err instanceof Error ? err.message : String(err)}`,
+        description: `Falha ao salvar a configuração: ${errorMessage}`,
         variant: "destructive"
       });
     } finally {
