@@ -1,21 +1,23 @@
 /**
- * Lista de IDs de roletas permitidas para exibição no frontend
- * Estes IDs devem corresponder aos configurados no scraper
+ * Configuração de roletas para o frontend
+ * Todas as roletas são permitidas por padrão
  */
-// Obter roletas permitidas da variável de ambiente, se disponível
-const allowedRoulettesEnv = import.meta.env.VITE_ALLOWED_ROULETTES as string | undefined;
-console.log('[CONFIG] Variável VITE_ALLOWED_ROULETTES:', allowedRoulettesEnv);
 
-// Converter a string de IDs separados por vírgula em um array
-export const ROLETAS_PERMITIDAS = allowedRoulettesEnv
-  ? allowedRoulettesEnv.split(',').map(id => id.trim())
-  : [
-      "2010016",  // Immersive Roulette
-      "2380335",  // Brazilian Mega Roulette
-      "2010065",  // Bucharest Auto-Roulette
-      "2010096",  // Speed Auto Roulette
-      "2010017",  // Auto-Roulette
-      "2010098"   // Auto-Roulette VIP
-    ];
+// Para compatibilidade com código existente
+export const ROLETAS_PERMITIDAS: string[] = [];
 
-console.log('[CONFIG] Roletas permitidas:', ROLETAS_PERMITIDAS); 
+/**
+ * Verifica se uma roleta é permitida (sempre retorna true)
+ */
+export function isRouletteAllowed(roletaId: string): boolean {
+  // Permitir sempre todas as roletas
+  return true;
+}
+
+/**
+ * Função que não filtra as roletas, retornando todas
+ */
+export function filterAllowedRoulettes(roletas: any[]): any[] {
+  // Retornar todas as roletas sem filtrar
+  return roletas;
+} 
