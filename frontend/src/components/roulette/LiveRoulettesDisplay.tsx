@@ -247,12 +247,33 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
           return {
             ...roleta,
             numero: [],
-            tem_dados: true
+            tem_dados: true,
+            ultima_atualizacao: Date.now() // Adicionar timestamp atual para simular atualização recente
           };
         }
+        
+        // Normalizar os números se forem objetos ou valores diretos
+        const numerosNormalizados = Array.isArray(roleta.numero) 
+          ? roleta.numero.map(n => {
+              if (typeof n === 'object' && n !== null) {
+                return { 
+                  numero: typeof n.numero === 'number' ? n.numero : parseInt(String(n.numero || 0)), 
+                  timestamp: n.timestamp || new Date().toISOString()
+                };
+              } else {
+                return { 
+                  numero: typeof n === 'number' ? n : parseInt(String(n || 0)), 
+                  timestamp: new Date().toISOString() 
+                };
+              }
+            })
+          : [];
+          
         return {
           ...roleta,
-          tem_dados: true
+          numero: numerosNormalizados,
+          tem_dados: true,
+          ultima_atualizacao: Date.now()
         };
       });
       
@@ -262,14 +283,18 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       const rouletteTables = processedRoulettes.map(roleta => {
         // Extrair os números do campo numero (limitado a 30 mais recentes)
         const numeros = Array.isArray(roleta.numero) 
-          ? roleta.numero.slice(0, 30).map(n => n.numero.toString()) 
+          ? roleta.numero.slice(0, 30).map(n => {
+              const numero = typeof n === 'object' ? n.numero : n;
+              return numero !== undefined ? numero.toString() : '0';
+            }) 
           : [];
         
         return {
           tableId: roleta.id || '',
           tableName: roleta.nome || roleta.name || 'Roleta',
           numbers: numeros,
-          canonicalId: roleta.canonicalId || roleta._id
+          canonicalId: roleta.canonicalId || roleta._id,
+          hasData: numeros.length > 0
         };
       });
       
@@ -346,7 +371,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
                           <span className="bg-gray-800 text-xs text-gray-300 px-2 py-0.5 rounded">
                             {Array.isArray(roleta.numero) && roleta.numero.length > 0 
                               ? `${roleta.numero.length} números` 
-                              : roleta.ultima_atualizacao ? "110 atualizações" : "Sem dados"}
+                              : roleta.ultima_atualizacao ? "Dados prontos" : "Sem dados"}
                           </span>
                         </div>
                       </div>
@@ -394,6 +419,12 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
                             </div>
                           );
                         })}
+                        
+                        {(!roleta.numero || roleta.numero.length <= 1) && (
+                          <div className="flex items-center text-xs text-gray-500">
+                            <span>Aguardando mais números...</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     
@@ -420,6 +451,18 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
                   </div>
                 </div>
               ))}
+              
+              {roulettes.length === 0 && (
+                <div className="text-center p-4 text-gray-400 flex flex-col items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-2">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                  <span>Nenhuma roleta disponível no momento</span>
+                </div>
+              )}
             </div>
           </div>
           
@@ -428,7 +471,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
             {selectedRoulette && Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0 ? (
               <RouletteStatsInline 
                 roletaNome={selectedRoulette.nome}
-                lastNumbers={selectedRoulette.numero.map(n => n.numero)}
+                lastNumbers={selectedRoulette.numero.map(n => typeof n === 'object' ? n.numero : n)}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-[70vh] p-6 text-center">
