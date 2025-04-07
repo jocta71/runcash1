@@ -114,23 +114,14 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     const lastNumbers = Array.isArray(data.lastNumbers) 
       ? data.lastNumbers 
       : Array.isArray(data.numero) 
-        ? data.numero.map(n => typeof n === 'object' ? n.numero : n)
+        ? data.numero 
         : [];
-    
-    // Garantir que sempre exista um valor para name
-    const name = data.name || data.nome || 'Roleta sem nome';
-    
-    // Adicionar um indicador de que temos dados válidos
-    const hasValidData = lastNumbers.length > 0 || (data.ultima_atualizacao && data.ultima_atualizacao > 0);
     
     return {
       ...data,
       id: data.id || data._id || 'unknown',
-      name: name,
+      name: data.name || data.nome || 'Roleta sem nome',
       lastNumbers,
-      hasValidData,
-      // Adicionar dummies somente se não houver dados reais
-      dummyNumbers: hasValidData ? [] : [5, 12, 27, 8, 19, 36, 0, 14]
     };
   }, [data]);
   
@@ -138,22 +129,19 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [lastNumber, setLastNumber] = useState<number | null>(
     Array.isArray(safeData.lastNumbers) && safeData.lastNumbers.length > 0 
       ? Number(safeData.lastNumbers[0]) 
-      : safeData.dummyNumbers && safeData.dummyNumbers.length > 0 
-        ? safeData.dummyNumbers[0]
-        : null
+      : null
   );
   
   const [recentNumbers, setRecentNumbers] = useState<number[]>(
-    Array.isArray(safeData.lastNumbers) && safeData.lastNumbers.length > 0
-      ? safeData.lastNumbers.map(n => Number(n))
-      : safeData.dummyNumbers || []
+    Array.isArray(safeData.lastNumbers) 
+      ? safeData.lastNumbers.map(n => Number(n)) 
+      : []
   );
   
   const [isNewNumber, setIsNewNumber] = useState(false);
   const [updateCount, setUpdateCount] = useState(0);
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
-  const [hasRealData, setHasRealData] = useState(safeData.hasValidData || recentNumbers.length > 0);
-  const [showAllNumbers, setShowAllNumbers] = useState(isDetailView);
+  const [hasRealData, setHasRealData] = useState(recentNumbers.length > 0);
   const cardRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasInitialized = useRef(false);
@@ -195,27 +183,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       // Extrair os números do array (verificando se são válidos)
       const validNumbers = newNumberEvent.numero
-        .map(n => {
-          if (typeof n === 'object' && n !== null) {
-            return typeof n.numero === 'number' ? n.numero : Number(n.numero);
-          } 
-          return typeof n === 'number' ? n : Number(n);
-        })
-        .filter(n => !isNaN(n));
+        .map(n => typeof n === 'object' && n !== null ? n.numero : n)
+        .filter(n => typeof n === 'number' && !isNaN(n));
       
       if (validNumbers.length === 0) {
         console.warn('[RouletteCard] Array de números não contém valores válidos:', newNumberEvent);
-        
-        // Se não temos números válidos mas também não temos dados,
-        // usar números dummy para manter a interface funcionando
-        if (!hasRealData && recentNumbers.length === 0) {
-          console.log('[RouletteCard] Gerando números dummy para manter a interface funcionando');
-          const dummyNumbers = [5, 12, 27, 8, 19, 36, 0, 14, 22, 33, 10, 25];
-          setRecentNumbers(dummyNumbers);
-          setLastNumber(dummyNumbers[0]);
-          setHasRealData(false);
-        }
-        
         return;
       }
       
@@ -433,13 +405,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           <h3 className="text-lg font-semibold truncate">{safeData.name}</h3>
           <div className="flex gap-1 items-center">
             <Badge variant="outline" className="bg-muted text-xs">
-              {updateCount > 0 
-                ? `${updateCount} atualizações` 
-                : (hasRealData 
-                   ? "Dados prontos" 
-                   : recentNumbers.length > 0 
-                     ? "Simulado" 
-                     : "Sem dados")}
+              {updateCount > 0 ? `${updateCount} atualizações` : (hasRealData ? "Aguardando..." : "Sem dados")}
             </Badge>
             
             {/* Botão para abrir modal de estatísticas */}
@@ -460,32 +426,14 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         
         {/* Últimos números - Mostrando todos com o mesmo tamanho */}
         <div className="flex flex-wrap gap-1 justify-center my-3">
-          {recentNumbers.length > 0 ? (
-            recentNumbers.slice(0, isDetailView || showAllNumbers ? 20 : 10).map((num, idx) => (
-              <NumberDisplay 
-                key={`${num}-${idx}`}
-                number={num} 
-                size="small" 
-                highlight={idx === 0 && isNewNumber}
-              />
-            ))
-          ) : (
-            <div className="py-4 text-gray-400 text-sm flex items-center justify-center w-full">
-              <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-              Carregando dados...
-            </div>
-          )}
-          
-          {recentNumbers.length > 10 && !isDetailView && !showAllNumbers && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setShowAllNumbers(true)}
-              className="text-xs text-gray-400 hover:text-white"
-            >
-              Ver mais
-            </Button>
-          )}
+          {recentNumbers.slice(0, isDetailView ? 20 : 10).map((num, idx) => (
+            <NumberDisplay 
+              key={`${num}-${idx}`}
+              number={num} 
+              size="small" 
+              highlight={idx === 0 && isNewNumber}
+            />
+          ))}
         </div>
         
         {/* Botões de ação */}
@@ -505,13 +453,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           <div className="flex items-center text-xs text-gray-400">
             <Timer className="h-3 w-3 mr-1" />
             <span>
-              {updateCount > 0 
-               ? `${updateCount} atualizações` 
-               : hasRealData 
-                 ? 'Pronto' 
-                 : recentNumbers.length > 0 
-                   ? 'Números simulados' 
-                   : 'Aguardando...'}
+              {updateCount > 0 ? `${updateCount} atualizações` : 'Sem atualizações'}
             </span>
           </div>
         </div>

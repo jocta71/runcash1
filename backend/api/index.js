@@ -49,6 +49,22 @@ app.locals.db = db;
 // Configurar rotas
 app.use('/api/roulettes/history', rouletteHistoryRouter);
 
+// Adicionar mapeamento de nomes para IDs de roletas conhecidas
+const NOME_PARA_ID = {
+  "Speed Roulette": "2330046",
+  "Immersive Roulette": "2330047",
+  "Brazilian Mega Roulette": "2330048",
+  "Bucharest Auto-Roulette": "2330049",
+  "Auto-Roulette": "2330050",
+  "Auto-Roulette VIP": "2330051",
+  "VIP Roulette": "2330052",
+  "Roulette Macao": "2330053",
+  "Speed Roulette 1": "2330054",
+  "Hippodrome Grand Casino": "2330055",
+  "Ruleta Bola Rapida en Vivo": "2330056",
+  "Ruleta en Vivo": "2330057"
+};
+
 // Garantir que a rota /api/roulettes funcione
 app.get('/api/ROULETTES', async (req, res) => {
   try {
@@ -94,17 +110,14 @@ app.get('/api/ROULETTES', async (req, res) => {
       
       console.log(`[API] Processando roleta: ${nome} (ID: ${originalId})`);
       
-      // Consultar na coleção roleta_numeros usando várias combinações possíveis
+      // Consultar na coleção roleta_numeros usando o ID ou nome
       const promise = db.collection('roleta_numeros')
         .find({ 
           $or: [
             { roleta_id: originalId.toString() },
             { "id_roleta": originalId.toString() },
             { "nome_roleta": nome },
-            { "roleta_nome": nome },
-            // Tentar também pelo nome parcial (para lidar com pequenas diferenças)
-            { "roleta_nome": { $regex: nome.split(' ')[0], $options: 'i' } },
-            { "nome_roleta": { $regex: nome.split(' ')[0], $options: 'i' } }
+            { "roleta_nome": nome }
           ]
         })
         .sort({ timestamp: -1 })
@@ -118,55 +131,6 @@ app.get('/api/ROULETTES', async (req, res) => {
             console.log(`[API] Exemplo de documento para ${nome}:`, 
               JSON.stringify(numeros[0], null, 2)
             );
-          } else {
-            // Tentar buscar em toda a coleção por termos similares
-            console.log(`[API] Buscando correspondências similares para ${nome}`);
-            try {
-              // Verificar se encontramos correspondências por nome similar
-              const similarMatches = await db.collection('roleta_numeros')
-                .find({
-                  $or: [
-                    // Usar expressões regulares para encontrar termos similares no nome
-                    { "roleta_nome": { $regex: nome.split(' ')[0], $options: 'i' } },
-                    { "nome_roleta": { $regex: nome.split(' ')[0], $options: 'i' } }
-                  ]
-                })
-                .limit(3)
-                .toArray();
-              
-              if (similarMatches.length > 0) {
-                console.log(`[API] Encontradas correspondências similares: ${
-                  similarMatches.map(m => m.roleta_nome || m.nome_roleta).join(', ')
-                }`);
-              }
-            } catch (error) {
-              console.error(`[API] Erro ao buscar correspondências similares:`, error);
-            }
-          }
-          
-          // Verificar se encontramos números para a roleta
-          if (numeros.length === 0) {
-            // Buscar usando apenas o primeiro termo do nome (para maior flexibilidade)
-            const firstWord = nome.split(' ')[0];
-            try {
-              const altNumeros = await db.collection('roleta_numeros')
-                .find({ 
-                  $or: [
-                    { "roleta_nome": { $regex: `.*${firstWord}.*`, $options: 'i' } },
-                    { "nome_roleta": { $regex: `.*${firstWord}.*`, $options: 'i' } }
-                  ]
-                })
-                .sort({ timestamp: -1 })
-                .limit(numbersLimit)
-                .toArray();
-              
-              if (altNumeros.length > 0) {
-                console.log(`[API] Encontrados ${altNumeros.length} números usando termo parcial: ${firstWord}`);
-                numeros = altNumeros;
-              }
-            } catch (error) {
-              console.error(`[API] Erro ao buscar com termo parcial:`, error);
-            }
           }
           
           return { 
