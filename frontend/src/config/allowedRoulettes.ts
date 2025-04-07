@@ -18,41 +18,4 @@ export const ROLETAS_PERMITIDAS = allowedRoulettesEnv
       "2010098"   // Auto-Roulette VIP
     ];
 
-console.log('[CONFIG] Roletas permitidas:', ROLETAS_PERMITIDAS);
-
-/**
- * Verifica se uma roleta está na lista de roletas permitidas
- * Modificado para permitir todas as roletas válidas, independentemente da configuração
- * @param rouletteId ID da roleta a ser verificada
- * @returns boolean indicando se a roleta está permitida
- */
-export const isRouletteAllowed = (rouletteId: string): boolean => {
-  console.log(`[CONFIG] Verificando permissão para roleta ID: ${rouletteId}`);
-  
-  // Verificar se o ID é válido
-  const isValid = rouletteId !== undefined && rouletteId !== null && rouletteId.trim() !== '';
-  
-  // MODO PERMISSIVO: Permitir todas as roletas com ID válido
-  console.log(`[CONFIG] Modo permissivo FORÇADO: ${isValid ? 'permitida' : 'não permitida'}`);
-  return isValid;
-};
-
-/**
- * Filtra um array de roletas para incluir apenas as permitidas
- * @param roulettes Array de roletas
- * @returns Array filtrado contendo apenas roletas permitidas
- */
-export const filterAllowedRoulettes = <T extends { id: string }>(roulettes: T[]): T[] => {
-  console.log(`[CONFIG] Filtrando ${roulettes.length} roletas`);
-  
-  const filteredRoulettes = roulettes.filter(roulette => {
-    const allowed = isRouletteAllowed(roulette.id);
-    if (!allowed) {
-      console.log(`[CONFIG] Roleta ${roulette.id} foi rejeitada`);
-    }
-    return allowed;
-  });
-  
-  console.log(`[CONFIG] Resultado da filtragem: ${filteredRoulettes.length} roletas permitidas`);
-  return filteredRoulettes;
-}; 
+console.log('[CONFIG] Roletas permitidas:', ROLETAS_PERMITIDAS); 
