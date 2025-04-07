@@ -123,25 +123,16 @@ export const fetchRoulettesWithRealNumbers = async (): Promise<RouletteData[]> =
       return [];
     }
     
-    // Mapear roletas para os IDs canônicos que existem no MongoDB
-    const rouletteIdMap = {
-      "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2380335", // Brazilian Mega Roulette
-      "18bdc4ea-d884-c47a-d33f-27a268a4eead": "2010096", // Speed Auto Roulette
-      "e3345af9-e387-9412-209c-e793fe73e520": "2010065", // Bucharest Auto-Roulette
-      "419aa56c-bcff-67d2-f424-a6501bac4a36": "2010098", // Auto-Roulette VIP
-      "4cf27e48-2b9d-b58e-7dcc-48264c51d639": "2010016", // Immersive Roulette
-      "f27dd03e-5282-fc78-961c-6375cef91565": "2010017"  // Ruleta Automática
-    };
-    
     // Array para armazenar as promessas de busca de números
     const fetchPromises = [];
     
     // Para cada roleta, criar uma promessa de busca de números
     const roletas = response.data.map((roleta: any, index: number) => {
-      const mongoId = rouletteIdMap[roleta.id];
+      // Usar o ID original da roleta diretamente
+      const roletaId = roleta.id;
       
       // Criar uma promessa para buscar números desta roleta
-      const fetchPromise = fetchNumbersFromMongoDB(mongoId, roleta.nome)
+      const fetchPromise = fetchNumbersFromMongoDB(roletaId, roleta.nome)
         .then(numbers => {
           console.log(`[API] ✅ Recebidos ${numbers.length} números para ${roleta.nome}`);
           return { index, numbers };
@@ -156,7 +147,7 @@ export const fetchRoulettesWithRealNumbers = async (): Promise<RouletteData[]> =
       // Retornar roleta inicialmente sem números (serão adicionados depois)
       return {
         ...roleta,
-        _id: mongoId || roleta.id,
+        _id: roletaId,
         numero: []
       };
     });
