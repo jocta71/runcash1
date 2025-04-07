@@ -136,8 +136,8 @@ app.get('/api/ROULETTES', async (req, res) => {
                     $regex: new RegExp(`${nome.replace(/[-\s]/g, '.*')}`, 'i')
                   } 
                 })
-                .sort({ timestamp: -1 })
-                .limit(numbersLimit)
+        .sort({ timestamp: -1 })
+        .limit(numbersLimit)
                 .toArray();
                 
               if (numeros.length > 0) {
@@ -207,7 +207,7 @@ app.get('/api/ROULETTES', async (req, res) => {
         } catch (error) {
           console.error(`[API] Erro ao buscar números para roleta ${nome}:`, error);
           // Retornar a roleta mesmo se houver erro ao buscar números
-          return {
+          return { 
             id: id,
             nome: nome,
             ativa: roleta.ativa || true,

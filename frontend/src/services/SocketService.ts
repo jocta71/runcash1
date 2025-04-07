@@ -514,9 +514,9 @@ class SocketService {
         const id = roleta._id || roleta.id;
         console.log(`[SocketService] Roleta encontrada com ID: ${id}`);
         this.subscribeToRouletteEndpoint(id, roletaNome);
-      } else {
-        console.warn(`[SocketService] Roleta não encontrada pelo nome: ${roletaNome}`);
-      }
+    } else {
+      console.warn(`[SocketService] Roleta não encontrada pelo nome: ${roletaNome}`);
+    }
     }).catch(error => {
       console.error(`[SocketService] Erro ao buscar dados para roleta ${roletaNome}:`, error);
     });
@@ -768,8 +768,8 @@ class SocketService {
    */
   public requestRecentNumbers(): void {
     try {
-      console.log('[SocketService] Solicitando números recentes de todas as roletas');
-      
+    console.log('[SocketService] Solicitando números recentes de todas as roletas');
+    
       // Buscar todas as roletas reais (sem filtro)
       this.fetchRealRoulettes().then(roletas => {
         if (roletas && roletas.length > 0) {
@@ -787,7 +787,7 @@ class SocketService {
               this.fetchRouletteNumbersREST(roletaId);
             }
           });
-        } else {
+    } else {
           console.warn('[SocketService] Nenhuma roleta disponível para solicitar números');
         }
       }).catch(error => {
@@ -1091,30 +1091,30 @@ class SocketService {
           
           // Se tiver sucesso, processar os dados
           if (response.ok) {
-            const data = await response.json();
+      const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
-              console.log(`[SocketService] ✅ Recebidas ${data.length} roletas da API`);
-              
+            console.log(`[SocketService] ✅ Recebidas ${data.length} roletas da API`);
+            
               // Sinalizar sucesso para o circuit breaker
               this.handleCircuitBreaker(true, endpoint);
               
               // Armazenar no cache global para uso futuro
-              const roletasComIdsCanonicos = data.map(roleta => {
-                const uuid = roleta.id;
-                const canonicalId = mapToCanonicalRouletteId(uuid);
-                
-                return {
-                  ...roleta,
-                  _id: canonicalId, // Adicionar o ID canônico
-                  uuid: uuid        // Preservar o UUID original
-                };
-              });
+            const roletasComIdsCanonicos = data.map(roleta => {
+              const uuid = roleta.id;
+              const canonicalId = mapToCanonicalRouletteId(uuid);
               
-              console.log(`[SocketService] Roletas mapeadas com IDs canônicos:`, 
+              return {
+                ...roleta,
+                _id: canonicalId, // Adicionar o ID canônico
+                uuid: uuid        // Preservar o UUID original
+              };
+            });
+            
+            console.log(`[SocketService] Roletas mapeadas com IDs canônicos:`, 
                 roletasComIdsCanonicos.length);
-              
-              return roletasComIdsCanonicos;
-            }
+            
+            return roletasComIdsCanonicos;
+          }
             break; // Se chegou aqui mas não tem dados, sair do loop
           }
           
@@ -1154,14 +1154,14 @@ class SocketService {
       console.warn(`[SocketService] Falha ao buscar roletas após ${maxAttempts} tentativas`);
       
       // Usar a lista local de roletas canônicas como fallback
-      const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
-        _id: roleta.id,
-        nome: roleta.nome,
-        ativa: true
-      }));
-      
-      console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback`);
-      return roletasFallback;
+        const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+          _id: roleta.id,
+          nome: roleta.nome,
+          ativa: true
+        }));
+        
+        console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback`);
+        return roletasFallback;
         
     } catch (error) {
       console.error('[SocketService] Erro ao buscar roletas:', error);
@@ -1170,13 +1170,13 @@ class SocketService {
       this.handleCircuitBreaker(false, 'fetchRealRoulettes');
       
       // Fallback para lista local
-      const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
-        _id: roleta.id,
-        nome: roleta.nome,
-        ativa: true
-      }));
-      
-      return roletasFallback;
+        const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+          _id: roleta.id,
+          nome: roleta.nome,
+          ativa: true
+        }));
+        
+        return roletasFallback;
     }
   }
   
@@ -1660,11 +1660,11 @@ class SocketService {
   private subscribeToRouletteEndpoint(roletaId: string, roletaNome?: string): void {
     try {
       // Verificar se temos ID válido
-      if (!roletaId) {
+    if (!roletaId) {
         console.warn('[SocketService] ID inválido para subscrição');
-        return;
-      }
-      
+      return;
+    }
+
       // Usar nome da roleta para logs, ou o ID se não tivermos o nome
       const displayName = roletaNome || `Roleta ${roletaId.substring(0, 8)}...`;
       
@@ -1759,7 +1759,7 @@ class SocketService {
             this.minPollingInterval, 
             pollingInfo.interval / 1.2
           );
-        } else {
+          } else {
           // Se falhou, aumentar contador e ajustar intervalo
           pollingInfo.consecutiveErrors++;
           
