@@ -37,26 +37,9 @@ export const ROULETTE_NAMES = {
  * @returns ID numérico válido
  */
 export function getNumericId(id: string): string {
-  // Se já é um ID numérico válido, retorna ele mesmo
-  if (ALLOWED_ROULETTES.includes(id)) {
-    return id;
-  }
-  
-  // Se está no mapeamento, retorna o ID correspondente
-  if (UUID_TO_NUMERIC[id]) {
-    return UUID_TO_NUMERIC[id];
-  }
-  
-  // Verificar se o ID contém um ID numérico como sufixo
-  for (const numericId of ALLOWED_ROULETTES) {
-    if (id.endsWith(numericId)) {
-      return numericId;
-    }
-  }
-  
-  // Não foi possível mapear, usar o valor padrão
-  console.warn(`[Transformer] ID não reconhecido: ${id}, usando Speed Auto como fallback`);
-  return "2010096"; // Speed Auto como fallback
+  // MODO PERMISSIVO: Retornar o ID original sem mapeamento
+  console.log(`[Transformer] MODO PERMISSIVO: Usando ID original ${id}`);
+  return id;
 }
 
 /**
@@ -133,15 +116,8 @@ export function transformRouletteNumber(rawNumber: any): {
  */
 export function transformRouletteData(rawData: any) {
   try {
-    // Obter o ID numérico
-    let numericId;
-    
-    // Prioridade: campo roleta_id > id > _id
-    if (rawData.roleta_id) {
-      numericId = getNumericId(rawData.roleta_id);
-    } else {
-      numericId = getNumericId(rawData.id || rawData._id);
-    }
+    // MODO PERMISSIVO: Usar o ID original diretamente
+    const originalId = rawData.id || rawData._id || rawData.roleta_id || '0';
     
     // Números
     let numbers = [];
@@ -157,11 +133,13 @@ export function transformRouletteData(rawData: any) {
       .map(transformRouletteNumber)
       .filter(Boolean);
     
-    // Nome
-    const name = rawData.nome || rawData.name || ROULETTE_NAMES[numericId] || `Roleta ${numericId}`;
+    // Nome preservado da fonte original
+    const name = rawData.nome || rawData.name || `Roleta ${originalId}`;
+    
+    console.log(`[Transformer] Processando roleta: ${name} (ID: ${originalId})`);
     
     return {
-      id: numericId,
+      id: originalId,
       uuid: rawData._id || rawData.id,
       name,
       numbers: processedNumbers,
@@ -173,7 +151,7 @@ export function transformRouletteData(rawData: any) {
   } catch (error) {
     console.error('[Transformer] Erro ao transformar dados da roleta:', error);
     return {
-      id: '2010096', // Speed Auto como fallback
+      id: '0', 
       uuid: '0',
       name: 'Erro',
       numbers: [],
