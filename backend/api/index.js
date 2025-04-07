@@ -110,21 +110,81 @@ app.get('/api/ROULETTES', async (req, res) => {
       
       console.log(`[API] Processando roleta: ${nome} (ID: ${originalId})`);
       
-      // Consultar na coleção roleta_numeros usando o ID ou nome
+      // Mapeamento de nomes de roletas para IDs do scraper
+      const nameMappings = {
+        // IDs confirmados
+        "Speed Auto Roulette": "2010096",
+        "Auto-Roulette": "2010017",
+        "Auto Roulette VIP": "2010098",
+        "VIP Roulette": "2010098",
+        "Immersive Roulette": "2010016",
+        "Brazilian Mega Roulette": "2380335",
+        "Bucharest Auto-Roulette": "2010065",
+        // Outros mapeamentos comuns
+        "Lightning Roulette": "2210004",
+        "Auto Lightning Roulette": "2210004",
+        "Ruleta Automática": "2010017", 
+        "Svensk Roulette": "2010047",
+        "Fan Tan": "72781e91",
+        "Cash or Crash": "1887241b",
+        "Dream Catcher": "ee6d8b6e",
+        "Speed Roulette": "2010096",
+        "Red Door Roulette": "b081a0c0",
+        "777 Roulette": "2948054",
+        "Japanese Roulette": "5834912",
+        "Greek Roulette": "2837654",
+        "Gold Vault Roulette": "3274891",
+        "Dansk Roulette": "5629014"
+      };
+      
+      // Tentar encontrar o ID do scraper baseado no nome da roleta
+      const scraperId = nameMappings[nome];
+      
+      // Lista de possíveis IDs para buscar dados (original + scraper)
+      const possibleIds = [originalId.toString()];
+      if (scraperId) {
+        possibleIds.push(scraperId);
+      }
+      
+      // Consultar na coleção roleta_numeros usando os possíveis IDs
+      const query = {
+        $or: [
+          ...possibleIds.map(id => ({ roleta_id: id })),
+          ...possibleIds.map(id => ({ id_roleta: id })),
+          { nome_roleta: nome },
+          { roleta_nome: nome }
+        ]
+      };
+      
+      console.log(`[API] Buscando números para ${nome} com query:`, JSON.stringify(query));
+      
       const promise = db.collection('roleta_numeros')
-        .find({ 
-          $or: [
-            { roleta_id: originalId.toString() },
-            { "id_roleta": originalId.toString() },
-            { "nome_roleta": nome },
-            { "roleta_nome": nome }
-          ]
-        })
+        .find(query)
         .sort({ timestamp: -1 })
         .limit(numbersLimit)
         .toArray()
         .then(async (numeros) => {
           console.log(`[API] Encontrados ${numeros.length} números para roleta ${nome} (ID: ${originalId})`);
+          
+          // Se não encontrou números e temos um ID do scraper, tentar diretamente com ele
+          if (numeros.length === 0 && scraperId) {
+            try {
+              console.log(`[API] Tentando buscar com ID específico do scraper ${scraperId} para ${nome}`);
+              
+              const numerosAlt = await db.collection('roleta_numeros')
+                .find({ roleta_id: scraperId })
+                .sort({ timestamp: -1 })
+                .limit(numbersLimit)
+                .toArray();
+              
+              if (numerosAlt.length > 0) {
+                console.log(`[API] Encontrados ${numerosAlt.length} números usando ID do scraper: ${scraperId}`);
+                numeros = numerosAlt;
+              }
+            } catch (error) {
+              console.error(`[API] Erro ao buscar números com ID do scraper:`, error);
+            }
+          }
           
           // Extrair o primeiro número para análise de debug (se houver)
           if (numeros.length > 0) {
