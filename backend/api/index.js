@@ -103,11 +103,80 @@ app.get('/api/ROULETTES', async (req, res) => {
         
         try {
           // Buscar números para esta roleta pelo nome
-          const numeros = await db.collection('roleta_numeros')
+          console.log(`[API] Buscando números para roleta "${nome}"`);
+          
+          // Primeiro, vamos tentar uma busca exata
+          let numeros = await db.collection('roleta_numeros')
             .find({ roleta_nome: nome })
             .sort({ timestamp: -1 })
             .limit(numbersLimit)
             .toArray();
+            
+          if (numeros.length === 0) {
+            console.log(`[API] Busca exata não encontrou números para "${nome}", tentando busca case-insensitive`);
+            
+            // Se não encontrou com correspondência exata, tentar busca case-insensitive
+            numeros = await db.collection('roleta_numeros')
+              .find({ 
+                roleta_nome: { 
+                  $regex: new RegExp(`^${nome}$`, 'i')
+                } 
+              })
+              .sort({ timestamp: -1 })
+              .limit(numbersLimit)
+              .toArray();
+              
+            if (numeros.length === 0) {
+              console.log(`[API] Busca case-insensitive não encontrou números para "${nome}", tentando busca parcial`);
+              
+              // Se ainda não encontrou, tentar uma busca parcial
+              numeros = await db.collection('roleta_numeros')
+                .find({ 
+                  roleta_nome: { 
+                    $regex: new RegExp(`${nome.replace(/[-\s]/g, '.*')}`, 'i')
+                  } 
+                })
+                .sort({ timestamp: -1 })
+                .limit(numbersLimit)
+                .toArray();
+                
+              if (numeros.length > 0) {
+                console.log(`[API] Busca parcial encontrou ${numeros.length} números para "${nome}" => "${numeros[0].roleta_nome}"`);
+              }
+            } else {
+              console.log(`[API] Busca case-insensitive encontrou ${numeros.length} números para "${nome}" => "${numeros[0].roleta_nome}"`);
+            }
+          }
+          
+          // Para diagnóstico, vamos verificar todas as roletas distintas na coleção
+          if (numeros.length === 0) {
+            // Fazemos isso apenas uma vez por eficiência
+            if (!app.locals.listaRoletasNumeros) {
+              const roletasDistintas = await db.collection('roleta_numeros').aggregate([
+                { $group: { _id: "$roleta_nome", count: { $sum: 1 } } },
+                { $sort: { count: -1 } }
+              ]).toArray();
+              
+              app.locals.listaRoletasNumeros = roletasDistintas.map(r => r._id);
+              
+              console.log('[API] DIAGNÓSTICO: Roletas disponíveis na coleção roleta_numeros:');
+              roletasDistintas.forEach(r => {
+                console.log(`- "${r._id}" (${r.count} números)`);
+              });
+            }
+            
+            // Sugerir correspondências possíveis
+            console.log(`[API] Possíveis correspondências para "${nome}":`);
+            const sugestoes = app.locals.listaRoletasNumeros
+              .filter(rNome => rNome && rNome.toLowerCase().includes(nome.toLowerCase().substring(0, 5)))
+              .slice(0, 3);
+              
+            if (sugestoes.length > 0) {
+              sugestoes.forEach(s => console.log(`- "${s}"`));
+            } else {
+              console.log('- Nenhuma sugestão encontrada');
+            }
+          }
             
           console.log(`[API] Encontrados ${numeros.length} números para roleta ${nome}`);
           
@@ -115,7 +184,7 @@ app.get('/api/ROULETTES', async (req, res) => {
           const formattedNumbers = numeros.map(n => ({
             numero: n.numero || n.number || n.value || 0,
             roleta_id: n.roleta_id,
-            roleta_nome: nome,
+            roleta_nome: n.roleta_nome || nome,
             cor: n.cor || determinarCorNumero(n.numero || n.number || n.value || 0),
             timestamp: n.timestamp || n.created_at || n.criado_em || n.data || new Date().toISOString()
           }));

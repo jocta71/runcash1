@@ -1083,7 +1083,7 @@ class SocketService {
   }
   
   // Método para buscar dados via REST como alternativa/complemento
-  public async fetchRouletteNumbersREST(roletaId: string, limit: number = 100): Promise<boolean> {
+  public async fetchRouletteNumbersREST(roletaId: string, limit: number = 1000): Promise<boolean> {
     try {
       // Garantir que estamos usando o ID canônico
       const canonicalId = mapToCanonicalRouletteId(roletaId);
