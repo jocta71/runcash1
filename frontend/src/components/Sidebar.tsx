@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Lightbulb } from 'lucide-react';
+import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Lightbulb, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface SidebarProps {
@@ -104,6 +104,15 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
               </div>
               <span>Estatísticas</span>
             </div>
+            
+            <Link to="/admin/config" className="block">
+              <div className="menu-item">
+                <div className="bg-[#1A191F] p-1.5 rounded-md">
+                  <Settings size={18} className="text-blue-500" />
+                </div>
+                <span>Configuração de Roletas</span>
+              </div>
+            </Link>
             
             <div className="menu-item">
               <div className="bg-[#1A191F] p-1.5 rounded-md">

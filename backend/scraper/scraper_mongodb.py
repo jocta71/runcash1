@@ -362,9 +362,24 @@ def scrape_roletas_api(db, numero_hook=None):
     erros = 0
     max_erros = 3
     
-    # Roletas permitidas - usar o módulo centralizado
-    from roletas_permitidas import ALLOWED_ROULETTES
-    ids_permitidos = ALLOWED_ROULETTES
+    # Roletas permitidas - tentar carregar da configuração dinâmica primeiro
+    try:
+        # Primeiro tentar carregar do arquivo dinâmico (gerado pela API)
+        dynamic_config_path = os.path.join(os.path.dirname(__file__), 'roletas_permitidas_dinamicas.py')
+        if os.path.exists(dynamic_config_path):
+            print(f"[API] Usando arquivo de configuração dinâmica: {dynamic_config_path}")
+            from roletas_permitidas_dinamicas import ALLOWED_ROULETTES
+            ids_permitidos = ALLOWED_ROULETTES
+        else:
+            # Se não encontrar, usar o arquivo estático
+            print("[API] Arquivo dinâmico não encontrado, usando configuração estática")
+            from roletas_permitidas import ALLOWED_ROULETTES
+            ids_permitidos = ALLOWED_ROULETTES
+    except Exception as e:
+        print(f"[API] Erro ao carregar configuração de roletas: {str(e)}")
+        # Fallback para lista padrão
+        from roletas_permitidas import ALLOWED_ROULETTES
+        ids_permitidos = ALLOWED_ROULETTES
         
     print(f"[API] Monitorando APENAS roletas específicas: {','.join(ids_permitidos)}")
     
