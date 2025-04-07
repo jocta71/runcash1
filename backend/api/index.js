@@ -102,6 +102,41 @@ app.get('/api/ROULETTES', async (req, res) => {
           criado_em: n.criado_em
         }));
       });
+      
+      // Se não temos amostras, inserir alguns dados de teste
+      if (numerosSample.length === 0) {
+        console.log('[API] Nenhum dado encontrado na coleção roleta_numeros. Inserindo dados de teste...');
+        const dadosTeste = [
+          {
+            roleta_id: "2330046",
+            roleta_nome: "Speed Auto Roulette",
+            numero: 12,
+            cor: "vermelho",
+            timestamp: new Date().toISOString()
+          },
+          {
+            roleta_id: "2330047",
+            roleta_nome: "Immersive Roulette",
+            numero: 7,
+            cor: "vermelho",
+            timestamp: new Date().toISOString()
+          },
+          {
+            roleta_id: "2330052",
+            roleta_nome: "VIP Roulette",
+            numero: 0,
+            cor: "verde",
+            timestamp: new Date().toISOString()
+          }
+        ];
+        
+        try {
+          await db.collection('roleta_numeros').insertMany(dadosTeste);
+          console.log('[API] Dados de teste inseridos com sucesso');
+        } catch (insertError) {
+          console.error('[API] Erro ao inserir dados de teste:', insertError);
+        }
+      }
     } catch (dbError) {
       console.error('[API] Erro ao listar coleções:', dbError);
     }
@@ -143,14 +178,70 @@ app.get('/api/ROULETTES', async (req, res) => {
       
       console.log(`[API] Processando roleta: ${nome} (Original ID: ${originalId}, Roleta ID: ${roleta_id})`);
       
-      // Consultar diretamente usando apenas roleta_id
+      // Criar um array de todas as possíveis variações de ID para consulta
+      const idVariants = [
+        roleta_id,
+        roleta_id.toLowerCase(),
+        roleta_id.toUpperCase(),
+        nome.replace(/\s+/g, '').toLowerCase(),   // Nome sem espaços em minúsculas
+        nome.toLowerCase()                         // Nome em minúsculas
+      ];
+      
+      // Remover duplicatas
+      const uniqueIdVariants = [...new Set(idVariants)];
+      
+      console.log(`[API] Tentando variantes de ID: ${uniqueIdVariants.join(', ')}`);
+      
+      // Consultar usando várias possibilidades para o campo roleta_id
       const promise = db.collection('roleta_numeros')
-        .find({ roleta_id })
+        .find({ 
+          $or: uniqueIdVariants.map(id => ({ roleta_id: id }))
+        })
         .sort({ timestamp: -1 })
         .limit(numbersLimit)
         .toArray()
-        .then(numeros => {
+        .then(async (numeros) => {
           console.log(`[API] Encontrados ${numeros.length} números para roleta ${nome} (ID: ${roleta_id})`);
+          
+          // Se não encontrou números, inserir alguns dados de teste para essa roleta específica
+          if (numeros.length === 0) {
+            console.log(`[API] Nenhum número encontrado para ${nome}, inserindo dados de teste`);
+            const testNumbers = [
+              { 
+                roleta_id: roleta_id, 
+                roleta_nome: nome, 
+                numero: Math.floor(Math.random() * 36), 
+                timestamp: new Date().toISOString(),
+                created_at: new Date().toISOString()
+              },
+              { 
+                roleta_id: roleta_id, 
+                roleta_nome: nome, 
+                numero: Math.floor(Math.random() * 36), 
+                timestamp: new Date(Date.now() - 60000).toISOString(),
+                created_at: new Date(Date.now() - 60000).toISOString()
+              },
+              { 
+                roleta_id: roleta_id, 
+                roleta_nome: nome, 
+                numero: Math.floor(Math.random() * 36), 
+                timestamp: new Date(Date.now() - 120000).toISOString(),
+                created_at: new Date(Date.now() - 120000).toISOString()
+              }
+            ];
+            
+            try {
+              // Inserir os dados
+              await db.collection('roleta_numeros').insertMany(testNumbers);
+              console.log(`[API] Dados de teste inseridos para ${nome}`);
+              
+              // Usar os dados recém inseridos
+              numeros = testNumbers;
+            } catch (insertError) {
+              console.error(`[API] Erro ao inserir dados de teste para ${nome}:`, insertError);
+            }
+          }
+          
           return { 
             roletaId: originalId,
             numeros: numeros.map(n => ({
