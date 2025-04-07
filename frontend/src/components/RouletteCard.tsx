@@ -422,6 +422,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         </div>
         
         {/* Número atual */}
+        {/* Comentando esta seção para remover o número grande do centro dos cards
         <div className={cn(
           "flex justify-center my-4 transition-all duration-300",
           isNewNumber ? "scale-110" : ""
@@ -432,6 +433,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             highlight={isNewNumber}
           />
         </div>
+        */}
         
         {/* Últimos números */}
         <div className="flex flex-wrap gap-1 justify-center my-3">
