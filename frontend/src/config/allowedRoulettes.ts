@@ -38,14 +38,14 @@ export const isRouletteAllowed = (rouletteId: string): boolean => {
   // Verificar se temos uma variável de ambiente definida
   const hasEnvConfig = !!allowedRoulettesEnv;
   
-  // Se a variável de ambiente estiver definida, usar a verificação de lista
-  if (hasEnvConfig) {
+  // Se a variável de ambiente estiver definida e a lista não estiver vazia, usar a verificação de lista
+  if (hasEnvConfig && ROLETAS_PERMITIDAS.length > 0) {
     console.log(`[CONFIG] Usando lista definida pela variável de ambiente: ${isInList ? 'permitida' : 'não permitida'}`);
     return isInList && isValid;
   }
   
-  // Se não tiver configuração de ambiente, permitir todas as roletas válidas
-  console.log(`[CONFIG] Sem variável de ambiente definida, usando modo permissivo: ${isValid ? 'permitida' : 'não permitida'}`);
+  // Se não tiver configuração de ambiente ou a lista estiver vazia, permitir todas as roletas válidas
+  console.log(`[CONFIG] Modo permissivo ativado: ${isValid ? 'permitida' : 'não permitida'}`);
   return isValid;
 };
 

@@ -351,6 +351,9 @@ const Index = () => {
       );
     }
 
+    // Log para depuração
+    console.log(`[Index] Renderizando ${roulettes.length} roletas disponíveis`);
+
     let filteredRoulettes = roulettes;
     
     // Aplicar filtro de busca se houver
@@ -369,6 +372,9 @@ const Index = () => {
         );
       }
     }
+
+    // Mais logs para depuração
+    console.log(`[Index] Após filtro de busca: ${filteredRoulettes.length} roletas`);
 
     return filteredRoulettes.map(roulette => {
       // Garantir que temos números válidos
@@ -455,8 +461,8 @@ const Index = () => {
         ) : (
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Cards de roleta à esquerda */}
-            <div className="w-full lg:w-2/3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="w-full">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {renderRouletteCards()}
               </div>
             </div>
