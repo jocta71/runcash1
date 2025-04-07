@@ -159,85 +159,9 @@ app.get('/api/ROULETTES', async (req, res) => {
 
 // Função para mapear UUIDs para IDs canônicos
 function mapToCanonicalId(uuid) {
-  // Remover traços para normalização
-  const normalizedUuid = uuid.replace(/-/g, '').toLowerCase();
-  
-  // Mapeamento direto de UUIDs para IDs canônicos
-  const uuidToCanonicalMap = {
-    // Brazilian Mega Roulette
-    '7d3c2c9f2850f642861f5bb4daf1806a': '2380335',
-    '7d3c2c9f-2850-f642-861f-5bb4daf1806a': '2380335',
-    
-    // Speed Auto Roulette
-    '18bdc4ead884c47ad33f27a268a4eead': '2010096',
-    '18bdc4ea-d884-c47a-d33f-27a268a4eead': '2010096',
-    
-    // Bucharest Auto-Roulette
-    'e3345af9e3879412209ce793fe73e520': '2010065',
-    'e3345af9-e387-9412-209c-e793fe73e520': '2010065',
-    
-    // Auto-Roulette VIP
-    '419aa56cbcff67d2f424a6501bac4a36': '2010098',
-    '419aa56c-bcff-67d2-f424-a6501bac4a36': '2010098',
-    
-    // Immersive Roulette
-    '4cf27e482b9db58e7dcc48264c51d639': '2010016',
-    '4cf27e48-2b9d-b58e-7dcc-48264c51d639': '2010016',
-    
-    // Auto-Roulette (Ruleta Automática)
-    'f27dd03e5282fc78961c6375cef91565': '2010017',
-    'f27dd03e-5282-fc78-961c-6375cef91565': '2010017'
-  };
-  
-  // Verificar se o UUID existe diretamente no mapeamento
-  if (uuidToCanonicalMap[uuid]) {
-    console.log(`[API] Convertendo UUID ${uuid} para ID canônico ${uuidToCanonicalMap[uuid]}`);
-    return uuidToCanonicalMap[uuid];
-  }
-  
-  // Verificar se o UUID normalizado existe no mapeamento
-  if (uuidToCanonicalMap[normalizedUuid]) {
-    console.log(`[API] Convertendo UUID normalizado ${normalizedUuid} para ID canônico ${uuidToCanonicalMap[normalizedUuid]}`);
-    return uuidToCanonicalMap[normalizedUuid];
-  }
-  
-  // Se não encontrou correspondência, tenta verificar se o próprio UUID já é um ID canônico
-  // Obter IDs canônicos da variável de ambiente
-  let canonicalIds = [];
-  
-  // Tentar primeiro ALLOWED_ROULETTES
-  const allowedStr = process.env.ALLOWED_ROULETTES || '';
-  if (allowedStr) {
-    canonicalIds = allowedStr.split(',').map(id => id.trim()).filter(id => id !== '');
-    console.log(`[API] Usando variável ALLOWED_ROULETTES: ${canonicalIds.length} IDs canônicos`);
-  } 
-  // Depois VITE_ALLOWED_ROULETTES
-  else {
-    const viteAllowedStr = process.env.VITE_ALLOWED_ROULETTES || '';
-    if (viteAllowedStr) {
-      canonicalIds = viteAllowedStr.split(',').map(id => id.trim()).filter(id => id !== '');
-      console.log(`[API] Usando variável VITE_ALLOWED_ROULETTES: ${canonicalIds.length} IDs canônicos`);
-    } 
-    // Fallback para lista fixa
-    else {
-      canonicalIds = ['2010016', '2380335', '2010065', '2010096', '2010017', '2010098'];
-      console.log(`[API] Usando lista fixa: ${canonicalIds.length} IDs canônicos`);
-    }
-  }
-  
-  if (canonicalIds.includes(uuid)) {
-    console.log(`[API] UUID ${uuid} já é um ID canônico, usando diretamente`);
-    return uuid;
-  }
-  
-  // Tenta usar como ID direto se for numérico
-  if (/^\d+$/.test(uuid)) {
-    console.log(`[API] UUID ${uuid} é numérico, assumindo que é um ID canônico`);
-    return uuid;
-  }
-  
-  // Se tudo falhar, retorna o ID original
-  console.warn(`[API] ⚠️ Não foi possível converter UUID ${uuid} para ID canônico - usando original`);
+  // MODIFICAÇÃO CRÍTICA: Retornar o ID original diretamente sem conversão
+  // Isso permite que todas as roletas sejam exibidas, sem limitação pelos IDs canônicos
+  console.log(`[API] MODO PERMISSIVO: Usando ID original ${uuid} sem conversão`);
   return uuid;
 }
 
