@@ -157,7 +157,7 @@ const ProfilePage = () => {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <p className="text-gray-400 text-sm mb-1">Data de início</p>
                   <div className="flex items-center">

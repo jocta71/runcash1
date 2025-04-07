@@ -58,7 +58,7 @@ const RoulettesPage: React.FC = () => {
         </div>
       )}
       
-      <div className="roulettes-grid">
+      <div className="grid grid-cols-3 gap-6">
         {Object.entries(roulettes).map(([id, roulette]) => (
           <RouletteCard 
             key={id} 
