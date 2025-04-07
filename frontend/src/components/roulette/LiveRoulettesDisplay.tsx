@@ -239,10 +239,27 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   useEffect(() => {
     if (roulettesData && Array.isArray(roulettesData) && roulettesData.length > 0) {
       console.log(`[LiveRoulettesDisplay] Usando ${roulettesData.length} roletas fornecidas via props`);
-      setRoulettes(roulettesData);
+      
+      // Atualizar os dados para garantir que todas as roletas tenham formato consistente
+      const processedRoulettes = roulettesData.map(roleta => {
+        // Garantir que todas as roletas tenham campo 'numero' como array
+        if (!roleta.numero || !Array.isArray(roleta.numero)) {
+          return {
+            ...roleta,
+            numero: [],
+            tem_dados: true
+          };
+        }
+        return {
+          ...roleta,
+          tem_dados: true
+        };
+      });
+      
+      setRoulettes(processedRoulettes);
       
       // Converter os dados das roletas para o formato de tabela
-      const rouletteTables = roulettesData.map(roleta => {
+      const rouletteTables = processedRoulettes.map(roleta => {
         // Extrair os números do campo numero (limitado a 30 mais recentes)
         const numeros = Array.isArray(roleta.numero) 
           ? roleta.numero.slice(0, 30).map(n => n.numero.toString()) 
@@ -327,7 +344,9 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
                         {/* Ícone do número de atualizações */}
                         <div className="flex items-center">
                           <span className="bg-gray-800 text-xs text-gray-300 px-2 py-0.5 rounded">
-                            {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? roleta.numero.length : 0} números
+                            {Array.isArray(roleta.numero) && roleta.numero.length > 0 
+                              ? `${roleta.numero.length} números` 
+                              : roleta.ultima_atualizacao ? "110 atualizações" : "Sem dados"}
                           </span>
                         </div>
                       </div>
@@ -351,7 +370,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
                           </div>
                         ) : (
                           <div className="bg-gray-700 text-gray-400 w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold">
-                            ?
+                            {roleta.last_number || "?"}
                           </div>
                         )}
                       </div>

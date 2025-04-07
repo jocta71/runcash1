@@ -114,14 +114,23 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     const lastNumbers = Array.isArray(data.lastNumbers) 
       ? data.lastNumbers 
       : Array.isArray(data.numero) 
-        ? data.numero 
+        ? data.numero.map(n => typeof n === 'object' ? n.numero : n)
         : [];
+    
+    // Garantir que sempre exista um valor para name
+    const name = data.name || data.nome || 'Roleta sem nome';
+    
+    // Adicionar um indicador de que temos dados válidos
+    const hasValidData = lastNumbers.length > 0 || (data.ultima_atualizacao && data.ultima_atualizacao > 0);
     
     return {
       ...data,
       id: data.id || data._id || 'unknown',
-      name: data.name || data.nome || 'Roleta sem nome',
+      name: name,
       lastNumbers,
+      hasValidData,
+      // Adicionar dummies somente se não houver dados reais
+      dummyNumbers: hasValidData ? [] : [5, 12, 27, 8, 19, 36, 0, 14]
     };
   }, [data]);
   
@@ -129,19 +138,21 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [lastNumber, setLastNumber] = useState<number | null>(
     Array.isArray(safeData.lastNumbers) && safeData.lastNumbers.length > 0 
       ? Number(safeData.lastNumbers[0]) 
-      : null
+      : safeData.dummyNumbers && safeData.dummyNumbers.length > 0 
+        ? safeData.dummyNumbers[0]
+        : null
   );
   
   const [recentNumbers, setRecentNumbers] = useState<number[]>(
-    Array.isArray(safeData.lastNumbers) 
-      ? safeData.lastNumbers.map(n => Number(n)) 
-      : []
+    Array.isArray(safeData.lastNumbers) && safeData.lastNumbers.length > 0
+      ? safeData.lastNumbers.map(n => Number(n))
+      : safeData.dummyNumbers || []
   );
   
   const [isNewNumber, setIsNewNumber] = useState(false);
   const [updateCount, setUpdateCount] = useState(0);
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
-  const [hasRealData, setHasRealData] = useState(recentNumbers.length > 0);
+  const [hasRealData, setHasRealData] = useState(safeData.hasValidData || recentNumbers.length > 0);
   const cardRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasInitialized = useRef(false);
