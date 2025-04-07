@@ -148,7 +148,7 @@ export const fetchRoulettesWithRealNumbers = async (): Promise<RouletteData[]> =
         })
         .catch(error => {
           console.error(`[API] ❌ Erro ao buscar números para ${roleta.nome}:`, error);
-          return { index, numbers: generateRandomNumbers(20, roleta.id, roleta.nome) };
+          return { index, numbers: [] }; // Retornar array vazio em caso de erro
         });
       
       fetchPromises.push(fetchPromise);
@@ -156,8 +156,8 @@ export const fetchRoulettesWithRealNumbers = async (): Promise<RouletteData[]> =
       // Retornar roleta inicialmente sem números (serão adicionados depois)
       return {
         ...roleta,
-        _id: mongoId || roleta.id, // Usar ID do MongoDB se disponível
-        numero: [] // Será preenchido depois
+        _id: mongoId || roleta.id,
+        numero: []
       };
     });
     
@@ -208,12 +208,12 @@ async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Pro
       // Com o modo no-cors, a resposta será do tipo 'opaque' e não poderemos acessar seu conteúdo
       if (response.type === 'opaque') {
         console.log(`[API] Resposta opaque devido a CORS, usando dados locais para ${roletaNome}`);
-        return generateRandomNumbers(20, mongoId, roletaNome);
+        return [];
       }
       
       if (!response.ok) {
         console.warn(`[API] Resposta com erro (${response.status}) para ${roletaNome}`);
-        return generateRandomNumbers(20, mongoId, roletaNome);
+        return [];
       }
       
       const data = await response.json();
@@ -233,46 +233,16 @@ async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Pro
       
       // Se não houver dados, retornar array de números simulados
       console.warn(`[API] Roleta ${mongoId} não encontrada nos dados retornados, usando simulação`);
-      return generateRandomNumbers(20, mongoId, roletaNome);
+      return [];
     } catch (error) {
       console.error(`[API] Erro ao buscar dados da API para ${roletaNome}:`, error);
-      return generateRandomNumbers(20, mongoId, roletaNome);
+      return [];
     }
   } catch (error) {
     console.error(`[API] Erro ao buscar números do MongoDB para ${roletaNome}:`, error);
-    return generateRandomNumbers(20, mongoId, roletaNome); // Retornar números simulados em caso de erro
+    return [];
   }
 }
-
-/**
- * Gera números aleatórios para testes quando não há dados reais
- */
-function generateRandomNumbers(count: number, roletaId: string, roletaNome: string): any[] {
-  console.log(`[API] Gerando ${count} números aleatórios para ${roletaNome} como fallback`);
-  
-  const numbers = [];
-  for (let i = 0; i < count; i++) {
-    const numero = Math.floor(Math.random() * 37); // 0-36
-    const timestamp = new Date(Date.now() - i * 60000).toISOString(); // Datas espaçadas por 1 min
-    
-    // Determinar cor
-    let cor = 'verde';
-    if (numero > 0) {
-      const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-      cor = numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
-    }
-    
-    numbers.push({
-      numero,
-      cor,
-      roleta_id: roletaId,
-      roleta_nome: roletaNome,
-      timestamp
-    });
-  }
-  
-    return numbers;
-  }
 
 /**
  * Busca uma roleta específica pelo ID usando o resultado de fetchRoulettes
