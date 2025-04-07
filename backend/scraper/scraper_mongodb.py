@@ -362,12 +362,9 @@ def scrape_roletas_api(db, numero_hook=None):
     erros = 0
     max_erros = 3
     
-    # Roletas permitidas
-    ids_permitidos = os.environ.get('ALLOWED_ROULETTES', '').split(',')
-    if not ids_permitidos or not ids_permitidos[0].strip():
-        # Se não tiver no ambiente, usar a lista fixa do módulo roletas_permitidas
-        from roletas_permitidas import ALLOWED_ROULETTES
-        ids_permitidos = ALLOWED_ROULETTES
+    # Roletas permitidas - usar o módulo centralizado
+    from roletas_permitidas import ALLOWED_ROULETTES
+    ids_permitidos = ALLOWED_ROULETTES
         
     print(f"[API] Monitorando APENAS roletas específicas: {','.join(ids_permitidos)}")
     
