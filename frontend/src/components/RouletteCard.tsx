@@ -421,21 +421,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           </div>
         </div>
         
-        {/* Número atual */}
-        {/* Comentando esta seção para remover o número grande do centro dos cards
-        <div className={cn(
-          "flex justify-center my-4 transition-all duration-300",
-          isNewNumber ? "scale-110" : ""
-        )}>
-          <NumberDisplay 
-            number={lastNumber} 
-            size="large" 
-            highlight={isNewNumber}
-          />
-        </div>
-        */}
+        {/* Número atual - Removido para que não apareça em tamanho grande */}
+        <div className="my-4"></div>
         
-        {/* Últimos números */}
+        {/* Últimos números - Mostrando todos com o mesmo tamanho */}
         <div className="flex flex-wrap gap-1 justify-center my-3">
           {recentNumbers.slice(0, isDetailView ? 20 : 10).map((num, idx) => (
             <NumberDisplay 
