@@ -110,24 +110,37 @@ app.get('/api/ROULETTES', async (req, res) => {
       
       console.log(`[API] Processando roleta: ${nome} (ID: ${originalId})`);
       
-      // Consultar diretamente utilizando o ID original como roleta_id
+      // Consultar na coleção roleta_numeros usando o ID ou nome
       const promise = db.collection('roleta_numeros')
-        .find({ roleta_id: originalId.toString() })
+        .find({ 
+          $or: [
+            { roleta_id: originalId.toString() },
+            { "id_roleta": originalId.toString() },
+            { "nome_roleta": nome },
+            { "roleta_nome": nome }
+          ]
+        })
         .sort({ timestamp: -1 })
         .limit(numbersLimit)
         .toArray()
         .then(async (numeros) => {
           console.log(`[API] Encontrados ${numeros.length} números para roleta ${nome} (ID: ${originalId})`);
           
-          // Removendo a geração de dados simulados - usar apenas dados reais do scraper
+          // Extrair o primeiro número para análise de debug (se houver)
+          if (numeros.length > 0) {
+            console.log(`[API] Exemplo de documento para ${nome}:`, 
+              JSON.stringify(numeros[0], null, 2)
+            );
+          }
+          
           return { 
             roletaId: originalId.toString(),
             numeros: numeros.map(n => ({
-              numero: n.numero,
-              roleta_id: n.roleta_id,
-              roleta_nome: n.roleta_nome || nome,
-              cor: n.cor || determinarCorNumero(n.numero),
-              timestamp: n.timestamp || n.created_at || n.criado_em || new Date().toISOString()
+              numero: n.numero || n.number || n.value || 0,
+              roleta_id: n.roleta_id || n.id_roleta || originalId.toString(),
+              roleta_nome: n.roleta_nome || n.nome_roleta || nome,
+              cor: n.cor || n.color || determinarCorNumero(n.numero || n.number || n.value || 0),
+              timestamp: n.timestamp || n.created_at || n.criado_em || n.data || new Date().toISOString()
             }))
           };
         })
