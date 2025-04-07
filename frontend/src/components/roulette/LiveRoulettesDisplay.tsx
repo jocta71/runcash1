@@ -580,8 +580,8 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     <div className="container mx-auto px-4 py-8">
       <h2 className="text-2xl font-bold mb-6 text-white">Roletas ao Vivo</h2>
       
-      {/* Grid de roletas similar ao do site de referência */}
-      <div className="sc-casino-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+      {/* Grid de roletas com exatamente 3 cards por linha */}
+      <div className="grid grid-cols-3 gap-6">
         {tables.map(table => (
           <LastNumbersBar 
             key={table.tableId}
