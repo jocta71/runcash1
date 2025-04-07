@@ -453,14 +453,16 @@ const Index = () => {
             ))}
           </div>
         ) : (
-          <>
-            {/* Cards de roleta */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-6">
-              {renderRouletteCards()}
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Cards de roleta à esquerda */}
+            <div className="w-full lg:w-2/3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {renderRouletteCards()}
+              </div>
             </div>
             
-            {/* Painel de estatísticas abaixo */}
-            <div className="w-full">
+            {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
+            <div className="w-full lg:w-1/3">
               {selectedRoulette ? (
                 <RouletteSidePanelStats
                   roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
@@ -478,7 +480,7 @@ const Index = () => {
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
     </Layout>
