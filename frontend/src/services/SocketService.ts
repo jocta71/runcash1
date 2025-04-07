@@ -602,8 +602,8 @@ class SocketService {
       
       // 3. Também emitir o evento via serviço de eventos
       try {
-        EventService.getInstance().dispatchEvent(event);
-            } catch (error) {
+        EventService.emit('new_number', event);
+      } catch (error) {
         console.error('[SocketService] Erro ao despachar evento via EventService:', error);
       }
       
@@ -759,20 +759,6 @@ class SocketService {
       console.log('[SocketService] Solicitando números recentes para todas as roletas');
       this.socket.emit('get_recent_numbers', { limit: 30 });
       
-      // Para aumentar a robustez, também buscar por roletas específicas com alta prioridade
-      const priorityRoulettes = [
-        { id: '2010096', name: 'Speed Auto Roulette' },
-        { id: '2010098', name: 'Auto-Roulette VIP' },
-        { id: '2010017', name: 'Ruleta Automática' },
-        { id: '2380335', name: 'Mega Roulette' },
-        { id: '2010065', name: 'Bucharest Auto-Roulette' }
-      ];
-      
-      // Solicitar por cada uma individualmente
-      priorityRoulettes.forEach(roleta => {
-        this.requestRouletteNumbers(roleta.id);
-      });
-      
       // Configurar um timeout para verificar se recebemos dados
       setTimeout(() => {
         // Verificar se há roletas com dados no histórico
@@ -781,6 +767,9 @@ class SocketService {
         if (!hasAnyData) {
           console.warn('[SocketService] Não recebemos dados da API após 5 segundos, gerando dados simulados');
           this.generateFallbackDataForAllRoulettes();
+          
+          // Tentar método alternativo de obtenção de dados
+          this.tryAlternativeDataSources();
         }
       }, 5000);
       
@@ -789,54 +778,169 @@ class SocketService {
       
       // Em caso de erro, gerar dados simulados
       this.generateFallbackDataForAllRoulettes();
+      
+      // Tentar método alternativo de obtenção de dados
+      this.tryAlternativeDataSources();
     }
   }
   
-  // Função para gerar dados simulados para todas as roletas conhecidas
-  private generateFallbackDataForAllRoulettes(): void {
-    console.log('[SocketService] Gerando dados simulados para todas as roletas');
+  /**
+   * Tenta diferentes abordagens para obter dados quando a API principal falha
+   */
+  private tryAlternativeDataSources(): void {
+    console.log('[SocketService] Tentando fontes alternativas de dados');
     
-    // Lista de IDs de roletas conhecidas
-    const knownRouletteIds = Object.keys(ROLETAS_CANONICAS);
+    // Lista de endpoints alternativos para tentar
+    const endpoints = [
+      '/api/ROULETTES?limit=1000',
+      '/api/ROULETTES?bypass=true&limit=1000',
+      '/api/roulette-data',
+      '/api/numbers'
+    ];
     
-    // Gerar dados para cada roleta conhecida
-    knownRouletteIds.forEach(roletaId => {
-      const roletaNome = ROLETAS_CANONICAS[roletaId] || `Roleta ${roletaId}`;
+    // Tenta cada endpoint em sequência
+    const tryNextEndpoint = (index = 0) => {
+      if (index >= endpoints.length) {
+        console.warn('[SocketService] Todos os endpoints alternativos falharam');
+        return;
+      }
       
-      // Verificar se já existem dados para esta roleta
-      const existingHistory = this.rouletteHistory.get(roletaId);
+      const endpoint = endpoints[index];
+      console.log(`[SocketService] Tentando endpoint alternativo: ${endpoint}`);
       
-      // Se não existirem dados ou forem muito poucos, gerar simulados
-      if (!existingHistory || existingHistory.length < 10) {
-        const simulatedNumbers = this.generateFallbackNumbers(roletaId, roletaNome);
-        
-        // Processar os números simulados como se fossem reais
-        simulatedNumbers.forEach(data => {
-          this.processIncomingNumber(data);
+      fetch(endpoint)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log(`[SocketService] Dados obtidos com sucesso do endpoint alternativo: ${endpoint}`);
+          this.processAlternativeData(data);
+        })
+        .catch(error => {
+          console.warn(`[SocketService] Falha ao obter dados do endpoint ${endpoint}:`, error);
+          // Tenta o próximo endpoint
+          tryNextEndpoint(index + 1);
         });
+    };
+    
+    // Inicia o processo tentando o primeiro endpoint
+    tryNextEndpoint();
+  }
+  
+  /**
+   * Processa dados obtidos de fontes alternativas
+   */
+  private processAlternativeData(data: any): void {
+    console.log('[SocketService] Processando dados alternativos:', data);
+    
+    // Verifica se os dados têm o formato esperado
+    if (!data || (!Array.isArray(data) && !data.roletas && !data.roulettes)) {
+      console.warn('[SocketService] Formato de dados alternativo inválido');
+      return;
+    }
+    
+    let roletas = data;
+    
+    // Normaliza os dados para um formato comum
+    if (!Array.isArray(data)) {
+      roletas = data.roletas || data.roulettes || [];
+    }
+    
+    if (!Array.isArray(roletas) || roletas.length === 0) {
+      console.warn('[SocketService] Nenhuma roleta encontrada nos dados alternativos');
+      return;
+    }
+    
+    console.log(`[SocketService] Processando ${roletas.length} roletas de fonte alternativa`);
+    
+    // Processa cada roleta
+    roletas.forEach(roleta => {
+      // Tenta extrair ID, nome e números da roleta
+      const roletaId = roleta.id || roleta._id || roleta.canonicalId || '';
+      const roletaNome = roleta.nome || roleta.name || 'Roleta sem nome';
+      
+      // Extrai números de diferentes formatos possíveis
+      let numeros: number[] = [];
+      
+      if (Array.isArray(roleta.numeros)) {
+        numeros = roleta.numeros.map((n: any) => typeof n === 'object' ? Number(n.numero) : Number(n));
+      } else if (Array.isArray(roleta.numeros_recentes)) {
+        numeros = roleta.numeros_recentes.map((n: any) => typeof n === 'object' ? Number(n.numero) : Number(n));
+      } else if (Array.isArray(roleta.numero)) {
+        numeros = roleta.numero.map((n: any) => typeof n === 'object' ? Number(n.numero) : Number(n));
+      } else if (Array.isArray(roleta.numbers)) {
+        numeros = roleta.numbers.map((n: any) => typeof n === 'object' ? Number(n.numero) : Number(n));
+      }
+      
+      // Filtra números inválidos
+      numeros = numeros.filter(n => !isNaN(n));
+      
+      if (roletaId && numeros.length > 0) {
+        console.log(`[SocketService] Atualizando histórico para ${roletaNome} (${roletaId}) com ${numeros.length} números`);
+        this.setRouletteHistory(roletaId, numeros);
         
-        // Emitir evento para notificar a interface
-        console.log(`[SocketService] Emitindo ${simulatedNumbers.length} números simulados para ${roletaNome}`);
-        
-        // Emitir o evento global
-        EventService.emit('roulette:numbers-updated', {
+        // Emite evento para atualizar a interface
+        const event = {
+          type: 'new_number',
           roleta_id: roletaId,
           roleta_nome: roletaNome,
-          numero: simulatedNumbers
-        });
-
-        // Emitir um evento específico para esta roleta
-        EventService.emit('new_number', {
-          type: 'numeros_atualizados',
-          roleta_id: roletaId,
-          roleta_nome: roletaNome,
-          numero: simulatedNumbers,
+          numero: numeros,
           timestamp: new Date().toISOString()
-        });
+        };
+        
+        EventService.emit('new_number', event);
       }
     });
   }
-  
+
+  /**
+   * Gera dados simulados para todas as roletas quando a API falha
+   * Esta função agora é mais robusta para criar dados realistas
+   */
+  private generateFallbackDataForAllRoulettes(): void {
+    console.log('[SocketService] Gerando dados simulados para todas as roletas');
+    
+    // Lista padrão de roletas populares para garantir que sempre temos dados
+    const defaultRoulettes = [
+      { id: '2010096', nome: 'Speed Auto Roulette' },
+      { id: '2010098', nome: 'Auto-Roulette VIP' },
+      { id: '2010017', nome: 'Ruleta Automática' },
+      { id: '2380335', nome: 'Mega Roulette' },
+      { id: '2010065', nome: 'Bucharest Auto-Roulette' },
+      { id: '2010016', nome: 'Immersive Roulette' }
+    ];
+    
+    // Usar roletas do histórico se disponíveis, ou as padrão
+    const roletas = this.rouletteHistory.size > 0 
+      ? Array.from(this.rouletteHistory.keys()).map(id => ({ id, nome: `Roleta ${id}` }))
+      : defaultRoulettes;
+    
+    // Processar cada roleta
+    roletas.forEach(roleta => {
+      const simulatedNumbers = this.generateFallbackNumbers(roleta.id, roleta.nome);
+      
+      // Atualizar histórico local
+      this.setRouletteHistory(roleta.id, simulatedNumbers.map(n => n.numero));
+      
+      // Criar evento simulado com o tipo correto
+      const event = {
+        type: 'new_number',
+        roleta_id: roleta.id,
+        roleta_nome: roleta.nome,
+        numero: simulatedNumbers.map(n => n.numero),
+        timestamp: new Date().toISOString()
+      };
+      
+      // Disparar evento para atualizar a interface usando o método estático
+      EventService.emit('new_number', event);
+      
+      console.log(`[SocketService] Dados simulados gerados para ${roleta.nome} (${roleta.id}): ${simulatedNumbers.length} números`);
+    });
+  }
+
   // Método melhorado para gerar números de fallback
   private generateFallbackNumbers(roletaId: string, roletaNome: string): any[] {
     console.log(`[SocketService] Gerando números de fallback para ${roletaNome}`);
