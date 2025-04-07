@@ -79,14 +79,28 @@ class SocketService {
   public client?: MongoClient;
   
   // Mapa para armazenar os intervalos de polling por roletaId
-  private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
-  private pollingInterval: number = 10000; // Intervalo padrão de 10 segundos para polling
+  private pollingIntervals: Map<string, any> = new Map();
+  private pollingInterval: number = 15000; // Intervalo padrão de 15 segundos para polling
+  private minPollingInterval: number = 10000; // 10 segundos mínimo
+  private maxPollingInterval: number = 60000; // 1 minuto máximo
+  private pollingBackoffFactor: number = 1.5; // Fator de aumento em caso de erro
   
   private _isLoadingHistoricalData: boolean = false;
   
   // Adicionar uma propriedade para armazenar o histórico completo por roleta  
   private rouletteHistory: Map<string, number[]> = new Map();
   private historyLimit: number = 1000;
+  
+  // Adicionar propriedade para armazenar cache de dados das roletas
+  private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
+  private cacheTTL: number = 5 * 60 * 1000; // 5 minutos em milissegundos
+  
+  // Propriedades para circuit breaker
+  private circuitBreakerActive: boolean = false;
+  private circuitBreakerResetTimeout: any = null;
+  private consecutiveFailures: number = 0;
+  private failureThreshold: number = 5; // Quantas falhas para ativar o circuit breaker
+  private resetTime: number = 60000; // 1 minuto de espera antes de tentar novamente
   
   private constructor() {
     console.log('[SocketService] Inicializando serviço Socket.IO');
@@ -1044,6 +1058,20 @@ class SocketService {
   private async fetchRealRoulettes(): Promise<any[]> {
     console.log('[SocketService] Buscando lista de roletas reais...');
     
+    // Verificar se o circuit breaker está ativo
+    if (!this.shouldProceedWithRequest('/api/ROULETTES')) {
+      console.log('[SocketService] Circuit breaker ativo, usando dados de fallback');
+      
+      // Usar a lista local como fallback
+      const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+        _id: roleta.id,
+        nome: roleta.nome,
+        ativa: true
+      }));
+      
+      return roletasFallback;
+    }
+    
     try {
       // Define a URL base para as APIs
       const baseUrl = this.getApiBaseUrl();
@@ -1051,61 +1079,104 @@ class SocketService {
       // Usar apenas o endpoint /api/ROULETTES
       const endpoint = `${baseUrl}/ROULETTES`;
       
-      try {
-        console.log(`[SocketService] Buscando roletas em: ${endpoint}`);
-          const response = await fetch(endpoint);
+      // Usar sistema de retry para lidar com erros 502
+      let attempt = 0;
+      const maxAttempts = 3;
+      let response = null;
+      
+      while (attempt < maxAttempts) {
+        try {
+          console.log(`[SocketService] Buscando roletas em: ${endpoint} (tentativa ${attempt + 1}/${maxAttempts})`);
+          response = await fetch(endpoint);
           
+          // Se tiver sucesso, processar os dados
           if (response.ok) {
-      const data = await response.json();
+            const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
-            console.log(`[SocketService] ✅ Recebidas ${data.length} roletas da API`);
-            
-            // Mapear os UUIDs para IDs canônicos para uso posterior
-            const roletasComIdsCanonicos = data.map(roleta => {
-              const uuid = roleta.id;
-              const canonicalId = mapToCanonicalRouletteId(uuid);
+              console.log(`[SocketService] ✅ Recebidas ${data.length} roletas da API`);
               
-              return {
-                ...roleta,
-                _id: canonicalId, // Adicionar o ID canônico
-                uuid: uuid        // Preservar o UUID original
-              };
-            });
+              // Sinalizar sucesso para o circuit breaker
+              this.handleCircuitBreaker(true, endpoint);
+              
+              // Armazenar no cache global para uso futuro
+              const roletasComIdsCanonicos = data.map(roleta => {
+                const uuid = roleta.id;
+                const canonicalId = mapToCanonicalRouletteId(uuid);
+                
+                return {
+                  ...roleta,
+                  _id: canonicalId, // Adicionar o ID canônico
+                  uuid: uuid        // Preservar o UUID original
+                };
+              });
+              
+              console.log(`[SocketService] Roletas mapeadas com IDs canônicos:`, 
+                roletasComIdsCanonicos.length);
+              
+              return roletasComIdsCanonicos;
+            }
+            break; // Se chegou aqui mas não tem dados, sair do loop
+          }
+          
+          // Se for erro 502, tentar novamente
+          if (response.status === 502) {
+            attempt++;
+            console.warn(`[SocketService] Erro 502 ao buscar roletas. Tentativa ${attempt}/${maxAttempts}`);
             
-            console.log(`[SocketService] Roletas mapeadas com IDs canônicos:`, 
-              roletasComIdsCanonicos.map(r => `${r.nome}: ${r.uuid} → ${r._id}`));
+            // Marcar falha para o circuit breaker
+            this.handleCircuitBreaker(false, endpoint);
             
-            return roletasComIdsCanonicos;
+            // Esperar antes de tentar novamente (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+          } else {
+            // Se for outro erro, sair do loop
+            console.warn(`[SocketService] Erro ${response.status} ao buscar roletas.`);
+            break;
+          }
+        } catch (error) {
+          attempt++;
+          console.error(`[SocketService] Erro de rede na tentativa ${attempt}/${maxAttempts}:`, error);
+          
+          // Marcar falha para o circuit breaker
+          this.handleCircuitBreaker(false, endpoint);
+          
+          // Esperar antes de tentar novamente
+          await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+          
+          // Se for a última tentativa, sair do loop
+          if (attempt >= maxAttempts) {
+            break;
           }
         }
-        
-        console.warn(`[SocketService] Falha ao buscar roletas ou resposta inválida do endpoint ${endpoint}`);
-        
-        // Se falhou, usar a lista local de roletas canônicas como fallback
-        const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
-          _id: roleta.id,
-          nome: roleta.nome,
-          ativa: true
-        }));
-        
-        console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback`);
-        return roletasFallback;
-        } catch (e) {
-        console.warn(`[SocketService] Erro ao acessar endpoint ${endpoint}:`, e);
-        
-        // Se ocorrer erro, usar a lista local como fallback
-        const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
-          _id: roleta.id,
-          nome: roleta.nome,
-          ativa: true
-        }));
-        
-        console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback após erro`);
-        return roletasFallback;
       }
+      
+      // Se chegamos aqui, todas as tentativas falharam
+      console.warn(`[SocketService] Falha ao buscar roletas após ${maxAttempts} tentativas`);
+      
+      // Usar a lista local de roletas canônicas como fallback
+      const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+        _id: roleta.id,
+        nome: roleta.nome,
+        ativa: true
+      }));
+      
+      console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback`);
+      return roletasFallback;
+        
     } catch (error) {
       console.error('[SocketService] Erro ao buscar roletas:', error);
-      return [];
+      
+      // Marcar falha para o circuit breaker
+      this.handleCircuitBreaker(false, 'fetchRealRoulettes');
+      
+      // Fallback para lista local
+      const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+        _id: roleta.id,
+        nome: roleta.nome,
+        ativa: true
+      }));
+      
+      return roletasFallback;
     }
   }
   
@@ -1116,7 +1187,59 @@ class SocketService {
       return false;
     }
     
+    // Verificar se o circuit breaker está ativo
+    if (!this.shouldProceedWithRequest(`/api/ROULETTES/${roletaId}`)) {
+      console.log(`[SocketService] Circuit breaker ativo, usando cache ou fallback para ${roletaId}`);
+      
+      // Tentar usar o cache mesmo que antigo
+      const cachedData = this.rouletteDataCache.get(roletaId);
+      if (cachedData) {
+        const roleta = cachedData.data;
+        const numeros = roleta.numero || roleta.numeros || roleta.historico || [];
+        
+        if (Array.isArray(numeros) && numeros.length > 0) {
+          this.processNumbersData(numeros, roleta);
+          return true;
+        }
+      }
+      
+      // Se não tem cache, usar fallback
+      return this.useFallbackData(roletaId);
+    }
+    
     try {
+      // Verificar se temos dados no cache que ainda são válidos
+      const cachedData = this.rouletteDataCache.get(roletaId);
+      const now = Date.now();
+      
+      if (cachedData && (now - cachedData.timestamp) < this.cacheTTL) {
+        console.log(`[SocketService] Usando dados em cache para roleta ${roletaId} (${Math.round((now - cachedData.timestamp)/1000)}s atrás)`);
+        
+        // Usar os dados do cache
+        const roleta = cachedData.data;
+        const numeros = roleta.numero || roleta.numeros || roleta.historico || [];
+        
+        if (Array.isArray(numeros) && numeros.length > 0) {
+          // Notificar que temos dados para esta roleta
+          this.processNumbersData(numeros, roleta);
+          
+          // Também armazenar os números no histórico local
+          const numerosSimples = numeros
+            .filter(n => n !== null && n !== undefined)
+            .map(n => {
+              if (n && typeof n === 'object' && 'numero' in n) {
+                return n.numero;
+              }
+              return n;
+            })
+            .filter(n => n !== null && !isNaN(n));
+          
+          this.setRouletteHistory(roletaId, numerosSimples);
+          return true;
+        }
+      }
+      
+      // Continuar com a busca na API
       // Tentar buscar dados da API REST (/api/ROULETTE/:id/numbers)
       console.log(`[SocketService] Buscando números para roleta ${roletaId} via REST API`);
       
@@ -1124,10 +1247,46 @@ class SocketService {
       const endpoint = `${baseUrl}/ROULETTES`;
       
       try {
-        // Usar fetch diretamente para acessar a API
-        const response = await fetch(endpoint);
+        // Usar fetch com retry para tolerância a falhas
+        let attempt = 0;
+        const maxAttempts = 3;
+        let response = null;
         
-        if (response.ok) {
+        while (attempt < maxAttempts) {
+          try {
+            response = await fetch(endpoint);
+            // Se tiver sucesso, sair do loop
+            if (response.ok) {
+              // Sinalizar sucesso para o circuit breaker
+              this.handleCircuitBreaker(true, endpoint);
+              break;
+            }
+            
+            // Se for erro 502, tentar novamente
+            if (response.status === 502) {
+              attempt++;
+              // Sinalizar falha para o circuit breaker
+              this.handleCircuitBreaker(false, endpoint);
+              
+              console.log(`[SocketService] Erro 502 ao buscar roletas. Tentativa ${attempt}/${maxAttempts}`);
+              // Esperar antes de tentar novamente (exponential backoff)
+              await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+            } else {
+              // Se for outro erro, sair do loop
+              break;
+            }
+          } catch (error) {
+            attempt++;
+            // Sinalizar falha para o circuit breaker
+            this.handleCircuitBreaker(false, endpoint);
+            
+            console.error(`[SocketService] Erro de rede na tentativa ${attempt}/${maxAttempts}:`, error);
+            // Esperar antes de tentar novamente
+            await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+          }
+        }
+        
+        if (response && response.ok) {
           const data = await response.json();
           
           if (Array.isArray(data) && data.length > 0) {
@@ -1144,6 +1303,12 @@ class SocketService {
             });
             
             if (roleta) {
+              // Armazenar no cache
+              this.rouletteDataCache.set(roletaId, {
+                data: roleta,
+                timestamp: Date.now()
+              });
+              
               console.log(`[SocketService] ✅ Encontrada roleta ${roleta.nome || roleta.name} (${roletaId}) nos dados da API`);
               
               // Procurar por números nesta roleta
@@ -1154,7 +1319,7 @@ class SocketService {
                 console.log(`[SidePanel] Usando apenas números da API: ${numeros.length}`);
                 
                 // Notificar que temos dados para esta roleta
-                const processedData = this.processNumbersData(numeros, roleta);
+                this.processNumbersData(numeros, roleta);
                 
                 EventService.emitGlobalEvent('real_numbers_available', {
                   roleta_id: roletaId,
@@ -1181,16 +1346,79 @@ class SocketService {
             
             console.log(`[SocketService] ⚠️ Roleta ${roletaId} não encontrada nos dados da API ou sem números`);
           }
+        } else {
+          // Sinalizar falha para o circuit breaker
+          this.handleCircuitBreaker(false, endpoint);
+        }
+        
+        // Usar cache vencido como último recurso se disponível
+        if (cachedData) {
+          console.log(`[SocketService] Usando cache antigo como último recurso para roleta ${roletaId}`);
+          const roleta = cachedData.data;
+          const numeros = roleta.numero || roleta.numeros || roleta.historico || [];
+          
+          if (Array.isArray(numeros) && numeros.length > 0) {
+            // Notificar que temos dados para esta roleta (marcando como antigos)
+            this.processNumbersData(numeros, roleta);
+            
+            // Também armazenar os números no histórico local
+            const numerosSimples = numeros
+              .filter(n => n !== null && n !== undefined)
+              .map(n => {
+                if (n && typeof n === 'object' && 'numero' in n) {
+                  return n.numero;
+                }
+                return n;
+              })
+              .filter(n => n !== null && !isNaN(n));
+            
+            this.setRouletteHistory(roletaId, numerosSimples);
+            return true;
+          }
         }
         
         // Usar fallback para gerar números simulados se não conseguirmos dados reais
         return this.useFallbackData(roletaId);
       } catch (error) {
         console.error(`[SocketService] ❌ Erro ao buscar dados da API para roleta ${roletaId}:`, error);
+        
+        // Sinalizar falha para o circuit breaker
+        this.handleCircuitBreaker(false, `api_fetch_${roletaId}`);
+        
+        // Usar cache vencido como último recurso se disponível
+        if (cachedData) {
+          console.log(`[SocketService] Usando cache antigo como último recurso para roleta ${roletaId}`);
+          const roleta = cachedData.data;
+          const numeros = roleta.numero || roleta.numeros || roleta.historico || [];
+          
+          if (Array.isArray(numeros) && numeros.length > 0) {
+            // Notificar que temos dados para esta roleta (marcando como antigos)
+            this.processNumbersData(numeros, roleta);
+            
+            // Também armazenar os números no histórico local
+            const numerosSimples = numeros
+              .filter(n => n !== null && n !== undefined)
+              .map(n => {
+                if (n && typeof n === 'object' && 'numero' in n) {
+                  return n.numero;
+                }
+                return n;
+              })
+              .filter(n => n !== null && !isNaN(n));
+            
+            this.setRouletteHistory(roletaId, numerosSimples);
+            return true;
+          }
+        }
+        
         return this.useFallbackData(roletaId);
       }
     } catch (error) {
       console.error(`[SocketService] ❌ Erro ao tentar buscar números para roleta ${roletaId}:`, error);
+      
+      // Sinalizar falha para o circuit breaker
+      this.handleCircuitBreaker(false, `general_${roletaId}`);
+      
       return false;
     }
   }
@@ -1498,7 +1726,7 @@ class SocketService {
    * @param roletaId ID da roleta
    * @param roletaNome Nome da roleta (opcional)
    */
-  private startAggressivePolling(roletaId: string, roletaNome?: string): NodeJS.Timeout {
+  private startAggressivePolling(roletaId: string, roletaNome?: string): any {
     // Verificar se já existe polling para esta roleta
     if (this.pollingIntervals.has(roletaId)) {
       console.log(`[SocketService] Polling já ativo para ${roletaNome || roletaId}`);
@@ -1507,20 +1735,90 @@ class SocketService {
 
     console.log(`[SocketService] Iniciando polling para ${roletaNome || roletaId} com intervalo de ${this.pollingInterval}ms`);
     
-    // Criar um intervalo de polling
-    const interval = setInterval(async () => {
+    // Armazenar informações de controle para este polling
+    const pollingInfo = {
+      interval: this.pollingInterval,
+      consecutiveErrors: 0,
+      timerId: null as any,
+      lastSuccess: Date.now()
+    };
+    
+    // Função que será executada a cada intervalo
+    const pollingFunction = async () => {
       try {
         // Tentar buscar dados mais recentes via REST API
-        await this.fetchRouletteNumbersREST(roletaId);
+        const success = await this.fetchRouletteNumbersREST(roletaId);
+        
+        if (success) {
+          // Se teve sucesso, resetar contador de erros e reduzir intervalo gradualmente
+          pollingInfo.consecutiveErrors = 0;
+          pollingInfo.lastSuccess = Date.now();
+          
+          // Reduzir o intervalo, mas não abaixo do mínimo
+          pollingInfo.interval = Math.max(
+            this.minPollingInterval, 
+            pollingInfo.interval / 1.2
+          );
+        } else {
+          // Se falhou, aumentar contador e ajustar intervalo
+          pollingInfo.consecutiveErrors++;
+          
+          if (pollingInfo.consecutiveErrors > 2) {
+            // Aumentar intervalo exponencialmente após múltiplas falhas
+            pollingInfo.interval = Math.min(
+              this.maxPollingInterval,
+              pollingInfo.interval * this.pollingBackoffFactor
+            );
+            
+            console.log(`[SocketService] Aumentando intervalo de polling para ${roletaNome || roletaId} para ${pollingInfo.interval}ms após ${pollingInfo.consecutiveErrors} falhas`);
+          }
+        }
+        
+        // Reagendar com o novo intervalo
+        clearTimeout(pollingInfo.timerId);
+        pollingInfo.timerId = setTimeout(pollingFunction, pollingInfo.interval);
+        
       } catch (error) {
         console.error(`[SocketService] Erro no polling para ${roletaNome || roletaId}:`, error);
+        
+        // Aumentar contador e ajustar intervalo
+        pollingInfo.consecutiveErrors++;
+        
+        // Aumentar intervalo para reduzir sobrecarga no servidor
+        pollingInfo.interval = Math.min(
+          this.maxPollingInterval,
+          pollingInfo.interval * this.pollingBackoffFactor
+        );
+        
+        console.log(`[SocketService] Aumentando intervalo de polling para ${pollingInfo.interval}ms após erro`);
+        
+        // Reagendar mesmo com erro, mas com intervalo maior
+        clearTimeout(pollingInfo.timerId);
+        pollingInfo.timerId = setTimeout(pollingFunction, pollingInfo.interval);
       }
-    }, this.pollingInterval);
+    };
     
-    // Armazenar referência do intervalo
-    this.pollingIntervals.set(roletaId, interval);
+    // Iniciar o polling
+    pollingInfo.timerId = setTimeout(pollingFunction, pollingInfo.interval);
     
-    return interval;
+    // Armazenar referência para poder cancelar depois
+    this.pollingIntervals.set(roletaId, pollingInfo);
+    
+    return pollingInfo;
+  }
+
+  // Método para parar o polling para uma roleta específica
+  public stopPollingForRoulette(roletaId: string): void {
+    if (this.pollingIntervals.has(roletaId)) {
+      const pollingInfo = this.pollingIntervals.get(roletaId);
+      
+      if (pollingInfo && pollingInfo.timerId) {
+        clearTimeout(pollingInfo.timerId);
+      }
+      
+      this.pollingIntervals.delete(roletaId);
+      console.log(`[SocketService] Polling interrompido para roleta ${roletaId}`);
+    }
   }
 
   // Novo método para solicitar dados específicos de uma roleta
@@ -1582,15 +1880,6 @@ class SocketService {
         timestamp: new Date().toISOString()
       });
     });
-  }
-
-  // Método para parar o polling para uma roleta específica
-  public stopPollingForRoulette(roletaId: string): void {
-    if (this.pollingIntervals.has(roletaId)) {
-      clearInterval(this.pollingIntervals.get(roletaId) as NodeJS.Timeout);
-      this.pollingIntervals.delete(roletaId);
-      console.log(`[SocketService] Polling interrompido para roleta ${roletaId}`);
-    }
   }
 
   // Adicione este método após o construtor
@@ -1854,6 +2143,62 @@ class SocketService {
     }
     
     return roulettes;
+  }
+
+  // Método para gerenciar o circuit breaker
+  private handleCircuitBreaker(success: boolean, endpoint?: string): boolean {
+    if (success) {
+      // Resetar contador em caso de sucesso
+      this.consecutiveFailures = 0;
+      return true;
+    } else {
+      // Incrementar contador de falhas
+      this.consecutiveFailures++;
+      
+      // Verificar se deve ativar o circuit breaker
+      if (!this.circuitBreakerActive && this.consecutiveFailures >= this.failureThreshold) {
+        console.warn(`[SocketService] Circuit breaker ativado após ${this.consecutiveFailures} falhas consecutivas. Pausando chamadas por ${this.resetTime/1000}s`);
+        
+        this.circuitBreakerActive = true;
+        
+        // Mostrar notificação para o usuário
+        toast({
+          title: "Servidor sobrecarregado",
+          description: "Reduzindo frequência de chamadas para evitar sobrecarga",
+          variant: "warning"
+        });
+        
+        // Programar reset do circuit breaker
+        if (this.circuitBreakerResetTimeout) {
+          clearTimeout(this.circuitBreakerResetTimeout);
+        }
+        
+        this.circuitBreakerResetTimeout = setTimeout(() => {
+          console.log('[SocketService] Circuit breaker desativado, retomando operações normais');
+          this.circuitBreakerActive = false;
+          this.consecutiveFailures = 0;
+          
+          // Tentar reconectar e buscar dados essenciais
+          this.fetchRealRoulettes().then(() => {
+            console.log('[SocketService] Recarregando dados após reset do circuit breaker');
+            this.requestRecentNumbers();
+          });
+          
+        }, this.resetTime);
+      }
+      
+      // Se o circuit breaker está ativo, bloquear a operação
+      return !this.circuitBreakerActive;
+    }
+  }
+
+  // Método para verificar se uma chamada deve prosseguir
+  private shouldProceedWithRequest(endpoint?: string): boolean {
+    if (this.circuitBreakerActive) {
+      console.log(`[SocketService] Circuit breaker ativo, bloqueando chamada${endpoint ? ` para ${endpoint}` : ''}`);
+      return false;
+    }
+    return true;
   }
 }
 
