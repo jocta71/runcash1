@@ -79,7 +79,8 @@ class SocketService {
   public client?: MongoClient;
   
   // Mapa para armazenar os intervalos de polling por roletaId
-  private pollingIntervals: Map<string, ReturnType<typeof setInterval>> = new Map();
+  private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private pollingInterval: number = 10000; // Intervalo padrão de 10 segundos para polling
   
   private _isLoadingHistoricalData: boolean = false;
   
@@ -1494,71 +1495,32 @@ class SocketService {
 
   /**
    * Inicia polling agressivo para uma roleta específica
-   * para garantir que temos dados em tempo real mesmo se o websocket falhar
+   * @param roletaId ID da roleta
+   * @param roletaNome Nome da roleta (opcional)
    */
-  public startAggressivePolling(roletaId: string, roletaNome: string): void {
-    // Verificar se já existe um intervalo para esta roleta
+  private startAggressivePolling(roletaId: string, roletaNome?: string): NodeJS.Timeout {
+    // Verificar se já existe polling para esta roleta
     if (this.pollingIntervals.has(roletaId)) {
-      console.log(`[SocketService] Polling já ativo para ${roletaNome}`);
-      return;
+      console.log(`[SocketService] Polling já ativo para ${roletaNome || roletaId}`);
+      return this.pollingIntervals.get(roletaId)!;
     }
 
-    console.log(`[SocketService] Iniciando polling inteligente para ${roletaNome} (${roletaId})`);
+    console.log(`[SocketService] Iniciando polling para ${roletaNome || roletaId} com intervalo de ${this.pollingInterval}ms`);
     
-    // Estratégia de polling adaptativo:
-    // - Inicialmente, verificar com mais frequência para obter dados rápido
-    // - Depois de receber dados, reduzir a frequência para economizar recursos
-    // - Aumentar o intervalo progressivamente até um máximo
+    // Criar um intervalo de polling
+    const interval = setInterval(async () => {
+      try {
+        // Tentar buscar dados mais recentes via REST API
+        await this.fetchRouletteNumbersREST(roletaId);
+      } catch (error) {
+        console.error(`[SocketService] Erro no polling para ${roletaNome || roletaId}:`, error);
+      }
+    }, this.pollingInterval);
     
-    let currentInterval = 5000; // Início com 5 segundos
-    const maxInterval = 30000;  // Máximo de 30 segundos
-    const minInterval = 5000;   // Mínimo de 5 segundos
-    let consecutiveEmptyResponses = 0;
-    let lastReceivedDataTime = 0;
+    // Armazenar referência do intervalo
+    this.pollingIntervals.set(roletaId, interval);
     
-    const adaptivePolling = () => {
-      // Verificar se é hora de ajustar o intervalo
-      const now = Date.now();
-      const timeSinceLastData = now - lastReceivedDataTime;
-      
-      // Primeiro, solicitar os dados
-      this.requestRouletteUpdate(roletaId, roletaNome).then(hasData => {
-        if (hasData) {
-          // Recebemos dados! Resetar o contador e armazenar timestamp
-          consecutiveEmptyResponses = 0;
-          lastReceivedDataTime = now;
-          
-          // Voltar a um intervalo mais curto após receber dados
-          currentInterval = minInterval;
-          console.log(`[SocketService] Recebidos dados para ${roletaNome}, reduzindo intervalo para ${currentInterval}ms`);
-          } else {
-          // Sem novos dados, aumentar o contador
-          consecutiveEmptyResponses++;
-          
-          // Aumentar o intervalo gradualmente após várias respostas vazias
-          if (consecutiveEmptyResponses > 3) {
-            // Aumentar o intervalo em 25% até atingir o máximo
-            currentInterval = Math.min(currentInterval * 1.25, maxInterval);
-            console.log(`[SocketService] Sem dados para ${roletaNome} após ${consecutiveEmptyResponses} tentativas, aumentando intervalo para ${currentInterval}ms`);
-          }
-        }
-      }).catch(error => {
-        console.error(`[SocketService] Erro ao solicitar dados para ${roletaNome}:`, error);
-        // Em caso de erro, aumentar o intervalo
-        currentInterval = Math.min(currentInterval * 1.5, maxInterval);
-        });
-    };
-
-    // Executar imediatamente uma vez
-    adaptivePolling();
-    
-    // Configurar o intervalo adaptativo
-    const intervalId = setInterval(() => {
-      adaptivePolling();
-    }, currentInterval);
-    
-    // Armazenar o ID do intervalo para poder cancelá-lo depois
-    this.pollingIntervals.set(roletaId, intervalId);
+    return interval;
   }
 
   // Novo método para solicitar dados específicos de uma roleta
