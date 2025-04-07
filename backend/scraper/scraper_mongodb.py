@@ -362,14 +362,28 @@ def scrape_roletas_api(db, numero_hook=None):
     erros = 0
     max_erros = 3
     
-    # Roletas permitidas
-    ids_permitidos = os.environ.get('ALLOWED_ROULETTES', '').split(',')
-    if not ids_permitidos or not ids_permitidos[0].strip():
+    # Roletas permitidas - usar variáveis de ambiente
+    allowed_str = os.environ.get('ALLOWED_ROULETTES', '')
+    vite_allowed_str = os.environ.get('VITE_ALLOWED_ROULETTES', '')
+    
+    # Tentar obter de ALLOWED_ROULETTES primeiro
+    if allowed_str:
+        ids_permitidos = [r.strip() for r in allowed_str.split(',') if r.strip()]
+        print(f"[API] Usando variável ALLOWED_ROULETTES: {len(ids_permitidos)} roletas configuradas")
+    # Caso contrário, tentar obter de VITE_ALLOWED_ROULETTES
+    elif vite_allowed_str:
+        ids_permitidos = [r.strip() for r in vite_allowed_str.split(',') if r.strip()]
+        print(f"[API] Usando variável VITE_ALLOWED_ROULETTES: {len(ids_permitidos)} roletas configuradas")
+    # Se nenhuma variável estiver definida, usar o módulo de configuração
+    else:
         # Se não tiver no ambiente, usar a lista fixa do módulo roletas_permitidas
         from roletas_permitidas import ALLOWED_ROULETTES
         ids_permitidos = ALLOWED_ROULETTES
-        
-    print(f"[API] Monitorando APENAS roletas específicas: {','.join(ids_permitidos)}")
+        print(f"[API] Usando lista fixa do módulo roletas_permitidas: {len(ids_permitidos)} roletas configuradas")
+    
+    # Debug para diagnóstico
+    print(f"[API] Lista IDs permitidos: {','.join(ids_permitidos)}")
+    print(f"[API] Monitorando APENAS roletas específicas: {len(ids_permitidos)} roletas")
     
     # Rastreamento de dados das mesas para detectar mudanças
     estado_anterior_mesas = {}

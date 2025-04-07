@@ -202,7 +202,29 @@ function mapToCanonicalId(uuid) {
   }
   
   // Se não encontrou correspondência, tenta verificar se o próprio UUID já é um ID canônico
-  const canonicalIds = ['2010016', '2380335', '2010065', '2010096', '2010017', '2010098'];
+  // Obter IDs canônicos da variável de ambiente
+  let canonicalIds = [];
+  
+  // Tentar primeiro ALLOWED_ROULETTES
+  const allowedStr = process.env.ALLOWED_ROULETTES || '';
+  if (allowedStr) {
+    canonicalIds = allowedStr.split(',').map(id => id.trim()).filter(id => id !== '');
+    console.log(`[API] Usando variável ALLOWED_ROULETTES: ${canonicalIds.length} IDs canônicos`);
+  } 
+  // Depois VITE_ALLOWED_ROULETTES
+  else {
+    const viteAllowedStr = process.env.VITE_ALLOWED_ROULETTES || '';
+    if (viteAllowedStr) {
+      canonicalIds = viteAllowedStr.split(',').map(id => id.trim()).filter(id => id !== '');
+      console.log(`[API] Usando variável VITE_ALLOWED_ROULETTES: ${canonicalIds.length} IDs canônicos`);
+    } 
+    // Fallback para lista fixa
+    else {
+      canonicalIds = ['2010016', '2380335', '2010065', '2010096', '2010017', '2010098'];
+      console.log(`[API] Usando lista fixa: ${canonicalIds.length} IDs canônicos`);
+    }
+  }
+  
   if (canonicalIds.includes(uuid)) {
     console.log(`[API] UUID ${uuid} já é um ID canônico, usando diretamente`);
     return uuid;
