@@ -51,7 +51,7 @@ app.use('/api/roulettes/history', rouletteHistoryRouter);
 
 // Adicionar mapeamento de nomes para IDs de roletas conhecidas
 const NOME_PARA_ID = {
-  "Speed Auto Roulette": "2330046",
+  "Speed Roulette": "2330046",
   "Immersive Roulette": "2330047",
   "Brazilian Mega Roulette": "2330048",
   "Bucharest Auto-Roulette": "2330049",
@@ -78,8 +78,8 @@ app.get('/api/ROULETTES', async (req, res) => {
     if (!db) {
       console.log('[API] MongoDB não conectado, retornando dados simulados');
       return res.json([
-        { id: '1', nome: 'Roleta Simulada 1', numero: [] },
-        { id: '2', nome: 'Roleta Simulada 2', numero: [] }
+        { id: '2330046', nome: 'Speed Auto Roulette', numero: [] },
+        { id: '2330047', nome: 'Immersive Roulette', numero: [] }
       ]);
     }
     
@@ -87,56 +87,6 @@ app.get('/api/ROULETTES', async (req, res) => {
     try {
       const collections = await db.listCollections().toArray();
       console.log('[API] Coleções disponíveis no banco de dados:', collections.map(c => c.name).join(', '));
-      
-      // Verificar coleção de números das roletas
-      const numerosSample = await db.collection('roleta_numeros').find({}).limit(5).toArray();
-      console.log('[API] Amostra de dados da coleção roleta_numeros:');
-      numerosSample.forEach((n, i) => {
-        console.log(`[API] Registro ${i+1}:`, JSON.stringify({
-          id: n._id,
-          roleta_id: n.roleta_id,
-          roleta_nome: n.roleta_nome,
-          numero: n.numero,
-          timestamp: n.timestamp,
-          created_at: n.created_at,
-          criado_em: n.criado_em
-        }));
-      });
-      
-      // Se não temos amostras, inserir alguns dados de teste
-      if (numerosSample.length === 0) {
-        console.log('[API] Nenhum dado encontrado na coleção roleta_numeros. Inserindo dados de teste...');
-        const dadosTeste = [
-          {
-            roleta_id: "2330046",
-            roleta_nome: "Speed Auto Roulette",
-            numero: 12,
-            cor: "vermelho",
-            timestamp: new Date().toISOString()
-          },
-          {
-            roleta_id: "2330047",
-            roleta_nome: "Immersive Roulette",
-            numero: 7,
-            cor: "vermelho",
-            timestamp: new Date().toISOString()
-          },
-          {
-            roleta_id: "2330052",
-            roleta_nome: "VIP Roulette",
-            numero: 0,
-            cor: "verde",
-            timestamp: new Date().toISOString()
-          }
-        ];
-        
-        try {
-          await db.collection('roleta_numeros').insertMany(dadosTeste);
-          console.log('[API] Dados de teste inseridos com sucesso');
-        } catch (insertError) {
-          console.error('[API] Erro ao inserir dados de teste:', insertError);
-        }
-      }
     } catch (dbError) {
       console.error('[API] Erro ao listar coleções:', dbError);
     }
@@ -160,43 +110,36 @@ app.get('/api/ROULETTES', async (req, res) => {
       }
     }
     
+    // SIMPLIFICAÇÃO: Usar IDs numéricas diretas em vez de UUIDs
+    // Criar lista fixa de roletas com IDs numéricas
+    const roletasFixas = [
+      { id: '2330046', nome: 'Speed Auto Roulette' },
+      { id: '2330047', nome: 'Immersive Roulette' },
+      { id: '2330048', nome: 'Brazilian Mega Roulette' },
+      { id: '2330049', nome: 'Bucharest Auto-Roulette' },
+      { id: '2330050', nome: 'Auto-Roulette' },
+      { id: '2330051', nome: 'Auto-Roulette VIP' },
+      { id: '2330052', nome: 'VIP Roulette' },
+      { id: '2330053', nome: 'Roulette Macao' },
+      { id: '2330054', nome: 'Speed Roulette 1' },
+      { id: '2330055', nome: 'Hippodrome Grand Casino' },
+      { id: '2330056', nome: 'Ruleta Bola Rapida en Vivo' },
+      { id: '2330057', nome: 'Ruleta en Vivo' }
+    ];
+    
     // Array para armazenar as promessas de busca de números
     const fetchPromises = [];
     
-    // Para cada roleta, criar uma promessa para buscar os números mais recentes
-    roletas.forEach((roleta) => {
-      const originalId = roleta.id || roleta._id;
-      const nome = roleta.nome || roleta.name || '';
+    // Para cada roleta fixa, criar uma promessa para buscar os números mais recentes
+    roletasFixas.forEach((roleta) => {
+      const roleta_id = roleta.id;
+      const nome = roleta.nome;
       
-      // Obter o roleta_id correto, primeiro checando o mapeamento por nome
-      let roleta_id = NOME_PARA_ID[nome];
+      console.log(`[API] Processando roleta: ${nome} (ID: ${roleta_id})`);
       
-      // Se não encontrar no mapeamento por nome, usar o ID original diretamente
-      if (!roleta_id) {
-        roleta_id = originalId.toString();
-      }
-      
-      console.log(`[API] Processando roleta: ${nome} (Original ID: ${originalId}, Roleta ID: ${roleta_id})`);
-      
-      // Criar um array de todas as possíveis variações de ID para consulta
-      const idVariants = [
-        roleta_id,
-        roleta_id.toLowerCase(),
-        roleta_id.toUpperCase(),
-        nome.replace(/\s+/g, '').toLowerCase(),   // Nome sem espaços em minúsculas
-        nome.toLowerCase()                         // Nome em minúsculas
-      ];
-      
-      // Remover duplicatas
-      const uniqueIdVariants = [...new Set(idVariants)];
-      
-      console.log(`[API] Tentando variantes de ID: ${uniqueIdVariants.join(', ')}`);
-      
-      // Consultar usando várias possibilidades para o campo roleta_id
+      // Consultar diretamente pelo roleta_id numérico
       const promise = db.collection('roleta_numeros')
-        .find({ 
-          $or: uniqueIdVariants.map(id => ({ roleta_id: id }))
-        })
+        .find({ roleta_id })
         .sort({ timestamp: -1 })
         .limit(numbersLimit)
         .toArray()
@@ -243,7 +186,7 @@ app.get('/api/ROULETTES', async (req, res) => {
           }
           
           return { 
-            roletaId: originalId,
+            roletaId: roleta_id, // Usar ID numérico diretamente
             numeros: numeros.map(n => ({
               numero: n.numero,
               roleta_id: n.roleta_id,
@@ -255,7 +198,7 @@ app.get('/api/ROULETTES', async (req, res) => {
         })
         .catch(error => {
           console.error(`[API] Erro ao buscar números para roleta ${nome} (ID: ${roleta_id}):`, error);
-          return { roletaId: originalId, numeros: [] };
+          return { roletaId: roleta_id, numeros: [] };
         });
       
       fetchPromises.push(promise);
@@ -271,19 +214,17 @@ app.get('/api/ROULETTES', async (req, res) => {
     });
     
     // Formatar roletas para uniformidade, incluindo os números
-    const formattedRoulettes = roletas.map(r => {
-      const id = r.id || r._id;
-      
+    const formattedRoulettes = roletasFixas.map(r => {
       return {
-        id: id,
-        nome: r.nome || r.name,
+        id: r.id,
+        nome: r.nome,
         // Incluir os números buscados ou usar um array vazio como fallback
-        numero: numerosMap[id] || [],
-        estado_estrategia: r.estado_estrategia || "NEUTRAL",
-        vitorias: r.vitorias || 0,
-        derrotas: r.derrotas || 0,
-        win_rate: (r.vitorias || 0) + (r.derrotas || 0) > 0 ? `${((r.vitorias || 0) / ((r.vitorias || 0) + (r.derrotas || 0)) * 100).toFixed(1)}%` : "N/A",
-        updated_at: r.updated_at || new Date().toISOString()
+        numero: numerosMap[r.id] || [],
+        estado_estrategia: "NEUTRAL",
+        vitorias: 0,
+        derrotas: 0,
+        win_rate: "N/A",
+        updated_at: new Date().toISOString()
       };
     });
     
