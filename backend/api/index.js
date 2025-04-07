@@ -121,8 +121,8 @@ app.get('/api/ROULETTES', async (req, res) => {
         "Brazilian Mega Roulette": "2380335",
         "Bucharest Auto-Roulette": "2010065",
         // Outros mapeamentos comuns
-        "Lightning Roulette": "2210004",
-        "Auto Lightning Roulette": "2210004",
+        "Lightning Roulette": "2010033",
+        "Auto Lightning Roulette": "2010154",
         "Ruleta Automática": "2010017", 
         "Svensk Roulette": "2010047",
         "Fan Tan": "72781e91",
@@ -131,9 +131,9 @@ app.get('/api/ROULETTES', async (req, res) => {
         "Speed Roulette": "2010096",
         "Red Door Roulette": "b081a0c0",
         "777 Roulette": "2948054",
-        "Japanese Roulette": "5834912",
+        "Japanese Roulette": "2010340",
         "Greek Roulette": "2837654",
-        "Gold Vault Roulette": "3274891",
+        "Gold Vault Roulette": "2010565",
         "Dansk Roulette": "5629014"
       };
       
