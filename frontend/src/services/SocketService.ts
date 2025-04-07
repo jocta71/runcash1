@@ -8,7 +8,6 @@ import EventService, {
 } from './EventService';
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import { mapToCanonicalRouletteId, ROLETAS_CANONICAS } from '../integrations/api/rouletteService';
-import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 
 // Importando o serviço de estratégia para simular respostas
 import StrategyService from './StrategyService';
@@ -884,7 +883,14 @@ class SocketService {
     this._isLoadingHistoricalData = true;
     
     // Lista de IDs permitidos - apenas estas roletas serão processadas
-    const ALLOWED_ROULETTES = ROLETAS_PERMITIDAS;
+    const ALLOWED_ROULETTES = [
+      "2010016",  // Immersive Roulette
+      "2380335",  // Brazilian Mega Roulette
+      "2010065",  // Bucharest Auto-Roulette
+      "2010096",  // Speed Auto Roulette
+      "2010017",  // Auto-Roulette
+      "2010098"   // Auto-Roulette VIP
+    ];
     
     // Notificar que o carregamento começou
     EventService.emitGlobalEvent('historical_data_loading', { started: true });

@@ -27,7 +27,6 @@ const PaymentSuccess = lazy(() => import("@/pages/PaymentSuccess"));
 const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
-const AdminConfigPage = lazy(() => import("@/pages/AdminConfig"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -127,9 +126,6 @@ const App = () => {
                     {/* Rota para histórico de roletas */}
                     <Route path="/historico" element={<LiveRoulettePage />} />
                     <Route path="/historico/:roletaId" element={<RouletteHistoryPage />} />
-                    
-                    {/* Rota para administração e configuração */}
-                    <Route path="/admin/config" element={<AdminConfigPage />} />
                   </Routes>
                 </Suspense>
               </BrowserRouter>

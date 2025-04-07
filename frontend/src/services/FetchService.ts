@@ -9,14 +9,20 @@ import { RequestThrottler } from './utils/requestThrottler';
 import { getLogger } from './utils/logger';
 import config from '@/config/env';
 import { getCachedUUID, cacheUUID } from '@/lib/localStorage';
-import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 
 const logger = getLogger('FetchService');
 
 // Configurações
 const POLLING_INTERVAL = 5000; // 5 segundos entre cada verificação
 const MAX_RETRIES = 3; // Número máximo de tentativas antes de desistir
-const ALLOWED_ROULETTES = ROLETAS_PERMITIDAS;
+const ALLOWED_ROULETTES = [
+  "2010016",  // Immersive Roulette
+  "2380335",  // Brazilian Mega Roulette
+  "2010065",  // Bucharest Auto-Roulette
+  "2010096",  // Speed Auto Roulette
+  "2010017",  // Auto-Roulette
+  "2010098"   // Auto-Roulette VIP
+];
 
 // Mapear nomes para IDs canônicos
 const NAME_TO_ID_MAP: Record<string, string> = {
