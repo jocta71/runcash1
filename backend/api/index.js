@@ -67,6 +67,29 @@ app.get('/api/ROULETTES', async (req, res) => {
       ]);
     }
     
+    // Listar todas as coleções disponíveis no banco de dados
+    try {
+      const collections = await db.listCollections().toArray();
+      console.log('[API] Coleções disponíveis no banco de dados:', collections.map(c => c.name).join(', '));
+      
+      // Verificar coleção de números das roletas
+      const numerosSample = await db.collection('roleta_numeros').find({}).limit(5).toArray();
+      console.log('[API] Amostra de dados da coleção roleta_numeros:');
+      numerosSample.forEach((n, i) => {
+        console.log(`[API] Registro ${i+1}:`, JSON.stringify({
+          id: n._id,
+          roleta_id: n.roleta_id,
+          roleta_nome: n.roleta_nome,
+          numero: n.numero,
+          timestamp: n.timestamp,
+          created_at: n.created_at,
+          criado_em: n.criado_em
+        }));
+      });
+    } catch (dbError) {
+      console.error('[API] Erro ao listar coleções:', dbError);
+    }
+    
     // Buscar roletas diretamente
     const roulettes = await db.collection('roletas').find({}).toArray();
     console.log(`[API] Encontradas ${roulettes.length} roletas`);
@@ -94,33 +117,93 @@ app.get('/api/ROULETTES', async (req, res) => {
       const originalId = roleta.id || roleta._id;
       
       // IMPORTANTE: Usar o ID original diretamente, removendo a conversão para ID canônico
-      // const id = mapToCanonicalId(originalId.toString());
       const id = originalId.toString();
       
+      // Verificar em múltiplas coleções - primeiramente na coleção principal 'roleta_numeros'
       const promise = db.collection('roleta_numeros')
         .find({ 
-          // Tentar diferentes formatos de ID para aumentar as chances de encontrar números
+          // Buscar por todas as possíveis variações do campo roleta_id e variações de formato
           $or: [
             { roleta_id: id },
             { roleta_id: id.toLowerCase() },
-            { roleta_id: id.toUpperCase() }
+            { roleta_id: id.toUpperCase() },
+            { "roleta_id": id },
+            { "roleta.id": id },
+            { "roleta": id },
+            { "roulette_id": id },
+            { "roulette.id": id }
           ]
         })
         .sort({ timestamp: -1 })
         .limit(numbersLimit)
         .toArray()
-        .then(numeros => {
-          console.log(`[API] Encontrados ${numeros.length} números para roleta com ID: ${id}`);
-          return { 
-            roletaId: originalId, // Manter o ID original para mapeamento
-            numeros: numeros.map(n => ({
-              numero: n.numero,
-              roleta_id: n.roleta_id,
-              roleta_nome: n.roleta_nome,
-              cor: n.cor || determinarCorNumero(n.numero),
-              timestamp: n.timestamp || n.created_at || n.criado_em
-            }))
-          };
+        .then(async (numeros) => {
+          if (numeros && numeros.length > 0) {
+            // Se encontrou números na coleção principal, retornar
+            console.log(`[API] Encontrados ${numeros.length} números para roleta com ID: ${id} na coleção principal`);
+            return { 
+              roletaId: originalId,
+              numeros: numeros.map(n => ({
+                numero: n.numero,
+                roleta_id: n.roleta_id,
+                roleta_nome: n.roleta_nome || roleta.nome || roleta.name || 'Sem nome',
+                cor: n.cor || determinarCorNumero(n.numero),
+                timestamp: n.timestamp || n.created_at || n.criado_em || new Date().toISOString()
+              }))
+            };
+          } else {
+            // Se não encontrou na coleção principal, tentar em 'numeros_roleta'
+            try {
+              console.log(`[API] Tentando encontrar números para roleta ${id} em coleção alternativa 'numeros_roleta'`);
+              const numerosAlt = await db.collection('numeros_roleta')
+                .find({ $or: [{ roleta_id: id }, { "roleta.id": id }] })
+                .sort({ timestamp: -1 })
+                .limit(numbersLimit)
+                .toArray();
+                
+              if (numerosAlt && numerosAlt.length > 0) {
+                console.log(`[API] Encontrados ${numerosAlt.length} números na coleção 'numeros_roleta'`);
+                return { 
+                  roletaId: originalId,
+                  numeros: numerosAlt.map(n => ({
+                    numero: n.numero,
+                    roleta_id: n.roleta_id,
+                    roleta_nome: n.roleta_nome || roleta.nome || roleta.name || 'Sem nome',
+                    cor: n.cor || determinarCorNumero(n.numero),
+                    timestamp: n.timestamp || n.created_at || n.criado_em || new Date().toISOString()
+                  }))
+                };
+              }
+              
+              // Última tentativa - verificar na coleção 'roulette_numbers'
+              console.log(`[API] Tentando última coleção alternativa 'roulette_numbers' para roleta ${id}`);
+              const numerosRoulette = await db.collection('roulette_numbers')
+                .find({ $or: [{ roulette_id: id }, { roleta_id: id }] })
+                .sort({ timestamp: -1 })
+                .limit(numbersLimit)
+                .toArray();
+                
+              if (numerosRoulette && numerosRoulette.length > 0) {
+                console.log(`[API] Encontrados ${numerosRoulette.length} números na coleção 'roulette_numbers'`);
+                return { 
+                  roletaId: originalId,
+                  numeros: numerosRoulette.map(n => ({
+                    numero: n.number || n.numero,
+                    roleta_id: n.roulette_id || n.roleta_id,
+                    roleta_nome: n.roulette_name || n.roleta_nome || roleta.nome || roleta.name || 'Sem nome',
+                    cor: n.color || n.cor || determinarCorNumero(n.number || n.numero),
+                    timestamp: n.timestamp || n.created_at || n.criado_em || new Date().toISOString()
+                  }))
+                };
+              }
+              
+              console.log(`[API] Não foram encontrados números para roleta ${id} em nenhuma coleção`);
+              return { roletaId: originalId, numeros: [] };
+            } catch (altError) {
+              console.error(`[API] Erro ao buscar em coleções alternativas para roleta ${id}:`, altError);
+              return { roletaId: originalId, numeros: [] };
+            }
+          }
         })
         .catch(error => {
           console.error(`[API] Erro ao buscar números para roleta ${id}:`, error);
