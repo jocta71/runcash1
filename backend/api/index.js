@@ -92,19 +92,27 @@ app.get('/api/ROULETTES', async (req, res) => {
     // Para cada roleta, criar uma promessa para buscar os números mais recentes
     roletas.forEach((roleta) => {
       const originalId = roleta.id || roleta._id;
-      // Converter UUID para ID canônico
-      const id = mapToCanonicalId(originalId.toString());
+      
+      // IMPORTANTE: Usar o ID original diretamente, removendo a conversão para ID canônico
+      // const id = mapToCanonicalId(originalId.toString());
+      const id = originalId.toString();
       
       const promise = db.collection('roleta_numeros')
-        .find({ roleta_id: id.toString() })
+        .find({ 
+          // Tentar diferentes formatos de ID para aumentar as chances de encontrar números
+          $or: [
+            { roleta_id: id },
+            { roleta_id: id.toLowerCase() },
+            { roleta_id: id.toUpperCase() }
+          ]
+        })
         .sort({ timestamp: -1 })
         .limit(numbersLimit)
         .toArray()
         .then(numeros => {
-          console.log(`[API] Encontrados ${numeros.length} números para roleta ${id} (original: ${originalId})`);
+          console.log(`[API] Encontrados ${numeros.length} números para roleta com ID: ${id}`);
           return { 
             roletaId: originalId, // Manter o ID original para mapeamento
-            canonicalId: id, // Adicionar o ID canônico para referência
             numeros: numeros.map(n => ({
               numero: n.numero,
               roleta_id: n.roleta_id,
@@ -116,7 +124,7 @@ app.get('/api/ROULETTES', async (req, res) => {
         })
         .catch(error => {
           console.error(`[API] Erro ao buscar números para roleta ${id}:`, error);
-          return { roletaId: originalId, canonicalId: id, numeros: [] };
+          return { roletaId: originalId, numeros: [] };
         });
       
       fetchPromises.push(promise);
@@ -134,11 +142,9 @@ app.get('/api/ROULETTES', async (req, res) => {
     // Formatar roletas para uniformidade, incluindo os números
     const formattedRoulettes = roletas.map(r => {
       const id = r.id || r._id;
-      const canonicalId = mapToCanonicalId(id.toString());
       
       return {
         id: id,
-        canonical_id: canonicalId, // Adicionar ID canônico para referência
         nome: r.nome || r.name,
         // Incluir os números buscados ou usar um array vazio como fallback
         numero: numerosMap[id] || [],
