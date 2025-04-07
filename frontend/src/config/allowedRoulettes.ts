@@ -2,18 +2,27 @@
  * Lista de IDs de roletas permitidas para exibição no frontend
  * Estes IDs devem corresponder aos configurados no scraper
  */
-export const ROLETAS_PERMITIDAS = [
-  "2010016",  // Immersive Roulette
-  "2380335",  // Brazilian Mega Roulette
-  "2010065",  // Bucharest Auto-Roulette
-  "2010096",  // Speed Auto Roulette
-  "2010017",  // Auto-Roulette
-  "2010098"   // Auto-Roulette VIP
-];
+// Obter roletas permitidas da variável de ambiente, se disponível
+const allowedRoulettesEnv = import.meta.env.VITE_ALLOWED_ROULETTES as string | undefined;
+console.log('[CONFIG] Variável VITE_ALLOWED_ROULETTES:', allowedRoulettesEnv);
+
+// Converter a string de IDs separados por vírgula em um array
+export const ROLETAS_PERMITIDAS = allowedRoulettesEnv
+  ? allowedRoulettesEnv.split(',').map(id => id.trim())
+  : [
+      "2010016",  // Immersive Roulette
+      "2380335",  // Brazilian Mega Roulette
+      "2010065",  // Bucharest Auto-Roulette
+      "2010096",  // Speed Auto Roulette
+      "2010017",  // Auto-Roulette
+      "2010098"   // Auto-Roulette VIP
+    ];
+
+console.log('[CONFIG] Roletas permitidas:', ROLETAS_PERMITIDAS);
 
 /**
  * Verifica se uma roleta está na lista de roletas permitidas
- * Modificado para permitir todas as roletas que tenham um ID válido
+ * Modificado para usar a lista de ROLETAS_PERMITIDAS que vem da variável de ambiente
  * @param rouletteId ID da roleta a ser verificada
  * @returns boolean indicando se a roleta está permitida
  */
@@ -26,13 +35,18 @@ export const isRouletteAllowed = (rouletteId: string): boolean => {
   // Verificar se está na lista de permitidas
   const isInList = ROLETAS_PERMITIDAS.includes(rouletteId);
   
-  // Usar configuração que permite todas as roletas com ID válido
-  // Se quiser restringir apenas para as IDs específicas, comente a linha abaixo
-  // e descomente a linha return isInList;
-  return isValid;
+  // Verificar se temos uma variável de ambiente definida
+  const hasEnvConfig = !!allowedRoulettesEnv;
   
-  // Código original que filtra apenas as roletas específicas:
-  // return isInList;
+  // Se a variável de ambiente estiver definida, usar a verificação de lista
+  if (hasEnvConfig) {
+    console.log(`[CONFIG] Usando lista definida pela variável de ambiente: ${isInList ? 'permitida' : 'não permitida'}`);
+    return isInList && isValid;
+  }
+  
+  // Se não tiver configuração de ambiente, permitir todas as roletas válidas
+  console.log(`[CONFIG] Sem variável de ambiente definida, usando modo permissivo: ${isValid ? 'permitida' : 'não permitida'}`);
+  return isValid;
 };
 
 /**

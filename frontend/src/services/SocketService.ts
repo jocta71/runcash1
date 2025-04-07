@@ -54,6 +54,9 @@ export interface HistoryData {
   error?: string;
 }
 
+// Importar a lista de roletas permitidas da configuração
+import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
+
 /**
  * Serviço que gerencia a conexão WebSocket via Socket.IO
  * para receber dados em tempo real do MongoDB
@@ -882,15 +885,8 @@ class SocketService {
     
     this._isLoadingHistoricalData = true;
     
-    // Lista de IDs permitidos - apenas estas roletas serão processadas
-    const ALLOWED_ROULETTES = [
-      "2010016",  // Immersive Roulette
-      "2380335",  // Brazilian Mega Roulette
-      "2010065",  // Bucharest Auto-Roulette
-      "2010096",  // Speed Auto Roulette
-      "2010017",  // Auto-Roulette
-      "2010098"   // Auto-Roulette VIP
-    ];
+    // Lista de IDs permitidos - usa os valores da configuração
+    const ALLOWED_ROULETTES = ROLETAS_PERMITIDAS;
     
     // Notificar que o carregamento começou
     EventService.emitGlobalEvent('historical_data_loading', { started: true });

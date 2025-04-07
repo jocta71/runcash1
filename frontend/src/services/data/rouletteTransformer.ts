@@ -2,14 +2,10 @@
  * Lista de roletas permitidas
  * Contém apenas os IDs numéricos oficiais
  */
-export const ALLOWED_ROULETTES = [
-  "2010016",  // Immersive Roulette
-  "2380335",  // Brazilian Mega Roulette
-  "2010065",  // Bucharest Auto-Roulette
-  "2010096",  // Speed Auto Roulette
-  "2010017",  // Ruleta Automática
-  "2010098"   // Auto-Roulette VIP
-];
+import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
+
+// Re-exportar para compatibilidade com código existente
+export const ALLOWED_ROULETTES = ROLETAS_PERMITIDAS;
 
 /**
  * Mapeamento de UUIDs para IDs numéricos
