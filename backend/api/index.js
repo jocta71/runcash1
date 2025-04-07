@@ -119,45 +119,7 @@ app.get('/api/ROULETTES', async (req, res) => {
         .then(async (numeros) => {
           console.log(`[API] Encontrados ${numeros.length} números para roleta ${nome} (ID: ${originalId})`);
           
-          // Se não encontrou números, inserir alguns dados de teste para essa roleta específica
-          if (numeros.length === 0) {
-            console.log(`[API] Nenhum número encontrado para ${nome}, inserindo dados de teste`);
-            const testNumbers = [
-              { 
-                roleta_id: originalId.toString(), 
-                roleta_nome: nome, 
-                numero: Math.floor(Math.random() * 36), 
-                timestamp: new Date().toISOString(),
-                created_at: new Date().toISOString()
-              },
-              { 
-                roleta_id: originalId.toString(), 
-                roleta_nome: nome, 
-                numero: Math.floor(Math.random() * 36), 
-                timestamp: new Date(Date.now() - 60000).toISOString(),
-                created_at: new Date(Date.now() - 60000).toISOString()
-              },
-              { 
-                roleta_id: originalId.toString(), 
-                roleta_nome: nome, 
-                numero: Math.floor(Math.random() * 36), 
-                timestamp: new Date(Date.now() - 120000).toISOString(),
-                created_at: new Date(Date.now() - 120000).toISOString()
-              }
-            ];
-            
-            try {
-              // Inserir os dados
-              await db.collection('roleta_numeros').insertMany(testNumbers);
-              console.log(`[API] Dados de teste inseridos para ${nome}`);
-              
-              // Usar os dados recém inseridos
-              numeros = testNumbers;
-            } catch (insertError) {
-              console.error(`[API] Erro ao inserir dados de teste para ${nome}:`, insertError);
-            }
-          }
-          
+          // Removendo a geração de dados simulados - usar apenas dados reais do scraper
           return { 
             roletaId: originalId.toString(),
             numeros: numeros.map(n => ({
