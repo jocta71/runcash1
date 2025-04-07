@@ -224,12 +224,14 @@ app.get('/api/ROULETTES', async (req, res) => {
     // Formatar roletas para uniformidade, incluindo os números
     const formattedRoulettes = roletas.map(r => {
       const id = (r._id || r.id).toString();
+      const numeros = numerosMap[id] || [];
+      
       return {
         id: id,
         nome: r.nome || r.name,
         ativa: r.ativa || true,
         // Incluir os números buscados ou usar um array vazio como fallback
-        numero: numerosMap[id] || [],
+        numero: numeros,
         estado_estrategia: r.estado_estrategia || "NEUTRAL",
         vitorias: r.vitorias || 0,
         derrotas: r.derrotas || 0,
@@ -239,6 +241,23 @@ app.get('/api/ROULETTES', async (req, res) => {
         updated_at: r.updated_at || r.atualizado_em || new Date().toISOString()
       };
     });
+    
+    // Ordenar roletas - as que têm números aparecem primeiro
+    formattedRoulettes.sort((a, b) => {
+      // Primeiro critério: roletas com números aparecem primeiro
+      if (a.numero.length > 0 && b.numero.length === 0) return -1;
+      if (a.numero.length === 0 && b.numero.length > 0) return 1;
+      
+      // Segundo critério: roletas com mais números aparecem antes
+      if (a.numero.length !== b.numero.length) {
+        return b.numero.length - a.numero.length;
+      }
+      
+      // Terceiro critério: ordem alfabética pelo nome
+      return (a.nome || '').localeCompare(b.nome || '');
+    });
+    
+    console.log('[API] Roletas ordenadas - As com números aparecem primeiro');
     
     return res.json(formattedRoulettes);
   } catch (error) {
