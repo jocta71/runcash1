@@ -84,7 +84,7 @@ export const RoletaAnalyticsDashboard: React.FC<RoletaAnalyticsDashboardProps> =
       <h2 className="text-2xl font-bold text-[#00ff00]">Análise da Roleta: {roletaNome}</h2>
       
       {/* Alertas e Sequências */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <CurrentStreakDisplay streak={currentStreak} />
         <MissingDozensAlert dozens={missingDozens} />
       </div>
