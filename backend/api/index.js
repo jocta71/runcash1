@@ -49,22 +49,6 @@ app.locals.db = db;
 // Configurar rotas
 app.use('/api/roulettes/history', rouletteHistoryRouter);
 
-// Adicionar mapeamento de nomes para IDs de roletas conhecidas
-const NOME_PARA_ID = {
-  "Speed Roulette": "2330046",
-  "Immersive Roulette": "2330047",
-  "Brazilian Mega Roulette": "2330048",
-  "Bucharest Auto-Roulette": "2330049",
-  "Auto-Roulette": "2330050",
-  "Auto-Roulette VIP": "2330051",
-  "VIP Roulette": "2330052",
-  "Roulette Macao": "2330053",
-  "Speed Roulette 1": "2330054",
-  "Hippodrome Grand Casino": "2330055",
-  "Ruleta Bola Rapida en Vivo": "2330056",
-  "Ruleta en Vivo": "2330057"
-};
-
 // Garantir que a rota /api/roulettes funcione
 app.get('/api/ROULETTES', async (req, res) => {
   try {
