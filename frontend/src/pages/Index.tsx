@@ -66,6 +66,8 @@ const Index = () => {
   const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 24;
   
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
@@ -375,8 +377,15 @@ const Index = () => {
 
     // Mais logs para depuração
     console.log(`[Index] Após filtro de busca: ${filteredRoulettes.length} roletas`);
+    
+    // Aplicar paginação
+    const totalPages = Math.ceil(filteredRoulettes.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedRoulettes = filteredRoulettes.slice(startIndex, startIndex + itemsPerPage);
+    
+    console.log(`[Index] Paginação: Página ${currentPage}/${totalPages}, exibindo ${paginatedRoulettes.length} roletas`);
 
-    return filteredRoulettes.map(roulette => {
+    return paginatedRoulettes.map(roulette => {
       // Garantir que temos números válidos
       const safeNumbers = Array.isArray(roulette.numero) 
         ? roulette.numero
@@ -416,6 +425,55 @@ const Index = () => {
       );
     });
   };
+  
+  // Função para renderizar a paginação
+  const renderPagination = () => {
+    if (!Array.isArray(roulettes) || roulettes.length === 0) {
+      return null;
+    }
+    
+    let filteredRoulettes = roulettes;
+    
+    // Aplicar filtro de busca para calcular o total de páginas
+    if (search.trim()) {
+      const searchLower = search.toLowerCase().trim();
+      filteredRoulettes = roulettes.filter(roulette => 
+        (roulette.nome || '').toLowerCase().includes(searchLower) ||
+        (roulette.name || '').toLowerCase().includes(searchLower)
+      );
+    }
+    
+    const totalPages = Math.ceil(filteredRoulettes.length / itemsPerPage);
+    
+    // Se só tiver uma página, não mostrar paginação
+    if (totalPages <= 1) {
+      return null;
+    }
+    
+    return (
+      <div className="flex justify-center mt-8 gap-2">
+        <button 
+          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          disabled={currentPage === 1}
+          className={`px-4 py-2 rounded-md ${currentPage === 1 ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-800 text-white hover:bg-gray-700'}`}
+        >
+          Anterior
+        </button>
+        
+        <div className="flex items-center bg-gray-800 rounded-md px-4">
+          <span className="text-white">{currentPage} de {totalPages}</span>
+        </div>
+        
+        <button 
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          disabled={currentPage === totalPages}
+          className={`px-4 py-2 rounded-md ${currentPage === totalPages ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-800 text-white hover:bg-gray-700'}`}
+        >
+          Próxima
+        </button>
+      </div>
+    );
+  };
 
   return (
     <Layout preloadData={true}>
@@ -436,7 +494,7 @@ const Index = () => {
                 placeholder="Buscar roleta..."
                 className="bg-[#1a1a1a] border border-gray-700 rounded-lg px-4 py-2 pl-10 w-full md:w-64 text-white"
                 value={search} 
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {setSearch(e.target.value); setCurrentPage(1);}}
               />
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
             </div>
@@ -465,6 +523,9 @@ const Index = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 {renderRouletteCards()}
               </div>
+              
+              {/* Paginação */}
+              {renderPagination()}
             </div>
             
             {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
