@@ -375,17 +375,15 @@ const Index = () => {
       }
     }
 
-    // Mais logs para depuração
-    console.log(`[Index] Após filtro de busca: ${filteredRoulettes.length} roletas`);
+    // Mais logs para depuração - mostrar o total de roletas
+    console.log(`[Index] Após filtro de busca: ${filteredRoulettes.length} roletas - EXIBINDO TODAS`);
     
-    // Aplicar paginação
-    const totalPages = Math.ceil(filteredRoulettes.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const paginatedRoulettes = filteredRoulettes.slice(startIndex, startIndex + itemsPerPage);
+    // MODIFICAÇÃO CRÍTICA: Mostrar todas as roletas sem paginação
+    const allRoulettes = filteredRoulettes;
     
-    console.log(`[Index] Paginação: Página ${currentPage}/${totalPages}, exibindo ${paginatedRoulettes.length} roletas`);
+    console.log(`[Index] Exibindo todas as ${allRoulettes.length} roletas disponíveis`);
 
-    return paginatedRoulettes.map(roulette => {
+    return allRoulettes.map(roulette => {
       // Garantir que temos números válidos
       const safeNumbers = Array.isArray(roulette.numero) 
         ? roulette.numero
@@ -445,29 +443,27 @@ const Index = () => {
     
     const totalPages = Math.ceil(filteredRoulettes.length / itemsPerPage);
     
-    // Se só tiver uma página, não mostrar paginação
-    if (totalPages <= 1) {
-      return null;
-    }
+    // Sempre mostrar a paginação se houver roletas
+    // Removida a condição que ocultava a paginação quando havia apenas uma página
     
     return (
-      <div className="flex justify-center mt-8 gap-2">
+      <div className="flex justify-center mt-8 gap-2 mb-8 bg-gray-800 p-3 rounded-lg shadow-lg">
         <button 
           onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
           disabled={currentPage === 1}
-          className={`px-4 py-2 rounded-md ${currentPage === 1 ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-800 text-white hover:bg-gray-700'}`}
+          className={`px-4 py-2 rounded-md ${currentPage === 1 ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
         >
           Anterior
         </button>
         
-        <div className="flex items-center bg-gray-800 rounded-md px-4">
-          <span className="text-white">{currentPage} de {totalPages}</span>
+        <div className="flex items-center bg-gray-700 rounded-md px-4">
+          <span className="text-white font-bold">Página {currentPage} de {totalPages || 1}</span>
         </div>
         
         <button 
-          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages || 1))}
           disabled={currentPage === totalPages}
-          className={`px-4 py-2 rounded-md ${currentPage === totalPages ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-800 text-white hover:bg-gray-700'}`}
+          className={`px-4 py-2 rounded-md ${currentPage === totalPages ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
         >
           Próxima
         </button>
@@ -519,17 +515,14 @@ const Index = () => {
         ) : (
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Cards de roleta à esquerda */}
-            <div className="w-full">
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="w-full lg:w-3/4">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {renderRouletteCards()}
               </div>
-              
-              {/* Paginação */}
-              {renderPagination()}
             </div>
             
             {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
-            <div className="w-full lg:w-1/3">
+            <div className="w-full lg:w-1/4">
               {selectedRoulette ? (
                 <RouletteSidePanelStats
                   roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
