@@ -12,9 +12,9 @@ const nextConfig = {
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@': '.',
-      'lib': './lib',
-      'components': './components'
+      '@': './src',
+      'lib': './src/lib',
+      'components': './src/components'
     }
     return config
   }

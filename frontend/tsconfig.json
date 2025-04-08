@@ -21,9 +21,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "lib/*": ["./lib/*"],
-      "components/*": ["./components/*"]
+      "@/*": ["./src/*"],
+      "lib/*": ["./src/lib/*"],
+      "components/*": ["./src/components/*"]
     },
     "types": ["react", "react-dom"]
   },
