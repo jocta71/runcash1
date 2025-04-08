@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import ChatHeader from './chat/ChatHeader';
-import ChatMessageList from './chat/ChatMessageList';
-import ChatInput from './chat/ChatInput';
-import { ChatMessage } from './chat/types';
+import ChatHeader from '../chat/ChatHeader';
+import ChatMessageList from '../chat/ChatMessageList';
+import ChatInput from '../chat/ChatInput';
+import { ChatMessage } from '../chat/types';
 import { X } from 'lucide-react';
 
 interface ChatUIProps {

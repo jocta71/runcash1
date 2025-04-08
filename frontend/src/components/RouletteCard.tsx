@@ -351,22 +351,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     console.log(`[RouletteCard] Inscrevendo para eventos da roleta: ${safeData.name} (${safeData.id})`);
     
     // Função para processar novos números
-    const handleNewNumber = (event: RouletteNumberEvent) => {
-      // Verificar se o evento pertence a esta roleta específica
-      // Comparar todos os identificadores possíveis para maior segurança
-      const eventId = String(event.roleta_id || '');
-      const cardId = String(safeData.id || '');
-      const cardName = String(safeData.name || '').toLowerCase();
-      const eventName = String(event.roleta_nome || '').toLowerCase();
-      
-      const matchesId = eventId === cardId;
-      const matchesName = cardName && eventName && cardName === eventName;
-      
-      if (matchesId || matchesName) {
-        console.log(`[RouletteCard] Evento de número corresponde a esta roleta (${safeData.name})`, event);
+    const handleNewNumber = (event: RouletteNumberEvent | StrategyUpdateEvent) => {
+      if (event.type === 'new_number') {
         processRealtimeNumber(event);
-      } else {
-        console.log(`[RouletteCard] Ignorando evento para outra roleta: ${event.roleta_nome} (${event.roleta_id})`);
       }
     };
     

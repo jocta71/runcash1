@@ -1,3 +1,100 @@
+# RunCash - Aplicação de Análise de Roletas
+
+## Estrutura do Projeto
+
+O projeto está organizado em duas partes principais: frontend e backend.
+
+### Frontend
+
+A estrutura do frontend está organizada da seguinte forma:
+
+```
+frontend/
+├── public/            # Arquivos estáticos
+│   └── images/        # Imagens do site
+├── src/               # Código fonte
+│   ├── components/    # Componentes React
+│   │   ├── auth/      # Componentes de autenticação
+│   │   ├── chat/      # Componentes do chat
+│   │   ├── common/    # Componentes comuns reutilizáveis
+│   │   ├── layout/    # Componentes de layout (Layout, Sidebar, Navbar)
+│   │   ├── roulette/  # Componentes específicos de roleta
+│   │   ├── roulette-cards/ # Cards e grid de roletas
+│   │   ├── stats/     # Componentes de estatísticas
+│   │   └── ui/        # Componentes de UI (botões, inputs, etc.)
+│   ├── config/        # Configurações
+│   ├── context/       # Contextos React
+│   ├── hooks/         # Custom hooks
+│   ├── integrations/  # Integrações com APIs
+│   ├── lib/           # Bibliotecas e utilitários
+│   ├── pages/         # Páginas da aplicação
+│   ├── services/      # Serviços (API, WebSocket, etc.)
+│   ├── stores/        # Stores (Zustand, etc.)
+│   ├── styles/        # Estilos globais
+│   ├── types/         # Tipos TypeScript
+│   └── utils/         # Funções utilitárias
+```
+
+### Backend
+
+A estrutura do backend está organizada da seguinte forma:
+
+```
+backend/
+├── src/               # Código fonte
+│   ├── config/        # Configurações
+│   ├── controllers/   # Controladores
+│   ├── middlewares/   # Middlewares
+│   ├── models/        # Modelos de dados
+│   ├── routes/        # Rotas da API
+│   ├── services/      # Serviços
+│   │   ├── scraper/   # Serviço de scraping
+│   │   └── websocket/ # Serviço de WebSocket
+│   └── utils/         # Funções utilitárias
+├── api/               # API endpoints
+└── scraper/           # Scripts de scraping
+```
+
+## Configuração e Execução
+
+### Pré-requisitos
+
+- Node.js (v14 ou superior)
+- MongoDB
+
+### Instalação
+
+1. Clone o repositório
+2. Instale as dependências do frontend:
+```
+cd frontend
+npm install
+```
+
+3. Instale as dependências do backend:
+```
+cd backend
+npm install
+```
+
+### Execução
+
+1. Inicie o servidor backend:
+```
+cd backend
+npm run dev
+```
+
+2. Inicie o frontend:
+```
+cd frontend
+npm run dev
+```
+
+## Documentação Adicional
+
+Para mais detalhes sobre o funcionamento e implementação, consulte os arquivos MD na raiz do projeto.
+
 # RunCash Frontend
 
 Interface de usuário para o sistema RunCash de rastreamento de roletas.
