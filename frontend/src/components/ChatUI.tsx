@@ -122,16 +122,69 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
   if (isMobile && !isOpen) return null;
   
   return (
-    <div className="flex flex-col bg-[#1e1e24] border-t border-[#2a2a2e]">
-      <ChatHeader />
-      <div className="flex-1 overflow-y-auto max-h-[400px]">
-        <ChatMessageList messages={messages} />
+    <div className="flex flex-col bg-[#100f13] h-screen">
+      {/* Header do Chat */}
+      <div className="flex items-center justify-between px-4 py-3 bg-[#141318] border-b border-[#2a2a2e]">
+        <div className="flex items-center space-x-2">
+          <span className="text-white font-semibold">Chat ao Vivo</span>
+          <div className="flex items-center space-x-1">
+            <span className="text-green-500">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <circle cx="8" cy="8" r="4"/>
+              </svg>
+            </span>
+            <span className="text-green-500 text-sm">128</span>
+          </div>
+        </div>
       </div>
-      <ChatInput 
-        value={newMessage}
-        onChange={(e) => setNewMessage(e.target.value)}
-        onSend={handleSendMessage}
-      />
+
+      {/* Lista de Mensagens */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((message) => (
+          <div key={message.id} className="flex items-start space-x-3">
+            <div className="w-8 h-8 rounded-full bg-[#1e1e24] flex-shrink-0 overflow-hidden">
+              {message.avatar && (
+                <img src={message.avatar} alt={message.sender} className="w-full h-full object-cover" />
+              )}
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-white">{message.sender}</span>
+                {message.isModerator && (
+                  <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded">
+                    Moderator
+                  </span>
+                )}
+                {message.isAdmin && (
+                  <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded">
+                    Admin
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-300 mt-1">{message.message}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Input de Mensagem */}
+      <div className="p-4 border-t border-[#2a2a2e] bg-[#141318]">
+        <form onSubmit={handleSendMessage} className="flex space-x-2">
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            className="flex-1 bg-[#1e1e24] border border-[#2a2a2e] rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-green-500"
+            placeholder="Digite sua mensagem..."
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
+          >
+            Enviar
+          </button>
+        </form>
+      </div>
     </div>
   );
 };

@@ -123,7 +123,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         </main>
         
         {/* Chat fixo na parte inferior */}
-        <div className="fixed bottom-0 left-0 right-0 z-50">
+        <div className="fixed bottom-0 right-0 w-[400px] h-[600px] z-50">
           <ChatUI isOpen={true} />
         </div>
       </div>
