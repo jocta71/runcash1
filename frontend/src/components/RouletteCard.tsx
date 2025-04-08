@@ -100,7 +100,20 @@ interface RouletteCardProps {
 
 const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false }) => {
   // Obter referência ao serviço de feed centralizado
-  const feedService = useMemo(() => RouletteFeedService.getInstance(), []);
+  const feedService = useMemo(() => {
+    // Verificar se o sistema já foi inicializado globalmente
+    if (window.isRouletteSystemInitialized && window.isRouletteSystemInitialized()) {
+      debugLog('[RouletteCard] Usando sistema de roletas já inicializado');
+      // Recuperar o serviço do sistema global
+      return window.getRouletteSystem 
+        ? window.getRouletteSystem().rouletteFeedService 
+        : RouletteFeedService.getInstance();
+    }
+    
+    // Fallback para o comportamento padrão
+    debugLog('[RouletteCard] Sistema global não detectado, usando instância padrão');
+    return RouletteFeedService.getInstance();
+  }, []);
   
   // Garantir que data é um objeto válido com valores padrão seguros
   const safeData = useMemo(() => {

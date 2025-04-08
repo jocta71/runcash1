@@ -7,7 +7,6 @@ import EventService from '@/services/EventService';
 import CasinoAPIAdapter from '@/services/CasinoAPIAdapter';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
 import RouletteStatsModal from '@/components/RouletteStatsModal';
-import { initializeRouletteSystem } from '@/hooks/useRouletteData';
 import RouletteStatsInline from './RouletteStatsInline';
 
 // Componente de estatísticas inline 
@@ -237,8 +236,21 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
   const [showStatsInline, setShowStatsInline] = useState(false);
   
-  // Referência ao serviço de feed centralizado
-  const feedService = React.useMemo(() => RouletteFeedService.getInstance(), []);
+  // Referência ao serviço de feed centralizado, sem iniciar novo polling
+  const feedService = React.useMemo(() => {
+    // Verificar se o sistema já foi inicializado globalmente
+    if (window.isRouletteSystemInitialized && window.isRouletteSystemInitialized()) {
+      console.log('[LiveRoulettesDisplay] Usando sistema de roletas já inicializado');
+      // Recuperar o serviço do sistema global
+      return window.getRouletteSystem 
+        ? window.getRouletteSystem().rouletteFeedService 
+        : RouletteFeedService.getInstance();
+    }
+    
+    // Fallback para o comportamento padrão
+    console.log('[LiveRoulettesDisplay] Sistema global não detectado, usando instância padrão');
+    return RouletteFeedService.getInstance();
+  }, []);
 
   // Usar os dados passados como prop ou obter do feedService
   useEffect(() => {
@@ -258,9 +270,19 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
         setRoulettes(cachedRoulettes);
         setIsLoading(false);
       } else {
-        // Não inicializar mais o polling aqui - isso agora é responsabilidade do LiveRoulettePage
-        console.log('[LiveRoulettesDisplay] Aguardando dados serem carregados pela página principal');
-        setIsLoading(true);
+        // Não inicializar mais o polling aqui - isso agora é responsabilidade do sistema centralizado
+        console.log('[LiveRoulettesDisplay] Aguardando dados serem carregados pela inicialização central');
+        
+        // Definir timeout de fallback caso demore muito
+        setTimeout(() => {
+          // Verificar novamente após alguns segundos
+          const delayedRoulettes = feedService.getAllRoulettes();
+          if (delayedRoulettes && delayedRoulettes.length > 0) {
+            console.log(`[LiveRoulettesDisplay] Dados recebidos após espera: ${delayedRoulettes.length} roletas`);
+            setRoulettes(delayedRoulettes);
+            setIsLoading(false);
+          }
+        }, 3000); // Timeout mais curto, pois já temos um timeout na página
       }
     }
   }, [feedService, roulettesData]);
@@ -276,6 +298,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       if (updatedRoulettes && updatedRoulettes.length > 0) {
         console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
         setRoulettes(updatedRoulettes);
+        setIsLoading(false); // Garantir que o loading seja desativado
       }
     };
     

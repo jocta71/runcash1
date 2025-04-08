@@ -893,43 +893,21 @@ export function useRoulettesWithRealNumbers() {
 }
 
 /**
- * Hook para inicializar o sistema de roletas e gerenciar dados
- * Modificado para garantir apenas uma inicialização e uma única fonte de dados
+ * Hook para verificar se o sistema de roletas está inicializado
+ * agora usando o sistema centralizado no main.tsx
  */
-export function initializeRouletteSystem() {
-  // Verificar se o sistema já foi inicializado
-  if (SYSTEM_INITIALIZED) {
-    console.log('[Roleta] Sistema já inicializado, retornando instâncias existentes');
-    return {
-      socketService: SocketService.getInstance(),
-      rouletteFeedService: RouletteFeedService.getInstance()
-    };
-  }
+export function useRouletteSystemStatus(): { isInitialized: boolean; services: any } {
+  // Verificar se o sistema global está inicializado
+  const isInitialized = typeof window !== 'undefined' && 
+    window.ROULETTE_SYSTEM_INITIALIZED === true;
   
-  // Marcar como inicializado para evitar múltiplas instâncias
-  SYSTEM_INITIALIZED = true;
+  // Obter serviços através da API global
+  const services = typeof window !== 'undefined' && window.getRouletteSystem 
+    ? window.getRouletteSystem() 
+    : null;
   
-  // Obter instâncias dos serviços
-  const socketService = SocketService.getInstance();
-  const rouletteFeedService = RouletteFeedService.getInstance();
-  
-  // Registrar o SocketService no RouletteFeedService para funcionalidades de histórico
-  rouletteFeedService.registerSocketService(socketService);
-  
-  // Iniciar serviço único
-  rouletteFeedService.start();
-  
-  console.log('[Roleta] Sistema de roletas inicializado com polling único (8s)');
-  
-  // Adicionar função para limpar recursos quando a página for fechada
-  window.addEventListener('beforeunload', () => {
-    rouletteFeedService.stop();
-    SYSTEM_INITIALIZED = false;
-    console.log('[Roleta] Sistema de roletas finalizado');
-  });
-  
-  return {
-    socketService,
-    rouletteFeedService
+  return { 
+    isInitialized,
+    services
   };
 }

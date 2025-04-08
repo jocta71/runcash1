@@ -18,8 +18,21 @@ const LiveRoulettePage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Obter referência ao serviço de feed centralizado
-  const feedService = useMemo(() => RouletteFeedService.getInstance(), []);
+  // Obter referência ao serviço de feed centralizado sem inicializar novo polling
+  const feedService = useMemo(() => {
+    // Verificar se o sistema já foi inicializado globalmente
+    if (window.isRouletteSystemInitialized && window.isRouletteSystemInitialized()) {
+      console.log('[LiveRoulettePage] Usando sistema de roletas já inicializado');
+      // Recuperar o serviço do sistema global
+      return window.getRouletteSystem 
+        ? window.getRouletteSystem().rouletteFeedService 
+        : RouletteFeedService.getInstance();
+    }
+    
+    // Fallback para o comportamento padrão
+    console.log('[LiveRoulettePage] Sistema global não detectado, usando instância padrão');
+    return RouletteFeedService.getInstance();
+  }, []);
 
   // Função para adicionar um novo número a uma roleta específica
   const addNewNumberToRoulette = useCallback((rouletteId: string, newNumberData: any) => {
@@ -67,15 +80,9 @@ const LiveRoulettePage: React.FC = () => {
     // Marcar como inicializado para evitar inicializações múltiplas
     IS_COMPONENT_INITIALIZED = true;
     
-    // Usar o serviço diretamente em vez de inicializar pelo hook
-    console.log('[LiveRoulettePage] Inicializando fonte única de dados - RouletteFeedService');
+    console.log('[LiveRoulettePage] Inicializando componente');
     
-    // Iniciar o polling se ainda não estiver ativo
-    if (!feedService.isPollingActive) {
-      feedService.startPolling();
-    }
-    
-    // Buscar dados iniciais
+    // Buscar dados iniciais sem iniciar polling
     async function fetchInitialData() {
       try {
         setLoading(true);
@@ -88,24 +95,21 @@ const LiveRoulettePage: React.FC = () => {
           setRoulettes(cachedRoulettes);
           setLoading(false);
         } else {
-          // Buscar dados iniciais
-          console.log('[LiveRoulettePage] Buscando dados iniciais');
+          // NÃO iniciar polling ou buscar dados aqui - apenas aguardar dados do sistema centralizado
+          console.log('[LiveRoulettePage] Aguardando dados do sistema centralizado');
           
-          feedService.fetchInitialData()
-            .then(data => {
-              if (Array.isArray(data) && data.length > 0) {
-                console.log(`[LiveRoulettePage] Dados iniciais obtidos: ${data.length} roletas`);
-                setRoulettes(data);
-              } else {
-                console.warn('[LiveRoulettePage] Dados iniciais inválidos:', data);
-              }
-              setLoading(false);
-            })
-            .catch(error => {
-              console.error('[LiveRoulettePage] Erro ao buscar dados iniciais:', error);
-              setError('Falha ao carregar dados das roletas');
-              setLoading(false);
-            });
+          // Definir timeout de fallback caso demore muito
+          setTimeout(() => {
+            // Verificar novamente se já temos dados em cache depois de alguns segundos
+            const delayedRoulettes = feedService.getAllRoulettes();
+            if (delayedRoulettes && delayedRoulettes.length > 0) {
+              console.log(`[LiveRoulettePage] Dados recebidos após espera: ${delayedRoulettes.length} roletas`);
+              setRoulettes(delayedRoulettes);
+            } else {
+              console.log('[LiveRoulettePage] Sem dados após espera, mostrando página vazia');
+            }
+            setLoading(false);
+          }, 5000); // Timeout de 5 segundos para fallback
         }
       } catch (err: any) {
         console.error('Erro ao carregar dados de roletas:', err);
@@ -126,6 +130,7 @@ const LiveRoulettePage: React.FC = () => {
       if (updatedRoulettes && updatedRoulettes.length > 0) {
         console.log(`[LiveRoulettePage] Atualizando com ${updatedRoulettes.length} roletas`);
         setRoulettes(updatedRoulettes);
+        setLoading(false); // Garantir que o loading seja desativado ao receber dados
       }
     };
     

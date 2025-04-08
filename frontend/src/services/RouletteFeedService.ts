@@ -81,6 +81,8 @@ export default class RouletteFeedService {
   // Controle de inicialização única
   private initialRequestDone: boolean = false;
 
+  private socketService: any = null; // Referência ao SocketService
+
   private constructor() {
     logger.info('🚀 Inicializando serviço de feeds de roleta');
     
@@ -181,6 +183,19 @@ export default class RouletteFeedService {
     });
     
     return this.GLOBAL_INITIALIZATION_PROMISE;
+  }
+
+  /**
+   * Registra o SocketService para uso no serviço de feed
+   */
+  public registerSocketService(socketService: any): void {
+    if (!socketService) {
+      logger.warn('Tentativa de registrar SocketService inválido');
+      return;
+    }
+    
+    logger.info('SocketService registrado no RouletteFeedService');
+    this.socketService = socketService;
   }
 
   /**
@@ -711,37 +726,35 @@ export default class RouletteFeedService {
   }
   
   /**
-   * Destruir o serviço e limpar recursos
+   * Para completamente o serviço e libera recursos
    */
-  public destroy(): void {
-    logger.info('🧹 Destruindo serviço de feeds');
+  public stop(): void {
+    logger.info('Parando serviço RouletteFeedService');
     
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
+    // Parar o polling
+    if (this.pollingTimer !== null) {
+      window.clearInterval(this.pollingTimer);
       this.pollingTimer = null;
     }
     
-    if (this.backoffTimeout) {
-      clearTimeout(this.backoffTimeout);
+    // Limpar timeout de backoff se existir
+    if (this.backoffTimeout !== null) {
+      window.clearTimeout(this.backoffTimeout);
       this.backoffTimeout = null;
     }
     
-    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
-    
-    this.isPollingActive = false;
-    this.isPaused = false;
-    this.isFetching = false;
-    this.hasPendingRequest = false;
-    
-    // Limpar a instância singleton para permitir nova inicialização
-    RouletteFeedService.instance = null;
-    
-    // Limpar qualquer trava global relacionada a esta instância
-    const now = Date.now();
-    if (now - GLOBAL_LAST_REQUEST_TIME < 5000) {
-      // Se a última requisição global foi feita por esta instância, liberar a trava
-      GLOBAL_IS_FETCHING = false;
+    // Remover listeners de visibilidade
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     }
+    
+    // Limpar flags
+    this.isPollingActive = false;
+    this.isFetching = false;
+    this.IS_FETCHING_DATA = false;
+    this.hasFetchedInitialData = false;
+    
+    logger.info('Serviço RouletteFeedService parado e recursos liberados');
   }
 
   /**
