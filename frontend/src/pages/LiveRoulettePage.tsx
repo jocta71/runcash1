@@ -2,35 +2,20 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import { RouletteData } from '@/integrations/api/rouletteService';
-import axios from 'axios';
+// import axios from 'axios'; // Removido - não precisamos mais de requisições diretas
 import { Loader2 } from 'lucide-react';
 import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import { initializeRouletteSystem } from '@/hooks/useRouletteData';
 
+// Flag para controlar se o componente já foi inicializado
+let IS_COMPONENT_INITIALIZED = false;
+
 const LiveRoulettePage: React.FC = () => {
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Função para buscar os dados das roletas
-  const fetchRoulettes = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get('/api/ROULETTES');
-      if (response.data && Array.isArray(response.data)) {
-        setRoulettes(response.data);
-      } else {
-        setError('Dados de roletas em formato inválido');
-      }
-    } catch (err) {
-      console.error('Erro ao buscar roletas:', err);
-      setError('Erro ao carregar dados das roletas');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   // Função para adicionar um novo número a uma roleta específica
   const addNewNumberToRoulette = useCallback((rouletteId: string, newNumberData: any) => {
@@ -69,6 +54,15 @@ const LiveRoulettePage: React.FC = () => {
 
   // Efeito para buscar os dados iniciais
   useEffect(() => {
+    // Verificar se o componente já foi inicializado antes
+    if (IS_COMPONENT_INITIALIZED) {
+      console.log('[LiveRoulettePage] Componente já inicializado, evitando dupla inicialização');
+      return;
+    }
+    
+    // Marcar como inicializado para evitar inicializações múltiplas
+    IS_COMPONENT_INITIALIZED = true;
+    
     // Inicializar o sistema de roletas otimizado (singleton garantido)
     const { rouletteFeedService } = initializeRouletteSystem();
     console.log('[LiveRoulettePage] Sistema de roletas inicializado - fonte única de dados (8s)');
@@ -79,7 +73,9 @@ const LiveRoulettePage: React.FC = () => {
         setLoading(true);
         
         // Adicionar um pequeno atraso para garantir que o serviço carregou os dados iniciais
+        // Este atraso evita que requisições múltiplas sejam feitas durante o carregamento
         setTimeout(() => {
+          // Obter dados do serviço singleton
           const rouletteData = rouletteFeedService.getAllRouletteTables().map(table => ({
             id: table.tableId,
             nome: table.tableId, // Usar ID temporariamente se não tiver nome
@@ -89,7 +85,7 @@ const LiveRoulettePage: React.FC = () => {
           
           setRoulettes(rouletteData);
           setLoading(false);
-        }, 500);
+        }, 800); // Aumentar atraso para dar mais tempo ao serviço
       } catch (err: any) {
         console.error('Erro ao carregar dados de roletas:', err);
         setError(err.message || 'Erro ao carregar roletas');
@@ -101,6 +97,7 @@ const LiveRoulettePage: React.FC = () => {
     
     // Listener para atualizações de números
     const handleNumbersUpdated = (data: any) => {
+      // console.log('[LiveRoulettePage] Recebida atualização:', data.tableId);
       setRoulettes(prev => {
         // Encontrar a roleta que foi atualizada
         const roletaIndex = prev.findIndex(r => r.id === data.tableId);
@@ -142,6 +139,8 @@ const LiveRoulettePage: React.FC = () => {
     
     return () => {
       EventService.off('roulette:numbers-updated', handleNumbersUpdated);
+      // Não resetamos IS_COMPONENT_INITIALIZED pois queremos garantir que só haja
+      // uma inicialização durante todo o ciclo de vida da aplicação
     };
   }, []);
 

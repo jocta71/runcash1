@@ -300,6 +300,9 @@ export function useRouletteData(
   // EventService para eventos
   const eventService = useMemo(() => EventService.getInstance(), []);
   
+  // Adicionar referência ao RouletteFeedService para controle centralizado de requests
+  const feedService = useMemo(() => RouletteFeedService.getInstance(), []);
+  
   // Verifica se a roleta tem dados (números)
   const checkIfRouleteHasData = useCallback((roulette: any): boolean => {
     if (!roulette) return false;
@@ -807,6 +810,46 @@ export function useRouletteData(
     // Atualizar o estado dos números
     setNumbers(limitedNumbers);
   }, [initialNumbers, newNumbers, limit]);
+  
+  // Registrar para obter atualizações em tempo real
+  useEffect(() => {
+    // Iniciar o serviço de polling único para todas as requisições
+    feedService.startPolling();
+    
+    // Cleanup quando o componente for desmontado
+    return () => {
+      // Não desativamos o polling aqui, pois outros componentes podem precisar dele
+      // O gerenciamento do ciclo de vida é responsabilidade do RouletteFeedService
+    };
+  }, [feedService]);
+  
+  // Buscar roletas e estratégias apenas uma vez na montagem
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        setLoading(true);
+        
+        // Usar o serviço centralizado para buscar dados iniciais
+        const roletas = await feedService.fetchInitialData();
+        
+        if (roletas && roletas.length > 0) {
+          // Processar as roletas retornadas pelo serviço
+          processInitialRoulettes(roletas);
+          setLoading(false);
+        } else {
+          console.error('Falha ao carregar roletas iniciais');
+          setError('Não foi possível carregar as roletas');
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados iniciais:', error);
+        setError('Erro ao carregar dados');
+        setLoading(false);
+      }
+    };
+
+    fetchAllData();
+  }, [feedService]);
   
   // Retornar o resultado processado
   return {

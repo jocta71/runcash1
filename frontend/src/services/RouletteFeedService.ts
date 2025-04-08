@@ -10,32 +10,103 @@ const logger = new Logger('RouletteFeedService');
  * Serviço para obter atualizações das roletas usando polling único
  * Intervalo ajustado para 8 segundos conforme especificação
  */
-class RouletteFeedService {
-  private static instance: RouletteFeedService;
-  private apiBaseUrl: string;
-  private lastRouletteNumbers: Map<string, string[]> = new Map();
-  private socketService: any;
+export default class RouletteFeedService {
+  private static instance: RouletteFeedService | null = null;
   
-  // Intervalo otimizado para 8 segundos exatos conforme solicitado
-  private pollingInterval: number = 8000;
-  private pollingTimer: number | null = null;
-  private currentInterval: number = 8000;
-  
-  // Flag para controlar se uma requisição já está em andamento
-  private isRequestInProgress: boolean = false;
-  
-  // Flag de inicialização global para garantir apenas uma instância de polling
-  private static isInitialized: boolean = false;
-  
-  // Timestamps para monitoramento
+  // Estado de requisições
+  private isFetching: boolean = false;
   private lastFetchTime: number = 0;
+  private fetchPromise: Promise<any> | null = null;
+  private successfulFetchesCount: number = 0;
+  private failedFetchesCount: number = 0;
+  private requestStats: {
+    totalRequests: number;
+    successfulRequests: number;
+    failedRequests: number;
+    lastMinuteRequests: number[];
+    avgResponseTime: number;
+    lastResponseTime: number;
+  } = {
+    totalRequests: 0,
+    successfulRequests: 0,
+    failedRequests: 0,
+    lastMinuteRequests: [],
+    avgResponseTime: 0,
+    lastResponseTime: 0
+  };
   
-  constructor() {
-    this.apiBaseUrl = config.apiBaseUrl;
-    logger.info('Inicializado com URL base:', this.apiBaseUrl);
-    logger.info(`Configurado com intervalo de polling de ${this.pollingInterval}ms (exatamente 8 segundos)`);
+  // Configurações de polling
+  private interval: number = 8000; // 8 segundos padrão para polling
+  private minInterval: number = 5000; // Mínimo 5 segundos
+  private maxInterval: number = 20000; // Máximo 20 segundos
+  private maxRequestsPerMinute: number = 30; // Limite de 30 requisições por minuto
+  private backoffMultiplier: number = 1.5; // Multiplicador para backoff em caso de falhas
+  
+  // Flags e temporizadores
+  private isInitialized: boolean = false;
+  private isPollingActive: boolean = false;
+  private pollingTimer: any = null;
+  private isPaused: boolean = false;
+  private hasPendingRequest: boolean = false;
+  private backoffTimeout: any = null;
+  private hasFetchedInitialData: boolean = false;
+
+  private constructor() {
+    console.log('[RouletteFeedService] 🚀 Inicializando serviço de feeds de roleta');
+    
+    // Limpar as requisições antigas do último minuto a cada 10 segundos
+    setInterval(() => this.cleanupOldRequests(), 10000);
+    
+    // Verificar se devemos aguardar a visibilidade da página para iniciar
+    if (typeof document !== 'undefined') {
+      const isVisible = document.visibilityState === 'visible';
+      console.log(`[RouletteFeedService] 👁️ Visibilidade inicial: ${isVisible ? 'visível' : 'oculta'}`);
+      
+      // Adicionar listener para mudanças de visibilidade
+      document.addEventListener('visibilitychange', this.handleVisibilityChange);
+      
+      // Se a página já estiver visível, inicializar normalmente
+      if (isVisible) {
+        this.initialize();
+      } else {
+        console.log('[RouletteFeedService] ⏸️ Aguardando página ficar visível para iniciar o polling');
+      }
+    } else {
+      // Em ambiente sem document, inicializar imediatamente
+      this.initialize();
+    }
+  }
+
+  private initialize(): void {
+    if (this.isInitialized) {
+      console.log('[RouletteFeedService] ⚠️ Serviço já inicializado, ignorando chamada dupla');
+      return;
+    }
+    
+    this.isInitialized = true;
+    console.log('[RouletteFeedService] 🔄 Inicializando serviço com intervalo de polling de', this.interval, 'ms');
   }
   
+  /**
+   * Controle de visibilidade do documento para otimizar recursos
+   */
+  private handleVisibilityChange = (): void => {
+    const isVisible = document.visibilityState === 'visible';
+    
+    if (isVisible) {
+      console.log('[RouletteFeedService] 👁️ Página visível, retomando polling');
+      this.resumePolling();
+      // Realizar uma atualização imediata quando a página fica visível
+      this.fetchLatestData();
+    } else {
+      console.log('[RouletteFeedService] 🔒 Página em segundo plano, pausando polling');
+      this.pausePolling();
+    }
+  }
+  
+  /**
+   * Obtém a instância única do serviço (Singleton)
+   */
   public static getInstance(): RouletteFeedService {
     if (!RouletteFeedService.instance) {
       RouletteFeedService.instance = new RouletteFeedService();
@@ -44,286 +115,383 @@ class RouletteFeedService {
   }
   
   /**
-   * Inicia o serviço de feed de roletas
+   * Limpa requisições antigas (mais de 1 minuto) para controle de rate limit
    */
-  public start(): void {
-    // Verificar se o sistema já foi inicializado para prevenir múltiplas instâncias
-    if (RouletteFeedService.isInitialized) {
-      logger.info('Serviço já está inicializado, ignorando chamada duplicada');
+  private cleanupOldRequests(): void {
+    const now = Date.now();
+    // Manter apenas requisições do último minuto
+    this.requestStats.lastMinuteRequests = this.requestStats.lastMinuteRequests
+      .filter(timestamp => now - timestamp < 60000);
+  }
+  
+  /**
+   * Verifica se o serviço pode fazer uma nova requisição baseado em vários fatores:
+   * - Limite de requisições por minuto
+   * - Se já existe uma requisição em andamento
+   * - Se houve falhas recentes que demandem backoff
+   */
+  private canMakeRequest(): boolean {
+    // Se estiver pausado, não fazer requisições
+    if (this.isPaused) {
+      console.log('[RouletteFeedService] ⏸️ Serviço pausado, ignorando solicitação');
+      return false;
+    }
+    
+    // Se já houver uma requisição em andamento, aguardar
+    if (this.isFetching || this.hasPendingRequest) {
+      console.log('[RouletteFeedService] ⏳ Requisição já em andamento, aguardando');
+      return false;
+    }
+    
+    // Verificar limite de requisições por minuto
+    const requestsInLastMinute = this.requestStats.lastMinuteRequests.length;
+    if (requestsInLastMinute >= this.maxRequestsPerMinute) {
+      console.log(`[RouletteFeedService] 🚦 Limite de requisições atingido: ${requestsInLastMinute}/${this.maxRequestsPerMinute} por minuto`);
+      return false;
+    }
+    
+    // Verificar tempo mínimo entre requisições
+    const now = Date.now();
+    const timeSinceLastFetch = now - this.lastFetchTime;
+    
+    if (timeSinceLastFetch < this.minInterval) {
+      console.log(`[RouletteFeedService] ⏱️ Requisição muito recente (${timeSinceLastFetch}ms), aguardando intervalo mínimo de ${this.minInterval}ms`);
+      return false;
+    }
+    
+    return true;
+  }
+  
+  /**
+   * Ajusta dinamicamente o intervalo de polling com base no sucesso ou falha das requisições
+   */
+  private adjustPollingInterval(success: boolean, responseTime?: number): void {
+    if (success) {
+      // Requisição bem-sucedida, podemos diminuir o intervalo gradualmente
+      this.successfulFetchesCount++;
+      this.failedFetchesCount = 0; // Resetar contador de falhas
+      
+      // A cada 3 sucessos consecutivos, reduzir o intervalo em 10% até o mínimo
+      if (this.successfulFetchesCount >= 3 && this.interval > this.minInterval) {
+        const newInterval = Math.max(this.minInterval, this.interval * 0.9);
+        if (newInterval !== this.interval) {
+          console.log(`[RouletteFeedService] ⚡ Otimizando: Reduzindo intervalo para ${newInterval}ms`);
+          this.interval = newInterval;
+        }
+      }
+      
+      // Registrar estatísticas
+      if (responseTime) {
+        this.requestStats.lastResponseTime = responseTime;
+        // Atualizar média de tempo de resposta (média móvel)
+        const prevAvg = this.requestStats.avgResponseTime;
+        this.requestStats.avgResponseTime = prevAvg === 0 
+          ? responseTime 
+          : prevAvg * 0.7 + responseTime * 0.3; // Peso maior para valores históricos
+      }
+    } else {
+      // Requisição falhou, aumentar o intervalo com backoff exponencial
+      this.failedFetchesCount++;
+      this.successfulFetchesCount = 0; // Resetar contador de sucessos
+      
+      // Backoff exponencial até o máximo
+      if (this.failedFetchesCount > 0) {
+        const backoffFactor = Math.min(this.backoffMultiplier * this.failedFetchesCount, 3);
+        const newInterval = Math.min(this.maxInterval, this.interval * backoffFactor);
+        
+        console.log(`[RouletteFeedService] 🔄 Backoff: Aumentando intervalo para ${newInterval}ms após ${this.failedFetchesCount} falhas`);
+        this.interval = newInterval;
+        
+        // Se tivermos muitas falhas consecutivas, pausar brevemente
+        if (this.failedFetchesCount >= 5) {
+          console.log('[RouletteFeedService] ⚠️ Muitas falhas consecutivas, pausando por 30 segundos');
+          this.pausePolling();
+          
+          if (this.backoffTimeout) {
+            clearTimeout(this.backoffTimeout);
+          }
+          
+          this.backoffTimeout = setTimeout(() => {
+            console.log('[RouletteFeedService] 🔄 Retomando após pausa de backoff');
+            this.resumePolling();
+          }, 30000);
+        }
+      }
+    }
+    
+    // Atualizar o timer de polling se estiver ativo
+    if (this.isPollingActive && this.pollingTimer) {
+      this.restartPollingTimer();
+    }
+  }
+  
+  /**
+   * Controla o início e parada do polling
+   */
+  public startPolling(): void {
+    if (this.isPollingActive) {
+      console.log('[RouletteFeedService] ⚠️ Polling já ativo, ignorando solicitação');
       return;
     }
     
-    RouletteFeedService.isInitialized = true;
-    logger.info('Iniciando serviço de feed de roletas com polling otimizado (única fonte)');
+    console.log(`[RouletteFeedService] 🚀 Iniciando polling com intervalo de ${this.interval}ms`);
+    this.isPollingActive = true;
+    this.isPaused = false;
     
-    // Buscar dados iniciais imediatamente
-    this.fetchInitialData();
+    // Fazer uma requisição imediata
+    this.fetchLatestData();
     
-    // Iniciar polling com intervalo exato de 8 segundos
-    this.startPolling();
-    
-    // Monitorar visibilidade da página
-    document.addEventListener('visibilitychange', this.handleVisibilityChange);
-    
-    // Adicionar listener para limpeza quando a página fechar
-    window.addEventListener('beforeunload', this.cleanupService);
-  }
-  
-  /**
-   * Limpeza do serviço ao fechar página
-   */
-  private cleanupService = (): void => {
-    this.stop();
-  }
-  
-  /**
-   * Para o serviço de feed
-   */
-  public stop(): void {
-    logger.info('Parando serviço de feed de roletas');
-    
-    // Limpar listeners
-    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
-    window.removeEventListener('beforeunload', this.cleanupService);
-    
-    // Parar o polling
-    this.stopPolling();
-    
-    // Resetar flag de inicialização
-    RouletteFeedService.isInitialized = false;
-  }
-  
-  /**
-   * Handler para mudanças de visibilidade da página
-   */
-  private handleVisibilityChange = (): void => {
-    if (document.visibilityState === 'visible') {
-      logger.info('Página voltou a ficar visível, reativando polling');
-      
-      // Verificar se o polling está ativo
-      if (!this.pollingTimer) {
-        this.startPolling();
-      }
-    }
-  }
-  
-  /**
-   * Inicia o polling para buscar atualizações periódicas
-   * Garante apenas uma fonte de requisições
-   */
-  private startPolling(): void {
-    // Limpar qualquer timer existente
-    this.stopPolling();
-    
-    // Iniciar novo timer com o intervalo exato de 8 segundos
+    // Configurar o timer para próximas requisições
     this.pollingTimer = setInterval(() => {
       this.fetchLatestData();
-    }, this.currentInterval);
-    
-    logger.info(`Polling único iniciado (intervalo: ${this.currentInterval}ms)`);
+    }, this.interval);
   }
   
-  /**
-   * Para o polling
-   */
-  private stopPolling(): void {
+  public stopPolling(): void {
+    if (!this.isPollingActive) {
+      return;
+    }
+    
+    console.log('[RouletteFeedService] 🛑 Parando polling');
+    this.isPollingActive = false;
+    
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer);
       this.pollingTimer = null;
-      logger.info('Polling interrompido');
     }
   }
   
-  /**
-   * Busca dados iniciais das roletas
-   */
-  private async fetchInitialData(): Promise<void> {
-    try {
-      // Prevenir múltiplas requisições simultâneas
-      if (this.isRequestInProgress) {
-        logger.debug('Requisição já em andamento, ignorando chamada duplicada');
-        return;
-      }
-      
-      this.isRequestInProgress = true;
-      
-      const startTime = Date.now();
-      const response = await axios.get(`${this.apiBaseUrl}/api/roletas`);
-      
-      if (response.status === 200 && response.data) {
-        response.data.forEach((roleta: any) => {
-          if (roleta.id && roleta.numeros) {
-            this.lastRouletteNumbers.set(roleta.id, roleta.numeros);
-          }
-        });
-        
-        logger.info(`Dados iniciais carregados: ${response.data.length} roletas em ${Date.now() - startTime}ms`);
-      }
-    } catch (error) {
-      logger.error('Erro ao buscar dados iniciais:', error);
-    } finally {
-      this.isRequestInProgress = false;
-    }
-  }
-  
-  /**
-   * Busca as atualizações mais recentes via polling
-   * Implementa controle para garantir apenas uma requisição de cada vez
-   */
-  private async fetchLatestData(): Promise<void> {
-    // Evitar requisições sobrepostas
-    if (this.isRequestInProgress) {
-      logger.debug('Ignorando requisição (já existe uma em andamento)');
+  private pausePolling(): void {
+    if (this.isPaused) {
       return;
     }
     
-    // Registrar timestamp para garantir intervalo mínimo entre chamadas
-    const now = Date.now();
-    if (now - this.lastFetchTime < 7000) { // Garantir pelo menos 7s entre requisições como segurança
-      logger.debug('Ignorando requisição redundante (muito próxima da anterior)');
-      return;
+    console.log('[RouletteFeedService] ⏸️ Pausando polling');
+    this.isPaused = true;
+    
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+  }
+  
+  private resumePolling(): void {
+    if (this.isPollingActive && this.isPaused) {
+      console.log('[RouletteFeedService] ▶️ Retomando polling');
+      this.isPaused = false;
+      
+      // Reiniciar o timer
+      this.restartPollingTimer();
+    } else if (!this.isPollingActive) {
+      // Se não estava ativo, iniciar
+      this.startPolling();
+    }
+  }
+  
+  private restartPollingTimer(): void {
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
     }
     
-    this.lastFetchTime = now;
-    this.isRequestInProgress = true;
+    this.pollingTimer = setInterval(() => {
+      this.fetchLatestData();
+    }, this.interval);
+    
+    console.log(`[RouletteFeedService] 🔄 Timer de polling reiniciado com intervalo de ${this.interval}ms`);
+  }
+  
+  /**
+   * Busca os dados iniciais de todas as roletas permitidas
+   */
+  public async fetchInitialData(): Promise<any> {
+    console.log('[RouletteFeedService] 🔍 Buscando dados iniciais de todas as roletas');
+    
+    if (this.hasFetchedInitialData) {
+      console.log('[RouletteFeedService] ℹ️ Dados iniciais já carregados anteriormente');
+    }
+    
+    // Marcar que já buscamos dados iniciais
+    this.hasFetchedInitialData = true;
     
     try {
+      // Esta é uma requisição especial - deve passar por qualquer limite de rate
+      this.hasPendingRequest = true;
+      this.isFetching = true;
+      this.requestStats.totalRequests++;
+      this.requestStats.lastMinuteRequests.push(Date.now());
+      
       const startTime = Date.now();
-      logger.debug(`Iniciando requisição de dados em ${new Date().toISOString()}`);
       
-      const response = await axios.get(`${this.apiBaseUrl}/api/roletas`);
+      // Importar de forma dinâmica para evitar problemas de dependência circular
+      const { fetchRoulettesWithRealNumbers } = await import('../integrations/api/rouletteService');
+      const data = await fetchRoulettesWithRealNumbers();
       
-      if (response.status === 200 && response.data) {
-        // Contar atualizações
-        let updatesCount = 0;
-        
-        response.data.forEach((roleta: any) => {
-          if (roleta.id && roleta.numeros) {
-            // Comparar com os últimos números armazenados
-            const currentNumbers = this.lastRouletteNumbers.get(roleta.id) || [];
-            const newNumbers = roleta.numeros;
-            
-            // Verificar se houve atualização (número diferente na primeira posição)
-            if (newNumbers.length > 0 && 
-                (currentNumbers.length === 0 || newNumbers[0] !== currentNumbers[0])) {
-              
-              // Atualizar números armazenados
-              this.lastRouletteNumbers.set(roleta.id, newNumbers);
-              
-              // Emitir evento de atualização
-              EventService.emit('roulette:numbers-updated', {
-                tableId: roleta.id,
-                tableName: roleta.nome || `Roleta ${roleta.id}`,
-                numbers: newNumbers,
-                isNewNumber: true,
-                latestNumber: newNumbers[0]
-              });
-              
-              updatesCount++;
-              logger.info(`Nova atualização para roleta ${roleta.id}: ${newNumbers[0]}`);
-            }
-          }
-        });
-        
-        const processingTime = Date.now() - startTime;
-        if (updatesCount > 0) {
-          logger.info(`Atualizações recebidas via polling único: ${updatesCount} roletas atualizadas em ${processingTime}ms`);
-        } else {
-          logger.debug(`Polling concluído sem atualizações (${processingTime}ms)`);
-        }
-      }
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
+      
+      console.log(`[RouletteFeedService] ✅ Dados iniciais obtidos com sucesso em ${responseTime}ms`);
+      
+      // Atualizar estatísticas
+      this.requestStats.successfulRequests++;
+      this.requestStats.lastResponseTime = responseTime;
+      
+      // Marcar tempo da última requisição bem-sucedida
+      this.lastFetchTime = endTime;
+      
+      // Ajustar intervalo com base no sucesso
+      this.adjustPollingInterval(true, responseTime);
+      
+      return data;
     } catch (error) {
-      logger.error('Erro ao buscar atualizações:', error);
-    } finally {
-      this.isRequestInProgress = false;
-    }
-  }
-  
-  /**
-   * Retorna os últimos números conhecidos para uma mesa específica
-   */
-  public getLastNumbersForTable(tableId: string): string[] {
-    return this.lastRouletteNumbers.get(tableId) || [];
-  }
-  
-  /**
-   * Retorna todas as mesas de roleta conhecidas
-   */
-  public getAllRouletteTables(): { tableId: string, numbers: string[] }[] {
-    const result: { tableId: string, numbers: string[] }[] = [];
-    
-    this.lastRouletteNumbers.forEach((numbers, tableId) => {
-      result.push({
-        tableId,
-        numbers
-      });
-    });
-    
-    return result;
-  }
-
-  /**
-   * Obtém o histórico completo de números para uma roleta específica
-   */
-  async getCompleteHistory(roletaId: string): Promise<HistoryData> {
-    try {
-      logger.info(`Solicitando histórico completo para roleta ${roletaId}`);
+      console.error('[RouletteFeedService] ❌ Erro ao buscar dados iniciais:', error);
       
-      if (!this.socketService) {
-        throw new Error('SocketService não está inicializado');
-      }
+      // Atualizar estatísticas
+      this.requestStats.failedRequests++;
       
-      const historyData = await this.socketService.requestRouletteHistory(roletaId);
+      // Ajustar intervalo com base na falha
+      this.adjustPollingInterval(false);
       
-      logger.info(`Histórico recebido: ${historyData.numeros?.length || 0} números`);
-      
-      // Notificar via EventService
-      EventService.emit('roulette:complete-history', {
-        roletaId,
-        history: historyData
-      });
-      
-      return historyData;
-    } catch (error) {
-      logger.error('Erro ao obter histórico:', error);
       throw error;
+    } finally {
+      this.isFetching = false;
+      this.hasPendingRequest = false;
     }
   }
   
   /**
-   * Força uma atualização imediata (útil para testes ou quando o usuário solicita manualmente)
+   * Busca os dados mais recentes de todas as roletas permitidas
+   * usando o sistema de verificação de taxa e estado
    */
-  public async forceUpdate(): Promise<void> {
-    logger.info('Atualizando dados sob demanda');
-    await this.fetchLatestData();
+  public async fetchLatestData(): Promise<any> {
+    // Verificar se podemos fazer uma nova requisição
+    if (!this.canMakeRequest()) {
+      if (this.hasPendingRequest || this.isFetching) {
+        console.log('[RouletteFeedService] ⏳ Requisição em andamento, retornando a promise existente');
+        return this.fetchPromise;
+      }
+      console.log('[RouletteFeedService] 🚫 Não é possível fazer uma nova requisição agora');
+      return Promise.resolve(null);
+    }
+    
+    // Marcar que estamos buscando dados
+    this.hasPendingRequest = true;
+    this.isFetching = true;
+    
+    // Criar a promise para esta requisição
+    this.fetchPromise = (async () => {
+      try {
+        // Registrar a requisição nas estatísticas
+        this.requestStats.totalRequests++;
+        this.requestStats.lastMinuteRequests.push(Date.now());
+        
+        console.log('[RouletteFeedService] 🔄 Buscando dados atualizados de todas as roletas');
+        const startTime = Date.now();
+        
+        // Importar de forma dinâmica para evitar problemas de dependência circular
+        const { fetchRoulettesWithRealNumbers } = await import('../integrations/api/rouletteService');
+        const data = await fetchRoulettesWithRealNumbers();
+        
+        const endTime = Date.now();
+        const responseTime = endTime - startTime;
+        
+        console.log(`[RouletteFeedService] ✅ Dados atualizados obtidos com sucesso em ${responseTime}ms`);
+        
+        // Atualizar estatísticas
+        this.requestStats.successfulRequests++;
+        this.lastFetchTime = endTime;
+        
+        // Ajustar intervalo com base no sucesso
+        this.adjustPollingInterval(true, responseTime);
+        
+        return data;
+      } catch (error) {
+        console.error('[RouletteFeedService] ❌ Erro ao buscar dados atualizados:', error);
+        
+        // Atualizar estatísticas
+        this.requestStats.failedRequests++;
+        
+        // Ajustar intervalo com base na falha
+        this.adjustPollingInterval(false);
+        
+        throw error;
+      } finally {
+        this.isFetching = false;
+        this.hasPendingRequest = false;
+      }
+    })();
+    
+    return this.fetchPromise;
   }
   
   /**
-   * Registra o SocketService para obter histórico completo
+   * Retorna estatísticas sobre as requisições realizadas
    */
-  public registerSocketService(socketService: any): void {
-    this.socketService = socketService;
-    logger.info('SocketService registrado para histórico completo');
-  }
-  
-  /**
-   * Retorna o status do serviço
-   */
-  public getStatus(): { 
-    initialized: boolean; 
-    isPolling: boolean; 
-    interval: number;
-    lastFetchTime: number;
-    cachedTables: number;
-  } {
+  public getRequestStats(): any {
     return {
-      initialized: RouletteFeedService.isInitialized,
-      isPolling: this.pollingTimer !== null,
-      interval: this.currentInterval,
-      lastFetchTime: this.lastFetchTime,
-      cachedTables: this.lastRouletteNumbers.size
+      ...this.requestStats,
+      currentInterval: this.interval,
+      isPollingActive: this.isPollingActive,
+      isPaused: this.isPaused,
+      isFetching: this.isFetching,
+      requestsInLastMinute: this.requestStats.lastMinuteRequests.length,
+      maxRequestsPerMinute: this.maxRequestsPerMinute,
+      successfulFetchesCount: this.successfulFetchesCount,
+      failedFetchesCount: this.failedFetchesCount,
+      timeSinceLastFetch: Date.now() - this.lastFetchTime
     };
   }
-}
-
-export default RouletteFeedService; 
+  
+  /**
+   * Método para fins de teste: forçar uma atualização imediata
+   */
+  public forceUpdate(): Promise<any> {
+    console.log('[RouletteFeedService] 🔄 Forçando atualização imediata');
+    
+    // Limpar qualquer timer existente
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+    
+    // Resetar flags para permitir a requisição
+    this.isFetching = false;
+    this.hasPendingRequest = false;
+    
+    // Buscar dados e reiniciar o timer
+    const promise = this.fetchLatestData();
+    
+    // Reiniciar o timer se o polling estiver ativo
+    if (this.isPollingActive && !this.isPaused) {
+      this.restartPollingTimer();
+    }
+    
+    return promise;
+  }
+  
+  /**
+   * Destruir o serviço e limpar recursos
+   */
+  public destroy(): void {
+    console.log('[RouletteFeedService] 🧹 Destruindo serviço de feeds');
+    
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+    
+    if (this.backoffTimeout) {
+      clearTimeout(this.backoffTimeout);
+      this.backoffTimeout = null;
+    }
+    
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    
+    this.isPollingActive = false;
+    this.isPaused = false;
+    this.isFetching = false;
+    this.hasPendingRequest = false;
+    
+    // Limpar a instância singleton para permitir nova inicialização
+    RouletteFeedService.instance = null;
+  }
+} 

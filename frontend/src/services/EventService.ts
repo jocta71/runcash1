@@ -56,9 +56,15 @@ export type RouletteEventCallback = (event: RouletteNumberEvent | StrategyUpdate
 // Tipo para callbacks de eventos genéricos
 export type EventCallback = (data: any) => void;
 
-// Serviço de eventos
-class EventService {
-  private static instance: EventService;
+export class EventService {
+  private static instance: EventService | null = null;
+  private static isInitializing = false;
+  private static initializationPromise: Promise<EventService> | null = null;
+
+  private eventListeners: Record<string, Function[]> = {};
+  private globalEventListeners: Record<string, Function[]> = {};
+  private socketService: SocketService | null = null;
+
   private eventSource: EventSource | null = null;
   private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
   private isConnected: boolean = false;
@@ -76,6 +82,14 @@ class EventService {
   private customEventListeners: Map<string, Set<EventCallback>> = new Map();
 
   private constructor() {
+    if (EventService.instance) {
+      throw new Error('Erro: Tentativa de criar uma nova instância do EventService. Use EventService.getInstance()');
+    }
+    
+    // Inicialização padrão
+    this.eventListeners = {};
+    this.globalEventListeners = {};
+    
     // Adicionar listener global para logging de todos os eventos
     this.subscribe('*', (event: RouletteNumberEvent) => {
       debugLog(`[EventService][GLOBAL] Evento: ${event.roleta_nome}, número: ${event.numero}`);
@@ -87,6 +101,39 @@ class EventService {
     
     // Adicionar listener para visibilidade da página
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
+  }
+
+  /**
+   * Obtém a única instância do EventService (Singleton)
+   * Implementa um mecanismo que previne múltiplas instâncias mesmo com chamadas paralelas
+   */
+  public static getInstance(): EventService {
+    // Se já existe uma instância, retorna imediatamente
+    if (EventService.instance) {
+      return EventService.instance;
+    }
+
+    // Se já está inicializando, aguarde
+    if (EventService.isInitializing) {
+      console.log('[EventService] Inicialização em andamento, aguardando...');
+      // Não tentamos retornar a promise de inicialização, pois não é utilizada corretamente
+      // Apenas retornamos a instância, que deve estar definida neste ponto
+      return EventService.instance as EventService;
+    }
+
+    // Inicia o processo de inicialização
+    EventService.isInitializing = true;
+    
+    // Cria instância apenas se ainda não existir
+    if (!EventService.instance) {
+      console.log('[EventService] Criando nova instância');
+      EventService.instance = new EventService();
+    }
+    
+    // Libera o flag de inicialização
+    EventService.isInitializing = false;
+    
+    return EventService.instance;
   }
 
   // Cleanup quando o serviço é destruído
@@ -116,13 +163,6 @@ class EventService {
       // para economizar recursos (comentado por enquanto)
       // this.disconnect();
     }
-  }
-
-  public static getInstance(): EventService {
-    if (!EventService.instance) {
-      EventService.instance = new EventService();
-    }
-    return EventService.instance;
   }
 
   // Obtém a URL do servidor de eventos baseado no método atual
@@ -717,13 +757,11 @@ class EventService {
       // Verificar conexão do SocketService
       if (!socketService.isSocketConnected()) {
         debugLog('[EventService] Socket não conectado, tentando reconectar');
-        socketService.reconnect()
-          .then(connected => {
-            if (connected) {
-              socketService.requestRecentNumbers();
-              socketService.broadcastConnectionState();
-            }
-          });
+        // Simplificar a chamada para evitar problema com o tipo void
+        socketService.reconnect();
+        // Solicitar atualizações em qualquer caso
+        socketService.requestRecentNumbers();
+        socketService.broadcastConnectionState();
       } else {
         // Se estiver conectado, solicitar atualização
         socketService.requestRecentNumbers();
