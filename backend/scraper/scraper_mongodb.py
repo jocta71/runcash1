@@ -419,24 +419,42 @@ def scrape_roletas_api(db, numero_hook=None):
                     mesa_atual = {
                         'id': table_id,
                         'nome': roleta_nome,
-                        'numeros': last_numbers if last_numbers else []
+                        'numeros': last_numbers if last_numbers else [],
+                        'ultimos_5_numeros': last_numbers[:5] if last_numbers else []  # Armazenar os últimos 5 números
                     }
                     
-                    # Criar hash da mesa atual para comparação rápida
-                    mesa_hash = hashlib.md5(json.dumps(mesa_atual, sort_keys=True).encode()).hexdigest()
-                    
                     # Verificar se os dados são idênticos ao ciclo anterior
-                    if table_id in estado_anterior_mesas and estado_anterior_mesas[table_id]['hash'] == mesa_hash:
-                        print(f"[API] Mesa {roleta_nome} sem alterações (hash: {mesa_hash[:6]})")
-                        continue
+                    if table_id in estado_anterior_mesas:
+                        numeros_anteriores = estado_anterior_mesas[table_id].get('ultimos_5_numeros', [])
+                        numeros_atuais = mesa_atual['ultimos_5_numeros']
+                        
+                        # Se temos 5 números em ambos os casos, fazer comparação completa
+                        if len(numeros_anteriores) == 5 and len(numeros_atuais) == 5:
+                            # Verificar se são exatamente as mesmas sequências
+                            if numeros_anteriores == numeros_atuais:
+                                print(f"[API] Mesa {roleta_nome} sem alterações nos últimos 5 números: {numeros_atuais}")
+                                continue
+                            
+                            # Verificar se a sequência mudou corretamente
+                            # Os números da posição 1-4 da sequência anterior devem corresponder às posições 0-3 da nova sequência
+                            sequencia_valida = True
+                            for i in range(4):
+                                if numeros_anteriores[i] != numeros_atuais[i+1]:
+                                    sequencia_valida = False
+                                    break
+                            
+                            if not sequencia_valida:
+                                print(f"[API] Sequência inválida detectada. Anterior: {numeros_anteriores}, Atual: {numeros_atuais}")
+                                continue
                     
                     # Atualizar o estado desta mesa para o próximo ciclo
                     estado_anterior_mesas[table_id] = {
-                        'hash': mesa_hash,
+                        'ultimos_5_numeros': mesa_atual['ultimos_5_numeros'],
                         'ultima_atualizacao': tempo_atual
                     }
                     
                     print(f"[API] Processando roleta permitida: {roleta_nome} (ID: {table_id}, Clean ID: {clean_id})")
+                    print(f"[API] Últimos 5 números: {mesa_atual['ultimos_5_numeros']}")
                     
                     # Processar apenas se tiver números
                     if last_numbers and len(last_numbers) > 0:
