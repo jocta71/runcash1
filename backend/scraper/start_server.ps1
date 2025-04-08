@@ -86,9 +86,5 @@ if ($hasData -match "no_data") {
 }
 
 # Iniciar o servidor
-Write-Host "`nIniciando o servidor API com suporte a SSE..." -ForegroundColor Green
-$env:FLASK_APP = "server.py"
-$env:FLASK_ENV = "development"
-$env:FLASK_DEBUG = "1"
-$env:SSE_ENABLED = "true"
-python -m flask run --host=0.0.0.0 --port=5000 
+Write-Host "`nIniciando o servidor API..." -ForegroundColor Green
+python server.py 
