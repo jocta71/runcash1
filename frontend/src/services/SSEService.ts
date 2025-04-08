@@ -31,7 +31,7 @@ export class SSEService {
     // URL base da API (já inclui /api)
     const baseUrl = config.apiBaseUrl || '';
     
-    // Possíveis endpoints para eventos
+    // Possíveis endpoints para eventos (sem /api/ pois já vem na URL base)
     const possibleEndpoints = [
       'events',           // Endpoint simples
       'sse',             // Endpoint alternativo
@@ -62,31 +62,37 @@ export class SSEService {
     // URL base da API (já inclui /api)
     const baseUrl = config.apiBaseUrl || window.location.origin;
     
-    // Remover possível barra no final da URL base
-    const normalizedBaseUrl = baseUrl.endsWith('/') 
+    // Remover possível barra no final da URL base e /api se existir
+    let normalizedBaseUrl = baseUrl.endsWith('/') 
       ? baseUrl.slice(0, -1) 
       : baseUrl;
     
-    // Lista de possíveis endpoints
+    // Se a URL base já termina com /api, remover para evitar duplicação
+    if (normalizedBaseUrl.endsWith('/api')) {
+      normalizedBaseUrl = normalizedBaseUrl.slice(0, -4);
+    }
+    
+    // Lista de possíveis endpoints (com /api/ pois removemos da base)
     const endpoints = [
-      'sse-status',  // Endpoint de diagnóstico
-      'events',      // Endpoint principal
-      'sse'         // Endpoint alternativo
+      'api/sse-status',  // Endpoint de diagnóstico
+      'api/events',      // Endpoint principal
+      'api/sse'         // Endpoint alternativo
     ];
     
     logger.info('Testando endpoints disponíveis...');
+    logger.info(`URL base normalizada: ${normalizedBaseUrl}`);
     
     // Testar o endpoint de status primeiro
     try {
-      const statusResponse = await fetch(`${normalizedBaseUrl}/sse-status`);
+      const statusResponse = await fetch(`${normalizedBaseUrl}/api/sse-status`);
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
         logger.info('Endpoint de status disponível:', statusData);
         // Usar o primeiro endpoint suportado da lista
         if (statusData.supported_endpoints && statusData.supported_endpoints.length > 0) {
-          const endpoint = statusData.supported_endpoints[0].replace(/^\//, '');
+          const endpoint = statusData.supported_endpoints[0];
           logger.info(`Usando endpoint recomendado: ${endpoint}`);
-          return `${normalizedBaseUrl}/${endpoint}`;
+          return `${normalizedBaseUrl}${endpoint}`;
         }
       }
     } catch (error) {
@@ -193,17 +199,22 @@ export class SSEService {
     // URL base da API (já inclui /api)
     const baseUrl = config.apiBaseUrl || window.location.origin;
     
-    // Possíveis endpoints para eventos
-    const possibleEndpoints = [
-      'events',
-      'sse',
-      'stream'
-    ];
-    
-    // Remover possível barra no final da URL base
-    const normalizedBaseUrl = baseUrl.endsWith('/') 
+    // Remover possível barra no final da URL base e /api se existir
+    let normalizedBaseUrl = baseUrl.endsWith('/') 
       ? baseUrl.slice(0, -1) 
       : baseUrl;
+    
+    // Se a URL base já termina com /api, remover para evitar duplicação
+    if (normalizedBaseUrl.endsWith('/api')) {
+      normalizedBaseUrl = normalizedBaseUrl.slice(0, -4);
+    }
+    
+    // Possíveis endpoints para eventos (com /api/)
+    const possibleEndpoints = [
+      'api/events',
+      'api/sse',
+      'api/stream'
+    ];
     
     // Tentar próximo endpoint
     const nextEndpointIndex = (this.reconnectAttempts % possibleEndpoints.length);
