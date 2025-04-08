@@ -1,9 +1,21 @@
 .grid-cols-4 {
-  grid-template-columns: repeat(4, minmax(4, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (min-width: 768px) {
+  .md\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .lg\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 1280px) {
   .xl\:grid-cols-4 {
-    grid-template-columns: repeat(4, minmax(4, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 } 
