@@ -1,4 +1,4 @@
-import { BarChart2, TrendingUp, BarChart, ArrowDown, ArrowUp, PercentIcon } from "lucide-react";
+import { ChartBar, BarChart, ArrowDown, ArrowUp, PercentIcon } from "lucide-react";
 import {
   ResponsiveContainer,
   BarChart as RechartsBarChart,
@@ -332,7 +332,7 @@ const RouletteSidePanelStats = ({
           {/* Distribution Pie Chart */}
           <div className="glass-card p-4 space-y-3">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <BarChart2 size={20} className="text-[#00ff00] mr-2" /> Distribuição por Cor
+              <ChartBar size={20} className="text-[#00ff00] mr-2" /> Distribuição por Cor
             </h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -430,7 +430,7 @@ const RouletteSidePanelStats = ({
           {/* Frequency Chart */}
           <div className="glass-card p-4 space-y-3 md:col-span-2">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <BarChart2 size={20} className="text-[#00ff00] mr-2" /> Frequência de Números
+              <ChartBar size={20} className="text-[#00ff00] mr-2" /> Frequência de Números
             </h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
