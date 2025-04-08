@@ -17,6 +17,12 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   
   const content = (
     <div className="p-3 flex flex-col h-full justify-between">
+      <div className="flex justify-center items-center py-4 mb-2">
+        <Link to="/" className="flex items-center justify-center">
+          <span className="font-bold text-xl text-primary">RunCash</span>
+        </Link>
+      </div>
+      
       {isMobile && (
         <div className="flex justify-between items-center mb-4">
           <span className="text-white text-xl font-bold">RunCash</span>

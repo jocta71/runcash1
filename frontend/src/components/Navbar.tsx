@@ -7,10 +7,7 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between h-16 items-center">
           <div className="flex-shrink-0 flex items-center">
-            <Link to="/" className="flex items-center mr-6">
-              <span className="font-bold text-xl text-primary">Roleta</span>
-            </Link>
-            <div className="hidden md:flex space-x-4">
+            <div className="flex space-x-4">
               <Link to="/live-roulettes" className="text-white hover:text-primary transition-colors">
                 Roletas ao Vivo
               </Link>
