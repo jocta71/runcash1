@@ -6,6 +6,7 @@ import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
+import RouletteFeedService from '@/services/RouletteFeedService';
 
 const LiveRoulettePage: React.FC = () => {
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
@@ -72,16 +73,17 @@ const LiveRoulettePage: React.FC = () => {
 
   // Efeito para configurar os listeners de eventos em tempo real
   useEffect(() => {
-    // Inicializar o serviço de socket
-    const socketService = SocketService.getInstance();
+    // Inicializar o serviço de feed de roletas
+    const rouletteFeedService = RouletteFeedService.getInstance();
+    rouletteFeedService.start();
     
     // Função para lidar com novos números
     const handleNewNumber = (event: any) => {
-      if (event.type === 'new_number' && event.roleta_id && event.numero !== undefined) {
-        console.log(`[LiveRoulettePage] Novo número recebido para roleta ${event.roleta_id}: ${event.numero}`);
-        addNewNumberToRoulette(event.roleta_id, {
-          numero: event.numero,
-          cor: determinarCorNumero(event.numero),
+      if (event.tableId && event.number !== undefined) {
+        console.log(`[LiveRoulettePage] Novo número recebido para roleta ${event.tableId}: ${event.number}`);
+        addNewNumberToRoulette(event.tableId, {
+          numero: event.number,
+          cor: event.cor || determinarCorNumero(event.number),
           timestamp: event.timestamp
         });
       }
@@ -90,23 +92,12 @@ const LiveRoulettePage: React.FC = () => {
     // Registrar listener para novos números
     EventService.on('roulette:new-number', handleNewNumber);
 
-    // Registrar todas as roletas para atualizações
-    socketService.registerToAllRoulettes();
-    
-    // Solicitar dados recentes
-    socketService.requestRecentNumbers();
-
-    // Polling para atualização de backup (caso websocket falhe)
-    const pollingInterval = setInterval(() => {
-      fetchRoulettes();
-    }, 30000); // A cada 30 segundos
-
     return () => {
-      // Limpar listeners e intervalos ao desmontar
+      // Limpar listeners ao desmontar
       EventService.off('roulette:new-number', handleNewNumber);
-      clearInterval(pollingInterval);
+      rouletteFeedService.stop();
     };
-  }, [addNewNumberToRoulette, fetchRoulettes]);
+  }, [addNewNumberToRoulette]);
 
   return (
     <>

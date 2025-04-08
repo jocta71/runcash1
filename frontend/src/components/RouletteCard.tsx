@@ -27,6 +27,7 @@ import { PieChart, Phone, Timer, Cpu, Zap, History } from "lucide-react";
 import RouletteStats from './RouletteStats';
 import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
+import RouletteFeedService from '@/services/RouletteFeedService';
 
 // Logger específico para este componente
 const logger = getLogger('RouletteCard');
@@ -349,7 +350,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
     console.log(`[RouletteCard] Inscrevendo para eventos da roleta: ${safeData.name} (${safeData.id})`);
     
-    // Inscrever-se no evento global de "new_number" para capturar todos os números
+    // Função para processar novos números
     const handleNewNumber = (event: RouletteNumberEvent) => {
       // Verificar se o evento pertence a esta roleta específica
       // Comparar todos os identificadores possíveis para maior segurança
@@ -377,9 +378,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       EventService.getInstance().subscribe(safeData.name, handleNewNumber);
     }
     
+    // Inicializar o RouletteFeedService - será gerenciado globalmente
     if (safeData.id) {
-      // Iniciar polling agressivo para esta roleta
-      socketService.startAggressivePolling(safeData.id, safeData.name || 'Roleta sem nome');
+      const rouletteFeedService = RouletteFeedService.getInstance();
+      // Não precisa iniciar o serviço aqui, ele é iniciado na página principal
     }
 
     return () => {

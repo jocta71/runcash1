@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import RouletteHistory from '@/components/roulette/RouletteHistory';
 import SocketService from '@/services/SocketService';
+import RouletteFeedService from '@/services/RouletteFeedService';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -50,11 +51,12 @@ const RouletteHistoryPage: React.FC = () => {
       fetchHistoryData(canonicalId);
     }
     
-    // Iniciar polling para manter os dados atualizados
-    socketService.startAggressivePolling(canonicalId, roletaNome);
+    // Inicializar o serviço de feed de roletas
+    const rouletteFeedService = RouletteFeedService.getInstance();
+    rouletteFeedService.start();
     
     return () => {
-      // Não parar o polling ao sair, pois pode ser útil para outras partes da aplicação
+      // Não é necessário parar o serviço aqui, pois ele é gerenciado globalmente
     };
   }, [roletaId, navigate]);
   

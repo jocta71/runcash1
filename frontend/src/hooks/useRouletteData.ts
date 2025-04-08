@@ -19,6 +19,7 @@ import config from '@/config/env';
 import FetchService from '@/services/FetchService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
 import { getLogger } from '@/services/utils/logger';
+import RouletteFeedService from '@/services/RouletteFeedService';
 
 // Logger específico para este componente
 const logger = getLogger('RouletteData');
@@ -702,10 +703,13 @@ export function useRouletteData(
   useEffect(() => {
     const socketService = SocketService.getInstance();
     socketService.subscribeToRouletteEndpoint(canonicalIdRef.current, roletaNome);
-    socketService.startAggressivePolling(canonicalIdRef.current, roletaNome);
+    
+    // Usar RouletteFeedService em vez de polling
+    const rouletteFeedService = RouletteFeedService.getInstance();
+    rouletteFeedService.start();
     
     return () => {
-      socketService.stopPollingForRoulette(canonicalIdRef.current);
+      // Não é necessário parar o serviço aqui, pois ele é gerenciado globalmente
     };
   }, [canonicalIdRef.current, roletaNome]);
   
