@@ -59,6 +59,9 @@ const getDefaultHeaders = () => ({
  * Controlador de taxa de requisições para evitar múltiplas chamadas em curto espaço de tempo
  */
 export const RequestThrottler = {
+  MIN_REQUEST_INTERVAL: 11000, // intervalo mínimo entre requisições (11 segundos)
+  CACHE_VALIDITY: 300000, // 5 minutos
+
   /**
    * Agenda uma requisição para ser executada respeitando o intervalo mínimo
    * @param key Identificador único para a requisição
@@ -426,5 +429,127 @@ export const RequestThrottler = {
       ...getDefaultHeaders(),
       ...additionalHeaders
     };
-  }
+  },
+
+  executeRequest: async function(endpoint: string, requestFn: Function) {
+    try {
+      // Verificar se o endpoint tem encaminhamento especial
+      if (this.shouldUseProxy(endpoint)) {
+        console.log(`[RequestThrottler] Usando proxy para endpoint: ${endpoint}`);
+        return this.executeProxyRequest(endpoint, requestFn);
+      }
+
+      // Realizar a requisição
+      const response = await requestFn();
+      
+      // Atualizar o cache com a resposta
+      responseCache.set(endpoint, {
+        data: response,
+        timestamp: Date.now()
+      });
+      
+      // Registrar o tempo da última requisição
+      lastRequestTimes.set(endpoint, Date.now());
+      
+      // Notificar os assinantes
+      this.notifySubscribers(endpoint, response);
+      
+      return response;
+    } catch (error) {
+      // Se falhou, tentar usar o proxy como fallback
+      if (!endpoint.includes('/api/proxy-')) {
+        try {
+          console.log(`[RequestThrottler] Tentando proxy como fallback para: ${endpoint}`);
+          const proxyEndpoint = `/api/proxy-roulette`;
+          
+          // Verificar se temos um cache válido para o proxy
+          const proxyCache = responseCache.get(proxyEndpoint);
+          if (proxyCache && (Date.now() - proxyCache.timestamp < this.CACHE_VALIDITY)) {
+            console.log(`[RequestThrottler] Usando cache do proxy para: ${endpoint}`);
+            return proxyCache.data;
+          }
+          
+          // Tentar usar o proxy
+          const proxyResponse = await fetch(proxyEndpoint, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
+          }).then(res => res.json());
+          
+          // Atualizar cache com resposta do proxy
+          responseCache.set(proxyEndpoint, {
+            data: proxyResponse,
+            timestamp: Date.now()
+          });
+          
+          return proxyResponse;
+        } catch (proxyError) {
+          console.error(`[RequestThrottler] Falha no proxy: ${proxyError.message}`);
+        }
+      }
+      
+      // Verificar se temos um cache para retornar, mesmo que antigo
+      const cache = responseCache.get(endpoint);
+      if (cache) {
+        console.log(`[RequestThrottler] Usando cache expirado após erro para: ${endpoint}`);
+        return cache.data;
+      }
+      
+      // Lançar o erro original se não conseguimos recuperar
+      throw error;
+    }
+  },
+  
+  // Método para determinar se um endpoint deve usar o proxy
+  shouldUseProxy: function(endpoint: string): boolean {
+    // Endpoints que devem sempre tentar usar o proxy
+    const proxyPreferredEndpoints = [
+      '/api/ROULETTES',
+      '/ROULETTES'
+    ];
+    
+    return proxyPreferredEndpoints.some(e => endpoint.includes(e));
+  },
+  
+  // Executar request via proxy
+  executeProxyRequest: async function(endpoint: string, fallbackRequestFn: Function) {
+    try {
+      const proxyEndpoint = `/api/proxy-roulette`;
+      
+      // Tentar usar o proxy
+      const response = await fetch(proxyEndpoint, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Atualizar o cache com a resposta
+        responseCache.set(endpoint, {
+          data: data,
+          timestamp: Date.now()
+        });
+        
+        // Registrar o tempo da última requisição
+        lastRequestTimes.set(endpoint, Date.now());
+        
+        // Notificar os assinantes
+        this.notifySubscribers(endpoint, data);
+        
+        return data;
+      } else {
+        // Se o proxy falhou, voltar para a requisição original
+        return fallbackRequestFn();
+      }
+    } catch (error) {
+      console.error(`[RequestThrottler] Erro no proxy: ${error.message}, tentando requisição direta`);
+      return fallbackRequestFn();
+    }
+  },
 }; 
