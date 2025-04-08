@@ -28,97 +28,55 @@ export class SSEService {
   }
   
   private determineApiUrl(): string {
-    // URL base da API (já inclui /api)
-    const baseUrl = config.apiBaseUrl || '';
+    // Usar a URL específica do SSE ao invés da URL base da API
+    const sseUrl = config.sseUrl;
     
-    // Possíveis endpoints para eventos (sem /api/ pois já vem na URL base)
-    const possibleEndpoints = [
-      'events',           // Endpoint simples
-      'sse',             // Endpoint alternativo
-      'sse-status'       // Endpoint de status
-    ];
+    logger.info(`URL do SSE configurada: ${sseUrl}`);
     
-    // Remover possível barra no final da URL base
-    const normalizedBaseUrl = baseUrl.endsWith('/') 
-      ? baseUrl.slice(0, -1) 
-      : baseUrl;
-    
-    // Log para depuração
-    logger.info(`URL base da API normalizada: ${normalizedBaseUrl}`);
-    
-    // Testar os endpoints de forma assíncrona e atualizar a URL depois
-    this.testEndpoints().then(workingEndpoint => {
-      if (workingEndpoint) {
-        logger.info(`Endpoint funcionando encontrado após inicialização: ${workingEndpoint}`);
-        this.apiUrl = workingEndpoint;
-      }
-    });
-    
-    // Por padrão, usar o primeiro endpoint até que o teste seja concluído
-    return `${normalizedBaseUrl}/${possibleEndpoints[0]}`;
+    return sseUrl;
   }
 
   private async testEndpoints(): Promise<string | null> {
-    // URL base da API (já inclui /api)
-    const baseUrl = config.apiBaseUrl || window.location.origin;
+    // Usar diretamente a URL do SSE configurada
+    const sseUrl = config.sseUrl;
     
-    // Remover possível barra no final da URL base e /api se existir
-    let normalizedBaseUrl = baseUrl.endsWith('/') 
-      ? baseUrl.slice(0, -1) 
-      : baseUrl;
+    logger.info(`Testando conexão SSE em: ${sseUrl}`);
     
-    // Se a URL base já termina com /api, remover para evitar duplicação
-    if (normalizedBaseUrl.endsWith('/api')) {
-      normalizedBaseUrl = normalizedBaseUrl.slice(0, -4);
-    }
-    
-    // Lista de possíveis endpoints (com /api/ pois removemos da base)
-    const endpoints = [
-      'api/sse-status',  // Endpoint de diagnóstico
-      'api/events',      // Endpoint principal
-      'api/sse'         // Endpoint alternativo
-    ];
-    
-    logger.info('Testando endpoints disponíveis...');
-    logger.info(`URL base normalizada: ${normalizedBaseUrl}`);
-    
-    // Testar o endpoint de status primeiro
     try {
-      const statusResponse = await fetch(`${normalizedBaseUrl}/api/sse-status`);
-      if (statusResponse.ok) {
-        const statusData = await statusResponse.json();
-        logger.info('Endpoint de status disponível:', statusData);
-        // Usar o primeiro endpoint suportado da lista
-        if (statusData.supported_endpoints && statusData.supported_endpoints.length > 0) {
-          const endpoint = statusData.supported_endpoints[0];
-          logger.info(`Usando endpoint recomendado: ${endpoint}`);
-          return `${normalizedBaseUrl}${endpoint}`;
-        }
+      const response = await fetch(sseUrl, { 
+        method: 'HEAD',
+        mode: 'cors',
+        cache: 'no-cache',
+        credentials: 'include',
+      });
+      
+      if (response.status !== 404) {
+        logger.info(`Endpoint SSE disponível: ${sseUrl}`);
+        return sseUrl;
       }
     } catch (error) {
-      logger.warn('Endpoint de status não disponível:', error);
+      logger.warn(`Falha ao testar endpoint SSE:`, error);
     }
     
-    // Se não conseguir obter do status, testar cada endpoint
-    for (const endpoint of endpoints) {
-      try {
-        const response = await fetch(`${normalizedBaseUrl}/${endpoint}`, { 
-          method: 'HEAD',
-          mode: 'cors',
-          cache: 'no-cache',
-          credentials: 'include',
-        });
-        
-        if (response.status !== 404) {
-          logger.info(`Endpoint encontrado: ${endpoint} (status: ${response.status})`);
-          return `${normalizedBaseUrl}/${endpoint}`;
-        }
-      } catch (error) {
-        logger.warn(`Falha ao testar endpoint ${endpoint}:`, error);
+    // Se falhar, tentar o endpoint de fallback
+    const fallbackUrl = sseUrl.replace('/events', '/stream');
+    
+    try {
+      const fallbackResponse = await fetch(fallbackUrl, { 
+        method: 'HEAD',
+        mode: 'cors',
+        cache: 'no-cache',
+        credentials: 'include',
+      });
+      
+      if (fallbackResponse.status !== 404) {
+        logger.info(`Endpoint SSE fallback disponível: ${fallbackUrl}`);
+        return fallbackUrl;
       }
+    } catch (error) {
+      logger.warn(`Falha ao testar endpoint SSE fallback:`, error);
     }
     
-    // Se nenhum endpoint funcionar, retorne null
     return null;
   }
 
@@ -196,30 +154,19 @@ export class SSEService {
   }
   
   private tryAlternativeEndpoints(): void {
-    // URL base da API (já inclui /api)
-    const baseUrl = config.apiBaseUrl || window.location.origin;
+    // Usar a URL do SSE configurada
+    const sseUrl = config.sseUrl;
     
-    // Remover possível barra no final da URL base e /api se existir
-    let normalizedBaseUrl = baseUrl.endsWith('/') 
-      ? baseUrl.slice(0, -1) 
-      : baseUrl;
-    
-    // Se a URL base já termina com /api, remover para evitar duplicação
-    if (normalizedBaseUrl.endsWith('/api')) {
-      normalizedBaseUrl = normalizedBaseUrl.slice(0, -4);
-    }
-    
-    // Possíveis endpoints para eventos (com /api/)
-    const possibleEndpoints = [
-      'api/events',
-      'api/sse',
-      'api/stream'
+    // Lista de endpoints alternativos
+    const alternatives = [
+      sseUrl,
+      sseUrl.replace('/events', '/stream'),
+      sseUrl.replace('/events', '/sse')
     ];
     
     // Tentar próximo endpoint
-    const nextEndpointIndex = (this.reconnectAttempts % possibleEndpoints.length);
-    const nextEndpoint = possibleEndpoints[nextEndpointIndex];
-    this.apiUrl = `${normalizedBaseUrl}/${nextEndpoint}`;
+    const nextEndpointIndex = (this.reconnectAttempts % alternatives.length);
+    this.apiUrl = alternatives[nextEndpointIndex];
     
     logger.info(`Tentando endpoint alternativo: ${this.apiUrl}`);
     this.handleReconnect();
