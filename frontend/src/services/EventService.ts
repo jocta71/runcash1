@@ -56,7 +56,8 @@ export type RouletteEventCallback = (event: RouletteNumberEvent | StrategyUpdate
 // Tipo para callbacks de eventos genéricos
 export type EventCallback = (data: any) => void;
 
-// Serviço de eventos
+type EventHandler = (data: any) => void;
+
 class EventService {
   private static instance: EventService;
   private eventSource: EventSource | null = null;
@@ -781,6 +782,53 @@ class EventService {
       });
     }
   }
+
+  public on(eventName: string, handler: EventHandler): void {
+    if (!this.customEventListeners.has(eventName)) {
+      this.customEventListeners.set(eventName, new Set());
+    }
+    
+    const handlers = this.customEventListeners.get(eventName);
+    if (handlers) {
+      handlers.add(handler);
+    }
+  }
+
+  public off(eventName: string, handler: EventHandler): void {
+    if (!this.customEventListeners.has(eventName)) {
+      return;
+    }
+    
+    const handlers = this.customEventListeners.get(eventName);
+    if (handlers) {
+      handlers.delete(handler);
+    }
+  }
+
+  public emit(eventName: string, data?: any): void {
+    if (!this.customEventListeners.has(eventName)) {
+      return;
+    }
+    
+    const handlers = this.customEventListeners.get(eventName);
+    if (handlers) {
+      handlers.forEach(handler => {
+        try {
+          handler(data);
+        } catch (error) {
+          console.error(`Erro ao processar evento ${eventName}:`, error);
+        }
+      });
+    }
+  }
+
+  public clear(eventName?: string): void {
+    if (eventName) {
+      this.customEventListeners.delete(eventName);
+    } else {
+      this.customEventListeners.clear();
+    }
+  }
 }
 
-export default EventService; 
+export default EventService.getInstance(); 

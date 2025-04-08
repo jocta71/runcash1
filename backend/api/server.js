@@ -20,7 +20,6 @@ const strategyRouter = require('./routes/strategy');
 const notificationRouter = require('./routes/notification');
 const rouletteSearchRouter = require('./routes/rouletteSearch');
 const historyRouter = require('./routes/historyApi');
-const roletasRouter = require('./routes/roletasApi');
 
 // Configuração do servidor
 const app = express();
@@ -62,7 +61,6 @@ app.use('/api/strategy', strategyRouter);
 app.use('/api/notification', notificationRouter);
 app.use('/api/roulette-search', rouletteSearchRouter);
 app.use('/api/history', historyRouter);
-app.use('/api/roletas', roletasRouter);
 
 // Rota de status da API
 app.get('/api/status', (req, res) => {
