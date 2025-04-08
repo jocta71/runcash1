@@ -31,7 +31,7 @@ export class SSEService {
     // URL base da API
     const baseUrl = config.apiBaseUrl || '';
     
-    // Possíveis endpoints para eventos - primeiro tentar sem /api/
+    // Possíveis endpoints para eventos
     const possibleEndpoints = [
       'events',           // Endpoint simples
       'sse',             // Endpoint alternativo
@@ -58,7 +58,8 @@ export class SSEService {
     });
     
     // Por padrão, usar o primeiro endpoint até que o teste seja concluído
-    return `${normalizedBaseUrl}/${possibleEndpoints[0]}`;
+    // Como a URL base já inclui /api, não precisamos adicionar novamente
+    return `${normalizedBaseUrl}/events`;
   }
 
   private async testEndpoints(): Promise<string | null> {
@@ -70,7 +71,7 @@ export class SSEService {
       ? baseUrl.slice(0, -1) 
       : baseUrl;
     
-    // Lista de possíveis endpoints - primeiro tentar sem /api/
+    // Lista de possíveis endpoints
     const endpoints = [
       'sse-status',  // Endpoint de diagnóstico
       'events',      // Endpoint principal
@@ -106,14 +107,18 @@ export class SSEService {
           credentials: 'include',
         });
         
-        // Se retornar qualquer resposta (mesmo que não seja 404)
-        // É melhor que 404
         if (response.status !== 404) {
           logger.info(`Endpoint encontrado: ${endpoint} (status: ${response.status})`);
           return `${normalizedBaseUrl}/${endpoint}`;
         }
       } catch (error) {
         logger.warn(`Falha ao testar endpoint ${endpoint}:`, error);
+        
+        // Se o erro for CORS, pode ser que o endpoint exista mas não aceite HEAD
+        if (error instanceof TypeError && error.message.includes('CORS')) {
+          logger.info(`Possível endpoint com restrição CORS: ${endpoint}`);
+          return `${normalizedBaseUrl}/${endpoint}`;
+        }
       }
     }
     
