@@ -28,7 +28,7 @@ export class SSEService {
   }
   
   private determineApiUrl(): string {
-    // URL base da API
+    // URL base da API (já inclui /api)
     const baseUrl = config.apiBaseUrl || '';
     
     // Possíveis endpoints para eventos
@@ -38,13 +38,10 @@ export class SSEService {
       'sse-status'       // Endpoint de status
     ];
     
-    // Usar a URL do config ou fallback para a URL atual
-    const baseApiUrl = baseUrl || window.location.origin;
-    
     // Remover possível barra no final da URL base
-    const normalizedBaseUrl = baseApiUrl.endsWith('/') 
-      ? baseApiUrl.slice(0, -1) 
-      : baseApiUrl;
+    const normalizedBaseUrl = baseUrl.endsWith('/') 
+      ? baseUrl.slice(0, -1) 
+      : baseUrl;
     
     // Log para depuração
     logger.info(`URL base da API normalizada: ${normalizedBaseUrl}`);
@@ -58,12 +55,11 @@ export class SSEService {
     });
     
     // Por padrão, usar o primeiro endpoint até que o teste seja concluído
-    // Como a URL base já inclui /api, não precisamos adicionar novamente
-    return `${normalizedBaseUrl}/events`;
+    return `${normalizedBaseUrl}/${possibleEndpoints[0]}`;
   }
 
   private async testEndpoints(): Promise<string | null> {
-    // Tenta verificar qual endpoint está funcionando
+    // URL base da API (já inclui /api)
     const baseUrl = config.apiBaseUrl || window.location.origin;
     
     // Remover possível barra no final da URL base
@@ -113,12 +109,6 @@ export class SSEService {
         }
       } catch (error) {
         logger.warn(`Falha ao testar endpoint ${endpoint}:`, error);
-        
-        // Se o erro for CORS, pode ser que o endpoint exista mas não aceite HEAD
-        if (error instanceof TypeError && error.message.includes('CORS')) {
-          logger.info(`Possível endpoint com restrição CORS: ${endpoint}`);
-          return `${normalizedBaseUrl}/${endpoint}`;
-        }
       }
     }
     
@@ -200,14 +190,15 @@ export class SSEService {
   }
   
   private tryAlternativeEndpoints(): void {
+    // URL base da API (já inclui /api)
+    const baseUrl = config.apiBaseUrl || window.location.origin;
+    
+    // Possíveis endpoints para eventos
     const possibleEndpoints = [
       'events',
       'sse',
       'stream'
     ];
-    
-    // URL base da API
-    const baseUrl = config.apiBaseUrl || window.location.origin;
     
     // Remover possível barra no final da URL base
     const normalizedBaseUrl = baseUrl.endsWith('/') 
