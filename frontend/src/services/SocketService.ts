@@ -102,6 +102,56 @@ class SocketService {
   private failureThreshold: number = 5; // Quantas falhas para ativar o circuit breaker
   private resetTime: number = 60000; // 1 minuto de espera antes de tentar novamente
   
+  // Configuração de modo offline-first
+  private OFFLINE_MODE = true; // Define se devemos priorizar modo offline
+  private OFFLINE_DATA_KEY = 'runcash_offline_data';
+  
+  // Dados estáticos para uso offline
+  private STATIC_ROULETTES = [
+    { _id: "419aa56c-bcff-67d2-f424-a6501bac4a36", nome: "Auto-Roulette VIP", numeros: this.generateRandomNumbers(50) },
+    { _id: "f27dd03e-5282-fc78-961c-6375cef91565", nome: "Ruleta Automática", numeros: this.generateRandomNumbers(50) },
+    { _id: "7d3c2c9f-2850-f642-861f-5bb4daf1806a", nome: "Brazilian Mega Roulette", numeros: this.generateRandomNumbers(50) },
+    { _id: "e3345af9-e387-9412-209c-e793fe73e520", nome: "Bucharest Auto-Roulette", numeros: this.generateRandomNumbers(50) },
+    { _id: "4cf27e48-2b9d-b58e-7dcc-48264c51d639", nome: "Immersive Roulette", numeros: this.generateRandomNumbers(50) },
+    { _id: "72a7281b-f40a-9482-7c14-28410d52d223", nome: "Lightning Roulette", numeros: this.generateRandomNumbers(50) },
+    { _id: "5d25f4a8-4ed0-4f1a-a616-95bc8695d8b7", nome: "SpeedRoulette", numeros: this.generateRandomNumbers(50) },
+    { _id: "91a0e22f-91a9-466e-902e-324919c8f69e", nome: "Gold Vault Roulette", numeros: this.generateRandomNumbers(50) },
+    { _id: "b2c6402d-8b9e-4321-a3fd-9dc619bb2cc8", nome: "VIP Roulette", numeros: this.generateRandomNumbers(50) }
+  ];
+  
+  // Função para gerar números aleatórios para dados offline
+  private generateRandomNumbers(count: number) {
+    const numbers = [];
+    for (let i = 0; i < count; i++) {
+      const numero = Math.floor(Math.random() * 37); // 0-36 para roleta
+      numbers.push({
+        numero,
+        timestamp: new Date(Date.now() - (i * 60000)).toISOString() // Um número a cada minuto no passado
+      });
+    }
+    return numbers;
+  }
+  
+  // Função para salvar dados no localStorage
+  private saveOfflineData(data: any) {
+    try {
+      localStorage.setItem(this.OFFLINE_DATA_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error("Erro ao salvar dados offline:", e);
+    }
+  }
+  
+  // Função para carregar dados do localStorage
+  private loadOfflineData(): any[] {
+    try {
+      const data = localStorage.getItem(this.OFFLINE_DATA_KEY);
+      return data ? JSON.parse(data) : this.STATIC_ROULETTES;
+    } catch (e) {
+      console.error("Erro ao carregar dados offline:", e);
+      return this.STATIC_ROULETTES;
+    }
+  }
+  
   private constructor() {
     console.log('[SocketService] Inicializando serviço Socket.IO');
     
@@ -1187,6 +1237,12 @@ class SocketService {
       return false;
     }
     
+    // Se estiver em modo offline, usar dados locais
+    if (this.OFFLINE_MODE) {
+      console.log(`[SocketService] Utilizando modo offline para roleta ${roletaId}`);
+      return this.useOfflineData(roletaId);
+    }
+    
     // Verificar se o circuit breaker está ativo
     if (!this.shouldProceedWithRequest(`/api/ROULETTES/${roletaId}`)) {
       console.log(`[SocketService] Circuit breaker ativo, usando cache ou fallback para ${roletaId}`);
@@ -1204,7 +1260,7 @@ class SocketService {
       }
       
       // Se não tem cache, usar fallback
-      return this.useFallbackData(roletaId);
+      return this.useOfflineData(roletaId);
     }
     
     try {
@@ -1239,49 +1295,50 @@ class SocketService {
         }
       }
       
-      // Continuar com a busca na API
-      console.log(`[SocketService] Buscando números para roleta ${roletaId} via REST API`);
-      
       // Configurar URIs para as APIs
-      const baseUrl = "https://backendapi-production-36b5.up.railway.app/api";
-      const directEndpoint = `${baseUrl}/ROULETTES`;
-      const proxyEndpoint = `${window.location.origin}/api/proxy-roulette`;
-      
-      // Lista de endpoints para tentar, em ordem
       const endpoints = [
-        { url: directEndpoint, name: "API direta" },
-        { url: proxyEndpoint, name: "Proxy local" }
+        { url: `${window.location.origin}/api/proxy-roulette`, name: "Proxy local" },
+        { url: "https://backendapi-production-36b5.up.railway.app/api/ROULETTES", name: "API principal" },
+        { url: "https://backend-production-2f96.up.railway.app/api/ROULETTES", name: "API backup" }
       ];
       
       // Usar sistema de retry com múltiplos endpoints
       let attempt = 0;
       const maxAttempts = 3;
       let lastError = null;
+      let allFailed = true;
       
+      // Tentar cada endpoint em sequência
       for (const endpoint of endpoints) {
+        if (!allFailed) break;
+        
         attempt = 0;
         while (attempt < maxAttempts) {
           try {
-            // Fazer requisição com timeout
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos timeout
-            
             console.log(`[SocketService] Tentativa ${attempt+1}/${maxAttempts} via ${endpoint.name}`);
             
+            // Fazer requisição com timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 segundos timeout
+            
             const response = await fetch(endpoint.url, {
+              method: 'GET',
               headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                 'Origin': window.location.origin,
-                'Referer': window.location.origin
+                'Referer': window.location.origin,
+                'ngrok-skip-browser-warning': 'true',
+                'bypass-tunnel-reminder': 'true'
               },
-              signal: controller.signal
+              signal: controller.signal,
+              cache: 'no-store', // Evitar cache do navegador
+              credentials: 'omit' // Evitar envio de cookies
             });
             
             clearTimeout(timeoutId);
             
-            // Se a resposta for bem-sucedida, processar os dados
             if (response.ok) {
               const data = await response.json();
               
@@ -1312,6 +1369,14 @@ class SocketService {
                 
                 console.log(`[SocketService] ✅ Encontrada roleta ${roletaNome} (${roletaId}) nos dados da API via ${endpoint.name}`);
                 
+                // Salvar no localStorage para uso offline
+                this.saveOfflineData(this.STATIC_ROULETTES.map(r => {
+                  if (r._id === roletaId) {
+                    return { ...r, numeros: data };
+                  }
+                  return r;
+                }));
+                
                 // Processar os números
                 const roletaInfo = { 
                   _id: roletaId, 
@@ -1323,37 +1388,21 @@ class SocketService {
                 // Sinalizar sucesso para o circuit breaker
                 this.handleCircuitBreaker(true, endpoint.url);
                 
+                allFailed = false;
                 return true;
               }
             } else {
-              // Se for erro 502, tentar novamente
-              if (response.status === 502 || response.status === 429) {
-                attempt++;
-                const waitTime = 1000 * attempt;
-                console.warn(`[SocketService] Erro ${response.status} ao buscar números via ${endpoint.name}. Tentativa ${attempt}/${maxAttempts}, aguardando ${waitTime/1000}s`);
-                await new Promise(resolve => setTimeout(resolve, waitTime));
-              } else {
-                // Outro erro, continuar para o próximo endpoint
-                console.error(`[SocketService] Erro ${response.status} ao buscar números para roleta ${roletaId} via ${endpoint.name}`);
-                lastError = new Error(`Erro HTTP ${response.status}`);
-                break;
-              }
+              // Registrar erro e tentar próxima tentativa
+              lastError = new Error(`Erro HTTP ${response.status}`);
+              attempt++;
+              await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
             }
           } catch (error) {
             attempt++;
             lastError = error;
             
-            // Verificar se o erro é devido ao timeout
-            const isTimeout = error.name === 'AbortError';
-            
-            console.error(`[SocketService] ${isTimeout ? 'Timeout' : 'Erro de rede'} na tentativa ${attempt}/${maxAttempts} via ${endpoint.name}:`, error);
-            
             if (attempt < maxAttempts) {
-              const waitTime = 1000 * attempt;
-              await new Promise(resolve => setTimeout(resolve, waitTime));
-            } else {
-              // Continuar para o próximo endpoint
-              break;
+              await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
             }
           }
         }
@@ -1365,8 +1414,8 @@ class SocketService {
       // Marcar falha para o circuit breaker
       this.handleCircuitBreaker(false, `/api/ROULETTES/${roletaId}`);
       
-      // Tentar usar dados fallback
-      return this.useFallbackData(roletaId);
+      // Usar dados offline como último recurso
+      return this.useOfflineData(roletaId);
       
     } catch (error) {
       console.error(`[SocketService] Erro ao buscar números para roleta ${roletaId}:`, error);
@@ -1374,7 +1423,34 @@ class SocketService {
       // Marcar falha para o circuit breaker
       this.handleCircuitBreaker(false, `/api/ROULETTES/${roletaId}`);
       
-      // Tentar usar dados fallback
+      // Tentar usar dados offline
+      return this.useOfflineData(roletaId);
+    }
+  }
+  
+  // Novo método para usar dados offline
+  private useOfflineData(roletaId: string): boolean {
+    console.log(`[SocketService] Usando dados offline para ${roletaId}`);
+    
+    // Carregar dados do localStorage ou usar estáticos
+    const offlineData = this.loadOfflineData();
+    
+    // Encontrar a roleta específica
+    const roleta = offlineData.find(r => r._id === roletaId);
+    
+    if (roleta) {
+      // Processar dados
+      this.processNumbersData(roleta.numeros || [], roleta);
+      
+      // Atualizar o cache
+      this.rouletteDataCache.set(roletaId, {
+        data: roleta,
+        timestamp: Date.now()
+      });
+      
+      return true;
+    } else {
+      // Se não encontrar a roleta específica, usar fallback
       return this.useFallbackData(roletaId);
     }
   }
