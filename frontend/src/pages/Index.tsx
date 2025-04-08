@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { Search, Wallet, Menu, MessageSquare, AlertCircle, BarChart3, ArrowUp, ArrowDown, X, ChartBar, BarChart, Percent, CircleX, Share, Home, Sparkles, RefreshCw, MonitorSmartphone, ExternalLink, ChevronRight } from 'lucide-react';
+import { Search, Wallet, Menu, MessageSquare, AlertCircle, BarChart3, ArrowUp, ArrowDown, X, BarChart2, BarChart, Percent, CircleX, Share, Home, Sparkles, RefreshCw, MonitorSmartphone, ExternalLink, ChevronRight } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import RouletteCard from '@/components/RouletteCard';
 import { Input } from '@/components/ui/input';
