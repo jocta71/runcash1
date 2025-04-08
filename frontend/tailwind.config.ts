@@ -14,7 +14,7 @@ export default {
 			center: true,
 			padding: '1rem',
 			screens: {
-				// Removendo o limite de 1700px
+				'2xl': '1700px'
 			}
 		},
 		extend: {
@@ -58,7 +58,7 @@ export default {
 				vegas: {
 					black: '#0A0C14',
 					darkgray: '#161A26',
-					green: '#00ff00',
+					green: '#ffad33',
 					gold: '#ffad33',
 					blue: '#36B5FF',
 					red: '#FF4560',

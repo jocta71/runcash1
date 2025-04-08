@@ -1,3 +1,82 @@
+# RunCash - Backend
+
+## Estrutura do Projeto
+
+O backend do RunCash é construído com Node.js, Express e MongoDB. A estrutura do diretório está organizada seguindo os princípios MVC:
+
+```
+src/
+├── config/          # Configurações do servidor, banco de dados, etc.
+├── controllers/     # Controladores para lidar com as requisições
+├── middlewares/     # Middlewares para processar requisições
+├── models/          # Modelos de dados e acesso ao banco de dados
+├── routes/          # Definições de rotas da API
+├── services/        # Serviços e lógica de negócios
+│   ├── scraper/     # Scripts para coleta de dados das roletas
+│   └── websocket/   # Serviço de WebSocket para atualizações em tempo real
+└── utils/           # Funções utilitárias
+```
+
+## Componentes Principais
+
+### API
+
+A API REST fornece endpoints para:
+- Obtenção de dados das roletas
+- Autenticação de usuários
+- Operações CRUD para estratégias
+- Histórico de números
+
+### WebSocket
+
+O serviço de WebSocket oferece:
+- Transmissão em tempo real dos números das roletas
+- Sistema de pub/sub para atualizações eficientes
+- Manutenção de conexões resilientes
+
+### Scraper
+
+O sistema de scraping:
+- Coleta dados de roletas de diversos cassinos
+- Processa e normaliza os números
+- Alimenta o banco de dados e o serviço de WebSocket
+
+## Configuração e Execução
+
+### Instalação
+
+```bash
+npm install
+```
+
+### Desenvolvimento
+
+```bash
+npm run dev
+```
+
+### Iniciar Scraper
+
+```bash
+npm run scraper
+```
+
+### Iniciar WebSocket
+
+```bash
+npm run websocket
+```
+
+## Dependências Principais
+
+- Node.js
+- Express
+- MongoDB
+- Socket.IO (WebSocket)
+- Mongoose (ORM)
+- Puppeteer (Scraping)
+- JWT (Autenticação)
+
 # RunCash Backend
 
 Este diretório contém dois componentes principais:

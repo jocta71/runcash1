@@ -6,7 +6,7 @@ import { SubscriptionProvider } from "./context/SubscriptionContext";
 import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import SocketService from '@/services/SocketService';
-import LoadingScreen from './components/LoadingScreen';
+import LoadingScreen from './components/common/LoadingScreen';
 import RoulettesPage from './pages/Roulettes';
 import './App.css';
 import RouletteHistoryPage from './pages/RouletteHistoryPage';
