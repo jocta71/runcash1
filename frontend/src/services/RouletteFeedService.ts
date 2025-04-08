@@ -11,12 +11,6 @@ const POLLING_INTERVAL = 10000; // Intervalo padrão de polling (10 segundos)
 const MIN_REQUEST_INTERVAL = 2000; // Mínimo de 2 segundos entre requisições
 const CACHE_TTL = 15000; // 15 segundos de TTL para o cache
 
-// Endpoints da API
-const API_ENDPOINTS = {
-  STANDARD: '/api/ROULETTES',
-  EXTENDED: '/api/ROULETTES?limit=1000'
-};
-
 // Controle global para evitar requisições concorrentes de diferentes instâncias
 let GLOBAL_IS_FETCHING = false;
 let GLOBAL_LAST_REQUEST_TIME = 0;
@@ -30,7 +24,6 @@ const GLOBAL_REQUEST_LOCK_TIME = 10000; // 10 segundos máximo de lock global
 export default class RouletteFeedService {
   private static instance: RouletteFeedService | null = null;
   private roulettes: any[] = [];
-  private extendedRoulettes: any[] = [];
   
   // Controle de estado global
   private IS_INITIALIZING: boolean = false;
@@ -79,14 +72,11 @@ export default class RouletteFeedService {
   
   // Cache interno de todas as roletas
   private rouletteDataCache: Map<string, any> = new Map();
-  private extendedRouletteDataCache: Map<string, any> = new Map();
   private lastCacheUpdate: number = 0;
-  private lastExtendedCacheUpdate: number = 0;
   private cacheTTL: number = CACHE_TTL;
   
   // Indicar que houve atualização de dados
   private hasNewData: boolean = false;
-  private hasNewExtendedData: boolean = false;
   
   // Controle de inicialização única
   private initialRequestDone: boolean = false;
@@ -271,38 +261,19 @@ export default class RouletteFeedService {
     
     logger.info('Buscando dados iniciais');
     
-    const standardPromise = fetch(API_ENDPOINTS.STANDARD)
+    return fetch(`/api/ROULETTES`)
       .then(response => {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
-      });
-    
-    const extendedPromise = fetch(API_ENDPOINTS.EXTENDED)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-      });
-    
-    // Executar ambas as requisições em paralelo
-    return Promise.all([standardPromise, extendedPromise])
-      .then(([standardData, extendedData]) => {
-        logger.info(`Dados iniciais recebidos: Standard=${standardData.length}, Extended=${extendedData.length}`);
-        
-        // Processar dados padrão
-        this.handleRouletteData(standardData);
-        
-        // Processar dados estendidos
-        this.handleExtendedRouletteData(extendedData);
-        
-        // Liberar travas
+      })
+      .then(data => {
+        logger.info('Dados iniciais recebidos:', data.length);
+        this.handleRouletteData(data);
         this.IS_FETCHING_DATA = false;
         GLOBAL_IS_FETCHING = false;
         GLOBAL_PENDING_REQUESTS.delete(requestId);
-        
         return this.roulettes;
       })
       .catch(error => {
@@ -354,32 +325,16 @@ export default class RouletteFeedService {
     
     logger.info('Buscando dados recentes');
     
-    const standardPromise = fetch(API_ENDPOINTS.STANDARD)
+    return fetch(`/api/ROULETTES`)
       .then(response => {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
-      });
-    
-    const extendedPromise = fetch(API_ENDPOINTS.EXTENDED)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-      });
-    
-    // Executar ambas as requisições em paralelo
-    return Promise.all([standardPromise, extendedPromise])
-      .then(([standardData, extendedData]) => {
-        logger.info(`Dados recentes recebidos: Standard=${standardData.length}, Extended=${extendedData.length}`);
-        
-        // Processar dados padrão
-        this.handleRouletteData(standardData);
-        
-        // Processar dados estendidos
-        this.handleExtendedRouletteData(extendedData);
+      })
+      .then(data => {
+        logger.info('Dados recentes recebidos:', data.length);
+        this.handleRouletteData(data);
         
         // Liberar travas
         this.IS_FETCHING_DATA = false;
@@ -398,48 +353,6 @@ export default class RouletteFeedService {
         
         return this.roulettes;
       });
-  }
-
-  /**
-   * Processa os dados das roletas recebidos da API (dados standard)
-   */
-  private handleRouletteData(data: any): void {
-    if (!Array.isArray(data)) {
-      logger.error('⚠️ Dados inválidos recebidos:', data);
-      return;
-    }
-    
-    // Atualizar a lista de roletas
-    this.roulettes = data;
-    
-    // Atualizar o cache
-    this.updateRouletteCache(data);
-    
-    // Registrar estatística de requisição bem-sucedida
-    this.requestStats.totalRequests++;
-    this.requestStats.successfulRequests++;
-    this.requestStats.lastMinuteRequests.push(Date.now());
-    
-    // Ajustar o intervalo de polling com base no sucesso
-    this.adjustPollingInterval(true);
-  }
-
-  /**
-   * Processa os dados estendidos das roletas recebidos da API (com limit=1000)
-   */
-  private handleExtendedRouletteData(data: any): void {
-    if (!Array.isArray(data)) {
-      logger.error('⚠️ Dados estendidos inválidos recebidos:', data);
-      return;
-    }
-    
-    // Atualizar a lista de roletas estendidas
-    this.extendedRoulettes = data;
-    
-    // Atualizar o cache estendido
-    this.updateExtendedRouletteCache(data);
-    
-    // Não precisamos registrar estatísticas duplicadas aqui, pois já foi feito em handleRouletteData
   }
 
   /**
@@ -683,52 +596,6 @@ export default class RouletteFeedService {
   }
   
   /**
-   * Atualiza o cache interno com os dados estendidos das roletas
-   */
-  private updateExtendedRouletteCache(data: any[]): void {
-    if (!Array.isArray(data)) {
-      logger.error('⚠️ Dados estendidos inválidos recebidos para cache:', data);
-      return;
-    }
-    
-    logger.info(`💾 Atualizando cache estendido com ${data.length} roletas`);
-    
-    // Flag para verificar se há dados novos
-    this.hasNewExtendedData = false;
-    
-    // Para cada roleta, verificar se já existe no cache e se há atualizações
-    data.forEach(roleta => {
-      const roletaId = roleta.id || roleta._id;
-      
-      if (!roletaId) {
-        logger.warn('⚠️ Roleta estendida sem ID ignorada:', roleta);
-        return;
-      }
-      
-      const cachedRoulette = this.extendedRouletteDataCache.get(roletaId);
-      
-      // Verificar se temos uma atualização para esta roleta
-      if (!cachedRoulette || this.hasNewRouletteData(cachedRoulette, roleta)) {
-        this.extendedRouletteDataCache.set(roletaId, roleta);
-        this.hasNewExtendedData = true;
-      }
-    });
-    
-    // Atualizar timestamp do cache
-    this.lastExtendedCacheUpdate = Date.now();
-    
-    // Se há novos dados, notificar os componentes
-    if (this.hasNewExtendedData) {
-      logger.info('🔔 Novos dados estendidos detectados, notificando componentes');
-      
-      // Emitir evento global para notificar os componentes
-      EventService.emit('roulette:extended-data-updated', {
-        timestamp: new Date().toISOString()
-      });
-    }
-  }
-  
-  /**
    * Verifica se há dados novos comparando a roleta do cache com a roleta atualizada
    */
   private hasNewRouletteData(cachedRoulette: any, newRoulette: any): boolean {
@@ -764,25 +631,10 @@ export default class RouletteFeedService {
   }
   
   /**
-   * Obtém dados estendidos de uma roleta específica do cache
-   * Retorna null se não encontrada
-   */
-  public getExtendedRouletteData(roletaId: string): any {
-    return this.extendedRouletteDataCache.get(roletaId) || null;
-  }
-  
-  /**
    * Obtém todas as roletas do cache
    */
   public getAllRoulettes(): any[] {
     return Array.from(this.rouletteDataCache.values());
-  }
-  
-  /**
-   * Obtém todas as roletas estendidas do cache
-   */
-  public getAllExtendedRoulettes(): any[] {
-    return Array.from(this.extendedRouletteDataCache.values());
   }
   
   /**
@@ -791,14 +643,6 @@ export default class RouletteFeedService {
   public isCacheValid(): boolean {
     const now = Date.now();
     return (now - this.lastCacheUpdate) <= this.cacheTTL;
-  }
-  
-  /**
-   * Verifica se o cache estendido está válido
-   */
-  public isExtendedCacheValid(): boolean {
-    const now = Date.now();
-    return (now - this.lastExtendedCacheUpdate) <= this.cacheTTL;
   }
   
   /**
@@ -898,5 +742,29 @@ export default class RouletteFeedService {
       // Se a última requisição global foi feita por esta instância, liberar a trava
       GLOBAL_IS_FETCHING = false;
     }
+  }
+
+  /**
+   * Processa os dados das roletas recebidos da API
+   */
+  private handleRouletteData(data: any): void {
+    if (!Array.isArray(data)) {
+      logger.error('⚠️ Dados inválidos recebidos:', data);
+      return;
+    }
+    
+    // Atualizar a lista de roletas
+    this.roulettes = data;
+    
+    // Atualizar o cache
+    this.updateRouletteCache(data);
+    
+    // Registrar estatística de requisição bem-sucedida
+    this.requestStats.totalRequests++;
+    this.requestStats.successfulRequests++;
+    this.requestStats.lastMinuteRequests.push(Date.now());
+    
+    // Ajustar o intervalo de polling com base no sucesso
+    this.adjustPollingInterval(true);
   }
 } 
