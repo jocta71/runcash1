@@ -33,17 +33,22 @@ export class SSEService {
     
     // Possíveis endpoints para eventos
     const possibleEndpoints = [
-      '/api/events',
-      '/events',
-      '/api/sse',
-      '/sse'
+      'events',           // Endpoint simples
+      'api/events',       // Endpoint com prefixo api
+      'sse',             // Endpoint alternativo
+      'api/sse'          // Endpoint alternativo com prefixo api
     ];
     
     // Usar a URL do config ou fallback para a URL atual
     const baseApiUrl = baseUrl || window.location.origin;
     
+    // Remover possível barra no final da URL base
+    const normalizedBaseUrl = baseApiUrl.endsWith('/') 
+      ? baseApiUrl.slice(0, -1) 
+      : baseApiUrl;
+    
     // Log para depuração
-    logger.info(`URL base da API: ${baseApiUrl}`);
+    logger.info(`URL base da API normalizada: ${normalizedBaseUrl}`);
     
     // Testar os endpoints de forma assíncrona e atualizar a URL depois
     this.testEndpoints().then(workingEndpoint => {
@@ -54,35 +59,40 @@ export class SSEService {
     });
     
     // Por padrão, usar o primeiro endpoint até que o teste seja concluído
-    return `${baseApiUrl}${possibleEndpoints[0]}`;
+    return `${normalizedBaseUrl}/${possibleEndpoints[0]}`;
   }
 
   private async testEndpoints(): Promise<string | null> {
     // Tenta verificar qual endpoint está funcionando
     const baseUrl = config.apiBaseUrl || window.location.origin;
     
+    // Remover possível barra no final da URL base
+    const normalizedBaseUrl = baseUrl.endsWith('/') 
+      ? baseUrl.slice(0, -1) 
+      : baseUrl;
+    
     // Lista de possíveis endpoints
     const endpoints = [
-      '/api/events',
-      '/events',
-      '/api/sse',
-      '/sse',
-      '/api/sse-status'  // Endpoint de diagnóstico
+      'events',
+      'api/events',
+      'sse',
+      'api/sse',
+      'api/sse-status'  // Endpoint de diagnóstico
     ];
     
     logger.info('Testando endpoints disponíveis...');
     
     // Testar o endpoint de status primeiro
     try {
-      const statusResponse = await fetch(`${baseUrl}/api/sse-status`);
+      const statusResponse = await fetch(`${normalizedBaseUrl}/api/sse-status`);
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
         logger.info('Endpoint de status disponível:', statusData);
         // Usar o primeiro endpoint suportado da lista
         if (statusData.supported_endpoints && statusData.supported_endpoints.length > 0) {
-          const endpoint = statusData.supported_endpoints[0];
+          const endpoint = statusData.supported_endpoints[0].replace(/^\//, '');
           logger.info(`Usando endpoint recomendado: ${endpoint}`);
-          return `${baseUrl}${endpoint}`;
+          return `${normalizedBaseUrl}/${endpoint}`;
         }
       }
     } catch (error) {
@@ -91,10 +101,8 @@ export class SSEService {
     
     // Se não conseguir obter do status, testar cada endpoint
     for (const endpoint of endpoints) {
-      // Não podemos usar fetch para testar SSE diretamente
-      // Mas podemos verificar se o endpoint existe com um HEAD request
       try {
-        const response = await fetch(`${baseUrl}${endpoint}`, { 
+        const response = await fetch(`${normalizedBaseUrl}/${endpoint}`, { 
           method: 'HEAD',
           mode: 'cors',
           cache: 'no-cache',
@@ -105,7 +113,7 @@ export class SSEService {
         // É melhor que 404
         if (response.status !== 404) {
           logger.info(`Endpoint encontrado: ${endpoint} (status: ${response.status})`);
-          return `${baseUrl}${endpoint}`;
+          return `${normalizedBaseUrl}/${endpoint}`;
         }
       } catch (error) {
         logger.warn(`Falha ao testar endpoint ${endpoint}:`, error);
