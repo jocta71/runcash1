@@ -154,7 +154,7 @@ const LastNumbersBar = ({ tableId, tableName }: RouletteNumbersProps) => {
           {tableName}
         </div>
         <div className="sc-brePHE gjvwkd cy-live-casino-grid-item-infobar-draws">
-          {numbers.slice(0, 5).map((number, index) => {
+          {numbers.map((number, index) => {
             const colorClass = getNumberColorClass(number);
             const highlightClass = highlightIndex === index ? 'highlight-new' : '';
             

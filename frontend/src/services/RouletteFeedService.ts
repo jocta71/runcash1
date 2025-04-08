@@ -84,7 +84,7 @@ class RouletteFeedService {
     const previousNumbers = this.lastRouletteNumbers.get(tableId) || [];
     
     // Criar nova sequência de números
-    const newNumbers = [number, ...previousNumbers].slice(0, 5);
+    const newNumbers = [number, ...previousNumbers].slice(0, 39);
     
     // Atualizar números armazenados
     this.lastRouletteNumbers.set(tableId, newNumbers);
