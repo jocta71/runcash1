@@ -26,6 +26,9 @@ const CACHE_VALIDITY = 5 * 60 * 1000;
 // Endpoints prioritários que devem usar o proxy-roulette
 const PROXY_ENDPOINTS = ['/api/ROULETTES', '/ROULETTES', 'ROULETTES', 'roulettes'];
 
+// URL da API backend
+const BACKEND_API_URL = 'https://backendapi-production-36b5.up.railway.app/api/ROULETTES';
+
 // Headers para evitar detecção como bot ou captchas
 const getDefaultHeaders = () => ({
   'Content-Type': 'application/json',
@@ -59,7 +62,7 @@ export const RequestThrottler = {
     const isRouletteEndpoint = PROXY_ENDPOINTS.some(endpoint => key.includes(endpoint));
     
     if (isRouletteEndpoint) {
-      logger.debug(`Redirecionando requisição ${key} para o proxy central`);
+      logger.debug(`Redirecionando requisição ${key} para API backend direta`);
       
       const standardizedKey = 'ROULETTES_PROXY';
       
@@ -69,19 +72,60 @@ export const RequestThrottler = {
         return pendingRequests.get(standardizedKey);
       }
       
+      // Verificar o cache primeiro se não estiver forçando nova requisição
+      if (!skipCache) {
+        const cached = responseCache.get(standardizedKey);
+        if (cached && (Date.now() - cached.timestamp < cacheTime)) {
+          logger.debug(`Usando dados em cache para ${standardizedKey}, idade: ${Math.round((Date.now() - cached.timestamp)/1000)}s`);
+          // Notificar subscribers mesmo quando usando cache
+          RequestThrottler.notifySubscribers(standardizedKey, cached.data);
+          RequestThrottler.notifySubscribers(key, cached.data);
+          return cached.data;
+        }
+      }
+      
+      // Verificar se passou tempo suficiente desde a última requisição
+      const now = Date.now();
+      const lastRequestTime = lastRequestTimes.get(standardizedKey) || 0;
+      const timeSinceLastRequest = now - lastRequestTime;
+      
+      // Se não passou tempo suficiente e não é forçado, agendar para depois
+      if (timeSinceLastRequest < MIN_REQUEST_INTERVAL && !forceNow) {
+        const timeToWait = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+        
+        logger.debug(
+          `Respeitando limite de requisições. Aguardando ${Math.round(timeToWait/1000)}s antes de acessar a API`
+        );
+        
+        // Aguardar o tempo necessário antes de fazer a requisição
+        await new Promise(resolve => setTimeout(resolve, timeToWait));
+      }
+      
       // Criar uma nova promessa para a requisição
       const requestPromise = (async () => {
         try {
-          logger.debug(`Buscando dados via proxy-roulette centralizado`);
+          // Atualizar o tempo da última requisição
+          lastRequestTimes.set(standardizedKey, Date.now());
           
-          // Fazer requisição para o proxy centralizado
-          const proxyResponse = await fetch('/api/proxy-roulette');
+          logger.debug(`Buscando dados diretamente da API backend`);
           
-          if (!proxyResponse.ok) {
-            throw new Error(`Erro ao buscar dados do proxy: ${proxyResponse.status}`);
+          // Fazer requisição diretamente para o backend em vez de usar o proxy-roulette
+          const response = await fetch(BACKEND_API_URL, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+              'Origin': window.location.origin,
+              'Referer': window.location.origin
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Erro ao buscar dados da API: ${response.status}`);
           }
           
-          const data = await proxyResponse.json();
+          const data = await response.json();
           
           // Armazenar no cache global
           responseCache.set(standardizedKey, {
@@ -97,7 +141,7 @@ export const RequestThrottler = {
           
           return data;
         } catch (error) {
-          logger.error(`Erro ao buscar dados via proxy: ${error.message}`);
+          logger.error(`Erro ao buscar dados da API: ${error.message}`);
           
           // Em caso de erro, verificar se temos cache
           const cached = responseCache.get(standardizedKey);
