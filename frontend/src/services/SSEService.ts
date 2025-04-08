@@ -31,12 +31,11 @@ export class SSEService {
     // URL base da API
     const baseUrl = config.apiBaseUrl || '';
     
-    // Possíveis endpoints para eventos
+    // Possíveis endpoints para eventos - primeiro tentar sem /api/
     const possibleEndpoints = [
       'events',           // Endpoint simples
-      'api/events',       // Endpoint com prefixo api
       'sse',             // Endpoint alternativo
-      'api/sse'          // Endpoint alternativo com prefixo api
+      'sse-status'       // Endpoint de status
     ];
     
     // Usar a URL do config ou fallback para a URL atual
@@ -71,20 +70,18 @@ export class SSEService {
       ? baseUrl.slice(0, -1) 
       : baseUrl;
     
-    // Lista de possíveis endpoints
+    // Lista de possíveis endpoints - primeiro tentar sem /api/
     const endpoints = [
-      'events',
-      'api/events',
-      'sse',
-      'api/sse',
-      'api/sse-status'  // Endpoint de diagnóstico
+      'sse-status',  // Endpoint de diagnóstico
+      'events',      // Endpoint principal
+      'sse'         // Endpoint alternativo
     ];
     
     logger.info('Testando endpoints disponíveis...');
     
     // Testar o endpoint de status primeiro
     try {
-      const statusResponse = await fetch(`${normalizedBaseUrl}/api/sse-status`);
+      const statusResponse = await fetch(`${normalizedBaseUrl}/sse-status`);
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
         logger.info('Endpoint de status disponível:', statusData);
@@ -109,7 +106,7 @@ export class SSEService {
           credentials: 'include',
         });
         
-        // Se retornar qualquer resposta (mesmo que não seja 200)
+        // Se retornar qualquer resposta (mesmo que não seja 404)
         // É melhor que 404
         if (response.status !== 404) {
           logger.info(`Endpoint encontrado: ${endpoint} (status: ${response.status})`);
@@ -199,21 +196,23 @@ export class SSEService {
   
   private tryAlternativeEndpoints(): void {
     const possibleEndpoints = [
-      '/api/events',
-      '/events',
-      '/api/sse',
-      '/sse',
-      '/api/stream',
-      '/stream'
+      'events',
+      'sse',
+      'stream'
     ];
     
     // URL base da API
     const baseUrl = config.apiBaseUrl || window.location.origin;
     
+    // Remover possível barra no final da URL base
+    const normalizedBaseUrl = baseUrl.endsWith('/') 
+      ? baseUrl.slice(0, -1) 
+      : baseUrl;
+    
     // Tentar próximo endpoint
     const nextEndpointIndex = (this.reconnectAttempts % possibleEndpoints.length);
     const nextEndpoint = possibleEndpoints[nextEndpointIndex];
-    this.apiUrl = `${baseUrl}${nextEndpoint}`;
+    this.apiUrl = `${normalizedBaseUrl}/${nextEndpoint}`;
     
     logger.info(`Tentando endpoint alternativo: ${this.apiUrl}`);
     this.handleReconnect();
