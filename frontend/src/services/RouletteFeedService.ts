@@ -8,7 +8,7 @@ const logger = new Logger('RouletteFeedService');
 
 /**
  * Serviço de feed de dados de roletas
- * Adaptado com base na análise do sistema do 888casino
+ * Implementa polling eficiente baseado na análise do 888casino
  */
 class RouletteFeedService {
   private static instance: RouletteFeedService;
@@ -44,7 +44,7 @@ class RouletteFeedService {
     // Buscar dados iniciais
     this.fetchInitialData();
     
-    // Configurar polling com intervalo preciso como o 888casino
+    // Configurar polling
     this.startPolling();
   }
   
@@ -63,7 +63,7 @@ class RouletteFeedService {
     // Limpar qualquer timer existente
     this.stopPolling();
     
-    // Iniciar novo timer com intervalo exato do 888casino (11 segundos)
+    // Iniciar novo timer com intervalo de 11 segundos
     this.pollingTimer = setInterval(() => {
       this.fetchLatestData();
     }, this.pollingInterval);
@@ -106,8 +106,7 @@ class RouletteFeedService {
   }
   
   /**
-   * Busca as atualizações mais recentes
-   * Implementa lógica refinada baseada no sistema do 888casino
+   * Busca as atualizações mais recentes via polling
    */
   private async fetchLatestData(): Promise<void> {
     try {
@@ -164,7 +163,6 @@ class RouletteFeedService {
       logger.error('Erro ao buscar atualizações:', error);
       
       // Tentar novamente após um breve intervalo em caso de falha
-      // (não usando o mesmo intervalo completo)
       setTimeout(() => {
         logger.info('Tentando novamente após falha anterior...');
         this.fetchLatestData();

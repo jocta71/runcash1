@@ -141,9 +141,6 @@ console.log('[Socket.IO] Inicializado com configuração CORS para aceitar todas
 // Manter registro do status de cada roleta
 const rouletteStatusMap = new Map();
 
-// Clientes HTTP SSE
-const eventListeners = [];
-
 /**
  * Atualiza o status de uma roleta com os dados mais recentes
  * @param {string} roletaId - ID da roleta
@@ -186,86 +183,23 @@ function updateRouletteStatus(roletaId, data) {
 }
 
 /**
- * Notifica todos os clientes HTTP SSE com um novo evento
+ * Função modificada para notificar clientes - sem usar SSE
  * @param {string} eventType - Tipo do evento
  * @param {object} data - Dados do evento
  */
 function notifyEventListeners(eventType, data) {
-  if (eventListeners.length === 0) {
-    return; // Nenhum cliente SSE para notificar
-  }
-  
-  // Dados formatados para o evento
-  const eventData = JSON.stringify({
-    type: eventType,
-    ...data,
-    serverTimestamp: Date.now()
-  });
-  
-  // Iterar pelos clientes e remover os desconectados
-  for (let i = eventListeners.length - 1; i >= 0; i--) {
-    const client = eventListeners[i];
+  // Apenas notificar via socket.io
+  if (eventType === 'new_number') {
+    // Emitir evento via socket.io
+    io.emit('global_new_number', {
+      ...data,
+      type: eventType,
+      serverTimestamp: Date.now()
+    });
     
-    try {
-      client.res.write(`data: ${eventData}\n\n`);
-    } catch (error) {
-      console.log(`[SSE] Erro ao enviar para cliente, removendo: ${error.message}`);
-      eventListeners.splice(i, 1);
-    }
-  }
-  
-  if (eventListeners.length > 0) {
-    console.log(`[SSE] Evento ${eventType} enviado para ${eventListeners.length} clientes`);
+    console.log(`[Notification] Evento ${eventType} enviado via Socket.IO`);
   }
 }
-
-// Rota SSE para compatibilidade
-app.get('/api/events', (req, res) => {
-  // Configurar cabeçalhos para SSE
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  
-  // Enviar um ping inicial para começar o stream
-  res.write(`data: ${JSON.stringify({ type: "ping", message: "Conexão SSE estabelecida" })}\n\n`);
-  
-  // Adicionar à lista de clientes
-  const clientId = Date.now();
-  const client = { id: clientId, res };
-  eventListeners.push(client);
-  
-  console.log(`[SSE] Novo cliente conectado: ${clientId}, total: ${eventListeners.length}`);
-  
-  // Enviar ping a cada 30 segundos para manter a conexão viva
-  const pingInterval = setInterval(() => {
-    try {
-      res.write(`data: ${JSON.stringify({ type: "ping", timestamp: Date.now() })}\n\n`);
-    } catch (error) {
-      console.log(`[SSE] Erro ao enviar ping para cliente ${clientId}: ${error.message}`);
-      clearInterval(pingInterval);
-      
-      // Remover cliente da lista
-      const index = eventListeners.findIndex(c => c.id === clientId);
-      if (index !== -1) {
-        eventListeners.splice(index, 1);
-        console.log(`[SSE] Cliente ${clientId} removido, restantes: ${eventListeners.length}`);
-      }
-    }
-  }, 30000);
-  
-  // Quando o cliente desconectar
-  req.on('close', () => {
-    clearInterval(pingInterval);
-    
-    // Remover da lista de clientes
-    const index = eventListeners.findIndex(c => c.id === clientId);
-    if (index !== -1) {
-      eventListeners.splice(index, 1);
-      console.log(`[SSE] Cliente ${clientId} desconectado, restantes: ${eventListeners.length}`);
-    }
-  });
-});
 
 // Endpoint para obter o status atual de todas as roletas
 app.get('/api/roletas/status', (req, res) => {
@@ -518,8 +452,8 @@ async function checkForNewData() {
             timestamp: Date.now()
           });
           
-          // Também emitir via eventos HTTP para compatibilidade
-          notifyEventListeners('new_number', items[0]);
+          // Notificar os clientes
+          io.to(items[0].roleta_nome).emit('new_number', items[0]);
         });
       } else {
         console.log('[Polling] Todos os registros já foram processados anteriormente');
