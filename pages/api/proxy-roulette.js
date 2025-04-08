@@ -7,19 +7,26 @@ const MIN_FETCH_INTERVAL = 11000; // 11 segundos entre requisições
 const CACHE_VALIDITY = 30 * 60 * 1000; // Cache válido por 30 minutos
 
 // Armazenar dados em cache com timestamp
-global.rouletteCache = {
-  data: null,
-  timestamp: 0,
-  requestInProgress: false,
-  clientsWaiting: []
-};
+if (typeof global.rouletteCache === 'undefined') {
+  global.rouletteCache = {
+    data: null,
+    timestamp: 0,
+    requestInProgress: false,
+    clientsWaiting: []
+  };
+}
 
-export default async function handler(req, res) {
-  // Configurar headers CORS para evitar problemas de acesso
+// Definir configurações de CORS
+function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+}
+
+export default async function handler(req, res) {
+  // Configurar headers CORS para evitar problemas de acesso
+  setCorsHeaders(res);
 
   // Tratar requisições OPTIONS (preflight)
   if (req.method === 'OPTIONS') {
@@ -32,7 +39,7 @@ export default async function handler(req, res) {
     
     // Estatísticas para debug
     console.log(`[Proxy-Roulette] Recebida requisição, última foi há ${Math.round((now - lastFetchTime)/1000)}s`);
-    console.log(`[Proxy-Roulette] Cache ${global.rouletteCache.data ? 'existe' : 'não existe'}, idade: ${Math.round((now - global.rouletteCache.timestamp)/1000)}s`);
+    console.log(`[Proxy-Roulette] Cache ${global.rouletteCache.data ? 'existe' : 'não existe'}, idade: ${global.rouletteCache.data ? Math.round((now - global.rouletteCache.timestamp)/1000) : 0}s`);
     
     // Função para enviar resposta do cache
     const sendCachedResponse = () => {
@@ -106,7 +113,9 @@ export default async function handler(req, res) {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Origin': 'https://runcash11-ten.vercel.app',
+          'Referer': 'https://runcash11-ten.vercel.app/'
         },
         signal: controller.signal
       });

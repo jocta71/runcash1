@@ -361,9 +361,9 @@ const MAX_CONSECUTIVE_EMPTY_POLLS = 10;
 function startPolling() {
   if (pollingActive) {
     console.log('[Polling] Já existe um processo de polling ativo');
-    return;
-  }
-  
+      return;
+    }
+    
   pollingActive = true;
   console.log(`[Polling] Iniciando verificação periódica a cada ${POLL_INTERVAL}ms`);
   
@@ -455,7 +455,7 @@ async function checkForNewData() {
           // Notificar os clientes
           io.to(items[0].roleta_nome).emit('new_number', items[0]);
         });
-      } else {
+          } else {
         console.log('[Polling] Todos os registros já foram processados anteriormente');
       }
     } else {
