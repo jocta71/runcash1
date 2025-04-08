@@ -14,7 +14,7 @@ import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 const logger = getLogger('FetchService');
 
 // Configurações
-const POLLING_INTERVAL = 5000; // 5 segundos entre cada verificação
+const POLLING_INTERVAL = 11000; // 11 segundos (como identificado no 888casino)
 const MAX_RETRIES = 3; // Número máximo de tentativas antes de desistir
 const ALLOWED_ROULETTES = ROLETAS_PERMITIDAS;
 
