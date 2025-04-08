@@ -7,8 +7,8 @@ import { HistoryData } from './SocketService';
 const logger = new Logger('RouletteFeedService');
 
 /**
- * Serviço para obter atualizações das roletas usando polling
- * Implementação baseada no modelo do 888casino
+ * Serviço para obter atualizações das roletas usando polling único
+ * Intervalo ajustado para 8 segundos conforme especificação
  */
 class RouletteFeedService {
   private static instance: RouletteFeedService;
@@ -16,37 +16,24 @@ class RouletteFeedService {
   private lastRouletteNumbers: Map<string, string[]> = new Map();
   private socketService: any;
   
-  // Intervalo de polling otimizado baseado no 888casino (11 segundos exatos)
-  private pollingInterval: number = 11000;
+  // Intervalo otimizado para 8 segundos exatos conforme solicitado
+  private pollingInterval: number = 8000;
   private pollingTimer: number | null = null;
+  private currentInterval: number = 8000;
   
-  // Controle de erros e tentativas
-  private consecutiveErrors: number = 0;
-  private maxConsecutiveErrors: number = 5;
-  private backoffFactor: number = 1.5;
-  private maxInterval: number = 30000; // 30 segundos máximo
-  private currentInterval: number = 11000; // começa com 11 segundos
+  // Flag para controlar se uma requisição já está em andamento
+  private isRequestInProgress: boolean = false;
   
-  // Timestamps para monitoramento de desempenho
+  // Flag de inicialização global para garantir apenas uma instância de polling
+  private static isInitialized: boolean = false;
+  
+  // Timestamps para monitoramento
   private lastFetchTime: number = 0;
-  private pollingMetrics: {
-    totalRequests: number;
-    successfulRequests: number;
-    totalUpdates: number;
-    averageResponseTime: number;
-    totalResponseTime: number;
-  } = {
-    totalRequests: 0,
-    successfulRequests: 0,
-    totalUpdates: 0,
-    averageResponseTime: 0,
-    totalResponseTime: 0
-  };
   
   constructor() {
     this.apiBaseUrl = config.apiBaseUrl;
     logger.info('Inicializado com URL base:', this.apiBaseUrl);
-    logger.info(`Configurado com intervalo de polling de ${this.pollingInterval}ms (baseado no 888casino)`);
+    logger.info(`Configurado com intervalo de polling de ${this.pollingInterval}ms (exatamente 8 segundos)`);
   }
   
   public static getInstance(): RouletteFeedService {
@@ -60,16 +47,33 @@ class RouletteFeedService {
    * Inicia o serviço de feed de roletas
    */
   public start(): void {
-    logger.info('Iniciando serviço de feed de roletas com polling otimizado');
+    // Verificar se o sistema já foi inicializado para prevenir múltiplas instâncias
+    if (RouletteFeedService.isInitialized) {
+      logger.info('Serviço já está inicializado, ignorando chamada duplicada');
+      return;
+    }
     
-    // Buscar dados iniciais
+    RouletteFeedService.isInitialized = true;
+    logger.info('Iniciando serviço de feed de roletas com polling otimizado (única fonte)');
+    
+    // Buscar dados iniciais imediatamente
     this.fetchInitialData();
     
-    // Iniciar polling
+    // Iniciar polling com intervalo exato de 8 segundos
     this.startPolling();
     
-    // Monitorar visibilidade da página para otimizar o polling
+    // Monitorar visibilidade da página
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    
+    // Adicionar listener para limpeza quando a página fechar
+    window.addEventListener('beforeunload', this.cleanupService);
+  }
+  
+  /**
+   * Limpeza do serviço ao fechar página
+   */
+  private cleanupService = (): void => {
+    this.stop();
   }
   
   /**
@@ -78,11 +82,15 @@ class RouletteFeedService {
   public stop(): void {
     logger.info('Parando serviço de feed de roletas');
     
-    // Remover listener de visibilidade
+    // Limpar listeners
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    window.removeEventListener('beforeunload', this.cleanupService);
     
     // Parar o polling
     this.stopPolling();
+    
+    // Resetar flag de inicialização
+    RouletteFeedService.isInitialized = false;
   }
   
   /**
@@ -91,41 +99,28 @@ class RouletteFeedService {
   private handleVisibilityChange = (): void => {
     if (document.visibilityState === 'visible') {
       logger.info('Página voltou a ficar visível, reativando polling');
-      // Forçar uma atualização imediata
-      this.fetchLatestData();
       
-      // Restabelecer polling normal se estiver parado
+      // Verificar se o polling está ativo
       if (!this.pollingTimer) {
         this.startPolling();
-      }
-    } else {
-      // Opcionalmente reduzir frequência ou parar polling quando página não estiver visível
-      // para economizar recursos do servidor e do cliente
-      if (config.optimizePollingForVisibility) {
-        logger.info('Página não visível, reduzindo frequência de polling');
-        this.stopPolling();
-        
-        // Opcionalmente manter um polling mais lento
-        this.pollingTimer = setInterval(() => {
-          this.fetchLatestData();
-        }, this.maxInterval); // polling mais lento quando não visível
       }
     }
   }
   
   /**
    * Inicia o polling para buscar atualizações periódicas
+   * Garante apenas uma fonte de requisições
    */
   private startPolling(): void {
     // Limpar qualquer timer existente
     this.stopPolling();
     
-    // Iniciar novo timer com o intervalo atual
+    // Iniciar novo timer com o intervalo exato de 8 segundos
     this.pollingTimer = setInterval(() => {
       this.fetchLatestData();
     }, this.currentInterval);
     
-    logger.info(`Polling iniciado (intervalo: ${this.currentInterval}ms)`);
+    logger.info(`Polling único iniciado (intervalo: ${this.currentInterval}ms)`);
   }
   
   /**
@@ -140,120 +135,66 @@ class RouletteFeedService {
   }
   
   /**
-   * Restabelece o polling após backoff por erros
-   */
-  private resetPollingInterval(): void {
-    this.consecutiveErrors = 0;
-    this.currentInterval = this.pollingInterval; // voltar para 11 segundos
-    
-    // Reiniciar polling com intervalo normal
-    if (this.pollingTimer) {
-      this.stopPolling();
-      this.startPolling();
-    }
-    
-    logger.info(`Intervalo de polling resetado para ${this.currentInterval}ms`);
-  }
-  
-  /**
-   * Implementa backoff exponencial para polling em caso de erros
-   */
-  private implementBackoff(): void {
-    this.consecutiveErrors++;
-    
-    if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
-      // Aumentar o intervalo até o máximo permitido
-      this.currentInterval = Math.min(
-        this.currentInterval * this.backoffFactor,
-        this.maxInterval
-      );
-      
-      // Reiniciar polling com novo intervalo
-      if (this.pollingTimer) {
-        this.stopPolling();
-        this.startPolling();
-      }
-      
-      logger.warn(`Backoff aplicado: novo intervalo de polling é ${this.currentInterval}ms`);
-    }
-  }
-  
-  /**
    * Busca dados iniciais das roletas
    */
   private async fetchInitialData(): Promise<void> {
     try {
+      // Prevenir múltiplas requisições simultâneas
+      if (this.isRequestInProgress) {
+        logger.debug('Requisição já em andamento, ignorando chamada duplicada');
+        return;
+      }
+      
+      this.isRequestInProgress = true;
+      
       const startTime = Date.now();
       const response = await axios.get(`${this.apiBaseUrl}/api/roletas`);
       
-      this.pollingMetrics.totalRequests++;
-      
       if (response.status === 200 && response.data) {
-        this.pollingMetrics.successfulRequests++;
-        const processingTime = Date.now() - startTime;
-        this.updateMetrics(processingTime, 0);
-        
         response.data.forEach((roleta: any) => {
           if (roleta.id && roleta.numeros) {
             this.lastRouletteNumbers.set(roleta.id, roleta.numeros);
           }
         });
         
-        logger.info(`Dados iniciais carregados: ${response.data.length} roletas`);
+        logger.info(`Dados iniciais carregados: ${response.data.length} roletas em ${Date.now() - startTime}ms`);
       }
     } catch (error) {
       logger.error('Erro ao buscar dados iniciais:', error);
-      this.implementBackoff();
-    }
-  }
-  
-  /**
-   * Atualiza métricas de performance do polling
-   */
-  private updateMetrics(responseTime: number, updates: number): void {
-    this.pollingMetrics.totalResponseTime += responseTime;
-    this.pollingMetrics.totalUpdates += updates;
-    this.pollingMetrics.averageResponseTime = 
-      this.pollingMetrics.totalResponseTime / this.pollingMetrics.successfulRequests;
-    
-    // Log periódico de métricas (a cada 50 requisições)
-    if (this.pollingMetrics.totalRequests % 50 === 0) {
-      logger.info(`Métricas de polling: 
-        - Requisições totais: ${this.pollingMetrics.totalRequests}
-        - Taxa de sucesso: ${(this.pollingMetrics.successfulRequests / this.pollingMetrics.totalRequests * 100).toFixed(2)}%
-        - Atualizações recebidas: ${this.pollingMetrics.totalUpdates}
-        - Tempo médio de resposta: ${this.pollingMetrics.averageResponseTime.toFixed(2)}ms`);
+    } finally {
+      this.isRequestInProgress = false;
     }
   }
   
   /**
    * Busca as atualizações mais recentes via polling
+   * Implementa controle para garantir apenas uma requisição de cada vez
    */
   private async fetchLatestData(): Promise<void> {
-    // Evitar sobreposição de requisições muito próximas
+    // Evitar requisições sobrepostas
+    if (this.isRequestInProgress) {
+      logger.debug('Ignorando requisição (já existe uma em andamento)');
+      return;
+    }
+    
+    // Registrar timestamp para garantir intervalo mínimo entre chamadas
     const now = Date.now();
-    if (now - this.lastFetchTime < 2000) {
+    if (now - this.lastFetchTime < 7000) { // Garantir pelo menos 7s entre requisições como segurança
       logger.debug('Ignorando requisição redundante (muito próxima da anterior)');
       return;
     }
     
     this.lastFetchTime = now;
+    this.isRequestInProgress = true;
     
     try {
       const startTime = Date.now();
+      logger.debug(`Iniciando requisição de dados em ${new Date().toISOString()}`);
+      
       const response = await axios.get(`${this.apiBaseUrl}/api/roletas`);
       
-      this.pollingMetrics.totalRequests++;
-      
       if (response.status === 200 && response.data) {
-        this.pollingMetrics.successfulRequests++;
-        
-        // Resetar contagem de erros quando requisição é bem-sucedida
-        if (this.consecutiveErrors > 0) {
-          this.resetPollingInterval();
-        }
-        
-        // Contar atualizações para métricas
+        // Contar atualizações
         let updatesCount = 0;
         
         response.data.forEach((roleta: any) => {
@@ -285,17 +226,16 @@ class RouletteFeedService {
         });
         
         const processingTime = Date.now() - startTime;
-        this.updateMetrics(processingTime, updatesCount);
-        
         if (updatesCount > 0) {
-          logger.info(`Atualizações recebidas via polling: ${updatesCount} roletas atualizadas`);
+          logger.info(`Atualizações recebidas via polling único: ${updatesCount} roletas atualizadas em ${processingTime}ms`);
         } else {
-          logger.debug('Polling concluído, sem atualizações');
+          logger.debug(`Polling concluído sem atualizações (${processingTime}ms)`);
         }
       }
     } catch (error) {
       logger.error('Erro ao buscar atualizações:', error);
-      this.implementBackoff();
+    } finally {
+      this.isRequestInProgress = false;
     }
   }
   
@@ -351,17 +291,6 @@ class RouletteFeedService {
   }
   
   /**
-   * Obtém métricas de performance do sistema de polling
-   */
-  public getPollingMetrics() {
-    return {
-      ...this.pollingMetrics,
-      currentInterval: this.currentInterval,
-      consecutiveErrors: this.consecutiveErrors,
-    };
-  }
-  
-  /**
    * Força uma atualização imediata (útil para testes ou quando o usuário solicita manualmente)
    */
   public async forceUpdate(): Promise<void> {
@@ -375,6 +304,25 @@ class RouletteFeedService {
   public registerSocketService(socketService: any): void {
     this.socketService = socketService;
     logger.info('SocketService registrado para histórico completo');
+  }
+  
+  /**
+   * Retorna o status do serviço
+   */
+  public getStatus(): { 
+    initialized: boolean; 
+    isPolling: boolean; 
+    interval: number;
+    lastFetchTime: number;
+    cachedTables: number;
+  } {
+    return {
+      initialized: RouletteFeedService.isInitialized,
+      isPolling: this.pollingTimer !== null,
+      interval: this.currentInterval,
+      lastFetchTime: this.lastFetchTime,
+      cachedTables: this.lastRouletteNumbers.size
+    };
   }
 }
 

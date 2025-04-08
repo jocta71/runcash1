@@ -127,19 +127,11 @@ class SocketService {
     // Configurar handler para rejeições de promise não tratadas
     this.setupUnhandledRejectionHandler();
     
-    // Iniciar polling agressivo para roletas populares imediatamente
-    setTimeout(() => {
-      console.log('[SocketService] Iniciando polling agressivo para roletas principais');
-      this.startAggressivePolling('2010096', 'Speed Auto Roulette');
-      this.startAggressivePolling('2010098', 'Auto-Roulette VIP');
-      this.startAggressivePolling('2010017', 'Ruleta Automática');
-      this.startAggressivePolling('2380335', 'Brazilian Mega Roulette');
-      this.startAggressivePolling('2010065', 'Bucharest Auto-Roulette');
-      this.startAggressivePolling('2010016', 'Immersive Roulette');
-    }, 1000);
+    console.log('[SocketService] Polling agressivo de roletas DESATIVADO - Centralizado no RouletteFeedService');
     
-    // Tentar recarregar dados a cada 30 segundos (era 60 segundos)
-    setInterval(() => this.requestRecentNumbers(), 30000);
+    // Reduzir frequência de recarregamento para minimizar requisições
+    // Desativar para usar apenas o RouletteFeedService como fonte única
+    // setInterval(() => this.requestRecentNumbers(), 30000);
   }
 
   // Manipular alterações de visibilidade da página
@@ -1723,88 +1715,29 @@ class SocketService {
 
   /**
    * Inicia polling agressivo para uma roleta específica
-   * @param roletaId ID da roleta
-   * @param roletaNome Nome da roleta (opcional)
+   * Desativado para centralizar no RouletteFeedService
    */
-  private startAggressivePolling(roletaId: string, roletaNome?: string): any {
-    // Verificar se já existe polling para esta roleta
+  public startAggressivePolling(roletaId: string, roletaNome: string): void {
+    console.log(`[SocketService] Polling agressivo DESATIVADO para ${roletaNome} (${roletaId})`);
+    // Implementação removida para evitar requisições duplicadas
+    return;
+    
+    /* IMPLEMENTAÇÃO ORIGINAL DESATIVADA
     if (this.pollingIntervals.has(roletaId)) {
-      console.log(`[SocketService] Polling já ativo para ${roletaNome || roletaId}`);
-      return this.pollingIntervals.get(roletaId)!;
+      console.log(`[SocketService] Polling já ativo para ${roletaNome} (${roletaId})`);
+      return;
     }
-
-    console.log(`[SocketService] Iniciando polling para ${roletaNome || roletaId} com intervalo de ${this.pollingInterval}ms`);
     
-    // Armazenar informações de controle para este polling
-    const pollingInfo = {
-      interval: this.pollingInterval,
-      consecutiveErrors: 0,
-      timerId: null as any,
-      lastSuccess: Date.now()
-    };
+    console.log(`[SocketService] Iniciando polling agressivo para ${roletaNome} (${roletaId})`);
     
-    // Função que será executada a cada intervalo
-    const pollingFunction = async () => {
-      try {
-        // Tentar buscar dados mais recentes via REST API
-        const success = await this.fetchRouletteNumbersREST(roletaId);
-        
-        if (success) {
-          // Se teve sucesso, resetar contador de erros e reduzir intervalo gradualmente
-          pollingInfo.consecutiveErrors = 0;
-          pollingInfo.lastSuccess = Date.now();
-          
-          // Reduzir o intervalo, mas não abaixo do mínimo
-          pollingInfo.interval = Math.max(
-            this.minPollingInterval, 
-            pollingInfo.interval / 1.2
-          );
-          } else {
-          // Se falhou, aumentar contador e ajustar intervalo
-          pollingInfo.consecutiveErrors++;
-          
-          if (pollingInfo.consecutiveErrors > 2) {
-            // Aumentar intervalo exponencialmente após múltiplas falhas
-            pollingInfo.interval = Math.min(
-              this.maxPollingInterval,
-              pollingInfo.interval * this.pollingBackoffFactor
-            );
-            
-            console.log(`[SocketService] Aumentando intervalo de polling para ${roletaNome || roletaId} para ${pollingInfo.interval}ms após ${pollingInfo.consecutiveErrors} falhas`);
-          }
-        }
-        
-        // Reagendar com o novo intervalo
-        clearTimeout(pollingInfo.timerId);
-        pollingInfo.timerId = setTimeout(pollingFunction, pollingInfo.interval);
-        
-      } catch (error) {
-        console.error(`[SocketService] Erro no polling para ${roletaNome || roletaId}:`, error);
-        
-        // Aumentar contador e ajustar intervalo
-        pollingInfo.consecutiveErrors++;
-        
-        // Aumentar intervalo para reduzir sobrecarga no servidor
-        pollingInfo.interval = Math.min(
-          this.maxPollingInterval,
-          pollingInfo.interval * this.pollingBackoffFactor
-        );
-        
-        console.log(`[SocketService] Aumentando intervalo de polling para ${pollingInfo.interval}ms após erro`);
-        
-        // Reagendar mesmo com erro, mas com intervalo maior
-        clearTimeout(pollingInfo.timerId);
-        pollingInfo.timerId = setTimeout(pollingFunction, pollingInfo.interval);
-      }
-    };
+    // Configurar intervalo menor para roletas populares
+    const interval = setInterval(() => {
+      this.requestRouletteData(roletaId, roletaNome);
+    }, this.pollingInterval / 3); // 3x mais frequente que o polling normal
     
-    // Iniciar o polling
-    pollingInfo.timerId = setTimeout(pollingFunction, pollingInfo.interval);
-    
-    // Armazenar referência para poder cancelar depois
-    this.pollingIntervals.set(roletaId, pollingInfo);
-    
-    return pollingInfo;
+    // Armazenar intervalo para poder cancelar depois
+    this.pollingIntervals.set(roletaId, interval);
+    */
   }
 
   // Método para parar o polling para uma roleta específica

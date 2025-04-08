@@ -442,12 +442,12 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     );
   }
   
-  // Lógica antiga do componente (atualizada para usar o polling otimizado)
+  // Lógica do componente atualizada para usar o sistema de roletas único
   useEffect(() => {
-    // Inicializar o sistema de roletas com o novo polling otimizado
+    // Inicializar o sistema de roletas (singleton garantido)
+    // Não inicializa uma segunda vez se já estiver rodando
     const { rouletteFeedService } = initializeRouletteSystem();
-    
-    console.log('[LiveRoulettesDisplay] Sistema de roletas inicializado com polling otimizado de 11s (baseado no 888casino)');
+    console.log('[LiveRoulettesDisplay] Conectado ao sistema único de roletas (8s)');
     
     // Função para atualizar a lista de mesas
     const updateTables = () => {

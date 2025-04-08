@@ -69,21 +69,22 @@ const LiveRoulettePage: React.FC = () => {
 
   // Efeito para buscar os dados iniciais
   useEffect(() => {
-    // Inicializar o sistema de roletas otimizado (baseado no 888casino)
+    // Inicializar o sistema de roletas otimizado (singleton garantido)
     const { rouletteFeedService } = initializeRouletteSystem();
+    console.log('[LiveRoulettePage] Sistema de roletas inicializado - fonte única de dados (8s)');
     
     // Buscar dados iniciais
     async function fetchInitialData() {
       try {
         setLoading(true);
         
-        // Adicionar um pequeno atraso para garantir que outros componentes estejam prontos
+        // Adicionar um pequeno atraso para garantir que o serviço carregou os dados iniciais
         setTimeout(() => {
           const rouletteData = rouletteFeedService.getAllRouletteTables().map(table => ({
             id: table.tableId,
             nome: table.tableId, // Usar ID temporariamente se não tiver nome
             numero: table.numbers.map(n => ({ numero: parseInt(n) })),
-            ativo: true
+            ativa: true  // Usando ativa em vez de ativo para corresponder ao tipo
           }));
           
           setRoulettes(rouletteData);
@@ -130,7 +131,7 @@ const LiveRoulettePage: React.FC = () => {
             numero: parseInt(n),
             timestamp: new Date().toISOString()
           })),
-          ativo: true
+          ativa: true
         };
         
         return [...prev, newRoulette];
