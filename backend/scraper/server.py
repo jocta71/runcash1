@@ -34,6 +34,21 @@ app = Flask(__name__)
 allowed_origins = os.environ.get('ALLOWED_ORIGINS', 'https://runcashnew-frontend-nu.vercel.app,https://runcashnew.vercel.app,https://seu-projeto.vercel.app,http://localhost:3000,http://localhost:5173,https://788b-146-235-26-230.ngrok-free.app,https://new-run-zeta.vercel.app')
 CORS(app, resources={r"/api/*": {"origins": allowed_origins.split(','), "supports_credentials": True}})
 
+# Configuração específica para SSE, permitindo cabeçalhos adicionais necessários
+@app.after_request
+def add_cors_headers(response):
+    """Adiciona cabeçalhos CORS específicos para SSE"""
+    if request.path.startswith('/api/events') or request.path == '/events':
+        origin = request.headers.get('Origin')
+        if origin and (origin in allowed_origins.split(',') or '*' in allowed_origins):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+            response.headers['Cache-Control'] = 'no-cache'
+            response.headers['Connection'] = 'keep-alive'
+    return response
+
 # Fonte de dados
 data_source = MongoDataSource()
 
@@ -234,6 +249,9 @@ def sse_stream():
             for event in history:
                 yield f'data: {json.dumps(event)}\n\n'
             
+            # Enviar evento inicial para confirmar conexão
+            yield f'data: {json.dumps({"type": "connection_established", "timestamp": datetime.now().isoformat()})}\n\n'
+            
             # Esperar por novos eventos
             while True:
                 try:
@@ -248,21 +266,19 @@ def sse_stream():
         except:
             # Em caso de erro, remover cliente
             event_manager.unregister_client(client_queue)
-        
-        # Quando a conexão for fechada, remover cliente
-        event_manager.unregister_client(client_queue)
+    
+    # Configurar resposta como SSE
+    return Response(generate(), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",  # Evitar buffering NGINX
+    })
 
-    # Configurar resposta SSE
-    return Response(
-        generate(),
-        mimetype='text/event-stream',
-        headers={
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': '*',
-        }
-    )
-
+# Adicionar endpoint alternativo /events para compatibilidade
+@app.route('/events')
+def sse_stream_alt():
+    """Endpoint alternativo SSE para receber atualizações em tempo real"""
+    return sse_stream()
 
 @app.route('/api/strategy/<roleta_id>', methods=['GET'])
 def get_strategy_status(roleta_id):
@@ -344,6 +360,35 @@ def test_event():
         "message": "Evento enviado com sucesso",
         "event": data
     })
+
+# Adicionar endpoint /sse para compatibilidade máxima
+@app.route('/sse')
+def sse_endpoint():
+    """Endpoint SSE alternativo para máxima compatibilidade"""
+    return sse_stream()
+
+@app.route('/api/sse')
+def sse_api_endpoint():
+    """Endpoint SSE alternativo para máxima compatibilidade"""
+    return sse_stream()
+
+# Verificar status da conexão SSE (endpoint de diagnóstico)
+@app.route('/api/sse-status')
+def sse_status():
+    """Endpoint para verificar o status da conexão SSE"""
+    status = {
+        "status": "online",
+        "clients_count": len(event_manager.clients),
+        "events_history_count": event_manager.event_queue.qsize(),
+        "supported_endpoints": [
+            "/api/events",
+            "/events",
+            "/api/sse",
+            "/sse"
+        ],
+        "timestamp": datetime.now().isoformat()
+    }
+    return jsonify(status)
 
 def start_server():
     """Inicia o servidor Flask com as configurações do arquivo .env"""
