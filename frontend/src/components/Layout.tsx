@@ -117,15 +117,15 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
           <Sidebar />
         </div>
         
-        {/* Chat fixo à direita com z-index alto (30) */}
-        <div className="hidden md:block w-80 min-h-screen fixed right-0 top-0 z-30 border-l border-[#2a2a2e]">
-          <ChatUI isOpen={true} />
-        </div>
-        
-        {/* Área do conteúdo principal com padding à esquerda e direita para compensar os sidebars fixos */}
-        <main className="flex-1 p-0 md:ml-64 md:mr-80 relative">
+        {/* Área do conteúdo principal com padding à esquerda para compensar o sidebar fixo */}
+        <main className="flex-1 p-0 md:ml-64 relative">
           {children}
         </main>
+        
+        {/* Chat fixo na parte inferior */}
+        <div className="fixed bottom-0 left-0 right-0 z-50">
+          <ChatUI isOpen={true} />
+        </div>
       </div>
     </div>
   );

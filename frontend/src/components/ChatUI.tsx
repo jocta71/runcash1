@@ -122,20 +122,15 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
   if (isMobile && !isOpen) return null;
   
   return (
-    <div className={chatClasses}>
-      {isMobile && (
-        <div className="flex justify-end p-2">
-          <button onClick={onClose} className="p-1 rounded-md text-gray-400 hover:text-white">
-            <X size={24} />
-          </button>
-        </div>
-      )}
+    <div className="flex flex-col bg-[#1e1e24] border-t border-[#2a2a2e]">
       <ChatHeader />
-      <ChatMessageList messages={messages} />
+      <div className="flex-1 overflow-y-auto max-h-[400px]">
+        <ChatMessageList messages={messages} />
+      </div>
       <ChatInput 
-        newMessage={newMessage}
-        setNewMessage={setNewMessage}
-        handleSendMessage={handleSendMessage}
+        value={newMessage}
+        onChange={(e) => setNewMessage(e.target.value)}
+        onSend={handleSendMessage}
       />
     </div>
   );
