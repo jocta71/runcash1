@@ -392,7 +392,7 @@ class EventService {
   private async performPoll(): Promise<void> {
     try {
       // Tentar endpoint Socket.IO alternativo que sabemos que funciona
-      const baseUrl = config.apiBaseUrl;
+      const baseUrl = `${config.apiBaseUrl}/events`;
       const url = `${baseUrl}/latest-numbers`;
       
       const response = await fetch(url, {
