@@ -28,70 +28,36 @@ export class SSEService {
   }
   
   private determineApiUrl(): string {
-    // Usar a URL específica do SSE ao invés da URL base da API
-    const sseUrl = config.sseUrl;
-    
-    logger.info(`URL do SSE configurada: ${sseUrl}`);
-    
-    return sseUrl;
+    // Usar diretamente a URL do stream
+    const streamUrl = config.sseUrl;
+    logger.info(`URL do stream configurada: ${streamUrl}`);
+    return streamUrl;
   }
 
   private async testEndpoints(): Promise<string | null> {
-    // Usar a URL base do servidor de eventos
-    const sseUrl = config.sseUrl;
-    const baseUrl = sseUrl.split('/').slice(0, -1).join('/');
+    const streamUrl = config.sseUrl;
     
-    // Lista de endpoints para testar
-    const endpoints = [
-      '/stream',  // Endpoint principal
-      '/events',  // Alternativa 1
-      '/sse',     // Alternativa 2
-      '/ws'       // Alternativa 3
-    ];
+    logger.info(`Testando conexão com stream em: ${streamUrl}`);
     
-    logger.info(`Testando endpoints SSE em: ${baseUrl}`);
-    
-    // Primeiro verificar se o servidor está online
     try {
-      const healthResponse = await fetch(baseUrl, { 
-        method: 'GET',
+      const response = await fetch(streamUrl, { 
+        method: 'HEAD',
         mode: 'cors',
-        cache: 'no-cache'
+        cache: 'no-cache',
+        credentials: 'include',
       });
       
-      if (healthResponse.ok) {
-        const healthData = await healthResponse.json();
-        logger.info('Servidor de eventos está online:', healthData);
+      if (response.status !== 404) {
+        logger.info(`Stream disponível em: ${streamUrl}`);
+        return streamUrl;
       }
     } catch (error) {
-      logger.warn('Não foi possível verificar status do servidor:', error);
-    }
-    
-    // Testar cada endpoint
-    for (const endpoint of endpoints) {
-      const testUrl = `${baseUrl}${endpoint}`;
-      
-      try {
-        const response = await fetch(testUrl, { 
-          method: 'HEAD',
-          mode: 'cors',
-          cache: 'no-cache',
-          credentials: 'include',
-        });
-        
-        // Aceitar qualquer resposta que não seja 404
-        if (response.status !== 404) {
-          logger.info(`Endpoint SSE disponível: ${testUrl}`);
-          return testUrl;
-        }
-      } catch (error) {
-        // Se der erro CORS, pode ser um sinal de que o endpoint existe
-        if (error instanceof TypeError && error.message.includes('CORS')) {
-          logger.info(`Possível endpoint SSE (CORS): ${testUrl}`);
-          return testUrl;
-        }
-        logger.warn(`Falha ao testar endpoint ${endpoint}:`, error);
+      // Se der erro CORS, pode ser um sinal de que o endpoint existe
+      if (error instanceof TypeError && error.message.includes('CORS')) {
+        logger.info(`Stream encontrado (CORS): ${streamUrl}`);
+        return streamUrl;
       }
+      logger.warn(`Falha ao testar stream:`, error);
     }
     
     return null;
@@ -171,23 +137,8 @@ export class SSEService {
   }
   
   private tryAlternativeEndpoints(): void {
-    // Usar a URL do SSE configurada
-    const sseUrl = config.sseUrl;
-    const baseUrl = sseUrl.split('/').slice(0, -1).join('/');
-    
-    // Lista de endpoints alternativos
-    const alternatives = [
-      `${baseUrl}/stream`,  // Endpoint principal
-      `${baseUrl}/events`, // Alternativa 1
-      `${baseUrl}/sse`,    // Alternativa 2
-      `${baseUrl}/ws`      // Alternativa 3 (alguns servidores usam /ws para SSE também)
-    ];
-    
-    // Tentar próximo endpoint
-    const nextEndpointIndex = (this.reconnectAttempts % alternatives.length);
-    this.apiUrl = alternatives[nextEndpointIndex];
-    
-    logger.info(`Tentando endpoint alternativo: ${this.apiUrl}`);
+    // Não tentar endpoints alternativos, usar apenas o configurado
+    logger.info(`Reconectando ao stream: ${this.apiUrl}`);
     this.handleReconnect();
   }
 
