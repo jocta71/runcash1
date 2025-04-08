@@ -3,7 +3,6 @@ import config from '@/config/env';
 import EventService from './EventService';
 import { Logger } from './utils/logger';
 import { HistoryData } from './SocketService';
-import SSEService from './SSEService';
 
 const logger = new Logger('RouletteFeedService');
 
@@ -12,11 +11,11 @@ class RouletteFeedService {
   private apiBaseUrl: string;
   private lastRouletteNumbers: Map<string, string[]> = new Map();
   private socketService: any;
-  private sseService: SSEService;
+  private pollingInterval: number = 10000; // 10 segundos
+  private pollingTimer: number | null = null;
   
   constructor() {
     this.apiBaseUrl = config.apiBaseUrl;
-    this.sseService = SSEService.getInstance();
     console.log('[RouletteFeedService] Inicializado com URL base:', this.apiBaseUrl);
   }
   
@@ -36,10 +35,8 @@ class RouletteFeedService {
     // Buscar dados iniciais
     this.fetchInitialData();
     
-    // Configurar listener para novos números via SSE
-    EventService.on('roulette:new-number', (data) => {
-      this.handleNewNumber(data);
-    });
+    // Configurar polling em vez de SSE
+    this.startPolling();
   }
   
   /**
@@ -47,7 +44,34 @@ class RouletteFeedService {
    */
   public stop(): void {
     console.log('[RouletteFeedService] Parando serviço de feed de roletas');
-    this.sseService.disconnect();
+    // Parar o polling
+    this.stopPolling();
+  }
+  
+  /**
+   * Inicia o polling para buscar atualizações periódicas
+   */
+  private startPolling(): void {
+    // Limpar qualquer timer existente
+    this.stopPolling();
+    
+    // Iniciar novo timer
+    this.pollingTimer = setInterval(() => {
+      this.fetchLatestData();
+    }, this.pollingInterval);
+    
+    console.log(`[RouletteFeedService] Polling iniciado (intervalo: ${this.pollingInterval}ms)`);
+  }
+  
+  /**
+   * Para o polling
+   */
+  private stopPolling(): void {
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+      console.log('[RouletteFeedService] Polling interrompido');
+    }
   }
   
   /**
@@ -70,31 +94,47 @@ class RouletteFeedService {
   }
   
   /**
-   * Processa um novo número recebido via SSE
+   * Busca as atualizações mais recentes (substitui o SSE)
    */
-  private handleNewNumber(data: any): void {
-    const { tableId, number } = data;
-    
-    if (!tableId || number === undefined) {
-      console.error('[RouletteFeedService] Dados inválidos recebidos:', data);
-      return;
+  private async fetchLatestData(): Promise<void> {
+    try {
+      const response = await axios.get(`${this.apiBaseUrl}/api/roletas`);
+      
+      if (response.status === 200 && response.data) {
+        let hasUpdates = false;
+        
+        response.data.forEach((roleta: any) => {
+          if (roleta.id && roleta.numeros) {
+            // Comparar com os últimos números armazenados
+            const currentNumbers = this.lastRouletteNumbers.get(roleta.id) || [];
+            const newNumbers = roleta.numeros;
+            
+            // Verificar se houve atualização (número diferente na primeira posição)
+            if (newNumbers.length > 0 && 
+                (currentNumbers.length === 0 || newNumbers[0] !== currentNumbers[0])) {
+              
+              // Atualizar números armazenados
+              this.lastRouletteNumbers.set(roleta.id, newNumbers);
+              
+              // Emitir evento de atualização
+              EventService.emit('roulette:numbers-updated', {
+                tableId: roleta.id,
+                numbers: newNumbers,
+                isNewNumber: true
+              });
+              
+              hasUpdates = true;
+            }
+          }
+        });
+        
+        if (hasUpdates) {
+          console.log('[RouletteFeedService] Atualizações recebidas via polling');
+        }
+      }
+    } catch (error) {
+      console.error('[RouletteFeedService] Erro ao buscar atualizações:', error);
     }
-    
-    // Obter números anteriores
-    const previousNumbers = this.lastRouletteNumbers.get(tableId) || [];
-    
-    // Criar nova sequência de números
-    const newNumbers = [number, ...previousNumbers].slice(0, 39);
-    
-    // Atualizar números armazenados
-    this.lastRouletteNumbers.set(tableId, newNumbers);
-    
-    // Emitir evento de atualização
-    EventService.emit('roulette:numbers-updated', {
-      tableId,
-      numbers: newNumbers,
-      isNewNumber: true
-    });
   }
   
   /**
