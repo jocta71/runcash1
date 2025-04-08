@@ -14,7 +14,7 @@ export default {
 			center: true,
 			padding: '1rem',
 			screens: {
-				'2xl': '1700px'
+				// Removendo o limite de 1700px
 			}
 		},
 		extend: {
