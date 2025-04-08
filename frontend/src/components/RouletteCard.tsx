@@ -310,7 +310,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       console.log(`[RouletteCard] Adicionando ${newNumber} à lista de números recentes`);
       // Adicionar o novo número ao início e manter até 20 números (antes era 1000)
-      return [newNumber, ...prevNumbers].slice(0, 20);
+      return [newNumber, ...prevNumbers].slice(0, 26);
     });
 
     // Incrementar contador apenas para novos números
