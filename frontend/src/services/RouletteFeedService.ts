@@ -13,6 +13,7 @@ class RouletteFeedService {
   private lastRouletteNumbers: Map<string, string[]> = new Map();
   private socketService: any;
   private sseService: SSEService;
+  private isStarted: boolean = false;
   
   constructor() {
     this.apiBaseUrl = config.apiBaseUrl;
@@ -30,24 +31,48 @@ class RouletteFeedService {
   /**
    * Inicia o serviço de feed de roletas
    */
-  public start(): void {
+  public async start(): Promise<void> {
+    if (this.isStarted) {
+      console.log('[RouletteFeedService] Serviço já está em execução');
+      return;
+    }
+
     console.log('[RouletteFeedService] Iniciando serviço de feed de roletas');
+    this.isStarted = true;
     
-    // Buscar dados iniciais
-    this.fetchInitialData();
-    
-    // Configurar listener para novos números via SSE
-    EventService.on('roulette:new-number', (data) => {
-      this.handleNewNumber(data);
-    });
+    try {
+      // Buscar dados iniciais primeiro
+      await this.fetchInitialData();
+      
+      // Configurar listener para novos números via SSE
+      EventService.on('roulette:new-number', (data) => {
+        this.handleNewNumber(data);
+      });
+      
+      // Iniciar conexão SSE
+      await this.sseService.connect();
+      
+      console.log('[RouletteFeedService] Serviço iniciado com sucesso');
+    } catch (error) {
+      console.error('[RouletteFeedService] Erro ao iniciar serviço:', error);
+      this.isStarted = false;
+      throw error;
+    }
   }
   
   /**
    * Para o serviço de feed
    */
   public stop(): void {
+    if (!this.isStarted) {
+      return;
+    }
+
     console.log('[RouletteFeedService] Parando serviço de feed de roletas');
     this.sseService.disconnect();
+    // Remover todos os listeners do evento
+    EventService.off('roulette:new-number', undefined);
+    this.isStarted = false;
   }
   
   /**
