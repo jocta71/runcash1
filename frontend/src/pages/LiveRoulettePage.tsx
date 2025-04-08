@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
 import RouletteFeedService from '@/services/RouletteFeedService';
+import { initializeRouletteSystem } from '@/hooks/useRouletteData';
 
 const LiveRoulettePage: React.FC = () => {
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
@@ -68,36 +69,80 @@ const LiveRoulettePage: React.FC = () => {
 
   // Efeito para buscar os dados iniciais
   useEffect(() => {
-    fetchRoulettes();
-  }, [fetchRoulettes]);
-
-  // Efeito para configurar os listeners de eventos em tempo real
-  useEffect(() => {
-    // Inicializar o serviço de feed de roletas
-    const rouletteFeedService = RouletteFeedService.getInstance();
-    rouletteFeedService.start();
+    // Inicializar o sistema de roletas otimizado (baseado no 888casino)
+    const { rouletteFeedService } = initializeRouletteSystem();
     
-    // Função para lidar com novos números
-    const handleNewNumber = (event: any) => {
-      if (event.tableId && event.number !== undefined) {
-        console.log(`[LiveRoulettePage] Novo número recebido para roleta ${event.tableId}: ${event.number}`);
-        addNewNumberToRoulette(event.tableId, {
-          numero: event.number,
-          cor: event.cor || determinarCorNumero(event.number),
-          timestamp: event.timestamp
-        });
+    // Buscar dados iniciais
+    async function fetchInitialData() {
+      try {
+        setLoading(true);
+        
+        // Adicionar um pequeno atraso para garantir que outros componentes estejam prontos
+        setTimeout(() => {
+          const rouletteData = rouletteFeedService.getAllRouletteTables().map(table => ({
+            id: table.tableId,
+            nome: table.tableId, // Usar ID temporariamente se não tiver nome
+            numero: table.numbers.map(n => ({ numero: parseInt(n) })),
+            ativo: true
+          }));
+          
+          setRoulettes(rouletteData);
+          setLoading(false);
+        }, 500);
+      } catch (err: any) {
+        console.error('Erro ao carregar dados de roletas:', err);
+        setError(err.message || 'Erro ao carregar roletas');
+        setLoading(false);
       }
+    }
+    
+    fetchInitialData();
+    
+    // Listener para atualizações de números
+    const handleNumbersUpdated = (data: any) => {
+      setRoulettes(prev => {
+        // Encontrar a roleta que foi atualizada
+        const roletaIndex = prev.findIndex(r => r.id === data.tableId);
+        
+        if (roletaIndex >= 0) {
+          // Atualizar roleta existente
+          const updatedRoulettes = [...prev];
+          
+          // Converter os números de string para o formato esperado
+          const numeros = data.numbers.map((n: string) => ({ 
+            numero: parseInt(n),
+            timestamp: new Date().toISOString()
+          }));
+          
+          updatedRoulettes[roletaIndex] = {
+            ...updatedRoulettes[roletaIndex],
+            numero: numeros
+          };
+          
+          return updatedRoulettes;
+        }
+        
+        // Se a roleta não existir, adicionar nova
+        const newRoulette: RouletteData = {
+          id: data.tableId,
+          nome: data.tableName || data.tableId,
+          numero: data.numbers.map((n: string) => ({ 
+            numero: parseInt(n),
+            timestamp: new Date().toISOString()
+          })),
+          ativo: true
+        };
+        
+        return [...prev, newRoulette];
+      });
     };
-
-    // Registrar listener para novos números
-    EventService.on('roulette:new-number', handleNewNumber);
-
+    
+    EventService.on('roulette:numbers-updated', handleNumbersUpdated);
+    
     return () => {
-      // Limpar listeners ao desmontar
-      EventService.off('roulette:new-number', handleNewNumber);
-      rouletteFeedService.stop();
+      EventService.off('roulette:numbers-updated', handleNumbersUpdated);
     };
-  }, [addNewNumberToRoulette]);
+  }, []);
 
   return (
     <>

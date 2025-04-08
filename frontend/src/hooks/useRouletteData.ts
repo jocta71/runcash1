@@ -845,3 +845,25 @@ export function useRoulettesWithRealNumbers() {
   
   return { roulettes, loading, error };
 }
+
+/**
+ * Hook para inicializar o sistema de roletas e gerenciar dados
+ */
+export function initializeRouletteSystem() {
+  // Obter instâncias dos serviços
+  const socketService = SocketService.getInstance();
+  const rouletteFeedService = RouletteFeedService.getInstance();
+  
+  // Registrar o SocketService no RouletteFeedService para funcionalidades de histórico
+  rouletteFeedService.registerSocketService(socketService);
+  
+  // Iniciar serviços
+  rouletteFeedService.start();
+  
+  console.log('[Roleta] Sistema de roletas inicializado com novo polling otimizado (11s)');
+  
+  return {
+    socketService,
+    rouletteFeedService
+  };
+}

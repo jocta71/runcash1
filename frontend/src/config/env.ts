@@ -26,22 +26,25 @@ interface EnvConfig {
   websocketUrl: string;
   debugMode: boolean;
   env: string;
+  optimizePollingForVisibility?: boolean;
 }
 
 // Configuração para ambiente de produção
 const productionConfig: EnvConfig = {
-  apiBaseUrl: process.env.VITE_API_BASE_URL || 'https://backend-production-2f96.up.railway.app',
-  websocketUrl: process.env.VITE_WEBSOCKET_URL || 'wss://runcash-websocket.up.railway.app',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backend-production-2f96.up.railway.app',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'wss://runcash-websocket.up.railway.app',
   debugMode: false,
-  env: 'production'
+  env: 'production',
+  optimizePollingForVisibility: true
 };
 
 // Configuração para ambiente de desenvolvimento
 const developmentConfig: EnvConfig = {
-  apiBaseUrl: process.env.VITE_API_BASE_URL || 'http://localhost:3002',
-  websocketUrl: process.env.VITE_WEBSOCKET_URL || 'ws://localhost:3000',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:3000',
   debugMode: true,
-  env: 'development'
+  env: 'development',
+  optimizePollingForVisibility: false
 };
 
 /**
@@ -129,6 +132,11 @@ export function getEnvVar(name: string, defaultValue: string): string {
   }
 }
 
+export function getSSEServerURL(): string {
+  // Função mantida para compatibilidade, mas agora apenas retorna um valor vazio
+  return '';
+}
+
 // Exportar o objeto de configuração padrão
 export default {
   isProduction,
@@ -139,5 +147,8 @@ export default {
   // Atalhos para as principais URLs
   wsUrl: getRequiredEnvVar('VITE_WS_URL'),
   apiUrl: getRequiredEnvVar('VITE_API_URL') || getRequiredEnvVar('VITE_API_BASE_URL'),
-  apiBaseUrl: getApiBaseUrl()
+  apiBaseUrl: getApiBaseUrl(),
+  
+  // Novas propriedades
+  optimizePollingForVisibility: isProduction
 }; 

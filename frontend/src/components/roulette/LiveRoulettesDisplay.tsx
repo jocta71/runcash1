@@ -7,6 +7,8 @@ import EventService from '@/services/EventService';
 import CasinoAPIAdapter from '@/services/CasinoAPIAdapter';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
 import RouletteStatsModal from '@/components/RouletteStatsModal';
+import { initializeRouletteSystem } from '@/hooks/useRouletteData';
+import RouletteStatsInline from './RouletteStatsInline';
 
 // Componente de estatísticas inline 
 const RouletteStatsInline = ({ roletaNome, lastNumbers }: { roletaNome: string, lastNumbers: number[] }) => {
@@ -440,27 +442,16 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     );
   }
   
-  // Lógica antiga do componente (mantida para compatibilidade)
+  // Lógica antiga do componente (atualizada para usar o polling otimizado)
   useEffect(() => {
-    // Iniciar o adaptador de API do cassino
-    const apiAdapter = CasinoAPIAdapter.getInstance();
-    apiAdapter.configure({
-      pollInterval: 5000 // 5 segundos entre verificações
-    });
+    // Inicializar o sistema de roletas com o novo polling otimizado
+    const { rouletteFeedService } = initializeRouletteSystem();
     
-    // Buscar dados iniciais imediatamente
-    apiAdapter.fetchDataOnce().then(initialData => {
-      console.log('[LiveRoulettesDisplay] Dados iniciais carregados com sucesso:', 
-        initialData?.LiveTables ? Object.keys(initialData.LiveTables).length : 0);
-    });
-    
-    // Iniciar polling regular
-    apiAdapter.startPolling();
+    console.log('[LiveRoulettesDisplay] Sistema de roletas inicializado com polling otimizado de 11s (baseado no 888casino)');
     
     // Função para atualizar a lista de mesas
     const updateTables = () => {
-      const feedService = RouletteFeedService.getInstance();
-      const allTables = feedService.getAllRouletteTables();
+      const allTables = rouletteFeedService.getAllRouletteTables();
       
       if (allTables.length > 0) {
         console.log(`[LiveRoulettesDisplay] Atualizando lista de mesas: ${allTables.length} mesas disponíveis`);
@@ -479,7 +470,8 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     // Escutar por atualizações de números
     const handleNumbersUpdated = (data: any) => {
       console.log(`[LiveRoulettesDisplay] Dados atualizados para mesa ${data.tableName || data.tableId}:`, {
-        primeiros_numeros: data.numbers?.slice(0, 3)
+        latestNumber: data.latestNumber,
+        totalNumbers: data.numbers?.length
       });
       
       setTables(prevTables => {
@@ -518,44 +510,23 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     
     // Inscrever para eventos de atualização
     EventService.on('roulette:numbers-updated', handleNumbersUpdated);
-    EventService.on('casino:data-updated', () => {
-      console.log('[LiveRoulettesDisplay] Dados gerais do casino atualizados, atualizando a lista de mesas');
-      setTimeout(updateTables, 100); // Pequeno delay para garantir que o serviço processou os dados
-    });
-    
-    // Escutar por eventos específicos de novos números
-    const handleNewNumber = (data: any) => {
-      console.log(`[LiveRoulettesDisplay] NOVO NÚMERO recebido para ${data.tableName || data.tableId}: ${data.number}`);
-      
-      // Forçar atualização imediata para garantir que o novo número seja mostrado
-      setTimeout(() => {
-        apiAdapter.fetchDataOnce();
-        updateTables();
-      }, 100);
-    };
-    
-    // Registrar evento para novos números
-    EventService.on('roulette:new-number', handleNewNumber);
     
     // Verificar se já temos mesas disponíveis
     updateTables();
     
-    // Configurar um intervalo para verificar atualizações em caso de falha no evento
-    const checkInterval = setInterval(() => {
-      console.log('[LiveRoulettesDisplay] Verificação periódica de dados');
-      apiAdapter.fetchDataOnce(); // Forçar atualização periódica
-      
-      // Re-verificar estado das mesas para garantir que temos os dados mais recentes
-      setTimeout(updateTables, 200);
-    }, 15000); // A cada 15 segundos
+    // Botão para forçar atualização manual
+    const handleForceUpdate = () => {
+      console.log('[LiveRoulettesDisplay] Forçando atualização manual');
+      rouletteFeedService.forceUpdate();
+    };
+    
+    // Expor função de atualização manual para uso em botões
+    (window as any).forceRouletteUpdate = handleForceUpdate;
     
     // Limpeza ao desmontar
     return () => {
       EventService.off('roulette:numbers-updated', handleNumbersUpdated);
-      EventService.off('casino:data-updated', updateTables);
-      EventService.off('roulette:new-number', handleNewNumber);
-      clearInterval(checkInterval);
-      apiAdapter.stopPolling();
+      delete (window as any).forceRouletteUpdate;
     };
   }, []);
 
@@ -591,13 +562,13 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
         ))}
       </div>
       
-      {/* Botão para atualizar manualmente */}
+      {/* Botão para atualizar manualmente com a nova função */}
       <div className="flex justify-center mt-8">
         <button 
-          onClick={() => CasinoAPIAdapter.getInstance().fetchDataOnce()}
+          onClick={() => (window as any).forceRouletteUpdate?.()}
           className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors"
         >
-          Atualizar Dados
+          Atualizar Agora
         </button>
       </div>
     </div>

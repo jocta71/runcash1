@@ -11,7 +11,7 @@ dotenv.config();
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash';
 const COLLECTION_NAME = 'roleta_numeros';
-const POLL_INTERVAL = process.env.POLL_INTERVAL || 11000; // 11 segundos
+const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
 
 // Informações de configuração
 console.log('==== Configuração do Servidor WebSocket ====');
@@ -137,86 +137,6 @@ const io = new Server(server, {
 });
 
 console.log('[Socket.IO] Inicializado com configuração CORS para aceitar todas as origens');
-
-// Manter registro do status de cada roleta
-const rouletteStatusMap = new Map();
-
-/**
- * Atualiza o status de uma roleta com os dados mais recentes
- * @param {string} roletaId - ID da roleta
- * @param {object} data - Dados mais recentes da roleta
- */
-function updateRouletteStatus(roletaId, data) {
-  // Se não temos dados anteriores, criar um registro novo
-  if (!rouletteStatusMap.has(roletaId)) {
-    rouletteStatusMap.set(roletaId, {
-      lastUpdate: Date.now(),
-      lastNumber: data.numero,
-      numbers: [data.numero],
-      name: data.roleta_nome || `Roleta ${roletaId}`
-    });
-    console.log(`[Status] Criado registro para roleta ${roletaId}`);
-    return;
-  }
-  
-  // Atualizar registro existente
-  const status = rouletteStatusMap.get(roletaId);
-  
-  // Verificar se o número é realmente novo (não um duplicado)
-  if (status.numbers.length === 0 || status.numbers[0] !== data.numero) {
-    // Adicionar novo número ao início da lista
-    status.numbers.unshift(data.numero);
-    
-    // Manter apenas os últimos 50 números
-    if (status.numbers.length > 50) {
-      status.numbers = status.numbers.slice(0, 50);
-    }
-    
-    // Atualizar informações de status
-    status.lastUpdate = Date.now();
-    status.lastNumber = data.numero;
-    
-    console.log(`[Status] Atualizado registro para roleta ${roletaId}: novo número ${data.numero}`);
-  } else {
-    console.log(`[Status] Número ${data.numero} já processado para roleta ${roletaId}`);
-  }
-}
-
-/**
- * Função modificada para notificar clientes - sem usar SSE
- * @param {string} eventType - Tipo do evento
- * @param {object} data - Dados do evento
- */
-function notifyEventListeners(eventType, data) {
-  // Apenas notificar via socket.io
-  if (eventType === 'new_number') {
-    // Emitir evento via socket.io
-    io.emit('global_new_number', {
-      ...data,
-      type: eventType,
-      serverTimestamp: Date.now()
-    });
-    
-    console.log(`[Notification] Evento ${eventType} enviado via Socket.IO`);
-  }
-}
-
-// Endpoint para obter o status atual de todas as roletas
-app.get('/api/roletas/status', (req, res) => {
-  const statusArray = [];
-  
-  // Converter o Map para um array
-  rouletteStatusMap.forEach((status, roletaId) => {
-    statusArray.push({
-      id: roletaId,
-      nome: status.name,
-      numeros: status.numbers,
-      ultimaAtualizacao: status.lastUpdate
-    });
-  });
-  
-  res.json(statusArray);
-});
 
 // Status e números das roletas
 let rouletteStatus = {};
@@ -352,156 +272,193 @@ async function broadcastAllStrategies() {
   }
 }
 
-// Função de polling para buscar novos dados
-let pollingActive = false;
-let lastProcessedTimestamp = null;
-let consecutiveEmptyPolls = 0;
-const MAX_CONSECUTIVE_EMPTY_POLLS = 10;
-
-function startPolling() {
-  if (pollingActive) {
-    console.log('[Polling] Já existe um processo de polling ativo');
-      return;
-    }
-    
-  pollingActive = true;
-  console.log(`[Polling] Iniciando verificação periódica a cada ${POLL_INTERVAL}ms`);
-  
-  // Primeira verificação imediata
-  checkForNewData();
-  
-  // Configurar verificação periódica
-  setInterval(checkForNewData, POLL_INTERVAL);
-}
-
-// Otimizar a consulta para buscar apenas os novos dados eficientemente
-async function checkForNewData() {
+// Função para buscar novos números do MongoDB
+async function checkForNewNumbers() {
   if (!isConnected) {
-    console.log('[Polling] MongoDB não está conectado');
+    console.log('Sem conexão com MongoDB, tentando reconectar...');
+    await connectToMongoDB();
     return;
   }
   
   try {
-    const startTime = Date.now();
-    
-    // Criar query baseada no último timestamp processado
-    const query = lastProcessedTimestamp 
-      ? { timestamp: { $gt: lastProcessedTimestamp } }
-      : {};
-    
-    // Buscar os últimos números para cada roleta
-    const newData = await collection
-      .find(query)
-      .sort({ timestamp: 1 })
-      .limit(50)  // Limitar para evitar sobrecarga
+    // Obter os últimos 20 números inseridos
+    const latestNumbers = await collection
+      .find({})
+      .sort({ timestamp: -1 })
+      .limit(20)
       .toArray();
     
-    const queryTime = Date.now() - startTime;
+    if (latestNumbers.length === 0) {
+      console.log('Nenhum número encontrado na coleção');
+      return;
+    }
     
-    if (newData.length > 0) {
-      console.log(`[Polling] Encontrados ${newData.length} novos registros em ${queryTime}ms`);
-      consecutiveEmptyPolls = 0;
+    // Processar apenas novos números
+    for (const number of latestNumbers) {
+      const numberIdStr = number._id.toString();
       
-      // Processar somente dados que ainda não foram processados
-      const newDataIds = new Set(newData.map(item => item._id.toString()));
-      const trulyNewData = newData.filter(item => !lastProcessedIds.has(item._id.toString()));
-      
-      if (trulyNewData.length > 0) {
-        console.log(`[Polling] Processando ${trulyNewData.length} registros realmente novos`);
-        
-        // Agrupar por roleta para emitir eventos de forma mais eficiente
-        const dataByRoulette = {};
-        
-        trulyNewData.forEach(item => {
-          const roletaId = item.roleta_id;
-          if (!dataByRoulette[roletaId]) {
-            dataByRoulette[roletaId] = [];
-          }
-          dataByRoulette[roletaId].push(item);
-          
-          // Atualizar o conjunto de IDs processados
-          lastProcessedIds.add(item._id.toString());
-        });
-        
-        // Limpar o conjunto se ficar muito grande
-        if (lastProcessedIds.size > 1000) {
-          console.log('[Polling] Limpando cache de IDs processados');
-          const idsArray = Array.from(lastProcessedIds);
-          lastProcessedIds = new Set(idsArray.slice(idsArray.length - 500));
-        }
-        
-        // Atualizar timestamp do último item processado
-        if (trulyNewData.length > 0) {
-          lastProcessedTimestamp = trulyNewData[trulyNewData.length - 1].timestamp;
-        }
-        
-        // Emitir eventos para cada roleta
-        Object.keys(dataByRoulette).forEach(roletaId => {
-          const items = dataByRoulette[roletaId];
-          
-          // Ordenar por timestamp
-          items.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-          
-          // Atualizar status da roleta
-          updateRouletteStatus(roletaId, items[0]);
-          
-          // Emitir evento com os dados mais recentes
-          io.emit('roulette:update', {
-            roletaId,
-            data: items[0],
-            timestamp: Date.now()
-          });
-          
-          // Notificar os clientes
-          io.to(items[0].roleta_nome).emit('new_number', items[0]);
-        });
-          } else {
-        console.log('[Polling] Todos os registros já foram processados anteriormente');
+      // Se já processamos este ID, pular
+      if (lastProcessedIds.has(numberIdStr)) {
+        continue;
       }
-    } else {
-      consecutiveEmptyPolls++;
       
-      if (consecutiveEmptyPolls >= MAX_CONSECUTIVE_EMPTY_POLLS) {
-        console.log(`[Polling] ${consecutiveEmptyPolls} consultas vazias consecutivas, verificando conexão...`);
-        // Reiniciar a conexão se necessário
-        if (consecutiveEmptyPolls >= MAX_CONSECUTIVE_EMPTY_POLLS * 2) {
-          console.log('[Polling] Muitas consultas vazias, reiniciando a conexão com MongoDB');
-          reconnectMongoDB();
-          consecutiveEmptyPolls = 0;
-        }
+      // Adicionar ID à lista de processados
+      lastProcessedIds.add(numberIdStr);
+      
+      // Evitar que a lista cresça indefinidamente
+      if (lastProcessedIds.size > 100) {
+        // Converter para array, remover os mais antigos, e converter de volta para Set
+        const idsArray = Array.from(lastProcessedIds);
+        lastProcessedIds = new Set(idsArray.slice(-50));
+      }
+      
+      const roletaNome = number.roleta_nome;
+      
+      // Determinar a cor do número
+      let cor = 'verde';
+      if (number.numero > 0) {
+        const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+        cor = numerosVermelhos.includes(number.numero) ? 'vermelho' : 'preto';
+      }
+      
+      // Formatar o evento
+      const event = {
+        type: 'new_number',
+        roleta_id: number.roleta_id || 'unknown',
+        roleta_nome: roletaNome,
+        numero: number.numero,
+        cor: number.cor || cor,
+        timestamp: number.timestamp || new Date().toISOString()
+      };
+      
+      // Emitir evento para todos os clientes subscritos a esta roleta
+      io.to(roletaNome).emit('new_number', event);
+      
+      // Também emitir para o canal global
+      io.emit('global_update', event);
+      
+      console.log(`Enviado evento para roleta ${roletaNome}: número ${number.numero}`);
+    }
+
+    // Verificar se há atualizações de estratégia na coleção principal
+    const rouletteCollection = db.collection('roletas');
+    const roletas = await rouletteCollection.find({}).toArray();
+    
+    for (const roleta of roletas) {
+      // Verificar se a roleta tem dados de estratégia
+      if (roleta.estado_estrategia) {
+        // Garantir que temos um nome válido para a roleta
+        const roletaNome = roleta.nome || roleta.roleta_nome || `Roleta ${roleta._id}`;
+        
+        // Formatar o evento de estratégia
+        const strategyEvent = {
+          type: 'strategy_update',
+          roleta_id: roleta._id,
+          roleta_nome: roletaNome,
+          estado: roleta.estado_estrategia,
+          numero_gatilho: roleta.numero_gatilho || 0,
+          terminais_gatilho: roleta.terminais_gatilho || [],
+          vitorias: roleta.vitorias || 0,
+          derrotas: roleta.derrotas || 0,
+          sugestao_display: roleta.sugestao_display || '',
+          timestamp: roleta.updated_at || new Date().toISOString()
+        };
+        
+        // Emitir evento de estratégia para clientes inscritos nesta roleta
+        io.to(roletaNome).emit('strategy_update', strategyEvent);
+        console.log(`Enviado evento de estratégia para roleta ${roletaNome}: estado ${strategyEvent.estado}`);
+        
+        // Também emitir para o canal global para garantir que todos recebam
+        io.emit('global_strategy_update', strategyEvent);
       }
     }
     
-    // Registrar tempo total de processamento se for elevado
-    const totalTime = Date.now() - startTime;
-    if (totalTime > 500) { // Se processamento levou mais de 500ms
-      console.log(`[Polling] Tempo de processamento elevado: ${totalTime}ms`);
+    // Verificar também a nova coleção de histórico de estratégia
+    try {
+      // Obter os últimos dados de estratégia inseridos
+      const historico_collection = db.collection('estrategia_historico_novo');
+      const latest_strategies = await historico_collection
+        .find({})
+        .sort({ timestamp: -1 })
+        .limit(20)  // Aumentado para garantir que pegamos estratégias recentes de todas as roletas
+        .toArray();
+      
+      if (latest_strategies.length > 0) {
+        console.log(`Encontrados ${latest_strategies.length} registros de estratégia recentes`);
+        
+        // Processar os estratégias mais recentes (1 por roleta)
+        const processedRoletas = new Set();
+        
+        for (const strategy of latest_strategies) {
+          // Se já processamos esta roleta, pular
+          if (processedRoletas.has(strategy.roleta_id)) {
+            continue;
+          }
+          
+          // Adicionar roleta à lista de processadas
+          processedRoletas.add(strategy.roleta_id);
+          
+          // Garantir que temos um nome válido
+          const roletaNome = strategy.roleta_nome || `Roleta ${strategy.roleta_id}`;
+          
+          // Formatar o evento de estratégia
+          const strategyEvent = {
+            type: 'strategy_update',
+            roleta_id: strategy.roleta_id,
+            roleta_nome: roletaNome,
+            estado: strategy.estado_estrategia || strategy.estado || 'TRIGGER', // Forçar TRIGGER se não tiver estado
+            numero_gatilho: strategy.numero_gatilho || 0,
+            terminais_gatilho: strategy.terminais_gatilho || strategy.terminais || [],
+            vitorias: typeof strategy.vitorias === 'number' ? strategy.vitorias : 0,
+            derrotas: typeof strategy.derrotas === 'number' ? strategy.derrotas : 0,
+            timestamp: strategy.timestamp || new Date().toISOString()
+          };
+          
+          // Gerar uma sugestão de display com base no estado
+          if (strategy.sugestao_display) {
+            // Usar sugestão já existente se disponível
+            strategyEvent.sugestao_display = strategy.sugestao_display;
+          } else if (strategyEvent.estado === "NEUTRAL") {
+            strategyEvent.sugestao_display = "AGUARDANDO GATILHO";
+          } else if (strategyEvent.estado === "TRIGGER" && strategyEvent.terminais_gatilho.length > 0) {
+            strategyEvent.sugestao_display = `APOSTAR NOS TERMINAIS: ${strategyEvent.terminais_gatilho.join(',')}`;
+          } else if (strategyEvent.estado === "POST_GALE_NEUTRAL") {
+            strategyEvent.sugestao_display = `GALE NOS TERMINAIS: ${strategyEvent.terminais_gatilho.join(',')}`;
+          } else if (strategyEvent.estado === "MORTO") {
+            strategyEvent.sugestao_display = "AGUARDANDO PRÓXIMO CICLO";
+          } else {
+            // Caso padrão para qualquer outro estado
+            strategyEvent.sugestao_display = `APOSTAR NOS TERMINAIS: ${strategyEvent.terminais_gatilho.join(',')}`;
+          }
+          
+          console.log(`Enviando atualização de estratégia para ${roletaNome}: estado=${strategyEvent.estado}, terminais=${strategyEvent.terminais_gatilho.join(',')}, sugestão=${strategyEvent.sugestao_display}, vitórias=${strategyEvent.vitorias}, derrotas=${strategyEvent.derrotas}`);
+          
+          // Emitir evento de estratégia para clientes inscritos nesta roleta
+          io.to(roletaNome).emit('strategy_update', strategyEvent);
+          
+          // Emitir para o canal global também
+          io.emit('global_strategy_update', strategyEvent);
+          
+          // Emitir no canal geral de estratégia
+          io.emit('strategy_update', strategyEvent);
+        }
+      }
+    } catch (historyError) {
+      console.error('Erro ao verificar histórico de estratégia:', historyError);
     }
   } catch (error) {
-    console.error('[Polling] Erro ao verificar novos dados:', error);
+    console.error('Erro ao verificar novos números:', error);
   }
 }
 
-// Função auxiliar para reconectar ao MongoDB
-async function reconnectMongoDB() {
-  try {
-    console.log('[MongoDB] Tentando reconectar...');
-    
-    if (db) {
-      // Desconectar primeiro, se já houver uma conexão
-      try {
-        await db.client.close();
-        console.log('[MongoDB] Conexão anterior fechada');
-      } catch (e) {
-        console.warn('[MongoDB] Erro ao fechar conexão anterior:', e);
-      }
-    }
-    
-    // Tentar nova conexão
-    await connectToMongoDB();
-  } catch (error) {
-    console.error('[MongoDB] Falha ao reconectar:', error);
-  }
+// Iniciar polling para verificar novos dados regularmente
+function startPolling() {
+  console.log(`Iniciando polling a cada ${POLL_INTERVAL}ms`);
+  
+  // Verificar imediatamente e depois a cada intervalo
+  checkForNewNumbers();
+  
+  setInterval(checkForNewNumbers, POLL_INTERVAL);
 }
 
 // Rota de status da API
