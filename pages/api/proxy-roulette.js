@@ -3,7 +3,7 @@
 
 // Variável global para controlar o intervalo entre requisições
 let lastFetchTime = 0;
-const MIN_FETCH_INTERVAL = 30000; // Aumento para 30 segundos para maior controle
+const MIN_FETCH_INTERVAL = 11000; // 11 segundos entre requisições
 const CACHE_VALIDITY = 30 * 60 * 1000; // Cache válido por 30 minutos
 
 // Armazenar dados em cache com timestamp
@@ -15,6 +15,18 @@ global.rouletteCache = {
 };
 
 export default async function handler(req, res) {
+  // Configurar headers CORS para evitar problemas de acesso
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+
+  // Tratar requisições OPTIONS (preflight)
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
   try {
     const now = Date.now();
     
@@ -85,8 +97,21 @@ export default async function handler(req, res) {
       // URL da API backend
       const apiUrl = `https://backendapi-production-36b5.up.railway.app/api/ROULETTES`;
       
-      // Buscar dados do backend
-      const response = await fetch(apiUrl);
+      // Buscar dados do backend com timeout
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeout);
       
       // Verificar se a resposta foi bem-sucedida
       if (!response.ok) {
@@ -112,6 +137,20 @@ export default async function handler(req, res) {
       
       // Retornar dados para o frontend
       res.status(200).json(data);
+    } catch (error) {
+      console.error(`[Proxy-Roulette] Erro detalhado: ${error.stack || error}`);
+      
+      // Se temos cache, retornar os dados do cache mesmo expirados em caso de erro
+      if (global.rouletteCache.data) {
+        console.log(`[Proxy-Roulette] Retornando dados em cache devido a erro (${global.rouletteCache.data.length} registros)`);
+        return res.status(200).json(global.rouletteCache.data);
+      }
+      
+      // Retornar erro para o frontend
+      res.status(500).json({ 
+        error: 'Falha ao buscar dados da API',
+        message: error.message 
+      });
     } finally {
       // Independente do resultado, marcar que a requisição terminou
       global.rouletteCache.requestInProgress = false;

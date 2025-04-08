@@ -17,8 +17,8 @@ const responseCache: Map<string, {data: any, timestamp: number}> = new Map();
 // Controlar requisições em andamento para evitar duplicatas
 const pendingRequests: Map<string, Promise<any>> = new Map();
 
-// Intervalo mínimo entre requisições (30 segundos)
-const MIN_REQUEST_INTERVAL = 30 * 1000; 
+// Intervalo mínimo entre requisições (11 segundos)
+const MIN_REQUEST_INTERVAL = 11 * 1000; 
 
 // Tempo de validade do cache (5 minutos)
 const CACHE_VALIDITY = 5 * 60 * 1000;
