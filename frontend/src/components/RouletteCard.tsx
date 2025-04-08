@@ -244,7 +244,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         });
         
         // Limitar a 20 números para exibição no card (antes era 1000)
-        return combined.slice(0, 20);
+        return combined.slice(0, 39);
       });
       
       // Notificações e som - apenas para novos números
@@ -310,7 +310,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       console.log(`[RouletteCard] Adicionando ${newNumber} à lista de números recentes`);
       // Adicionar o novo número ao início e manter até 20 números (antes era 1000)
-      return [newNumber, ...prevNumbers].slice(0, 20);
+      return [newNumber, ...prevNumbers].slice(0, 39);
     });
 
     // Incrementar contador apenas para novos números
@@ -428,7 +428,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         
         {/* Últimos números - Mostrando todos com o mesmo tamanho */}
         <div className="flex flex-wrap gap-1 justify-center my-3">
-          {recentNumbers.slice(0, isDetailView ? 20 : 10).map((num, idx) => (
+          {recentNumbers.slice(0, isDetailView ? 39 : 20).map((num, idx) => (
             <NumberDisplay 
               key={`${num}-${idx}`}
               number={num} 
