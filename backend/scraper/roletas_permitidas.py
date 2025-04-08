@@ -20,31 +20,33 @@ load_dotenv()
 env_allowed_roulettes = os.environ.get('ALLOWED_ROULETTES', '')
 env_vite_allowed_roulettes = os.environ.get('VITE_ALLOWED_ROULETTES', '')
 
-# Lista de roletas permitidas (apenas para manter compatibilidade)
+# Lista de roletas permitidas (GameIDs específicos)
 ALLOWED_ROULETTES = [
-    "2010016",  # Immersive Roulette
-    "2380335",  # Brazilian Mega Roulette
-    "2010065",  # Bucharest Auto-Roulette
-    "2010096",  # Speed Auto Roulette
-    "2010017",  # Auto-Roulette
-    "2010098"   # Auto-Roulette VIP
+    "2010165", "2010033", "2010016", "2380373", "2010440", "2380390", 
+    "2010565", "2380346", "2380049", "2380064", "2010048", "2010045", 
+    "2380159", "2380335", "2380117", "2010143", "2380010", "2380038", 
+    "2010096", "2010065", "2010059", "2010108", "2010170", "2010017", 
+    "2380033", "2380032", "2380034", "2380039", "2010100", "2010098", 
+    "2010097", "2010012", "2010110", "2010031", "2010106", "2010011", 
+    "2010049", "2010336", "2010099"
 ]
 
-print("[DEBUG] Modo permissivo ativado: Todas as roletas estão permitidas")
+print(f"[DEBUG] Lista de roletas permitidas: {len(ALLOWED_ROULETTES)} roletas configuradas")
 
 def roleta_permitida_por_id(roleta_id):
     """
-    Verifica se uma roleta está permitida (sempre retorna True)
+    Verifica se uma roleta está permitida
     
     Args:
         roleta_id: ID da roleta para verificar
         
     Returns:
-        bool: True para todas as roletas
+        bool: True se a roleta estiver na lista de permitidas, False caso contrário
     """
-    # MODO PERMISSIVO: Permitir todas as roletas
-    return True
+    # Verificar se o ID está na lista de permitidos
+    return roleta_id in ALLOWED_ROULETTES
 
 # Para debug
 if __name__ == "__main__":
-    print(f"Modo permissivo ativado: Todas as roletas estão permitidas") 
+    print(f"Lista de roletas permitidas: {len(ALLOWED_ROULETTES)} roletas")
+    print(f"IDs: {', '.join(ALLOWED_ROULETTES)}") 

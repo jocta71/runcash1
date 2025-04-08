@@ -173,12 +173,6 @@ class Casino888API:
                     # Método 1: Tem números
                     if last_numbers is not None and len(last_numbers) > 0:
                         is_roulette = True
-                    # Método 2: Nome contém "Ruleta" ou "Roulette"
-                    elif 'Roulette' in table_name or 'Ruleta' in table_name:
-                        is_roulette = True
-                    # Método 3: GameType contém "roulette" ou "ruleta"
-                    elif game_type and ('roulette' in game_type.lower() or 'ruleta' in game_type.lower()):
-                        is_roulette = True
                     
                     # Se for roleta, adicionar à lista
                     if is_roulette:
