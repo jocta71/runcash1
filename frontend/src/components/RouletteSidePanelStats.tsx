@@ -13,7 +13,12 @@ import {
   Legend,
 } from "recharts";
 import { useState, useEffect, useRef } from 'react';
-import { fetchWithCorsSupport } from '../utils/api-helpers';
+import globalRouletteDataService from '../services/GlobalRouletteDataService';
+import rouletteHistoryService from '../services/RouletteHistoryService';
+import { getLogger } from '../services/utils/logger';
+
+// Criando um logger específico para este componente
+const logger = getLogger('RouletteSidePanelStats');
 
 // Compartilhar a mesma constante de intervalo de polling usada no RouletteFeedService
 const POLLING_INTERVAL = 10000; // 10 segundos
@@ -25,61 +30,9 @@ interface RouletteSidePanelStatsProps {
   losses: number;
 }
 
-// Criar um cache compartilhado para evitar requisições duplicadas
-const dataCache = new Map<string, {data: any[], timestamp: number}>();
-const CACHE_TTL = 15000; // 15 segundos de TTL para o cache
-
-// Controle global de requisições em andamento
-let isGlobalFetching = false;
-let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 2000; // Mínimo de 2 segundos entre requisições
-
-// Função para carregar dados via JSONP (outra técnica para contornar CORS)
-const loadViaJsonp = (url: string): Promise<any> => {
-  return new Promise((resolve, reject) => {
-    // Criar um nome de callback único
-    const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-    
-    // Criar o elemento script
-    const script = document.createElement('script');
-    
-    // Configurar o tempo limite
-    let timeout: number | null = window.setTimeout(() => {
-      cleanup();
-      reject(new Error('JSONP request timed out'));
-    }, 10000);
-    
-    // Função de limpeza para remover o script e callback global
-    const cleanup = () => {
-      if (script.parentNode) script.parentNode.removeChild(script);
-      if (timeout !== null) window.clearTimeout(timeout);
-      delete (window as any)[callbackName];
-    };
-    
-    // Configurar o callback global
-    (window as any)[callbackName] = (data: any) => {
-      cleanup();
-      resolve(data);
-    };
-    
-    // Adicionar o callback à URL
-    const jsonpUrl = url + (url.indexOf('?') === -1 ? '?' : '&') + 'callback=' + callbackName;
-    
-    // Configurar erro
-    script.onerror = () => {
-      cleanup();
-      reject(new Error('JSONP request failed'));
-    };
-    
-    // Configurar a URL e adicionar o script ao documento
-    script.src = jsonpUrl;
-    document.head.appendChild(script);
-  });
-};
-
 // Função para gerar números aleatórios para testes (apenas como último recurso)
 const generateFallbackNumbers = (count: number = 20): number[] => {
-  console.log(`[API] Gerando ${count} números aleatórios como fallback`);
+  logger.warn(`Gerando ${count} números aleatórios como fallback`);
   const numbers: number[] = [];
   for (let i = 0; i < count; i++) {
     // Gerar número aleatório entre 0 e 36 (como em uma roleta de cassino)
@@ -89,95 +42,41 @@ const generateFallbackNumbers = (count: number = 20): number[] => {
   return numbers;
 };
 
-// Buscar histórico de números da roleta com suporte a polling e cache
+// Buscar histórico de números da roleta do serviço centralizado
 export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<number[]> => {
   try {
-    console.log(`[API] Buscando dados históricos para: ${rouletteName}`);
+    logger.info(`Buscando dados históricos para: ${rouletteName}`);
     
-    // Verificar se temos dados em cache válidos
-    const cacheKey = `roulette_history_${rouletteName}`;
-    const cachedData = dataCache.get(cacheKey);
-    const now = Date.now();
+    // Usar o serviço centralizado para buscar os dados históricos
+    const numbers = await rouletteHistoryService.fetchRouletteHistoricalNumbers(rouletteName);
     
-    if (cachedData && (now - cachedData.timestamp < CACHE_TTL)) {
-      console.log(`[API] Usando dados em cache para ${rouletteName}, idade: ${Math.round((now - cachedData.timestamp)/1000)}s`);
-      // Processar dados do cache
-      const targetRoulette = cachedData.data.find((roleta: any) => {
-        const roletaName = roleta.nome || roleta.name || '';
-        return roletaName.toLowerCase() === rouletteName.toLowerCase();
-      });
-      
-      if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-        // Extrair apenas os números da roleta encontrada
-        const processedNumbers = targetRoulette.numero
-          .map((n: any) => Number(n.numero))
-          .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
-        
-        console.log(`[API] Retornando ${processedNumbers.length} números do cache para ${rouletteName}`);
-        return processedNumbers;
-      }
+    if (numbers && numbers.length > 0) {
+      logger.info(`Obtidos ${numbers.length} números históricos para ${rouletteName}`);
+      return numbers;
     }
     
-    // Verificar se há uma requisição global em andamento
-    if (isGlobalFetching) {
-      console.log(`[API] Requisição global em andamento, aguardando...`);
-      return [];
-    }
+    // Se não encontrou dados no serviço, tenta buscar do serviço global
+    logger.info(`Sem dados no serviço de histórico, tentando serviço global para ${rouletteName}`);
     
-    // Verificar o intervalo mínimo entre requisições
-    if (now - lastRequestTime < MIN_REQUEST_INTERVAL) {
-      console.log(`[API] Requisição muito próxima da anterior (${now - lastRequestTime}ms), aguardando`);
-      return [];
-    }
+    // Obter a roleta pelo nome do serviço global
+    const targetRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
     
-    // Marcar que está buscando dados
-    isGlobalFetching = true;
-    lastRequestTime = now;
-    
-    // Usar nossa função utilitária com suporte a CORS
-    const data = await fetchWithCorsSupport<any[]>('/api/ROULETTES?limit=1000');
-    
-    // Atualizar cache
-    dataCache.set(cacheKey, {
-      data,
-      timestamp: now
-    });
-    
-    // Liberar a trava global
-    isGlobalFetching = false;
-    
-    // Processar os dados se foram obtidos com sucesso
-    if (data && Array.isArray(data)) {
-      console.log(`[API] Dados obtidos com sucesso. Processando ${data.length} roletas.`);
+    if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+      // Extrair apenas os números da roleta encontrada
+      const processedNumbers = targetRoulette.numero
+        .map((n: any) => Number(n.numero))
+        .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
       
-      // Encontrar a roleta específica pelo nome
-      const targetRoulette = data.find((roleta: any) => {
-        const roletaName = roleta.nome || roleta.name || '';
-        return roletaName.toLowerCase() === rouletteName.toLowerCase();
-      });
-      
-      if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-        // Extrair apenas os números da roleta encontrada
-        const processedNumbers = targetRoulette.numero
-          .map((n: any) => Number(n.numero))
-          .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
-        
-        console.log(`[API] Obtidos ${processedNumbers.length} números históricos para ${rouletteName}`);
-        return processedNumbers;
-      } else {
-        console.log(`[API] Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
-      }
+      logger.info(`Obtidos ${processedNumbers.length} números históricos para ${rouletteName} do serviço global`);
+      return processedNumbers;
     } else {
-      console.log(`[API] Resposta inválida da API`);
+      logger.warn(`Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
+      // Se não encontrou a roleta, forçar uma atualização dos dados
+      globalRouletteDataService.forceUpdate();
+      return [];
     }
-    
-    // Se chegou aqui, algo deu errado
-    // Usar dados de fallback
-    return generateFallbackNumbers(50);
   } catch (error) {
-    console.error(`[API] Erro geral ao buscar números históricos:`, error);
-    // Liberar a trava global mesmo em caso de erro
-    isGlobalFetching = false;
+    logger.error(`Erro ao buscar números históricos:`, error);
     return generateFallbackNumbers(50);
   }
 };
@@ -299,29 +198,24 @@ const RouletteSidePanelStats = ({
 }: RouletteSidePanelStatsProps) => {
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const pollingTimerRef = useRef<number | null>(null);
+  const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
   
   // Função para carregar dados históricos
   const loadHistoricalData = async () => {
-    if (isGlobalFetching) {
-      console.log(`[SidePanel] Requisição global em andamento, aguardando...`);
-      return;
-    }
-    
     try {
-      console.log(`[SidePanel] Buscando histórico real para ${roletaNome}...`);
-      // Buscar dados históricos da API - buscando até 1000 números
+      logger.info(`Buscando histórico para ${roletaNome}...`);
+      // Buscar dados históricos usando a função atualizada
       let apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
       
       if (apiNumbers.length === 0 && isInitialRequestDone.current) {
-        console.log(`[SidePanel] Sem novos dados disponíveis, mantendo estado atual`);
+        logger.info(`Sem novos dados disponíveis, mantendo estado atual`);
         return;
       }
       
       // Se houver lastNumbers nas props, garantir que eles estão incluídos
       if (lastNumbers && lastNumbers.length > 0) {
-        console.log(`[SidePanel] Combinando ${lastNumbers.length} números recentes com ${apiNumbers.length} números históricos`);
+        logger.info(`Combinando ${lastNumbers.length} números recentes com ${apiNumbers.length} números históricos`);
         // Combinar lastNumbers com os números históricos, removendo duplicatas
         const combinedNumbers = [...lastNumbers];
         apiNumbers.forEach(num => {
@@ -330,25 +224,25 @@ const RouletteSidePanelStats = ({
           }
         });
         
-        console.log(`[SidePanel] Total após combinação: ${combinedNumbers.length} números`);
+        logger.info(`Total após combinação: ${combinedNumbers.length} números`);
         // Limitando a 1000 números no máximo
         setHistoricalNumbers(combinedNumbers.slice(0, 1000));
       } 
       else if (apiNumbers.length > 0) {
         // Se não temos lastNumbers mas temos dados da API
-        console.log(`[SidePanel] Usando apenas números da API: ${apiNumbers.length}`);
+        logger.info(`Usando apenas números da API: ${apiNumbers.length}`);
         // Limitando a 1000 números no máximo
         setHistoricalNumbers(apiNumbers.slice(0, 1000));
       } 
       else {
         // Se não temos nenhum dado, usar apenas os números recentes (ou array vazio)
-        console.log(`[SidePanel] Sem dados históricos, usando apenas números recentes: ${(lastNumbers || []).length}`);
+        logger.info(`Sem dados históricos, usando apenas números recentes: ${(lastNumbers || []).length}`);
         setHistoricalNumbers(lastNumbers || []);
       }
       
       isInitialRequestDone.current = true;
     } catch (error) {
-      console.error('[SidePanel] Erro ao carregar dados históricos:', error);
+      logger.error('Erro ao carregar dados históricos:', error);
       // Em caso de erro, usar apenas os números recentes em vez de gerar aleatórios
       setHistoricalNumbers(lastNumbers || []);
     } finally {
@@ -356,48 +250,33 @@ const RouletteSidePanelStats = ({
     }
   };
   
+  // Usar o serviço global para obter atualizações
   useEffect(() => {
-    // Limpar timer existente se o componente for desmontado ou atualizado
-    return () => {
-      if (pollingTimerRef.current) {
-        clearInterval(pollingTimerRef.current);
-      }
-    };
-  }, []);
-  
-  useEffect(() => {
-    console.log(`[SidePanel] Inicializando para roleta ${roletaNome}`);
+    logger.info(`Inicializando para roleta ${roletaNome}`);
     
     // Resetar o estado de inicialização se a roleta mudar
     isInitialRequestDone.current = false;
-    
-    // Limpar timer existente se houver
-    if (pollingTimerRef.current) {
-      clearInterval(pollingTimerRef.current);
-      pollingTimerRef.current = null;
-    }
-    
-    // Carregar dados imediatamente na primeira vez
     setIsLoading(true);
+    
+    // Registrar no serviço global para receber atualizações
+    globalRouletteDataService.subscribe(subscriberId.current, () => {
+      logger.info(`Recebendo atualização de dados para ${roletaNome}`);
+      loadHistoricalData();
+    });
+    
+    // Carregar dados imediatamente
     loadHistoricalData();
     
-    // Configurar o polling a cada POLLING_INTERVAL ms
-    pollingTimerRef.current = window.setInterval(() => {
-      console.log(`[SidePanel] Executando polling para ${roletaNome}`);
-      loadHistoricalData();
-    }, POLLING_INTERVAL) as unknown as number;
-    
     return () => {
-      if (pollingTimerRef.current) {
-        clearInterval(pollingTimerRef.current);
-      }
+      // Cancelar inscrição ao desmontar
+      globalRouletteDataService.unsubscribe(subscriberId.current);
     };
-  }, [roletaNome]); // Dependência apenas na roleta, não em lastNumbers para evitar requisições excessivas
+  }, [roletaNome]); // Dependência apenas na roleta
 
   // Atualizar números quando lastNumbers mudar, sem fazer nova requisição à API
   useEffect(() => {
     if (isInitialRequestDone.current && lastNumbers && lastNumbers.length > 0) {
-      console.log(`[SidePanel] Atualizando com ${lastNumbers.length} novos números recentes`);
+      logger.info(`Atualizando com ${lastNumbers.length} novos números recentes`);
       
       // Combinar com os números históricos existentes
       const combinedNumbers = [...lastNumbers];
