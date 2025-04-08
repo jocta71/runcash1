@@ -6,24 +6,26 @@ import { HistoryData } from './SocketService';
 
 const logger = new Logger('RouletteFeedService');
 
+/**
+ * Serviço de feed de dados de roletas
+ * Adaptado com base na análise do sistema do 888casino
+ */
 class RouletteFeedService {
   private static instance: RouletteFeedService;
   private apiBaseUrl: string;
   private lastRouletteNumbers: Map<string, string[]> = new Map();
   private socketService: any;
-  private pollingInterval: number = 11000; // 11 segundos, como observado no 888casino
+  
+  // Intervalo de polling de 11 segundos (exato como identificado no 888casino)
+  private pollingInterval: number = 11000; 
   private pollingTimer: number | null = null;
   
-  private rouletteInfo: Map<string, {
-    nome: string,
-    dealer?: string,
-    status?: string,
-    ultimaAtualizacao: number
-  }> = new Map();
+  // Controle de atualizações
+  private lastUpdateTimestamp: Map<string, number> = new Map();
   
   constructor() {
     this.apiBaseUrl = config.apiBaseUrl;
-    console.log('[RouletteFeedService] Inicializado com URL base:', this.apiBaseUrl);
+    logger.info(`Inicializado com URL base: ${this.apiBaseUrl}`);
   }
   
   public static getInstance(): RouletteFeedService {
@@ -37,12 +39,12 @@ class RouletteFeedService {
    * Inicia o serviço de feed de roletas
    */
   public start(): void {
-    console.log('[RouletteFeedService] Iniciando serviço de feed de roletas');
+    logger.info('Iniciando serviço de feed de roletas');
     
     // Buscar dados iniciais
     this.fetchInitialData();
     
-    // Configurar polling com intervalo exato do 888casino
+    // Configurar polling com intervalo preciso como o 888casino
     this.startPolling();
   }
   
@@ -50,8 +52,7 @@ class RouletteFeedService {
    * Para o serviço de feed
    */
   public stop(): void {
-    console.log('[RouletteFeedService] Parando serviço de feed de roletas');
-    // Parar o polling
+    logger.info('Parando serviço de feed de roletas');
     this.stopPolling();
   }
   
@@ -62,12 +63,12 @@ class RouletteFeedService {
     // Limpar qualquer timer existente
     this.stopPolling();
     
-    // Iniciar novo timer com intervalo do 888casino
+    // Iniciar novo timer com intervalo exato do 888casino (11 segundos)
     this.pollingTimer = setInterval(() => {
       this.fetchLatestData();
     }, this.pollingInterval);
     
-    console.log(`[RouletteFeedService] Polling iniciado (intervalo: ${this.pollingInterval}ms)`);
+    logger.info(`Polling iniciado (intervalo: ${this.pollingInterval}ms)`);
   }
   
   /**
@@ -77,7 +78,7 @@ class RouletteFeedService {
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer);
       this.pollingTimer = null;
-      console.log('[RouletteFeedService] Polling interrompido');
+      logger.info('Polling interrompido');
     }
   }
   
@@ -89,123 +90,86 @@ class RouletteFeedService {
       const response = await axios.get(`${this.apiBaseUrl}/api/roletas`);
       
       if (response.status === 200 && response.data) {
-        const agora = Date.now();
-        
         response.data.forEach((roleta: any) => {
-          if (roleta.id) {
-            // Armazenar números
-            if (roleta.numeros) {
-              this.lastRouletteNumbers.set(roleta.id, roleta.numeros);
-            }
-            
-            // Armazenar informações adicionais
-            this.rouletteInfo.set(roleta.id, {
-              nome: roleta.nome || `Roleta ${roleta.id}`,
-              dealer: roleta.dealer,
-              status: roleta.status || 'ativo',
-              ultimaAtualizacao: agora
-            });
+          if (roleta.id && roleta.numeros) {
+            this.lastRouletteNumbers.set(roleta.id, roleta.numeros);
+            // Inicializar timestamp
+            this.lastUpdateTimestamp.set(roleta.id, Date.now());
           }
         });
         
-        // Emitir evento de informações iniciais carregadas
-        EventService.emit('roulette:initial-data-loaded', {
-          tables: this.getAllRouletteTables()
-        });
+        logger.info(`Dados iniciais carregados: ${response.data.length} roletas`);
       }
     } catch (error) {
-      console.error('[RouletteFeedService] Erro ao buscar dados iniciais:', error);
+      logger.error('Erro ao buscar dados iniciais:', error);
     }
   }
   
   /**
-   * Busca as atualizações mais recentes usando polling
-   * Lógica inspirada no 888casino
+   * Busca as atualizações mais recentes
+   * Implementa lógica refinada baseada no sistema do 888casino
    */
   private async fetchLatestData(): Promise<void> {
     try {
+      const startTime = Date.now();
       const response = await axios.get(`${this.apiBaseUrl}/api/roletas`);
       
       if (response.status === 200 && response.data) {
         let hasUpdates = false;
-        const agora = Date.now();
         
         response.data.forEach((roleta: any) => {
           if (roleta.id && roleta.numeros) {
             // Comparar com os últimos números armazenados
-            const previousNumbers = this.lastRouletteNumbers.get(roleta.id) || [];
-            const currentNumbers = roleta.numeros;
+            const currentNumbers = this.lastRouletteNumbers.get(roleta.id) || [];
+            const newNumbers = roleta.numeros;
             
-            // Verificar se houve atualização
-            // Usa a mesma lógica do 888casino: verificar se o primeiro número é diferente
-            if (this.hasNewNumbers(previousNumbers, currentNumbers)) {
-              logger.info(`Nova atualização para roleta ${roleta.id}: ${currentNumbers[0]}`);
+            // Verificar se houve atualização (número diferente na primeira posição)
+            if (newNumbers.length > 0 && 
+                (currentNumbers.length === 0 || newNumbers[0] !== currentNumbers[0])) {
+              
+              // Registrar quando ocorreu a atualização
+              const lastUpdate = this.lastUpdateTimestamp.get(roleta.id) || 0;
+              const now = Date.now();
+              const timeSinceLastUpdate = now - lastUpdate;
+              
+              logger.info(`Nova atualização para roleta ${roleta.id} após ${timeSinceLastUpdate}ms`);
               
               // Atualizar números armazenados
-              this.lastRouletteNumbers.set(roleta.id, currentNumbers);
-              
-              // Atualizar informações da roleta
-              this.rouletteInfo.set(roleta.id, {
-                nome: roleta.nome || this.rouletteInfo.get(roleta.id)?.nome || `Roleta ${roleta.id}`,
-                dealer: roleta.dealer || this.rouletteInfo.get(roleta.id)?.dealer,
-                status: roleta.status || this.rouletteInfo.get(roleta.id)?.status || 'ativo',
-                ultimaAtualizacao: agora
-              });
+              this.lastRouletteNumbers.set(roleta.id, newNumbers);
+              this.lastUpdateTimestamp.set(roleta.id, now);
               
               // Emitir evento de atualização
               EventService.emit('roulette:numbers-updated', {
                 tableId: roleta.id,
-                tableName: roleta.nome || this.rouletteInfo.get(roleta.id)?.nome,
-                numbers: currentNumbers,
-                previousNumbers: previousNumbers,
-                isNewNumber: true,
-                dealer: roleta.dealer,
-                timestamp: agora
+                numbers: newNumbers,
+                isNewNumber: true
               });
               
               hasUpdates = true;
-            } else {
-              // Mesmo sem novos números, atualizar timestamp
-              const info = this.rouletteInfo.get(roleta.id);
-              if (info) {
-                this.rouletteInfo.set(roleta.id, {
-                  ...info,
-                  ultimaAtualizacao: agora
-                });
-              }
             }
           }
         });
         
         if (hasUpdates) {
-          // Notificar sobre todas as roletas atualizadas
-          EventService.emit('roulette:all-tables-updated', {
-            tables: this.getAllRouletteTables()
-          });
+          logger.info('Atualizações recebidas via polling');
+        }
+        
+        // Log de tempo de resposta
+        const responseTime = Date.now() - startTime;
+        if (responseTime > 1000) {
+          logger.warn(`Tempo de resposta elevado: ${responseTime}ms`);
         }
       }
     } catch (error) {
-      console.error('[RouletteFeedService] Erro ao buscar atualizações:', error);
+      logger.error('Erro ao buscar atualizações:', error);
+      
+      // Tentar novamente após um breve intervalo em caso de falha
+      // (não usando o mesmo intervalo completo)
+      setTimeout(() => {
+        logger.info('Tentando novamente após falha anterior...');
+        this.fetchLatestData();
+      }, 3000); // 3 segundos para retry
     }
-  }
-  
-  /**
-   * Verifica se há novos números, usando lógica semelhante ao 888casino
-   */
-  private hasNewNumbers(previousNumbers: string[], currentNumbers: string[]): boolean {
-    // Se não temos números antigos ou atuais, não há nada a comparar
-    if (!currentNumbers || currentNumbers.length === 0) {
-      return false;
-    }
-    
-    // Se não tínhamos números anteriores, tudo é novo
-    if (!previousNumbers || previousNumbers.length === 0) {
-      return true;
-    }
-    
-    // Verificar se o primeiro número (mais recente) é diferente
-    // Esta é a mesma lógica usada pelo 888casino
-    return currentNumbers[0] !== previousNumbers[0];
   }
   
   /**
@@ -217,21 +181,15 @@ class RouletteFeedService {
   
   /**
    * Retorna todas as mesas de roleta conhecidas
-   * Versão melhorada que inclui mais informações
    */
-  public getAllRouletteTables(): { tableId: string, name: string, numbers: string[], dealer?: string, status?: string, lastUpdate: number }[] {
-    const result: { tableId: string, name: string, numbers: string[], dealer?: string, status?: string, lastUpdate: number }[] = [];
+  public getAllRouletteTables(): { tableId: string, numbers: string[], lastUpdate?: number }[] {
+    const result: { tableId: string, numbers: string[], lastUpdate?: number }[] = [];
     
     this.lastRouletteNumbers.forEach((numbers, tableId) => {
-      const info = this.rouletteInfo.get(tableId);
-      
       result.push({
         tableId,
-        name: info?.nome || `Roleta ${tableId}`,
         numbers,
-        dealer: info?.dealer,
-        status: info?.status || 'ativo',
-        lastUpdate: info?.ultimaAtualizacao || Date.now()
+        lastUpdate: this.lastUpdateTimestamp.get(tableId)
       });
     });
     
@@ -243,7 +201,7 @@ class RouletteFeedService {
    */
   async getCompleteHistory(roletaId: string): Promise<HistoryData> {
     try {
-      console.log(`[RouletteFeedService] Solicitando histórico completo para roleta ${roletaId}`);
+      logger.info(`Solicitando histórico completo para roleta ${roletaId}`);
       
       if (!this.socketService) {
         throw new Error('SocketService não está inicializado');
@@ -251,7 +209,7 @@ class RouletteFeedService {
       
       const historyData = await this.socketService.requestRouletteHistory(roletaId);
       
-      console.log(`[RouletteFeedService] Histórico recebido: ${historyData.numeros?.length || 0} números`);
+      logger.info(`Histórico recebido: ${historyData.numeros?.length || 0} números`);
       
       // Notificar via EventService
       EventService.emit('roulette:complete-history', {
@@ -261,16 +219,16 @@ class RouletteFeedService {
       
       return historyData;
     } catch (error) {
-      console.error('[RouletteFeedService] Erro ao obter histórico:', error);
+      logger.error('Erro ao obter histórico:', error);
       throw error;
     }
   }
   
   /**
-   * Define o serviço de socket
+   * Configura o socketService
    */
-  public setSocketService(socketService: any): void {
-    this.socketService = socketService;
+  public setSocketService(service: any): void {
+    this.socketService = service;
   }
 }
 
