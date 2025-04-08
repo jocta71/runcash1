@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import ChatUI from '../chat/ChatUI';
 import { Search, Wallet, Loader2 } from 'lucide-react';
-import ProfileDropdown from '../common/ProfileDropdown';
+import ProfileDropdown from '../ProfileDropdown';
 import { Link } from 'react-router-dom';
 import { RouletteRepository } from '../../services/data/rouletteRepository';
 
