@@ -251,7 +251,7 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         return False
 
 def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=None):
-    """Processa números com validação rigorosa para evitar duplicações"""
+    """Processa números com validação para evitar duplicações falsas, mas permitindo números repetidos reais"""
     global ultimo_numero_por_roleta, ultimo_timestamp_por_roleta, assinaturas_roletas
     global historico_numeros_por_roleta, sequencias_por_roleta
     
@@ -267,8 +267,8 @@ def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=Non
     except Exception as e:
         print(f"Erro ao obter números recentes: {str(e)}")
     
-    # Tempo mínimo entre atualizações
-    min_tempo_entre_atualizacoes = 5
+    # Tempo mínimo entre atualizações (reduzido para permitir números repetidos mais rapidamente)
+    min_tempo_entre_atualizacoes = 2  # Reduzido de 5 para 2 segundos
     tempo_atual = time.time()
     
     # Inicializar estruturas de dados para esta roleta
@@ -299,30 +299,18 @@ def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=Non
             if not 0 <= n <= 36:
                 continue
             
-            # Verificação de duplicação por assinatura
+            # Verificação de duplicação por assinatura (proteção contra duplicações falsas)
             timestamp_arredondado = int(tempo_atual / 3) * 3
             assinatura_atual = f"{id_roleta}_{n}_{timestamp_arredondado}"
             
+            # Verificar se este número já foi processado recentemente (mesmo timestamp)
             if assinatura_atual in assinaturas_roletas:
                 ultimo_uso = assinaturas_roletas[assinatura_atual]
                 if tempo_atual - ultimo_uso < min_tempo_entre_atualizacoes:
+                    print(f"[API] Ignorando duplicação falsa para {roleta_nome}: {n}")
                     continue
             
-            # Verificação de duplicação por número recente
-            ultimo_numero = ultimo_numero_por_roleta.get(id_roleta)
-            ultimo_timestamp = ultimo_timestamp_por_roleta.get(id_roleta, 0)
-            
-            if (ultimo_numero == n and 
-                (tempo_atual - ultimo_timestamp) < min_tempo_entre_atualizacoes):
-                continue
-            
-            # Verificação de duplicação por sequência
-            sequencia_atual = sequencias_por_roleta.get(id_roleta, [])
-            
-            if sequencia_atual and n == sequencia_atual[0]:
-                continue
-            
-            # Se passou por todas as validações, registrar o número
+            # Se passou pelas validações, registrar o número
             if novo_numero(db, id_roleta, roleta_nome, n, numero_hook):
                 # Atualizar controles locais
                 ultimo_numero_por_roleta[id_roleta] = n
@@ -335,11 +323,12 @@ def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=Non
                     historico_numeros_por_roleta[id_roleta] = historico_numeros_por_roleta[id_roleta][-max_historico_por_roleta:]
                 
                 # Atualizar sequência
-                sequencias_por_roleta[id_roleta] = [n] + sequencia_atual
+                sequencias_por_roleta[id_roleta] = [n] + sequencias_por_roleta.get(id_roleta, [])
                 if len(sequencias_por_roleta[id_roleta]) > 5:
                     sequencias_por_roleta[id_roleta] = sequencias_por_roleta[id_roleta][:5]
                 
                 ok = True
+                print(f"[API] Número {n} registrado para {roleta_nome}")
             
         except Exception as e:
             print(f"Erro ao processar número para {roleta_nome}: {str(e)}")
