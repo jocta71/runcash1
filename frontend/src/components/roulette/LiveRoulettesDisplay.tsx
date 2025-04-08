@@ -258,29 +258,9 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
         setRoulettes(cachedRoulettes);
         setIsLoading(false);
       } else {
-        // Se não há dados em cache, iniciar o serviço e buscar dados
-        console.log('[LiveRoulettesDisplay] Inicializando serviço de feed e buscando dados');
-        
-        // Iniciar o polling do serviço se ainda não estiver ativo
-        if (!feedService.isPollingActive) {
-          feedService.startPolling();
-        }
-        
-        // Buscar dados iniciais
-        feedService.fetchInitialData()
-          .then(data => {
-            if (Array.isArray(data) && data.length > 0) {
-              console.log(`[LiveRoulettesDisplay] Dados iniciais obtidos: ${data.length} roletas`);
-              setRoulettes(data);
-            } else {
-              console.warn('[LiveRoulettesDisplay] Dados iniciais inválidos:', data);
-            }
-            setIsLoading(false);
-          })
-          .catch(error => {
-            console.error('[LiveRoulettesDisplay] Erro ao buscar dados iniciais:', error);
-            setIsLoading(false);
-          });
+        // Não inicializar mais o polling aqui - isso agora é responsabilidade do LiveRoulettePage
+        console.log('[LiveRoulettesDisplay] Aguardando dados serem carregados pela página principal');
+        setIsLoading(true);
       }
     }
   }, [feedService, roulettesData]);

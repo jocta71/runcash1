@@ -394,9 +394,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     };
   }, [feedService, safeData.id, safeData.name, recentNumbers]);
   
-  // Manter o antigo código de processamento de eventos por compatibilidade
-  // mas vamos adicionar verificações para evitar duplicidade
-  
   // Ao montar o componente, verificar dados no cache em vez de fazer novas requisições
   useEffect(() => {
     // Verificar se já temos dados no cache
@@ -416,14 +413,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           setRecentNumbers(numbers);
           setHasRealData(true);
         }
-      } else {
-        // Se não temos dados no cache, forçar uma atualização do feed service
-        // mas SOMENTE SE nenhum outro card já forçou para evitar múltiplas requisições
-        if (!feedService.isFetching) {
-          console.log(`[RouletteCard] Solicitando atualização do feed para ${safeData.name}`);
-          feedService.fetchLatestData();
-        }
       }
+      // Removendo a solicitação direta para evitar múltiplas requisições
+      // Agora apenas o LiveRoulettePage inicializará o serviço
     }
   }, [feedService, safeData.id, safeData.name, recentNumbers]);
 

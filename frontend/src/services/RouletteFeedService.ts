@@ -1,10 +1,16 @@
-import axios from 'axios';
 import config from '@/config/env';
 import EventService from './EventService';
-import { Logger } from './utils/logger';
+import { getLogger } from './utils/logger';
 import { HistoryData } from './SocketService';
 
-const logger = new Logger('RouletteFeedService');
+// Criar uma única instância do logger
+const logger = getLogger('RouletteFeedService');
+
+// Controle global para evitar requisições concorrentes de diferentes instâncias
+let GLOBAL_IS_FETCHING = false;
+let GLOBAL_LAST_REQUEST_TIME = 0;
+const GLOBAL_PENDING_REQUESTS = new Set<string>();
+const GLOBAL_REQUEST_LOCK_TIME = 10000; // 10 segundos máximo de lock global
 
 /**
  * Serviço para obter atualizações das roletas usando polling único
@@ -12,6 +18,14 @@ const logger = new Logger('RouletteFeedService');
  */
 export default class RouletteFeedService {
   private static instance: RouletteFeedService | null = null;
+  private roulettes: any[] = [];
+  
+  // Controle de estado global
+  private IS_INITIALIZING: boolean = false;
+  private IS_FETCHING_DATA: boolean = false;
+  private GLOBAL_INITIALIZATION_PROMISE: Promise<any> | null = null;
+  private lastRequestTime: number = 0;
+  private MIN_REQUEST_INTERVAL: number = 2000; // Mínimo de 2 segundos entre requisições
   
   // Estado de requisições
   private isFetching: boolean = false;
@@ -45,11 +59,12 @@ export default class RouletteFeedService {
   // Flags e temporizadores
   private isInitialized: boolean = false;
   private isPollingActive: boolean = false;
-  private pollingTimer: any = null;
+  private pollingTimer: number | null = null; // Usando number para compatibilidade com Node e Browser
   private isPaused: boolean = false;
   private hasPendingRequest: boolean = false;
-  private backoffTimeout: any = null;
+  private backoffTimeout: number | null = null; // Usando number para compatibilidade com Node e Browser
   private hasFetchedInitialData: boolean = false;
+  private initialized: boolean = false; // Flag para controle de inicialização
   
   // Cache interno de todas as roletas
   private rouletteDataCache: Map<string, any> = new Map();
@@ -60,7 +75,7 @@ export default class RouletteFeedService {
   private hasNewData: boolean = false;
 
   private constructor() {
-    console.log('[RouletteFeedService] 🚀 Inicializando serviço de feeds de roleta');
+    logger.info('🚀 Inicializando serviço de feeds de roleta');
     
     // Limpar as requisições antigas do último minuto a cada 10 segundos
     setInterval(() => this.cleanupOldRequests(), 10000);
@@ -68,7 +83,7 @@ export default class RouletteFeedService {
     // Verificar se devemos aguardar a visibilidade da página para iniciar
     if (typeof document !== 'undefined') {
       const isVisible = document.visibilityState === 'visible';
-      console.log(`[RouletteFeedService] 👁️ Visibilidade inicial: ${isVisible ? 'visível' : 'oculta'}`);
+      logger.info(`👁️ Visibilidade inicial: ${isVisible ? 'visível' : 'oculta'}`);
       
       // Adicionar listener para mudanças de visibilidade
       document.addEventListener('visibilitychange', this.handleVisibilityChange);
@@ -77,7 +92,7 @@ export default class RouletteFeedService {
       if (isVisible) {
         this.initialize();
       } else {
-        console.log('[RouletteFeedService] ⏸️ Aguardando página ficar visível para iniciar o polling');
+        logger.info('⏸️ Aguardando página ficar visível para iniciar o polling');
       }
     } else {
       // Em ambiente sem document, inicializar imediatamente
@@ -85,16 +100,231 @@ export default class RouletteFeedService {
     }
   }
 
-  private initialize(): void {
-    if (this.isInitialized) {
-      console.log('[RouletteFeedService] ⚠️ Serviço já inicializado, ignorando chamada dupla');
-      return;
+  /**
+   * Verifica se uma requisição global está em andamento e libera se estiver bloqueada por muito tempo
+   */
+  private checkAndReleaseGlobalLock(): boolean {
+    const now = Date.now();
+    
+    // Se há uma trava global e já passou muito tempo, liberar a trava
+    if (GLOBAL_IS_FETCHING && (now - GLOBAL_LAST_REQUEST_TIME > GLOBAL_REQUEST_LOCK_TIME)) {
+      logger.warn('🔓 Trava global expirou, liberando para novas requisições');
+      GLOBAL_IS_FETCHING = false;
+      return true;
     }
     
-    this.isInitialized = true;
-    console.log('[RouletteFeedService] 🔄 Inicializando serviço com intervalo de polling de', this.interval, 'ms');
+    return !GLOBAL_IS_FETCHING;
   }
-  
+
+  /**
+   * Inicializa o serviço
+   */
+  public initialize(): Promise<any> {
+    logger.info('Solicitação de inicialização recebida');
+    
+    // Se já existir uma promessa de inicialização em andamento, retorne-a
+    if (this.GLOBAL_INITIALIZATION_PROMISE) {
+      logger.info('Reutilizando promessa de inicialização existente');
+      return this.GLOBAL_INITIALIZATION_PROMISE;
+    }
+    
+    // Se o serviço estiver inicializando, aguarde
+    if (this.IS_INITIALIZING) {
+      logger.info('Serviço já está inicializando, aguardando...');
+      return new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (!this.IS_INITIALIZING) {
+            clearInterval(checkInterval);
+            logger.info('Inicialização concluída, continuando');
+            resolve(this.roulettes);
+          }
+        }, 100);
+      });
+    }
+
+    // Se já estiver inicializado, retorne os dados existentes
+    if (this.initialized) {
+      logger.info('Serviço já inicializado, retornando dados existentes');
+      return Promise.resolve(this.roulettes);
+    }
+
+    // Marcar como inicializando
+    this.IS_INITIALIZING = true;
+    
+    // Criar e armazenar a promessa de inicialização
+    this.GLOBAL_INITIALIZATION_PROMISE = new Promise((resolve, reject) => {
+      logger.info('Iniciando inicialização');
+      
+      // Buscar dados iniciais
+      this.fetchInitialData()
+        .then(data => {
+          logger.info('Dados iniciais obtidos com sucesso');
+          this.startPolling();
+          this.initialized = true;
+          this.IS_INITIALIZING = false;
+          resolve(data);
+        })
+        .catch(error => {
+          logger.error('Erro na inicialização:', error);
+          this.IS_INITIALIZING = false;
+          this.GLOBAL_INITIALIZATION_PROMISE = null;
+          reject(error);
+        });
+    });
+    
+    return this.GLOBAL_INITIALIZATION_PROMISE;
+  }
+
+  /**
+   * Inicia o polling
+   */
+  public startPolling(): void {
+    if (this.isPollingActive) {
+      logger.info('Polling já está ativo, ignorando solicitação');
+      return;
+    }
+
+    logger.info('Iniciando polling');
+    this.isPollingActive = true;
+    this.restartPollingTimer();
+  }
+
+  /**
+   * Busca os dados iniciais das roletas
+   */
+  public fetchInitialData(): Promise<any> {
+    logger.info('Solicitação para buscar dados iniciais');
+    
+    // Verificar se o cache está válido
+    if (this.isCacheValid() && this.roulettes.length > 0) {
+      logger.info('Cache válido encontrado, usando dados do cache');
+      return Promise.resolve(this.roulettes);
+    }
+    
+    // Verificar trava global
+    if (!this.checkAndReleaseGlobalLock()) {
+      logger.info('Trava global ativa, aguardando liberação');
+      return Promise.resolve(this.roulettes);
+    }
+    
+    // Verificar se já há uma solicitação em andamento
+    if (this.IS_FETCHING_DATA) {
+      logger.info('Já existe uma solicitação em andamento, aguardando...');
+      return Promise.resolve(this.roulettes);
+    }
+    
+    // Verificar o intervalo mínimo entre requisições
+    const now = Date.now();
+    if (now - this.lastRequestTime < this.MIN_REQUEST_INTERVAL) {
+      logger.info(`Requisição muito próxima da anterior (${now - this.lastRequestTime}ms), usando dados em cache`);
+      return Promise.resolve(this.roulettes);
+    }
+    
+    // Marcar como buscando dados (local e global)
+    this.IS_FETCHING_DATA = true;
+    GLOBAL_IS_FETCHING = true;
+    GLOBAL_LAST_REQUEST_TIME = now;
+    this.lastRequestTime = now;
+    
+    const requestId = `initial_${now}`;
+    GLOBAL_PENDING_REQUESTS.add(requestId);
+    
+    logger.info('Buscando dados iniciais');
+    
+    return fetch(`/api/ROULETTES`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        logger.info('Dados iniciais recebidos:', data.length);
+        this.handleRouletteData(data);
+        this.IS_FETCHING_DATA = false;
+        GLOBAL_IS_FETCHING = false;
+        GLOBAL_PENDING_REQUESTS.delete(requestId);
+        return this.roulettes;
+      })
+      .catch(error => {
+        logger.error('Erro ao buscar dados iniciais:', error);
+        this.IS_FETCHING_DATA = false;
+        GLOBAL_IS_FETCHING = false;
+        GLOBAL_PENDING_REQUESTS.delete(requestId);
+        throw error;
+      });
+  }
+
+  /**
+   * Busca os dados mais recentes das roletas
+   */
+  public fetchLatestData(): Promise<any> {
+    // Verificar se o cache está válido
+    if (this.isCacheValid() && this.roulettes.length > 0) {
+      logger.info('Cache válido encontrado, usando dados do cache para última atualização');
+      return Promise.resolve(this.roulettes);
+    }
+    
+    // Verificar trava global
+    if (!this.checkAndReleaseGlobalLock()) {
+      logger.info('Trava global ativa para dados recentes, aguardando liberação');
+      return Promise.resolve(this.roulettes);
+    }
+    
+    // Verificar se já há uma solicitação em andamento
+    if (this.IS_FETCHING_DATA) {
+      logger.info('Já existe uma solicitação em andamento para dados recentes, aguardando...');
+      return Promise.resolve(this.roulettes);
+    }
+    
+    // Verificar o intervalo mínimo entre requisições
+    const now = Date.now();
+    if (now - this.lastRequestTime < this.MIN_REQUEST_INTERVAL) {
+      logger.info(`Requisição de dados recentes muito próxima da anterior (${now - this.lastRequestTime}ms), usando dados em cache`);
+      return Promise.resolve(this.roulettes);
+    }
+    
+    // Marcar como buscando dados (local e global)
+    this.IS_FETCHING_DATA = true;
+    GLOBAL_IS_FETCHING = true;
+    GLOBAL_LAST_REQUEST_TIME = now;
+    this.lastRequestTime = now;
+    
+    const requestId = `latest_${now}`;
+    GLOBAL_PENDING_REQUESTS.add(requestId);
+    
+    logger.info('Buscando dados recentes');
+    
+    return fetch(`/api/ROULETTES`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        logger.info('Dados recentes recebidos:', data.length);
+        this.handleRouletteData(data);
+        
+        // Liberar travas
+        this.IS_FETCHING_DATA = false;
+        GLOBAL_IS_FETCHING = false;
+        GLOBAL_PENDING_REQUESTS.delete(requestId);
+        
+        return this.roulettes;
+      })
+      .catch(error => {
+        logger.error('Erro ao buscar dados recentes:', error);
+        
+        // Liberar travas mesmo em caso de erro
+        this.IS_FETCHING_DATA = false;
+        GLOBAL_IS_FETCHING = false;
+        GLOBAL_PENDING_REQUESTS.delete(requestId);
+        
+        return this.roulettes;
+      });
+  }
+
   /**
    * Controle de visibilidade do documento para otimizar recursos
    */
@@ -102,12 +332,15 @@ export default class RouletteFeedService {
     const isVisible = document.visibilityState === 'visible';
     
     if (isVisible) {
-      console.log('[RouletteFeedService] 👁️ Página visível, retomando polling');
+      logger.info('👁️ Página visível, retomando polling');
       this.resumePolling();
       // Realizar uma atualização imediata quando a página fica visível
-      this.fetchLatestData();
+      // apenas se o cache estiver inválido
+      if (!this.isCacheValid()) {
+        this.fetchLatestData();
+      }
     } else {
-      console.log('[RouletteFeedService] 🔒 Página em segundo plano, pausando polling');
+      logger.info('🔒 Página em segundo plano, pausando polling');
       this.pausePolling();
     }
   }
@@ -139,22 +372,34 @@ export default class RouletteFeedService {
    * - Se houve falhas recentes que demandem backoff
    */
   private canMakeRequest(): boolean {
+    // Verificar trava global
+    if (!this.checkAndReleaseGlobalLock()) {
+      logger.info('⛔ Trava global ativa, não é possível fazer nova requisição');
+      return false;
+    }
+    
     // Se estiver pausado, não fazer requisições
     if (this.isPaused) {
-      console.log('[RouletteFeedService] ⏸️ Serviço pausado, ignorando solicitação');
+      logger.info('⏸️ Serviço pausado, ignorando solicitação');
       return false;
     }
     
     // Se já houver uma requisição em andamento, aguardar
-    if (this.isFetching || this.hasPendingRequest) {
-      console.log('[RouletteFeedService] ⏳ Requisição já em andamento, aguardando');
+    if (this.isFetching || this.hasPendingRequest || this.IS_FETCHING_DATA) {
+      logger.info('⏳ Requisição já em andamento, aguardando');
+      return false;
+    }
+    
+    // Verificar se o cache está válido
+    if (this.isCacheValid()) {
+      logger.info('💾 Cache válido, evitando requisição desnecessária');
       return false;
     }
     
     // Verificar limite de requisições por minuto
     const requestsInLastMinute = this.requestStats.lastMinuteRequests.length;
     if (requestsInLastMinute >= this.maxRequestsPerMinute) {
-      console.log(`[RouletteFeedService] 🚦 Limite de requisições atingido: ${requestsInLastMinute}/${this.maxRequestsPerMinute} por minuto`);
+      logger.info(`🚦 Limite de requisições atingido: ${requestsInLastMinute}/${this.maxRequestsPerMinute} por minuto`);
       return false;
     }
     
@@ -163,7 +408,7 @@ export default class RouletteFeedService {
     const timeSinceLastFetch = now - this.lastFetchTime;
     
     if (timeSinceLastFetch < this.minInterval) {
-      console.log(`[RouletteFeedService] ⏱️ Requisição muito recente (${timeSinceLastFetch}ms), aguardando intervalo mínimo de ${this.minInterval}ms`);
+      logger.info(`⏱️ Requisição muito recente (${timeSinceLastFetch}ms), aguardando intervalo mínimo de ${this.minInterval}ms`);
       return false;
     }
     
@@ -183,7 +428,7 @@ export default class RouletteFeedService {
       if (this.successfulFetchesCount >= 3 && this.interval > this.minInterval) {
         const newInterval = Math.max(this.minInterval, this.interval * 0.9);
         if (newInterval !== this.interval) {
-          console.log(`[RouletteFeedService] ⚡ Otimizando: Reduzindo intervalo para ${newInterval}ms`);
+          logger.info(`⚡ Otimizando: Reduzindo intervalo para ${newInterval}ms`);
           this.interval = newInterval;
         }
       }
@@ -207,12 +452,12 @@ export default class RouletteFeedService {
         const backoffFactor = Math.min(this.backoffMultiplier * this.failedFetchesCount, 3);
         const newInterval = Math.min(this.maxInterval, this.interval * backoffFactor);
         
-        console.log(`[RouletteFeedService] 🔄 Backoff: Aumentando intervalo para ${newInterval}ms após ${this.failedFetchesCount} falhas`);
+        logger.info(`🔄 Backoff: Aumentando intervalo para ${newInterval}ms após ${this.failedFetchesCount} falhas`);
         this.interval = newInterval;
         
         // Se tivermos muitas falhas consecutivas, pausar brevemente
         if (this.failedFetchesCount >= 5) {
-          console.log('[RouletteFeedService] ⚠️ Muitas falhas consecutivas, pausando por 30 segundos');
+          logger.info('⚠️ Muitas falhas consecutivas, pausando por 30 segundos');
           this.pausePolling();
           
           if (this.backoffTimeout) {
@@ -220,7 +465,7 @@ export default class RouletteFeedService {
           }
           
           this.backoffTimeout = setTimeout(() => {
-            console.log('[RouletteFeedService] 🔄 Retomando após pausa de backoff');
+            logger.info('🔄 Retomando após pausa de backoff');
             this.resumePolling();
           }, 30000);
         }
@@ -233,48 +478,12 @@ export default class RouletteFeedService {
     }
   }
   
-  /**
-   * Controla o início e parada do polling
-   */
-  public startPolling(): void {
-    if (this.isPollingActive) {
-      console.log('[RouletteFeedService] ⚠️ Polling já ativo, ignorando solicitação');
-      return;
-    }
-    
-    console.log(`[RouletteFeedService] 🚀 Iniciando polling com intervalo de ${this.interval}ms`);
-    this.isPollingActive = true;
-    this.isPaused = false;
-    
-    // Fazer uma requisição imediata
-    this.fetchLatestData();
-    
-    // Configurar o timer para próximas requisições
-    this.pollingTimer = setInterval(() => {
-      this.fetchLatestData();
-    }, this.interval);
-  }
-  
-  public stopPolling(): void {
-    if (!this.isPollingActive) {
-      return;
-    }
-    
-    console.log('[RouletteFeedService] 🛑 Parando polling');
-    this.isPollingActive = false;
-    
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
-    }
-  }
-  
   private pausePolling(): void {
     if (this.isPaused) {
       return;
     }
     
-    console.log('[RouletteFeedService] ⏸️ Pausando polling');
+    logger.info('⏸️ Pausando polling');
     this.isPaused = true;
     
     if (this.pollingTimer) {
@@ -285,7 +494,7 @@ export default class RouletteFeedService {
   
   private resumePolling(): void {
     if (this.isPollingActive && this.isPaused) {
-      console.log('[RouletteFeedService] ▶️ Retomando polling');
+      logger.info('▶️ Retomando polling');
       this.isPaused = false;
       
       // Reiniciar o timer
@@ -296,145 +505,21 @@ export default class RouletteFeedService {
     }
   }
   
+  /**
+   * Inicia o timer de polling para buscar dados em intervalos regulares
+   */
   private restartPollingTimer(): void {
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer);
     }
     
-    this.pollingTimer = setInterval(() => {
-      this.fetchLatestData();
-    }, this.interval);
-    
-    console.log(`[RouletteFeedService] 🔄 Timer de polling reiniciado com intervalo de ${this.interval}ms`);
-  }
-  
-  /**
-   * Busca os dados iniciais de todas as roletas permitidas
-   */
-  public async fetchInitialData(): Promise<any> {
-    console.log('[RouletteFeedService] 🔍 Buscando dados iniciais de todas as roletas');
-    
-    if (this.hasFetchedInitialData) {
-      console.log('[RouletteFeedService] ℹ️ Dados iniciais já carregados anteriormente');
-    }
-    
-    // Marcar que já buscamos dados iniciais
-    this.hasFetchedInitialData = true;
-    
-    try {
-      // Esta é uma requisição especial - deve passar por qualquer limite de rate
-      this.hasPendingRequest = true;
-      this.isFetching = true;
-      this.requestStats.totalRequests++;
-      this.requestStats.lastMinuteRequests.push(Date.now());
-      
-      const startTime = Date.now();
-      
-      // Importar de forma dinâmica para evitar problemas de dependência circular
-      const { fetchRoulettesWithRealNumbers } = await import('../integrations/api/rouletteService');
-      const data = await fetchRoulettesWithRealNumbers();
-      
-      const endTime = Date.now();
-      const responseTime = endTime - startTime;
-      
-      console.log(`[RouletteFeedService] ✅ Dados iniciais obtidos com sucesso em ${responseTime}ms`);
-      
-      // Atualizar o cache com os novos dados
-      this.updateRouletteCache(data);
-      
-      // Atualizar estatísticas
-      this.requestStats.successfulRequests++;
-      this.requestStats.lastResponseTime = responseTime;
-      
-      // Marcar tempo da última requisição bem-sucedida
-      this.lastFetchTime = endTime;
-      
-      // Ajustar intervalo com base no sucesso
-      this.adjustPollingInterval(true, responseTime);
-      
-      return data;
-    } catch (error) {
-      console.error('[RouletteFeedService] ❌ Erro ao buscar dados iniciais:', error);
-      
-      // Atualizar estatísticas
-      this.requestStats.failedRequests++;
-      
-      // Ajustar intervalo com base na falha
-      this.adjustPollingInterval(false);
-      
-      throw error;
-    } finally {
-      this.isFetching = false;
-      this.hasPendingRequest = false;
-    }
-  }
-  
-  /**
-   * Busca os dados mais recentes de todas as roletas permitidas
-   * usando o sistema de verificação de taxa e estado
-   */
-  public async fetchLatestData(): Promise<any> {
-    // Verificar se podemos fazer uma nova requisição
-    if (!this.canMakeRequest()) {
-      if (this.hasPendingRequest || this.isFetching) {
-        console.log('[RouletteFeedService] ⏳ Requisição em andamento, retornando a promise existente');
-        return this.fetchPromise;
+    this.pollingTimer = window.setInterval(() => {
+      if (this.canMakeRequest()) {
+        this.fetchLatestData();
       }
-      console.log('[RouletteFeedService] 🚫 Não é possível fazer uma nova requisição agora');
-      return Promise.resolve(null);
-    }
+    }, this.interval) as unknown as number;
     
-    // Marcar que estamos buscando dados
-    this.hasPendingRequest = true;
-    this.isFetching = true;
-    
-    // Criar a promise para esta requisição
-    this.fetchPromise = (async () => {
-      try {
-        // Registrar a requisição nas estatísticas
-        this.requestStats.totalRequests++;
-        this.requestStats.lastMinuteRequests.push(Date.now());
-        
-        console.log('[RouletteFeedService] 🔄 Buscando dados atualizados de todas as roletas');
-        const startTime = Date.now();
-        
-        // Importar de forma dinâmica para evitar problemas de dependência circular
-        const { fetchRoulettesWithRealNumbers } = await import('../integrations/api/rouletteService');
-        const data = await fetchRoulettesWithRealNumbers();
-        
-        const endTime = Date.now();
-        const responseTime = endTime - startTime;
-        
-        console.log(`[RouletteFeedService] ✅ Dados atualizados obtidos com sucesso em ${responseTime}ms`);
-        
-        // Atualizar o cache com os novos dados
-        this.updateRouletteCache(data);
-        
-        // Atualizar estatísticas
-        this.requestStats.successfulRequests++;
-        this.lastFetchTime = endTime;
-        
-        // Ajustar intervalo com base no sucesso
-        this.adjustPollingInterval(true, responseTime);
-        
-        return data;
-      } catch (error) {
-        console.error('[RouletteFeedService] ❌ Erro ao buscar dados atualizados:', error);
-        
-        // Atualizar estatísticas
-        this.requestStats.failedRequests++;
-        
-        // Ajustar intervalo com base na falha
-        this.adjustPollingInterval(false);
-        
-        throw error;
-      } finally {
-        this.isFetching = false;
-        this.hasPendingRequest = false;
-      }
-    })();
-    
-    return this.fetchPromise;
+    logger.info(`⏱️ Timer de polling iniciado com intervalo de ${this.interval}ms`);
   }
   
   /**
@@ -443,11 +528,11 @@ export default class RouletteFeedService {
    */
   private updateRouletteCache(data: any[]): void {
     if (!Array.isArray(data)) {
-      console.error('[RouletteFeedService] ⚠️ Dados inválidos recebidos para cache:', data);
+      logger.error('⚠️ Dados inválidos recebidos para cache:', data);
       return;
     }
     
-    console.log(`[RouletteFeedService] 💾 Atualizando cache com ${data.length} roletas`);
+    logger.info(`💾 Atualizando cache com ${data.length} roletas`);
     
     // Flag para verificar se há dados novos
     this.hasNewData = false;
@@ -457,7 +542,7 @@ export default class RouletteFeedService {
       const roletaId = roleta.id || roleta._id;
       
       if (!roletaId) {
-        console.warn('[RouletteFeedService] ⚠️ Roleta sem ID ignorada:', roleta);
+        logger.warn('⚠️ Roleta sem ID ignorada:', roleta);
         return;
       }
       
@@ -475,7 +560,7 @@ export default class RouletteFeedService {
     
     // Se há novos dados, notificar os componentes
     if (this.hasNewData) {
-      console.log('[RouletteFeedService] 🔔 Novos dados detectados, notificando componentes');
+      logger.info('🔔 Novos dados detectados, notificando componentes');
       
       // Emitir evento global para notificar os componentes
       EventService.emit('roulette:data-updated', {
@@ -538,7 +623,7 @@ export default class RouletteFeedService {
    * Força uma atualização do cache, ignorando o TTL
    */
   public async refreshCache(): Promise<any> {
-    console.log('[RouletteFeedService] 🔄 Forçando atualização do cache');
+    logger.info('🔄 Forçando atualização do cache');
     return this.forceUpdate();
   }
   
@@ -556,7 +641,12 @@ export default class RouletteFeedService {
       maxRequestsPerMinute: this.maxRequestsPerMinute,
       successfulFetchesCount: this.successfulFetchesCount,
       failedFetchesCount: this.failedFetchesCount,
-      timeSinceLastFetch: Date.now() - this.lastFetchTime
+      timeSinceLastFetch: Date.now() - this.lastFetchTime,
+      globalStatus: {
+        isFetching: GLOBAL_IS_FETCHING,
+        lastRequestTime: GLOBAL_LAST_REQUEST_TIME,
+        pendingRequests: Array.from(GLOBAL_PENDING_REQUESTS)
+      }
     };
   }
   
@@ -564,7 +654,7 @@ export default class RouletteFeedService {
    * Método para fins de teste: forçar uma atualização imediata
    */
   public forceUpdate(): Promise<any> {
-    console.log('[RouletteFeedService] 🔄 Forçando atualização imediata');
+    logger.info('🔄 Forçando atualização imediata');
     
     // Limpar qualquer timer existente
     if (this.pollingTimer) {
@@ -572,9 +662,16 @@ export default class RouletteFeedService {
       this.pollingTimer = null;
     }
     
+    // Verificar trava global
+    if (!this.checkAndReleaseGlobalLock()) {
+      logger.info('⛔ Trava global ativa, não é possível forçar atualização');
+      return Promise.resolve(this.roulettes);
+    }
+    
     // Resetar flags para permitir a requisição
     this.isFetching = false;
     this.hasPendingRequest = false;
+    GLOBAL_IS_FETCHING = false;
     
     // Buscar dados e reiniciar o timer
     const promise = this.fetchLatestData();
@@ -591,7 +688,7 @@ export default class RouletteFeedService {
    * Destruir o serviço e limpar recursos
    */
   public destroy(): void {
-    console.log('[RouletteFeedService] 🧹 Destruindo serviço de feeds');
+    logger.info('🧹 Destruindo serviço de feeds');
     
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer);
@@ -612,5 +709,36 @@ export default class RouletteFeedService {
     
     // Limpar a instância singleton para permitir nova inicialização
     RouletteFeedService.instance = null;
+    
+    // Limpar qualquer trava global relacionada a esta instância
+    const now = Date.now();
+    if (now - GLOBAL_LAST_REQUEST_TIME < 5000) {
+      // Se a última requisição global foi feita por esta instância, liberar a trava
+      GLOBAL_IS_FETCHING = false;
+    }
+  }
+
+  /**
+   * Processa os dados das roletas recebidos da API
+   */
+  private handleRouletteData(data: any): void {
+    if (!Array.isArray(data)) {
+      logger.error('⚠️ Dados inválidos recebidos:', data);
+      return;
+    }
+    
+    // Atualizar a lista de roletas
+    this.roulettes = data;
+    
+    // Atualizar o cache
+    this.updateRouletteCache(data);
+    
+    // Registrar estatística de requisição bem-sucedida
+    this.requestStats.totalRequests++;
+    this.requestStats.successfulRequests++;
+    this.requestStats.lastMinuteRequests.push(Date.now());
+    
+    // Ajustar o intervalo de polling com base no sucesso
+    this.adjustPollingInterval(true);
   }
 } 
