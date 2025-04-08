@@ -14,11 +14,17 @@ const subscribers: Map<string, Array<(data: any) => void>> = new Map();
 // Mapa para armazenar o cache de resposta por endpoint
 const responseCache: Map<string, {data: any, timestamp: number}> = new Map();
 
+// Controlar requisições em andamento para evitar duplicatas
+const pendingRequests: Map<string, Promise<any>> = new Map();
+
 // Intervalo mínimo entre requisições (30 segundos)
 const MIN_REQUEST_INTERVAL = 30 * 1000; 
 
 // Tempo de validade do cache (5 minutos)
 const CACHE_VALIDITY = 5 * 60 * 1000;
+
+// Endpoints prioritários que devem usar o proxy-roulette
+const PROXY_ENDPOINTS = ['/api/ROULETTES', '/ROULETTES', 'ROULETTES', 'roulettes'];
 
 // Headers para evitar detecção como bot ou captchas
 const getDefaultHeaders = () => ({
@@ -49,18 +55,87 @@ export const RequestThrottler = {
     skipCache: boolean = false,
     cacheTime: number = CACHE_VALIDITY
   ): Promise<T | null> => {
+    // Verificar se este é um endpoint da roleta e redirecionar para proxy-roulette
+    const isRouletteEndpoint = PROXY_ENDPOINTS.some(endpoint => key.includes(endpoint));
+    
+    if (isRouletteEndpoint) {
+      logger.debug(`Redirecionando requisição ${key} para o proxy central`);
+      
+      const standardizedKey = 'ROULETTES_PROXY';
+      
+      // Se já existe uma requisição em andamento para este endpoint, retornar a mesma promessa
+      if (pendingRequests.has(standardizedKey)) {
+        logger.debug(`Reaproveitando requisição pendente para ${standardizedKey}`);
+        return pendingRequests.get(standardizedKey);
+      }
+      
+      // Criar uma nova promessa para a requisição
+      const requestPromise = (async () => {
+        try {
+          logger.debug(`Buscando dados via proxy-roulette centralizado`);
+          
+          // Fazer requisição para o proxy centralizado
+          const proxyResponse = await fetch('/api/proxy-roulette');
+          
+          if (!proxyResponse.ok) {
+            throw new Error(`Erro ao buscar dados do proxy: ${proxyResponse.status}`);
+          }
+          
+          const data = await proxyResponse.json();
+          
+          // Armazenar no cache global
+          responseCache.set(standardizedKey, {
+            data,
+            timestamp: Date.now()
+          });
+          
+          // Notificar todos que estão inscritos para atualizações
+          RequestThrottler.notifySubscribers(standardizedKey, data);
+          
+          // Notificar também aqueles inscritos na chave original
+          RequestThrottler.notifySubscribers(key, data);
+          
+          return data;
+        } catch (error) {
+          logger.error(`Erro ao buscar dados via proxy: ${error.message}`);
+          
+          // Em caso de erro, verificar se temos cache
+          const cached = responseCache.get(standardizedKey);
+          if (cached) {
+            logger.debug(`Usando cache devido a erro na requisição`);
+            return cached.data;
+          }
+          
+          throw error;
+        } finally {
+          // Remover a requisição do mapa de pendentes
+          pendingRequests.delete(standardizedKey);
+        }
+      })();
+      
+      // Armazenar a promessa para reuso
+      pendingRequests.set(standardizedKey, requestPromise);
+      
+      // Retornar a promessa
+      return requestPromise;
+    }
+    
+    // Se não é roleta, seguir com o fluxo normal
     // Verificar o cache primeiro se não estiver forçando nova requisição
     if (!skipCache) {
       const cached = responseCache.get(key);
       if (cached && (Date.now() - cached.timestamp < cacheTime)) {
         logger.debug(`Usando dados em cache para ${key}, idade: ${Math.round((Date.now() - cached.timestamp)/1000)}s`);
         // Notificar subscribers mesmo quando usando cache
-        const callbackList = subscribers.get(key) || [];
-        if (callbackList.length > 0) {
-          callbackList.forEach(cb => cb(cached.data));
-        }
+        RequestThrottler.notifySubscribers(key, cached.data);
         return cached.data;
       }
+    }
+
+    // Se já existe uma requisição em andamento para este endpoint, retornar a mesma promessa
+    if (pendingRequests.has(key)) {
+      logger.debug(`Reaproveitando requisição pendente para ${key}`);
+      return pendingRequests.get(key);
     }
 
     // Cancelar qualquer intervalo existente para este endpoint
@@ -81,18 +156,59 @@ export const RequestThrottler = {
         `Agendando requisição para ${key} em ${Math.round(timeToWait/1000)}s`
       );
       
-      return new Promise((resolve) => {
+      const timeoutPromise = new Promise<T | null>((resolve) => {
         const timeout = setTimeout(async () => {
-          const result = await RequestThrottler.executeAndNotify(key, callback);
-          resolve(result);
+          try {
+            // Se o endpoint já tiver sido chamado por outra instância nesse meio tempo
+            if (pendingRequests.has(key)) {
+              logger.debug(`Usando requisição que já está em andamento para ${key}`);
+              resolve(await pendingRequests.get(key));
+              return;
+            }
+            
+            const result = await RequestThrottler.executeAndNotify(key, callback);
+            resolve(result);
+          } finally {
+            pendingRequests.delete(key);
+          }
         }, timeToWait);
         
         activeIntervals.set(key, timeout);
       });
+      
+      // Armazenar no mapa de pendentes
+      pendingRequests.set(key, timeoutPromise);
+      
+      return timeoutPromise;
     }
     
     // Executar imediatamente se passou tempo suficiente ou se é forçado
-    return RequestThrottler.executeAndNotify(key, callback);
+    const execPromise = RequestThrottler.executeAndNotify(key, callback);
+    
+    // Armazenar no mapa de pendentes e depois remover quando terminar
+    pendingRequests.set(key, execPromise);
+    execPromise.finally(() => {
+      pendingRequests.delete(key);
+    });
+    
+    return execPromise;
+  },
+
+  /**
+   * Notifica todos os inscritos para uma chave
+   */
+  notifySubscribers: (key: string, data: any): void => {
+    const callbackList = subscribers.get(key) || [];
+    if (callbackList.length > 0) {
+      logger.debug(`Notificando ${callbackList.length} inscritos para ${key}`);
+      callbackList.forEach(cb => {
+        try {
+          cb(data);
+        } catch (error) {
+          logger.error(`Erro ao notificar inscrito: ${error.message}`);
+        }
+      });
+    }
   },
 
   /**
@@ -117,11 +233,7 @@ export const RequestThrottler = {
       });
       
       // Notificar todos os inscritos
-      const callbackList = subscribers.get(key) || [];
-      if (callbackList.length > 0) {
-        logger.debug(`Notificando ${callbackList.length} inscritos para ${key}`);
-        callbackList.forEach(cb => cb(result));
-      }
+      RequestThrottler.notifySubscribers(key, result);
       
       return result;
     } catch (error) {
