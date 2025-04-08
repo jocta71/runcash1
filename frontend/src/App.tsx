@@ -13,6 +13,7 @@ import RouletteHistoryPage from './pages/RouletteHistoryPage';
 import { ThemeProvider } from './components/theme-provider';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
+import FloatingChat from './components/FloatingChat';
 
 // Importação de componentes principais
 const Index = lazy(() => import("@/pages/Index"));
@@ -128,6 +129,7 @@ const App = () => {
                     <Route path="/historico/:roletaId" element={<RouletteHistoryPage />} />
                   </Routes>
                 </Suspense>
+                <FloatingChat />
               </BrowserRouter>
             </ThemeProvider>
           </TooltipProvider>
