@@ -428,7 +428,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         
         {/* Últimos números - Mostrando todos com o mesmo tamanho */}
         <div className="flex flex-wrap gap-1 justify-center my-3">
-          {recentNumbers.slice(0, isDetailView ? 40 : 10).map((num, idx) => (
+          {recentNumbers.slice(0, isDetailView ? 40 : 20).map((num, idx) => (
             <NumberDisplay 
               key={`${num}-${idx}`}
               number={num} 
