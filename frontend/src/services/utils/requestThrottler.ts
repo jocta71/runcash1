@@ -28,6 +28,21 @@ const PROXY_ENDPOINTS = ['/api/ROULETTES', '/ROULETTES', 'ROULETTES', 'roulettes
 
 // URL da API backend
 const BACKEND_API_URL = 'https://backendapi-production-36b5.up.railway.app/api/ROULETTES';
+const BACKUP_API_URL = 'https://backend-production-2f96.up.railway.app/api/ROULETTES';
+
+// Flag para controlar quando devemos tentar o endpoint de backup
+let useBackupEndpoint = false;
+let lastFailedAttempt = 0;
+const FAILURE_COOLDOWN = 30 * 1000; // 30 segundos entre tentativas após falha
+
+// Dados fallback em caso de falha total de API
+const FALLBACK_ROULETTES = [
+  { _id: "419aa56c-bcff-67d2-f424-a6501bac4a36", nome: "Auto-Roulette VIP" },
+  { _id: "f27dd03e-5282-fc78-961c-6375cef91565", nome: "Ruleta Automática" },
+  { _id: "7d3c2c9f-2850-f642-861f-5bb4daf1806a", nome: "Brazilian Mega Roulette" },
+  { _id: "e3345af9-e387-9412-209c-e793fe73e520", nome: "Bucharest Auto-Roulette" },
+  { _id: "4cf27e48-2b9d-b58e-7dcc-48264c51d639", nome: "Immersive Roulette" }
+];
 
 // Headers para evitar detecção como bot ou captchas
 const getDefaultHeaders = () => ({
@@ -36,7 +51,8 @@ const getDefaultHeaders = () => ({
   'ngrok-skip-browser-warning': 'true',
   'bypass-tunnel-reminder': 'true',
   'Origin': window.location.origin,
-  'Referer': window.location.origin
+  'Referer': window.location.origin,
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 });
 
 /**
@@ -58,11 +74,11 @@ export const RequestThrottler = {
     skipCache: boolean = false,
     cacheTime: number = CACHE_VALIDITY
   ): Promise<T | null> => {
-    // Verificar se este é um endpoint da roleta e redirecionar para proxy-roulette
+    // Verificar se este é um endpoint da roleta e redirecionar para a API
     const isRouletteEndpoint = PROXY_ENDPOINTS.some(endpoint => key.includes(endpoint));
     
     if (isRouletteEndpoint) {
-      logger.debug(`Redirecionando requisição ${key} para API backend direta`);
+      logger.debug(`Redirecionando requisição ${key} para API backend`);
       
       const standardizedKey = 'ROULETTES_PROXY';
       
@@ -107,25 +123,42 @@ export const RequestThrottler = {
           // Atualizar o tempo da última requisição
           lastRequestTimes.set(standardizedKey, Date.now());
           
-          logger.debug(`Buscando dados diretamente da API backend`);
+          // Determinar qual endpoint usar baseado nas tentativas anteriores
+          const currentUrl = useBackupEndpoint ? BACKUP_API_URL : BACKEND_API_URL;
+          logger.debug(`Buscando dados da API: ${currentUrl} (${useBackupEndpoint ? 'backup' : 'principal'})`);
           
-          // Fazer requisição diretamente para o backend em vez de usar o proxy-roulette
-          const response = await fetch(BACKEND_API_URL, {
+          // Tentar obter uma resposta com timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
+          
+          // Fazer requisição para a API
+          const response = await fetch(currentUrl, {
             method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-              'Origin': window.location.origin,
-              'Referer': window.location.origin
-            }
+            headers: getDefaultHeaders(),
+            signal: controller.signal,
+            credentials: 'omit' // Evitar envio de cookies que podem causar problemas CORS
           });
           
+          // Limpar o timeout
+          clearTimeout(timeoutId);
+          
           if (!response.ok) {
-            throw new Error(`Erro ao buscar dados da API: ${response.status}`);
+            throw new Error(`Erro ao buscar dados da API: ${response.status} ${response.statusText}`);
           }
           
+          // Parse do JSON
           const data = await response.json();
+          
+          // Resetar a flag de uso do endpoint backup se teve sucesso
+          if (useBackupEndpoint) {
+            logger.debug("Endpoint de backup funcionou, voltando para o endpoint principal na próxima requisição");
+            useBackupEndpoint = false;
+          }
+          
+          // Verificar se os dados são válidos (array não vazio)
+          if (!Array.isArray(data) || data.length === 0) {
+            throw new Error("Dados retornados inválidos ou vazios");
+          }
           
           // Armazenar no cache global
           responseCache.set(standardizedKey, {
@@ -143,14 +176,44 @@ export const RequestThrottler = {
         } catch (error) {
           logger.error(`Erro ao buscar dados da API: ${error.message}`);
           
-          // Em caso de erro, verificar se temos cache
+          // Registrar falha para alternar endpoints na próxima tentativa
+          lastFailedAttempt = Date.now();
+          
+          // Se o endpoint principal falhou, tentar o backup na próxima chamada
+          if (!useBackupEndpoint) {
+            logger.debug("Endpoint principal falhou, tentando backup na próxima requisição");
+            useBackupEndpoint = true;
+          } 
+          // Se o backup falhou, tentar o fallback imediatamente
+          else if (useBackupEndpoint) {
+            logger.debug("Endpoints principal e backup falharam, utilizando dados fallback");
+            
+            // Tentar usar fallback
+            const fallbackData = FALLBACK_ROULETTES;
+            
+            // Armazenar no cache para evitar muitas requisições em caso de falha persistente
+            responseCache.set(standardizedKey, {
+              data: fallbackData,
+              timestamp: Date.now() - (cacheTime / 2) // Cache com "meia-vida" para tentar de novo depois
+            });
+            
+            // Notificar
+            RequestThrottler.notifySubscribers(standardizedKey, fallbackData);
+            RequestThrottler.notifySubscribers(key, fallbackData);
+            
+            return fallbackData;
+          }
+          
+          // Em caso de erro, verificar se temos cache (mesmo que vencido)
           const cached = responseCache.get(standardizedKey);
           if (cached) {
-            logger.debug(`Usando cache devido a erro na requisição`);
+            logger.debug(`Usando cache (possivelmente antigo) devido a erro na requisição`);
             return cached.data;
           }
           
-          throw error;
+          // Se não temos cache, retornar o fallback
+          logger.debug(`Sem cache disponível, usando dados fallback`);
+          return FALLBACK_ROULETTES;
         } finally {
           // Remover a requisição do mapa de pendentes
           pendingRequests.delete(standardizedKey);
