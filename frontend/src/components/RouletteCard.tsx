@@ -244,7 +244,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         });
         
         // Limitar a 20 números para exibição no card (antes era 1000)
-        return combined.slice(0, 20);
+        return combined.slice(0, 26);
       });
       
       // Notificações e som - apenas para novos números
