@@ -1,48 +1,39 @@
 import axios from 'axios';
 import config from '@/config/env';
+import { Logger } from './utils/logger';
 import EventService from './EventService';
 
-// Tipo para configuração do adaptador
-interface CasinoAPIConfig {
-  baseUrl: string;
-  endpoint: string;
-  method: 'GET' | 'POST';
-  headers?: Record<string, string>;
-  pollInterval: number;
-}
+const logger = new Logger('CasinoAPIAdapter');
 
-// Função para gerar ID de requisição único
-function generateClientRequestId(): string {
-  // Formato observado no site: mix de caracteres hexadecimais
-  const chars = '0123456789abcdef';
-  let result = '';
-  for (let i = 0; i < 32; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  // Inserir hífens para corresponder ao formato observado
-  return `${result.substring(0, 8)}-${result.substring(8, 12)}-${result.substring(12, 16)}-${result.substring(16, 20)}-${result.substring(20)}`;
+// URLs do 888casino
+const CASINO_888_LIVE_TABLES_URL = 'https://cgp.safe-iplay.com/cgpapi/riverFeed/GetLiveTables';
+const CASINO_888_JACKPOT_URL = 'https://casino-orbit-feeds-cdn.888casino.com/api/jackpotFeeds/v1/BRL';
+
+// Intervalo de polling do 888casino
+const CASINO_888_POLLING_INTERVAL = 11000; // 11 segundos
+
+// Interface para mesas de roleta do 888casino
+interface Casino888Table {
+  GameID: string;
+  Name: string;
+  Dealer: string;
+  IsOpen: boolean;
+  Players: number;
+  GameType: string;
+  numbers?: string[]; // Adicionado por nós para rastrear os números
+  Limits?: any[];
 }
 
 class CasinoAPIAdapter {
   private static instance: CasinoAPIAdapter;
-  private config: CasinoAPIConfig;
-  private pollingIntervalId: number | null = null;
-  private isPolling: boolean = false;
-  private lastData: any = null;
+  private isInitialized: boolean = false;
+  private casino888Enabled: boolean = false;
+  private pollingInterval: number | null = null;
+  private lastRouletteNumbers: Map<string, string[]> = new Map();
+  private casinoTables: { [id: string]: Casino888Table } = {};
   
-  constructor() {
-    // Configuração padrão que corresponde ao site de referência
-    this.config = {
-      baseUrl: 'https://cgp.safe-iplay.com',
-      endpoint: '/cgpapi/liveFeed/GetLiveTables',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      pollInterval: 5000 // 5 segundos, como observado no site
-    };
-    
-    console.log('[CasinoAPIAdapter] Inicializado');
+  private constructor() {
+    // Privado para implementar Singleton
   }
   
   public static getInstance(): CasinoAPIAdapter {
@@ -53,191 +44,232 @@ class CasinoAPIAdapter {
   }
   
   /**
-   * Configura o adaptador
+   * Inicializa o adaptador com configurações específicas
    */
-  public configure(config: Partial<CasinoAPIConfig>): void {
-    this.config = { ...this.config, ...config };
-    console.log('[CasinoAPIAdapter] Configuração atualizada:', this.config);
+  public initialize(options: { enable888Casino?: boolean } = {}): void {
+    if (this.isInitialized) return;
+    
+    this.casino888Enabled = options.enable888Casino || false;
+    this.isInitialized = true;
+    
+    logger.info('CasinoAPIAdapter inicializado', { casino888Enabled: this.casino888Enabled });
+    
+    // Se o 888casino estiver habilitado, iniciar polling
+    if (this.casino888Enabled) {
+      this.startCasino888Polling();
+    }
   }
   
   /**
-   * Inicia o polling de dados
+   * Inicia o polling para o 888casino
    */
-  public startPolling(): void {
-    if (this.isPolling) {
-      console.log('[CasinoAPIAdapter] Polling já está em execução');
+  public startCasino888Polling(): void {
+    if (!this.casino888Enabled) {
+      logger.warn('Tentativa de iniciar polling do 888casino, mas não está habilitado');
       return;
     }
     
-    console.log('[CasinoAPIAdapter] Iniciando polling regular de dados');
-    this.isPolling = true;
+    // Parar qualquer polling existente
+    this.stopCasino888Polling();
     
-    // Executar imediatamente a primeira vez
-    this.fetchLiveData();
+    // Fazer primeira consulta imediatamente
+    this.fetchCasino888Data();
     
-    // Configurar intervalo para execuções periódicas
-    this.pollingIntervalId = window.setInterval(() => {
-      this.fetchLiveData();
-    }, this.config.pollInterval);
+    // Configurar polling no intervalo exato usado pelo 888casino
+    this.pollingInterval = setInterval(() => {
+      this.fetchCasino888Data();
+    }, CASINO_888_POLLING_INTERVAL);
+    
+    logger.info(`Polling do 888casino iniciado (intervalo: ${CASINO_888_POLLING_INTERVAL}ms)`);
   }
   
   /**
-   * Para o polling de dados
+   * Para o polling do 888casino
    */
-  public stopPolling(): void {
-    if (this.pollingIntervalId !== null) {
-      window.clearInterval(this.pollingIntervalId);
-      this.pollingIntervalId = null;
+  public stopCasino888Polling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+      logger.info('Polling do 888casino interrompido');
     }
-    this.isPolling = false;
-    console.log('[CasinoAPIAdapter] Polling parado');
   }
   
   /**
-   * Busca dados em tempo real da API
+   * Busca dados do 888casino
    */
-  private async fetchLiveData(): Promise<void> {
+  private async fetchCasino888Data(): Promise<void> {
     try {
-      const url = `${this.config.baseUrl}${this.config.endpoint}`;
+      // 1. Buscar dados de jackpots primeiro (como faz o 888casino)
+      try {
+        await axios.get(CASINO_888_JACKPOT_URL);
+      } catch (error) {
+        logger.warn('Erro ao buscar dados de jackpot do 888casino:', error);
+        // Continuar mesmo se falhar
+      }
       
-      // Gerar um clientRequestId para cada requisição
-      const clientRequestId = generateClientRequestId();
-      
-      // Construir corpo da requisição exatamente como no site de referência
-      const requestBody = `regulationID=48&lang=spa&clientRequestId=${clientRequestId}`;
-      
-      // Fazer requisição POST com os parâmetros exatos
-      const response = await axios.post(url, requestBody, {
-        headers: this.config.headers
+      // 2. Buscar dados das mesas de roleta (prioridade principal)
+      const formData = new URLSearchParams({
+        'regulationID': '4',
+        'lang': 'spa',
+        'clientProperties': JSON.stringify({
+          "version": "CGP-0-0-88-SPA-4.2436.5,0,4.2436.5-NC1",
+          "brandName": "888Casino",
+          "subBrandId": 0,
+          "brandId": 0,
+          "screenWidth": window.innerWidth || 1920,
+          "screenHeight": window.innerHeight || 1080,
+          "language": "spa",
+          "operatingSystem": "windows"
+        }),
+        'CGP_DomainOrigin': 'https://es.888casino.com',
+        'CGP_Skin': '888casino',
+        'CGP_SkinOverride': 'com',
+        'CGP_Country': 'BRA',
+        'CGP_UseCountryAsState': 'false'
       });
       
-      if (response.status === 200 && response.data) {
-        // Processar os dados recebidos
-        this.processLiveData(response.data);
-      } else {
-        console.warn('[CasinoAPIAdapter] Resposta inválida:', response.status);
-      }
-    } catch (error) {
-      console.error('[CasinoAPIAdapter] Erro ao buscar dados:', error);
-    }
-  }
-  
-  /**
-   * Processa os dados recebidos da API
-   */
-  private processLiveData(data: any): void {
-    try {
-      if (!data || !data.LiveTables || data.LiveTables.length === 0) {
-        console.warn('[CasinoAPIAdapter] Dados não contêm LiveTables');
-        return;
-      }
-
-      const liveTables = data.LiveTables;
-      
-      liveTables.forEach((tableData: any) => {
-        try {
-          // Verifica se é uma mesa de roleta
-          const tableName = tableData.Name ? String(tableData.Name) : '';
-          const isRouletteTable = tableName.toLowerCase().includes('roulette');
-          
-          if (!isRouletteTable || !tableData.RouletteLastNumbers) {
-            return;
-          }
-
-          // Verificar se os dados mudaram
-          const lastDataForTable = this.lastData && this.lastData[tableData.Id] ? this.lastData[tableData.Id].RouletteLastNumbers : [];
-          const currentNumbers = tableData.RouletteLastNumbers;
-          
-          // LOG para depuração - mostrar apenas os primeiros 5 para evitar spam
-          console.log(`[CasinoAPIAdapter] Processando números para ${tableData.Name}:`, {
-            current: currentNumbers.slice(0, 5),
-            previous: lastDataForTable.slice(0, 5),
-            saoIguais: JSON.stringify(currentNumbers) === JSON.stringify(lastDataForTable)
-          });
-          
-          // Verificar se há novos números de forma mais robusta
-          const hasNewNumbers = 
-            // Verificar se os tamanhos são diferentes
-            currentNumbers.length !== lastDataForTable.length || 
-            // Ou se algum número é diferente na mesma posição
-            currentNumbers.some((num: any, idx: number) => num !== lastDataForTable[idx]);
-          
-          // Se detectou novos números, emitir eventos
-          if (hasNewNumbers) {
-            console.log(`[CasinoAPIAdapter] NOVOS NÚMEROS detectados para ${tableData.Name}:`, {
-              primeiro_novo: currentNumbers[0],
-              primeiro_anterior: lastDataForTable.length > 0 ? lastDataForTable[0] : 'nenhum'
-            });
-            
-            // Formatar os dados para nosso padrão
-            const formattedData = {
-              tableId: tableData.Id,
-              tableName: tableData.Name,
-              numbers: [...currentNumbers], // Clone para evitar referências
-              dealer: tableData.Dealer,
-              players: tableData.Players,
-              isOpen: tableData.IsOpen,
-              isNewNumber: true // Flag explícita indicando novos dados
-            };
-            
-            // Emitir evento com dados formatados
-            EventService.emit('roulette:numbers-updated', formattedData);
-            
-            // Emitir evento específico para o primeiro número (mais recente) se for novo
-            if (currentNumbers.length > 0 && 
-                (lastDataForTable.length === 0 || currentNumbers[0] !== lastDataForTable[0])) {
-              console.log(`[CasinoAPIAdapter] NOVO NÚMERO PRINCIPAL: ${tableData.Name}: ${currentNumbers[0]}`);
-              EventService.emit('roulette:new-number', {
-                tableId: tableData.Id,
-                tableName: tableData.Name,
-                number: currentNumbers[0]
-              });
-            }
-          }
-        } catch (error) {
-          console.error(`Erro ao processar mesa ${tableData?.Id || 'desconhecida'}:`, error);
+      const response = await axios.post(CASINO_888_LIVE_TABLES_URL, formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Origin': 'https://es.888casino.com',
+          'Accept': '*/*',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'cross-site'
         }
       });
       
-      // Atualizar último conjunto de dados com uma cópia profunda
-      // Isso evita problemas de referência quando comparamos dados em chamadas futuras
-      this.lastData = JSON.parse(JSON.stringify(liveTables));
-      
-      // Emitir evento geral de atualização
-      EventService.emit('casino:data-updated', data);
+      // Processar dados recebidos
+      if (response.data && response.data.LiveTables) {
+        this.processCasino888Tables(response.data.LiveTables);
+      }
     } catch (error) {
-      console.error('Erro ao processar dados ao vivo:', error);
+      logger.error('Erro ao buscar dados do 888casino:', error);
     }
   }
   
   /**
-   * Executa uma requisição única para a API
+   * Processa as mesas recebidas do 888casino
    */
-  public async fetchDataOnce(): Promise<any> {
-    try {
-      const url = `${this.config.baseUrl}${this.config.endpoint}`;
+  private processCasino888Tables(liveTables: { [id: string]: Casino888Table }): void {
+    // Atualizar o estado atual das mesas
+    this.casinoTables = { ...liveTables };
+    
+    // Detectar mesas de roleta e processar os números
+    Object.entries(liveTables).forEach(([tableId, tableInfo]) => {
+      // Verificar se é uma mesa de roleta pelo nome
+      const isRoulette = tableInfo.Name && (
+        tableInfo.Name.toLowerCase().includes('roulette') || 
+        tableInfo.Name.toLowerCase().includes('ruleta') ||
+        tableInfo.GameType === 'roulette'
+      );
       
-      // Gerar um clientRequestId para a requisição
-      const clientRequestId = generateClientRequestId();
-      
-      // Construir corpo da requisição exatamente como no site de referência
-      const requestBody = `regulationID=48&lang=spa&clientRequestId=${clientRequestId}`;
-      
-      // Fazer requisição POST com os parâmetros exatos
-      const response = await axios.post(url, requestBody, {
-        headers: this.config.headers
-      });
-      
-      if (response.status === 200) {
-        this.processLiveData(response.data);
-        return response.data;
+      if (isRoulette) {
+        // Aqui precisamos extrair os números da roleta da resposta
+        // Como não vimos a estrutura exata no código do 888casino,
+        // estamos tentando uma abordagem genérica
+        const numbers = this.extractRouletteNumbers(tableInfo);
+        
+        if (numbers && numbers.length > 0) {
+          // Verificar números anteriores
+          const previousNumbers = this.lastRouletteNumbers.get(tableId) || [];
+          
+          // Verificar se há novos números (usando a mesma lógica do 888casino)
+          if (previousNumbers.length === 0 || numbers[0] !== previousNumbers[0]) {
+            logger.info(`Nova atualização para roleta 888casino ${tableInfo.Name}: ${numbers[0]}`);
+            
+            // Atualizar estado interno
+            this.lastRouletteNumbers.set(tableId, [...numbers]);
+            
+            // Emitir evento de novo número
+            EventService.emit('casino888:new-number', {
+              tableId,
+              tableName: tableInfo.Name,
+              dealer: tableInfo.Dealer,
+              newNumber: numbers[0],
+              allNumbers: numbers,
+              isOpen: tableInfo.IsOpen,
+              timestamp: Date.now()
+            });
+          }
+        }
       }
-      
-      throw new Error(`Resposta inválida: ${response.status}`);
-    } catch (error) {
-      console.error('[CasinoAPIAdapter] Erro ao buscar dados:', error);
-      return null;
+    });
+    
+    // Emitir evento com todas as mesas atualizadas
+    EventService.emit('casino888:tables-updated', {
+      tables: this.getCasino888Roulettes()
+    });
+  }
+  
+  /**
+   * Extrai números de roleta dos dados da mesa
+   * Nota: Implementação genérica, pode precisar ser ajustada quando soubermos a estrutura exata
+   */
+  private extractRouletteNumbers(tableInfo: Casino888Table): string[] {
+    // Tenta vários caminhos possíveis onde os números podem estar
+    if (tableInfo.numbers) return tableInfo.numbers;
+    
+    // Se não encontramos os números, tentamos extrair do histórico de jogos
+    // (estrutura hipotética, precisa ser ajustada quando soubermos a estrutura real)
+    if (tableInfo['GameHistory'] && Array.isArray(tableInfo['GameHistory'])) {
+      return tableInfo['GameHistory'].map(game => game.number || game.Number || '').filter(n => n);
     }
+    
+    // Outras tentativas possíveis
+    if (tableInfo['History'] && Array.isArray(tableInfo['History'])) {
+      return tableInfo['History'];
+    }
+    
+    if (tableInfo['RouletteNumbers'] && Array.isArray(tableInfo['RouletteNumbers'])) {
+      return tableInfo['RouletteNumbers'];
+    }
+    
+    // Fallback: array vazio
+    return [];
+  }
+  
+  /**
+   * Retorna todas as roletas do 888casino
+   */
+  public getCasino888Roulettes(): { tableId: string, name: string, numbers: string[], dealer: string, isOpen: boolean }[] {
+    const result: { tableId: string, name: string, numbers: string[], dealer: string, isOpen: boolean }[] = [];
+    
+    Object.entries(this.casinoTables).forEach(([tableId, tableInfo]) => {
+      // Verificar se é uma mesa de roleta
+      const isRoulette = tableInfo.Name && (
+        tableInfo.Name.toLowerCase().includes('roulette') || 
+        tableInfo.Name.toLowerCase().includes('ruleta') ||
+        tableInfo.GameType === 'roulette'
+      );
+      
+      if (isRoulette) {
+        result.push({
+          tableId,
+          name: tableInfo.Name,
+          numbers: this.lastRouletteNumbers.get(tableId) || [],
+          dealer: tableInfo.Dealer,
+          isOpen: tableInfo.IsOpen
+        });
+      }
+    });
+    
+    return result;
+  }
+  
+  /**
+   * Verifica se o polling do 888casino está ativo
+   */
+  public isCasino888PollingActive(): boolean {
+    return this.casino888Enabled && this.pollingInterval !== null;
+  }
+  
+  /**
+   * Obtém todos os números conhecidos para uma mesa específica
+   */
+  public getCasino888RouletteNumbers(tableId: string): string[] {
+    return this.lastRouletteNumbers.get(tableId) || [];
   }
 }
 

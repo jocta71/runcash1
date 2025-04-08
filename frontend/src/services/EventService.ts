@@ -1,8 +1,7 @@
 // Serviço para gerenciar eventos em tempo real usando Server-Sent Events (SSE)
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
-// Remover a importação direta para evitar referência circular
-// import SocketService from '@/services/SocketService';
+import SocketService from '@/services/SocketService';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -57,8 +56,7 @@ export type RouletteEventCallback = (event: RouletteNumberEvent | StrategyUpdate
 // Tipo para callbacks de eventos genéricos
 export type EventCallback = (data: any) => void;
 
-type EventHandler = (data: any) => void;
-
+// Serviço de eventos
 class EventService {
   private static instance: EventService;
   private eventSource: EventSource | null = null;
@@ -98,22 +96,11 @@ class EventService {
     
     // Limpar subscrições do SocketService
     if (this.usingSocketService) {
-      // Usar importação dinâmica
-      this.cleanupSocketSubscriptions();
-    }
-  }
-
-  // Método auxiliar para limpar as subscrições do Socket
-  private async cleanupSocketSubscriptions() {
-    try {
-      const module = await import('@/services/SocketService');
-      const socketService = module.default.getInstance();
+      const socketService = SocketService.getInstance();
       this.socketServiceSubscriptions.forEach(roletaNome => {
         socketService.unsubscribe(roletaNome, this.handleSocketEvent);
       });
       this.socketServiceSubscriptions.clear();
-    } catch (err) {
-      console.error('[EventService] Erro ao limpar subscrições do Socket:', err);
     }
   }
 
@@ -308,7 +295,7 @@ class EventService {
   }
   
   // NOVO: Usar SocketService como fallback final
-  private async useSocketServiceAsFallback(): Promise<void> {
+  private useSocketServiceAsFallback(): void {
     if (this.usingSocketService) {
       return; // Já está usando SocketService
     }
@@ -318,23 +305,16 @@ class EventService {
     this.usingSocketService = true;
     this.isConnected = true; // Simular conexão estabelecida
     
-    try {
-      // Usar importação dinâmica para evitar referência circular
-      const module = await import('@/services/SocketService');
-      const socketService = module.default.getInstance();
-      socketService.subscribe('*', this.handleSocketEvent);
-      this.socketServiceSubscriptions.add('*');
-      
-      toast({
-        title: "Conexão de backup estabelecida",
-        description: "Usando Socket.IO como alternativa para receber atualizações",
-        variant: "default"
-      });
-    } catch (err) {
-      console.error('[EventService] Erro ao carregar SocketService:', err);
-      this.isConnected = false;
-      this.usingSocketService = false;
-    }
+    // Registrar com o global listener para todos os eventos (*)
+    const socketService = SocketService.getInstance();
+    socketService.subscribe('*', this.handleSocketEvent);
+    this.socketServiceSubscriptions.add('*');
+    
+    toast({
+      title: "Conexão de backup estabelecida",
+      description: "Usando Socket.IO como alternativa para receber atualizações",
+      variant: "default"
+    });
   }
   
   // Handler para eventos do SocketService
@@ -485,7 +465,9 @@ class EventService {
     
     // Se estiver usando SocketService como fallback, registrar também lá
     if (this.usingSocketService && !this.socketServiceSubscriptions.has(roletaNome)) {
-      this.registerSocketSubscription(roletaNome);
+      const socketService = SocketService.getInstance();
+      socketService.subscribe(roletaNome, this.handleSocketEvent);
+      this.socketServiceSubscriptions.add(roletaNome);
     }
     
     // Sempre verificar a conexão ao inscrever um novo listener
@@ -505,7 +487,9 @@ class EventService {
         
         // Se estiver usando SocketService, cancelar inscrição lá também
         if (this.usingSocketService && this.socketServiceSubscriptions.has(roletaNome)) {
-          this.unregisterSocketSubscription(roletaNome);
+          const socketService = SocketService.getInstance();
+          socketService.unsubscribe(roletaNome, this.handleSocketEvent);
+          this.socketServiceSubscriptions.delete(roletaNome);
         }
       }
     }
@@ -574,7 +558,11 @@ class EventService {
     
     // Limpar subscrições do SocketService
     if (this.usingSocketService) {
-      this.cleanupSocketSubscriptions();
+      const socketService = SocketService.getInstance();
+      this.socketServiceSubscriptions.forEach(roletaNome => {
+        socketService.unsubscribe(roletaNome, this.handleSocketEvent);
+      });
+      this.socketServiceSubscriptions.clear();
       this.usingSocketService = false;
     }
   }
@@ -719,33 +707,26 @@ class EventService {
   }
 
   // Método para verificar e solicitar atualizações em tempo real
-  public async requestRealtimeUpdates(): Promise<void> {
+  public requestRealtimeUpdates(): void {
     debugLog('[EventService] Solicitando atualizações em tempo real');
     
     if (this.usingSocketService) {
       // Solicitar através do SocketService
-      try {
-        const module = await import('@/services/SocketService');
-        const socketService = module.default.getInstance();
-        
-        // Verificar conexão do SocketService
-        if (!socketService.isSocketConnected()) {
-          debugLog('[EventService] Socket não conectado, tentando reconectar');
-          try {
-            const connected = await socketService.reconnect();
+      const socketService = SocketService.getInstance();
+      
+      // Verificar conexão do SocketService
+      if (!socketService.isSocketConnected()) {
+        debugLog('[EventService] Socket não conectado, tentando reconectar');
+        socketService.reconnect()
+          .then(connected => {
             if (connected) {
               socketService.requestRecentNumbers();
               socketService.broadcastConnectionState();
             }
-          } catch (err) {
-            console.error('[EventService] Erro ao reconectar:', err);
-          }
-        } else {
-          // Se estiver conectado, solicitar atualização
-          socketService.requestRecentNumbers();
-        }
-      } catch (err) {
-        console.error('[EventService] Erro ao solicitar atualizações em tempo real:', err);
+          });
+      } else {
+        // Se estiver conectado, solicitar atualização
+        socketService.requestRecentNumbers();
       }
     } else if (this.isConnected && this.eventSource) {
       // Se estiver usando SSE, enviar evento para solicitar atualização
@@ -800,77 +781,6 @@ class EventService {
       });
     }
   }
-
-  public on(eventName: string, handler: EventHandler): void {
-    if (!this.customEventListeners.has(eventName)) {
-      this.customEventListeners.set(eventName, new Set());
-    }
-    
-    const handlers = this.customEventListeners.get(eventName);
-    if (handlers) {
-      handlers.add(handler);
-    }
-  }
-
-  public off(eventName: string, handler: EventHandler): void {
-    if (!this.customEventListeners.has(eventName)) {
-      return;
-    }
-    
-    const handlers = this.customEventListeners.get(eventName);
-    if (handlers) {
-      handlers.delete(handler);
-    }
-  }
-
-  public emit(eventName: string, data?: any): void {
-    if (!this.customEventListeners.has(eventName)) {
-      return;
-    }
-    
-    const handlers = this.customEventListeners.get(eventName);
-    if (handlers) {
-      handlers.forEach(handler => {
-        try {
-          handler(data);
-        } catch (error) {
-          console.error(`Erro ao processar evento ${eventName}:`, error);
-        }
-      });
-    }
-  }
-
-  public clear(eventName?: string): void {
-    if (eventName) {
-      this.customEventListeners.delete(eventName);
-    } else {
-      this.customEventListeners.clear();
-    }
-  }
-
-  // Método auxiliar para registrar inscrição no Socket
-  private async registerSocketSubscription(roletaNome: string): Promise<void> {
-    try {
-      const module = await import('@/services/SocketService');
-      const socketService = module.default.getInstance();
-      socketService.subscribe(roletaNome, this.handleSocketEvent);
-      this.socketServiceSubscriptions.add(roletaNome);
-    } catch (err) {
-      console.error(`[EventService] Erro ao registrar inscrição para ${roletaNome}:`, err);
-    }
-  }
-
-  // Método auxiliar para cancelar inscrição no Socket
-  private async unregisterSocketSubscription(roletaNome: string): Promise<void> {
-    try {
-      const module = await import('@/services/SocketService');
-      const socketService = module.default.getInstance();
-      socketService.unsubscribe(roletaNome, this.handleSocketEvent);
-      this.socketServiceSubscriptions.delete(roletaNome);
-    } catch (err) {
-      console.error(`[EventService] Erro ao cancelar inscrição para ${roletaNome}:`, err);
-    }
-  }
 }
 
-export default EventService.getInstance(); 
+export default EventService; 

@@ -5,7 +5,6 @@ require('dotenv').config();
 
 // Importar roteadores
 const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
-const proxyRouter = require('./routes/proxyApi');
 
 // Configuração MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/runcash';
@@ -43,14 +42,12 @@ app.use(cors({
 
 // Middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Disponibilizar o banco de dados para os roteadores
 app.locals.db = db;
 
 // Configurar rotas
 app.use('/api/roulettes/history', rouletteHistoryRouter);
-app.use('/api/proxy', proxyRouter);
 
 // Adicionar mapeamento de nomes para IDs de roletas conhecidas
 const NOME_PARA_ID = {

@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
+import Casino888RouletteDisplay from '@/components/roulette/Casino888RouletteDisplay';
 import { RouletteData } from '@/integrations/api/rouletteService';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
 import RouletteFeedService from '@/services/RouletteFeedService';
+import CasinoAPIAdapter from '@/services/CasinoAPIAdapter';
 
 const LiveRoulettePage: React.FC = () => {
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCasino888, setShowCasino888] = useState<boolean>(true);
 
   // Função para buscar os dados das roletas
   const fetchRoulettes = useCallback(async () => {
@@ -69,7 +72,16 @@ const LiveRoulettePage: React.FC = () => {
   // Efeito para buscar os dados iniciais
   useEffect(() => {
     fetchRoulettes();
-  }, [fetchRoulettes]);
+    
+    // Inicializar o adaptador de API do casino
+    const casinoAdapter = CasinoAPIAdapter.getInstance();
+    casinoAdapter.initialize({ enable888Casino: showCasino888 });
+    
+    return () => {
+      // Parar o polling do casino
+      casinoAdapter.stopCasino888Polling();
+    };
+  }, [fetchRoulettes, showCasino888]);
 
   // Efeito para configurar os listeners de eventos em tempo real
   useEffect(() => {
@@ -107,6 +119,31 @@ const LiveRoulettePage: React.FC = () => {
       
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Roletas ao vivo</h1>
+        
+        {/* Botão para alternar exibição das roletas do 888casino */}
+        <div className="mb-6 flex justify-end">
+          <button
+            onClick={() => setShowCasino888(!showCasino888)}
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors"
+          >
+            {showCasino888 ? 'Ocultar 888casino' : 'Mostrar 888casino'}
+          </button>
+        </div>
+        
+        {/* Exibir as roletas do 888casino */}
+        {showCasino888 && (
+          <div className="mb-8">
+            <Casino888RouletteDisplay />
+          </div>
+        )}
+        
+        {/* Divisor */}
+        {showCasino888 && (
+          <div className="border-t border-gray-200 my-8"></div>
+        )}
+        
+        {/* Roletas originais */}
+        <h2 className="text-2xl font-bold mb-4">Roletas padrão</h2>
         
         {loading ? (
           <div className="flex justify-center items-center py-20">

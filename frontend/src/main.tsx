@@ -2,6 +2,8 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import SocketService from './services/SocketService';
+import RouletteFeedService from './services/RouletteFeedService';
+import CasinoAPIAdapter from './services/CasinoAPIAdapter';
 import { initializeLogging } from './services/utils/initLogger';
 import { getLogger } from './services/utils/logger';
 import { setupGlobalErrorHandlers } from './utils/error-handlers';
@@ -16,12 +18,24 @@ const logger = getLogger('Main');
 setupGlobalErrorHandlers();
 logger.info('Manipuladores globais de erro configurados');
 
-// Inicializar o SocketService logo no início para estabelecer conexão antecipada
-logger.info('Inicializando SocketService antes do render...');
-const socketService = SocketService.getInstance(); // Inicia a conexão
+// Inicializar os serviços essenciais
+// 1. Serviço de WebSocket para comunicação em tempo real
+logger.info('Inicializando SocketService...');
+const socketService = SocketService.getInstance();
+
+// 2. Serviço de feed de roletas com polling (intervalo de 11 segundos como no 888casino)
+logger.info('Inicializando RouletteFeedService com intervalo de 11 segundos...');
+const rouletteFeedService = RouletteFeedService.getInstance();
+rouletteFeedService.setSocketService(socketService); // Configurar dependência
+rouletteFeedService.start(); // Iniciar polling
+
+// 3. Adaptador de API do Casino (desabilitado por padrão, será habilitado conforme necessário)
+logger.info('Inicializando CasinoAPIAdapter...');
+const casinoAdapter = CasinoAPIAdapter.getInstance();
+casinoAdapter.initialize({ enable888Casino: false }); // Desabilitado inicialmente
 
 // Informa ao usuário que a conexão está sendo estabelecida
-logger.info('Conexão com o servidor sendo estabelecida em background...');
+logger.info('Conexão com serviços estabelecida em background...');
 
 // Configuração global para requisições fetch
 const originalFetch = window.fetch;
