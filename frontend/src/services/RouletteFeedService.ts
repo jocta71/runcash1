@@ -6,6 +6,11 @@ import { HistoryData } from './SocketService';
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');
 
+// Configurações globais para o serviço
+const POLLING_INTERVAL = 10000; // Intervalo padrão de polling (10 segundos)
+const MIN_REQUEST_INTERVAL = 2000; // Mínimo de 2 segundos entre requisições
+const CACHE_TTL = 15000; // 15 segundos de TTL para o cache
+
 // Controle global para evitar requisições concorrentes de diferentes instâncias
 let GLOBAL_IS_FETCHING = false;
 let GLOBAL_LAST_REQUEST_TIME = 0;
@@ -14,7 +19,7 @@ const GLOBAL_REQUEST_LOCK_TIME = 10000; // 10 segundos máximo de lock global
 
 /**
  * Serviço para obter atualizações das roletas usando polling único
- * Intervalo ajustado para 8 segundos conforme especificação
+ * Intervalo ajustado para 10 segundos conforme especificação
  */
 export default class RouletteFeedService {
   private static instance: RouletteFeedService | null = null;
@@ -25,7 +30,6 @@ export default class RouletteFeedService {
   private IS_FETCHING_DATA: boolean = false;
   private GLOBAL_INITIALIZATION_PROMISE: Promise<any> | null = null;
   private lastRequestTime: number = 0;
-  private MIN_REQUEST_INTERVAL: number = 2000; // Mínimo de 2 segundos entre requisições
   
   // Estado de requisições
   private isFetching: boolean = false;
@@ -50,7 +54,7 @@ export default class RouletteFeedService {
   };
   
   // Configurações de polling
-  private interval: number = 8000; // 8 segundos padrão para polling
+  private interval: number = POLLING_INTERVAL; // Usar o intervalo global
   private minInterval: number = 5000; // Mínimo 5 segundos
   private maxInterval: number = 20000; // Máximo 20 segundos
   private maxRequestsPerMinute: number = 30; // Limite de 30 requisições por minuto
@@ -69,10 +73,13 @@ export default class RouletteFeedService {
   // Cache interno de todas as roletas
   private rouletteDataCache: Map<string, any> = new Map();
   private lastCacheUpdate: number = 0;
-  private cacheTTL: number = 15000; // 15 segundos de TTL para o cache
+  private cacheTTL: number = CACHE_TTL;
   
   // Indicar que houve atualização de dados
   private hasNewData: boolean = false;
+  
+  // Controle de inicialização única
+  private initialRequestDone: boolean = false;
 
   private constructor() {
     logger.info('🚀 Inicializando serviço de feeds de roleta');
@@ -159,6 +166,7 @@ export default class RouletteFeedService {
       this.fetchInitialData()
         .then(data => {
           logger.info('Dados iniciais obtidos com sucesso');
+          this.initialRequestDone = true; // Marcar que a requisição inicial foi concluída
           this.startPolling();
           this.initialized = true;
           this.IS_INITIALIZING = false;
@@ -184,9 +192,31 @@ export default class RouletteFeedService {
       return;
     }
 
-    logger.info('Iniciando polling');
+    logger.info(`Iniciando polling com intervalo de ${this.interval}ms`);
     this.isPollingActive = true;
     this.restartPollingTimer();
+  }
+
+  /**
+   * Permite alterar o intervalo de polling em tempo de execução
+   * @param newInterval Novo intervalo em milissegundos
+   */
+  public setPollingInterval(newInterval: number): void {
+    if (newInterval < this.minInterval) {
+      logger.warn(`Intervalo ${newInterval}ms é muito baixo, usando mínimo de ${this.minInterval}ms`);
+      this.interval = this.minInterval;
+    } else if (newInterval > this.maxInterval) {
+      logger.warn(`Intervalo ${newInterval}ms é muito alto, usando máximo de ${this.maxInterval}ms`);
+      this.interval = this.maxInterval;
+    } else {
+      logger.info(`Alterando intervalo de polling para ${newInterval}ms`);
+      this.interval = newInterval;
+    }
+    
+    // Reiniciar o timer se estiver ativo
+    if (this.isPollingActive) {
+      this.restartPollingTimer();
+    }
   }
 
   /**
@@ -215,7 +245,7 @@ export default class RouletteFeedService {
     
     // Verificar o intervalo mínimo entre requisições
     const now = Date.now();
-    if (now - this.lastRequestTime < this.MIN_REQUEST_INTERVAL) {
+    if (now - this.lastRequestTime < MIN_REQUEST_INTERVAL) {
       logger.info(`Requisição muito próxima da anterior (${now - this.lastRequestTime}ms), usando dados em cache`);
       return Promise.resolve(this.roulettes);
     }
@@ -279,7 +309,7 @@ export default class RouletteFeedService {
     
     // Verificar o intervalo mínimo entre requisições
     const now = Date.now();
-    if (now - this.lastRequestTime < this.MIN_REQUEST_INTERVAL) {
+    if (now - this.lastRequestTime < MIN_REQUEST_INTERVAL) {
       logger.info(`Requisição de dados recentes muito próxima da anterior (${now - this.lastRequestTime}ms), usando dados em cache`);
       return Promise.resolve(this.roulettes);
     }
@@ -419,21 +449,15 @@ export default class RouletteFeedService {
    * Ajusta dinamicamente o intervalo de polling com base no sucesso ou falha das requisições
    */
   private adjustPollingInterval(success: boolean, responseTime?: number): void {
+    // Com o intervalo fixo, não ajustamos mais dinamicamente
+    // Mantemos apenas a lógica de backoff em caso de falhas
+
     if (success) {
-      // Requisição bem-sucedida, podemos diminuir o intervalo gradualmente
+      // Requisição bem-sucedida, resetar contador de falhas
       this.successfulFetchesCount++;
       this.failedFetchesCount = 0; // Resetar contador de falhas
       
-      // A cada 3 sucessos consecutivos, reduzir o intervalo em 10% até o mínimo
-      if (this.successfulFetchesCount >= 3 && this.interval > this.minInterval) {
-        const newInterval = Math.max(this.minInterval, this.interval * 0.9);
-        if (newInterval !== this.interval) {
-          logger.info(`⚡ Otimizando: Reduzindo intervalo para ${newInterval}ms`);
-          this.interval = newInterval;
-        }
-      }
-      
-      // Registrar estatísticas
+      // Registrar estatísticas de resposta
       if (responseTime) {
         this.requestStats.lastResponseTime = responseTime;
         // Atualizar média de tempo de resposta (média móvel)
@@ -450,7 +474,7 @@ export default class RouletteFeedService {
       // Backoff exponencial até o máximo
       if (this.failedFetchesCount > 0) {
         const backoffFactor = Math.min(this.backoffMultiplier * this.failedFetchesCount, 3);
-        const newInterval = Math.min(this.maxInterval, this.interval * backoffFactor);
+        const newInterval = Math.min(this.maxInterval, POLLING_INTERVAL * backoffFactor);
         
         logger.info(`🔄 Backoff: Aumentando intervalo para ${newInterval}ms após ${this.failedFetchesCount} falhas`);
         this.interval = newInterval;
@@ -466,6 +490,8 @@ export default class RouletteFeedService {
           
           this.backoffTimeout = setTimeout(() => {
             logger.info('🔄 Retomando após pausa de backoff');
+            // Restabelecer o intervalo padrão ao retomar
+            this.interval = POLLING_INTERVAL;
             this.resumePolling();
           }, 30000);
         }
