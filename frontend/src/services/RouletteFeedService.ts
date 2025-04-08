@@ -17,6 +17,19 @@ let GLOBAL_LAST_REQUEST_TIME = 0;
 const GLOBAL_PENDING_REQUESTS = new Set<string>();
 const GLOBAL_REQUEST_LOCK_TIME = 10000; // 10 segundos máximo de lock global
 
+// Declarações de tipos para o objeto window global
+declare global {
+  interface Window {
+    _pollingActive?: boolean;
+    _requestInProgress?: boolean;
+    _rouletteTimers?: Array<{
+      id: number;
+      created: string;
+      interval: number;
+    }>;
+  }
+}
+
 /**
  * Serviço para obter atualizações das roletas usando polling único
  * Intervalo ajustado para 10 segundos conforme especificação
@@ -207,9 +220,21 @@ export default class RouletteFeedService {
       return;
     }
 
+    // Verificar se já existe outro polling em andamento globalmente
+    if (window._pollingActive === true) {
+      logger.warn('⚠️ Já existe um polling ativo globalmente, não iniciando outro');
+      // Mesmo assim, marcamos como ativo localmente para que não tentemos iniciar novamente
+      this.isPollingActive = true;
+      return;
+    }
+
     logger.info(`Iniciando polling com intervalo de ${this.interval}ms`);
     this.isPollingActive = true;
-    this.restartPollingTimer();
+    // Marcar globalmente que há polling ativo
+    window._pollingActive = true;
+    
+    // Iniciar o timer de polling
+    this.startPollingTimer();
   }
 
   /**
@@ -304,67 +329,102 @@ export default class RouletteFeedService {
    * Busca os dados mais recentes das roletas
    */
   public fetchLatestData(): Promise<any> {
-    // Verificar se o cache está válido
-    if (this.isCacheValid() && this.roulettes.length > 0) {
-      logger.info('Cache válido encontrado, usando dados do cache para última atualização');
+    // Se não pudermos fazer requisição, retornar dados em cache
+    if (!this.canMakeRequest()) {
       return Promise.resolve(this.roulettes);
     }
     
-    // Verificar trava global
-    if (!this.checkAndReleaseGlobalLock()) {
-      logger.info('Trava global ativa para dados recentes, aguardando liberação');
-      return Promise.resolve(this.roulettes);
-    }
-    
-    // Verificar se já há uma solicitação em andamento
-    if (this.IS_FETCHING_DATA) {
-      logger.info('Já existe uma solicitação em andamento para dados recentes, aguardando...');
-      return Promise.resolve(this.roulettes);
-    }
-    
-    // Verificar o intervalo mínimo entre requisições
-    const now = Date.now();
-    if (now - this.lastRequestTime < MIN_REQUEST_INTERVAL) {
-      logger.info(`Requisição de dados recentes muito próxima da anterior (${now - this.lastRequestTime}ms), usando dados em cache`);
-      return Promise.resolve(this.roulettes);
-    }
-    
-    // Marcar como buscando dados (local e global)
+    // Marcar como buscando dados (local)
     this.IS_FETCHING_DATA = true;
+    this.isFetching = true;
+    this.hasPendingRequest = true;
+    this.lastFetchTime = Date.now();
+    
+    // Marcar como buscando dados (global)
     GLOBAL_IS_FETCHING = true;
-    GLOBAL_LAST_REQUEST_TIME = now;
-    this.lastRequestTime = now;
+    GLOBAL_LAST_REQUEST_TIME = this.lastFetchTime;
     
-    const requestId = `latest_${now}`;
+    // Registrar requisição para controle de taxa
+    const requestId = `latest_${this.lastFetchTime}`;
     GLOBAL_PENDING_REQUESTS.add(requestId);
+    this.requestStats.lastMinuteRequests.push(this.lastFetchTime);
+    this.requestStats.totalRequests++;
     
-    logger.info('Buscando dados recentes');
+    logger.info('📡 Buscando dados recentes');
+    
+    const startTime = performance.now();
     
     return fetch(`/api/ROULETTES`)
       .then(response => {
+        if (response.status === 429) {
+          // Erro 429 - Too Many Requests
+          logger.warn('🚨 Recebido erro 429 (Too Many Requests). Implementando backoff exponencial.');
+          
+          // Aumentar o intervalo de polling mais agressivamente
+          this.failedFetchesCount += 2;
+          const backoffFactor = Math.min(this.backoffMultiplier * this.failedFetchesCount, 5);
+          const backoffTime = Math.min(this.maxInterval, POLLING_INTERVAL * backoffFactor);
+          
+          logger.info(`⏱️ Backoff para erro 429: ${backoffTime}ms`);
+          
+          // Liberar travas
+          this.IS_FETCHING_DATA = false;
+          this.isFetching = false;
+          this.hasPendingRequest = false;
+          GLOBAL_IS_FETCHING = false;
+          GLOBAL_PENDING_REQUESTS.delete(requestId);
+          window._requestInProgress = false;
+          
+          // Realizar retry automático após backoff
+          return new Promise(resolve => {
+            setTimeout(() => {
+              logger.info('�� Tentando novamente após backoff para erro 429');
+              resolve(this.fetchLatestData());
+            }, backoffTime);
+          });
+        }
+        
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
       })
       .then(data => {
-        logger.info('Dados recentes recebidos:', data.length);
+        const responseTime = performance.now() - startTime;
+        logger.info(`✅ Dados recebidos: ${data.length} roletas (${responseTime.toFixed(0)}ms)`);
+        
+        // Processar dados recebidos
         this.handleRouletteData(data);
+        
+        // Atualizar estatísticas
+        this.requestStats.successfulRequests++;
+        this.requestStats.lastResponseTime = responseTime;
+        this.adjustPollingInterval(true, responseTime);
         
         // Liberar travas
         this.IS_FETCHING_DATA = false;
+        this.isFetching = false;
+        this.hasPendingRequest = false;
         GLOBAL_IS_FETCHING = false;
         GLOBAL_PENDING_REQUESTS.delete(requestId);
+        window._requestInProgress = false;
         
         return this.roulettes;
       })
       .catch(error => {
-        logger.error('Erro ao buscar dados recentes:', error);
+        logger.error('❌ Erro ao buscar dados recentes:', error);
+        
+        // Atualizar estatísticas de erro
+        this.requestStats.failedRequests++;
+        this.adjustPollingInterval(false);
         
         // Liberar travas mesmo em caso de erro
         this.IS_FETCHING_DATA = false;
+        this.isFetching = false;
+        this.hasPendingRequest = false;
         GLOBAL_IS_FETCHING = false;
         GLOBAL_PENDING_REQUESTS.delete(requestId);
+        window._requestInProgress = false;
         
         return this.roulettes;
       });
@@ -417,6 +477,12 @@ export default class RouletteFeedService {
    * - Se houve falhas recentes que demandem backoff
    */
   private canMakeRequest(): boolean {
+    // Verificar se já há uma requisição global em andamento
+    if (window._requestInProgress === true) {
+      logger.info('⛔ Outra requisição global em andamento, evitando concorrência');
+      return false;
+    }
+    
     // Verificar trava global
     if (!this.checkAndReleaseGlobalLock()) {
       logger.info('⛔ Trava global ativa, não é possível fazer nova requisição');
@@ -456,6 +522,52 @@ export default class RouletteFeedService {
       logger.info(`⏱️ Requisição muito recente (${timeSinceLastFetch}ms), aguardando intervalo mínimo de ${this.minInterval}ms`);
       return false;
     }
+    
+    // Verificar se o documento está visível (apenas no navegador)
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      logger.info('👁️ Página não está visível, evitando requisição');
+      return false;
+    }
+    
+    // Adicionar verificação de limite de tempo de requisição global
+    const pendingRequestsCount = GLOBAL_PENDING_REQUESTS.size;
+    if (pendingRequestsCount > 0) {
+      logger.info(`⚠️ Existem ${pendingRequestsCount} requisições pendentes globalmente, verificando tempos...`);
+      
+      // Verificar se alguma requisição está pendente há muito tempo (mais de 15 segundos)
+      // e ainda não foi concluída, o que pode indicar um problema
+      const pendingRequestsArray = Array.from(GLOBAL_PENDING_REQUESTS);
+      for (const requestId of pendingRequestsArray) {
+        const timestampMatch = requestId.match(/_(\d+)$/);
+        if (timestampMatch && timestampMatch[1]) {
+          const requestTimestamp = parseInt(timestampMatch[1], 10);
+          const requestAge = now - requestTimestamp;
+          
+          if (requestAge > 15000) { // 15 segundos
+            logger.warn(`🧹 Encontrada requisição pendente antiga (${requestAge}ms): ${requestId}`);
+            // Limpar requisição antiga
+            GLOBAL_PENDING_REQUESTS.delete(requestId);
+          }
+        }
+      }
+      
+      // Verificar novamente após limpeza
+      if (GLOBAL_PENDING_REQUESTS.size >= 3) {
+        logger.warn(`🛑 Muitas requisições pendentes (${GLOBAL_PENDING_REQUESTS.size}), evitando sobrecarga`);
+        return false;
+      }
+    }
+    
+    // Marcar que uma requisição global está em andamento
+    window._requestInProgress = true;
+    
+    // Definir um timeout para liberar a flag caso a requisição não seja concluída
+    setTimeout(() => {
+      if (window._requestInProgress === true) {
+        logger.warn('🔄 Liberando trava de requisição após timeout');
+        window._requestInProgress = false;
+      }
+    }, 10000);
     
     return true;
   }
@@ -549,18 +661,75 @@ export default class RouletteFeedService {
   /**
    * Inicia o timer de polling para buscar dados em intervalos regulares
    */
-  private restartPollingTimer(): void {
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
+  private startPollingTimer(): void {
+    // Se já existe um timer ativo, não criar outro
+    if (this.pollingTimer !== null) {
+      logger.warn(`⚠️ Tentativa de iniciar novo timer enquanto já existe um timer ativo (${this.interval}ms)`);
+      return;
     }
     
-    this.pollingTimer = window.setInterval(() => {
+    // Registrar o timer globalmente para debugging
+    if (!window._rouletteTimers) {
+      window._rouletteTimers = [];
+    }
+    
+    // Criar um novo timer e guardar a referência
+    const timerId = window.setInterval(() => {
+      logger.info(`🔄 Timer de polling executando (${this.interval}ms)`);
+      
       if (this.canMakeRequest()) {
-        this.fetchLatestData();
+        logger.info(`📡 Solicitando dados via polling timer`);
+        this.fetchLatestData().catch(err => {
+          logger.error('Erro durante o polling automático:', err);
+        });
+      } else {
+        logger.info(`⏭️ Pulando requisição de polling - não é possível fazer requisição agora`);
       }
     }, this.interval) as unknown as number;
     
-    logger.info(`⏱️ Timer de polling iniciado com intervalo de ${this.interval}ms`);
+    // Guardar a referência do timer
+    this.pollingTimer = timerId;
+    
+    // Adicionar à lista de timers ativos para debugging
+    window._rouletteTimers.push({
+      id: timerId,
+      created: new Date().toISOString(),
+      interval: this.interval
+    });
+    
+    logger.info(`⏱️ Timer de polling iniciado com intervalo de ${this.interval}ms [ID: ${timerId}]`);
+  }
+  
+  /**
+   * Reinicia o timer de polling (usado quando o intervalo muda)
+   */
+  private restartPollingTimer(): void {
+    // Se o polling não estiver ativo, não reiniciar
+    if (!this.isPollingActive) {
+      logger.info('Polling não está ativo, não reiniciando timer');
+      return;
+    }
+    
+    // Se estiver pausado, não reiniciar
+    if (this.isPaused) {
+      logger.info('Polling está pausado, não reiniciando timer');
+      return;
+    }
+
+    // Limpar timer existente se houver
+    if (this.pollingTimer) {
+      logger.info(`Limpando timer de polling existente: ${this.pollingTimer}`);
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+      
+      // Atualizar lista de timers ativos
+      if (window._rouletteTimers) {
+        window._rouletteTimers = window._rouletteTimers.filter(t => t.id !== this.pollingTimer);
+      }
+    }
+    
+    // Iniciar novo timer
+    this.startPollingTimer();
   }
   
   /**

@@ -8,6 +8,15 @@ import { setupGlobalErrorHandlers } from './utils/error-handlers';
 import RouletteFeedService from './services/RouletteFeedService';
 import EventService from './services/EventService';
 
+// Declaração global para estender o objeto Window com nossas propriedades
+declare global {
+  interface Window {
+    ROULETTE_SYSTEM_INITIALIZED: boolean;
+    isRouletteSystemInitialized: () => boolean;
+    getRouletteSystem: () => any;
+  }
+}
+
 // Inicializar o sistema de log
 initializeLogging();
 
