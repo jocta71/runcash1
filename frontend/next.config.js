@@ -13,6 +13,8 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@': '.',
+      'lib': './lib',
+      'components': './components'
     }
     return config
   }
