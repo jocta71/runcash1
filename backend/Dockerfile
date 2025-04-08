@@ -1,29 +1,17 @@
-FROM python:3.11-slim
+FROM node:18-slim
 
 WORKDIR /app
 
-# Instalar dependências do sistema
-RUN apt-get update && \
-    apt-get install -y xvfb firefox-esr wget gnupg && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+COPY package*.json ./
 
-# Configurar geckodriver para Firefox
-RUN wget -q https://github.com/mozilla/geckodriver/releases/download/v0.33.0/geckodriver-v0.33.0-linux64.tar.gz && \
-    tar -xzf geckodriver-v0.33.0-linux64.tar.gz -C /usr/local/bin && \
-    rm geckodriver-v0.33.0-linux64.tar.gz && \
-    chmod +x /usr/local/bin/geckodriver
+RUN npm install --omit=dev
 
-# Copiar requirements e instalar dependências Python
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY api/ ./api/
+COPY websocket_server.js ./
 
-# Copiar código fonte
-COPY . .
+ENV PORT=3000
+ENV NODE_ENV=production
 
-# Configurar variáveis de ambiente
-ENV PYTHONUNBUFFERED=1 \
-    MOZ_HEADLESS=1
+EXPOSE 3000
 
-# Comando para iniciar o scraper
-CMD ["python", "run_real_scraper.py"] 
+CMD ["node", "websocket_server.js"] 

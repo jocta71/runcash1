@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChartBar, ArrowLeft, TrendingUp, BarChart, ArrowDown, ArrowUp, PercentIcon, BarChart2 } from 'lucide-react';
+import { ChartBar, ArrowLeft, TrendingUp, BarChart, ArrowDown, ArrowUp, PercentIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   ResponsiveContainer,
@@ -181,7 +181,7 @@ const RouletteDetailsPage = () => {
           {/* Frequency Chart */}
           <div className="glass-card p-4 md:p-6 space-y-4 rounded-lg border border-white/10 bg-[#17161e]/90">
             <h3 className="text-lg md:text-xl font-semibold flex items-center">
-              <BarChart2 size={20} className="text-[#00ff00] mr-2" /> Frequência de Números
+              <ChartBar size={20} className="text-[#00ff00] mr-2" /> Frequência de Números
             </h3>
             <div className="h-60 md:h-80">
               <ResponsiveContainer width="100%" height="100%">
@@ -202,7 +202,7 @@ const RouletteDetailsPage = () => {
           {/* Distribution Pie Chart */}
           <div className="glass-card p-4 md:p-6 space-y-4 rounded-lg border border-white/10 bg-[#17161e]/90">
             <h3 className="text-lg md:text-xl font-semibold flex items-center">
-              <BarChart2 size={20} className="text-[#00ff00] mr-2" /> Distribuição por Cor
+              <ChartBar size={20} className="text-[#00ff00] mr-2" /> Distribuição por Cor
             </h3>
             <div className="h-60 md:h-80">
               <ResponsiveContainer width="100%" height="100%">
