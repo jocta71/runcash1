@@ -99,6 +99,9 @@ interface RouletteCardProps {
 }
 
 const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false }) => {
+  // Obter referência ao serviço de feed centralizado
+  const feedService = useMemo(() => RouletteFeedService.getInstance(), []);
+  
   // Garantir que data é um objeto válido com valores padrão seguros
   const safeData = useMemo(() => {
     // Se data for null ou undefined, retornar objeto vazio com valores padrão
@@ -341,57 +344,88 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
   };
 
-  // IMPORTANTE: Garantir inscrição correta no evento global de números
+  // Efeito para se inscrever nos eventos de atualização de dados do feed service
   useEffect(() => {
-    if (!safeData.id) {
-      console.warn('[RouletteCard] ID da roleta inválido, não é possível se inscrever em eventos');
-      return;
-    }
-
-    console.log(`[RouletteCard] Inscrevendo para eventos da roleta: ${safeData.name} (${safeData.id})`);
-    
-    // Função para processar novos números
-    const handleNewNumber = (event: RouletteNumberEvent) => {
-      // Verificar se o evento pertence a esta roleta específica
-      // Comparar todos os identificadores possíveis para maior segurança
-      const eventId = String(event.roleta_id || '');
-      const cardId = String(safeData.id || '');
-      const cardName = String(safeData.name || '').toLowerCase();
-      const eventName = String(event.roleta_nome || '').toLowerCase();
+    const handleDataUpdated = (updateData: any) => {
+      // Obter dados mais recentes do cache do feedService
+      const freshData = feedService.getRouletteData(safeData.id);
       
-      const matchesId = eventId === cardId;
-      const matchesName = cardName && eventName && cardName === eventName;
-      
-      if (matchesId || matchesName) {
-        console.log(`[RouletteCard] Evento de número corresponde a esta roleta (${safeData.name})`, event);
-        processRealtimeNumber(event);
-      } else {
-        console.log(`[RouletteCard] Ignorando evento para outra roleta: ${event.roleta_nome} (${event.roleta_id})`);
+      if (freshData) {
+        // Se encontrarmos dados novos no cache, processá-los
+        const newNumbers = Array.isArray(freshData.numero) 
+          ? freshData.numero 
+          : [];
+          
+        if (newNumbers.length > 0) {
+          // Verificar se temos números novos comparando com os que já temos
+          const existingNumbers = recentNumbers;
+          
+          if (newNumbers.length !== existingNumbers.length) {
+            console.log(`[RouletteCard] Atualizando números para ${safeData.name} a partir do cache centralizado`);
+            
+            // Converter para o formato esperado pelo processador de eventos
+            const numberEvent: RouletteNumberEvent = {
+              type: 'new_number',
+              roleta_id: safeData.id,
+              roleta_nome: safeData.name,
+              numero: newNumbers.map(n => typeof n === 'object' ? n.numero : n),
+              timestamp: new Date().toISOString()
+            };
+            
+            // Processar os novos números
+            processRealtimeNumber(numberEvent);
+          }
+        }
       }
     };
     
-    // Inscrição para receber qualquer atualização de número novo
-    EventService.getInstance().subscribe('new_number', handleNewNumber);
+    // Inscrever-se nos eventos do feed service
+    EventService.on('roulette:data-updated', handleDataUpdated);
     
-    // Se inscrever diretamente no canal desta roleta específica
-    if (safeData.name) {
-      EventService.getInstance().subscribe(safeData.name, handleNewNumber);
+    // Fazer uma verificação inicial para pegar os dados mais recentes
+    const initialData = feedService.getRouletteData(safeData.id);
+    if (initialData) {
+      handleDataUpdated({timestamp: new Date().toISOString()});
     }
     
-    // Inicializar o RouletteFeedService - será gerenciado globalmente
-    if (safeData.id) {
-      const rouletteFeedService = RouletteFeedService.getInstance();
-      // Não precisa iniciar o serviço aqui, ele é iniciado na página principal
-    }
-
+    // Limpeza ao desmontar
     return () => {
-      // Limpar inscrições ao desmontar
-      EventService.getInstance().unsubscribe('new_number', handleNewNumber);
-      if (safeData.name) {
-        EventService.getInstance().unsubscribe(safeData.name, handleNewNumber);
-      }
+      EventService.off('roulette:data-updated', handleDataUpdated);
     };
-  }, [safeData.id, safeData.name]);
+  }, [feedService, safeData.id, safeData.name, recentNumbers]);
+  
+  // Manter o antigo código de processamento de eventos por compatibilidade
+  // mas vamos adicionar verificações para evitar duplicidade
+  
+  // Ao montar o componente, verificar dados no cache em vez de fazer novas requisições
+  useEffect(() => {
+    // Verificar se já temos dados no cache
+    if (recentNumbers.length === 0) {
+      const cachedData = feedService.getRouletteData(safeData.id);
+      
+      if (cachedData && Array.isArray(cachedData.numero) && cachedData.numero.length > 0) {
+        console.log(`[RouletteCard] Usando dados do cache para ${safeData.name}`);
+        
+        // Extrair os números do format de objeto
+        const numbers = cachedData.numero.map(n => 
+          typeof n === 'object' ? n.numero : n
+        ).filter(n => typeof n === 'number' && !isNaN(n));
+        
+        if (numbers.length > 0) {
+          setLastNumber(numbers[0]);
+          setRecentNumbers(numbers);
+          setHasRealData(true);
+        }
+      } else {
+        // Se não temos dados no cache, forçar uma atualização do feed service
+        // mas SOMENTE SE nenhum outro card já forçou para evitar múltiplas requisições
+        if (!feedService.isFetching) {
+          console.log(`[RouletteCard] Solicitando atualização do feed para ${safeData.name}`);
+          feedService.fetchLatestData();
+        }
+      }
+    }
+  }, [feedService, safeData.id, safeData.name, recentNumbers]);
 
   return (
     <Card 

@@ -50,6 +50,14 @@ export default class RouletteFeedService {
   private hasPendingRequest: boolean = false;
   private backoffTimeout: any = null;
   private hasFetchedInitialData: boolean = false;
+  
+  // Cache interno de todas as roletas
+  private rouletteDataCache: Map<string, any> = new Map();
+  private lastCacheUpdate: number = 0;
+  private cacheTTL: number = 15000; // 15 segundos de TTL para o cache
+  
+  // Indicar que houve atualização de dados
+  private hasNewData: boolean = false;
 
   private constructor() {
     console.log('[RouletteFeedService] 🚀 Inicializando serviço de feeds de roleta');
@@ -331,6 +339,9 @@ export default class RouletteFeedService {
       
       console.log(`[RouletteFeedService] ✅ Dados iniciais obtidos com sucesso em ${responseTime}ms`);
       
+      // Atualizar o cache com os novos dados
+      this.updateRouletteCache(data);
+      
       // Atualizar estatísticas
       this.requestStats.successfulRequests++;
       this.requestStats.lastResponseTime = responseTime;
@@ -396,6 +407,9 @@ export default class RouletteFeedService {
         
         console.log(`[RouletteFeedService] ✅ Dados atualizados obtidos com sucesso em ${responseTime}ms`);
         
+        // Atualizar o cache com os novos dados
+        this.updateRouletteCache(data);
+        
         // Atualizar estatísticas
         this.requestStats.successfulRequests++;
         this.lastFetchTime = endTime;
@@ -421,6 +435,111 @@ export default class RouletteFeedService {
     })();
     
     return this.fetchPromise;
+  }
+  
+  /**
+   * Atualiza o cache interno com os dados das roletas
+   * e emite um evento de atualização
+   */
+  private updateRouletteCache(data: any[]): void {
+    if (!Array.isArray(data)) {
+      console.error('[RouletteFeedService] ⚠️ Dados inválidos recebidos para cache:', data);
+      return;
+    }
+    
+    console.log(`[RouletteFeedService] 💾 Atualizando cache com ${data.length} roletas`);
+    
+    // Flag para verificar se há dados novos
+    this.hasNewData = false;
+    
+    // Para cada roleta, verificar se já existe no cache e se há atualizações
+    data.forEach(roleta => {
+      const roletaId = roleta.id || roleta._id;
+      
+      if (!roletaId) {
+        console.warn('[RouletteFeedService] ⚠️ Roleta sem ID ignorada:', roleta);
+        return;
+      }
+      
+      const cachedRoulette = this.rouletteDataCache.get(roletaId);
+      
+      // Verificar se temos uma atualização para esta roleta
+      if (!cachedRoulette || this.hasNewRouletteData(cachedRoulette, roleta)) {
+        this.rouletteDataCache.set(roletaId, roleta);
+        this.hasNewData = true;
+      }
+    });
+    
+    // Atualizar timestamp do cache
+    this.lastCacheUpdate = Date.now();
+    
+    // Se há novos dados, notificar os componentes
+    if (this.hasNewData) {
+      console.log('[RouletteFeedService] 🔔 Novos dados detectados, notificando componentes');
+      
+      // Emitir evento global para notificar os componentes
+      EventService.emit('roulette:data-updated', {
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+  
+  /**
+   * Verifica se há dados novos comparando a roleta do cache com a roleta atualizada
+   */
+  private hasNewRouletteData(cachedRoulette: any, newRoulette: any): boolean {
+    // Se não tiver números na roleta cacheada, considerar como dados novos
+    if (!cachedRoulette.numero || !Array.isArray(cachedRoulette.numero)) {
+      return true;
+    }
+    
+    // Se a roleta nova não tiver números, não considerar como atualização
+    if (!newRoulette.numero || !Array.isArray(newRoulette.numero)) {
+      return false;
+    }
+    
+    // Se o número de dados for diferente, há novos dados
+    if (cachedRoulette.numero.length !== newRoulette.numero.length) {
+      return true;
+    }
+    
+    // Se o primeiro número (mais recente) for diferente, há novos dados
+    if (cachedRoulette.numero[0]?.numero !== newRoulette.numero[0]?.numero) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Obtém dados de uma roleta específica do cache
+   * Retorna null se não encontrada
+   */
+  public getRouletteData(roletaId: string): any {
+    return this.rouletteDataCache.get(roletaId) || null;
+  }
+  
+  /**
+   * Obtém todas as roletas do cache
+   */
+  public getAllRoulettes(): any[] {
+    return Array.from(this.rouletteDataCache.values());
+  }
+  
+  /**
+   * Verifica se o cache está válido
+   */
+  public isCacheValid(): boolean {
+    const now = Date.now();
+    return (now - this.lastCacheUpdate) <= this.cacheTTL;
+  }
+  
+  /**
+   * Força uma atualização do cache, ignorando o TTL
+   */
+  public async refreshCache(): Promise<any> {
+    console.log('[RouletteFeedService] 🔄 Forçando atualização do cache');
+    return this.forceUpdate();
   }
   
   /**

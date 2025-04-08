@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import { RouletteData } from '@/integrations/api/rouletteService';
@@ -7,7 +7,8 @@ import { Loader2 } from 'lucide-react';
 import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
 import RouletteFeedService from '@/services/RouletteFeedService';
-import { initializeRouletteSystem } from '@/hooks/useRouletteData';
+// Remover a importação do initializeRouletteSystem pois vamos usar o service diretamente
+// import { initializeRouletteSystem } from '@/hooks/useRouletteData';
 
 // Flag para controlar se o componente já foi inicializado
 let IS_COMPONENT_INITIALIZED = false;
@@ -16,6 +17,9 @@ const LiveRoulettePage: React.FC = () => {
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Obter referência ao serviço de feed centralizado
+  const feedService = useMemo(() => RouletteFeedService.getInstance(), []);
 
   // Função para adicionar um novo número a uma roleta específica
   const addNewNumberToRoulette = useCallback((rouletteId: string, newNumberData: any) => {
@@ -63,29 +67,46 @@ const LiveRoulettePage: React.FC = () => {
     // Marcar como inicializado para evitar inicializações múltiplas
     IS_COMPONENT_INITIALIZED = true;
     
-    // Inicializar o sistema de roletas otimizado (singleton garantido)
-    const { rouletteFeedService } = initializeRouletteSystem();
-    console.log('[LiveRoulettePage] Sistema de roletas inicializado - fonte única de dados (8s)');
+    // Usar o serviço diretamente em vez de inicializar pelo hook
+    console.log('[LiveRoulettePage] Inicializando fonte única de dados - RouletteFeedService');
+    
+    // Iniciar o polling se ainda não estiver ativo
+    if (!feedService.isPollingActive) {
+      feedService.startPolling();
+    }
     
     // Buscar dados iniciais
     async function fetchInitialData() {
       try {
         setLoading(true);
         
-        // Adicionar um pequeno atraso para garantir que o serviço carregou os dados iniciais
-        // Este atraso evita que requisições múltiplas sejam feitas durante o carregamento
-        setTimeout(() => {
-          // Obter dados do serviço singleton
-          const rouletteData = rouletteFeedService.getAllRouletteTables().map(table => ({
-            id: table.tableId,
-            nome: table.tableId, // Usar ID temporariamente se não tiver nome
-            numero: table.numbers.map(n => ({ numero: parseInt(n) })),
-            ativa: true  // Usando ativa em vez de ativo para corresponder ao tipo
-          }));
-          
-          setRoulettes(rouletteData);
+        // Verificar se já temos dados em cache
+        const cachedRoulettes = feedService.getAllRoulettes();
+        
+        if (cachedRoulettes && cachedRoulettes.length > 0) {
+          console.log(`[LiveRoulettePage] Usando ${cachedRoulettes.length} roletas do cache`);
+          setRoulettes(cachedRoulettes);
           setLoading(false);
-        }, 800); // Aumentar atraso para dar mais tempo ao serviço
+        } else {
+          // Buscar dados iniciais
+          console.log('[LiveRoulettePage] Buscando dados iniciais');
+          
+          feedService.fetchInitialData()
+            .then(data => {
+              if (Array.isArray(data) && data.length > 0) {
+                console.log(`[LiveRoulettePage] Dados iniciais obtidos: ${data.length} roletas`);
+                setRoulettes(data);
+              } else {
+                console.warn('[LiveRoulettePage] Dados iniciais inválidos:', data);
+              }
+              setLoading(false);
+            })
+            .catch(error => {
+              console.error('[LiveRoulettePage] Erro ao buscar dados iniciais:', error);
+              setError('Falha ao carregar dados das roletas');
+              setLoading(false);
+            });
+        }
       } catch (err: any) {
         console.error('Erro ao carregar dados de roletas:', err);
         setError(err.message || 'Erro ao carregar roletas');
@@ -95,54 +116,29 @@ const LiveRoulettePage: React.FC = () => {
     
     fetchInitialData();
     
-    // Listener para atualizações de números
-    const handleNumbersUpdated = (data: any) => {
-      // console.log('[LiveRoulettePage] Recebida atualização:', data.tableId);
-      setRoulettes(prev => {
-        // Encontrar a roleta que foi atualizada
-        const roletaIndex = prev.findIndex(r => r.id === data.tableId);
-        
-        if (roletaIndex >= 0) {
-          // Atualizar roleta existente
-          const updatedRoulettes = [...prev];
-          
-          // Converter os números de string para o formato esperado
-          const numeros = data.numbers.map((n: string) => ({ 
-            numero: parseInt(n),
-            timestamp: new Date().toISOString()
-          }));
-          
-          updatedRoulettes[roletaIndex] = {
-            ...updatedRoulettes[roletaIndex],
-            numero: numeros
-          };
-          
-          return updatedRoulettes;
-        }
-        
-        // Se a roleta não existir, adicionar nova
-        const newRoulette: RouletteData = {
-          id: data.tableId,
-          nome: data.tableName || data.tableId,
-          numero: data.numbers.map((n: string) => ({ 
-            numero: parseInt(n),
-            timestamp: new Date().toISOString()
-          })),
-          ativa: true
-        };
-        
-        return [...prev, newRoulette];
-      });
+    // Inscrever-se no evento de atualização de dados
+    const handleDataUpdated = (updateData: any) => {
+      console.log('[LiveRoulettePage] Recebida atualização de dados');
+      
+      // Obter dados atualizados do cache
+      const updatedRoulettes = feedService.getAllRoulettes();
+      
+      if (updatedRoulettes && updatedRoulettes.length > 0) {
+        console.log(`[LiveRoulettePage] Atualizando com ${updatedRoulettes.length} roletas`);
+        setRoulettes(updatedRoulettes);
+      }
     };
     
-    EventService.on('roulette:numbers-updated', handleNumbersUpdated);
+    // Inscrever-se no evento
+    EventService.on('roulette:data-updated', handleDataUpdated);
     
     return () => {
-      EventService.off('roulette:numbers-updated', handleNumbersUpdated);
+      // Limpar listener ao desmontar
+      EventService.off('roulette:data-updated', handleDataUpdated);
       // Não resetamos IS_COMPONENT_INITIALIZED pois queremos garantir que só haja
       // uma inicialização durante todo o ciclo de vida da aplicação
     };
-  }, []);
+  }, [feedService]);
 
   return (
     <>

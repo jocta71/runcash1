@@ -236,33 +236,77 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
   const [showStatsInline, setShowStatsInline] = useState(false);
+  
+  // Referência ao serviço de feed centralizado
+  const feedService = React.useMemo(() => RouletteFeedService.getInstance(), []);
 
-  // Usar os dados passados como prop ou manter lógica antiga
+  // Usar os dados passados como prop ou obter do feedService
   useEffect(() => {
     if (roulettesData && Array.isArray(roulettesData) && roulettesData.length > 0) {
       console.log(`[LiveRoulettesDisplay] Usando ${roulettesData.length} roletas fornecidas via props`);
       setRoulettes(roulettesData);
-      
-      // Converter os dados das roletas para o formato de tabela
-      const rouletteTables = roulettesData.map(roleta => {
-        // Extrair os números do campo numero (limitado a 30 mais recentes)
-        const numeros = Array.isArray(roleta.numero) 
-          ? roleta.numero.slice(0, 30).map(n => n.numero.toString()) 
-          : [];
-        
-        return {
-          tableId: roleta.id || '',
-          tableName: roleta.nome || roleta.name || 'Roleta',
-          numbers: numeros,
-          canonicalId: roleta.canonicalId || roleta._id
-        };
-      });
-      
-      console.log('[LiveRoulettesDisplay] Tabelas de roletas criadas a partir dos dados:', rouletteTables);
-      setTables(rouletteTables);
       setIsLoading(false);
+    } else {
+      // Obter dados do feed service em vez de fazer requisições diretas
+      console.log('[LiveRoulettesDisplay] Buscando dados de roletas do serviço centralizado');
+      
+      // Verificar se o serviço já tem dados em cache
+      const cachedRoulettes = feedService.getAllRoulettes();
+      
+      if (cachedRoulettes && cachedRoulettes.length > 0) {
+        console.log(`[LiveRoulettesDisplay] Usando ${cachedRoulettes.length} roletas do cache centralizado`);
+        setRoulettes(cachedRoulettes);
+        setIsLoading(false);
+      } else {
+        // Se não há dados em cache, iniciar o serviço e buscar dados
+        console.log('[LiveRoulettesDisplay] Inicializando serviço de feed e buscando dados');
+        
+        // Iniciar o polling do serviço se ainda não estiver ativo
+        if (!feedService.isPollingActive) {
+          feedService.startPolling();
+        }
+        
+        // Buscar dados iniciais
+        feedService.fetchInitialData()
+          .then(data => {
+            if (Array.isArray(data) && data.length > 0) {
+              console.log(`[LiveRoulettesDisplay] Dados iniciais obtidos: ${data.length} roletas`);
+              setRoulettes(data);
+            } else {
+              console.warn('[LiveRoulettesDisplay] Dados iniciais inválidos:', data);
+            }
+            setIsLoading(false);
+          })
+          .catch(error => {
+            console.error('[LiveRoulettesDisplay] Erro ao buscar dados iniciais:', error);
+            setIsLoading(false);
+          });
+      }
     }
-  }, [roulettesData]);
+  }, [feedService, roulettesData]);
+  
+  // Inscrever-se para atualizações de dados do feed service
+  useEffect(() => {
+    const handleDataUpdated = (updateData: any) => {
+      console.log('[LiveRoulettesDisplay] Recebida atualização de dados');
+      
+      // Obter dados atualizados do cache
+      const updatedRoulettes = feedService.getAllRoulettes();
+      
+      if (updatedRoulettes && updatedRoulettes.length > 0) {
+        console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
+        setRoulettes(updatedRoulettes);
+      }
+    };
+    
+    // Inscrever-se no evento de atualização de dados
+    EventService.on('roulette:data-updated', handleDataUpdated);
+    
+    // Limpar ao desmontar
+    return () => {
+      EventService.off('roulette:data-updated', handleDataUpdated);
+    };
+  }, [feedService]);
 
   // Função para selecionar uma roleta e mostrar estatísticas ao lado
   const handleRouletteSelect = (roleta: RouletteData) => {
@@ -442,94 +486,6 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     );
   }
   
-  // Lógica do componente atualizada para usar o sistema de roletas único
-  useEffect(() => {
-    // Inicializar o sistema de roletas (singleton garantido)
-    // Não inicializa uma segunda vez se já estiver rodando
-    const { rouletteFeedService } = initializeRouletteSystem();
-    console.log('[LiveRoulettesDisplay] Conectado ao sistema único de roletas (8s)');
-    
-    // Função para atualizar a lista de mesas
-    const updateTables = () => {
-      const allTables = rouletteFeedService.getAllRouletteTables();
-      
-      if (allTables.length > 0) {
-        console.log(`[LiveRoulettesDisplay] Atualizando lista de mesas: ${allTables.length} mesas disponíveis`);
-        
-        const formattedTables = allTables.map(item => ({
-          tableId: item.tableId,
-          tableName: item.tableId, // Inicialmente usamos o ID como nome
-          numbers: item.numbers
-        }));
-        
-        setTables(formattedTables);
-        setIsLoading(false);
-      }
-    };
-    
-    // Escutar por atualizações de números
-    const handleNumbersUpdated = (data: any) => {
-      console.log(`[LiveRoulettesDisplay] Dados atualizados para mesa ${data.tableName || data.tableId}:`, {
-        latestNumber: data.latestNumber,
-        totalNumbers: data.numbers?.length
-      });
-      
-      setTables(prevTables => {
-        // Verificar se a mesa já existe na lista
-        const tableIndex = prevTables.findIndex(t => t.tableId === data.tableId);
-        
-        if (tableIndex >= 0) {
-          // Atualizar mesa existente
-          const updatedTables = [...prevTables];
-          updatedTables[tableIndex] = {
-            ...updatedTables[tableIndex],
-            numbers: data.numbers,
-            tableName: data.tableName || updatedTables[tableIndex].tableName,
-            dealer: data.dealer,
-            players: data.players
-          };
-          return updatedTables;
-        } else {
-          // Adicionar nova mesa
-          console.log(`[LiveRoulettesDisplay] Nova mesa adicionada: ${data.tableName || data.tableId}`);
-          return [
-            ...prevTables,
-            {
-              tableId: data.tableId,
-              tableName: data.tableName || data.tableId,
-              numbers: data.numbers,
-              dealer: data.dealer,
-              players: data.players
-            }
-          ];
-        }
-      });
-      
-      setIsLoading(false);
-    };
-    
-    // Inscrever para eventos de atualização
-    EventService.on('roulette:numbers-updated', handleNumbersUpdated);
-    
-    // Verificar se já temos mesas disponíveis
-    updateTables();
-    
-    // Botão para forçar atualização manual
-    const handleForceUpdate = () => {
-      console.log('[LiveRoulettesDisplay] Forçando atualização manual');
-      rouletteFeedService.forceUpdate();
-    };
-    
-    // Expor função de atualização manual para uso em botões
-    (window as any).forceRouletteUpdate = handleForceUpdate;
-    
-    // Limpeza ao desmontar
-    return () => {
-      EventService.off('roulette:numbers-updated', handleNumbersUpdated);
-      delete (window as any).forceRouletteUpdate;
-    };
-  }, []);
-
   if (isLoading) {
     return (
       <div className="flex justify-center items-center p-8 h-64">
