@@ -3,6 +3,11 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const { format } = require('date-fns');
+const fs = require('fs');
+const path = require('path');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -22,6 +27,18 @@ console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 
 // Inicializar Express
 const app = express();
+
+// Configurar CORS para permitir requisições de qualquer origem
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// Middleware para parsing do corpo das requisições
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
@@ -592,7 +609,32 @@ app.get('/api/roletas', async (req, res) => {
       { $project: { _id: 0, id: 1, nome: "$_id" } }
     ]).toArray();
     
-    res.json(roulettes);
+    // Obter os números recentes para cada roleta
+    const limit = parseInt(req.query.limit) || 20;
+    
+    // Processar cada roleta para adicionar seus números recentes
+    const roletasCompletas = await Promise.all(roulettes.map(async (roleta) => {
+      // Buscar números recentes para esta roleta
+      const numeros = await collection
+        .find({ roleta_id: roleta.id })
+        .sort({ timestamp: -1 })
+        .limit(limit)
+        .toArray();
+      
+      // Extrair apenas os números na ordem correta
+      const numerosFormatados = numeros.map(doc => doc.numero.toString());
+      
+      // Adicionar os números à informação da roleta
+      return {
+        ...roleta,
+        numeros: numerosFormatados,
+        atualizadoEm: numeros.length > 0 ? numeros[0].timestamp : null,
+        coresNumeros: numeros.map(doc => doc.cor)
+      };
+    }));
+    
+    console.log(`[API] Retornando ${roletasCompletas.length} roletas com seus números recentes`);
+    res.json(roletasCompletas);
   } catch (error) {
     console.error('Erro ao listar roletas:', error);
     res.status(500).json({ error: 'Erro interno ao buscar roletas' });
@@ -1010,6 +1052,56 @@ io.on('connection', async (socket) => {
   socket.on('disconnect', () => {
     console.log(`Cliente desconectado: ${socket.id}`);
   });
+});
+
+// Rota para inserir número para uma roleta específica
+app.post('/api/roletas/:id/numeros', async (req, res) => {
+  try {
+    if (!isConnected) {
+      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
+    }
+    
+    const roletaId = req.params.id;
+    const { numero } = req.body;
+    
+    if (!numero) {
+      return res.status(400).json({ error: 'Campo obrigatório: numero' });
+    }
+    
+    // Buscar informações da roleta
+    const roleta = await db.collection('roletas').findOne({ id: roletaId });
+    const roleta_nome = roleta ? roleta.nome : `Roleta ${roletaId}`;
+    
+    // Determinar a cor do número
+    let cor = 'verde';
+    if (parseInt(numero) > 0) {
+      const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+      cor = numerosVermelhos.includes(parseInt(numero)) ? 'vermelho' : 'preto';
+    }
+    
+    // Inserir novo número
+    const result = await collection.insertOne({
+      roleta_nome,
+      roleta_id: roletaId,
+      numero: parseInt(numero),
+      cor,
+      timestamp: new Date().toISOString()
+    });
+    
+    console.log(`[API] Novo número ${numero} (${cor}) inserido para roleta ${roletaId}`);
+    
+    res.status(201).json({ 
+      success: true, 
+      message: 'Número inserido com sucesso',
+      id: result.insertedId,
+      roleta_id: roletaId,
+      numero: parseInt(numero),
+      cor
+    });
+  } catch (error) {
+    console.error('Erro ao inserir número:', error);
+    res.status(500).json({ error: 'Erro interno ao inserir número' });
+  }
 });
 
 // Iniciar o servidor
