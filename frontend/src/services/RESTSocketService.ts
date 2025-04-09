@@ -1,40 +1,17 @@
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
-import EventService, { 
-  RouletteNumberEvent,
-  RouletteEventCallback,
-  StrategyUpdateEvent
-} from './EventService';
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import { mapToCanonicalRouletteId, ROLETAS_CANONICAS } from '../integrations/api/rouletteService';
+import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 
-// Importando o serviço de estratégia para simular respostas
-import StrategyService from './StrategyService';
-
-// Interface para o cliente MongoDB
-interface MongoClient {
-  topology?: {
-    isConnected?: () => boolean;
-  };
+// Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
+declare global {
+  namespace NodeJS {
+    interface Timeout {}
+  }
 }
 
-// Nova interface para eventos recebidos pelo socket
-interface SocketEvent {
-  type: string;
-  roleta_id: string;
-  roleta_nome: string;
-  [key: string]: any;
-}
-
-// Tipo para definir uma roleta
-interface Roulette {
-  _id: string;
-  id?: string;
-  nome?: string;
-  name?: string;
-}
-
-// Adicionar tipos para histórico
+// Exportar interfaces para histórico
 export interface HistoryRequest {
   roletaId: string;
 }
@@ -53,43 +30,23 @@ export interface HistoryData {
   error?: string;
 }
 
-// Importar a lista de roletas permitidas da configuração
-import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
-
-// Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
-declare global {
-  namespace NodeJS {
-    interface Timeout {}
-  }
-}
-
-// Estender a interface RouletteNumberEvent para incluir propriedade cor
-interface RouletteNumberEvent extends EventService.RouletteNumberEvent {
-  cor?: string;
-}
-
-// Estender StrategyUpdateEvent para tornar terminais_gatilho opcional
-interface StrategyUpdateEvent extends StrategyUpdateEvent {
-  terminais_gatilho?: number[];
-}
-
 /**
  * Serviço que gerencia o acesso a dados de roletas via API REST
  * Substitui o antigo serviço de WebSocket, mantendo a mesma interface
  */
 class RESTSocketService {
   private static instance: RESTSocketService;
-  private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
+  private listeners: Map<string, Set<any>> = new Map();
   private connectionActive: boolean = false;
-  private timerId: NodeJS.Timeout | null = null;
+  private timerId: number | null = null;
   private pollingInterval: number = 5000; // Intervalo de 5 segundos para polling
   private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
   
   // Propriedade para simular estado de conexão
-  public client?: MongoClient;
+  public client?: any;
   
   // Mapa para armazenar os intervalos de polling por roletaId
-  private pollingIntervals: Map<string, any> = new Map();
+  private pollingIntervals: Map<string, number> = new Map();
   
   private _isLoadingHistoricalData: boolean = false;
   
@@ -105,7 +62,7 @@ class RESTSocketService {
     console.log('[RESTSocketService] Inicializando serviço REST API com polling');
     
     // Adicionar listener global para logging de todos os eventos
-    this.subscribe('*', (event: RouletteNumberEvent | StrategyUpdateEvent) => {
+    this.subscribe('*', (event: any) => {
       if (event.type === 'new_number') {
         console.log(`[RESTSocketService][GLOBAL] Evento recebido para roleta: ${event.roleta_nome}, número: ${event.numero}`);
       } else if (event.type === 'strategy_update') {
@@ -142,9 +99,9 @@ class RESTSocketService {
     this.fetchDataFromREST();
     
     // Configurar intervalo de polling
-    this.timerId = setInterval(() => {
+    this.timerId = window.setInterval(() => {
       this.fetchDataFromREST();
-    }, this.pollingInterval);
+    }, this.pollingInterval) as unknown as number;
     
     console.log(`[RESTSocketService] Polling da API REST iniciado com intervalo de ${this.pollingInterval}ms`);
   }
@@ -225,7 +182,7 @@ class RESTSocketService {
         // Emitir evento com o número mais recente
         const lastNumber = roulette.numero[0];
         
-        const event: RouletteNumberEvent = {
+        const event: any = {
           type: 'new_number',
           roleta_id: roulette.id,
           roleta_nome: roulette.nome,
@@ -240,14 +197,15 @@ class RESTSocketService {
       
       // Emitir evento de estratégia se houver
       if (roulette.estado_estrategia) {
-        const strategyEvent: StrategyUpdateEvent = {
+        const strategyEvent: any = {
           type: 'strategy_update',
           roleta_id: roulette.id,
           roleta_nome: roulette.nome,
           estado: roulette.estado_estrategia,
           numero_gatilho: roulette.numero_gatilho || 0,
           vitorias: roulette.vitorias || 0,
-          derrotas: roulette.derrotas || 0
+          derrotas: roulette.derrotas || 0,
+          terminais_gatilho: roulette.terminais_gatilho || []
         };
         
         // Notificar os listeners sobre a atualização de estratégia
@@ -279,7 +237,7 @@ class RESTSocketService {
 
   // Métodos públicos que mantém compatibilidade com a versão WebSocket
 
-  public subscribe(roletaNome: string, callback: RouletteEventCallback): void {
+  public subscribe(roletaNome: string, callback: any): void {
     if (!this.listeners.has(roletaNome)) {
       this.listeners.set(roletaNome, new Set());
     }
@@ -291,7 +249,7 @@ class RESTSocketService {
     }
   }
 
-  public unsubscribe(roletaNome: string, callback: RouletteEventCallback): void {
+  public unsubscribe(roletaNome: string, callback: any): void {
     const listeners = this.listeners.get(roletaNome);
     if (listeners) {
       listeners.delete(callback);
@@ -299,7 +257,7 @@ class RESTSocketService {
     }
   }
 
-  private notifyListeners(event: RouletteNumberEvent | StrategyUpdateEvent): void {
+  private notifyListeners(event: any): void {
     // Notificar listeners específicos para esta roleta
     const listeners = this.listeners.get(event.roleta_nome);
     if (listeners) {
@@ -329,7 +287,7 @@ class RESTSocketService {
     console.log('[RESTSocketService] Desconectando serviço de polling');
     
     if (this.timerId) {
-      clearInterval(this.timerId);
+      window.clearInterval(this.timerId);
       this.timerId = null;
     }
     
@@ -341,7 +299,7 @@ class RESTSocketService {
     
     // Limpar intervalo existente
     if (this.timerId) {
-      clearInterval(this.timerId);
+      window.clearInterval(this.timerId);
       this.timerId = null;
     }
     
@@ -385,25 +343,6 @@ class RESTSocketService {
     return this.connectionActive;
   }
 
-  public destroy(): void {
-    console.log('[RESTSocketService] Destruindo serviço');
-    
-    // Limpar intervalos
-    if (this.timerId) {
-      clearInterval(this.timerId);
-      this.timerId = null;
-    }
-    
-    // Remover event listeners
-    window.removeEventListener('visibilitychange', this.handleVisibilityChange);
-    
-    // Limpar todos os listeners
-    this.listeners.clear();
-    
-    // Desativar conexão
-    this.connectionActive = false;
-  }
-
   public async loadHistoricalRouletteNumbers(): Promise<void> {
     console.log('[RESTSocketService] Carregando dados históricos de todas as roletas');
     
@@ -441,6 +380,25 @@ class RESTSocketService {
     } finally {
       this._isLoadingHistoricalData = false;
     }
+  }
+
+  public destroy(): void {
+    console.log('[RESTSocketService] Destruindo serviço');
+    
+    // Limpar intervalos
+    if (this.timerId) {
+      window.clearInterval(this.timerId);
+      this.timerId = null;
+    }
+    
+    // Remover event listeners
+    window.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    
+    // Limpar todos os listeners
+    this.listeners.clear();
+    
+    // Desativar conexão
+    this.connectionActive = false;
   }
 }
 
