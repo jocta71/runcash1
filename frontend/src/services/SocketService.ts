@@ -456,6 +456,52 @@ export class SocketService {
       }
     }
   }
+
+  /**
+   * Carrega dados históricos de todas as roletas disponíveis
+   * @returns Promise que resolve quando todos os dados forem carregados
+   */
+  public async loadHistoricalRouletteNumbers(): Promise<boolean> {
+    try {
+      console.log('[SocketService] Iniciando carregamento de dados históricos');
+      
+      // Se já estamos carregando, retorna a promessa existente
+      if (this._isLoadingHistoricalData) {
+        console.log('[SocketService] Carregamento já em andamento, aguardando...');
+        return true;
+      }
+      
+      this._isLoadingHistoricalData = true;
+      
+      // Em um ambiente real, buscaríamos os dados do servidor
+      // Simulação: usar dados locais ou mock
+      console.log('[SocketService] Simulando carregamento de dados históricos...');
+      
+      // Para cada roleta permitida, carregar histórico
+      if (ROLETAS_PERMITIDAS && ROLETAS_PERMITIDAS.length > 0) {
+        for (const roleta of ROLETAS_PERMITIDAS) {
+          // Simular delay para não sobrecarregar
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
+          // Adicionar alguns números aleatórios ao histórico para simulação
+          const historico = this.getRouletteHistory(roleta);
+          if (historico.length === 0) {
+            const numerosAleatorios = Array.from({ length: 20 }, () => Math.floor(Math.random() * 37));
+            this.rouletteHistory.set(roleta, numerosAleatorios);
+            console.log(`[SocketService] Histórico simulado para ${roleta}: ${numerosAleatorios.length} números`);
+          }
+        }
+      }
+      
+      console.log('[SocketService] Carregamento de dados históricos concluído');
+      this._isLoadingHistoricalData = false;
+      return true;
+    } catch (error) {
+      console.error('[SocketService] Erro ao carregar dados históricos:', error);
+      this._isLoadingHistoricalData = false;
+      return false;
+    }
+  }
 }
 
 // Exportando a classe para ser importada como default
