@@ -145,7 +145,7 @@ class RouletteFeedService {
         const timeout = setTimeout(() => {
           logger.warn(`Timeout ao esperar resposta do WebSocket (ID: ${requestId})`);
           reject(new Error('Timeout ao aguardar resposta do WebSocket'));
-        }, 10000);
+        }, 30000); // Aumentado de 10000 para 30000 (30 segundos)
         
         // Registrar listener temporário para receber dados
         const handleRouletteData = (data: any) => {

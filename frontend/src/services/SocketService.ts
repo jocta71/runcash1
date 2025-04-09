@@ -64,9 +64,11 @@ import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 class SocketService {
   private static instance: SocketService;
   private socket: Socket | null = null;
-  private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
-  private connectionActive: boolean = false;
+  private listeners: Record<string, Array<(data: any) => void>> = {};
+  private isConnected: boolean = false;
   private connectionAttempts: number = 0;
+  private cache: Record<string, any> = {};
+  private connectionActive: boolean = false;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private timerId: ReturnType<typeof setTimeout> | null = null;
   private eventHandlers: Record<string, (data: any) => void> = {};
