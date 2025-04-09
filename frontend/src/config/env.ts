@@ -31,8 +31,8 @@ interface EnvConfig {
 
 // Configuração para ambiente de produção
 const productionConfig: EnvConfig = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api',
-  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL ? String(import.meta.env.VITE_WEBSOCKET_URL) : 'wss://backend-production-2f96.up.railway.app',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backend-production-2f96.up.railway.app',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'wss://runcash-websocket.up.railway.app',
   debugMode: false,
   env: 'production',
   optimizePollingForVisibility: true
@@ -41,7 +41,7 @@ const productionConfig: EnvConfig = {
 // Configuração para ambiente de desenvolvimento
 const developmentConfig: EnvConfig = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002',
-  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL ? String(import.meta.env.VITE_WEBSOCKET_URL) : 'ws://localhost:3000',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:3000',
   debugMode: true,
   env: 'development',
   optimizePollingForVisibility: false
@@ -90,7 +90,7 @@ export function getRequiredEnvVar(name: string): string {
   
   if (value !== undefined) {
     // Converter para string se for boolean
-    return typeof value === 'boolean' ? String(value) : String(value);
+    return typeof value === 'boolean' ? String(value) : value as string;
   }
   
   // Fallback para valores padrão baseados no ambiente
@@ -132,41 +132,15 @@ export function getEnvVar(name: string, defaultValue: string): string {
   }
 }
 
-/**
- * Obtém a URL do socket, garantindo que use o protocolo wss:// quando necessário
- */
-export function getSocketUrl(): string {
-  try {
-    let configuredUrl = getRequiredEnvVar('VITE_WS_URL');
-    
-    // Garantir que a URL use o protocolo wss://
-    if (configuredUrl && !configuredUrl.startsWith('wss://')) {
-      if (configuredUrl.startsWith('https://')) {
-        console.warn('[ENV] Convertendo URL de https:// para wss://');
-        configuredUrl = configuredUrl.replace('https://', 'wss://');
-      } else if (configuredUrl.startsWith('http://')) {
-        console.warn('[ENV] Convertendo URL de http:// para wss://');
-        configuredUrl = configuredUrl.replace('http://', 'wss://');
-      }
-    }
-    
-    return configuredUrl;
-  } catch (error) {
-    console.warn('Não foi possível determinar a URL do socket, usando valor padrão');
-    return 'wss://backend-production-2f96.up.railway.app';
-  }
-}
-
 // Exportar o objeto de configuração padrão
 export default {
   isProduction,
   getRequiredEnvVar,
   getEnvVar,
   getApiBaseUrl,
-  getSocketUrl,
   
   // Atalhos para as principais URLs
-  wsUrl: getSocketUrl(),
+  wsUrl: getRequiredEnvVar('VITE_WS_URL'),
   apiUrl: getRequiredEnvVar('VITE_API_URL') || getRequiredEnvVar('VITE_API_BASE_URL'),
   apiBaseUrl: getApiBaseUrl(),
   

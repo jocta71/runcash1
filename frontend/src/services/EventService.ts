@@ -1,4 +1,4 @@
-// Serviço para gerenciar eventos em tempo real usando Socket.IO
+// Serviço para gerenciar eventos em tempo real usando Server-Sent Events (SSE)
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
 import SocketService from '@/services/SocketService';
@@ -95,9 +95,9 @@ export class EventService {
       debugLog(`[EventService][GLOBAL] Evento: ${event.roleta_nome}, número: ${event.numero}`);
     });
     
-    // Usar diretamente o SocketService para comunicação em tempo real
-    debugLog('[EventService] Usando SocketService para eventos em tempo real');
-    this.useSocketServiceAsFallback();
+    // Iniciar com SSE para comunicação em tempo real verdadeiro
+    debugLog('[EventService] Iniciando conexão para eventos em tempo real');
+    this.connect();
     
     // Adicionar listener para visibilidade da página
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
@@ -140,6 +140,15 @@ export class EventService {
   public destroy() {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.disconnect();
+    
+    // Limpar subscrições do SocketService
+    if (this.usingSocketService) {
+      const socketService = SocketService.getInstance();
+      this.socketServiceSubscriptions.forEach(roletaNome => {
+        socketService.unsubscribe(roletaNome, this.handleSocketEvent);
+      });
+      this.socketServiceSubscriptions.clear();
+    }
   }
 
   private handleVisibilityChange = () => {
@@ -147,8 +156,12 @@ export class EventService {
       // Tentar reconectar se a página ficar visível e não estiver conectado
       if (!this.isConnected) {
         debugLog('[EventService] Página tornou-se visível, reconectando...');
-        this.useSocketServiceAsFallback();
+        this.connect();
       }
+    } else {
+      // Opcionalmente desconectar quando a página não estiver visível
+      // para economizar recursos (comentado por enquanto)
+      // this.disconnect();
     }
   }
 
@@ -170,8 +183,155 @@ export class EventService {
   }
 
   private connect(): void {
-    // Usar diretamente o SocketService, sem tentativas de usar EventSource
-    this.useSocketServiceAsFallback();
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    
+    // Se já tentou todos os métodos, voltar para o primeiro
+    if (this.currentMethodIndex >= this.connectionMethods.length) {
+      // Limitar tentativas a 2 ciclos completos
+      if (this.connectionAttempts > 2 * this.connectionMethods.length) {
+        debugLog('[EventService] Máximo de ciclos de tentativas atingido. Usando SocketService como fallback final.');
+        this.useSocketServiceAsFallback();
+        return;
+      }
+      
+      this.currentMethodIndex = 0;
+    }
+    
+    const currentMethod = this.connectionMethods[this.currentMethodIndex];
+    
+    if (currentMethod === 'socketio-fallback') {
+      // Tentar SocketService primeiro por ser mais confiável
+      this.useSocketServiceAsFallback();
+      return;
+    } else if (currentMethod === 'polling') {
+      this.startPolling();
+      return;
+    }
+    
+    try {
+      const serverUrl = this.getServerUrl(currentMethod);
+      debugLog(`[EventService] Tentando conexão ${currentMethod}: ${serverUrl}`);
+      
+      // Usar EventSource com configuração mínima
+      this.eventSource = new EventSource(serverUrl);
+      
+      // Configurar um timeout para esta tentativa
+      const connectionTimeout = setTimeout(() => {
+        debugLog(`[EventService] Timeout na tentativa ${currentMethod}`);
+        this.handleConnectionFailure();
+      }, 3000);
+
+      this.eventSource.onopen = () => {
+        clearTimeout(connectionTimeout);
+        debugLog('[EventService] Conexão estabelecida com sucesso!');
+        this.isConnected = true;
+        this.connectionAttempts = 0;
+        this.currentMethodIndex = 0; // Resetar para o método preferido
+        
+        // Só mostrar toast na primeira conexão bem-sucedida
+        if (this.connectionAttempts === 0) {
+          toast({
+            title: "Conexão em tempo real estabelecida",
+            description: "Você receberá atualizações instantâneas das roletas",
+            variant: "default"
+          });
+        }
+      };
+
+      this.eventSource.onerror = (error) => {
+        clearTimeout(connectionTimeout);
+        this.handleConnectionFailure();
+      };
+
+      this.eventSource.onmessage = (event) => {
+        try {
+          // Parsing inicial do JSON
+          let parsedData;
+          try {
+            parsedData = JSON.parse(event.data);
+          } catch (e) {
+            debugLog('[EventService] Erro ao fazer parse do JSON');
+            return;
+          }
+          
+          // Adaptar formato da nova API para o formato esperado
+          let data: EventData;
+          
+          // Verificar formato e adaptar conforme necessário
+          if (parsedData.type === 'new_number') {
+            // Já está no formato esperado para números
+            data = parsedData as RouletteNumberEvent;
+          } else if (parsedData.type === 'strategy_update') {
+            // Evento de atualização de estratégia
+            data = parsedData as StrategyUpdateEvent;
+          } else if (parsedData.roleta_nome && parsedData.numero !== undefined) {
+            // Formato da nova API: converter para o formato esperado
+            data = {
+              type: 'new_number',
+              roleta_id: parsedData.roleta_id || parsedData.id || 'unknown-id',
+              roleta_nome: parsedData.roleta_nome,
+              numero: Number(parsedData.numero),
+              timestamp: parsedData.timestamp || new Date().toISOString()
+            };
+          } else if (parsedData.message && typeof parsedData.message === 'string') {
+            // Evento de conexão ou outro evento informativo
+            data = {
+              type: 'connected',
+              message: parsedData.message
+            };
+          } else {
+            return;
+          }
+          
+          // Armazenar ID do último evento para polling
+          if (event.lastEventId) {
+            this.lastEventId = event.lastEventId;
+          }
+          
+          if (data.type === 'new_number') {
+            debugLog(`[EventService] Novo número: ${data.roleta_nome} - ${data.numero}`);
+            this.notifyListeners(data);
+          } else if (data.type === 'strategy_update') {
+            debugLog(`[EventService] Estratégia: ${data.roleta_nome} - Estado: ${data.estado}`);
+            this.notifyListeners(data as any);
+          }
+        } catch (error) {
+          debugLog('[EventService] Erro ao processar evento');
+        }
+      };
+    } catch (error) {
+      debugLog('[EventService] Erro ao criar conexão, tentando próximo método...');
+      this.handleConnectionFailure();
+    }
+  }
+  
+  private handleConnectionFailure(): void {
+    this.isConnected = false;
+    
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+
+    // Incrementar tentativas e avançar para o próximo método
+    this.connectionAttempts++;
+    this.currentMethodIndex++;
+    
+    // Aplicar backoff exponencial com limitação
+    const delay = Math.min(1000 * Math.pow(1.5, Math.min(this.connectionAttempts, 8)), 10000);
+    
+    debugLog(`[EventService] Tentativa ${this.connectionAttempts} falhou. Tentando próximo método em ${Math.round(delay/1000)}s`);
+    
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+    
+    this.reconnectTimeout = window.setTimeout(() => {
+      this.connect();
+    }, delay);
   }
   
   // NOVO: Usar SocketService como fallback final
@@ -416,7 +576,27 @@ export class EventService {
 
   // Desconecta o EventSource e limpa polling
   public disconnect(): void {
-    // Limpar subscrições do SocketService se estiver usando
+    if (this.eventSource) {
+      debugLog('[EventService] Desconectando EventSource');
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    
+    // Limpar polling se estiver ativo
+    if (this.pollingInterval !== null) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
+    
+    this.isConnected = false;
+    this.usingPolling = false;
+    
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
+    // Limpar subscrições do SocketService
     if (this.usingSocketService) {
       const socketService = SocketService.getInstance();
       this.socketServiceSubscriptions.forEach(roletaNome => {
@@ -425,14 +605,6 @@ export class EventService {
       this.socketServiceSubscriptions.clear();
       this.usingSocketService = false;
     }
-    
-    // Limpar qualquer reconexão pendente
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
-    
-    this.isConnected = false;
   }
 
   // Adiciona um listener para eventos de um tipo específico
@@ -646,38 +818,6 @@ export class EventService {
         }
       });
     }
-  }
-
-  /**
-   * Registra callback para um evento específico
-   */
-  public static subscribe(eventName: string, callback: EventCallback): void {
-    const instance = EventService.getInstance();
-    
-    if (!instance.customEventListeners.has(eventName)) {
-      instance.customEventListeners.set(eventName, new Set());
-    }
-    
-    instance.customEventListeners.get(eventName)?.add(callback);
-  }
-  
-  /**
-   * Remove callback previamente registrado para um evento específico
-   */
-  public static unsubscribe(eventName: string, callback: EventCallback): void {
-    const instance = EventService.getInstance();
-    
-    if (instance.customEventListeners.has(eventName)) {
-      instance.customEventListeners.get(eventName)?.delete(callback);
-    }
-  }
-  
-  /**
-   * Remove todos os callbacks de todos os eventos
-   */
-  public static unsubscribeAll(): void {
-    const instance = EventService.getInstance();
-    instance.customEventListeners.clear();
   }
 }
 

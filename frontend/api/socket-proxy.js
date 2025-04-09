@@ -3,8 +3,8 @@ const https = require('https');
 const http = require('http');
 const url = require('url');
 
-// URL do servidor local API
-const BACKEND_URL = 'https://runcashh1-chi.vercel.app/api/ROULETTES';
+// URL do backend no Railway
+const BACKEND_URL = 'https://runcash1-production.up.railway.app';
 
 // Handler para requisições de proxy do Socket.IO
 module.exports = (req, res) => {
@@ -22,9 +22,6 @@ module.exports = (req, res) => {
   // Analisar a URL do backend
   const parsedUrl = url.parse(BACKEND_URL);
   
-  // Log para debugging
-  console.log(`Proxy WebSocket: ${req.method} ${req.url} -> ${BACKEND_URL}`);
-  
   // Obter os dados do corpo da requisição (se houver)
   let body = [];
   req.on('data', (chunk) => {
@@ -33,7 +30,7 @@ module.exports = (req, res) => {
     body = Buffer.concat(body).toString();
     
     // Extrair o path da requisição original
-    const originalPath = req.url.replace('/api/socket', '');
+    const originalPath = req.url.replace('/api/socket-proxy', '');
     
     // Configurar as opções da requisição para o backend
     const options = {
@@ -66,10 +63,7 @@ module.exports = (req, res) => {
     proxyReq.on('error', (error) => {
       console.error('Erro no proxy Socket.IO:', error);
       res.statusCode = 500;
-      res.end(JSON.stringify({
-        message: 'Erro na comunicação com o backend Socket.IO',
-        error: error.message
-      }));
+      res.end(`Erro na comunicação com o backend Socket.IO: ${error.message}`);
     });
     
     // Enviar o corpo da requisição se for um método que aceita corpo
