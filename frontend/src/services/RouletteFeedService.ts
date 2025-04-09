@@ -175,6 +175,11 @@ export default class RouletteFeedService {
 
   // Adicionar array de assinantes
   private subscribers: Array<(data: any) => void> = [];
+  
+  // Adicionar assinantes para roletas específicas
+  private idSubscribers: Map<string, Set<(data: any) => void>> = new Map();
+  private nameSubscribers: Map<string, Set<(data: any) => void>> = new Map();
+  private globalSubscribers: Set<(data: any) => void> = new Set();
 
   private lastSuccessfulResponse: number = 0;
 
@@ -1210,54 +1215,58 @@ export default class RouletteFeedService {
     logger.info('🔌 Conectando ao EventService para eventos em tempo real');
     
     try {
-      // Registrar listener para eventos de atualização global (todas as roletas)
+      // Registrar listener para evento global_update (atualização de todas as roletas)
       EventService.on('roulette:global_update', (data?: any) => {
         try {
+          logger.info('📡 Evento global_update recebido');
+          
           if (!data) {
-            logger.warn('⚠️ Evento global_update recebido sem dados');
+            logger.warn('⚠️ Evento global_update sem dados');
             return;
           }
           
-          logger.info(`🌐 Evento global_update recebido: ${JSON.stringify(data).substring(0, 100)}...`);
+          logger.debug(`📊 Dados recebidos: ${typeof data === 'object' ? 'objeto válido' : typeof data}`);
           
-          // Processar como evento global_update
+          // Validar e processar dados recebidos
           if (this.validateRouletteData(data)) {
             this.handleRouletteData(data, 'EventService:global_update');
           } else {
-            logger.warn('⚠️ Dados de global_update inválidos: estrutura incorreta');
+            logger.warn('❌ Dados de evento global_update inválidos');
           }
         } catch (error) {
           logger.error(`❌ Erro ao processar evento global_update: ${error instanceof Error ? error.message : String(error)}`);
         }
       });
       
-      // Registrar listener para eventos de número novo
+      // Registrar listener para evento new_number (novo número em uma roleta específica)
       EventService.on('roulette:new_number', (data?: any) => {
         try {
+          logger.info('🎲 Evento new_number recebido');
+          
           if (!data) {
-            logger.warn('⚠️ Evento new_number recebido sem dados');
+            logger.warn('⚠️ Evento new_number sem dados');
             return;
           }
           
-          logger.info(`🔢 Evento new_number recebido para roleta: ${data.roleta_id || data.roleta_nome || 'desconhecida'}`);
+          logger.debug(`🔢 Novo número recebido para roleta: ${data.roleta_id || data.roleta_nome || 'desconhecida'}`);
           
-          // Validar e processar o evento
+          // Validar e processar dados recebidos
           if (this.validateRouletteData(data)) {
             this.handleRouletteData(data, 'EventService:new_number');
           } else {
-            logger.warn('⚠️ Dados de new_number inválidos: estrutura incorreta');
+            logger.warn('❌ Dados de evento new_number inválidos');
           }
         } catch (error) {
           logger.error(`❌ Erro ao processar evento new_number: ${error instanceof Error ? error.message : String(error)}`);
         }
       });
       
-      // Registrar listener para eventos de atualização de dados
+      // Registrar listener para evento data-updated (atualizações gerais de dados)
       EventService.on('roulette:data-updated', (data?: any) => {
         try {
-          logger.info('📊 Evento data-updated recebido, atualizando cache...');
+          logger.info('🔄 Evento data-updated recebido');
           
-          // Adicionar um pequeno atraso aleatório para evitar várias atualizações simultâneas
+          // Atualizar cache após um pequeno delay aleatório para evitar atualizações simultâneas
           const randomDelay = Math.floor(Math.random() * 1000) + 500; // 500-1500ms
           
           setTimeout(() => {
@@ -1434,15 +1443,107 @@ export default class RouletteFeedService {
       });
   }
   
-  private notifySubscribers(data: any[]): void {
-    // Implementação do método
-    this.subscribers.forEach(subscriber => {
-      try {
-        subscriber(data);
-    } catch (error) {
-        logger.error(`❌ Erro ao notificar assinante: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+  /**
+   * Notifica todos os assinantes sobre atualizações nos dados da roleta
+   * @param data Dados normalizados da roleta
+   */
+  private notifySubscribers(data: any): void {
+    try {
+      if (!data) {
+        logger.warn('⚠️ Tentativa de notificar com dados nulos');
+        return;
       }
-    });
+
+      // Obtém o ID e nome da roleta para identificação
+      const roletaId = String(data.roleta_id || data.id || '');
+      const roletaNome = String(data.roleta_nome || data.nome || '');
+      
+      if (!roletaId && !roletaNome) {
+        logger.warn('⚠️ Roleta sem identificador, impossível notificar assinantes');
+        return;
+      }
+
+      // Notificar assinantes por ID
+      if (roletaId) {
+        const idSubscribers = this.idSubscribers.get(roletaId);
+        if (idSubscribers && idSubscribers.size > 0) {
+          logger.debug(`🔔 Notificando ${idSubscribers.size} assinantes para roleta ID: ${roletaId}`);
+          idSubscribers.forEach(callback => {
+            try {
+              callback(data);
+            } catch (error) {
+              logger.error(`❌ Erro ao notificar assinante por ID: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          });
+        }
+      }
+
+      // Notificar assinantes por nome
+      if (roletaNome) {
+        const nameSubscribers = this.nameSubscribers.get(roletaNome);
+        if (nameSubscribers && nameSubscribers.size > 0) {
+          logger.debug(`🔔 Notificando ${nameSubscribers.size} assinantes para roleta nome: ${roletaNome}`);
+          nameSubscribers.forEach(callback => {
+            try {
+              callback(data);
+            } catch (error) {
+              logger.error(`❌ Erro ao notificar assinante por nome: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          });
+        }
+      }
+
+      // Notificar assinantes globais
+      if (this.globalSubscribers.size > 0) {
+        logger.debug(`🌐 Notificando ${this.globalSubscribers.size} assinantes globais`);
+        this.globalSubscribers.forEach(callback => {
+          try {
+            callback(data);
+          } catch (error) {
+            logger.error(`❌ Erro ao notificar assinante global: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        });
+      }
+
+      // Atualizar cache com os dados mais recentes
+      this.updateRouletteCache(data);
+    } catch (error) {
+      logger.error(`❌ Erro ao notificar assinantes: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Atualiza o cache de roletas com os dados mais recentes
+   * @param data Dados normalizados da roleta
+   */
+  private updateRouletteCache(data: any): void {
+    try {
+      // Identificar a roleta pelo ID ou nome
+      const roletaId = String(data.roleta_id || data.id || '');
+      const roletaNome = String(data.roleta_nome || data.nome || '');
+      
+      if (!roletaId && !roletaNome) {
+        logger.warn('⚠️ Impossível atualizar cache de roleta sem identificadores');
+        return;
+      }
+      
+      // Definir a chave para o cache (preferência para ID)
+      const cacheKey = roletaId || roletaNome;
+      
+      // Atualizar ou adicionar ao cache
+      this.rouletteDataCache.set(cacheKey, {
+        ...data,
+        last_updated: Date.now()
+      });
+      
+      logger.debug(`💾 Cache atualizado para roleta: ${roletaNome || roletaId}`);
+      
+      // Atualizar timestamp do cache
+      this.lastCacheUpdate = Date.now();
+      this.hasNewData = true;
+    } catch (error) {
+      logger.error(`❌ Erro ao atualizar cache de roleta: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   
   private generateRequestId(): string {
@@ -1511,20 +1612,25 @@ export default class RouletteFeedService {
   }
   
   /**
-   * Manipula eventos de armazenamento
-   * @param event Evento de armazenamento
+   * Manipula eventos de alteração no localStorage
    */
   private handleStorageEvent(event: StorageEvent): void {
-    // Implementação do método
-    // Manipula eventos de armazenamento
-    if (!event || !event.key) {
-      return;
-    }
-    
-    // Verificar se é uma atualização do nosso serviço
-    if (event.key === DATA_UPDATE_KEY) {
-      logger.info('🔄 Evento de armazenamento detectado, verificando atualizações');
-      this.refreshCache();
+    try {
+      if (event.key === DATA_UPDATE_KEY) {
+        // Ignorar eventos originados desta instância
+        const updateData = event.newValue ? JSON.parse(event.newValue) : null;
+        
+        if (updateData && updateData.instanceId !== INSTANCE_ID) {
+          logger.debug(`🔄 Detectada atualização de dados de outra instância: ${updateData.instanceId}`);
+          
+          // Recarregar dados após um pequeno atraso para evitar colisões
+          setTimeout(() => {
+            this.refreshCache(true);
+          }, Math.random() * 1000 + 500);
+        }
+      }
+    } catch (error) {
+      logger.error(`❌ Erro ao processar evento de armazenamento: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
