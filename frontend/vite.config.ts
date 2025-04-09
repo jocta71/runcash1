@@ -22,13 +22,6 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, '/api'),
         secure: false,
       },
-      // Websocket proxy se necessário
-      '/socket.io': {
-        target: 'https://backend-production-2f96.up.railway.app',
-        changeOrigin: true,
-        ws: true,
-        secure: false,
-      }
     },
   },
   // Configuração para garantir que o HTML5 History API funcione
