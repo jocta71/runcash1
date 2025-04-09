@@ -10,7 +10,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instalar dependências
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Copiar código-fonte
 COPY api_server.js healthcheck.js ./
