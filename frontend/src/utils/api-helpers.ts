@@ -20,13 +20,8 @@ const MAIN_ENDPOINTS = [
  */
 export async function fetchWithCorsSupport<T>(endpoint: string, options?: RequestInit): Promise<T> {
   // Se o endpoint já contém a URL completa, usamos ele diretamente
-  // Caso contrário, combinamos com a URL base
   const url = endpoint.startsWith('http') ? 
-    endpoint : 
-    // Verificar se o endpoint já começa com 'api/' para evitar duplicação
-    endpoint.startsWith('api/') ? 
-      `${API_BASE_URL.replace(/\/api$/, '')}/${endpoint}` : 
-      `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    endpoint : `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   
   console.log(`[API] Fazendo requisição para: ${url}`);
   
@@ -36,29 +31,24 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
     return url === fullPath || url.startsWith(fullPath);
   });
   
-  // Se for um dos endpoints principais, buscar dados diretamente da URL (demonstrado que está acessível)
+  // Se for um dos endpoints principais, tentar diretamente com o mínimo de headers
   if (isMainEndpoint) {
     try {
-      // Configuração com suporte a CORS
+      // Abordagem simplificada para CORS - apenas headers essenciais
       const requestOptions: RequestInit = {
         method: options?.method || 'GET',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'ngrok-skip-browser-warning': 'true',
-          'bypass-tunnel-reminder': 'true',
-          'Origin': window.location.origin,
           ...(options?.headers || {})
         },
         mode: 'cors',
-        credentials: 'omit',
         ...options
       };
       
-      // Realizar a requisição com as opções aprimoradas
+      // Realizar a requisição direta
       const response = await fetch(url, requestOptions);
       
-      // Verificar se a resposta foi bem-sucedida
       if (!response.ok) {
         throw new Error(`Erro HTTP: ${response.status} ${response.statusText}`);
       }
@@ -69,67 +59,48 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
     } catch (error) {
       console.error(`[API] Erro na requisição para ${url}:`, error);
       
-      // Para os endpoints principais, tentar com proxy CORS diretamente
+      // Tentar método alternativo com "no-cors"
       try {
-        console.log(`[API] Tentando usar proxy CORS para ${url}`);
-        return await fetchWithCorsProxy(url) as T;
-      } catch (proxyError) {
-        console.error(`[API] Proxy CORS também falhou:`, proxyError);
+        console.log(`[API] Tentando com modo no-cors para ${url}`);
+        const response = await fetch(url, {
+          method: 'GET',
+          mode: 'no-cors',
+          cache: 'no-store'
+        });
         
-        // Se falhar, usar dados cacheados ou simulados
-        console.warn(`[API] Usando dados simulados para ${url}`);
+        console.log(`[API] Resposta no-cors recebida, tipo: ${response.type}`);
+        
+        // No modo no-cors não podemos acessar a resposta, então usamos dados simulados
+        return createMockDataForMainEndpoint() as T;
+      } catch (noCorsError) {
+        console.error(`[API] Erro no modo no-cors:`, noCorsError);
+        
+        // Último recurso: dados simulados
+        console.warn(`[API] Retornando dados simulados para ${url}`);
         return createMockDataForMainEndpoint() as T;
       }
     }
   } else {
-    // Para outros endpoints, usar implementação simplificada
+    // Para outros endpoints, usar abordagem simples
     try {
-      const requestOptions: RequestInit = {
+      const response = await fetch(url, {
         method: options?.method || 'GET',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           ...(options?.headers || {})
         },
-        mode: 'no-cors', // Usar no-cors para endpoints secundários
+        mode: 'no-cors',
         ...options
-      };
+      });
       
-      await fetch(url, requestOptions);
       console.log(`[API] ✅ Requisição enviada (no-cors) para: ${url}`);
-      
-      // Com no-cors não podemos ler a resposta, então retornar objeto vazio
       return {} as T;
     } catch (error) {
       console.error(`[API] Erro na requisição para ${url}:`, error);
       return {} as T;
     }
   }
-}
-
-/**
- * Tenta buscar dados usando um proxy CORS
- */
-async function fetchWithCorsProxy(url: string): Promise<any> {
-  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-  
-  const response = await fetch(proxyUrl);
-  if (!response.ok) {
-    throw new Error(`Erro no proxy CORS: ${response.status}`);
-  }
-  
-  const proxyData = await response.json();
-  
-  if (proxyData && proxyData.contents) {
-    try {
-      return JSON.parse(proxyData.contents);
-    } catch (error) {
-      console.error(`[API] Erro ao processar resposta do proxy:`, error);
-      throw new Error('Dados inválidos do proxy CORS');
-    }
-  }
-  
-  throw new Error('Resposta vazia do proxy CORS');
 }
 
 /**
