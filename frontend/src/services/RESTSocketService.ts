@@ -39,7 +39,18 @@ class RESTSocketService {
   private listeners: Map<string, Set<any>> = new Map();
   private connectionActive: boolean = false;
   private timerId: number | null = null;
-  private pollingInterval: number = 8000; // Intervalo de 8 segundos para polling
+  private pollingInterval: number = 5000;
+  private updateInterval: number = 30000;
+  private baseEndpoint: string = '/api/ROULETTES';
+  private endpoint: string = `${this.baseEndpoint}?limit=100`;
+  private eventListeners: Map<string, Function[]> = new Map();
+  private cache: Map<string, any> = new Map();
+  private lastUpdateTime: number = 0;
+  private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
+  private pollingTimer: ReturnType<typeof setInterval> | null = null;
+  private updateTimer: ReturnType<typeof setInterval> | null = null;
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 5;
   private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
   
   // Propriedade para simular estado de conexão
@@ -73,9 +84,6 @@ class RESTSocketService {
     // Iniciar o polling da API REST
     this.startPolling();
     
-    // Iniciar também o polling para o endpoint sem parâmetro
-    this.startSecondEndpointPolling();
-    
     // Adicionar event listener para quando a janela ficar visível novamente
     window.addEventListener('visibilitychange', this.handleVisibilityChange);
     
@@ -105,30 +113,18 @@ class RESTSocketService {
   }
 
   // Iniciar polling da API REST
-  private startPolling() {
-    // Limpar qualquer timer existente
-    if (this.timerId) {
-      window.clearInterval(this.timerId);
-      this.timerId = null;
+  private startPolling(): void {
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
     }
 
-    this.connectionActive = true;
-    
-    // Executar imediatamente a primeira vez
-    this.fetchDataFromREST().catch(err => 
-      console.error('[RESTSocketService] Erro na primeira chamada:', err)
-    );
-    
-    // Criar um novo timer com intervalo FIXO de 8 segundos
-    // Este será o ÚNICO timer no sistema que consulta a API
-    this.timerId = window.setInterval(() => {
-      console.log('[RESTSocketService] Executando polling em intervalo FIXO de 8 segundos');
-      this.fetchDataFromREST().catch(err => 
-        console.error('[RESTSocketService] Erro na chamada programada:', err)
-      );
-    }, 8000) as unknown as number;
-    
-    console.log(`[RESTSocketService] Polling com intervalo FIXO de 8000ms iniciado`);
+    this.pollingTimer = setInterval(() => {
+      this.fetchDataFromREST();
+    }, this.pollingInterval);
+
+    // Iniciar imediatamente
+    this.fetchDataFromREST();
   }
   
   // Buscar dados da API REST
@@ -241,7 +237,7 @@ class RESTSocketService {
           this.emitRouletteNumberEvent(roulette, 'limit-endpoint');
           
           // Também emitir em formatos alternativos que podem ser esperados pelo RouletteCard
-          this.emitCompatibilityEvents(roulette, numbers);
+          this.emitCompatibilityEvents(roulette, isNewData);
         }
       }
       
@@ -664,7 +660,7 @@ class RESTSocketService {
               this.emitRouletteNumberEvent(roulette, 'base-endpoint');
               
               // Também emitir em formatos alternativos que podem ser esperados pelo RouletteCard
-              this.emitCompatibilityEvents(roulette, numbers);
+              this.emitCompatibilityEvents(roulette, isNewData);
             }
           }
           
@@ -734,56 +730,46 @@ class RESTSocketService {
     this.notifyListeners(updateEvent);
   }
   
-  // Emitir eventos em formatos alternativos para garantir compatibilidade
-  private emitCompatibilityEvents(roulette: any, numbers: number[]): void {
-    if (!roulette.numero || !Array.isArray(roulette.numero) || roulette.numero.length === 0) {
+  /**
+   * Emite eventos em formatos compatíveis com versões anteriores da aplicação
+   */
+  private emitCompatibilityEvents(roulette: any, isNewNumber: boolean): void {
+    if (!roulette || !roulette.numeros || roulette.numeros.length === 0) {
       return;
     }
-    
-    const lastNumber = roulette.numero[0];
-    const numero = lastNumber.numero || lastNumber.number || 0;
-    
-    // Formato alternativo 1 - Evento simplificado
-    const simpleEvent = {
-      type: 'numero',
-      roleta_id: roulette.id,
-      numero: numero,
-      timestamp: new Date().toISOString()
+
+    const latestNumber = roulette.numeros[0];
+
+    // Evento de novo número no formato simplificado
+    const simplifiedEvent = {
+      type: 'new_number',
+      numero: latestNumber.numero,
+      roleta_id: roulette.roleta_id,
+      roleta_nome: roulette.roleta_nome,
+      cor: latestNumber.cor,
+      data_hora: latestNumber.data_hora,
+      paridade: latestNumber.paridade,
+      duzias: latestNumber.duzias,
+      colunas: latestNumber.colunas,
+      numeros: roulette.numeros
     };
-    
-    // Formato alternativo 2 - Evento legado
-    const legacyEvent = {
-      type: 'numero',
-      roletaId: roulette.id,
-      roletaNome: roulette.nome,
-      numero: numero,
-      cor: this.determinarCorNumero(numero)
+
+    // Evento no formato de compatibilidade legado
+    const legacyCompatEvent = {
+      ...simplifiedEvent,
+      ultimo_numero: latestNumber,
+      historico: roulette.numeros
     };
-    
-    // Formato alternativo 3 - Evento websocket
-    const wsEvent = {
-      event: 'numero',
-      data: {
-        roleta_id: roulette.id,
-        roleta_nome: roulette.nome,
-        numero: numero,
-        cor: this.determinarCorNumero(numero),
-        timestamp: new Date().toISOString()
-      }
-    };
-    
-    // Emitir todos os formatos para garantir compatibilidade
-    this.notifyListeners(simpleEvent);
-    this.notifyListeners(legacyEvent);
-    this.notifyListeners(wsEvent);
-    
-    // Emitir também diretamente para o ID da roleta
-    this.notifySpecificListener(roulette.id, {
-      tipo: 'numero',
-      valor: numero,
-      data: roulette,
-      timestamp: new Date().toISOString()
-    });
+
+    // Emitir apenas o evento simplificado
+    if (isNewNumber) {
+      this.notifyListeners(simplifiedEvent);
+    }
+
+    // Emitir evento de compatibilidade para versões legadas apenas se for um novo número
+    if (isNewNumber) {
+      this.notifyListeners(legacyCompatEvent);
+    }
   }
   
   // Notificar especificamente um listener pelo ID
@@ -876,6 +862,45 @@ class RESTSocketService {
       } catch (e) {
         console.error(`[RESTSocketService] Erro ao forçar atualização para roleta ${id}:`, e);
       }
+    });
+  }
+
+  private startUpdateTimer(): void {
+    if (this.updateTimer) {
+      clearInterval(this.updateTimer);
+      this.updateTimer = null;
+    }
+
+    this.updateTimer = setInterval(() => {
+      this.updateLocalStorage();
+    }, this.updateInterval);
+  }
+
+  // Método para atualizar o localStorage com dados em cache
+  private updateLocalStorage(): void {
+    try {
+      // Salvar dados das roletas em cache no localStorage
+      const cacheData = Array.from(this.lastReceivedData.entries())
+        .filter(([key, _]) => !key.includes('global') && !key.includes('endpoint'))
+        .map(([_, value]) => value.data)
+        .filter(data => data && data.id);
+      
+      if (cacheData.length > 0) {
+        localStorage.setItem('roulettes_data_cache', JSON.stringify({
+          timestamp: Date.now(),
+          data: cacheData
+        }));
+        console.log(`[RESTSocketService] Salvos ${cacheData.length} itens no localStorage`);
+      }
+    } catch (error) {
+      console.error('[RESTSocketService] Erro ao atualizar localStorage:', error);
+    }
+  }
+
+  // Método de obtenção de dados
+  private fetchData(): void {
+    this.fetchDataFromREST().catch(err => {
+      console.error('[RESTSocketService] Erro ao buscar dados:', err);
     });
   }
 }
