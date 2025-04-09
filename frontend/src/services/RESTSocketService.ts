@@ -203,23 +203,29 @@ class RESTSocketService {
     data.forEach(roulette => {
       if (!roulette || !roulette.id) return;
       
+      // Usar diretamente o ID que vem da API
+      const uuid = roulette.id;
+      
       // Registrar timestamp para cada roleta
-      this.lastReceivedData.set(roulette.id, { timestamp: now, data: roulette });
+      this.lastReceivedData.set(uuid, { timestamp: now, data: roulette });
       
       // Atualizar o histórico da roleta se houver números
       if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
         // Mapear apenas os números para um array simples
         const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
         
-        // Atualizar o histórico
-        this.setRouletteHistory(roulette.id, numbers);
+        // Pegar o ID simplificado diretamente do primeiro número
+        const simpleId = roulette.numero[0].roleta_id || uuid;
+        
+        // Atualizar o histórico usando o ID simplificado
+        this.setRouletteHistory(simpleId, numbers);
         
         // Emitir evento com o número mais recente
         const lastNumber = roulette.numero[0];
         
         const event: any = {
           type: 'new_number',
-          roleta_id: roulette.id,
+          roleta_id: lastNumber.roleta_id || uuid, // Usar o ID que já vem no objeto de número
           roleta_nome: roulette.nome,
           numero: lastNumber.numero || lastNumber.number || 0,
           cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
@@ -232,9 +238,14 @@ class RESTSocketService {
       
       // Emitir evento de estratégia se houver
       if (roulette.estado_estrategia) {
+        // Tentar obter o ID simplificado do primeiro número, se existir
+        const simpleId = (roulette.numero && roulette.numero.length > 0) 
+          ? roulette.numero[0].roleta_id 
+          : uuid;
+          
         const strategyEvent: any = {
           type: 'strategy_update',
-          roleta_id: roulette.id,
+          roleta_id: simpleId, // Usar o ID simplificado se disponível
           roleta_nome: roulette.nome,
           estado: roulette.estado_estrategia,
           numero_gatilho: roulette.numero_gatilho || 0,
