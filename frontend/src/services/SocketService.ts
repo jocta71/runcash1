@@ -59,6 +59,18 @@ export interface HistoryData {
 // Importar a lista de roletas permitidas da configuração
 import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 
+export interface ExtendedStrategyUpdateEvent extends StrategyUpdateEvent {
+  vitorias?: number;
+  derrotas?: number;
+  terminais_gatilho?: number[];
+  numero_gatilho?: number;
+}
+
+export interface ExtendedRouletteNumberEvent extends RouletteNumberEvent {
+  preserve_existing?: boolean;
+  realtime_update?: boolean;
+}
+
 /**
  * Serviço que gerencia a conexão WebSocket via Socket.IO
  * para receber dados em tempo real do MongoDB
@@ -70,12 +82,11 @@ export class SocketService {
   private connectionActive: boolean = false;
   private connectionAttempts: number = 0;
   private reconnectTimeout: number | null = null;
-  private timerId: NodeJS.Timeout | null = null;
+  private timerId: ReturnType<typeof setTimeout> | null = null;
   private eventHandlers: Record<string, (data: any) => void> = {};
   private autoReconnect: boolean = true;
   private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
-  // Novo mapa para rastrear promessas pendentes de listeners assíncronos
-  private pendingPromises: Map<string, { promise: Promise<any>, timeout: NodeJS.Timeout }> = new Map();
+  private pendingPromises: Map<string, { promise: Promise<any>, timeout: ReturnType<typeof setTimeout> }> = new Map();
   
   // Propriedade para o cliente MongoDB (pode ser undefined em alguns contextos)
   public client?: MongoClient;
@@ -282,16 +293,15 @@ export class SocketService {
   }
 
   private notifyHistoryUpdate(roletaId: string): void {
-    const historico = this.rouletteHistory.get(roletaId);
-    if (!historico) return;
-
+    const historico = this.getRouletteHistory(roletaId);
+    
     const event: RouletteHistoryEvent = {
       type: 'history_update',
       roleta_id: roletaId,
       numeros: historico,
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     };
-
+    
     this.notifyListeners(event);
   }
 
@@ -1651,37 +1661,23 @@ export class SocketService {
   // Método para processar eventos de estratégia
   private processStrategyEvent(data: any): void {
     if (!data || !data.roleta_id || !data.roleta_nome) {
-      console.warn('[SocketService] Dados de estratégia inválidos:', data);
-        return;
-      }
+      console.warn('[SocketService] Dados inválidos para evento de estratégia:', data);
+      return;
+    }
 
-    // Transformar em formato de evento para notificar
-      const event: StrategyUpdateEvent = {
-        type: 'strategy_update',
+    const event: ExtendedStrategyUpdateEvent = {
+      type: 'strategy_update',
       roleta_id: data.roleta_id,
-      roleta_nome: data.roleta_nome, // Corrigido de roleta_name para roleta_nome
+      roleta_nome: data.roleta_nome,
+      timestamp: new Date().toISOString(),
       estado: data.estado || 'unknown',
-        numero_gatilho: data.numero_gatilho || 0,
-        terminais_gatilho: data.terminais_gatilho || [],
+      numero_gatilho: data.numero_gatilho || 0,
+      terminais_gatilho: data.terminais_gatilho || [],
       vitorias: data.vitorias || 0,
-      derrotas: data.derrotas || 0,
-      sugestao_display: data.sugestao_display,
-        timestamp: data.timestamp || new Date().toISOString()
-      };
+      derrotas: data.derrotas || 0
+    };
 
-      console.log(`[SocketService] Processando evento de estratégia:`, {
-      roleta: event.roleta_nome, // Corrigido de roleta_name para roleta_nome
-        vitorias: event.vitorias,
-        derrotas: event.derrotas,
-        timestamp: event.timestamp
-      });
-
-      // Notificar diretamente os callbacks específicos para esta roleta
-      this.notifyListeners(event);
-      
-      // Notificar também via EventService
-      const eventService = EventService.getInstance();
-      eventService.emitStrategyUpdate(event);
+    this.notifyListeners(event as StrategyUpdateEvent);
   }
 
   private ensureConnection() {
@@ -2257,6 +2253,4 @@ export class SocketService {
   }
 }
 
-// Criar e exportar uma única instância
-const socketService = new SocketService();
-export default socketService;
+export default SocketService;
