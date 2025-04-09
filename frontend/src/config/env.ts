@@ -10,12 +10,12 @@ export const isProduction = import.meta.env.PROD ||
 // Valores padrão para cada ambiente
 const defaultValues: Record<string, Record<string, string>> = {
   development: {
-    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
+    VITE_WS_URL: 'https://backend-production-2f96.up.railway.app',
     VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
     VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   },
   production: {
-    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
+    VITE_WS_URL: 'https://backend-production-2f96.up.railway.app',
     VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
     VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   }
@@ -32,7 +32,7 @@ interface EnvConfig {
 // Configuração para ambiente de produção
 const productionConfig: EnvConfig = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL as string || 'https://backendapi-production-36b5.up.railway.app/api',
-  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL as string || 'wss://backend-production-2f96.up.railway.app',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL as string || 'https://backend-production-2f96.up.railway.app',
   debugMode: false,
   env: 'production',
   optimizePollingForVisibility: true
@@ -107,7 +107,7 @@ export function getRequiredEnvVar(name: string): string {
     
     // Valores padrão para desenvolvimento
     if (name === 'VITE_WS_URL') {
-      return 'wss://backend-production-2f96.up.railway.app';
+      return 'https://backend-production-2f96.up.railway.app';
     }
     if (name === 'VITE_API_URL' || name === 'VITE_API_BASE_URL') {
       return 'https://backendapi-production-36b5.up.railway.app/api';

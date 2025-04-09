@@ -336,7 +336,7 @@ class SocketService {
     }
     
     // URL do serviço backend
-    const backendUrl = 'wss://backend-production-2f96.up.railway.app';
+    const backendUrl = 'https://backend-production-2f96.up.railway.app';
     console.log(`[SocketService] Usando URL do WebSocket do backend: ${backendUrl}`);
     return backendUrl;
   }
@@ -361,7 +361,7 @@ class SocketService {
       console.log('[SocketService] Conectando ao servidor WebSocket:', wsUrl);
       
       this.socket = io(wsUrl, {
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         autoConnect: true,
         reconnection: true,
         reconnectionAttempts: 10,
