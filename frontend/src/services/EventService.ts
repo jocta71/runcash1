@@ -210,7 +210,7 @@ export class EventService {
       debugLog('[EventService] Executando polling para obter dados recentes');
       
       // Buscar roletas disponíveis
-      const roletasResponse = await fetchWithCorsSupport<any[]>('/api/ROULETTES');
+      const roletasResponse = await fetchWithCorsSupport<any[]>('/ROULETTES');
       
       if (roletasResponse && Array.isArray(roletasResponse)) {
         for (const roleta of roletasResponse) {
@@ -219,7 +219,7 @@ export class EventService {
           
           if (roletaId) {
             // Buscar números recentes para cada roleta
-            const numerosResponse = await fetchWithCorsSupport<any[]>(`/api/ROULETTE_NUMBERS/${roletaId}?limit=10`);
+            const numerosResponse = await fetchWithCorsSupport<any[]>(`/ROULETTE_NUMBERS/${roletaId}?limit=10`);
             
             if (numerosResponse && Array.isArray(numerosResponse) && numerosResponse.length > 0) {
               // Processar apenas o número mais recente como evento

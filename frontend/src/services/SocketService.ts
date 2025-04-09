@@ -264,7 +264,7 @@ class SocketService {
     console.log('[SocketService] Solicitando números recentes via REST');
     
     // Usar API REST para buscar dados recentes
-    fetchWithCorsSupport<any[]>('/api/ROULETTES')
+    fetchWithCorsSupport<any[]>('/ROULETTES')
       .then(roulettes => {
         if (roulettes && roulettes.length > 0) {
           console.log(`[SocketService] Recuperadas ${roulettes.length} roletas da API`);
@@ -356,7 +356,7 @@ class SocketService {
       console.log(`[SocketService] Buscando números para roleta ${roletaId}`);
       
       // Buscar dados da roleta primeiro para obter o nome
-      const rouletteResponse = await fetchWithCorsSupport<any>(`/api/ROULETTE/${roletaId}`);
+      const rouletteResponse = await fetchWithCorsSupport<any>(`/ROULETTE/${roletaId}`);
       
       let roulette = rouletteResponse;
       if (!roulette || !roulette._id) {
@@ -368,7 +368,7 @@ class SocketService {
       }
       
       // Buscar números da roleta
-      const url = `/api/ROULETTE_NUMBERS/${roletaId}?limit=${limit}`;
+      const url = `/ROULETTE_NUMBERS/${roletaId}?limit=${limit}`;
       const numbersResponse = await fetchWithCorsSupport<any>(url);
       
       if (!numbersResponse || !Array.isArray(numbersResponse)) {
