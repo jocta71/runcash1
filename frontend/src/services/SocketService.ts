@@ -204,6 +204,258 @@ export class SocketService {
       }
     }, 30000);
   }
+
+  /**
+   * Inscreve um callback para receber eventos de uma roleta específica
+   * @param roletaNome Nome da roleta ou '*' para todos os eventos
+   * @param callback Função a ser chamada quando um evento for recebido
+   */
+  public subscribe(roletaNome: string, callback: RouletteEventCallback): void {
+    console.log(`[SocketService] INSCREVENDO para eventos da roleta: ${roletaNome}`);
+    
+    // Verificar se já temos listeners para esta roleta
+    if (!this.listeners.has(roletaNome)) {
+      console.log(`[SocketService] Criando novo conjunto de listeners para roleta: ${roletaNome}`);
+      this.listeners.set(roletaNome, new Set());
+    }
+    
+    // Adicionar o callback ao conjunto de listeners
+    const listeners = this.listeners.get(roletaNome);
+    if (listeners) {
+      listeners.add(callback);
+      console.log(`[SocketService] ✅ Callback adicionado aos listeners de ${roletaNome}. Total: ${listeners.size}`);
+    }
+    
+    // Registrar a roleta para receber updates em tempo real
+    this.registerRouletteForRealTimeUpdates(roletaNome).then(() => {
+      console.log(`[SocketService] Roleta ${roletaNome} registrada para updates em tempo real`);
+    }).catch(error => {
+      console.error(`[SocketService] Erro ao registrar roleta ${roletaNome}:`, error);
+    });
+  }
+
+  /**
+   * Cancela a inscrição de um callback
+   * @param roletaNome Nome da roleta
+   * @param callback Função a remover
+   */
+  public unsubscribe(roletaNome: string, callback: RouletteEventCallback): void {
+    const listeners = this.listeners.get(roletaNome);
+    if (listeners) {
+      listeners.delete(callback);
+      console.log(`[SocketService] Callback removido dos listeners de ${roletaNome}. Restantes: ${listeners.size}`);
+    }
+  }
+
+  /**
+   * Registra uma roleta para receber atualizações em tempo real
+   * @param roletaNome Nome da roleta
+   */
+  private async registerRouletteForRealTimeUpdates(roletaNome: string): Promise<boolean> {
+    if (!roletaNome || roletaNome.trim() === '') {
+      return false;
+    }
+    
+    console.log(`[SocketService] Registrando roleta ${roletaNome} para updates em tempo real`);
+    
+    // Verificar conexão
+    if (!this.checkSocketConnection() && roletaNome !== '*') {
+      if (ROLETAS_PERMITIDAS && !ROLETAS_PERMITIDAS.some(r => r === roletaNome)) {
+        console.log(`[SocketService] Roleta não encontrada pelo nome: ${roletaNome}`);
+        return false;
+      }
+    }
+    
+    // Simulação - em produção, enviaríamos uma solicitação real para o servidor
+    console.log(`[SocketService] ⛔ DESATIVADO: Busca de roletas reais bloqueada para diagnóstico`);
+    return true;
+  }
+
+  /**
+   * Tenta recuperar uma sessão de socket salva anteriormente
+   */
+  private trySavedSocket(): boolean {
+    try {
+      // Verificar tempo da última conexão
+      const lastConnectionTime = localStorage.getItem('socket_last_connection');
+      if (lastConnectionTime) {
+        const lastTime = parseInt(lastConnectionTime, 10);
+        const now = Date.now();
+        const diff = now - lastTime;
+        
+        // Se a última conexão foi há menos de 2 minutos, pode ser recuperada
+        if (diff < 120000) {
+          console.log('[SocketService] Encontrada conexão recente. Tentando usar configurações salvas.');
+          return true;
+        } else {
+          console.log('[SocketService] Conexão antiga encontrada, iniciando nova conexão');
+          localStorage.removeItem('socket_last_connection');
+        }
+      }
+    } catch (error) {
+      console.warn('[SocketService] Erro ao verificar socket salvo:', error);
+    }
+    return false;
+  }
+
+  /**
+   * Estabelece conexão com o servidor Socket.IO
+   */
+  private connect(): void {
+    try {
+      // Em produção, usar a URL real do servidor WebSocket
+      const socketUrl = config.SOCKET_URL || 'https://backend-production-2i96.up.railway.app';
+      
+      this.socket = io(socketUrl, {
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+      });
+      
+      this.setupSocketEvents();
+      this.setupPing();
+      
+      // Salvar timestamp da conexão no localStorage
+      localStorage.setItem('socket_last_connection', Date.now().toString());
+      
+    } catch (error) {
+      console.error('[SocketService] Erro ao conectar com Socket.IO:', error);
+      this.handleConnectionError(error);
+    }
+  }
+
+  /**
+   * Configura eventos do socket
+   */
+  private setupSocketEvents(): void {
+    if (!this.socket) return;
+    
+    this.socket.on('connect', () => {
+      console.log('[SocketService] Conectado ao socket.io');
+      this.connectionActive = true;
+      this.connectionAttempts = 0;
+    });
+    
+    this.socket.on('disconnect', (reason) => {
+      console.log(`[SocketService] Desconectado: ${reason}`);
+      this.connectionActive = false;
+      
+      if (this.autoReconnect) {
+        this.handleReconnect();
+      }
+    });
+    
+    // Adicionar mais eventos conforme necessário
+  }
+
+  /**
+   * Manipula a reconexão em caso de falha
+   */
+  private handleReconnect(): void {
+    this.connectionAttempts++;
+    console.log(`[SocketService] Tentativa de reconexão ${this.connectionAttempts}`);
+    
+    // Implementar lógica de backoff exponencial
+    const delay = Math.min(30000, 1000 * Math.pow(1.5, this.connectionAttempts));
+    
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+    
+    this.reconnectTimeout = setTimeout(() => {
+      this.connect();
+    }, delay);
+  }
+
+  /**
+   * Manipula erros de conexão
+   */
+  private handleConnectionError(error: any): void {
+    console.error('[SocketService] Erro de conexão:', error);
+    this.connectionActive = false;
+    
+    if (this.autoReconnect) {
+      this.handleReconnect();
+    }
+  }
+
+  /**
+   * Manipula mudanças de visibilidade da página
+   */
+  private handleVisibilityChange = (): void => {
+    if (document.visibilityState === 'visible') {
+      console.log('[SocketService] Página voltou a ficar visível, verificando conexão');
+      if (!this.connectionActive || !this.socket || !this.socket.connected) {
+        console.log('[SocketService] Reconectando após retornar à visibilidade');
+        this.connect();
+      }
+    }
+  }
+
+  /**
+   * Configura manipulador para rejeições de promise não tratadas
+   */
+  private setupUnhandledRejectionHandler(): void {
+    window.addEventListener('unhandledrejection', (event) => {
+      if (event.reason && typeof event.reason === 'object' && 'name' in event.reason) {
+        const error = event.reason;
+        if (error.name === 'NetworkError' || error.name === 'AbortError') {
+          console.warn('[SocketService] Erro de rede detectado, verificando conexão', error);
+          this.checkSocketHealth();
+        }
+      }
+    });
+  }
+
+  /**
+   * Verifica a saúde da conexão com o socket
+   */
+  private checkSocketHealth(): void {
+    if (!this.socket) {
+      console.log('[SocketService] Socket não existe, tentando reconectar');
+      this.connect();
+      return;
+    }
+    
+    if (!this.socket.connected) {
+      console.log('[SocketService] Socket não está conectado, forçando reconexão');
+      this.socket.connect();
+    }
+  }
+
+  /**
+   * Notifica os callbacks inscritos sobre um evento
+   */
+  private notifyListeners(event: RouletteEvent): void {
+    if (!event || !event.type) return;
+    
+    // Notificar listeners globais primeiro
+    const globalListeners = this.listeners.get('*');
+    if (globalListeners) {
+      globalListeners.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error('[SocketService] Erro ao notificar listener global:', error);
+        }
+      });
+    }
+    
+    // Notificar listeners específicos da roleta
+    if ('roleta_id' in event) {
+      const roletaListeners = this.listeners.get(event.roleta_id);
+      if (roletaListeners) {
+        roletaListeners.forEach(callback => {
+          try {
+            callback(event);
+          } catch (error) {
+            console.error(`[SocketService] Erro ao notificar listener da roleta ${event.roleta_id}:`, error);
+          }
+        });
+      }
+    }
+  }
 }
 
 // Exportando a classe para ser importada como default
