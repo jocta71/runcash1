@@ -977,11 +977,20 @@ export default class RouletteFeedService {
   }
   
   /**
-   * Força uma atualização do cache, ignorando o TTL
+   * Força uma atualização do cache
+   * @param force Flag para forçar atualização ignorando o tempo mínimo entre atualizações
    */
-  public async refreshCache(): Promise<any> {
+  public refreshCache(force: boolean = false): void {
+    const now = Date.now();
+    
+    // Verificar intervalo mínimo entre atualizações se não for forçado
+    if (!force && now - this.lastCacheUpdate < MIN_REQUEST_INTERVAL) {
+      logger.debug(`⏱️ Aguardando intervalo mínimo para refresh (${MIN_REQUEST_INTERVAL}ms)`);
+      return;
+    }
+    
     logger.info('🔄 Forçando atualização do cache');
-    return this.forceUpdate();
+    this.fetchLatestData();
   }
   
   /**
@@ -1168,11 +1177,8 @@ export default class RouletteFeedService {
     try {
       logger.info('🔌 Conectando ao EventService para eventos em tempo real');
       
-      // Obter instância do EventService
-      const eventService = EventService.getInstance();
-      
-      // Listener para atualizações globais
-      eventService.on('roulette:global_update', (data: any) => {
+      // Registrar listener para atualizações globais
+      EventService.on('roulette:global_update', (data: any) => {
         try {
           if (!data) {
             logger.warn('⚠️ Evento global_update sem dados');
@@ -1191,8 +1197,8 @@ export default class RouletteFeedService {
         }
       });
       
-      // Listener para novos números
-      eventService.on('roulette:new_number', (data: any) => {
+      // Registrar listener para novos números
+      EventService.on('roulette:new_number', (data: any) => {
         try {
           if (!data) {
             logger.warn('⚠️ Evento new_number sem dados');
@@ -1211,8 +1217,8 @@ export default class RouletteFeedService {
         }
       });
       
-      // Listener para atualizações de dados
-      eventService.on('roulette:data-updated', () => {
+      // Registrar listener para atualizações de dados
+      EventService.on('roulette:data-updated', (data: any) => {
         try {
           logger.info('🔄 Recebido evento data-updated, atualizando cache');
           
@@ -1272,10 +1278,28 @@ export default class RouletteFeedService {
     }
   }
 
-  // Métodos requeridos pelo linter
-  private fetchWithRecovery(url: string, options?: RequestInit): Promise<any> {
-    // Implementação do método
-    return Promise.resolve({});
+  /**
+   * Busca dados com recuperação automática
+   */
+  private fetchWithRecovery(url: string, requestId: string): Promise<any> {
+    const requestOptions: {
+      method: string;
+      headers: Record<string, string>;
+    } = {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    };
+
+    return fetch(url, requestOptions)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
+        }
+        return response.json();
+      });
   }
   
   private notifySubscribers(data: any): void {
@@ -1293,10 +1317,27 @@ export default class RouletteFeedService {
     return `req_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
   }
   
-  private notifyDataUpdate(data: any): void {
-    // Implementação do método
-    // Avisa todos os assinantes sobre atualização de dados
-    this.notifySubscribers(data);
+  /**
+   * Notifica sobre atualização de dados
+   */
+  private notifyDataUpdate(): void {
+    try {
+      // Notificar outras instâncias sobre a atualização de dados
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const updateData = {
+          timestamp: Date.now(),
+          instanceId: INSTANCE_ID
+        };
+        
+        // Salvar no localStorage para que outras instâncias possam detectar
+        window.localStorage.setItem(DATA_UPDATE_KEY, JSON.stringify(updateData));
+        
+        // Também notificar via Event Service
+        EventService.emit('roulette:data-updated', updateData);
+      }
+    } catch (error) {
+      logger.error(`❌ Erro ao notificar sobre atualização de dados: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   
   private verifyAndCleanupStaleRequests(): void {
@@ -1304,15 +1345,55 @@ export default class RouletteFeedService {
     // Verifica e limpa requisições pendentes expiradas
   }
   
-  private normalizeService(data: any): any {
+  /**
+   * Normaliza o serviço após erros consecutivos
+   * @param forcedReset Se verdadeiro, força um reset completo
+   */
+  private normalizeService(forcedReset: boolean = false): void {
     // Implementação do método
-    // Normaliza dados do serviço
-    return data;
+    // Normaliza o serviço após múltiplos erros
+    
+    // Reduzir o intervalo gradualmente de volta ao normal
+    if (this.currentPollingInterval > NORMAL_POLLING_INTERVAL) {
+      // Se estiver acima do normal, reduzir em 25% a cada vez
+      this.currentPollingInterval = Math.max(
+        NORMAL_POLLING_INTERVAL,
+        this.currentPollingInterval * 0.75
+      );
+      
+      logger.info(`⏱️ Reduzindo intervalo de polling para ${this.currentPollingInterval}ms em direção ao normal`);
+    }
+    
+    // Se forçar reset, voltar imediatamente para o normal
+    if (forcedReset) {
+      this.currentPollingInterval = NORMAL_POLLING_INTERVAL;
+      logger.info(`⏱️ Forçando reset do intervalo de polling para ${NORMAL_POLLING_INTERVAL}ms (normal)`);
+    }
+    
+    // Reiniciar o timer com o novo intervalo
+    this.restartPollingTimer();
+    
+    // Sair do modo de recuperação
+    this.recoveryMode = false;
+    this.consecutiveErrors = 0;
   }
   
+  /**
+   * Manipula eventos de armazenamento
+   * @param event Evento de armazenamento
+   */
   private handleStorageEvent(event: StorageEvent): void {
     // Implementação do método
     // Manipula eventos de armazenamento
+    if (!event || !event.key) {
+      return;
+    }
+    
+    // Verificar se é uma atualização do nosso serviço
+    if (event.key === DATA_UPDATE_KEY) {
+      logger.info('🔄 Evento de armazenamento detectado, verificando atualizações');
+      this.refreshCache();
+    }
   }
 
   /**
