@@ -160,37 +160,39 @@ export default class RouletteFeedService {
     [key: string]: RequestInfo
   } = {};
 
-  private constructor() {
-    logger.info('🚀 Inicializando serviço de feeds de roleta');
-    
-    // Limpar as requisições antigas do último minuto a cada 10 segundos
-    setInterval(() => this.cleanupOldRequests(), 10000);
-    
-    // Iniciar monitoramento de saúde do serviço
-    this.startHealthMonitoring();
-    
-    // Inicializar sincronização entre instâncias
-    if (typeof window !== 'undefined') {
-      this.initializeInstanceSync();
-    }
-    
-    // Verificar se devemos aguardar a visibilidade da página para iniciar
-    if (typeof document !== 'undefined') {
-      const isVisible = document.visibilityState === 'visible';
-      logger.info(`👁️ Visibilidade inicial: ${isVisible ? 'visível' : 'oculta'}`);
-      
-      // Adicionar listener para mudanças de visibilidade
-      document.addEventListener('visibilitychange', this.handleVisibilityChange);
-      
-      // Se a página já estiver visível, inicializar normalmente
-      if (isVisible) {
-        this.initialize();
-      } else {
-        logger.info('⏸️ Aguardando página ficar visível para iniciar o polling');
-      }
-    } else {
-      // Em ambiente sem document, inicializar imediatamente
-      this.initialize();
+  /**
+   * O construtor configura os parâmetros iniciais e inicia o serviço
+   * @param options Opções de configuração para o serviço
+   */
+  constructor(options: RouletteFeedServiceOptions = {}) {
+    const {
+      autoStart = true,
+      initialInterval = 10000, // 10 segundos padrão
+      minInterval = 5000,
+      maxInterval = 60000,
+      historySize = 20
+    } = options;
+
+    // Inicializar parâmetros
+    this.initialInterval = initialInterval;
+    this.currentPollingInterval = initialInterval;
+    this.minInterval = minInterval;
+    this.maxInterval = maxInterval;
+    this.historySize = historySize;
+    this.subscribers = new Map();
+    this.roulettesList = [];
+    this.lastSuccessTimestamp = 0;
+    this.rouletteHistory = new Map();
+    this.isPaused = false;
+    this.isPollingActive = false;
+    this.pendingRequests = new Map();
+    this.isInBackoff = false;
+    this.isFetching = false;
+    this.globalLock = false;
+
+    // Iniciar o serviço automaticamente se configurado
+    if (autoStart) {
+      this.start();
     }
   }
 
@@ -332,95 +334,107 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Busca os dados iniciais das roletas
+   * Busca os dados iniciais das roletas (se não estiverem em cache)
    */
-  public fetchInitialData(): Promise<any> {
-    logger.info('⛔ DESATIVADO: Solicitação para buscar dados iniciais');
-    
-    // Retornar array vazio em vez de fazer a requisição HTTP
-    return Promise.resolve(this.roulettes);
-    
-    /* CÓDIGO ORIGINAL DESATIVADO
-    logger.info('Solicitação para buscar dados iniciais');
-    
-    // Verificar se o cache está válido
-    if (this.isCacheValid() && this.roulettes.length > 0) {
-      logger.info('Cache válido encontrado, usando dados do cache');
-      return Promise.resolve(this.roulettes);
+  public async fetchInitialData(): Promise<any[]> {
+    // Verificar se já temos dados em cache e se são válidos
+    if (this.hasCachedData && this.lastUpdateTime > 0) {
+      const cacheAge = Date.now() - this.lastUpdateTime;
+      
+      // Se o cache é recente (menos de 2 minutos), usar dados em cache
+      if (cacheAge < 120000) {
+        logger.info(`📦 Usando dados em cache (${Math.round(cacheAge / 1000)}s)`);
+        return this.roulettes;
+      }
     }
     
-    // Verificar trava global
-    if (!this.checkAndReleaseGlobalLock()) {
-      logger.info('Trava global ativa, aguardando liberação');
-      return Promise.resolve(this.roulettes);
+    // Se alguém já está buscando dados, não fazer outra requisição
+    if (GLOBAL_IS_FETCHING) {
+      logger.warn('🔒 Outra instância já está buscando dados, aguardando...');
+      
+      // Aguardar até que o bloqueio global seja liberado
+      await new Promise<void>(resolve => {
+        const checkInterval = setInterval(() => {
+          if (!GLOBAL_IS_FETCHING) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 100);
+      });
+      
+      // Se já temos dados após a espera, retornar
+      if (this.hasCachedData) {
+        return this.roulettes;
+      }
     }
     
-    // Verificar se já há uma solicitação em andamento
-    if (this.IS_FETCHING_DATA) {
-      logger.info('Já existe uma solicitação em andamento, aguardando...');
-      return Promise.resolve(this.roulettes);
+    // Se ainda estamos processando uma requisição, não iniciar outra
+    if (this.isFetching) {
+      logger.warn('⌛ Já existe uma requisição em andamento, usando cache temporário');
+      return this.roulettes || [];
     }
     
     // Verificar o intervalo mínimo entre requisições
-    const now = Date.now();
-    if (now - this.lastRequestTime < MIN_REQUEST_INTERVAL) {
-      logger.info(`Requisição muito próxima da anterior (${now - this.lastRequestTime}ms), usando dados em cache`);
-      return Promise.resolve(this.roulettes);
+    const timeSinceLastFetch = Date.now() - this.lastFetchTime;
+    if (timeSinceLastFetch < this.minInterval) {
+      const waitTime = this.minInterval - timeSinceLastFetch;
+      logger.warn(`⏱️ Respeitando intervalo mínimo, aguardando ${waitTime}ms`);
+      
+      await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     
-    // Marcar como buscando dados (local e global)
-    this.IS_FETCHING_DATA = true;
+    // Definir bloqueio global para evitar requisições simultâneas
     GLOBAL_IS_FETCHING = true;
-    GLOBAL_LAST_REQUEST_TIME = now;
-    this.lastRequestTime = now;
     
-    const requestId = `initial_${now}`;
-    GLOBAL_PENDING_REQUESTS.add(requestId);
+    // Gerar ID único para esta requisição
+    const requestId = `initial_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     
-    logger.info('Buscando dados iniciais');
+    logger.info(`🚀 Buscando dados iniciais (ID: ${requestId})`);
     
-    return fetch(`/api/ROULETTES`)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        logger.info('Dados iniciais recebidos:', data.length);
-        this.handleRouletteData(data);
-        this.IS_FETCHING_DATA = false;
-        GLOBAL_IS_FETCHING = false;
-        GLOBAL_PENDING_REQUESTS.delete(requestId);
-        return this.roulettes;
-      })
-      .catch(error => {
-        logger.error('Erro ao buscar dados iniciais:', error);
-        this.IS_FETCHING_DATA = false;
-        GLOBAL_IS_FETCHING = false;
-        GLOBAL_PENDING_REQUESTS.delete(requestId);
-        throw error;
-      });
-    */
+    try {
+      // Realizar a requisição HTTP com recuperação automática
+      const result = await this.fetchWithRecovery(
+        `${this.baseUrl}/api/ROULETTES`,
+        requestId
+      );
+      
+      // Processar os resultados
+      if (result && Array.isArray(result)) {
+        logger.success(`✅ Dados iniciais recebidos: ${result.length} roletas`);
+        
+        // Armazenar os dados
+        this.lastUpdateTime = Date.now();
+        this.hasCachedData = true;
+        this.roulettes = result;
+        
+        // Ajustar intervalo de polling baseado no sucesso
+        this.adjustPollingInterval(false);
+        
+        // Notificar que temos novos dados
+        this.notifySubscribers(result);
+      } else {
+        logger.error('❌ Resposta inválida recebida');
+      }
+      
+      return this.roulettes;
+    } catch (error) {
+      logger.error(`❌ Erro ao buscar dados iniciais: ${error.message || 'Desconhecido'}`);
+      
+      // Ajustar intervalo em caso de erro
+      this.adjustPollingInterval(true);
+      
+      // Retornar dados em cache se existirem, ou array vazio
+      return this.roulettes || [];
+    } finally {
+      // Liberar o bloqueio global
+      GLOBAL_IS_FETCHING = false;
+    }
   }
 
   /**
    * Busca os dados mais recentes das roletas
    */
   public fetchLatestData(): Promise<any> {
-    logger.info('⛔ DESATIVADO: Solicitação para buscar dados mais recentes');
-    
-    // Simular sucesso sem fazer requisição real
-    this.requestStats.total++;
-    this.requestStats.success++;
-    this.lastSuccessfulResponse = Date.now();
-    this.lastCacheUpdate = Date.now();
-    this.consecutiveSuccesses++;
-    this.consecutiveErrors = 0;
-    
-    return Promise.resolve(this.roulettes);
-    
-    /* CÓDIGO ORIGINAL DESATIVADO
     // Verificar se podemos fazer a requisição
     if (!this.canMakeRequest()) {
       logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
@@ -531,7 +545,6 @@ export default class RouletteFeedService {
         
         return this.roulettes;
       });
-    */
   }
 
   /**
@@ -770,67 +783,63 @@ export default class RouletteFeedService {
   }
   
   /**
-   * Inicia o timer de polling para buscar dados em intervalos regulares
+   * Inicia o timer de polling
    */
   private startPollingTimer(): void {
+    // Verificar se já existe um timer ativo
     if (this.pollingTimer !== null) {
-      logger.warn('⚠️ Tentativa de iniciar novo timer enquanto um já está ativo');
-      return;
+      window.clearInterval(this.pollingTimer);
     }
     
-    // Inicializar array global de timers para depuração, se necessário
-    if (typeof window !== 'undefined' && !window._rouletteTimers) {
-      window._rouletteTimers = [];
-    }
+    // Definir intervalo inicial
+    const pollingInterval = this.currentPollingInterval;
     
-    logger.info(`🔄 Iniciando timer de polling com intervalo de ${this.currentPollingInterval}ms`);
+    logger.info(`⏱️ Iniciando timer de polling com intervalo de ${pollingInterval}ms`);
     
-    // Criar o timer de polling
-    const timerId = window.setInterval(() => {
-      logger.debug('⏱️ Executando polling programado');
-      
-      // Verificar se podemos fazer a requisição
-      if (this.canMakeRequest()) {
-        this.fetchLatestData()
-          .catch(error => {
-            logger.error('❌ Erro durante polling programado:', error);
-          });
-      } else {
-        logger.debug('⏸️ Pulando polling programado (não é possível fazer requisição agora)');
+    // Registrar o timer de polling
+    if (typeof window !== 'undefined') {
+      if (!window._rouletteTimers) {
+        window._rouletteTimers = [];
       }
-    }, this.currentPollingInterval);
-    
-    // Armazenar o ID do timer
-    this.pollingTimer = timerId;
-    
-    // Adicionar ao array global para depuração
-    if (typeof window !== 'undefined' && window._rouletteTimers) {
+      
+      // Criar um ID único para este timer
+      const timerId = Math.floor(Math.random() * 1000000);
+      
       window._rouletteTimers.push({
         id: timerId,
-        created: Date.now(),
-        interval: this.interval
+        created: new Date(),
+        interval: pollingInterval
       });
+      
+      // Limitar a 10 registros
+      if (window._rouletteTimers.length > 10) {
+        window._rouletteTimers = window._rouletteTimers.slice(-10);
+      }
     }
+    
+    // Criar o timer que fará as atualizações periódicas
+    this.pollingTimer = window.setInterval(() => {
+      // Verificar se há condições para fazer a requisição
+      if (document.visibilityState === 'visible' && !this.isPaused) {
+        this.fetchLatestData()
+          .catch(error => {
+            logger.error('❌ Erro no timer de polling:', error);
+          });
+      } else {
+        logger.debug('⏸️ Polling pausado durante intervalo (página não visível ou serviço pausado)');
+      }
+    }, pollingInterval);
   }
   
   /**
-   * Reinicia o timer de polling (usado quando o intervalo muda)
+   * Reinicia o timer de polling com o intervalo atual
    */
   private restartPollingTimer(): void {
-    // Verificar se o polling está ativo e não está pausado
-    if (!this.isPollingActive || this.isPaused) {
-      logger.debug('⏸️ Não reiniciando timer: polling inativo ou pausado');
-      return;
-    }
-    
-    // Limpar o timer existente
     if (this.pollingTimer !== null) {
-      logger.debug('🔄 Limpando timer de polling existente');
       window.clearInterval(this.pollingTimer);
       this.pollingTimer = null;
     }
     
-    // Iniciar novo timer
     this.startPollingTimer();
   }
   
@@ -1311,89 +1320,84 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Versão melhorada do método fetchLatestData com suporte a recuperação
+   * Realiza requisição com mecanismo de recuperação inteligente
    */
-  private fetchWithRecovery(url: string, requestId: string): Promise<any> {
-    logger.info(`⛔ DESATIVADO: fetchWithRecovery para URL ${url} (ID: ${requestId})`);
+  private fetchWithRecovery(url: string, requestId: string, retryCount: number = 0): Promise<any> {
+    // Registrar a tentativa de requisição
+    this.requestStats.lastMinuteRequests.push(Date.now());
+    this.lastFetchTime = Date.now();
+    this.isFetching = true;
     
-    // Simular resposta sem fazer requisição real
-    return Promise.resolve(this.roulettes);
+    // Usar o sistema de controller para poder cancelar a requisição se necessário
+    const controller = new AbortController();
+    const signal = controller.signal;
     
-    /* CÓDIGO ORIGINAL DESATIVADO
-    return new Promise((resolve, reject) => {
-      // Timeout para a requisição
-      const fetchTimeout = this.recoveryMode ? 20000 : 10000;
-      
-      // Controlador para abortar a requisição se necessário
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-        logger.warn(`⏱️ Abortando requisição ${requestId} após ${fetchTimeout}ms`);
-      }, fetchTimeout);
-      
-      fetch(url, {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        signal: controller.signal
-      })
+    // Definir timeout para abortar requisições que demoram muito
+    const timeoutId = setTimeout(() => {
+      logger.warn(`⏱️ Abortando requisição ${requestId} após 30s de timeout`);
+      controller.abort();
+    }, 30000);
+    
+    // Realizar a requisição
+    return fetch(url, { signal })
       .then(response => {
         clearTimeout(timeoutId);
         
-        // Verificar resposta HTTP
         if (!response.ok) {
-          // Tratar especificamente o código 429 (Too Many Requests)
+          // Registrar erro consecutivo
+          this.consecutiveErrors++;
+          this.consecutiveSuccesses = 0;
+          
+          // Se for erro de rate limit, ajustar o intervalo de polling
           if (response.status === 429) {
-            logger.warn('⚠️ Recebido erro 429 (Too Many Requests)');
-            
-            // Definir flag global de saúde do sistema
-            GLOBAL_SYSTEM_HEALTH = false;
-            
-            // Extrair cabeçalho Retry-After se disponível
-            const retryAfter = response.headers.get('Retry-After');
-            let waitTime = 5000; // 5 segundos por padrão
-            
-            if (retryAfter) {
-              // Pode ser em segundos ou uma data
-              if (/^\d+$/.test(retryAfter)) {
-                waitTime = parseInt(retryAfter, 10) * 1000;
-              } else {
-                const retryDate = new Date(retryAfter);
-                if (!isNaN(retryDate.getTime())) {
-                  waitTime = retryDate.getTime() - Date.now();
-                }
-              }
-            }
-            
-            logger.info(`⏱️ Aguardando ${Math.round(waitTime / 1000)}s antes de tentar novamente`);
-            
-            // Retornar um erro formatado
-            return Promise.reject({
-              status: 429,
-              waitTime,
-              message: 'Rate limit exceeded'
-            });
+            this.adjustPollingInterval(true);
+            throw { status: 429, message: 'Rate limit exceeded' };
           }
           
-          return Promise.reject({
-            status: response.status,
-            message: `HTTP error ${response.status}`
-          });
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
+        
+        // Processar resposta com sucesso
+        this.consecutiveSuccesses++;
+        this.consecutiveErrors = 0;
         
         return response.json();
       })
       .then(data => {
-        resolve(data);
+        this.isFetching = false;
+        
+        // Notificar sucesso
+        this.notifyRequestComplete(requestId, 'success');
+        
+        return data;
       })
       .catch(error => {
+        this.isFetching = false;
         clearTimeout(timeoutId);
-        reject(error);
+        
+        // Notificar erro
+        this.notifyRequestComplete(requestId, 'error');
+        
+        // Se for erro de rede, tentar novamente até 3 vezes
+        if ((error.message && error.message.includes('network')) || 
+            error.name === 'TypeError' || 
+            error.name === 'AbortError') {
+          
+          if (retryCount < 2) {
+            logger.warn(`🔄 Tentativa ${retryCount + 1} falhou, tentando novamente em 2s...`);
+            
+            // Esperar 2 segundos antes de tentar novamente
+            return new Promise(resolve => {
+              setTimeout(() => {
+                resolve(this.fetchWithRecovery(url, `${requestId}_retry${retryCount + 1}`, retryCount + 1));
+              }, 2000);
+            });
+          }
+        }
+        
+        // Se chegou aqui, não conseguiu recuperar
+        throw error;
       });
-    });
-    */
   }
 
   /**
@@ -1550,5 +1554,12 @@ export default class RouletteFeedService {
   // Função auxiliar para gerar IDs de requisição únicos
   private generateRequestId(): string {
     return `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+
+  // Método para notificar sobre o término de uma requisição
+  private notifyRequestComplete(requestId: string, status: string): void {
+    // Implemente a lógica para notificar sobre o término de uma requisição
+    // Esta é uma implementação básica e pode ser expandida conforme necessário
+    logger.info(`🔄 Requisição ${requestId} concluída com sucesso: ${status}`);
   }
 } 

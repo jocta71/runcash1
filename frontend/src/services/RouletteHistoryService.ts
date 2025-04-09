@@ -70,80 +70,41 @@ export class RouletteHistoryService {
   }
 
   private async doFetchHistoricalNumbers(rouletteName: string): Promise<number[]> {
-    try {
-      this.logger.info(`⛔ DESATIVADO: Busca de histórico para ${rouletteName} bloqueada para diagnóstico`);
-      
-      // Gerar números de fallback em vez de fazer requisição
-      const fallbackNumbers = this.generateFallbackNumbers();
-      
-      // Atualiza o cache com os números de fallback
-      this.cache[rouletteName] = {
-        data: fallbackNumbers,
-        timestamp: Date.now()
-      };
-      
-      return fallbackNumbers;
-      
-      /* CÓDIGO ORIGINAL DESATIVADO
-      this.logger.info(`Buscando histórico para ${rouletteName} da API`);
-      const startTime = Date.now();
-      
-      // Primeiro, tenta obter do serviço global que já busca os dados
-      const targetRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
-      
-      if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-        // Extrair apenas os números da roleta encontrada
-        const processedNumbers = targetRoulette.numero
-          .map((n: any) => Number(n.numero))
-          .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
-        
-        if (processedNumbers.length > 0) {
-          this.logger.info(`Obtidos ${processedNumbers.length} números do serviço global`);
-          
-          // Atualiza o cache
-          this.cache[rouletteName] = {
-            data: processedNumbers,
-            timestamp: Date.now()
-          };
-          
-          const duration = Date.now() - startTime;
-          this.logger.info(`Histórico obtido para ${rouletteName} em ${duration}ms`);
-          
-          return processedNumbers;
-        }
-      }
-      
-      // Se não tiver no serviço global, tenta buscar diretamente
-      this.logger.info(`Não encontrado no serviço global, buscando diretamente da API`);
-      
-      // Usar a função fetchWithCorsSupport em vez de axios
-      const data = await fetchWithCorsSupport<any>(`/api/ROULETTE_HISTORY/${rouletteName}`);
-      const numbers = data?.data || this.generateFallbackNumbers();
-      
-      // Atualiza o cache
-      this.cache[rouletteName] = {
-        data: numbers,
-        timestamp: Date.now()
-      };
-
-      const duration = Date.now() - startTime;
-      this.logger.info(`Histórico obtido para ${rouletteName} em ${duration}ms`);
-      
-      return numbers;
-      */
-    } catch (error) {
-      this.logger.error(`Erro ao buscar histórico para ${rouletteName}:`, error);
-      // Verificar se temos no cache mesmo expirado antes de gerar fallback
-      if (this.cache[rouletteName]) {
-        this.logger.info(`Usando cache expirado para ${rouletteName}`);
-        return this.cache[rouletteName].data;
-      }
-      return this.generateFallbackNumbers();
+    console.log(`[RouletteHistoryService] Requisição desativada para histórico da roleta ${rouletteName}`);
+    
+    // Gerando números aleatórios como fallback
+    const randomNumbers: number[] = [];
+    for (let i = 0; i < 100; i++) {
+      randomNumbers.push(Math.floor(Math.random() * 36));
     }
-  }
-
-  private generateFallbackNumbers(): number[] {
-    return Array(300).fill(0).map(() => Math.floor(Math.random() * 37));
+    
+    // Simulando um atraso para evitar loop infinito
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // DESATIVADO: Código original de requisição HTTP
+    /*
+    try {
+      const apiResponse = await fetch(`${API_BASE_URL}/api/ROULETTES/historico?id=${rouletteName}`);
+      
+      if (!apiResponse.ok) {
+        throw new Error(`Erro ao buscar histórico da roleta ${rouletteName}: ${apiResponse.statusText}`);
+      }
+      
+      const data = await apiResponse.json();
+      return data;
+    } catch (error) {
+      console.error(`[RouletteHistoryService] Erro ao buscar histórico da roleta ${rouletteName}:`, error);
+      throw error;
+    }
+    */
+    
+    // Atualiza o cache
+    this.cache[rouletteName] = {
+      data: randomNumbers,
+      timestamp: Date.now()
+    };
+    
+    return randomNumbers;
   }
 
   /**
