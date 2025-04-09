@@ -1403,39 +1403,55 @@ export default class RouletteFeedService {
   /**
    * Processa os dados de roletas recebidos
    */
-  private processRouletteData(data: any, startTime: number): void {
-    // Calcular tempo de resposta
-    const responseTime = Date.now() - startTime;
-    logger.debug(`⚡ Resposta recebida em ${responseTime}ms`);
-    
-    // Processar os dados
-    if (Array.isArray(data)) {
-      // Atualizar a lista de roletas
-      this.roulettesList = data;
+  private processRouletteData(data: any, startTime?: number): void {
+    try {
+      // Calcular tempo de resposta se fornecido
+      if (startTime) {
+        const responseTime = Date.now() - startTime;
+        logger.debug(`⚡ Resposta recebida em ${responseTime}ms`);
+      }
       
-      // Processar cada roleta individualmente
-      let validRoulettes = 0;
-      data.forEach(roleta => {
-        if (this.validateRouletteData(roleta)) {
-          this.handleRouletteData(roleta);
-          validRoulettes++;
+      // Processar os dados
+      if (Array.isArray(data)) {
+        // Atualizar a lista de roletas
+        this.roulettesList = data;
+        
+        // Processar cada roleta individualmente
+        let validRoulettes = 0;
+        data.forEach(roleta => {
+          if (this.validateRouletteData(roleta)) {
+            this.handleRouletteData(roleta);
+            validRoulettes++;
+          }
+        });
+        
+        // Notificar que os dados foram atualizados
+        EventService.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          count: validRoulettes
+        });
+        
+        // Registrar sucesso
+        this.consecutiveErrors = 0;
+        this.consecutiveSuccesses++;
+        this.lastSuccessTimestamp = Date.now();
+        
+        logger.info(`✅ ${validRoulettes} roletas válidas obtidas com sucesso`);
+      } else {
+        // Caso seja um objeto único
+        if (this.validateRouletteData(data)) {
+          this.handleRouletteData(data);
+          logger.info('✅ Dados de roleta processados com sucesso');
+        } else {
+          logger.warn('❌ Formato de dados inválido');
+          this.consecutiveErrors++;
         }
-      });
+      }
       
-      // Notificar que os dados foram atualizados
-      EventService.emit('roulette:data-updated', {
-        timestamp: new Date().toISOString(),
-        count: validRoulettes
-      });
-      
-      // Registrar sucesso
-      this.consecutiveErrors = 0;
-      this.consecutiveSuccesses++;
-      this.lastSuccessTimestamp = Date.now();
-      
-      logger.info(`✅ ${validRoulettes} roletas válidas obtidas com sucesso`);
-    } else {
-      logger.warn('❌ Formato de resposta inválido (não é um array)');
+      // Atualizar o cache
+      this.updateRouletteCache(data);
+    } catch (error) {
+      logger.error(`❌ Erro ao processar dados: ${error instanceof Error ? error.message : String(error)}`);
       this.consecutiveErrors++;
     }
   }
@@ -1535,33 +1551,67 @@ export default class RouletteFeedService {
 
   /**
    * Atualiza o cache de roletas com os dados mais recentes
-   * @param data Dados normalizados da roleta
+   * @param data Dados normalizados da roleta ou array de roletas
    */
   private updateRouletteCache(data: any): void {
     try {
-      // Identificar a roleta pelo ID ou nome
-      const roletaId = String(data.roleta_id || data.id || '');
-      const roletaNome = String(data.roleta_nome || data.nome || '');
-      
-      if (!roletaId && !roletaNome) {
-        logger.warn('⚠️ Impossível atualizar cache de roleta sem identificadores');
-        return;
+      // Caso seja um array, processar cada item individualmente
+      if (Array.isArray(data)) {
+        logger.info(`💾 Atualizando cache com ${data.length} roletas`);
+        
+        // Para cada roleta, verificar se já existe no cache e se há atualizações
+        data.forEach(roleta => {
+          const roletaId = roleta.id || roleta._id || roleta.roleta_id;
+          
+          if (!roletaId) {
+            logger.warn('⚠️ Roleta sem ID ignorada:', roleta);
+            return;
+          }
+          
+          const cachedRoulette = this.rouletteDataCache.get(roletaId);
+          
+          // Verificar se temos uma atualização para esta roleta
+          if (!cachedRoulette || this.hasNewRouletteData(cachedRoulette, roleta)) {
+            this.rouletteDataCache.set(roletaId, roleta);
+            this.hasNewData = true;
+          }
+        });
+      } else {
+        // Caso seja um objeto único, processar diretamente
+        // Identificar a roleta pelo ID ou nome
+        const roletaId = String(data.roleta_id || data.id || '');
+        const roletaNome = String(data.roleta_nome || data.nome || '');
+        
+        if (!roletaId && !roletaNome) {
+          logger.warn('⚠️ Impossível atualizar cache de roleta sem identificadores');
+          return;
+        }
+        
+        // Definir a chave para o cache (preferência para ID)
+        const cacheKey = roletaId || roletaNome;
+        
+        // Atualizar ou adicionar ao cache
+        this.rouletteDataCache.set(cacheKey, {
+          ...data,
+          last_updated: Date.now()
+        });
+        
+        logger.debug(`💾 Cache atualizado para roleta: ${roletaNome || roletaId}`);
       }
-      
-      // Definir a chave para o cache (preferência para ID)
-      const cacheKey = roletaId || roletaNome;
-      
-      // Atualizar ou adicionar ao cache
-      this.rouletteDataCache.set(cacheKey, {
-        ...data,
-        last_updated: Date.now()
-      });
-      
-      logger.debug(`💾 Cache atualizado para roleta: ${roletaNome || roletaId}`);
       
       // Atualizar timestamp do cache
       this.lastCacheUpdate = Date.now();
       this.hasNewData = true;
+      
+      // Se há novos dados, notificar os componentes
+      if (this.hasNewData) {
+        logger.info('🔔 Novos dados detectados, notificando componentes');
+        
+        // Emitir evento global para notificar os componentes
+        EventService.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString()
+        });
+      }
     } catch (error) {
       logger.error(`❌ Erro ao atualizar cache de roleta: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -1937,29 +1987,6 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Notifica sobre atualização de dados
-   */
-  private notifyDataUpdate(): void {
-    try {
-      // Notificar outras instâncias sobre a atualização de dados
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const updateData = {
-          timestamp: Date.now(),
-          instanceId: INSTANCE_ID
-        };
-        
-        // Salvar no localStorage para que outras instâncias possam detectar
-        window.localStorage.setItem(DATA_UPDATE_KEY, JSON.stringify(updateData));
-        
-        // Também notificar via Event Service
-        EventService.emit('roulette:data-updated', updateData);
-      }
-    } catch (error) {
-      logger.error(`❌ Erro ao notificar sobre atualização de dados: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  /**
    * Método para inicializar o serviço
    */
   async initialize() {
@@ -2031,5 +2058,34 @@ export default class RouletteFeedService {
       this.logger.error(`❌ Erro ao processar dados das roletas: ${error}`);
       throw error;
     }
+  }
+
+  /**
+   * Método para lidar com erros durante o fetch
+   * @param errorType Tipo do erro
+   * @param originalError Erro original (opcional)
+   */
+  private handleFetchError(errorType: string, originalError?: any): void {
+    // Incrementar contador de erros
+    this.consecutiveErrors++;
+    this.consecutiveSuccesses = 0;
+    
+    // Registrar o erro
+    logger.error(`❌ Erro ao buscar dados: ${errorType}`, originalError);
+    
+    // Ajustar intervalo em caso de erros consecutivos
+    if (this.consecutiveErrors > 1) {
+      this.adjustPollingInterval(true);
+    }
+    
+    // Guardar o tipo do último erro
+    this.lastErrorType = errorType;
+    
+    // Emitir evento de erro para interessados
+    EventService.emit('roulette:api-error', {
+      type: errorType,
+      timestamp: new Date().toISOString(),
+      error: originalError ? String(originalError) : 'Unknown error'
+    });
   }
 } 

@@ -29,7 +29,7 @@ import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import RouletteNumbers from './RouletteNumbers';
-import RouletteApi from '@/services/RouletteApi';
+import { RouletteApi } from '@/services/api/rouletteApi';
 
 // Logger específico para este componente
 const logger = getLogger('RouletteCard');
