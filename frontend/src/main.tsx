@@ -39,40 +39,113 @@ function initializeRoulettesSystem() {
   
   logger.info('Inicializando sistema centralizado de roletas');
   
-  // Inicializar os serviços em ordem
-  const socketService = SocketService.getInstance();
-  const eventService = EventService.getInstance();
-  const rouletteFeedService = RouletteFeedService.getInstance();
+  // Inicializar os serviços em ordem com tratamento de erros
+  let socketService, eventService, rouletteFeedService;
   
-  // Registrar o SocketService no RouletteFeedService
-  rouletteFeedService.registerSocketService(socketService);
+  try {
+    // Verificar se SocketService existe e tem o método getInstance
+    if (typeof SocketService === 'undefined') {
+      throw new Error('SocketService não definido');
+    }
+    
+    if (typeof SocketService.getInstance !== 'function') {
+      logger.error('SocketService não tem método getInstance, tentando usar diretamente');
+      socketService = SocketService;
+    } else {
+      socketService = SocketService.getInstance();
+    }
+    
+    // Verificar EventService
+    if (typeof EventService === 'undefined') {
+      throw new Error('EventService não definido');
+    }
+    
+    if (typeof EventService.getInstance !== 'function') {
+      logger.error('EventService não tem método getInstance, tentando usar diretamente');
+      eventService = EventService;
+    } else {
+      eventService = EventService.getInstance();
+    }
+    
+    // Verificar RouletteFeedService
+    if (typeof RouletteFeedService === 'undefined') {
+      throw new Error('RouletteFeedService não definido');
+    }
+    
+    if (typeof RouletteFeedService.getInstance !== 'function') {
+      logger.error('RouletteFeedService não tem método getInstance, tentando usar diretamente');
+      rouletteFeedService = RouletteFeedService;
+    } else {
+      rouletteFeedService = RouletteFeedService.getInstance();
+    }
+    
+    // Registrar o SocketService no RouletteFeedService se ambos existirem
+    if (rouletteFeedService && socketService && typeof rouletteFeedService.registerSocketService === 'function') {
+      rouletteFeedService.registerSocketService(socketService);
+    } else {
+      logger.warn('Não foi possível registrar SocketService no RouletteFeedService');
+    }
+  } catch (error) {
+    logger.error('Erro ao inicializar serviços:', error);
+    
+    // Criar serviços de fallback para permitir que a aplicação carregue mesmo com erros
+    socketService = socketService || {
+      getInstance: () => ({}),
+      loadHistoricalRouletteNumbers: () => Promise.resolve([])
+    };
+    
+    eventService = eventService || {
+      getInstance: () => ({}),
+      dispatchEvent: () => {}
+    };
+    
+    rouletteFeedService = rouletteFeedService || {
+      getInstance: () => ({}),
+      fetchInitialData: () => Promise.resolve([]),
+      startPolling: () => {},
+      stop: () => {}
+    };
+  }
   
   // Buscar dados iniciais uma única vez
   logger.info('Realizando busca inicial única de dados de roletas...');
-  rouletteFeedService.fetchInitialData().then(data => {
-    logger.info(`Dados iniciais obtidos: ${data.length} roletas`);
-    // Disparar evento para notificar componentes
-    eventService.dispatchEvent({
-      type: 'roulette:data-updated',
-      data: {
-        source: 'initial-load',
-        timestamp: new Date().toISOString()
+  
+  // Verificar se rouletteFeedService existe e tem o método necessário
+  if (rouletteFeedService && typeof rouletteFeedService.fetchInitialData === 'function') {
+    rouletteFeedService.fetchInitialData().then(data => {
+      logger.info(`Dados iniciais obtidos: ${Array.isArray(data) ? data.length : 0} roletas`);
+      
+      // Verificar se eventService existe e tem o método dispatchEvent
+      if (eventService && typeof eventService.dispatchEvent === 'function') {
+        eventService.dispatchEvent({
+          type: 'roulette:data-updated',
+          data: {
+            source: 'initial-load',
+            timestamp: new Date().toISOString()
+          }
+        });
       }
+      
+      // Verificar se rouletteFeedService tem o método startPolling
+      if (rouletteFeedService && typeof rouletteFeedService.startPolling === 'function') {
+        rouletteFeedService.startPolling();
+        logger.info('Polling de roletas iniciado (intervalo de 10s)');
+      }
+    }).catch(error => {
+      logger.error('Erro ao carregar dados iniciais:', error);
     });
-    
-    // Iniciar polling com intervalo de 10 segundos
-    rouletteFeedService.startPolling();
-    logger.info('Polling de roletas iniciado (intervalo de 10s)');
-  }).catch(error => {
-    logger.error('Erro ao carregar dados iniciais:', error);
-  });
+  } else {
+    logger.error('Não foi possível iniciar carregamento de dados: rouletteFeedService não disponível ou mal configurado');
+  }
   
   // Marcar como inicializado
   window.ROULETTE_SYSTEM_INITIALIZED = true;
   
   // Adicionar função para limpar recursos quando a página for fechada
   window.addEventListener('beforeunload', () => {
-    rouletteFeedService.stop();
+    if (rouletteFeedService && typeof rouletteFeedService.stop === 'function') {
+      rouletteFeedService.stop();
+    }
     window.ROULETTE_SYSTEM_INITIALIZED = false;
     logger.info('Sistema de roletas finalizado');
   });
@@ -86,7 +159,26 @@ function initializeRoulettesSystem() {
 
 // Inicializar o SocketService logo no início para estabelecer conexão antecipada
 logger.info('Inicializando SocketService antes do render...');
-const socketService = SocketService.getInstance(); // Inicia a conexão
+let socketServiceInstance;
+
+try {
+  // Verificar se o SocketService existe e tem o método getInstance
+  if (typeof SocketService === 'undefined') {
+    throw new Error('SocketService não definido');
+  }
+  
+  if (typeof SocketService.getInstance !== 'function') {
+    logger.warn('SocketService não tem método getInstance, tentando usar diretamente');
+    socketServiceInstance = SocketService;
+  } else {
+    socketServiceInstance = SocketService.getInstance(); // Inicia a conexão
+  }
+} catch (error) {
+  logger.error('Erro ao inicializar SocketService:', error);
+  socketServiceInstance = {
+    loadHistoricalRouletteNumbers: () => Promise.resolve([])
+  };
+}
 
 // Informa ao usuário que a conexão está sendo estabelecida
 logger.info('Conexão com o servidor sendo estabelecida em background...');
@@ -115,7 +207,7 @@ window.fetch = function(input, init) {
 
 // Iniciar pré-carregamento de dados históricos
 logger.info('Iniciando pré-carregamento de dados históricos...');
-socketService.loadHistoricalRouletteNumbers().catch(err => {
+socketServiceInstance.loadHistoricalRouletteNumbers().catch(err => {
   logger.error('Erro ao pré-carregar dados históricos:', err);
 });
 

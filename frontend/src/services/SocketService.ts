@@ -505,6 +505,11 @@ class SocketService {
   }
 }
 
-// Exportar uma instância única como padrão
+// Exportar uma instância única como padrão e também a classe
 const socketService = SocketService.getInstance();
+
+// Exportar diretamente a classe também para compatibilidade com código minificado
+export { SocketService };
+
+// Exportar a instância singleton como padrão
 export default socketService; 

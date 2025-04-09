@@ -407,5 +407,8 @@ export class EventService {
   }
 }
 
-// Exportar a instância para uso direto
-export default EventService.getInstance(); 
+// Exportar a instância para uso direto e a própria classe
+const eventServiceInstance = EventService.getInstance();
+
+// Exportar a instância singleton como padrão
+export default eventServiceInstance; 

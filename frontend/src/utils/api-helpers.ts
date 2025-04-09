@@ -1,3 +1,5 @@
+import config from '@/config/env';
+
 /**
  * Utilitário para fazer requisições HTTP com suporte a CORS
  * Implementa mecanismos para contornar problemas de CORS e fornecer fallbacks
@@ -55,11 +57,61 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
   } catch (error) {
     console.error(`[API] Erro na requisição para ${url}:`, error);
     
-    // Tentar método alternativo com proxy CORS (se disponível)
+    // Tentar novamente com modo no-cors se estiver habilitado
+    if (config.enableNoCorsMode) {
+      try {
+        console.log(`[API] Tentando com modo no-cors para ${url}`);
+        
+        const noCorsOptions: RequestInit = {
+          ...options,
+          mode: 'no-cors',
+          headers: {
+            ...(options?.headers || {}),
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          credentials: 'omit'
+        };
+        
+        const noCorsResponse = await fetch(url, noCorsOptions);
+        console.log(`[API] ✅ Resposta recebida via no-cors: ${url}`);
+        
+        // Como não podemos ler os dados no modo no-cors, usar um proxy CORS
+        return await useCorsProxy(url) as T;
+      } catch (noCorsError) {
+        console.error(`[API] Tentativa no-cors falhou para ${url}:`, noCorsError);
+      }
+    }
+    
+    // Tentar método alternativo com proxy CORS (se disponível e habilitado)
+    if (config.enableCorsProxy) {
+      try {
+        console.log(`[API] Tentando método alternativo de proxy para ${url}`);
+        return await useCorsProxy(url) as T;
+      } catch (proxyError) {
+        console.error(`[API] Método alternativo falhou para ${url}:`, proxyError);
+      }
+    }
+    
+    // Se chegamos aqui, todos os métodos falharam
+    throw new Error(`Falha na requisição para ${endpoint}: ${error}`);
+  }
+}
+
+/**
+ * Função auxiliar para usar proxy CORS
+ */
+async function useCorsProxy(url: string): Promise<any> {
+  // Usar um dos vários proxies CORS públicos
+  const proxyOptions = [
+    `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+    `https://cors-anywhere.herokuapp.com/${url}`,
+    `https://corsproxy.io/?${encodeURIComponent(url)}`
+  ];
+  
+  // Tentar cada proxy
+  for (const proxyUrl of proxyOptions) {
     try {
-      console.log(`[API] Tentando método alternativo para ${url}`);
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-      
       const proxyResponse = await fetch(proxyUrl);
       if (!proxyResponse.ok) {
         throw new Error(`Erro HTTP no proxy: ${proxyResponse.status}`);
@@ -67,24 +119,29 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
       
       const proxyData = await proxyResponse.json();
       
-      if (proxyData && proxyData.contents) {
-        // O proxy retorna os dados no campo 'contents' como string, precisamos fazer parse
+      // Verificar o formato da resposta de acordo com o proxy usado
+      if (proxyUrl.includes('allorigins') && proxyData.contents) {
         try {
           const parsedData = JSON.parse(proxyData.contents);
-          console.log(`[API] ✅ Resposta recebida via proxy CORS: ${url}`);
-          return parsedData as T;
+          console.log(`[API] ✅ Resposta recebida via proxy CORS (allorigins): ${url}`);
+          return parsedData;
         } catch (parseError) {
           console.error('[API] Erro ao fazer parse da resposta do proxy:', parseError);
           throw new Error('Erro ao processar resposta do proxy CORS');
         }
+      } else {
+        // Para outros proxies, assumimos que o objeto retornado já é o que precisamos
+        console.log(`[API] ✅ Resposta recebida via proxy CORS (genérico): ${url}`);
+        return proxyData;
       }
-    } catch (proxyError) {
-      console.error(`[API] Método alternativo falhou para ${url}:`, proxyError);
+    } catch (error) {
+      console.error(`[API] Erro no proxy ${proxyUrl}:`, error);
+      // Continuar tentando o próximo proxy
     }
-    
-    // Se chegamos aqui, ambos os métodos falharam
-    throw new Error(`Falha na requisição para ${endpoint}: ${error}`);
   }
+  
+  // Se todos os proxies falharem
+  throw new Error('Todos os métodos de proxy CORS falharam');
 }
 
 /**

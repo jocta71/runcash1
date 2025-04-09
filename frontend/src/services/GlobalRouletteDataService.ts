@@ -119,7 +119,7 @@ class GlobalRouletteDataService {
       console.log('[GlobalRouletteService] Buscando dados atualizados da API');
       
       // Usar a função utilitária com suporte a CORS
-      const data = await fetchWithCorsSupport<any[]>('/api/ROULETTES?limit=1000');
+      const data = await fetchWithCorsSupport<any[]>('/ROULETTES?limit=1000');
       
       // Verificar se os dados são válidos
       if (data && Array.isArray(data)) {

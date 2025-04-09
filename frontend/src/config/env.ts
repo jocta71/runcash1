@@ -24,6 +24,8 @@ interface EnvConfig {
   debugMode: boolean;
   env: string;
   optimizePollingForVisibility?: boolean;
+  enableNoCorsMode?: boolean;
+  enableCorsProxy?: boolean;
 }
 
 // Configuração para ambiente de produção
@@ -31,7 +33,9 @@ const productionConfig: EnvConfig = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backend-production-2f96.up.railway.app',
   debugMode: false,
   env: 'production',
-  optimizePollingForVisibility: true
+  optimizePollingForVisibility: true,
+  enableNoCorsMode: true,
+  enableCorsProxy: true
 };
 
 // Configuração para ambiente de desenvolvimento
@@ -39,7 +43,9 @@ const developmentConfig: EnvConfig = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002',
   debugMode: true,
   env: 'development',
-  optimizePollingForVisibility: false
+  optimizePollingForVisibility: false,
+  enableNoCorsMode: false,
+  enableCorsProxy: false
 };
 
 /**
@@ -136,5 +142,7 @@ export default {
   apiBaseUrl: getApiBaseUrl(),
   
   // Novas propriedades
-  optimizePollingForVisibility: isProduction
+  optimizePollingForVisibility: isProduction,
+  enableNoCorsMode: isProduction,
+  enableCorsProxy: isProduction
 }; 
