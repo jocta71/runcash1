@@ -141,8 +141,8 @@ export default {
   apiUrl: getRequiredEnvVar('VITE_API_URL') || getRequiredEnvVar('VITE_API_BASE_URL'),
   apiBaseUrl: getApiBaseUrl(),
   
-  // Novas propriedades
+  // Desativando verificações de CORS temporariamente
   optimizePollingForVisibility: isProduction,
-  enableNoCorsMode: isProduction,
-  enableCorsProxy: isProduction
+  enableNoCorsMode: false, // Desativado temporariamente
+  enableCorsProxy: false   // Desativado temporariamente
 }; 
