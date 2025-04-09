@@ -1098,8 +1098,8 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Processa dados recebidos da roleta
-   * @param data Dados recebidos
+   * Processa os dados da roleta recebidos de diferentes fontes
+   * @param data Dados da roleta para processar
    */
   private handleRouletteData(data: any): void {
     try {
@@ -1122,7 +1122,7 @@ export default class RouletteFeedService {
         }
         
         // Notificar assinantes sobre a atualização
-        this.notifySubscribers('global_update', data);
+        this.notifyDataUpdate();
         return;
       }
       
@@ -1151,12 +1151,71 @@ export default class RouletteFeedService {
       logger.info(`🎲 Atualizando roleta: ${roletaNome || roletaId}`);
       
       // Atualizar o cache com os novos dados
-      this.updateRouletteInCache(data);
+      this.updateRouletteData(data);
       
       // Notificar assinantes sobre a atualização individual
-      this.notifySubscribers('update', data);
+      this.notifySubscribers(data);
     } catch (error) {
       logger.error(`❌ Erro ao processar atualização de roleta: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  
+  /**
+   * Atualiza os dados de uma roleta específica no cache
+   * @param data Dados da roleta para atualizar
+   */
+  private updateRouletteData(data: any): void {
+    try {
+      // Identificar a roleta pelo ID ou nome
+      const roletaId = String(data.roleta_id || data.id || '');
+      const roletaNome = String(data.roleta_nome || data.name || '');
+      
+      if (!roletaId && !roletaNome) {
+        logger.warn('⚠️ Impossível atualizar roleta sem identificadores');
+        return;
+      }
+      
+      // Definir a chave para o cache (preferência para ID)
+      const cacheKey = roletaId || roletaNome;
+      
+      // Verificar se já existe no cache
+      const existingData = this.rouletteDataCache.get(cacheKey);
+      
+      if (existingData) {
+        // Mesclar dados existentes com novos dados
+        const updatedData = {
+          ...existingData,
+          ...data,
+          // Garantir que o ID e nome sejam preservados
+          id: roletaId || existingData.id,
+          name: roletaNome || existingData.name,
+          // Atualizar timestamp
+          last_updated: new Date().toISOString()
+        };
+        
+        this.rouletteDataCache.set(cacheKey, updatedData);
+        logger.debug(`📝 Roleta atualizada no cache: ${roletaNome || roletaId}`);
+      } else {
+        // Adicionar nova entrada no cache
+        const newData = {
+          ...data,
+          // Garantir que o ID e nome estejam definidos
+          id: roletaId,
+          name: roletaNome,
+          // Adicionar timestamp
+          last_updated: new Date().toISOString(),
+          first_seen: new Date().toISOString()
+        };
+        
+        this.rouletteDataCache.set(cacheKey, newData);
+        logger.info(`➕ Nova roleta adicionada ao cache: ${roletaNome || roletaId}`);
+      }
+      
+      // Atualizar timestamp do cache
+      this.lastCacheUpdate = Date.now();
+      this.hasNewData = true;
+    } catch (error) {
+      logger.error(`❌ Erro ao atualizar dados da roleta no cache: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   
@@ -1367,49 +1426,6 @@ export default class RouletteFeedService {
   }
   
   /**
-   * Atualiza os dados de uma roleta no cache
-   * @param data Dados da roleta para atualizar
-   */
-  private updateRouletteData(data: any): void {
-    try {
-      // Identificar a roleta pelo ID
-      const roletaId = data.roleta_id?.toString();
-      
-      if (!roletaId) {
-        logger.warn('⚠️ Tentativa de atualização com ID de roleta indefinido');
-      return;
-    }
-    
-      // Verificar se a roleta já existe na lista
-      const existingIndex = this.roulettesList.findIndex(
-        r => r.roleta_id?.toString() === roletaId
-      );
-
-      if (existingIndex >= 0) {
-        // Atualizar roleta existente
-        logger.debug(`🔄 Atualizando roleta existente: ${data.roleta_nome || roletaId}`);
-        this.roulettesList[existingIndex] = {
-          ...this.roulettesList[existingIndex],
-          ...data,
-          lastUpdated: new Date().toISOString()
-        };
-      } else {
-        // Adicionar nova roleta
-        logger.info(`➕ Adicionando nova roleta: ${data.roleta_nome || roletaId}`);
-        this.roulettesList.push({
-          ...data,
-          lastUpdated: new Date().toISOString()
-        });
-      }
-
-      // Notificar subscribers sobre a atualização
-      this.notifySubscribers(data);
-    } catch (error) {
-      logger.error(`❌ Erro ao atualizar dados da roleta: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  /**
    * Busca dados com recuperação automática
    */
   private fetchWithRecovery(url: string, requestId: string): Promise<any> {
@@ -1544,7 +1560,7 @@ export default class RouletteFeedService {
       
       // Extrair IDs e nomes
       const roletaId = item.roleta_id || item.id;
-      const roletaNome = item.roleta_nome || item.nome || 'Roleta sem nome';
+      const roletaNome = item.roleta_nome || item.name || 'Roleta sem nome';
       
       if (!roletaId) {
         logger.warn(`⚠️ Item sem ID válido`);
@@ -1591,60 +1607,46 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Valida se os dados da roleta têm a estrutura correta
-   * @param data Dados a serem validados
-   * @returns Verdadeiro se os dados são válidos
+   * Valida os dados de uma roleta
+   * @param data Dados da roleta para validar
+   * @returns true se os dados forem válidos, false caso contrário
    */
   private validateRouletteData(data: any): boolean {
-    try {
-      if (!data) {
-        logger.warn('⚠️ Dados da roleta são nulos ou indefinidos');
+    if (!data) {
+      logger.warn('⚠️ Dados de roleta inválidos: nulos ou indefinidos');
+      return false;
+    }
+
+    // Caso seja uma atualização global (global_update)
+    if (data.event_type === 'global_update') {
+      // Verificar se há dados no objeto
+      if (!data.data) {
+        logger.warn('⚠️ Evento global_update sem dados');
         return false;
       }
       
-      // Verificar se é um evento do tipo global_update
-      if (data.type === 'global_update') {
-        // Para eventos global_update, verificar se o campo data existe
-        if (!data.data) {
-          logger.warn('⚠️ Evento global_update sem campo data');
-          return false;
-        }
-        
-        // Se data for um array, validar o primeiro item como exemplo
-        if (Array.isArray(data.data)) {
-          if (data.data.length === 0) {
-            logger.warn('⚠️ Evento global_update com array vazio');
-            return false;
-          }
-          
-          // Validar o primeiro item como exemplo
-          return this.validateRouletteData(data.data[0]);
-        }
-        
-        // Se não for array, validar o objeto data diretamente
-        return this.validateRouletteData(data.data);
-      }
+      // Verificar se temos pelo menos um identificador (ID ou nome)
+      const hasValidId = data.data.roleta_id || data.data.id;
+      const hasValidName = data.data.roleta_nome || data.data.name;
       
-      // Verificar campos essenciais para identificação da roleta
-      const hasId = typeof data.id === 'string' || typeof data.id === 'number';
-      const hasName = typeof data.name === 'string' && data.name.trim() !== '';
-      
-      // Verificar campos alternativos usados por algumas fontes
-      const hasRoletaId = typeof data.roleta_id === 'string' || typeof data.roleta_id === 'number';
-      const hasRoletaNome = typeof data.roleta_nome === 'string' && data.roleta_nome.trim() !== '';
-      
-      // Verificar se o objeto tem pelo menos um identificador válido
-      const hasIdentifier = hasId || hasName || hasRoletaId || hasRoletaNome;
-      
-      if (!hasIdentifier) {
-        logger.warn(`⚠️ Dados sem identificador válido: ${JSON.stringify(data).substring(0, 100)}`);
+      if (!hasValidId && !hasValidName) {
+        logger.warn('⚠️ Evento global_update sem identificadores válidos');
         return false;
       }
       
       return true;
-    } catch (error) {
-      logger.error(`❌ Erro ao validar dados da roleta: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    
+    // Caso seja um objeto de roleta normal
+    // Verificar se temos pelo menos um identificador (ID ou nome)
+    const hasValidId = data.roleta_id || data.id;
+    const hasValidName = data.roleta_nome || data.name;
+    
+    if (!hasValidId && !hasValidName) {
+      logger.warn('⚠️ Dados de roleta sem identificadores válidos');
       return false;
     }
+    
+    return true;
   }
 }
