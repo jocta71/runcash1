@@ -1,70 +1,34 @@
-import React, { useEffect, useState } from 'react';
-import SocketService from '../services/SocketService';
-import { RouletteEvent, RouletteNumberEvent } from '../services/EventService';
+import React, { useState, useEffect } from 'react';
 
 interface RouletteNumbersProps {
-  roletaId: string;
-  roletaNome: string;
-  maxNumbers?: number;
+  numbers: number[];
+  limit?: number;
 }
 
-const RouletteNumbers: React.FC<RouletteNumbersProps> = ({
-  roletaId,
-  roletaNome,
-  maxNumbers = 20
+const RouletteNumbers: React.FC<RouletteNumbersProps> = ({ 
+  numbers,
+  limit = 5
 }) => {
-  const [numbers, setNumbers] = useState<number[]>([]);
-  
-  useEffect(() => {
-    const socketService = SocketService.getInstance();
-    
-    // Carregar histórico inicial
-    const initialHistory = socketService.getRouletteHistory(roletaId);
-    setNumbers(initialHistory.slice(0, maxNumbers));
-    
-    // Função para processar novos números
-    const handleRouletteEvent = (event: RouletteEvent) => {
-      if (event.type === 'new_number') {
-        const numberEvent = event as RouletteNumberEvent;
-        setNumbers(prev => {
-          const newNumbers = [numberEvent.numero, ...prev];
-          return newNumbers.slice(0, maxNumbers);
-        });
-      } else if (event.type === 'history_update') {
-        setNumbers(event.numeros.slice(0, maxNumbers));
-      }
-    };
-    
-    // Inscrever para receber atualizações
-    socketService.subscribe(roletaId, handleRouletteEvent);
-    
-    // Limpar inscrição ao desmontar
-    return () => {
-      socketService.unsubscribe(roletaId, handleRouletteEvent);
-    };
-  }, [roletaId, maxNumbers]);
-  
+  // Função para determinar a cor de um número
+  const getNumberColor = (num: number): string => {
+    if (num === 0) {
+      return 'bg-green-600';
+    }
+    return num % 2 === 0 ? 'bg-black' : 'bg-red-600';
+  };
+
   return (
-    <div className="roulette-numbers">
-      <div className="flex flex-wrap gap-2">
-        {numbers.map((number, index) => (
-          <div
-            key={`${roletaId}-${index}`}
-            className={`
-              w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold
-              ${number === 0 ? 'bg-green-600' : 
-                number % 2 === 0 ? 'bg-red-600' : 'bg-black'}
-            `}
-          >
-            {number}
-          </div>
-        ))}
-      </div>
-      
-      {numbers.length === 0 && (
-        <div className="text-gray-500 text-sm">
-          Aguardando números...
+    <div className="flex flex-wrap gap-1">
+      {numbers.slice(0, limit).map((num, index) => (
+        <div
+          key={index}
+          className={`${getNumberColor(num)} w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm`}
+        >
+          {num}
         </div>
+      ))}
+      {numbers.length === 0 && (
+        <div className="text-gray-500 text-sm">Sem números disponíveis</div>
       )}
     </div>
   );
