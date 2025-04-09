@@ -14,4 +14,4 @@ export default RESTSocketService;
 export type {
   HistoryRequest,
   HistoryData
-} from "./RESTSocketService"; 
+} from "./RESTSocketService";
