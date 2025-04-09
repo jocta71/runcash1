@@ -75,7 +75,7 @@ class RESTSocketService {
     console.log('[RESTSocketService] Inicializando serviço REST API com polling');
     
     // Configurar intervalos de polling mais agressivos para garantir atualizações em tempo real
-    this.pollingInterval = 3000; // Reduzir para 3 segundos
+    this.pollingInterval = 2000; // Reduzir para 2 segundos para maior frequência
     
     // Adicionar listener global para logging de todos os eventos
     this.subscribe('*', (event: any) => {
@@ -103,16 +103,10 @@ class RESTSocketService {
       this.checkTimerHealth();
     }, 10000);
     
-    // Iniciar um timer mais frequente para forçar a exibição dos novos números
+    // Iniciar um timer muito frequente para forçar a exibição dos novos números no RouletteCard
     setInterval(() => {
-      this.forceUpdateAllListeners();
-    }, 2500); // Reduzir para 2.5 segundos
-
-    // Não iniciar o polling para o endpoint secundário
-    // Comentado pois não está funcionando como esperado
-    // setTimeout(() => {
-    //   this.startSecondEndpointPolling();
-    // }, 1000);
+      this.forceUpdateAllRouletteCards();
+    }, 1500); // Usar intervalo ainda menor (1.5 segundos) para atualizações mais frequentes
   }
 
   // Manipular alterações de visibilidade da página
@@ -267,12 +261,12 @@ class RESTSocketService {
         // Obter histórico existente e mesclar com os novos números
         const existingHistory = this.rouletteHistory.get(roulette.id) || [];
         
-        // Verificar se temos números novos para esta roleta
-        const isNewData = this.hasNewNumbers(numbers, existingHistory);
+        // Verificar se temos números novos para esta roleta - SEMPRE processar!
+        // Forçar atualização em todos os casos para garantir que o componente receba os dados
+        const isNewData = true; // this.hasNewNumbers(numbers, existingHistory);
         
-        // Se temos dados novos ou forçamos atualização, processar
         if (isNewData) {
-          console.log(`[RESTSocketService] Novos números detectados para roleta ${roulette.nome || roulette.id}`);
+          console.log(`[RESTSocketService] Processando números para roleta ${roulette.nome || roulette.id}`);
           
           // Mesclar, evitando duplicações e preservando ordem (novos primeiro)
           const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
@@ -286,12 +280,11 @@ class RESTSocketService {
           // Emitir evento com o número mais recente (versão compatível)
           this.emitRouletteNumberEvent(roulette, 'limit-endpoint');
           
-          // Também emitir em formatos alternativos que podem ser esperados pelo RouletteCard
+          // Também emitir em todos os formatos possíveis para garantir compatibilidade
           this.emitCompatibilityEvents(roulette, true);
-        } else {
-          // Mesmo sem números novos, vamos emitir um evento de atualização
-          // para garantir que o componente se mantenha sincronizado
-          this.emitRouletteNumberEvent(roulette, 'refresh-endpoint');
+          
+          // Emitir evento direto no formato usado pelo RouletteCard
+          this.emitRouletteCardFormat(roulette.id, roulette.nome || roulette.id, limitedHistory);
         }
       }
       
@@ -836,31 +829,38 @@ class RESTSocketService {
   }
   
   // Função para notificar ouvintes sobre atualizações em todas as roletas
-  private forceUpdateAllListeners(): void {
-    console.log('[RESTSocketService] Forçando atualização para todos os listeners');
+  private forceUpdateAllRouletteCards(): void {
+    console.log('[RESTSocketService] Forçando atualização em todos os RouletteCards');
     
-    // Para cada roleta no histórico, emitir um evento de atualização
+    // Para cada roleta no histórico, emitir um evento formatado especificamente para o RouletteCard
     this.rouletteHistory.forEach((numbers, roletaId) => {
       if (numbers.length > 0) {
-        const lastNumber = numbers[0];
+        // Buscar nome da roleta
+        const roletaData = this.lastReceivedData.get(roletaId);
+        const roletaNome = roletaData?.data?.nome || roletaId;
         
-        // Criar eventos simplificados para atualização forçada
+        // Emitir no formato do RouletteCard
+        this.emitRouletteCardFormat(roletaId, roletaNome, numbers);
+        
+        // Emitir também outro evento para garantir compatibilidade máxima
         const evento = {
-          type: 'forced_update',
+          type: 'new_numbers_update',
           roleta_id: roletaId,
-          roleta_nome: roletaId, // Pode ser melhorado se tivermos o nome armazenado
-          numero: lastNumber,
-          cor: this.determinarCorNumero(lastNumber),
-          timestamp: new Date().toISOString(),
-          historico: numbers.map(n => ({ 
-            numero: n, 
-            cor: this.determinarCorNumero(n) 
+          roleta_nome: roletaNome,
+          numero: numbers[0],
+          cor: this.determinarCorNumero(numbers[0]),
+          numeros: numbers.map(n => ({
+            numero: n,
+            cor: this.determinarCorNumero(n)
           })),
-          source: 'forced-update'
+          timestamp: new Date().toISOString(),
+          source: 'forced-roulette-card-update'
         };
         
         // Notificar pelo ID da roleta
         this.notifySpecificListener(roletaId, evento);
+        // Notificar pelo nome da roleta
+        this.notifySpecificListener(roletaNome, evento);
       }
     });
   }
@@ -936,6 +936,40 @@ class RESTSocketService {
     }
     
     this.connectionActive = false;
+  }
+
+  // Emitir evento no formato específico esperado pelo RouletteCard
+  private emitRouletteCardFormat(roletaId: string, roletaNome: string, historico: number[]): void {
+    if (historico.length === 0) return;
+    
+    const ultimoNumero = historico[0];
+    
+    // Formatação exata que o componente RouletteCard espera
+    const rouletteCardEvent = {
+      type: 'roulette_card_update',
+      roleta_id: roletaId,
+      roleta_nome: roletaNome,
+      numero: ultimoNumero,
+      cor: this.determinarCorNumero(ultimoNumero),
+      numeros: historico.map(n => ({
+        numero: n,
+        cor: this.determinarCorNumero(n)
+      })),
+      historico: historico.map(n => ({
+        numero: n,
+        cor: this.determinarCorNumero(n)
+      })),
+      timestamp: new Date().toISOString(),
+      source: 'direct-roulette-card-format'
+    };
+    
+    // Emitir o evento para o ID específico da roleta
+    this.notifySpecificListener(roletaId, rouletteCardEvent);
+    
+    // Emitir também para o nome da roleta
+    this.notifyListeners(rouletteCardEvent);
+    
+    console.log(`[RESTSocketService] Emitido evento específico para RouletteCard: ${roletaId}, número ${ultimoNumero}`);
   }
 }
 
