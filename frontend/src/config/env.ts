@@ -31,7 +31,7 @@ interface EnvConfig {
 
 // Configuração para ambiente de produção
 const productionConfig: EnvConfig = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'wss://backend-production-2f96.up.railway.app',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api',
   websocketUrl: import.meta.env.VITE_WEBSOCKET_URL ? String(import.meta.env.VITE_WEBSOCKET_URL) : 'wss://backend-production-2f96.up.railway.app',
   debugMode: false,
   env: 'production',
@@ -40,7 +40,7 @@ const productionConfig: EnvConfig = {
 
 // Configuração para ambiente de desenvolvimento
 const developmentConfig: EnvConfig = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'ws://localhost:3000',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002',
   websocketUrl: import.meta.env.VITE_WEBSOCKET_URL ? String(import.meta.env.VITE_WEBSOCKET_URL) : 'ws://localhost:3000',
   debugMode: true,
   env: 'development',
@@ -48,11 +48,34 @@ const developmentConfig: EnvConfig = {
 };
 
 /**
- * Obtém a URL base da API (via WebSocket)
- * @returns URL base do WebSocket
+ * Obtém a URL base da API
+ * @returns URL base da API
  */
 export function getApiBaseUrl(): string {
-  return getSocketUrl();
+  // Primeiro tentar obter VITE_API_BASE_URL
+  try {
+    const apiUrl = getRequiredEnvVar('VITE_API_BASE_URL');
+    return apiUrl;
+  } catch (error) {
+    // Se não encontrar, tentar VITE_API_URL
+    try {
+      const apiUrl = getRequiredEnvVar('VITE_API_URL');
+      return apiUrl;
+    } catch (error) {
+      console.warn('[ENV] Não foi possível encontrar URL da API nas variáveis de ambiente');
+      
+      // Em produção, usar a origem da página
+      if (isProduction) {
+        const origin = window.location.origin;
+        console.log(`[ENV] Usando origem da página como URL da API: ${origin}/api`);
+        return `${origin}/api`;
+      }
+      
+      // Em desenvolvimento, retornar URL padrão
+      console.log('[ENV] Usando URL padrão da API para desenvolvimento');
+      return 'https://backendapi-production-36b5.up.railway.app/api';
+    }
+  }
 }
 
 /**
@@ -117,31 +140,20 @@ export function getSocketUrl(): string {
     let configuredUrl = getRequiredEnvVar('VITE_WS_URL');
     
     // Garantir que a URL use o protocolo wss://
-    if (configuredUrl && !configuredUrl.startsWith('wss://') && !configuredUrl.startsWith('ws://')) {
+    if (configuredUrl && !configuredUrl.startsWith('wss://')) {
       if (configuredUrl.startsWith('https://')) {
         console.warn('[ENV] Convertendo URL de https:// para wss://');
         configuredUrl = configuredUrl.replace('https://', 'wss://');
       } else if (configuredUrl.startsWith('http://')) {
-        console.warn('[ENV] Convertendo URL de http:// para ws://');
-        configuredUrl = configuredUrl.replace('http://', 'ws://');
+        console.warn('[ENV] Convertendo URL de http:// para wss://');
+        configuredUrl = configuredUrl.replace('http://', 'wss://');
       }
-    }
-    
-    // Verificar se a URL termina com / e não com /api/ 
-    if (configuredUrl.endsWith('/') && !configuredUrl.endsWith('/api/')) {
-      console.warn('[ENV] Adicionando /api ao caminho da URL WebSocket');
-      configuredUrl = configuredUrl + 'api/';
-    }
-    // Adicionar api/ se não estiver presente e não terminar com /
-    else if (!configuredUrl.includes('/api/') && !configuredUrl.endsWith('/')) {
-      console.warn('[ENV] Adicionando /api/ ao caminho da URL WebSocket');
-      configuredUrl = configuredUrl + '/api/';
     }
     
     return configuredUrl;
   } catch (error) {
     console.warn('Não foi possível determinar a URL do socket, usando valor padrão');
-    return isProduction ? 'wss://backend-production-2f96.up.railway.app/api/' : 'ws://localhost:3000/api/';
+    return 'wss://backend-production-2f96.up.railway.app';
   }
 }
 

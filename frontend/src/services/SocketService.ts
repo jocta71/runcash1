@@ -67,19 +67,19 @@ class SocketService {
   private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
   private connectionActive: boolean = false;
   private connectionAttempts: number = 0;
-  private reconnectTimeout: number | null = null;
-  private timerId: NodeJS.Timeout | null = null;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private timerId: ReturnType<typeof setTimeout> | null = null;
   private eventHandlers: Record<string, (data: any) => void> = {};
   private autoReconnect: boolean = true;
   private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
   // Novo mapa para rastrear promessas pendentes de listeners assíncronos
-  private pendingPromises: Map<string, { promise: Promise<any>, timeout: NodeJS.Timeout }> = new Map();
+  private pendingPromises: Map<string, { promise: Promise<any>, timeout: ReturnType<typeof setTimeout> }> = new Map();
   
   // Propriedade para o cliente MongoDB (pode ser undefined em alguns contextos)
   public client?: MongoClient;
   
   // Mapa para armazenar os intervalos de polling por roletaId
-  private pollingIntervals: Map<string, any> = new Map();
+  private pollingIntervals: Map<string, ReturnType<typeof setInterval>> = new Map();
   private pollingInterval: number = 15000; // Intervalo padrão de 15 segundos para polling
   private minPollingInterval: number = 10000; // 10 segundos mínimo
   private maxPollingInterval: number = 60000; // 1 minuto máximo
@@ -713,34 +713,153 @@ class SocketService {
    */
   public requestRecentNumbers(): void {
     try {
-    console.log('[SocketService] Solicitando números recentes de todas as roletas');
-    
-      // Buscar todas as roletas reais (sem filtro)
-      this.fetchRealRoulettes().then(roletas => {
-        if (roletas && roletas.length > 0) {
-          console.log(`[SocketService] Encontradas ${roletas.length} roletas para solicitar números`);
-          
-          // Solicitar números para todas as roletas sem filtrar
-          roletas.forEach(roleta => {
-            const roletaId = roleta._id || roleta.id;
-            const roletaNome = roleta.nome || roleta.name || `Roleta ${roletaId?.substring(0, 8)}`;
-            
-            if (roletaId) {
-              console.log(`[SocketService] Solicitando dados para ${roletaNome} (${roletaId})`);
-              
-              // Usar REST API para buscar números
-              this.fetchRouletteNumbersREST(roletaId);
-            }
-          });
-    } else {
-          console.warn('[SocketService] Nenhuma roleta disponível para solicitar números');
+      console.log('[SocketService] Solicitando números recentes de todas as roletas via WebSocket');
+      
+      if (!this.socket || !this.connectionActive) {
+        console.warn('[SocketService] Socket não está conectado, tentando reconexão antes de solicitar dados');
+        this.connect();
+        setTimeout(() => this.requestRecentNumbers(), 2000);
+        return;
+      }
+
+      // Emitir evento para solicitar todos os dados de roletas via WebSocket
+      this.socket.emit('get_all_roulettes', {}, (response: any) => {
+        if (!response || response.error) {
+          console.error('[SocketService] Erro ao solicitar roletas via WebSocket:', response?.error || 'Resposta vazia');
+          this.requestRouletteDataFallback();
+          return;
         }
-      }).catch(error => {
-        console.error('[SocketService] Erro ao buscar roletas para solicitar números:', error);
+        
+        const roletas = Array.isArray(response) ? response : response.data;
+        
+        if (!roletas || roletas.length === 0) {
+          console.warn('[SocketService] Nenhuma roleta retornada via WebSocket, usando fallback');
+          this.requestRouletteDataFallback();
+          return;
+        }
+        
+        console.log(`[SocketService] Recebidas ${roletas.length} roletas via WebSocket`);
+        
+        // Processar cada roleta recebida
+        roletas.forEach((roleta: any) => {
+          if (!roleta) return;
+          
+          const roletaId = roleta._id || roleta.id;
+          const roletaNome = roleta.nome || roleta.name || `Roleta ${roletaId?.substring(0, 8)}`;
+          
+          if (!roletaId) {
+            console.warn('[SocketService] Roleta sem ID válido:', roleta);
+            return;
+          }
+          
+          // Se a roleta já tem dados de números, processá-los diretamente
+          if (roleta.numeros || roleta.numero) {
+            const numeros = roleta.numeros || roleta.numero || [];
+            console.log(`[SocketService] Processando ${numeros.length} números para ${roletaNome} (${roletaId})`);
+            this.processNumbersData(numeros, roleta);
+          } else {
+            // Se não tem dados, solicitar especificamente para esta roleta
+            this.requestRouletteNumbers(roletaId, roletaNome);
+          }
+        });
+        
+        // Notificar que recebemos os dados
+        EventService.emitGlobalEvent('roulettes_loaded', { count: roletas.length });
       });
     } catch (error) {
-      console.error('[SocketService] Erro ao solicitar números recentes:', error);
+      console.error('[SocketService] Erro ao solicitar números recentes via WebSocket:', error);
+      this.requestRouletteDataFallback();
     }
+  }
+  
+  /**
+   * Solicita números para uma roleta específica via WebSocket
+   */
+  private requestRouletteNumbers(roletaId: string, roletaNome: string): void {
+    if (!this.socket || !this.connectionActive) {
+      console.warn(`[SocketService] Socket não conectado ao solicitar dados para ${roletaNome}`);
+      return;
+    }
+    
+    console.log(`[SocketService] Solicitando números para ${roletaNome} (${roletaId}) via WebSocket`);
+    
+    // Emitir evento para solicitar números da roleta específica
+    this.socket.emit('get_roulette_numbers', { roleta_id: roletaId }, (response: any) => {
+      if (!response || response.error) {
+        console.error(`[SocketService] Erro ao obter números para ${roletaNome}:`, response?.error || 'Resposta vazia');
+        return;
+      }
+      
+      const numeros = response.numeros || response.numero || response.data || [];
+      
+      if (Array.isArray(numeros) && numeros.length > 0) {
+        console.log(`[SocketService] Recebidos ${numeros.length} números para ${roletaNome}`);
+        this.processNumbersData(numeros, { _id: roletaId, nome: roletaNome });
+      } else {
+        console.warn(`[SocketService] Nenhum número recebido para ${roletaNome}`);
+      }
+    });
+  }
+  
+  /**
+   * Fallback para quando a solicitação WebSocket falha
+   * Implementa mecanismo alternativo via WebSocket para obter os dados
+   */
+  private requestRouletteDataFallback(): void {
+    console.log('[SocketService] Executando fallback para obtenção de dados de roleta');
+    
+    if (!this.socket || !this.connectionActive) {
+      console.warn('[SocketService] Socket não conectado, tentando reconexão');
+      this.connect();
+      return;
+    }
+    
+    // Tentar endpoint alternativo via WebSocket
+    this.socket.emit('get_roulettes_data', {}, (response: any) => {
+      if (!response || response.error) {
+        console.error('[SocketService] Falha no fallback WebSocket:', response?.error || 'Resposta vazia');
+        this.emitSystemErrorEvent('falha_conexao_websocket', 'Falha ao obter dados via WebSocket');
+        return;
+      }
+      
+      // Processar os dados recebidos
+      const roletas = Array.isArray(response) ? response : response.data || [];
+      
+      if (roletas.length > 0) {
+        console.log(`[SocketService] Fallback recuperou ${roletas.length} roletas`);
+        
+        // Processar os dados de cada roleta
+        roletas.forEach((roleta: any) => {
+          const numeros = roleta.numeros || roleta.numero || [];
+          if (numeros.length > 0) {
+            this.processNumbersData(numeros, roleta);
+          }
+        });
+        
+        // Notificar que recuperamos os dados via fallback
+        EventService.emitGlobalEvent('roulettes_fallback_loaded', { count: roletas.length });
+      } else {
+        console.warn('[SocketService] Fallback não conseguiu recuperar dados de roletas');
+      }
+    });
+  }
+  
+  /**
+   * Emite um evento de erro do sistema
+   */
+  private emitSystemErrorEvent(tipo: string, mensagem: string): void {
+    EventService.emitGlobalEvent('system_error', {
+      type: tipo,
+      message: mensagem,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Também mostrar um toast para o usuário
+    toast({
+      title: "Erro de conexão",
+      description: mensagem,
+      variant: "destructive"
+    });
   }
   
   // Método para processar dados dos números recebidos
@@ -1680,67 +1799,6 @@ class SocketService {
     }
   }
 
-  // Novo método para solicitar dados específicos de uma roleta
-  // Retorna Promise<boolean> indicando se novos dados foram recebidos
-  private async requestRouletteUpdate(roletaId: string, roletaNome: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      // Verificar se temos socket ativo
-      if (!this.socket || !this.connectionActive) {
-        console.log(`[SocketService] Socket não conectado ao tentar solicitar dados para ${roletaNome}`);
-        resolve(false);
-      return;
-    }
-    
-      // Flag para verificar se recebemos resposta
-      let receivedResponse = false;
-      let responseTimeout: NodeJS.Timeout;
-      
-      // Função de callback para quando receber os dados
-      const onData = (data: any) => {
-        // Limpar o timeout
-        clearTimeout(responseTimeout);
-        
-        // Verificar se temos dados válidos
-        const hasValidData = data && 
-          (Array.isArray(data.numeros) && data.numeros.length > 0 || 
-           Array.isArray(data.numero) && data.numero.length > 0);
-        
-        if (hasValidData) {
-          console.log(`[SocketService] Recebidos dados reais para ${roletaNome}`);
-          receivedResponse = true;
-          resolve(true);
-        } else {
-          console.log(`[SocketService] Resposta sem dados novos para ${roletaNome}`);
-          resolve(false);
-        }
-        
-        // Remover este listener após a resposta
-        this.socket?.off(`roulette_update_${roletaId}`, onData);
-      };
-      
-      // Configurar timeout para caso não receba resposta
-      responseTimeout = setTimeout(() => {
-        // Se não recebeu resposta em tempo hábil
-        if (!receivedResponse) {
-          this.socket?.off(`roulette_update_${roletaId}`, onData);
-          console.log(`[SocketService] Timeout ao aguardar resposta para ${roletaNome}`);
-          resolve(false);
-        }
-      }, 3000);
-      
-      // Registrar o evento para receber a resposta
-      this.socket.on(`roulette_update_${roletaId}`, onData);
-      
-      // Solicitar os dados da roleta
-      console.log(`[SocketService] Solicitando dados para ${roletaNome} (${roletaId})`);
-      this.socket.emit('get_roulette_data', {
-        roleta_id: roletaId,
-        roleta_nome: roletaNome,
-        timestamp: new Date().toISOString()
-      });
-    });
-  }
-
   // Adicione este método após o construtor
   private setupUnhandledRejectionHandler(): void {
     // Handler global para promises não tratadas
@@ -2058,42 +2116,6 @@ class SocketService {
       return false;
     }
     return true;
-  }
-
-  // Método para buscar todos os dados via WebSocket
-  public requestAllRouletteData(): void {
-    if (!this.socket || !this.socket.connected) {
-      console.warn('[SocketService] Socket não conectado. Não é possível solicitar dados.');
-      return;
-    }
-    
-    console.log('[SocketService] Solicitando dados de todas as roletas via WebSocket');
-    
-    // Emitir evento para solicitar dados com o endpoint correto
-    this.socket.emit('get_all_roulettes', { endpoint: '/api/ROULETTES' });
-    
-    // Tentar subscrever ao canal ROULETTES especificamente
-    this.subscribeToChannel('ROULETTES');
-    
-    // Registrar timestamp da solicitação para timeout
-    const requestId = `req_${Date.now()}`;
-    console.log(`[SocketService] Solicitação enviada: ${requestId}`);
-    
-    // Configurar timeout
-    setTimeout(() => {
-      console.log(`[SocketService] Verificando status da solicitação ${requestId}...`);
-    }, 5000);
-  }
-
-  // Método para subscrever a um canal específico
-  private subscribeToChannel(channel: string): void {
-    if (!this.socket || !this.socket.connected) {
-      console.warn(`[SocketService] Socket não conectado. Não é possível subscrever ao canal ${channel}.`);
-      return;
-    }
-    
-    console.log(`[SocketService] Subscrevendo ao canal: ${channel}`);
-    this.socket.emit('subscribe', { channel });
   }
 }
 
