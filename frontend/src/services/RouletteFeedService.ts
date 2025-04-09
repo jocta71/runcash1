@@ -74,6 +74,15 @@ interface RequestInfo {
   service: string;
 }
 
+// Interface para as opções do construtor
+interface RouletteFeedServiceOptions {
+  autoStart?: boolean;
+  initialInterval?: number;
+  minInterval?: number;
+  maxInterval?: number;
+  historySize?: number;
+}
+
 /**
  * Serviço para obter atualizações das roletas usando polling único
  * Intervalo ajustado para 10 segundos conforme especificação
@@ -113,6 +122,21 @@ export default class RouletteFeedService {
   private maxRequestsPerMinute: number = 30; // Limite de 30 requisições por minuto
   private backoffMultiplier: number = 1.5; // Multiplicador para backoff em caso de falhas
   
+  // Propriedades adicionais usadas no construtor
+  private initialInterval: number = NORMAL_POLLING_INTERVAL;
+  private currentPollingInterval: number = NORMAL_POLLING_INTERVAL;
+  private historySize: number = 20;
+  private roulettesList: any[] = [];
+  private lastSuccessTimestamp: number = 0;
+  private rouletteHistory: Map<string, any> = new Map();
+  private isInBackoff: boolean = false;
+  private globalLock: boolean = false;
+  
+  // Propriedades adicionais necessárias para a operação do serviço
+  private hasCachedData: boolean = false;
+  private lastUpdateTime: number = 0;
+  private baseUrl: string = '';
+  
   // Flags e temporizadores
   private isInitialized: boolean = false;
   private isPollingActive: boolean = false;
@@ -145,7 +169,6 @@ export default class RouletteFeedService {
   // Adicionar propriedades para o sistema de recuperação
   private consecutiveErrors: number = 0;
   private consecutiveSuccesses: number = 0;
-  private currentPollingInterval: number = NORMAL_POLLING_INTERVAL;
   private recoveryTimer: number | null = null;
   private lastErrorType: string | null = null;
   private recoveryMode: boolean = false;
@@ -179,13 +202,13 @@ export default class RouletteFeedService {
     this.minInterval = minInterval;
     this.maxInterval = maxInterval;
     this.historySize = historySize;
-    this.subscribers = new Map();
+    this.subscribers = [];  // Inicializar como array vazio em vez de Map
     this.roulettesList = [];
     this.lastSuccessTimestamp = 0;
     this.rouletteHistory = new Map();
     this.isPaused = false;
     this.isPollingActive = false;
-    this.pendingRequests = new Map();
+    this.pendingRequests = {}; // Inicializar como objeto vazio em vez de Map
     this.isInBackoff = false;
     this.isFetching = false;
     this.globalLock = false;

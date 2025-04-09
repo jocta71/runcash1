@@ -96,6 +96,12 @@ export class Logger {
     }
   }
   
+  success(message: string, ...args: any[]): void {
+    if (this.shouldLog(LogLevel.INFO)) {
+      console.log('%c' + this.formatMessage(message), 'color: green; font-weight: bold', ...args);
+    }
+  }
+  
   verbose(message: string, ...args: any[]): void {
     if (this.shouldLog(LogLevel.VERBOSE)) {
       console.log(this.formatMessage(message), ...args);
