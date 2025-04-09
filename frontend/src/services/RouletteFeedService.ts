@@ -14,7 +14,7 @@ const MAX_CONSECUTIVE_ERRORS = 50; // Máximo de erros consecutivos antes de pau
 const HEALTH_CHECK_INTERVAL = 30000; // Verificar a saúde do sistema a cada 30 segundos
 
 // Adicionar constantes para o sistema de recuperação inteligente
-const NORMAL_POLLING_INTERVAL = 8000; // 8 segundos em condições normais
+const NORMAL_POLLING_INTERVAL = 1000; // 1 segundo em condições normais
 const ERROR_POLLING_INTERVAL = 15000; // 15 segundos quando ocorrem erros
 const MAX_ERROR_POLLING_INTERVAL = 8000; // 8 segundos no máximo após vários erros
 const RECOVERY_CHECK_INTERVAL = 60000; // 1 minuto para verificação de recuperação completa
@@ -706,88 +706,17 @@ export default class RouletteFeedService {
       return;
     }
     
-    logger.info(`📦 Atualizando cache com ${data.length} roletas`);
+    logger.info(`📦 Atualizando cache interno com ${data.length} roletas`);
     
-    // Atualizar o cache
-    this.rouletteDataCache.clear();
+    // Atualizar o cache interno
     data.forEach(roulette => {
       this.rouletteDataCache.set(roulette.id, roulette);
     });
     
-    // Atualizar o tempo de atualização
+    // Atualizar o tempo de atualização do cache
     this.lastCacheUpdate = Date.now();
     
-    // Emitir evento de atualização
-    this.notifyDataUpdate();
-  }
-  
-  /**
-   * Verifica se o cache é válido
-   */
-  private isCacheValid(): boolean {
-    const now = Date.now();
-    const cacheAge = now - this.lastCacheUpdate;
-    return cacheAge < this.cacheTTL;
-  }
-  
-  /**
-   * Notifica os assinantes sobre uma nova atualização de dados
-   */
-  private notifyDataUpdate(): void {
-    this.subscribers.forEach(subscriber => {
-      subscriber(this.roulettes);
-    });
-  }
-  
-  /**
-   * Notifica os assinantes sobre uma nova atualização de dados
-   */
-  private notifySubscribers(data: any[]): void {
-    this.subscribers.forEach(subscriber => {
-      subscriber(data);
-    });
-  }
-  
-  /**
-   * Verifica e limpa requisições antigas (mais de 15 segundos)
-   */
-  private cleanupStalePendingRequests(): void {
-    try {
-      if (typeof window !== 'undefined' && window._pendingRequests) {
-        const now = Date.now();
-        let cleanedCount = 0;
-        
-        // Verificar todas as requisições pendentes
-        Object.entries(window._pendingRequests).forEach(([requestId, requestInfo]) => {
-          const requestAge = now - requestInfo.timestamp;
-          
-          // Se a requisição estiver pendente há mais de 15 segundos, considerá-la perdida
-          if (requestAge > 15000) {
-            logger.warn(`🗑️ Limpando requisição pendente ${requestId} (idade: ${Math.round(requestAge / 1000)}s)`);
-            delete window._pendingRequests[requestId];
-            cleanedCount++;
-          }
-        });
-        
-        if (cleanedCount > 0) {
-          logger.info(`🧹 Limpas ${cleanedCount} requisições pendentes antigas`);
-          
-          // Se estávamos travados por causa dessas requisições, liberar o estado global
-          if (window._requestInProgress) {
-            logger.info('🔓 Liberando trava global de requisições após limpeza');
-            window._requestInProgress = false;
-          }
-        }
-      }
-    } catch (error) {
-      logger.error('❌ Erro ao limpar requisições pendentes:', error);
-    }
-  }
-  
-  /**
-   * Verifica e limpa requisições antigas (mais de 15 segundos)
-   */
-  private verifyAndCleanupStaleRequests(): void {
-    this.cleanupStalePendingRequests();
+    // Notificar assinantes sobre a atualização
+    this.notifySubscribers(data);
   }
 }
