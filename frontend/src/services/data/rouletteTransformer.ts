@@ -162,11 +162,15 @@ export function transformRouletteData(rawData: any) {
     
     console.log(`[Transformer] Processando roleta: ${name} (ID: ${originalId}), Números: ${processedNumbers.length}`);
     
+    // Extrair números simples para a propriedade numero (para compatibilidade)
+    const numeroSimples = processedNumbers.map(n => n.number);
+    
     return {
       id: originalId,
       uuid: rawData._id || rawData.id,
       name,
       numbers: processedNumbers,
+      numero: numeroSimples, // Adicionando array de números simples para compatibilidade
       active: rawData.ativa !== false,
       strategyState: rawData.estado_estrategia || 'NEUTRAL',
       wins: rawData.vitorias || 0,
@@ -174,11 +178,14 @@ export function transformRouletteData(rawData: any) {
     };
   } catch (error) {
     console.error('[Transformer] Erro ao transformar dados da roleta:', error);
+    // Gerar números fallback mesmo em caso de erro
+    const fallbackNumbers = generateFallbackNumbers();
     return {
       id: '0', 
       uuid: '0',
       name: 'Erro',
-      numbers: generateFallbackNumbers(),
+      numbers: fallbackNumbers,
+      numero: fallbackNumbers.map(n => n.number), // Adicionando array de números simples
       active: false,
       strategyState: 'ERROR',
       wins: 0,

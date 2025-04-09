@@ -16,6 +16,7 @@ export interface RouletteData {
     color: string;
     timestamp: string;
   }>;
+  numero?: number[];
   active: boolean;
   strategyState: string;
   wins: number;
@@ -79,7 +80,20 @@ export const RouletteRepository = {
           }
           
           // Transformar dados para o formato padronizado
-          const transformedData = rawData.map(transformRouletteData);
+          const transformedData = rawData.map(roulette => {
+            // Chamar o transformador para cada roleta
+            const transformed = transformRouletteData(roulette);
+            
+            // IMPORTANTE: Garantir que a propriedade 'numero' também contenha os números
+            // Isso é necessário porque alguns componentes buscam por 'numero' em vez de 'numbers'
+            if (transformed.numbers && transformed.numbers.length > 0) {
+              // Usar asserção de tipo para informar ao TypeScript que estamos modificando o objeto
+              (transformed as RouletteData & { numero: number[] }).numero = transformed.numbers.map(n => n.number);
+              logger.debug(`Roleta ${transformed.name}: números gerados pelo fallback copiados para 'numero'`);
+            }
+            
+            return transformed;
+          });
           
           // Salvar em cache
           cache.set(cacheKey, {
