@@ -99,8 +99,8 @@ class SocketService {
   private circuitBreakerActive: boolean = false;
   private circuitBreakerResetTimeout: any = null;
   private consecutiveFailures: number = 0;
-  private failureThreshold: number = 3; // Reduzido para ativar mais rápido
-  private resetTime: number = 30000; // Reduzido para 30 segundos para tentar reconectar mais cedo
+  private failureThreshold: number = 5; // Quantas falhas para ativar o circuit breaker
+  private resetTime: number = 60000; // 1 minuto de espera antes de tentar novamente
   
   private constructor() {
     console.log('[SocketService] Inicializando serviço Socket.IO');
@@ -325,27 +325,20 @@ class SocketService {
   
   private getSocketUrl(): string {
     try {
-      // Se o circuit breaker estiver ativo, não tentar conectar novamente
-      if (this.circuitBreakerActive) {
-        console.log('[SocketService] Circuit breaker ativo, usando URL local para modo offline');
-        // Retornar uma URL que não vai tentar conectar a um servidor remoto
-        return window.location.origin;
-      }
-      
       // Tentar obter do arquivo de configuração primeiro
       const configUrl = config.wsUrl;
       if (configUrl && configUrl.length > 5) {
-        console.log(`[SocketService] Usando URL do Socket.IO da configuração: ${configUrl}`);
+        console.log(`[SocketService] Usando URL do WebSocket da configuração: ${configUrl}`);
         return configUrl;
       }
     } catch (error) {
-      console.warn('[SocketService] Erro ao obter URL do Socket.IO da configuração:', error);
+      console.warn('[SocketService] Erro ao obter URL do WebSocket da configuração:', error);
     }
     
-    // URL do serviço backend
-    const backendUrl = 'https://backend-production-2f96.up.railway.app';
-    console.log(`[SocketService] Usando URL do Socket.IO do backend: ${backendUrl}`);
-    return backendUrl;
+    // URL alternativa para backendscraper
+    const scraperUrl = 'wss://backendscraper-production.up.railway.app';
+    console.log(`[SocketService] Usando URL do WebSocket do scraper: ${scraperUrl}`);
+    return scraperUrl;
   }
   
   private connect(): void {
@@ -365,10 +358,10 @@ class SocketService {
 
     try {
       const wsUrl = this.getSocketUrl();
-      console.log('[SocketService] Conectando ao servidor Socket.IO:', wsUrl);
+      console.log('[SocketService] Conectando ao servidor WebSocket:', wsUrl);
       
       this.socket = io(wsUrl, {
-        transports: ['polling'],
+        transports: ['websocket'],
         autoConnect: true,
         reconnection: true,
         reconnectionAttempts: 10,
@@ -434,27 +427,8 @@ class SocketService {
         }
       });
 
-      this.socket.on('connect_error', (error) => {
-        console.error('[SocketService] Erro ao conectar ao servidor:', error);
-        
-        // Incrementar falhas consecutivas e verificar se deve ativar o circuit breaker
-        this.handleCircuitBreaker(false, 'connect_error');
-        
-        // Mostrar toast informativo apenas na primeira falha
-        if (this.consecutiveFailures === 1) {
-          toast({
-            title: "Falha na conexão em tempo real",
-            description: "O servidor está temporariamente indisponível. Usando dados em cache.",
-            variant: "destructive"
-          });
-        }
-      });
-
       this.socket.on('error', (error) => {
-        console.error('[SocketService] Erro na conexão Socket.IO:', error);
-        
-        // Marcar falha para o circuit breaker
-        this.handleCircuitBreaker(false, 'socket_error');
+        console.error('[SocketService] Erro na conexão WebSocket:', error);
       });
 
       // Configurar handler genérico de eventos
@@ -2077,8 +2051,12 @@ class SocketService {
         
         this.circuitBreakerActive = true;
         
-        // Ativar modo offline
-        this.activateOfflineMode();
+        // Mostrar notificação para o usuário
+        toast({
+          title: "Servidor sobrecarregado",
+          description: "Reduzindo frequência de chamadas para evitar sobrecarga",
+          variant: "warning"
+        });
         
         // Programar reset do circuit breaker
         if (this.circuitBreakerResetTimeout) {
@@ -2111,42 +2089,6 @@ class SocketService {
       return false;
     }
     return true;
-  }
-
-  // Método para ativar modo offline
-  private activateOfflineMode(): void {
-    console.log('[SocketService] Ativando modo offline devido a problemas de conexão');
-    
-    // Notificar modo offline via toast
-    toast({
-      title: "Modo offline ativado",
-      description: "Usando dados em cache. Tentaremos reconectar automaticamente.",
-      variant: "default"
-    });
-    
-    // Emitir evento global de modo offline
-    EventService.emitGlobalEvent('connection_state_changed', {
-      status: 'offline',
-      timestamp: new Date().toISOString()
-    });
-    
-    // Usar dados em cache para todas as roletas
-    this.useAllCachedData();
-  }
-  
-  // Método para usar todos os dados em cache
-  private useAllCachedData(): void {
-    console.log('[SocketService] Carregando todos os dados em cache para modo offline');
-    
-    // Usar todos os dados em cache disponíveis
-    this.rouletteDataCache.forEach((cachedData, roletaId) => {
-      const roleta = cachedData.data;
-      const numeros = roleta.numero || roleta.numeros || roleta.historico || [];
-      
-      if (Array.isArray(numeros) && numeros.length > 0) {
-        this.processNumbersData(numeros, roleta);
-      }
-    });
   }
 }
 
