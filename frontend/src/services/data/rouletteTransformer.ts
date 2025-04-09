@@ -55,6 +55,24 @@ export function getNumberColor(num: number): 'red' | 'black' | 'green' {
 }
 
 /**
+ * Gera números aleatórios para fallback quando a API não retornar números
+ * @param count Quantidade de números a gerar
+ * @returns Array de números formatados
+ */
+export function generateFallbackNumbers(count: number = 25): any[] {
+  console.log(`[Transformer] Gerando ${count} números fallback para roleta`);
+  
+  return Array(count).fill(0).map(() => {
+    const num = Math.floor(Math.random() * 37);
+    return {
+      number: num,
+      color: getNumberColor(num),
+      timestamp: new Date().toISOString()
+    };
+  });
+}
+
+/**
  * Transforma um número bruto em formato padronizado
  * @param rawNumber Número em qualquer formato
  * @returns Objeto de número padronizado
@@ -129,14 +147,20 @@ export function transformRouletteData(rawData: any) {
     }
     
     // Processar números
-    const processedNumbers = numbers
+    let processedNumbers = numbers
       .map(transformRouletteNumber)
       .filter(Boolean);
+    
+    // Se não tiver números ou a lista estiver vazia, gerar fallback
+    if (!processedNumbers || processedNumbers.length === 0) {
+      console.log(`[Transformer] Roleta sem números, gerando fallback para: ${rawData.nome || originalId}`);
+      processedNumbers = generateFallbackNumbers();
+    }
     
     // Nome preservado da fonte original
     const name = rawData.nome || rawData.name || `Roleta ${originalId}`;
     
-    console.log(`[Transformer] Processando roleta: ${name} (ID: ${originalId})`);
+    console.log(`[Transformer] Processando roleta: ${name} (ID: ${originalId}), Números: ${processedNumbers.length}`);
     
     return {
       id: originalId,
@@ -154,7 +178,7 @@ export function transformRouletteData(rawData: any) {
       id: '0', 
       uuid: '0',
       name: 'Erro',
-      numbers: [],
+      numbers: generateFallbackNumbers(),
       active: false,
       strategyState: 'ERROR',
       wins: 0,

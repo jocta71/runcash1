@@ -12,17 +12,6 @@ export const RouletteApi = {
    */
   async fetchAllRoulettes() {
     try {
-      console.log('[API] ⛔ DESATIVADO: Busca de todas as roletas bloqueada para diagnóstico');
-      
-      // Retornar dados fictícios em vez de fazer a requisição
-      return Array(5).fill(0).map((_, index) => ({
-        roleta_id: index + 1,
-        _id: `roulette-${index + 1}`,
-        nome: `Roleta ${index + 1}`,
-        numeros: []
-      }));
-      
-      /* CÓDIGO ORIGINAL DESATIVADO
       console.log('[API] Buscando todas as roletas disponíveis');
       const response = await axios.get(ENDPOINTS.ROULETTES);
       
@@ -45,7 +34,6 @@ export const RouletteApi = {
       });
       
       return processedRoulettes;
-      */
     } catch (error) {
       console.error('[API] Erro ao buscar roletas:', error);
       return [];
@@ -132,12 +120,6 @@ export const RouletteApi = {
    */
   async fetchRouletteHistory(rouletteName: string) {
     try {
-      console.log(`[API] ⛔ DESATIVADO: Busca de histórico para roleta ${rouletteName} bloqueada para diagnóstico`);
-      
-      // Retornar dados fictícios em vez de fazer a requisição
-      return Array(300).fill(0).map(() => Math.floor(Math.random() * 37));
-      
-      /* CÓDIGO ORIGINAL DESATIVADO
       console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
       
       const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
@@ -149,7 +131,6 @@ export const RouletteApi = {
       
       console.log(`[API] ✅ Obtidos ${response.data.length} números históricos`);
       return response.data;
-      */
     } catch (error) {
       console.error(`[API] Erro ao buscar histórico da roleta ${rouletteName}:`, error);
       return [];
