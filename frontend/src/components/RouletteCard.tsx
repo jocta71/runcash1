@@ -29,6 +29,7 @@ import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import RouletteNumbers from './RouletteNumbers';
+import { addRouletteToFavorites, removeRouletteFromFavorites } from "@/services/FavoritesService";
 import { RouletteApi } from '@/services/api/rouletteApi';
 
 // Logger específico para este componente
