@@ -110,23 +110,23 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-white">{roletaNome}</h3>
         <div className="text-sm text-gray-400">ID: {roletaId}</div>
-      </div>
-      
+        </div>
+        
       <div className="mb-4">
         <RouletteNumbers
           roletaId={roletaId}
           roletaNome={roletaNome}
           maxNumbers={15}
         />
-      </div>
-      
+        </div>
+        
       <div className="flex justify-between items-center text-sm text-gray-400">
-        <button
+          <button 
           className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
           onClick={() => {/* Implementar visualização detalhada */}}
-        >
+          >
           Ver detalhes
-        </button>
+          </button>
         
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />

@@ -144,14 +144,14 @@ export class SocketService {
     
     console.log('[SocketService] Polling agressivo de roletas DESATIVADO - Centralizado no RouletteFeedService');
   }
-
+  
   public static getInstance(): SocketService {
     if (!SocketService.instance) {
       SocketService.instance = new SocketService();
     }
     return SocketService.instance;
   }
-
+  
   /**
    * Verifica se o socket está conectado e operacional
    * @returns boolean
@@ -194,8 +194,8 @@ export class SocketService {
   // Método para iniciar monitoramento de ping
   private setupPing(): void {
     // Enviar ping a cada 30 segundos para manter a conexão ativa
-    if (this.timerId) {
-      clearInterval(this.timerId);
+        if (this.timerId) {
+          clearInterval(this.timerId);
     }
     
     this.timerId = setInterval(() => {
@@ -239,7 +239,7 @@ export class SocketService {
       console.error(`[SocketService] Erro ao registrar roleta ${roletaId}:`, error);
     });
   }
-
+  
   /**
    * Cancela a inscrição de um callback
    * @param roletaId ID da roleta
@@ -283,7 +283,7 @@ export class SocketService {
     console.log(`[SocketService] ⛔ DESATIVADO: Busca de roletas reais bloqueada para diagnóstico`);
     return true;
   }
-
+  
   /**
    * Tenta recuperar uma sessão de socket salva anteriormente
    */
@@ -300,7 +300,7 @@ export class SocketService {
         if (diff < 120000) {
           console.log('[SocketService] Encontrada conexão recente. Tentando usar configurações salvas.');
           return true;
-        } else {
+      } else {
           console.log('[SocketService] Conexão antiga encontrada, iniciando nova conexão');
           localStorage.removeItem('socket_last_connection');
         }
@@ -376,7 +376,7 @@ export class SocketService {
         } catch (error) {
           console.error('[SocketService] Erro ao processar evento global_update:', error);
         }
-      } else {
+          } else {
         console.warn('[SocketService] Dados inválidos recebidos em global_update:', data);
       }
     });
@@ -409,7 +409,7 @@ export class SocketService {
   private handleConnectionError(error: any): void {
     console.error('[SocketService] Erro de conexão:', error);
     this.connectionActive = false;
-    
+      
     if (this.autoReconnect) {
       this.handleReconnect();
     }
@@ -520,7 +520,7 @@ export class SocketService {
       // Se já estamos carregando, retorna a promessa existente
       if (this._isLoadingHistoricalData) {
         console.log('[SocketService] Carregamento já em andamento, aguardando...');
-        return true;
+      return true;
       }
       
       this._isLoadingHistoricalData = true;
@@ -557,4 +557,4 @@ export class SocketService {
 }
 
 // Exportando a classe para ser importada como default
-export default SocketService;
+export default SocketService; 
