@@ -56,6 +56,23 @@ export interface HistoryData {
 // Importar a lista de roletas permitidas da configuração
 import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 
+// Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
+declare global {
+  namespace NodeJS {
+    interface Timeout {}
+  }
+}
+
+// Estender a interface RouletteNumberEvent para incluir propriedade cor
+interface RouletteNumberEvent extends EventService.RouletteNumberEvent {
+  cor?: string;
+}
+
+// Estender StrategyUpdateEvent para tornar terminais_gatilho opcional
+interface StrategyUpdateEvent extends StrategyUpdateEvent {
+  terminais_gatilho?: number[];
+}
+
 /**
  * Serviço que gerencia o acesso a dados de roletas via API REST
  * Substitui o antigo serviço de WebSocket, mantendo a mesma interface
