@@ -124,6 +124,14 @@ class RouletteFeedService {
   private generateRandomId(): string {
     return Math.random().toString(36).substring(2, 9);
   }
+  
+  // Método para registrar o SocketService para uso externo
+  public registerSocketService(callback: (socketService: any) => void): void {
+    console.log('[RouletteFeedService] Registrando callback para SocketService');
+    if (callback && typeof callback === 'function') {
+      callback(this.socketService);
+    }
+  }
 }
 
 // Exportar instância única

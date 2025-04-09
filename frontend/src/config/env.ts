@@ -127,6 +127,12 @@ export function getSocketUrl(): string {
       }
     }
     
+    // Remover /api/ no final da URL se existir
+    if (configuredUrl.endsWith('/api/')) {
+      console.warn('[ENV] Removendo /api/ do final da URL WebSocket');
+      configuredUrl = configuredUrl.replace('/api/', '');
+    }
+    
     return configuredUrl;
   } catch (error) {
     console.warn('Não foi possível determinar a URL do socket, usando valor padrão');
