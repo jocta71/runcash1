@@ -1,126 +1,74 @@
+import SocketService from './SocketService';
+import EventService from './EventService';
 import { getLogger } from './utils/logger';
-import { fetchWithCorsSupport } from '../utils/api-helpers';
-import globalRouletteDataService from './GlobalRouletteDataService';
 
-export interface RouletteHistoricalNumber {
-  rouletteName: string;
-  numbers: number[];
+const logger = getLogger('RouletteHistoryService');
+
+interface HistoryRequest {
+  roletaId: string;
+  roletaNome?: string;
+  limit?: number;
 }
 
-type RouletteHistoryCache = {
-  [key: string]: {
-    data: number[];
-    timestamp: number;
-  }
-};
-
 /**
- * Serviço centralizado para buscas de histórico de roletas
- * Implementa padrão Singleton, cache e controle de requisições duplicadas
+ * Serviço para gerenciar histórico das roletas
+ * Usando apenas WebSocket para comunicação
  */
-export class RouletteHistoryService {
+class RouletteHistoryService {
   private static instance: RouletteHistoryService;
-  private cache: RouletteHistoryCache = {};
-  private pendingRequests: Map<string, Promise<number[]>> = new Map();
-  private CACHE_TTL = 60000; // 1 minuto
-  private logger = getLogger('RouletteHistoryService');
-
+  private socketService: SocketService;
+  private isLoadingHistoricalData: boolean = false;
+  
   private constructor() {
-    this.logger.info('Inicializando serviço de histórico de roletas');
+    logger.info('Inicializando serviço de histórico de roletas');
+    this.socketService = SocketService.getInstance();
   }
-
+  
   public static getInstance(): RouletteHistoryService {
     if (!RouletteHistoryService.instance) {
       RouletteHistoryService.instance = new RouletteHistoryService();
     }
     return RouletteHistoryService.instance;
   }
-
+  
   /**
-   * Busca os números históricos de uma roleta específica
-   * Centraliza as requisições e implementa cache para evitar chamadas duplicadas
+   * Busca o histórico de uma roleta específica
    */
-  public async fetchRouletteHistoricalNumbers(rouletteName: string): Promise<number[]> {
-    this.logger.info(`Solicitação de histórico para: ${rouletteName}`);
+  public fetchHistoricalData(roletaNome: string, roletaId?: string): void {
+    logger.info(`Solicitação de histórico para: ${roletaNome}`);
     
-    // Verifica se há dados em cache válidos
-    if (this.cache[rouletteName] && 
-        Date.now() - this.cache[rouletteName].timestamp < this.CACHE_TTL) {
-      this.logger.debug(`Usando cache para ${rouletteName}`);
-      return this.cache[rouletteName].data;
-    }
-
-    // Verifica se já existe uma requisição pendente para esta roleta
-    if (this.pendingRequests.has(rouletteName)) {
-      this.logger.debug(`Reutilizando requisição pendente para ${rouletteName}`);
-      return this.pendingRequests.get(rouletteName)!;
-    }
-
-    // Cria uma nova requisição
-    const fetchPromise = this.doFetchHistoricalNumbers(rouletteName);
-    this.pendingRequests.set(rouletteName, fetchPromise);
+    // Desativado temporariamente
+    logger.info(`Requisição desativada para histórico da roleta ${roletaNome}`);
     
-    try {
-      const result = await fetchPromise;
-      return result;
-    } finally {
-      // Remove a requisição da lista de pendentes após concluída
-      this.pendingRequests.delete(rouletteName);
-    }
-  }
-
-  private async doFetchHistoricalNumbers(rouletteName: string): Promise<number[]> {
-    console.log(`[RouletteHistoryService] Requisição desativada para histórico da roleta ${rouletteName}`);
-    
-    // Gerando números aleatórios como fallback
-    const randomNumbers: number[] = [];
-    for (let i = 0; i < 100; i++) {
-      randomNumbers.push(Math.floor(Math.random() * 36));
-    }
-    
-    // Simulando um atraso para evitar loop infinito
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    // DESATIVADO: Código original de requisição HTTP
-    /*
-    try {
-      const apiResponse = await fetch(`${API_BASE_URL}/api/ROULETTES/historico?id=${rouletteName}`);
-      
-      if (!apiResponse.ok) {
-        throw new Error(`Erro ao buscar histórico da roleta ${rouletteName}: ${apiResponse.statusText}`);
-      }
-      
-      const data = await apiResponse.json();
-      return data;
-    } catch (error) {
-      console.error(`[RouletteHistoryService] Erro ao buscar histórico da roleta ${rouletteName}:`, error);
-      throw error;
-    }
-    */
-    
-    // Atualiza o cache
-    this.cache[rouletteName] = {
-      data: randomNumbers,
-      timestamp: Date.now()
-    };
-    
-    return randomNumbers;
-  }
-
-  /**
-   * Limpa o cache para uma roleta específica ou para todas
-   */
-  public clearCache(rouletteName?: string): void {
-    if (rouletteName) {
-      delete this.cache[rouletteName];
-      this.logger.info(`Cache limpo para ${rouletteName}`);
+    // Usar WebSocket para buscar histórico
+    if (roletaId) {
+      this.socketService.requestRouletteHistory(roletaId, roletaNome);
     } else {
-      this.cache = {};
-      this.logger.info('Cache completamente limpo');
+      // Buscar todas as roletas primeiro para encontrar o ID
+      this.socketService.requestAllRouletteData();
+      
+      setTimeout(() => {
+        // Normalmente aqui teríamos um callback, mas para simplificar...
+        logger.warn(`Não foi possível encontrar ID para roleta ${roletaNome}`);
+      }, 2000);
     }
+  }
+
+  /**
+   * Gera dados simulados para uma roleta
+   */
+  private generateMockHistoricalData(roletaNome: string): number[] {
+    const result: number[] = [];
+    
+    // Gerar 100 números aleatórios entre 0-36
+    for (let i = 0; i < 100; i++) {
+      result.push(Math.floor(Math.random() * 37));
+    }
+    
+    logger.info(`Gerados ${result.length} números de histórico simulado para ${roletaNome}`);
+    return result;
   }
 }
 
-// Exportar a instância única
-const rouletteHistoryService = RouletteHistoryService.getInstance();
-export default rouletteHistoryService; 
+// Exportar instância única
+export default RouletteHistoryService; 

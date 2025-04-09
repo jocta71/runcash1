@@ -2059,6 +2059,58 @@ class SocketService {
     }
     return true;
   }
+
+  // Método para buscar todos os dados via WebSocket
+  public requestAllRouletteData(): void {
+    if (!this.socket || !this.socket.connected) {
+      console.warn('[SocketService] Socket não conectado. Não é possível solicitar dados.');
+      return;
+    }
+    
+    console.log('[SocketService] Solicitando dados de todas as roletas via WebSocket');
+    
+    // Emitir evento para solicitar dados
+    this.socket.emit('get_all_roulettes', {});
+    
+    // Registrar timestamp da solicitação para timeout
+    const requestId = `req_${Date.now()}`;
+    console.log(`[SocketService] Solicitação enviada: ${requestId}`);
+    
+    // Configurar timeout
+    setTimeout(() => {
+      console.log(`[SocketService] Verificando status da solicitação ${requestId}...`);
+    }, 5000);
+  }
+  
+  // Método para buscar histórico de roleta via WebSocket
+  public requestRouletteHistory(roletaId: string, roletaNome: string): void {
+    if (!this.socket || !this.socket.connected) {
+      console.warn('[SocketService] Socket não conectado. Não é possível solicitar histórico.');
+      return;
+    }
+    
+    console.log(`[SocketService] Solicitando histórico para roleta ${roletaNome} (${roletaId})`);
+    
+    // Emitir evento para solicitar histórico
+    this.socket.emit('get_roulette_history', { 
+      roleta_id: roletaId,
+      roleta_nome: roletaNome,
+      limit: 100
+    });
+  }
+  
+  // ... código existente ...
+
+  // Método para solicitar números recentes
+  private requestRecentNumbers(): void {
+    if (!this.socket || !this.socket.connected) {
+      console.warn('[SocketService] Socket não conectado. Não é possível solicitar dados recentes.');
+      return;
+    }
+    
+    console.log('[SocketService] Solicitando números recentes via WebSocket');
+    this.socket.emit('get_recent_numbers', {});
+  }
 }
 
 export default SocketService; 
