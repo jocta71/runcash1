@@ -124,4 +124,7 @@ class RouletteFeedService {
   private generateRandomId(): string {
     return Math.random().toString(36).substring(2, 9);
   }
-} 
+}
+
+// Exportar instância única
+export default RouletteFeedService; 
