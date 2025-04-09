@@ -1237,4 +1237,46 @@ export default class RouletteFeedService {
       logger.error('❌ Erro ao conectar ao EventService:', error);
     }
   }
+
+  /**
+   * Valida se os dados de roleta estão em um formato reconhecível
+   * @param data Dados a serem validados
+   */
+  private validateRouletteData(data: any): boolean {
+    if (!data) {
+      logger.warn('❌ Dados de roleta inválidos: dados nulos');
+      return false;
+    }
+
+    // Verificar se é um evento global_update
+    if (data.type === 'global_update' || data.event_type === 'global_update') {
+      if (!data.roleta_id) {
+        logger.warn('❌ Dados de roleta inválidos: evento global_update sem ID da roleta');
+        return false;
+      }
+      // Para global_update, precisamos apenas do ID da roleta, outros campos são opcionais
+      return true;
+    }
+
+    // Verificar se é um evento new_number
+    if (data.type === 'new_number' || data.event_type === 'new_number') {
+      if (!data.roleta_id || data.ultimo_numero === undefined) {
+        logger.warn('❌ Dados de roleta inválidos: evento new_number sem ID da roleta ou número');
+        return false;
+      }
+      return true;
+    }
+
+    // Para formato padrão (objeto de roleta completo)
+    if (!data.roleta_id || !data.roleta_nome) {
+      logger.warn('❌ Dados de roleta inválidos: estrutura incorreta', {
+        has_id: !!data.roleta_id,
+        has_name: !!data.roleta_nome,
+        data_type: typeof data
+      });
+      return false;
+    }
+
+    return true;
+  }
 } 
