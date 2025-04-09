@@ -87,17 +87,8 @@ class SocketClient {
     this.isConnecting = true;
     
     try {
-      // Obter URL do servidor WebSocket das variáveis de ambiente
-      let wsUrl = '';
-      
-      try {
-        wsUrl = config.getRequiredEnvVar('VITE_WS_URL');
-      } catch (error) {
-        // Fallback para a origem atual
-        const origin = window.location.origin;
-        wsUrl = origin.replace('https://', 'wss://').replace('http://', 'ws://');
-        logger.warn(`URL de WebSocket não encontrada nas variáveis de ambiente. Usando origem: ${wsUrl}`);
-      }
+      // Obter URL do servidor WebSocket usando a configuração
+      let wsUrl = config.getSocketUrl();
       
       logger.info(`Conectando a ${wsUrl}...`);
       

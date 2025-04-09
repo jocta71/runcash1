@@ -326,14 +326,15 @@ class SocketService {
   private getSocketUrl(): string {
     try {
       // Usar o método do arquivo de configuração para obter a URL do WebSocket
-      return config.getSocketUrl();
+      let wsUrl = config.getSocketUrl();
+      console.log('[SocketService] Usando URL de WebSocket:', wsUrl);
+      return wsUrl;
     } catch (error) {
       console.error('[SocketService] Erro ao obter URL do WebSocket:', error);
       
-      // Fallback para a URL da origem atual
-      const origin = window.location.origin;
-      const wsUrl = `${origin}/api/socket`;
-      console.log('[SocketService] Usando URL de WebSocket:', wsUrl);
+      // Valor padrão para o serviço WebSocket
+      const wsUrl = 'wss://backend-production-2f96.up.railway.app';
+      console.log('[SocketService] Usando URL de WebSocket padrão:', wsUrl);
       return wsUrl;
     }
   }

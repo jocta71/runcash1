@@ -10,14 +10,14 @@ export const isProduction = import.meta.env.PROD ||
 // Valores padrão para cada ambiente
 const defaultValues: Record<string, Record<string, string>> = {
   development: {
-    VITE_WS_URL: 'wss://runcashh1-chi.vercel.app',
-    VITE_API_URL: 'https://runcashh1-chi.vercel.app/api',
-    VITE_API_BASE_URL: 'https://runcashh1-chi.vercel.app/api'
+    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
+    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
+    VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   },
   production: {
-    VITE_WS_URL: 'wss://runcashh1-chi.vercel.app',
-    VITE_API_URL: 'https://runcashh1-chi.vercel.app/api',
-    VITE_API_BASE_URL: 'https://runcashh1-chi.vercel.app/api'
+    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
+    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
+    VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   }
 };
 
@@ -31,8 +31,8 @@ interface EnvConfig {
 
 // Configuração para ambiente de produção
 const productionConfig: EnvConfig = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://runcashh1-chi.vercel.app/api',
-  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'wss://runcashh1-chi.vercel.app',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'wss://backend-production-2f96.up.railway.app',
   debugMode: false,
   env: 'production',
   optimizePollingForVisibility: true
@@ -73,7 +73,7 @@ export function getApiBaseUrl(): string {
       
       // Em desenvolvimento, retornar URL padrão
       console.log('[ENV] Usando URL padrão da API para desenvolvimento');
-      return 'https://runcashh1-chi.vercel.app/api';
+      return 'https://backendapi-production-36b5.up.railway.app/api';
     }
   }
 }
@@ -107,10 +107,10 @@ export function getRequiredEnvVar(name: string): string {
     
     // Valores padrão para desenvolvimento
     if (name === 'VITE_WS_URL') {
-      return 'wss://runcashh1-chi.vercel.app';
+      return 'wss://backend-production-2f96.up.railway.app';
     }
     if (name === 'VITE_API_URL' || name === 'VITE_API_BASE_URL') {
-      return 'https://runcashh1-chi.vercel.app/api';
+      return 'https://backendapi-production-36b5.up.railway.app/api';
     }
   }
   
@@ -133,23 +133,27 @@ export function getEnvVar(name: string, defaultValue: string): string {
 }
 
 /**
- * Obtém a URL do socket, utilizando a mesma origem quando em produção
+ * Obtém a URL do socket, garantindo que use o protocolo wss:// quando necessário
  */
 export function getSocketUrl(): string {
   try {
-    const configuredUrl = getRequiredEnvVar('VITE_WS_URL');
+    let configuredUrl = getRequiredEnvVar('VITE_WS_URL');
     
-    // Se estamos em produção e a URL não é a mesma origem, usar a mesma origem
-    if (isProduction) {
-      const origin = window.location.origin;
-      return `${origin}/api/socket`;
+    // Garantir que a URL use o protocolo wss://
+    if (configuredUrl && !configuredUrl.startsWith('wss://')) {
+      if (configuredUrl.startsWith('https://')) {
+        console.warn('[ENV] Convertendo URL de https:// para wss://');
+        configuredUrl = configuredUrl.replace('https://', 'wss://');
+      } else if (configuredUrl.startsWith('http://')) {
+        console.warn('[ENV] Convertendo URL de http:// para wss://');
+        configuredUrl = configuredUrl.replace('http://', 'wss://');
+      }
     }
     
     return configuredUrl;
   } catch (error) {
-    console.warn('Não foi possível determinar a URL do socket, usando a origem atual');
-    const origin = window.location.origin;
-    return `${origin}/api/socket`;
+    console.warn('Não foi possível determinar a URL do socket, usando valor padrão');
+    return 'wss://backend-production-2f96.up.railway.app';
   }
 }
 
