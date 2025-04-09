@@ -207,60 +207,73 @@ export class SocketService {
 
   /**
    * Inscreve um callback para receber eventos de uma roleta específica
-   * @param roletaNome Nome da roleta ou '*' para todos os eventos
+   * @param roletaId ID da roleta ou '*' para todos os eventos
    * @param callback Função a ser chamada quando um evento for recebido
    */
-  public subscribe(roletaNome: string, callback: RouletteEventCallback): void {
-    console.log(`[SocketService] INSCREVENDO para eventos da roleta: ${roletaNome}`);
+  public subscribe(roletaId: string, callback: RouletteEventCallback): void {
+    if (!roletaId) {
+      console.warn('[SocketService] Tentativa de inscrição com ID de roleta indefinido');
+      roletaId = 'global';
+    }
+    
+    const roletaLabel = roletaId === '*' ? 'todos os eventos' : `roleta: ${roletaId}`;
+    console.log(`[SocketService] INSCREVENDO para ${roletaLabel}`);
     
     // Verificar se já temos listeners para esta roleta
-    if (!this.listeners.has(roletaNome)) {
-      console.log(`[SocketService] Criando novo conjunto de listeners para roleta: ${roletaNome}`);
-      this.listeners.set(roletaNome, new Set());
+    if (!this.listeners.has(roletaId)) {
+      console.log(`[SocketService] Criando novo conjunto de listeners para roleta: ${roletaId}`);
+      this.listeners.set(roletaId, new Set());
     }
     
     // Adicionar o callback ao conjunto de listeners
-    const listeners = this.listeners.get(roletaNome);
+    const listeners = this.listeners.get(roletaId);
     if (listeners) {
       listeners.add(callback);
-      console.log(`[SocketService] ✅ Callback adicionado aos listeners de ${roletaNome}. Total: ${listeners.size}`);
+      console.log(`[SocketService] ✅ Callback adicionado aos listeners de ${roletaId}. Total: ${listeners.size}`);
     }
     
     // Registrar a roleta para receber updates em tempo real
-    this.registerRouletteForRealTimeUpdates(roletaNome).then(() => {
-      console.log(`[SocketService] Roleta ${roletaNome} registrada para updates em tempo real`);
+    this.registerRouletteForRealTimeUpdates(roletaId).then(() => {
+      console.log(`[SocketService] Roleta ${roletaId} registrada para updates em tempo real`);
     }).catch(error => {
-      console.error(`[SocketService] Erro ao registrar roleta ${roletaNome}:`, error);
+      console.error(`[SocketService] Erro ao registrar roleta ${roletaId}:`, error);
     });
   }
 
   /**
    * Cancela a inscrição de um callback
-   * @param roletaNome Nome da roleta
+   * @param roletaId ID da roleta
    * @param callback Função a remover
    */
-  public unsubscribe(roletaNome: string, callback: RouletteEventCallback): void {
-    const listeners = this.listeners.get(roletaNome);
+  public unsubscribe(roletaId: string, callback: RouletteEventCallback): void {
+    if (!roletaId) {
+      console.warn('[SocketService] Tentativa de cancelar inscrição com ID de roleta indefinido');
+      return;
+    }
+    
+    const listeners = this.listeners.get(roletaId);
     if (listeners) {
       listeners.delete(callback);
-      console.log(`[SocketService] Callback removido dos listeners de ${roletaNome}. Restantes: ${listeners.size}`);
+      console.log(`[SocketService] Callback removido dos listeners de ${roletaId}. Restantes: ${listeners.size}`);
     }
   }
 
   /**
    * Registra uma roleta para receber atualizações em tempo real
-   * @param roletaNome Nome da roleta
+   * @param roletaId ID ou nome da roleta
    */
-  private async registerRouletteForRealTimeUpdates(roletaNome: string): Promise<boolean> {
-    if (!roletaNome || roletaNome.trim() === '') {
+  private async registerRouletteForRealTimeUpdates(roletaId: string): Promise<boolean> {
+    if (!roletaId || roletaId.trim() === '') {
+      console.warn('[SocketService] Tentativa de registrar roleta com ID/nome vazio');
       return false;
     }
     
+    const roletaNome = roletaId === '*' ? 'Global (todas)' : roletaId;
     console.log(`[SocketService] Registrando roleta ${roletaNome} para updates em tempo real`);
     
     // Verificar conexão
-    if (!this.checkSocketConnection() && roletaNome !== '*') {
-      if (ROLETAS_PERMITIDAS && !ROLETAS_PERMITIDAS.some(r => r === roletaNome)) {
+    if (!this.checkSocketConnection() && roletaId !== '*') {
+      if (ROLETAS_PERMITIDAS && !ROLETAS_PERMITIDAS.some(r => r === roletaId)) {
         console.log(`[SocketService] Roleta não encontrada pelo nome: ${roletaNome}`);
         return false;
       }
@@ -426,6 +439,7 @@ export class SocketService {
 
   /**
    * Notifica os callbacks inscritos sobre um evento
+   * @param event Evento a ser notificado
    */
   private notifyListeners(event: RouletteEvent): void {
     if (!event || !event.type) return;
@@ -443,16 +457,32 @@ export class SocketService {
     }
     
     // Notificar listeners específicos da roleta
-    if ('roleta_id' in event) {
-      const roletaListeners = this.listeners.get(event.roleta_id);
-      if (roletaListeners) {
+    if ('roleta_id' in event && event.roleta_id) {
+      const roletaId = String(event.roleta_id);
+      const roletaListeners = this.listeners.get(roletaId);
+      if (roletaListeners && roletaListeners.size > 0) {
         roletaListeners.forEach(callback => {
           try {
             callback(event);
           } catch (error) {
-            console.error(`[SocketService] Erro ao notificar listener da roleta ${event.roleta_id}:`, error);
+            console.error(`[SocketService] Erro ao notificar listener da roleta ${roletaId}:`, error);
           }
         });
+      } else {
+        // Tentar buscar por nome de roleta se disponível
+        if ('roleta_nome' in event && event.roleta_nome) {
+          const roletaNome = String(event.roleta_nome);
+          const nameListeners = this.listeners.get(roletaNome);
+          if (nameListeners && nameListeners.size > 0) {
+            nameListeners.forEach(callback => {
+              try {
+                callback(event);
+              } catch (error) {
+                console.error(`[SocketService] Erro ao notificar listener da roleta ${roletaNome}:`, error);
+              }
+            });
+          }
+        }
       }
     }
   }
