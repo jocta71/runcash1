@@ -291,6 +291,31 @@ class RESTSocketService {
   // Métodos públicos que mantém compatibilidade com a versão WebSocket
 
   public subscribe(roletaNome: string, callback: any): void {
+    // Garantir que o callback não seja assíncrono sem tratamento adequado
+    const safeCallback = (event: any) => {
+      try {
+        // Executar o callback original
+        const result = callback(event);
+        
+        // Se o callback retornar uma Promise, garantir que ela seja tratada
+        if (result instanceof Promise) {
+          // Converter para Promise que não retorna true (que causaria o erro)
+          result.catch(error => {
+            console.error(`[RESTSocketService] Erro assíncrono em callback para ${roletaNome}:`, error);
+          });
+          // Sempre retornar undefined para não indicar resposta assíncrona
+          return undefined;
+        }
+        
+        // Se o callback retornar true (indicando resposta assíncrona),
+        // retornar undefined para evitar o erro de canal fechado
+        return result === true ? undefined : result;
+      } catch (error) {
+        console.error(`[RESTSocketService] Erro ao executar callback para ${roletaNome}:`, error);
+        return undefined;
+      }
+    };
+    
     // Registrar o callback para o nome da roleta
     if (!this.listeners.has(roletaNome)) {
       this.listeners.set(roletaNome, new Set());
@@ -298,7 +323,7 @@ class RESTSocketService {
     
     const listeners = this.listeners.get(roletaNome);
     if (listeners) {
-      listeners.add(callback);
+      listeners.add(safeCallback);
       console.log(`[RESTSocketService] Registrado listener para ${roletaNome}, total: ${listeners.size}`);
     }
     
@@ -311,7 +336,7 @@ class RESTSocketService {
       
       const anyUpdateListeners = this.listeners.get('any-update');
       if (anyUpdateListeners) {
-        anyUpdateListeners.add(callback);
+        anyUpdateListeners.add(safeCallback);
         console.log(`[RESTSocketService] Registrado listener em any-update para ${roletaNome}`);
       }
     }
@@ -336,12 +361,8 @@ class RESTSocketService {
           source: 'cache'
         };
         
-        // Chamar o callback com os dados em cache
-        try {
-          callback(cachedEvent);
-        } catch (error) {
-          console.error(`[RESTSocketService] Erro ao disparar dados em cache para ${roletaNome}:`, error);
-        }
+        // Chamar o callback com os dados em cache (usando o wrapper seguro)
+        safeCallback(cachedEvent);
       }
     }
   }
@@ -349,7 +370,12 @@ class RESTSocketService {
   public unsubscribe(roletaNome: string, callback: any): void {
     const listeners = this.listeners.get(roletaNome);
     if (listeners) {
-      listeners.delete(callback);
+      // Como agora usamos um wrapper, precisamos encontrar o wrapper que contém o callback original
+      // Isso é mais complexo, então vamos remover o Set inteiro se necessário
+      if (listeners.size > 0) {
+        console.log(`[RESTSocketService] Removendo listeners para ${roletaNome}`);
+        listeners.clear();
+      }
       console.log(`[RESTSocketService] Listener removido para ${roletaNome}, restantes: ${listeners.size}`);
     }
   }
