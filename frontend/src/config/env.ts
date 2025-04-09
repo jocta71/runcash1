@@ -10,12 +10,10 @@ export const isProduction = import.meta.env.PROD ||
 // Valores padrão para cada ambiente
 const defaultValues: Record<string, Record<string, string>> = {
   development: {
-    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
     VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
     VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   },
   production: {
-    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
     VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
     VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   }
@@ -23,7 +21,6 @@ const defaultValues: Record<string, Record<string, string>> = {
 
 interface EnvConfig {
   apiBaseUrl: string;
-  websocketUrl: string;
   debugMode: boolean;
   env: string;
   optimizePollingForVisibility?: boolean;
@@ -32,7 +29,6 @@ interface EnvConfig {
 // Configuração para ambiente de produção
 const productionConfig: EnvConfig = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backend-production-2f96.up.railway.app',
-  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'wss://backend-production-2f96.up.railway.app',
   debugMode: false,
   env: 'production',
   optimizePollingForVisibility: true
@@ -41,7 +37,6 @@ const productionConfig: EnvConfig = {
 // Configuração para ambiente de desenvolvimento
 const developmentConfig: EnvConfig = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002',
-  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:3000',
   debugMode: true,
   env: 'development',
   optimizePollingForVisibility: false
@@ -106,9 +101,6 @@ export function getRequiredEnvVar(name: string): string {
     console.warn(`[ENV] Variável ${name} não encontrada. Usando valor padrão.`);
     
     // Valores padrão para desenvolvimento
-    if (name === 'VITE_WS_URL') {
-      return 'wss://backend-production-2f96.up.railway.app';
-    }
     if (name === 'VITE_API_URL' || name === 'VITE_API_BASE_URL') {
       return 'https://backendapi-production-36b5.up.railway.app/api';
     }
@@ -140,7 +132,6 @@ export default {
   getApiBaseUrl,
   
   // Atalhos para as principais URLs
-  wsUrl: getRequiredEnvVar('VITE_WS_URL'),
   apiUrl: getRequiredEnvVar('VITE_API_URL') || getRequiredEnvVar('VITE_API_BASE_URL'),
   apiBaseUrl: getApiBaseUrl(),
   

@@ -3,7 +3,7 @@
  */
 
 // URL base da API
-export const BASE_URL = process.env.REACT_APP_API_URL || 'https://api.runcash.app/api';
+export const BASE_URL = import.meta.env.VITE_API_URL || 'https://api.runcash.app/api';
 
 // Lista de endpoints
 export const ENDPOINTS = {
@@ -11,15 +11,11 @@ export const ENDPOINTS = {
   ROULETTES: `${BASE_URL}/roulettes`,
   ROULETTE_BY_ID: (id: string) => `${BASE_URL}/roulettes/${id}`,
   ROULETTE_STRATEGY: (id: string) => `${BASE_URL}/roulettes/${id}/strategy`,
-  
-  // Socket.io URL
-  SOCKET_URL: process.env.REACT_APP_SOCKET_URL || 'wss://socket.runcash.app',
 };
 
-// Eventos para comunicação via WebSocket
-export const SOCKET_EVENTS = {
+// Tipos de eventos do sistema (apenas para compatibilidade)
+export const EVENT_TYPES = {
   // Eventos de roleta
-  SUBSCRIBE_ROULETTE: 'subscribe_roulette',
   NEW_NUMBER: 'new_number',
   STRATEGY_UPDATE: 'strategy_update',
   

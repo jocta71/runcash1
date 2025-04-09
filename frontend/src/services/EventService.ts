@@ -63,7 +63,7 @@ export class EventService {
 
   private eventListeners: Record<string, Function[]> = {};
   private globalEventListeners: Record<string, Function[]> = {};
-  private socketService: SocketService | null = null;
+  private socketServiceInstance: ReturnType<typeof SocketService.getInstance> | null = null;
   private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
   private isConnected: boolean = false;
   private pollingActive: boolean = false;
@@ -149,7 +149,7 @@ export class EventService {
     this.isConnected = true; // Simular conexão estabelecida
     
     // Importar o SocketService e registrar para eventos globais
-    this.socketService = SocketService.getInstance();
+    this.socketServiceInstance = SocketService.getInstance();
     
     toast({
       title: "Conexão de dados",
@@ -239,8 +239,8 @@ export class EventService {
     }
     
     // Se estamos usando o SocketService, inscrever também lá
-    if (this.socketService) {
-      this.socketService.subscribe(roletaNome, callback);
+    if (this.socketServiceInstance) {
+      this.socketServiceInstance.subscribe(roletaNome, callback);
     }
   }
   
@@ -254,8 +254,8 @@ export class EventService {
     }
     
     // Caso esteja usando o socketService, remover também lá
-    if (this.socketService) {
-      this.socketService.unsubscribe(roletaNome, callback);
+    if (this.socketServiceInstance) {
+      this.socketServiceInstance.unsubscribe(roletaNome, callback);
     }
   }
 
@@ -300,7 +300,7 @@ export class EventService {
    * Verifica o status da conexão
    */
   public isSocketConnected(): boolean {
-    return this.isConnected || (this.socketService?.isSocketConnected() || false);
+    return this.isConnected || (this.socketServiceInstance?.isSocketConnected() || false);
   }
   
   /**
@@ -317,8 +317,8 @@ export class EventService {
     }
     
     // Desconectar o SocketService se estiver sendo usado
-    if (this.socketService) {
-      this.socketService.disconnect();
+    if (this.socketServiceInstance) {
+      this.socketServiceInstance.disconnect();
     }
     
     this.isConnected = false;
@@ -330,8 +330,8 @@ export class EventService {
   public requestRealtimeUpdates(): void {
     console.log('[EventService] Solicitando atualizações em tempo real via REST');
     
-    if (this.socketService) {
-      this.socketService.requestRecentNumbers();
+    if (this.socketServiceInstance) {
+      this.socketServiceInstance.requestRecentNumbers();
     } else {
       // Se não tiver SocketService, fazer polling direto
       this.performPoll();
