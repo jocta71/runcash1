@@ -144,15 +144,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   
   // Usar safeData em vez de data diretamente para inicializar os estados
   const [lastNumber, setLastNumber] = useState<number | null>(
-    Array.isArray(safeData.lastNumbers) && safeData.lastNumbers.length > 0 
-      ? Number(safeData.lastNumbers[0]) 
-      : null
+    getInitialLastNumber(safeData)
   );
   
   const [recentNumbers, setRecentNumbers] = useState<number[]>(
-    Array.isArray(safeData.lastNumbers) 
-      ? safeData.lastNumbers.map(n => Number(n)) 
-      : []
+    getInitialRecentNumbers(safeData)
   );
   
   const [isNewNumber, setIsNewNumber] = useState(false);
@@ -409,8 +405,26 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   
   // Ao montar o componente, verificar dados no cache em vez de fazer novas requisições
   useEffect(() => {
-    // Verificar se já temos dados no cache
+    // Verificar se já temos dados no cache ou se há números disponíveis nos dados da roleta
     if (recentNumbers.length === 0) {
+      // Primeiro verificar se temos números diretamente nos dados da roleta
+      if (safeData.numbers && Array.isArray(safeData.numbers) && safeData.numbers.length > 0) {
+        console.log(`[RouletteCard] Usando números da propriedade .numbers para ${safeData.name}`);
+        
+        // Extrair os números do array de números
+        const extractedNumbers = safeData.numbers
+          .map(n => typeof n === 'object' && n !== null ? (n.number || n.numero) : n)
+          .filter(n => typeof n === 'number' && !isNaN(n));
+        
+        if (extractedNumbers.length > 0) {
+          setLastNumber(extractedNumbers[0]);
+          setRecentNumbers(extractedNumbers);
+          setHasRealData(true);
+          return;
+        }
+      }
+      
+      // Verificar os dados no cache da roleta como fallback
       const cachedData = feedService.getRouletteData(safeData.id);
       
       if (cachedData && Array.isArray(cachedData.numero) && cachedData.numero.length > 0) {
@@ -430,7 +444,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Removendo a solicitação direta para evitar múltiplas requisições
       // Agora apenas o LiveRoulettePage inicializará o serviço
     }
-  }, [feedService, safeData.id, safeData.name, recentNumbers]);
+  }, [feedService, safeData.id, safeData.name, safeData.numbers, recentNumbers]);
 
   return (
     <Card 
@@ -446,7 +460,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           <h3 className="text-lg font-semibold truncate">{safeData.name}</h3>
           <div className="flex gap-1 items-center">
             <Badge variant="outline" className="bg-muted text-xs">
-              {updateCount > 0 ? `${updateCount} atualizações` : (hasRealData ? "Aguardando..." : "Sem dados")}
+              {updateCount > 0 ? `${updateCount} atualizações` : (hasRealData || recentNumbers.length > 0 ? "Aguardando..." : "Sem dados")}
             </Badge>
             
             {/* Botão para abrir modal de estatísticas */}
@@ -494,7 +508,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           <div className="flex items-center text-xs text-gray-400">
             <Timer className="h-3 w-3 mr-1" />
             <span>
-              {updateCount > 0 ? `${updateCount} atualizações` : 'Sem atualizações'}
+              {updateCount > 0 ? `${updateCount} atualizações` : (recentNumbers.length > 0 ? 'Aguardando...' : 'Sem atualizações')}
             </span>
           </div>
         </div>
@@ -610,5 +624,43 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     </Card>
   );
 };
+
+// Funções auxiliares para inicialização segura dos dados
+function getInitialLastNumber(data: any): number | null {
+  if (Array.isArray(data.numbers) && data.numbers.length > 0) {
+    const num = data.numbers[0];
+    return typeof num === 'object' ? (num.number || num.numero) : Number(num);
+  }
+  
+  if (Array.isArray(data.lastNumbers) && data.lastNumbers.length > 0) {
+    return Number(data.lastNumbers[0]);
+  }
+  
+  if (Array.isArray(data.numero) && data.numero.length > 0) {
+    const num = data.numero[0];
+    return typeof num === 'object' ? num.numero : Number(num);
+  }
+  
+  return null;
+}
+
+function getInitialRecentNumbers(data: any): number[] {
+  if (Array.isArray(data.numbers) && data.numbers.length > 0) {
+    return data.numbers.map(n => typeof n === 'object' ? (n.number || n.numero) : Number(n))
+      .filter(n => typeof n === 'number' && !isNaN(n));
+  }
+  
+  if (Array.isArray(data.lastNumbers) && data.lastNumbers.length > 0) {
+    return data.lastNumbers.map(n => Number(n))
+      .filter(n => typeof n === 'number' && !isNaN(n));
+  }
+  
+  if (Array.isArray(data.numero) && data.numero.length > 0) {
+    return data.numero.map(n => typeof n === 'object' ? n.numero : Number(n))
+      .filter(n => typeof n === 'number' && !isNaN(n));
+  }
+  
+  return [];
+}
 
 export default RouletteCard;
