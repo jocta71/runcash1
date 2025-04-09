@@ -299,6 +299,7 @@ class RESTSocketService {
   // Métodos públicos que mantém compatibilidade com a versão WebSocket
 
   public subscribe(roletaNome: string, callback: any): void {
+    // Registrar o callback para o nome da roleta
     if (!this.listeners.has(roletaNome)) {
       this.listeners.set(roletaNome, new Set());
     }
@@ -307,6 +308,49 @@ class RESTSocketService {
     if (listeners) {
       listeners.add(callback);
       console.log(`[RESTSocketService] Registrado listener para ${roletaNome}, total: ${listeners.size}`);
+    }
+    
+    // Se for uma roleta específica (que não seja um wildcard), registrar também 
+    // para o identificador "any-update" para garantir que receba todas as atualizações
+    if (roletaNome !== '*' && roletaNome !== 'any-update') {
+      if (!this.listeners.has('any-update')) {
+        this.listeners.set('any-update', new Set());
+      }
+      
+      const anyUpdateListeners = this.listeners.get('any-update');
+      if (anyUpdateListeners) {
+        anyUpdateListeners.add(callback);
+        console.log(`[RESTSocketService] Registrado listener em any-update para ${roletaNome}`);
+      }
+    }
+    
+    // Disparar imediatamente evento com dados em cache, se existirem
+    if (roletaNome !== '*' && roletaNome !== 'any-update') {
+      // Tentar encontrar dados existentes para esta roleta
+      const roletaData = this.lastReceivedData.get(roletaNome) || 
+                        this.lastReceivedData.get(`base-${roletaNome}`);
+      
+      if (roletaData && roletaData.data) {
+        console.log(`[RESTSocketService] Disparando dados em cache para novo listener de ${roletaNome}`);
+        
+        // Criar um evento simulado com os dados em cache
+        const cachedEvent = {
+          type: 'new_number',
+          roleta_id: roletaNome,
+          roleta_nome: roletaData.data.nome || roletaNome,
+          numero: roletaData.data.numero ? roletaData.data.numero[0]?.numero : 0,
+          cor: this.determinarCorNumero(roletaData.data.numero ? roletaData.data.numero[0]?.numero : 0),
+          timestamp: new Date().toISOString(),
+          source: 'cache'
+        };
+        
+        // Chamar o callback com os dados em cache
+        try {
+          callback(cachedEvent);
+        } catch (error) {
+          console.error(`[RESTSocketService] Erro ao disparar dados em cache para ${roletaNome}:`, error);
+        }
+      }
     }
   }
 
@@ -319,26 +363,61 @@ class RESTSocketService {
   }
 
   private notifyListeners(event: any): void {
-    // Notificar listeners específicos para esta roleta
-    const listeners = this.listeners.get(event.roleta_nome);
-    if (listeners) {
-      listeners.forEach(callback => {
+    console.log(`[RESTSocketService] Emitindo evento: ${event.type} para roleta ${event.roleta_nome} (${event.source})`);
+    
+    // Forçar emissão para todos (tanto pelo nome da roleta quanto pelo wildcard)
+    // Primeiro, listeners específicos para esta roleta
+    const roletaListeners = this.listeners.get(event.roleta_nome);
+    if (roletaListeners) {
+      console.log(`[RESTSocketService] Enviando para ${roletaListeners.size} listeners de ${event.roleta_nome}`);
+      roletaListeners.forEach(callback => {
         try {
           callback(event);
         } catch (error) {
           console.error(`[RESTSocketService] Erro em listener para ${event.roleta_nome}:`, error);
         }
       });
+    } else {
+      console.log(`[RESTSocketService] Nenhum listener encontrado especificamente para ${event.roleta_nome}`);
     }
     
-    // Notificar listeners globais (marcados com "*")
+    // Depois, listeners globais (marcados com "*")
     const globalListeners = this.listeners.get('*');
     if (globalListeners) {
+      console.log(`[RESTSocketService] Enviando para ${globalListeners.size} listeners globais`);
       globalListeners.forEach(callback => {
         try {
           callback(event);
         } catch (error) {
           console.error('[RESTSocketService] Erro em listener global:', error);
+        }
+      });
+    }
+    
+    // Tentar também pelo ID da roleta (alguns componentes podem estar escutando pelo ID)
+    if (event.roleta_id) {
+      const idListeners = this.listeners.get(event.roleta_id);
+      if (idListeners) {
+        console.log(`[RESTSocketService] Enviando para ${idListeners.size} listeners do ID ${event.roleta_id}`);
+        idListeners.forEach(callback => {
+          try {
+            callback(event);
+          } catch (error) {
+            console.error(`[RESTSocketService] Erro em listener para ID ${event.roleta_id}:`, error);
+          }
+        });
+      }
+    }
+    
+    // Emitir também um evento genérico para qualquer atualização
+    const anyUpdateListeners = this.listeners.get('any-update');
+    if (anyUpdateListeners) {
+      console.log(`[RESTSocketService] Enviando para ${anyUpdateListeners.size} listeners de qualquer atualização`);
+      anyUpdateListeners.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error('[RESTSocketService] Erro em listener de qualquer atualização:', error);
         }
       });
     }
