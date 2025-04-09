@@ -10,10 +10,12 @@ export const isProduction = import.meta.env.PROD ||
 // Valores padrão para cada ambiente
 const defaultValues: Record<string, Record<string, string>> = {
   development: {
+    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
     VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
     VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   },
   production: {
+    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
     VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
     VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   }
@@ -21,31 +23,28 @@ const defaultValues: Record<string, Record<string, string>> = {
 
 interface EnvConfig {
   apiBaseUrl: string;
+  websocketUrl: string;
   debugMode: boolean;
   env: string;
   optimizePollingForVisibility?: boolean;
-  enableNoCorsMode?: boolean;
-  enableCorsProxy?: boolean;
 }
 
 // Configuração para ambiente de produção
 const productionConfig: EnvConfig = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backend-production-2f96.up.railway.app',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL ? String(import.meta.env.VITE_WEBSOCKET_URL) : 'wss://backend-production-2f96.up.railway.app',
   debugMode: false,
   env: 'production',
-  optimizePollingForVisibility: true,
-  enableNoCorsMode: true,
-  enableCorsProxy: true
+  optimizePollingForVisibility: true
 };
 
 // Configuração para ambiente de desenvolvimento
 const developmentConfig: EnvConfig = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL ? String(import.meta.env.VITE_WEBSOCKET_URL) : 'ws://localhost:3000',
   debugMode: true,
   env: 'development',
-  optimizePollingForVisibility: false,
-  enableNoCorsMode: false,
-  enableCorsProxy: false
+  optimizePollingForVisibility: false
 };
 
 /**
@@ -91,7 +90,7 @@ export function getRequiredEnvVar(name: string): string {
   
   if (value !== undefined) {
     // Converter para string se for boolean
-    return typeof value === 'boolean' ? String(value) : value as string;
+    return typeof value === 'boolean' ? String(value) : String(value);
   }
   
   // Fallback para valores padrão baseados no ambiente
@@ -107,6 +106,9 @@ export function getRequiredEnvVar(name: string): string {
     console.warn(`[ENV] Variável ${name} não encontrada. Usando valor padrão.`);
     
     // Valores padrão para desenvolvimento
+    if (name === 'VITE_WS_URL') {
+      return 'wss://backend-production-2f96.up.railway.app';
+    }
     if (name === 'VITE_API_URL' || name === 'VITE_API_BASE_URL') {
       return 'https://backendapi-production-36b5.up.railway.app/api';
     }
@@ -130,19 +132,44 @@ export function getEnvVar(name: string, defaultValue: string): string {
   }
 }
 
+/**
+ * Obtém a URL do socket, garantindo que use o protocolo wss:// quando necessário
+ */
+export function getSocketUrl(): string {
+  try {
+    let configuredUrl = getRequiredEnvVar('VITE_WS_URL');
+    
+    // Garantir que a URL use o protocolo wss://
+    if (configuredUrl && !configuredUrl.startsWith('wss://')) {
+      if (configuredUrl.startsWith('https://')) {
+        console.warn('[ENV] Convertendo URL de https:// para wss://');
+        configuredUrl = configuredUrl.replace('https://', 'wss://');
+      } else if (configuredUrl.startsWith('http://')) {
+        console.warn('[ENV] Convertendo URL de http:// para wss://');
+        configuredUrl = configuredUrl.replace('http://', 'wss://');
+      }
+    }
+    
+    return configuredUrl;
+  } catch (error) {
+    console.warn('Não foi possível determinar a URL do socket, usando valor padrão');
+    return 'wss://backend-production-2f96.up.railway.app';
+  }
+}
+
 // Exportar o objeto de configuração padrão
 export default {
   isProduction,
   getRequiredEnvVar,
   getEnvVar,
   getApiBaseUrl,
+  getSocketUrl,
   
   // Atalhos para as principais URLs
+  wsUrl: getSocketUrl(),
   apiUrl: getRequiredEnvVar('VITE_API_URL') || getRequiredEnvVar('VITE_API_BASE_URL'),
   apiBaseUrl: getApiBaseUrl(),
   
-  // Reativar configurações CORS
-  optimizePollingForVisibility: isProduction,
-  enableNoCorsMode: true,       // Ativado para casos de fallback
-  enableCorsProxy: true         // Ativado para casos de fallback secundário
+  // Novas propriedades
+  optimizePollingForVisibility: isProduction
 }; 

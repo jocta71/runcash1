@@ -1,4 +1,5 @@
 import { RouletteApi } from '../api/rouletteApi';
+import { socketClient } from '../socket/socketClient';
 import { transformRouletteData, getNumericId } from './rouletteTransformer';
 import { getLogger } from '../utils/logger';
 
@@ -28,13 +29,6 @@ const CACHE_TTL = 60000; // 1 minuto em milissegundos
 
 // Rastreamento de requisições pendentes para evitar chamadas duplicadas
 const pendingRequests = new Map<string, Promise<any>>();
-
-// Lista de callbacks para atualizações
-const updateCallbacks = new Map<string, Array<(data: RouletteData) => void>>();
-
-// Intervalo de polling para buscar atualizações
-const POLLING_INTERVAL = 10000; // 10 segundos
-let pollingIntervalId: number | null = null;
 
 /**
  * Repositório para gerenciar dados de roletas
@@ -129,36 +123,6 @@ export const RouletteRepository = {
   },
   
   /**
-   * Inicia o polling para atualização periódica
-   */
-  startPolling() {
-    if (pollingIntervalId !== null) {
-      return; // Já está fazendo polling
-    }
-    
-    logger.info('Iniciando polling de atualização de roletas');
-    pollingIntervalId = window.setInterval(() => {
-      // Atualizar apenas se tivermos callbacks registrados
-      if (updateCallbacks.size > 0) {
-        this.fetchAllRoulettesWithNumbers()
-          .then(() => logger.debug('Roletas atualizadas via polling'))
-          .catch(error => logger.error('Erro no polling de roletas:', error));
-      }
-    }, POLLING_INTERVAL) as unknown as number;
-  },
-  
-  /**
-   * Para o polling de atualização
-   */
-  stopPolling() {
-    if (pollingIntervalId !== null) {
-      window.clearInterval(pollingIntervalId);
-      pollingIntervalId = null;
-      logger.info('Polling de atualização de roletas interrompido');
-    }
-  },
-  
-  /**
    * Busca uma roleta específica pelo ID
    * @param id ID da roleta (qualquer formato)
    * @returns Objeto da roleta ou null se não encontrada
@@ -209,10 +173,8 @@ export const RouletteRepository = {
             
             logger.info(`✅ Roleta encontrada: ${roulette.name}`);
             
-            // Iniciar polling para atualizações se tiver callbacks registrados
-            if (updateCallbacks.has(numericId)) {
-              this.startPolling();
-            }
+            // Também assinar em tempo real via socket
+            socketClient.subscribeToRoulette(numericId, roulette.name);
             
             resolve(roulette);
           } else {
@@ -286,36 +248,18 @@ export const RouletteRepository = {
         }
       }
       
-      // Adicionar número ao array de numbers
+      // Adicionar no início do array de números
       cachedRoulette.numbers.unshift(transformedNumber);
       
-      // Atualizar também o array numero para compatibilidade
-      if (!cachedRoulette.numero) {
-        cachedRoulette.numero = [];
-      }
-      cachedRoulette.numero.unshift(transformedNumber.number);
-      
-      // Atualizar timestamp do cache
+      // Atualizar cache
       cache.set(cacheKey, {
         data: cachedRoulette,
         timestamp: Date.now()
       });
       
-      // Notificar callbacks registrados
-      if (updateCallbacks.has(numericId)) {
-        const callbacks = updateCallbacks.get(numericId)!;
-        callbacks.forEach(callback => {
-          try {
-            callback(cachedRoulette);
-          } catch (err) {
-            logger.error(`Erro ao notificar callback para roleta ${numericId}:`, err);
-          }
-        });
-      }
-      
-      logger.debug(`Número ${transformedNumber.number} adicionado à roleta ${numericId}`);
+      logger.debug(`✅ Número ${transformedNumber.number} adicionado à roleta ${numericId}`);
     } catch (error) {
-      logger.error(`Erro ao adicionar número para roleta ${roletaId}:`, error);
+      logger.error(`Erro ao adicionar número à roleta ${roletaId}:`, error);
     }
   },
   
@@ -327,104 +271,101 @@ export const RouletteRepository = {
   updateRouletteStrategy(roletaId: string, strategy: any): void {
     try {
       const numericId = getNumericId(roletaId);
-      
-      logger.debug(`Atualizando estratégia para roleta ${numericId}`);
-      
       const cacheKey = `roulette_${numericId}`;
       
       // Verificar se temos essa roleta em cache
       if (!cache.has(cacheKey)) {
-        logger.debug(`Roleta ${numericId} não está em cache, carregando`);
-        // Tentar buscar a roleta pelo ID numérico
-        this.fetchRouletteById(numericId).then(roulette => {
-          if (roulette) {
-            logger.debug(`Roleta ${numericId} carregada após recebimento de estratégia`);
-            // Atualizar a estratégia após carregamento da roleta
-            setTimeout(() => {
-              this.updateRouletteStrategy(numericId, strategy);
-            }, 500);
-          }
-        });
+        logger.debug(`Roleta ${numericId} não está em cache, ignorando atualização de estratégia`);
         return;
       }
       
       const cachedRoulette = cache.get(cacheKey)!.data;
       
-      // Atualizar campos da estratégia
-      cachedRoulette.strategyState = strategy.estado || strategy.state || 'UNKNOWN';
-      cachedRoulette.wins = strategy.vitorias || strategy.wins || 0;
-      cachedRoulette.losses = strategy.derrotas || strategy.losses || 0;
+      // Atualizar dados de estratégia
+      cachedRoulette.strategyState = strategy.estado || strategy.state || cachedRoulette.strategyState;
+      cachedRoulette.wins = strategy.vitorias || strategy.wins || cachedRoulette.wins;
+      cachedRoulette.losses = strategy.derrotas || strategy.losses || cachedRoulette.losses;
       
-      // Atualizar timestamp do cache
+      // Atualizar cache
       cache.set(cacheKey, {
         data: cachedRoulette,
         timestamp: Date.now()
       });
       
-      // Notificar callbacks registrados
-      if (updateCallbacks.has(numericId)) {
-        const callbacks = updateCallbacks.get(numericId)!;
-        callbacks.forEach(callback => {
-          try {
-            callback(cachedRoulette);
-          } catch (err) {
-            logger.error(`Erro ao notificar callback para roleta ${numericId}:`, err);
-          }
-        });
-      }
-      
-      logger.debug(`Estratégia atualizada para roleta ${numericId}: ${cachedRoulette.strategyState}`);
+      logger.debug(`✅ Estratégia atualizada para roleta ${numericId}: ${cachedRoulette.strategyState}`);
     } catch (error) {
-      logger.error(`Erro ao atualizar estratégia para roleta ${roletaId}:`, error);
+      logger.error(`Erro ao atualizar estratégia da roleta ${roletaId}:`, error);
     }
   },
   
   /**
-   * Inscreve um callback para receber atualizações de uma roleta
+   * Assina atualizações em tempo real para uma roleta específica
    * @param id ID da roleta
-   * @param callback Função a ser chamada quando a roleta for atualizada
-   * @returns Função para cancelar a inscrição
+   * @param callback Função a ser chamada quando houver atualizações
+   * @returns Função para cancelar a assinatura
    */
   subscribeToRouletteUpdates(id: string, callback: (data: RouletteData) => void): () => void {
     const numericId = getNumericId(id);
+    logger.debug(`Assinando atualizações para roleta ${numericId}`);
     
-    logger.info(`Inscrevendo para atualizações da roleta ${numericId}`);
+    // Buscar dados iniciais
+    this.fetchRouletteById(numericId).then(roulette => {
+      if (roulette) {
+        callback(roulette);
+      }
+    });
     
-    // Inicializar array de callbacks se não existir
-    if (!updateCallbacks.has(numericId)) {
-      updateCallbacks.set(numericId, []);
-    }
-    
-    // Adicionar callback à lista
-    updateCallbacks.get(numericId)!.push(callback);
-    
-    // Iniciar polling para atualização periódica
-    this.startPolling();
-    
-    // Buscar dados atuais da roleta
-    this.fetchRouletteById(numericId);
-    
-    // Retornar função para cancelar a inscrição
-    return () => {
-      logger.info(`Cancelando inscrição para roleta ${numericId}`);
+    // Assinar eventos do socket para atualizações de números
+    const numberEventCallback = (data: any) => {
+      logger.verbose(`Evento de novo número recebido para roleta ${numericId}`);
       
-      const callbacks = updateCallbacks.get(numericId);
-      if (callbacks) {
-        const index = callbacks.indexOf(callback);
-        if (index !== -1) {
-          callbacks.splice(index, 1);
-        }
+      // Adicionar número ao cache
+      if (data.numero !== undefined || data.number !== undefined) {
+        this.addNewNumberToRoulette(numericId, data);
         
-        // Se não há mais callbacks, remover o ID da roleta da lista
-        if (callbacks.length === 0) {
-          updateCallbacks.delete(numericId);
+        // Extrair o ID da roleta do evento
+        let eventRouletaId = data.roleta_id || data.roulette_id;
+        if (eventRouletaId && eventRouletaId !== numericId) {
+          logger.debug(`⚠️ ID da roleta no evento (${eventRouletaId}) é diferente do ID assinado (${numericId})`);
           
-          // Se não há mais roletas sendo observadas, parar o polling
-          if (updateCallbacks.size === 0) {
-            this.stopPolling();
+          // Verificar se podemos mapear o ID do evento para nosso ID numérico
+          const mappedId = getNumericId(eventRouletaId);
+          if (mappedId === numericId) {
+            logger.debug(`✅ IDs mapeados corretamente: ${eventRouletaId} -> ${numericId}`);
+          } else {
+            logger.warn(`❌ IDs não correspondem após mapeamento: ${eventRouletaId} -> ${mappedId} != ${numericId}`);
           }
         }
       }
+      
+      // Buscar roleta atualizada do cache e notificar
+      const cacheKey = `roulette_${numericId}`;
+      if (cache.has(cacheKey)) {
+        callback(cache.get(cacheKey)!.data);
+      }
+    };
+    
+    // Assinar eventos do socket para atualizações de estratégia
+    const strategyEventCallback = (data: any) => {
+      logger.verbose(`Evento de estratégia recebido para roleta ${numericId}`);
+      this.updateRouletteStrategy(numericId, data);
+      
+      // Buscar roleta atualizada do cache e notificar
+      const cacheKey = `roulette_${numericId}`;
+      if (cache.has(cacheKey)) {
+        callback(cache.get(cacheKey)!.data);
+      }
+    };
+    
+    // Assinar eventos específicos para esta roleta
+    socketClient.on(`new_number_${numericId}`, numberEventCallback);
+    socketClient.on(`strategy_update_${numericId}`, strategyEventCallback);
+    
+    // Retornar função para cancelar assinatura
+    return () => {
+      // Usar removeListener para especificidade
+      socketClient.removeListener(`new_number_${numericId}`, numberEventCallback);
+      socketClient.removeListener(`strategy_update_${numericId}`, strategyEventCallback);
     };
   }
 }; 

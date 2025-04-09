@@ -286,12 +286,16 @@ export function useRouletteData(
   // Referência para manter o ID canônico consistente
   const canonicalIdRef = useRef<string>(mapToCanonicalRouletteId(roletaId));
   const initialLoadRef = useRef<boolean>(false);
+  const socketSubscribedRef = useRef<boolean>(false);
   
   // Referência para limpeza do intervalo
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // ID para controle de polling
   const pollingIdKey = `${canonicalIdRef.current}_${limit}`;
+  
+  // Socket Service para comunicação em tempo real
+  const socketService = useMemo(() => SocketService.getInstance(), []);
   
   // EventService para eventos
   const eventService = useMemo(() => EventService.getInstance(), []);

@@ -3,9 +3,4 @@ npm-debug.log
 .env
 .git
 .gitignore
-README.md
-websocket_server.js
-scraper/
-test/
-*.test.js
-*.spec.js 
+scraper/ 
