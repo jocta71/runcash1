@@ -1103,51 +1103,60 @@ export default class RouletteFeedService {
    */
   private handleRouletteData(data: any): void {
     try {
-      if (!data) {
-        logger.warn('⚠️ Dados de roleta nulos ou indefinidos recebidos');
-        return;
-      }
-    
-      // Verificar se é um evento do tipo global_update
+      // Tratamento especial para eventos global_update
       if (data.type === 'global_update' && data.data) {
-        logger.info(`🌎 Processando evento global_update com ${Array.isArray(data.data) ? data.data.length : 1} item(s)`);
+        logger.info(`🔄 Processando evento global_update com ${Array.isArray(data.data) ? data.data.length : '1'} roleta(s)`);
         
-        // Pode ser um array de roletas ou apenas uma
+        // Se é um array, processar cada item
         if (Array.isArray(data.data)) {
-          // Processar cada roleta no array
-          data.data.forEach((roulette: any) => {
-            if (this.validateRouletteData(roulette)) {
-              this.updateRouletteData(roulette);
-            } else {
-              logger.warn(`⚠️ Item inválido em global_update: ${JSON.stringify(roulette).substring(0, 100)}`);
+          data.data.forEach((rouletteData: any) => {
+            try {
+              this.processRouletteUpdate(rouletteData);
+            } catch (err) {
+              logger.error(`❌ Erro ao processar dados de roleta em global_update: ${err instanceof Error ? err.message : String(err)}`);
             }
           });
         } else {
-          // Processar um único objeto
-          if (this.validateRouletteData(data.data)) {
-            this.updateRouletteData(data.data);
-          } else {
-            logger.warn(`⚠️ Dados inválidos em global_update: ${JSON.stringify(data.data).substring(0, 100)}`);
-          }
+          // Se é um objeto único, processar diretamente
+          this.processRouletteUpdate(data.data);
         }
         
-        // Notificar que os dados foram atualizados
-        EventService.emit('roulette:data-updated', {
-          timestamp: new Date().toISOString(),
-          source: 'global_update'
-        });
-        
+        // Notificar assinantes sobre a atualização
+        this.notifySubscribers('global_update', data);
         return;
       }
       
-      // Para outros tipos de eventos ou atualizações diretas
-      if (this.validateRouletteData(data)) {
-        this.updateRouletteData(data);
-      } else {
-        logger.warn(`❌ Dados de roleta inválidos: estrutura incorreta`);
-      }
+      // Tratamento para eventos de número novo ou atualizações individuais
+      this.processRouletteUpdate(data);
     } catch (error) {
       logger.error(`❌ Erro ao processar dados de roleta: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  
+  /**
+   * Processa atualização de dados para uma roleta específica
+   * @param data Dados da roleta individual
+   */
+  private processRouletteUpdate(data: any): void {
+    try {
+      // Normalizar ID e nome
+      const roletaId = String(data.roleta_id || data.id || '');
+      const roletaNome = String(data.roleta_nome || data.name || '');
+      
+      if (!roletaId && !roletaNome) {
+        logger.warn('⚠️ Dados de roleta sem identificadores válidos');
+        return;
+      }
+      
+      logger.info(`🎲 Atualizando roleta: ${roletaNome || roletaId}`);
+      
+      // Atualizar o cache com os novos dados
+      this.updateRouletteInCache(data);
+      
+      // Notificar assinantes sobre a atualização individual
+      this.notifySubscribers('update', data);
+    } catch (error) {
+      logger.error(`❌ Erro ao processar atualização de roleta: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   
