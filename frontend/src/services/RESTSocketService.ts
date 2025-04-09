@@ -39,7 +39,7 @@ class RESTSocketService {
   private listeners: Map<string, Set<any>> = new Map();
   private connectionActive: boolean = false;
   private timerId: number | null = null;
-  private pollingInterval: number = 5000; // Intervalo de 5 segundos para polling
+  private pollingInterval: number = 8000; // Intervalo de 8 segundos para polling
   private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
   
   // Propriedade para simular estado de conexão
@@ -98,12 +98,15 @@ class RESTSocketService {
     // Executar imediatamente na inicialização
     this.fetchDataFromREST();
     
-    // Configurar intervalo de polling
+    // Configurar intervalo de polling com intervalo fixo, independente do tempo de resposta
     this.timerId = window.setInterval(() => {
-      this.fetchDataFromREST();
+      // Usar Promise para não bloquear o timer
+      this.fetchDataFromREST().catch(err => 
+        console.error('[RESTSocketService] Erro ao buscar dados:', err)
+      );
     }, this.pollingInterval) as unknown as number;
     
-    console.log(`[RESTSocketService] Polling da API REST iniciado com intervalo de ${this.pollingInterval}ms`);
+    console.log(`[RESTSocketService] Polling da API REST iniciado com intervalo fixo de ${this.pollingInterval}ms`);
   }
   
   // Buscar dados da API REST

@@ -119,7 +119,7 @@ export default class RouletteFeedService {
   private interval: number = POLLING_INTERVAL; // Usar o intervalo global
   private minInterval: number = 5000; // Mínimo 5 segundos
   private maxInterval: number = 8000; // Máximo 20 segundos
-  private maxRequestsPerMinute: number = 30; // Limite de 30 requisições por minuto
+  private maxRequestsPerMinute: number = 120; // Aumentado para 120 requisições por minuto (2 por segundo)
   private backoffMultiplier: number = 1.5; // Multiplicador para backoff em caso de falhas
   
   // Propriedades adicionais usadas no construtor
@@ -182,6 +182,10 @@ export default class RouletteFeedService {
   private pendingRequests: {
     [key: string]: RequestInfo
   } = {};
+
+  private updateInterval: number = 0;
+  private requestCounter: number = 0;
+  private requestTimestamp: number = 0;
 
   /**
    * O construtor configura os parâmetros iniciais e inicia o serviço
