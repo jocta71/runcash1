@@ -272,8 +272,10 @@ export class SocketService {
     }
     
     try {
-      // Alterar para chamar a API REST
-      const apiUrl = `${config.apiUrl}/api/roulettes/${roletaId}`;
+      // Usar o proxy configurado no Vite para evitar problemas de CORS
+      const apiUrl = `/api-remote/roulettes/${roletaId}`;
+      
+      console.log(`[SocketService] Buscando dados da roleta ${roletaId}: ${apiUrl}`);
       
       const response = await fetch(apiUrl);
       
@@ -543,8 +545,10 @@ export class SocketService {
     try {
       console.log('[SocketService] Carregando histórico de números das roletas');
       
-      // Obter lista de roletas
-      const apiUrl = `${config.apiUrl}/api/roulettes`;
+      // Usar o proxy configurado no Vite para evitar problemas de CORS
+      const apiUrl = `/api-remote/roulettes`;
+      
+      console.log(`[SocketService] Buscando lista de roletas: ${apiUrl}`);
       
       const response = await fetch(apiUrl);
       
@@ -583,7 +587,10 @@ export class SocketService {
    */
   private async fetchRouletteHistory(roletaId: string): Promise<void> {
     try {
-      const historyUrl = `${config.apiUrl}/api/roulettes/${roletaId}/history`;
+      // Usar o proxy configurado no Vite para evitar problemas de CORS
+      const historyUrl = `/api-remote/roulettes/${roletaId}/history`;
+      
+      console.log(`[SocketService] Buscando histórico da roleta ${roletaId}: ${historyUrl}`);
       
       const response = await fetch(historyUrl);
       

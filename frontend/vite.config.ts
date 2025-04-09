@@ -28,6 +28,13 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
         secure: false,
+      },
+      // Configuração de proxy para contornar problemas de CORS
+      '/api-remote': {
+        target: 'https://backendscraper-production.up.railway.app',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-remote/, ''),
+        secure: false
       }
     },
   },

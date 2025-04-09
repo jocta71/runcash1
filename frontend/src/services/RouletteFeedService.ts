@@ -1228,51 +1228,48 @@ export default class RouletteFeedService {
       
       this.isFetching = true;
       
-      // Obter configurações da API
-      const apiUrl = `${config.apiUrl}/api/roulettes`;
+      // Usar o proxy configurado no Vite para evitar problemas de CORS
+      const apiUrl = `/api-remote/roulettes`;
+      
+      logger.debug(`🔍 Buscando dados de todas as roletas: ${apiUrl}`);
       
       // Registrar início da requisição
       const startTime = Date.now();
       
-      // Fazer a requisição
-      logger.debug(`🔍 Buscando dados de todas as roletas: ${apiUrl}`);
-      const response = await fetch(apiUrl);
-      
-      if (!response.ok) {
-        throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
+      // Tentar primeiro o endpoint API local que sabemos que funciona
+      try {
+        const localResponse = await fetch('/api/ROULETTES');
+        
+        if (localResponse.ok) {
+          const data = await localResponse.json();
+          this.processRouletteData(data, startTime);
+          return;
+        }
+      } catch (localError) {
+        logger.warn(`⚠️ Não foi possível usar API local: ${localError instanceof Error ? localError.message : String(localError)}`);
       }
       
-      const data = await response.json();
-      
-      // Calcular tempo de resposta
-      const responseTime = Date.now() - startTime;
-      logger.debug(`⚡ Resposta recebida em ${responseTime}ms`);
-      
-      // Processar os dados
-      if (Array.isArray(data)) {
-        // Atualizar a lista de roletas
-        this.roulettesList = data;
+      // Se a API local falhar, tentar a API remota
+      try {
+        // Fazer a requisição
+        const response = await fetch(apiUrl);
         
-        // Processar cada roleta individualmente
-        data.forEach(roleta => {
-          this.handleRouletteData(roleta);
-        });
+        if (!response.ok) {
+          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
+        }
         
-        // Notificar que os dados foram atualizados
-        EventService.emit('roulette:data-updated', {
-          timestamp: new Date().toISOString(),
-          count: data.length
-        });
-        
-        // Registrar sucesso
-        this.consecutiveErrors = 0;
-        this.consecutiveSuccesses++;
-        this.lastSuccessTimestamp = Date.now();
-        
-        logger.info(`✅ ${data.length} roletas obtidas com sucesso`);
-      } else {
-        logger.warn('❌ Formato de resposta inválido (não é um array)');
+        const data = await response.json();
+        this.processRouletteData(data, startTime);
+      } catch (error) {
+        // Registrar erro
         this.consecutiveErrors++;
+        this.consecutiveSuccesses = 0;
+        logger.error(`❌ Erro ao buscar roletas remotamente: ${error instanceof Error ? error.message : String(error)}`);
+        
+        // Aumentar o intervalo de polling em caso de erros consecutivos
+        if (this.consecutiveErrors > 2) {
+          this.adjustPollingInterval(true);
+        }
       }
     } catch (error) {
       // Registrar erro
@@ -1291,6 +1288,46 @@ export default class RouletteFeedService {
       if (this.consecutiveSuccesses >= MIN_SUCCESS_STREAK_FOR_NORMALIZATION) {
         this.adjustPollingInterval(false);
       }
+    }
+  }
+  
+  /**
+   * Processa os dados de roletas recebidos
+   */
+  private processRouletteData(data: any, startTime: number): void {
+    // Calcular tempo de resposta
+    const responseTime = Date.now() - startTime;
+    logger.debug(`⚡ Resposta recebida em ${responseTime}ms`);
+    
+    // Processar os dados
+    if (Array.isArray(data)) {
+      // Atualizar a lista de roletas
+      this.roulettesList = data;
+      
+      // Processar cada roleta individualmente
+      let validRoulettes = 0;
+      data.forEach(roleta => {
+        if (this.validateRouletteData(roleta)) {
+          this.handleRouletteData(roleta);
+          validRoulettes++;
+        }
+      });
+      
+      // Notificar que os dados foram atualizados
+      EventService.emit('roulette:data-updated', {
+        timestamp: new Date().toISOString(),
+        count: validRoulettes
+      });
+      
+      // Registrar sucesso
+      this.consecutiveErrors = 0;
+      this.consecutiveSuccesses++;
+      this.lastSuccessTimestamp = Date.now();
+      
+      logger.info(`✅ ${validRoulettes} roletas válidas obtidas com sucesso`);
+    } else {
+      logger.warn('❌ Formato de resposta inválido (não é um array)');
+      this.consecutiveErrors++;
     }
   }
   
