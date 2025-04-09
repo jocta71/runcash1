@@ -39,7 +39,7 @@ class RESTSocketService {
   private listeners: Map<string, Set<any>> = new Map();
   private connectionActive: boolean = false;
   private timerId: number | null = null;
-  private pollingInterval: number = 5000;
+  private pollingInterval: number = 3000;
   private updateInterval: number = 30000;
   private baseEndpoint: string = '/api/ROULETTES';
   private endpoint: string = `${this.baseEndpoint}?limit=100`;
@@ -72,6 +72,9 @@ class RESTSocketService {
   private constructor() {
     console.log('[RESTSocketService] Inicializando serviço REST API com polling');
     
+    // Configurar intervalos de polling mais agressivos para garantir atualizações em tempo real
+    this.pollingInterval = 3000; // Reduzir para 3 segundos
+    
     // Adicionar listener global para logging de todos os eventos
     this.subscribe('*', (event: any) => {
       if (event.type === 'new_number') {
@@ -94,14 +97,20 @@ class RESTSocketService {
     this.loadCachedData();
     
     // Adicionar verificação de saúde do timer a cada 10 segundos
-    setInterval(() => {
+    this.healthCheckTimer = setInterval(() => {
       this.checkTimerHealth();
     }, 10000);
     
     // Iniciar um timer mais frequente para forçar a exibição dos novos números
     setInterval(() => {
       this.forceUpdateAllListeners();
-    }, 5000);
+    }, 2500); // Reduzir para 2.5 segundos
+
+    // Iniciar também o polling para o endpoint sem parâmetros
+    // que pode ter dados mais recentes
+    setTimeout(() => {
+      this.startSecondEndpointPolling();
+    }, 1000);
   }
 
   // Manipular alterações de visibilidade da página
@@ -218,13 +227,14 @@ class RESTSocketService {
         // Obter histórico existente e mesclar com os novos números
         const existingHistory = this.rouletteHistory.get(roulette.id) || [];
         
-        // IMPORTANTE: Vamos forçar considerar como novos dados para garantir que os eventos sejam emitidos
-        const isNewData = true; // Forçar processamento mesmo sem números novos
+        // Verificar se temos números novos para esta roleta
+        const isNewData = this.hasNewNumbers(numbers, existingHistory);
         
+        // Se temos dados novos ou forçamos atualização, processar
         if (isNewData) {
-          console.log(`[RESTSocketService] Processando números para roleta ${roulette.nome || roulette.id}`);
+          console.log(`[RESTSocketService] Novos números detectados para roleta ${roulette.nome || roulette.id}`);
           
-          // Mesclar, evitando duplicações e preservando ordem
+          // Mesclar, evitando duplicações e preservando ordem (novos primeiro)
           const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
           
           // Limitar ao tamanho máximo
@@ -237,7 +247,11 @@ class RESTSocketService {
           this.emitRouletteNumberEvent(roulette, 'limit-endpoint');
           
           // Também emitir em formatos alternativos que podem ser esperados pelo RouletteCard
-          this.emitCompatibilityEvents(roulette, isNewData);
+          this.emitCompatibilityEvents(roulette, true);
+        } else {
+          // Mesmo sem números novos, vamos emitir um evento de atualização
+          // para garantir que o componente se mantenha sincronizado
+          this.emitRouletteNumberEvent(roulette, 'refresh-endpoint');
         }
       }
       
@@ -259,6 +273,15 @@ class RESTSocketService {
         this.notifyListeners(strategyEvent);
       }
     });
+  }
+
+  // Verifica se há números novos comparando com o histórico existente
+  private hasNewNumbers(newNumbers: number[], existingNumbers: number[]): boolean {
+    if (newNumbers.length === 0) return false;
+    if (existingNumbers.length === 0) return true;
+    
+    // Verifica se o número mais recente na API é diferente do mais recente no histórico
+    return newNumbers[0] !== existingNumbers[0];
   }
 
   private determinarCorNumero(numero: number): string {
@@ -788,42 +811,89 @@ class RESTSocketService {
    * Emite eventos em formatos compatíveis com versões anteriores da aplicação
    */
   private emitCompatibilityEvents(roulette: any, isNewNumber: boolean): void {
-    if (!roulette || !roulette.numeros || roulette.numeros.length === 0) {
+    if (!roulette || !roulette.id) {
       return;
     }
 
-    const latestNumber = roulette.numeros[0];
+    // Obter número mais recente do roulette
+    const latestNumber = roulette.numero && roulette.numero.length > 0 
+      ? roulette.numero[0]
+      : null;
 
-    // Evento de novo número no formato simplificado
-    const simplifiedEvent = {
-      type: 'new_number',
-      numero: latestNumber.numero,
-      roleta_id: roulette.roleta_id,
-      roleta_nome: roulette.roleta_nome,
-      cor: latestNumber.cor,
-      data_hora: latestNumber.data_hora,
-      paridade: latestNumber.paridade,
-      duzias: latestNumber.duzias,
-      colunas: latestNumber.colunas,
-      numeros: roulette.numeros
+    if (!latestNumber) return;
+
+    // Mapeamento para formato esperado pelo componente
+    const numeroFormatado = {
+      numero: latestNumber.numero || latestNumber.number || 0,
+      cor: latestNumber.cor || this.determinarCorNumero(latestNumber.numero || latestNumber.number || 0),
+      data_hora: latestNumber.timestamp || new Date().toISOString(),
+      paridade: (latestNumber.numero || latestNumber.number || 0) % 2 === 0 ? 'par' : 'impar',
+      duzias: this.determinarDuzia(latestNumber.numero || latestNumber.number || 0),
+      colunas: this.determinarColuna(latestNumber.numero || latestNumber.number || 0)
     };
 
-    // Evento no formato de compatibilidade legado
-    const legacyCompatEvent = {
-      ...simplifiedEvent,
-      ultimo_numero: latestNumber,
-      historico: roulette.numeros
+    // Lista completa de números para este roulette
+    const historico = this.getRouletteHistory(roulette.id);
+    
+    // Evento de novo número formatado para o componente RouletteCard
+    const eventData = {
+      type: 'roulette_numbers_update',
+      roleta_id: roulette.id,
+      roleta_nome: roulette.nome || roulette.id,
+      ultimo_numero: numeroFormatado,
+      numero: numeroFormatado.numero,
+      cor: numeroFormatado.cor,
+      data_hora: numeroFormatado.data_hora,
+      paridade: numeroFormatado.paridade,
+      duzias: numeroFormatado.duzias,
+      colunas: numeroFormatado.colunas,
+      historico: historico.map(n => ({
+        numero: n,
+        cor: this.determinarCorNumero(n)
+      })),
+      numeros: historico.map(n => ({
+        numero: n,
+        cor: this.determinarCorNumero(n)
+      })),
+      timestamp: new Date().toISOString(),
+      source: 'compatibility'
     };
 
-    // Emitir apenas o evento simplificado
+    // Emitir o evento para os listeners específicos desta roleta
+    this.notifyListeners(eventData);
+    
+    // Também emitir pelo ID da roleta para garantir que todos recebam
+    this.notifySpecificListener(roulette.id, eventData);
+    
+    // Emitir evento adicional de novo número no formato mais simples
+    // para compatibilidade com componentes mais antigos
     if (isNewNumber) {
-      this.notifyListeners(simplifiedEvent);
+      const newNumberEvent = {
+        type: 'new_number',
+        roleta_id: roulette.id,
+        roleta_nome: roulette.nome || roulette.id,
+        numero: numeroFormatado.numero,
+        cor: numeroFormatado.cor,
+        timestamp: new Date().toISOString(),
+        source: 'new-number-event'
+      };
+      
+      this.notifyListeners(newNumberEvent);
     }
-
-    // Emitir evento de compatibilidade para versões legadas apenas se for um novo número
-    if (isNewNumber) {
-      this.notifyListeners(legacyCompatEvent);
-    }
+  }
+  
+  // Auxilia no cálculo da duzia do número
+  private determinarDuzia(numero: number): number {
+    if (numero === 0) return 0;
+    if (numero >= 1 && numero <= 12) return 1;
+    if (numero >= 13 && numero <= 24) return 2;
+    return 3;
+  }
+  
+  // Auxilia no cálculo da coluna do número
+  private determinarColuna(numero: number): number {
+    if (numero === 0) return 0;
+    return (numero - 1) % 3 + 1;
   }
   
   // Notificar especificamente um listener pelo ID
@@ -850,6 +920,12 @@ class RESTSocketService {
 
   // Função auxiliar para mesclar arrays de números sem duplicações
   private mergeNumbersWithoutDuplicates(newNumbers: number[], existingNumbers: number[]): number[] {
+    // Se não temos números novos, retornar o existente
+    if (newNumbers.length === 0) return existingNumbers;
+    
+    // Se não temos histórico, retornar os novos
+    if (existingNumbers.length === 0) return [...newNumbers];
+    
     // Criar um Set a partir dos números existentes para verificação rápida
     const existingSet = new Set(existingNumbers);
     
