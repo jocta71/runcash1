@@ -4,7 +4,8 @@ import config from '@/config/env';
 import EventService, { 
   RouletteNumberEvent,
   RouletteEventCallback,
-  StrategyUpdateEvent
+  StrategyUpdateEvent,
+  RouletteHistoryEvent
 } from './EventService';
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import { mapToCanonicalRouletteId, ROLETAS_CANONICAS } from '../integrations/api/rouletteService';
@@ -61,7 +62,7 @@ import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
  * Serviço que gerencia a conexão WebSocket via Socket.IO
  * para receber dados em tempo real do MongoDB
  */
-class SocketService {
+export class SocketService {
   private static instance: SocketService;
   private socket: Socket | null = null;
   private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
@@ -184,13 +185,32 @@ class SocketService {
     this.socket.off('strategy_update');
     this.socket.off('roulette_update');
     
-    // Configurar listener para novos números - mais verboso para debug
+    // Configurar listener para novos números com processamento imediato
     this.socket.on('new_number', (data: any) => {
-      console.log('[SocketService] Novo número recebido via Socket.IO:', data);
-      this.processIncomingNumber(data);
+      console.log('[SocketService] ⚡ Novo número recebido:', data);
       
-      // Emitir um evento de log para debug
-      console.log(`[SocketService] ✅ Processado número ${data.numero} para ${data.roleta_nome || 'desconhecida'}`);
+      // Processar o número imediatamente
+      if (data && data.roleta_id && data.numero !== undefined) {
+        const event: RouletteNumberEvent = {
+          type: 'new_number',
+          roleta_id: data.roleta_id,
+          roleta_nome: data.roleta_nome || 'desconhecida',
+          numero: data.numero,
+          timestamp: new Date().toISOString()
+        };
+
+        // Atualizar o histórico local
+        this.updateRouletteHistory(data.roleta_id, data.numero);
+        
+        // Notificar listeners imediatamente
+        this.notifyListeners(event);
+        
+        // Emitir evento para o EventService para sincronização global
+        EventService.getInstance().dispatchEvent(event);
+        
+        // Log de confirmação
+        console.log(`[SocketService] ✅ Número ${data.numero} processado para ${data.roleta_nome}`);
+      }
     });
     
     // Configurar listener para atualizações específicas de roleta
@@ -198,24 +218,21 @@ class SocketService {
       console.log('[SocketService] Atualização específica de roleta recebida:', data);
       
       if (data && data.roleta_id && data.numeros && Array.isArray(data.numeros)) {
-        const roletaId = data.roleta_id;
-        const roletaNome = data.roleta_nome || `Roleta ${roletaId}`;
-        
-        console.log(`[SocketService] Processando ${data.numeros.length} números para ${roletaNome}`);
-        
-        // Processar cada número individualmente para garantir atualização na interface
-        data.numeros.forEach((numero: any, index: number) => {
-          // Processar o número no formato correto
-          this.processIncomingNumber({
-            type: 'new_number',
-            roleta_id: roletaId,
-            roleta_nome: roletaNome,
-            numero: typeof numero === 'number' ? numero : parseInt(String(numero), 10),
-            timestamp: new Date().toISOString(),
-            preserve_existing: true,
-            realtime: true
-          });
+        // Atualizar histórico local com os novos números
+        data.numeros.forEach((numero: number) => {
+          this.updateRouletteHistory(data.roleta_id, numero);
         });
+        
+        // Notificar sobre a atualização do histórico
+        const event: RouletteHistoryEvent = {
+          type: 'history_update',
+          roleta_id: data.roleta_id,
+          numeros: data.numeros,
+          timestamp: new Date().toISOString()
+        };
+        
+        this.notifyListeners(event);
+        EventService.getInstance().dispatchEvent(event);
       }
     });
     
@@ -245,6 +262,41 @@ class SocketService {
     setTimeout(() => {
       this.requestRecentNumbers();
     }, 1000);
+  }
+
+  private updateRouletteHistory(roletaId: string, numero: number): void {
+    // Obter o histórico atual ou criar um novo array
+    const historico = this.rouletteHistory.get(roletaId) || [];
+    
+    // Adicionar o novo número no início do array (mais recente primeiro)
+    historico.unshift(numero);
+    
+    // Manter apenas os últimos N números (limite definido em historyLimit)
+    if (historico.length > this.historyLimit) {
+      historico.pop(); // Remove o número mais antigo
+    }
+    
+    // Atualizar o histórico no Map
+    this.rouletteHistory.set(roletaId, historico);
+  }
+
+  private notifyHistoryUpdate(roletaId: string): void {
+    const historico = this.rouletteHistory.get(roletaId);
+    if (!historico) return;
+
+    const event: RouletteHistoryEvent = {
+      type: 'history_update',
+      roleta_id: roletaId,
+      numeros: historico,
+      timestamp: new Date()
+    };
+
+    this.notifyListeners(event);
+  }
+
+  // Método público para obter o histórico de uma roleta
+  public getRouletteHistory(roletaId: string): number[] {
+    return this.rouletteHistory.get(roletaId) || [];
   }
 
   private processIncomingNumber(data: any): void {
@@ -2250,5 +2302,3 @@ class SocketService {
     return true;
   }
 }
-
-export default SocketService; 

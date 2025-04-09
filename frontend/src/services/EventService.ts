@@ -14,44 +14,33 @@ const debugLog = (...args: any[]) => {
 };
 
 // Definição dos tipos de eventos
-export interface RouletteNumberEvent {
-  type: 'new_number';
+export interface BaseEvent {
+  type: string;
   roleta_id: string;
+  timestamp: string;
+}
+
+export interface RouletteNumberEvent extends BaseEvent {
+  type: 'new_number';
   roleta_nome: string;
   numero: number;
-  timestamp: string;
-  // Campos opcionais de estratégia
-  estado_estrategia?: string;
-  sugestao_display?: string;
-  terminais_gatilho?: number[];
-  // Flag para indicar se dados existentes devem ser preservados
-  preserve_existing?: boolean;
-  // Flag para indicar se é uma atualização em tempo real (após carregamento inicial)
-  realtime_update?: boolean;
 }
 
-export interface StrategyUpdateEvent {
+export interface RouletteHistoryEvent extends BaseEvent {
+  type: 'history_update';
+  numeros: number[];
+}
+
+export interface StrategyUpdateEvent extends BaseEvent {
   type: 'strategy_update';
-  roleta_id: string;
   roleta_nome: string;
   estado: string;
-  numero_gatilho: number;
-  terminais_gatilho: number[];
-  vitorias: number;
-  derrotas: number;
-  sugestao_display?: string;
-  timestamp?: string;
 }
 
-export interface ConnectedEvent {
-  type: 'connected';
-  message: string;
-}
-
-export type EventData = RouletteNumberEvent | ConnectedEvent | StrategyUpdateEvent;
+export type RouletteEvent = RouletteNumberEvent | RouletteHistoryEvent | StrategyUpdateEvent;
 
 // Tipo para callbacks de eventos
-export type RouletteEventCallback = (event: RouletteNumberEvent | StrategyUpdateEvent) => void;
+export type RouletteEventCallback = (event: RouletteEvent) => void | Promise<void> | boolean;
 
 // Tipo para callbacks de eventos genéricos
 export type EventCallback = (data: any) => void;
@@ -258,7 +247,7 @@ export class EventService {
           }
           
           // Adaptar formato da nova API para o formato esperado
-          let data: EventData;
+          let data: RouletteEvent;
           
           // Verificar formato e adaptar conforme necessário
           if (parsedData.type === 'new_number') {
@@ -275,12 +264,6 @@ export class EventService {
               roleta_nome: parsedData.roleta_nome,
               numero: Number(parsedData.numero),
               timestamp: parsedData.timestamp || new Date().toISOString()
-            };
-          } else if (parsedData.message && typeof parsedData.message === 'string') {
-            // Evento de conexão ou outro evento informativo
-            data = {
-              type: 'connected',
-              message: parsedData.message
             };
           } else {
             return;
@@ -545,13 +528,13 @@ export class EventService {
     }
     
     // Notificar listeners da roleta específica
-    const roletaListeners = this.listeners.get(event.roleta_nome);
+    const roletaListeners = this.listeners.get(event.roleta_id);
     if (roletaListeners && roletaListeners.size > 0) {
       roletaListeners.forEach(callback => {
         try {
           callback(event);
         } catch (error) {
-          debugLog(`[EventService] Erro ao notificar listener para ${event.roleta_nome}`);
+          debugLog(`[EventService] Erro ao notificar listener para ${event.roleta_id}`);
         }
       });
     }
@@ -674,31 +657,38 @@ export class EventService {
    * Envia um evento para todos os ouvintes registrados
    * @param event Evento a ser enviado
    */
-  public dispatchEvent(event: any): void {
-    console.log(`[EventService] Disparando evento ${event.type} para roleta ${event.roleta_nome || 'desconhecida'}`);
-    
-    // Notificar os listeners específicos para este tipo de evento
-    const callbacks = this.listeners.get(event.type);
-    if (callbacks) {
-      callbacks.forEach(callback => {
-        try {
-          callback(event);
-        } catch (error) {
-          console.error(`[EventService] Erro ao processar evento ${event.type}:`, error);
-        }
-      });
+  public dispatchEvent(event: RouletteEvent): void {
+    // Garantir que o timestamp seja uma string
+    if (event.timestamp instanceof Date) {
+      event.timestamp = event.timestamp.toISOString();
     }
     
-    // Notificar também os listeners globais
-    const globalCallbacks = this.listeners.get('*');
-    if (globalCallbacks) {
-      globalCallbacks.forEach(callback => {
-        try {
-          callback(event);
-        } catch (error) {
-          console.error(`[EventService] Erro ao processar evento global:`, error);
-        }
-      });
+    // Notificar listeners específicos da roleta
+    if (this.listeners.has(event.roleta_id)) {
+      const listeners = this.listeners.get(event.roleta_id);
+      if (listeners) {
+        listeners.forEach(callback => {
+          try {
+            callback(event);
+          } catch (error) {
+            console.error(`[EventService] Erro ao notificar listener para ${event.roleta_id}:`, error);
+          }
+        });
+      }
+    }
+    
+    // Notificar listeners globais
+    if (this.listeners.has('*')) {
+      const globalListeners = this.listeners.get('*');
+      if (globalListeners) {
+        globalListeners.forEach(callback => {
+          try {
+            callback(event);
+          } catch (error) {
+            console.error('[EventService] Erro ao notificar listener global:', error);
+          }
+        });
+      }
     }
   }
 
