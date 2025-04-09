@@ -146,9 +146,12 @@ class RESTSocketService {
         throw new Error(`Erro ao buscar dados: ${response.status} ${response.statusText}`);
       }
       
-      const data = await response.json();
+      let data = await response.json();
       const endTime = Date.now();
       console.log(`[RESTSocketService] Chamada concluída em ${endTime - startTime}ms`);
+      
+      // Transformar a resposta para usar apenas os IDs simplificados
+      data = this.transformApiResponse(data);
       
       // Salvar no cache
       localStorage.setItem('roulettes_data_cache', JSON.stringify({
@@ -166,6 +169,31 @@ class RESTSocketService {
     }
   }
   
+  // Transformar resposta da API para usar apenas IDs simplificados
+  private transformApiResponse(roletas: any[]): any[] {
+    if (!Array.isArray(roletas)) return roletas;
+    
+    return roletas.map(roleta => {
+      // Se não tem números, não podemos transformar
+      if (!roleta.numero || !Array.isArray(roleta.numero) || roleta.numero.length === 0) {
+        return roleta;
+      }
+      
+      // Pegar o ID simples do primeiro número
+      const simpleId = roleta.numero[0].roleta_id;
+      
+      // Se não temos ID simples, manter o original
+      if (!simpleId) return roleta;
+      
+      // Criar uma cópia da roleta com o ID substituído
+      return {
+        ...roleta,
+        original_id: roleta.id, // Guardar o ID original como fallback
+        id: simpleId // Substituir o ID complexo pelo ID simples
+      };
+    });
+  }
+  
   // Carregar dados do cache
   private loadCachedData() {
     try {
@@ -178,7 +206,10 @@ class RESTSocketService {
         const now = Date.now();
         if (now - parsed.timestamp < 10 * 60 * 1000) {
           console.log('[RESTSocketService] Usando dados em cache para inicialização rápida');
-          this.processDataAsEvents(parsed.data);
+          
+          // Transformar os dados do cache para garantir que usam IDs simplificados
+          const transformedData = this.transformApiResponse(parsed.data);
+          this.processDataAsEvents(transformedData);
         }
       }
     } catch (error) {
@@ -422,7 +453,10 @@ class RESTSocketService {
         throw new Error(`Erro ao buscar dados históricos: ${response.status}`);
       }
       
-      const data = await response.json();
+      let data = await response.json();
+      
+      // Transformar a resposta para usar apenas IDs simplificados
+      data = this.transformApiResponse(data);
       
       if (Array.isArray(data)) {
         // Processar os dados recebidos
@@ -431,8 +465,11 @@ class RESTSocketService {
             // Extrair apenas os números
             const numeros = roleta.numero.map((n: any) => n.numero || n.number || 0);
             
+            // Pegar o ID simplificado
+            const simpleId = roleta.id; // Agora já é o ID simplificado após a transformação
+            
             // Armazenar no histórico
-            this.setRouletteHistory(roleta.id, numeros);
+            this.setRouletteHistory(simpleId, numeros);
             
             console.log(`[RESTSocketService] Carregados ${numeros.length} números históricos para ${roleta.nome || 'roleta desconhecida'}`);
           }
@@ -527,11 +564,13 @@ class RESTSocketService {
         throw new Error(`Erro ao buscar dados do segundo endpoint: ${response.status} ${response.statusText}`);
       }
       
-      const data = await response.json();
+      let data = await response.json();
       const endTime = Date.now();
       console.log(`[RESTSocketService] Chamada ao segundo endpoint concluída em ${endTime - startTime}ms`);
       
-      // Não processamos os dados, apenas mantemos o endpoint ativo
+      // Transformar a resposta para usar apenas IDs simplificados
+      // Não processamos estes dados, mas faremos a transformação de qualquer forma para consistência
+      data = this.transformApiResponse(data);
       
       return true;
     } catch (error) {
