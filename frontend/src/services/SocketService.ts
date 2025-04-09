@@ -531,6 +531,17 @@ class SocketService {
     console.log("[SocketService] Reconectando via REST API");
     this.connect();
   }
+
+  /**
+   * Carrega números históricos das roletas (implementação mínima para compatibilidade)
+   */
+  public loadHistoricalRouletteNumbers(): Promise<any[]> {
+    console.log("[SocketService] Carregando dados históricos de roletas");
+    
+    // Retornar uma promessa que resolve imediatamente com um array vazio
+    // Esta é uma implementação temporária que não faz nada real
+    return Promise.resolve([]);
+  }
 }
 
 // Exportar uma instância única como padrão e também a classe

@@ -207,9 +207,18 @@ window.fetch = function(input, init) {
 
 // Iniciar pré-carregamento de dados históricos
 logger.info('Iniciando pré-carregamento de dados históricos...');
-socketServiceInstance.loadHistoricalRouletteNumbers().catch(err => {
-  logger.error('Erro ao pré-carregar dados históricos:', err);
-});
+try {
+  // Verificar se o método existe antes de chamá-lo
+  if (socketServiceInstance && typeof socketServiceInstance.loadHistoricalRouletteNumbers === 'function') {
+    socketServiceInstance.loadHistoricalRouletteNumbers().catch(err => {
+      logger.error('Erro ao pré-carregar dados históricos:', err);
+    });
+  } else {
+    logger.warn('Método loadHistoricalRouletteNumbers não disponível, ignorando pré-carregamento');
+  }
+} catch (error) {
+  logger.error('Erro ao tentar pré-carregar dados históricos:', error);
+}
 
 // Expor globalmente a função para verificar se o sistema foi inicializado
 window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
