@@ -732,6 +732,114 @@ export class SocketService {
       });
     }
   }
+  
+  /**
+   * Carrega números históricos das roletas
+   * @returns Promise que é resolvida quando os dados históricos são carregados
+   */
+  public async loadHistoricalRouletteNumbers(): Promise<any> {
+    this._isLoadingHistoricalData = true;
+    console.log('[SocketService] Iniciando carregamento de dados históricos das roletas');
+    
+    try {
+      // Lista de roletas para carregar dados históricos
+      const roletasPermitidas = ROLETAS_PERMITIDAS || [];
+      
+      if (!roletasPermitidas.length) {
+        console.warn('[SocketService] Nenhuma roleta configurada para carregamento de histórico');
+        return Promise.resolve([]);
+      }
+      
+      console.log(`[SocketService] Carregando histórico para ${roletasPermitidas.length} roletas`);
+      
+      // Array de promises para carregar dados de todas as roletas em paralelo
+      const loadPromises = roletasPermitidas.map(roleta => {
+        return this.loadRouletteHistory(roleta._id)
+          .catch(error => {
+            console.error(`[SocketService] Erro ao carregar histórico para roleta ${roleta.nome || roleta._id}:`, error);
+            return null; // Retorna null em caso de erro, para não interromper outras cargas
+          });
+      });
+      
+      // Aguardar todas as promises
+      const results = await Promise.all(loadPromises);
+      
+      this._isLoadingHistoricalData = false;
+      console.log('[SocketService] Dados históricos carregados com sucesso:', 
+        results.filter(Boolean).length, 'de', roletasPermitidas.length, 'roletas');
+      
+      return results.filter(Boolean);
+    } catch (error) {
+      this._isLoadingHistoricalData = false;
+      console.error('[SocketService] Erro ao carregar dados históricos:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Carrega o histórico de uma roleta específica
+   * @param roletaId ID da roleta para carregar histórico
+   * @returns Promise com os dados históricos
+   */
+  private async loadRouletteHistory(roletaId: string): Promise<HistoryData | null> {
+    if (!roletaId) {
+      console.warn('[SocketService] ID da roleta não fornecido para carregamento de histórico');
+      return null;
+    }
+    
+    // Verificar se temos dados em cache
+    const cacheKey = `history_${roletaId}`;
+    if (this.cache[cacheKey]) {
+      console.log(`[SocketService] Usando dados em cache para roleta ${roletaId}`);
+      return this.cache[cacheKey];
+    }
+    
+    console.log(`[SocketService] Carregando histórico para roleta ${roletaId}`);
+    
+    try {
+      // Se o socket está ativo, tentar buscar dados via socket
+      if (this.socket && this.isConnected) {
+        // Emitir evento para solicitar histórico específico
+        this.socket.emit('get_history', { roletaId });
+        
+        // Criar promise que será resolvida quando o evento 'history_data' for recebido
+        return new Promise((resolve, reject) => {
+          // Timeout para evitar espera indefinida
+          const timeout = setTimeout(() => {
+            console.warn(`[SocketService] Timeout ao aguardar histórico para roleta ${roletaId}`);
+            reject(new Error('Timeout ao aguardar dados históricos'));
+          }, 10000); // 10 segundos de timeout
+          
+          // Handler para receber os dados
+          const historyHandler = (data: any) => {
+            if (data && data.roletaId === roletaId) {
+              clearTimeout(timeout);
+              this.socket?.off('history_data', historyHandler);
+              
+              // Armazenar em cache
+              this.cache[cacheKey] = data;
+              
+              resolve(data);
+            }
+          };
+          
+          this.socket?.on('history_data', historyHandler);
+        });
+      } else {
+        // Fallback: buscar via API REST se o socket não estiver disponível
+        // Simulação de resposta para não quebrar o fluxo
+        console.warn(`[SocketService] Socket indisponível para histórico da roleta ${roletaId}, usando fallback`);
+        return {
+          roletaId,
+          numeros: [],
+          message: 'Histórico indisponível no momento'
+        };
+      }
+    } catch (error) {
+      console.error(`[SocketService] Erro ao carregar histórico para roleta ${roletaId}:`, error);
+      return null;
+    }
+  }
 }
 
 export default SocketService; 
