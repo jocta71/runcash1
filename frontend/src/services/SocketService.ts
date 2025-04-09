@@ -1095,30 +1095,30 @@ class SocketService {
           
           // Se tiver sucesso, processar os dados
           if (response.ok) {
-            const data = await response.json();
+      const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
-              console.log(`[SocketService] ✅ Recebidas ${data.length} roletas da API`);
-              
+            console.log(`[SocketService] ✅ Recebidas ${data.length} roletas da API`);
+            
               // Sinalizar sucesso para o circuit breaker
               this.handleCircuitBreaker(true, endpoint);
               
               // Armazenar no cache global para uso futuro
-              const roletasComIdsCanonicos = data.map(roleta => {
-                const uuid = roleta.id;
-                const canonicalId = mapToCanonicalRouletteId(uuid);
-                
-                return {
-                  ...roleta,
-                  _id: canonicalId, // Adicionar o ID canônico
-                  uuid: uuid        // Preservar o UUID original
-                };
-              });
+            const roletasComIdsCanonicos = data.map(roleta => {
+              const uuid = roleta.id;
+              const canonicalId = mapToCanonicalRouletteId(uuid);
               
-              console.log(`[SocketService] Roletas mapeadas com IDs canônicos:`, 
+              return {
+                ...roleta,
+                _id: canonicalId, // Adicionar o ID canônico
+                uuid: uuid        // Preservar o UUID original
+              };
+            });
+            
+            console.log(`[SocketService] Roletas mapeadas com IDs canônicos:`, 
                 roletasComIdsCanonicos.length);
-              
-              return roletasComIdsCanonicos;
-            }
+            
+            return roletasComIdsCanonicos;
+          }
             break; // Se chegou aqui mas não tem dados, sair do loop
           }
           
@@ -1158,15 +1158,15 @@ class SocketService {
       console.warn(`[SocketService] Falha ao buscar roletas após ${maxAttempts} tentativas`);
       
       // Usar a lista local de roletas canônicas como fallback
-      const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
-        _id: roleta.id,
-        nome: roleta.nome,
-        ativa: true
-      }));
-      
-      console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback`);
-      return roletasFallback;
-      
+        const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+          _id: roleta.id,
+          nome: roleta.nome,
+          ativa: true
+        }));
+        
+        console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback`);
+        return roletasFallback;
+        
     } catch (error) {
       console.error('[SocketService] Erro ao buscar roletas:', error);
       
@@ -1174,13 +1174,13 @@ class SocketService {
       this.handleCircuitBreaker(false, 'fetchRealRoulettes');
       
       // Fallback para lista local
-      const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
-        _id: roleta.id,
-        nome: roleta.nome,
-        ativa: true
-      }));
-      
-      return roletasFallback;
+        const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+          _id: roleta.id,
+          nome: roleta.nome,
+          ativa: true
+        }));
+        
+        return roletasFallback;
     }
     */
   }
@@ -1272,15 +1272,15 @@ class SocketService {
       console.log(`[SocketService] Buscando em: ${endpoint}`);
       
       // Usar sistema de retry para lidar com erros 502
-      let attempt = 0;
-      const maxAttempts = 3;
-      let response = null;
-      
-      while (attempt < maxAttempts) {
-        try {
-          response = await fetch(endpoint);
+        let attempt = 0;
+        const maxAttempts = 3;
+        let response = null;
+        
+        while (attempt < maxAttempts) {
+          try {
+            response = await fetch(endpoint);
           
-          if (response.ok) {
+            if (response.ok) {
             const allRoulettes = await response.json();
             
             if (!Array.isArray(allRoulettes)) {
@@ -1312,31 +1312,31 @@ class SocketService {
             console.log(`[SocketService] ✅ Recebidos ${numeros.length} números para roleta ${roletaId}`);
             
             // Armazenar no cache para uso futuro
-            this.rouletteDataCache.set(roletaId, {
-              data: roleta,
+              this.rouletteDataCache.set(roletaId, {
+                data: roleta,
               timestamp: now
             });
             
             // Processar os números recebidos
-            this.processNumbersData(numeros, roleta);
-            
-            // Também armazenar os números no histórico local
-            const numerosSimples = numeros
-              .filter(n => n !== null && n !== undefined)
-              .map(n => {
-                if (n && typeof n === 'object' && 'numero' in n) {
-                  return n.numero;
-                }
-                return n;
-              })
-              .filter(n => n !== null && !isNaN(n));
-            
-            this.setRouletteHistory(roletaId, numerosSimples);
+                this.processNumbersData(numeros, roleta);
+                
+                // Também armazenar os números no histórico local
+                const numerosSimples = numeros
+                  .filter(n => n !== null && n !== undefined)
+                  .map(n => {
+                    if (n && typeof n === 'object' && 'numero' in n) {
+                      return n.numero;
+                    }
+                    return n;
+                  })
+                  .filter(n => n !== null && !isNaN(n));
+                
+                this.setRouletteHistory(roletaId, numerosSimples);
             
             // Sinalizar sucesso para o circuit breaker
             this.handleCircuitBreaker(true, endpoint);
-            
-            return true;
+                
+                return true;
           }
           
           // Se for erro 502, tentar novamente
@@ -1345,7 +1345,7 @@ class SocketService {
             console.warn(`[SocketService] Erro 502 ao buscar números. Tentativa ${attempt}/${maxAttempts}`);
             
             // Marcar falha para o circuit breaker
-            this.handleCircuitBreaker(false, endpoint);
+          this.handleCircuitBreaker(false, endpoint);
             
             // Esperar antes de tentar novamente (exponential backoff)
             await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
@@ -1354,7 +1354,7 @@ class SocketService {
             console.warn(`[SocketService] Erro ${response.status} ao buscar números.`);
             break;
           }
-        } catch (error) {
+      } catch (error) {
           attempt++;
           console.error(`[SocketService] Erro de rede na tentativa ${attempt}/${maxAttempts}:`, error);
           
@@ -1375,7 +1375,7 @@ class SocketService {
       console.warn(`[SocketService] Falha ao buscar números após ${maxAttempts} tentativas`);
       
       // Usar fallback
-      return this.useFallbackData(roletaId);
+        return this.useFallbackData(roletaId);
     } catch (error) {
       console.error(`[SocketService] Erro ao buscar números para roleta ${roletaId}:`, error);
       

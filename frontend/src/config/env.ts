@@ -132,11 +132,6 @@ export function getEnvVar(name: string, defaultValue: string): string {
   }
 }
 
-export function getSSEServerURL(): string {
-  // Função mantida para compatibilidade, mas agora apenas retorna um valor vazio
-  return '';
-}
-
 // Exportar o objeto de configuração padrão
 export default {
   isProduction,

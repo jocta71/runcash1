@@ -10,7 +10,6 @@ interface ImportMeta {
     DEV?: boolean;
     SSR?: boolean;
     VITE_WS_URL?: string;
-    VITE_SSE_SERVER_URL?: string;
     VITE_API_URL?: string;
     VITE_API_BASE_URL?: string;
   };
