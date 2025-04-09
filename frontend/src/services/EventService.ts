@@ -647,38 +647,6 @@ export class EventService {
       });
     }
   }
-
-  /**
-   * Registra callback para um evento específico
-   */
-  public static subscribe(eventName: string, callback: EventCallback): void {
-    const instance = EventService.getInstance();
-    
-    if (!instance.customEventListeners.has(eventName)) {
-      instance.customEventListeners.set(eventName, new Set());
-    }
-    
-    instance.customEventListeners.get(eventName)?.add(callback);
-  }
-  
-  /**
-   * Remove callback previamente registrado para um evento específico
-   */
-  public static unsubscribe(eventName: string, callback: EventCallback): void {
-    const instance = EventService.getInstance();
-    
-    if (instance.customEventListeners.has(eventName)) {
-      instance.customEventListeners.get(eventName)?.delete(callback);
-    }
-  }
-  
-  /**
-   * Remove todos os callbacks de todos os eventos
-   */
-  public static unsubscribeAll(): void {
-    const instance = EventService.getInstance();
-    instance.customEventListeners.clear();
-  }
 }
 
 export default EventService; 

@@ -115,15 +115,9 @@ window.fetch = function(input, init) {
 
 // Iniciar pré-carregamento de dados históricos
 logger.info('Iniciando pré-carregamento de dados históricos...');
-try {
-  socketService.loadHistoricalRouletteNumbers().catch(err => {
-    logger.error('Erro ao pré-carregar dados históricos:', err);
-    // Não interromper a inicialização da aplicação mesmo com erro
-  });
-} catch (e) {
-  logger.error('Exceção ao chamar loadHistoricalRouletteNumbers:', e);
-  // Continuar inicialização mesmo com erro
-}
+socketService.loadHistoricalRouletteNumbers().catch(err => {
+  logger.error('Erro ao pré-carregar dados históricos:', err);
+});
 
 // Expor globalmente a função para verificar se o sistema foi inicializado
 window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
