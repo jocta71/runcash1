@@ -324,37 +324,18 @@ class SocketService {
   }
   
   private getSocketUrl(): string {
-    let wsUrl = getRequiredEnvVar('VITE_WS_URL');
-    
-    // Garantir que a URL use o protocolo wss://
-    if (wsUrl && !wsUrl.startsWith('wss://')) {
-      if (wsUrl.startsWith('https://')) {
-        console.warn('[SocketService] Convertendo URL de https:// para wss://');
-        wsUrl = wsUrl.replace('https://', 'wss://');
-      } else if (wsUrl.startsWith('http://')) {
-        console.warn('[SocketService] Convertendo URL de http:// para wss://');
-        wsUrl = wsUrl.replace('http://', 'wss://');
-      } else {
-        console.warn('[SocketService] URL não inicia com protocolo, adicionando wss://');
-        wsUrl = `wss://${wsUrl}`;
-      }
+    try {
+      // Usar o método do arquivo de configuração para obter a URL do WebSocket
+      return config.getSocketUrl();
+    } catch (error) {
+      console.error('[SocketService] Erro ao obter URL do WebSocket:', error);
+      
+      // Fallback para a URL da origem atual
+      const origin = window.location.origin;
+      const wsUrl = `${origin}/api/socket`;
+      console.log('[SocketService] Usando URL de WebSocket:', wsUrl);
+      return wsUrl;
     }
-    
-    // Em produção, garantir que usamos uma URL segura (não localhost)
-    if (isProduction && (wsUrl.includes('localhost') || wsUrl.includes('127.0.0.1'))) {
-      console.warn('[SocketService] Detectada URL inválida para WebSocket em produção. Usando origem atual.');
-      const currentOrigin = window.location.origin;
-      wsUrl = currentOrigin.replace('https://', 'wss://').replace('http://', 'wss://');
-    }
-    
-    // Verificar se a URL é válida
-    if (!wsUrl || wsUrl === 'wss://') {
-      console.error('[SocketService] URL de WebSocket inválida. Usando padrão.');
-      wsUrl = 'wss://backend-production-2f96.up.railway.app';
-    }
-    
-    console.log('[SocketService] Usando URL de WebSocket:', wsUrl);
-    return wsUrl;
   }
   
   private connect(): void {

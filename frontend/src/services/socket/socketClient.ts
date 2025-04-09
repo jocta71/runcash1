@@ -1,6 +1,7 @@
 import io from 'socket.io-client';
 import { getNumericId } from '../data/rouletteTransformer';
 import { getLogger } from '../utils/logger';
+import config from '@/config/env';
 
 // Logger para o cliente de socket
 const logger = getLogger('Socket');
@@ -87,7 +88,16 @@ class SocketClient {
     
     try {
       // Obter URL do servidor WebSocket das variáveis de ambiente
-      const wsUrl = import.meta.env.VITE_WS_URL || 'http://localhost:3000';
+      let wsUrl = '';
+      
+      try {
+        wsUrl = config.getRequiredEnvVar('VITE_WS_URL');
+      } catch (error) {
+        // Fallback para a origem atual
+        const origin = window.location.origin;
+        wsUrl = origin.replace('https://', 'wss://').replace('http://', 'ws://');
+        logger.warn(`URL de WebSocket não encontrada nas variáveis de ambiente. Usando origem: ${wsUrl}`);
+      }
       
       logger.info(`Conectando a ${wsUrl}...`);
       
