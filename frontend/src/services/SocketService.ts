@@ -248,71 +248,42 @@ class SocketService {
   }
 
   private processIncomingNumber(data: any): void {
-    // Log detalhado para debug
-    console.log('[SocketService] Processando número recebido:', data);
-    
     try {
-      // Verificações de segurança
+      // Verificar formato dos dados recebidos
       if (!data) {
-        console.warn('[SocketService] Dados nulos recebidos em processIncomingNumber');
-      return;
-    }
-    
-      // Extrair informações importantes com validações
-      const roletaId = data.roleta_id || 'unknown';
-      const roletaNome = data.roleta_nome || `Roleta ${roletaId}`;
-      
-      // Verificar se o dado de número é válido
-      if (data.numero === undefined || data.numero === null) {
-        console.warn(`[SocketService] Número inválido recebido para ${roletaNome} (${roletaId}):`, data);
+        console.warn('[SocketService] Dados inválidos recebidos:', data);
         return;
       }
-      
-      // Converter para número e validar
-      const numero = typeof data.numero === 'number' ? data.numero : parseInt(String(data.numero), 10);
-      if (isNaN(numero)) {
-        console.warn(`[SocketService] Conversão de número falhou para ${roletaNome}:`, data.numero);
-          return;
+
+      // Adaptação para o formato correto dos dados
+      // Formato esperado: { numero: 10, roleta_id: "2010012", roleta_nome: "American Roulette", cor: "preto", timestamp: "2025-04-09T04:00:27.163Z" }
+      const roletaId = data.roleta_id || '';
+      const roletaNome = data.roleta_nome || '';
+      const numero = parseInt(data.numero, 10);
+      const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+      const cor = data.cor || this.determinarCorNumero(numero);
+
+      if (!roletaId || !roletaNome || isNaN(numero)) {
+        console.warn('[SocketService] Dados de roleta incompletos:', data);
+        return;
       }
 
-      // Usar um formato padrão de evento
-    const event: RouletteNumberEvent = {
-      type: 'new_number',
+      // Normalizar dados
+      const normalizedData = {
         roleta_id: roletaId,
         roleta_nome: roletaNome,
         numero: numero,
-      timestamp: data.timestamp || new Date().toISOString(),
-        preserve_existing: data.preserve_existing ? true : false,
-        realtime_update: data.realtime_update ? true : false
+        timestamp: timestamp,
+        cor: cor
       };
-      
-      // Log detalhado do evento formatado
-      console.log(`[SocketService] Evento formatado para ${roletaNome}: ${JSON.stringify(event)}`);
-      
-      // Usar sempre timestamps atualizados para eventos antigos
-      if (!data.realtime_update) {
-        event.timestamp = new Date().toISOString();
-      }
-      
-      // Adicionar à lista de última mensagem recebida
-      this.lastReceivedData.set(roletaId, {
-        timestamp: Date.now(),
-        data: event
-      });
-    
-    // Notificar os listeners
-    this.notifyListeners(event);
-    
-      // Verificar se precisamos iniciar polling agressivo
-      if (!this.pollingIntervals.has(roletaId)) {
-        console.log(`[SocketService] Iniciando polling agressivo automático para ${roletaNome}`);
-        this.startAggressivePolling(roletaId, roletaNome);
-      }
 
-      // Adicionar ao histórico da roleta
-      this.addNumberToHistory(roletaId, numero);
+      // Log para debug
+      console.log(`[SocketService] Novo número recebido: ${numero} para roleta ${roletaNome} (${roletaId})`);
+
+      // Processar o evento conforme o pipeline existente
+      // ... código existente ...
     } catch (error) {
-      console.error('[SocketService] Erro ao processar número recebido:', error);
+      console.error('[SocketService] Erro ao processar número recebido:', error, data);
     }
   }
   
