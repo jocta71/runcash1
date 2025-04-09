@@ -1090,51 +1090,39 @@ export default class RouletteFeedService {
 
   /**
    * Processa os dados de roleta recebidos
-   * @param data Dados a serem processados (pode ser um array de roletas ou um evento único)
    */
-  private handleRouletteData(data: any[] | any): void {
+  private handleRouletteData(data: any): void {
     try {
-      // Se não for um array, tratamos como um evento único
-      if (!Array.isArray(data)) {
-        // Verificar se é válido antes de processar
-        if (!this.validateRouletteData(data)) {
-          logger.warn('❌ [handleRouletteData] Dados de roleta inválidos ignorados:', 
-            { dataType: typeof data, hasId: !!data?.roleta_id });
-          return;
-        }
+      // Verificações básicas
+      if (!data) {
+        logger.warn('⚠️ Dados de roleta vazios recebidos');
+        return;
+      }
 
-        // Processar com base no tipo de evento
+      // Verifica se é um objeto único ou um array
+      if (!Array.isArray(data)) {
+        // Se for um evento de global_update
         if (data.type === 'global_update' || data.event_type === 'global_update') {
-          // Atualização global - atualizar cache baseado no ID da roleta
-          const roletaId = data.roleta_id;
+          logger.info(`📊 Processando atualização global para roleta: ${data.roleta_id}`);
           
-          logger.debug(`🔄 Recebido evento global_update para roleta: ${roletaId}`);
-          
-          // Verificar se já temos esta roleta em cache
-          if (!this.rouletteDataCache.has(roletaId)) {
-            logger.debug(`📝 Adicionando nova roleta ao cache: ${roletaId}`);
-            this.rouletteDataCache.set(roletaId, { 
-              roleta_id: roletaId,
-              roleta_nome: data.roleta_nome || `Roleta ${roletaId}`,
-              ultimo_numero: data.ultimo_numero,
-              numeros: data.numeros || [],
+          // Atualizar o cache com os dados recebidos
+          if (data.roleta_id) {
+            const normalizedData = {
+              roleta_id: data.roleta_id,
+              roleta_nome: data.roleta_nome || `Roleta ${data.roleta_id}`,
+              ultimo_numero: data.ultimo_numero || null,
               status: data.status || 'online',
-              ultima_atualizacao: new Date()
-            });
+              ultima_atualizacao: new Date(),
+              numeros: data.numeros || []
+            };
+            
+            this.rouletteDataCache.set(data.roleta_id, normalizedData);
+            logger.debug(`💾 Cache atualizado para roleta: ${data.roleta_id}`);
+            
+            // Notificar subscribers
+            this.notifySubscribers(normalizedData);
           } else {
-            // Atualizar roleta existente com novos dados
-            const cachedRoulette = this.rouletteDataCache.get(roletaId);
-            if (cachedRoulette) {
-              logger.debug(`📝 Atualizando roleta existente: ${roletaId}`);
-              
-              // Atualizar os campos que vieram no evento
-              if (data.roleta_nome) cachedRoulette.roleta_nome = data.roleta_nome;
-              if (data.ultimo_numero !== undefined) cachedRoulette.ultimo_numero = data.ultimo_numero;
-              if (data.numeros) cachedRoulette.numeros = data.numeros;
-              if (data.status) cachedRoulette.status = data.status;
-              
-              cachedRoulette.ultima_atualizacao = new Date();
-            }
+            logger.warn('⚠️ Evento global_update sem ID de roleta');
           }
         } else if (data.type === 'new_number' || data.event_type === 'new_number') {
           // Evento de novo número - atualizar número na roleta específica
