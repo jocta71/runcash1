@@ -12,7 +12,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import globalRouletteDataService from '../services/GlobalRouletteDataService';
 import rouletteHistoryService from '../services/RouletteHistoryService';
 import { getLogger } from '../services/utils/logger';
@@ -47,10 +47,15 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
   try {
     logger.info(`Buscando dados históricos para: ${rouletteName}`);
     
+    if (!rouletteName) {
+      logger.warn('Nome da roleta não fornecido, gerando números de fallback');
+      return generateFallbackNumbers(50);
+    }
+    
     // Usar o serviço centralizado para buscar os dados históricos
     const numbers = await rouletteHistoryService.fetchRouletteHistoricalNumbers(rouletteName);
     
-    if (numbers && numbers.length > 0) {
+    if (numbers && Array.isArray(numbers) && numbers.length > 0) {
       logger.info(`Obtidos ${numbers.length} números históricos para ${rouletteName}`);
       return numbers;
     }
@@ -73,7 +78,7 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
       logger.warn(`Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
       // Se não encontrou a roleta, forçar uma atualização dos dados
       globalRouletteDataService.forceUpdate();
-      return [];
+      return generateFallbackNumbers(50);
     }
   } catch (error) {
     logger.error(`Erro ao buscar números históricos:`, error);
@@ -198,18 +203,28 @@ const RouletteSidePanelStats = ({
 }: RouletteSidePanelStatsProps) => {
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
   
   // Função para carregar dados históricos
   const loadHistoricalData = async () => {
     try {
+      setIsLoading(true);
+      setHasError(false);
+      
       logger.info(`Buscando histórico para ${roletaNome}...`);
       // Buscar dados históricos usando a função atualizada
       let apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
       
+      if (!apiNumbers || !Array.isArray(apiNumbers)) {
+        logger.warn(`Dados históricos inválidos recebidos para ${roletaNome}, usando fallback`);
+        apiNumbers = generateFallbackNumbers(50);
+      }
+      
       if (apiNumbers.length === 0 && isInitialRequestDone.current) {
         logger.info(`Sem novos dados disponíveis, mantendo estado atual`);
+        setIsLoading(false);
         return;
       }
       
@@ -243,60 +258,85 @@ const RouletteSidePanelStats = ({
       isInitialRequestDone.current = true;
     } catch (error) {
       logger.error('Erro ao carregar dados históricos:', error);
-      // Em caso de erro, usar apenas os números recentes em vez de gerar aleatórios
-      setHistoricalNumbers(lastNumbers || []);
+      setHasError(true);
+      // Em caso de erro, usar números fallback
+      setHistoricalNumbers(generateFallbackNumbers(50));
     } finally {
       setIsLoading(false);
     }
   };
   
-  // Usar o serviço global para obter atualizações
+  // Carregar dados na montagem
   useEffect(() => {
-    logger.info(`Inicializando para roleta ${roletaNome}`);
-    
-    // Resetar o estado de inicialização se a roleta mudar
-    isInitialRequestDone.current = false;
-    setIsLoading(true);
-    
-    // Registrar no serviço global para receber atualizações
-    globalRouletteDataService.subscribe(subscriberId.current, () => {
-      logger.info(`Recebendo atualização de dados para ${roletaNome}`);
-      loadHistoricalData();
-    });
-    
-    // Carregar dados imediatamente
-    loadHistoricalData();
-    
-    return () => {
-      // Cancelar inscrição ao desmontar
-      globalRouletteDataService.unsubscribe(subscriberId.current);
-    };
-  }, [roletaNome]); // Dependência apenas na roleta
-
-  // Atualizar números quando lastNumbers mudar, sem fazer nova requisição à API
-  useEffect(() => {
-    if (isInitialRequestDone.current && lastNumbers && lastNumbers.length > 0) {
-      logger.info(`Atualizando com ${lastNumbers.length} novos números recentes`);
-      
-      // Combinar com os números históricos existentes
-      const combinedNumbers = [...lastNumbers];
-      
-      historicalNumbers.forEach(num => {
-        if (!combinedNumbers.includes(num)) {
-          combinedNumbers.push(num);
-        }
+    try {
+      // Registrar no serviço global
+      globalRouletteDataService.subscribe(subscriberId.current, (data: any) => {
+        // Recarregar dados quando houver atualizações
+        loadHistoricalData();
       });
       
-      // Limitando a 1000 números no máximo
-      setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+      // Carregar dados iniciais
+      loadHistoricalData();
+      
+      return () => {
+        // Limpar assinatura ao desmontar
+        globalRouletteDataService.unsubscribe(subscriberId.current);
+      };
+    } catch (error) {
+      logger.error('Erro ao configurar component de estatísticas:', error);
+      setHasError(true);
+    }
+  }, [roletaNome]);
+
+  // Recalcular quando lastNumbers mudar
+  useEffect(() => {
+    try {
+      if (lastNumbers && lastNumbers.length > 0) {
+        loadHistoricalData();
+      }
+    } catch (error) {
+      logger.error('Erro ao atualizar números recentes:', error);
     }
   }, [lastNumbers]);
+
+  // Proteger contra dados inválidos
+  const safeHistoricalNumbers = useMemo(() => {
+    if (!historicalNumbers || !Array.isArray(historicalNumbers)) {
+      return [];
+    }
+    return historicalNumbers.filter(n => !isNaN(n) && n >= 0 && n <= 36);
+  }, [historicalNumbers]);
   
-  const frequencyData = generateFrequencyData(historicalNumbers);
-  const { hot, cold } = getHotColdNumbers(frequencyData);
-  const pieData = generateGroupDistribution(historicalNumbers);
-  const colorHourlyStats = generateColorHourlyStats(historicalNumbers);
+  // Calcular estatísticas com memoização para evitar recálculos desnecessários
+  const frequencyData = useMemo(() => generateFrequencyData(safeHistoricalNumbers), [safeHistoricalNumbers]);
+  const hotColdNumbers = useMemo(() => getHotColdNumbers(frequencyData), [frequencyData]);
+  const colorDistribution = useMemo(() => generateGroupDistribution(safeHistoricalNumbers), [safeHistoricalNumbers]);
+  const colorHourlyStats = useMemo(() => generateColorHourlyStats(safeHistoricalNumbers), [safeHistoricalNumbers]);
   
+  // Se estiver carregando ou tiver erro, mostrar indicadores
+  if (isLoading) {
+    return <div className="p-4 text-center">Carregando estatísticas...</div>;
+  }
+  
+  if (hasError) {
+    return (
+      <div className="p-4 text-center text-red-500">
+        Ocorreu um erro ao carregar estatísticas.
+        <button 
+          className="ml-2 text-blue-500 underline" 
+          onClick={() => loadHistoricalData()}
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+  
+  // Verificar se temos dados suficientes para mostrar estatísticas
+  if (safeHistoricalNumbers.length === 0) {
+    return <div className="p-4 text-center">Sem dados históricos disponíveis para esta roleta.</div>;
+  }
+
   const winRate = (wins / (wins + losses)) * 100;
 
   return (
@@ -346,7 +386,7 @@ const RouletteSidePanelStats = ({
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={pieData}
+                    data={colorDistribution}
                     cx="50%"
                     cy="50%"
                     outerRadius={60}
@@ -354,7 +394,7 @@ const RouletteSidePanelStats = ({
                     dataKey="value"
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   >
-                    {pieData.map((entry, index) => (
+                    {colorDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -406,7 +446,7 @@ const RouletteSidePanelStats = ({
                   <ArrowUp size={18} className="mr-2" /> Números Quentes
                 </h4>
                 <div className="flex flex-wrap gap-2">
-                  {hot.map((item, i) => (
+                  {hotColdNumbers.hot.map((item, i) => (
                     <div key={i} className="flex items-center space-x-2">
                       <div className={`w-7 h-7 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium`}>
                         {item.number}
@@ -422,7 +462,7 @@ const RouletteSidePanelStats = ({
                   <ArrowDown size={18} className="mr-2" /> Números Frios
                 </h4>
                 <div className="flex flex-wrap gap-2">
-                  {cold.map((item, i) => (
+                  {hotColdNumbers.cold.map((item, i) => (
                     <div key={i} className="flex items-center space-x-2">
                       <div className={`w-7 h-7 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium`}>
                         {item.number}
