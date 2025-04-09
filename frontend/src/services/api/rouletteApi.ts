@@ -3,8 +3,12 @@ import { ENDPOINTS, getFullUrl, API_BASE_URL } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
 import { getLogger } from '../utils/logger';
 import { fetchWithCorsHandling } from '../utils/cors-helpers';
+import { MOCK_ROULETTES, getMockRoulettes, getMockRouletteById } from './mockData';
 
 const logger = getLogger('RouletteApi');
+
+// Flag para forçar o uso de dados simulados
+const USE_MOCK_DATA = true; // Alternar para false quando quiser usar a API real
 
 /**
  * API para interação com dados de roletas
@@ -16,6 +20,14 @@ export class RouletteApi {
    */
   static async fetchAllRoulettes() {
     logger.info('🔄 Buscando todas as roletas...');
+    
+    // Se estiver usando dados simulados, retorne-os imediatamente
+    if (USE_MOCK_DATA) {
+      logger.info('🎲 Usando dados simulados para roletas');
+      const mockData = getMockRoulettes();
+      logger.info(`✅ ${mockData.length} roletas simuladas carregadas`);
+      return mockData;
+    }
     
     try {
       // Usar o utilitário de CORS para garantir que a requisição funcione
@@ -47,24 +59,11 @@ export class RouletteApi {
         }
       }
     } catch (error) {
-      logger.error('❌ Erro ao buscar roletas:', error);
-      // Último recurso: tentar com no-cors (retorna resposta vazia, mas não causa erro)
-      logger.info('🔄 Tentando com modo no-cors como último recurso...');
-      try {
-        const response = await fetch('/api/ROULETTES', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          mode: 'no-cors'
-        });
-        // Resposta no-cors é opaca, retornamos um array vazio
-        logger.info('⚠️ Usando array vazio devido ao modo no-cors');
-        return [];
-      } catch (e) {
-        return []; // Retornar array vazio em vez de propagar erro
-      }
+      logger.error('❌ Erro ao buscar roletas reais, usando dados simulados:', error);
+      // Usar dados simulados como fallback
+      const mockData = getMockRoulettes();
+      logger.info(`✅ ${mockData.length} roletas simuladas carregadas`);
+      return mockData;
     }
   }
 
@@ -74,6 +73,14 @@ export class RouletteApi {
    */
   static async fetchLimitedRoulettes() {
     logger.info('🔄 Buscando roletas com limite...');
+    
+    // Se estiver usando dados simulados, retorne-os imediatamente
+    if (USE_MOCK_DATA) {
+      logger.info('🎲 Usando dados simulados para roletas limitadas');
+      const mockData = getMockRoulettes(100);
+      logger.info(`✅ ${mockData.length} roletas simuladas limitadas carregadas`);
+      return mockData;
+    }
     
     try {
       // Usar o utilitário de CORS para garantir que a requisição funcione
@@ -102,8 +109,11 @@ export class RouletteApi {
         }
       }
     } catch (error) {
-      logger.error('❌ Erro ao buscar roletas limitadas:', error);
-      return []; // Retornar array vazio em vez de propagar erro
+      logger.error('❌ Erro ao buscar roletas limitadas reais, usando dados simulados:', error);
+      // Usar dados simulados como fallback
+      const mockData = getMockRoulettes(100);
+      logger.info(`✅ ${mockData.length} roletas simuladas limitadas carregadas`);
+      return mockData;
     }
   }
 
@@ -114,6 +124,20 @@ export class RouletteApi {
    */
   static async fetchRouletteHistory(roletaId: string) {
     logger.info(`🔄 Buscando histórico da roleta ${roletaId}...`);
+    
+    // Se estiver usando dados simulados, retorne-os imediatamente
+    if (USE_MOCK_DATA) {
+      logger.info(`🎲 Usando dados simulados para histórico da roleta ${roletaId}`);
+      const mockRoulette = getMockRouletteById(roletaId);
+      
+      if (mockRoulette) {
+        logger.info(`✅ Histórico simulado da roleta ${roletaId} encontrado`);
+        return mockRoulette.numeros || [];
+      } else {
+        logger.warn(`⚠️ Roleta simulada com ID ${roletaId} não encontrada`);
+        return [];
+      }
+    }
     
     try {
       // Usar o endpoint principal, filtrando por ID
@@ -133,6 +157,14 @@ export class RouletteApi {
       return roulette.numeros || roulette.history || [];
     } catch (error) {
       logger.error(`❌ Erro ao buscar histórico da roleta ${roletaId}:`, error);
+      
+      // Tentar buscar nos dados simulados
+      const mockRoulette = getMockRouletteById(roletaId);
+      if (mockRoulette) {
+        logger.info(`✅ Histórico simulado da roleta ${roletaId} encontrado como fallback`);
+        return mockRoulette.numeros || [];
+      }
+      
       return []; // Retornar array vazio em vez de propagar erro
     }
   }

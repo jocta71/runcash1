@@ -261,22 +261,40 @@ export default class RouletteFeedService {
    * Inicializa o serviço
    */
   public initialize(): Promise<any> {
-    logger.info('Solicitação de inicialização recebida');
+    // Verificar se o logger está definido
+    if (!logger) {
+      console.log('[RouletteFeedService] ⚠️ Logger não disponível durante a inicialização');
+    } else {
+      logger.info('Solicitação de inicialização recebida');
+    }
     
     // Se já existir uma promessa de inicialização em andamento, retorne-a
     if (this.GLOBAL_INITIALIZATION_PROMISE) {
-      logger.info('Reutilizando promessa de inicialização existente');
+      if (logger) {
+        logger.info('Reutilizando promessa de inicialização existente');
+      } else {
+        console.log('[RouletteFeedService] Reutilizando promessa de inicialização existente');
+      }
       return this.GLOBAL_INITIALIZATION_PROMISE;
     }
     
     // Se o serviço estiver inicializando, aguarde
     if (this.IS_INITIALIZING) {
-      logger.info('Serviço já está inicializando, aguardando...');
+      if (logger) {
+        logger.info('Serviço já está inicializando, aguardando...');
+      } else {
+        console.log('[RouletteFeedService] Serviço já está inicializando, aguardando...');
+      }
+      
       return new Promise((resolve) => {
         const checkInterval = setInterval(() => {
           if (!this.IS_INITIALIZING) {
             clearInterval(checkInterval);
-            logger.info('Inicialização concluída, continuando');
+            if (logger) {
+              logger.info('Inicialização concluída, continuando');
+            } else {
+              console.log('[RouletteFeedService] Inicialização concluída, continuando');
+            }
             resolve(this.roulettes);
           }
         }, 100);
@@ -285,15 +303,23 @@ export default class RouletteFeedService {
 
     // Se já estiver inicializado, retorne os dados existentes
     if (this.initialized) {
-      logger.info('Serviço já inicializado, retornando dados existentes');
+      if (logger) {
+        logger.info('Serviço já inicializado, retornando dados existentes');
+      } else {
+        console.log('[RouletteFeedService] Serviço já inicializado, retornando dados existentes');
+      }
       return Promise.resolve(this.roulettes);
     }
 
     // Marcar como inicializando
     this.IS_INITIALIZING = true;
     
-    // Conectar ao EventService para receber eventos em tempo real
-    this.connectToEventService();
+    try {
+      // Conectar ao EventService para receber eventos em tempo real
+      this.connectToEventService();
+    } catch (error) {
+      console.error('[RouletteFeedService] Erro ao conectar ao EventService:', error);
+    }
     
     // Criar e armazenar a promessa de inicialização
     this.GLOBAL_INITIALIZATION_PROMISE = new Promise((resolve, reject) => {
