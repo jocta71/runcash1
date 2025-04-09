@@ -192,7 +192,7 @@ export default class RouletteFeedService {
 
     // Iniciar o serviço automaticamente se configurado
     if (autoStart) {
-      this.start();
+      this.initialize();
     }
   }
 
