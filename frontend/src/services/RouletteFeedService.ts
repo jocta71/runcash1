@@ -1103,56 +1103,56 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Processa dados de roleta recebidos e notifica os assinantes
-   * @param data Dados da roleta recebidos
-   * @param source Fonte dos dados (para log)
+   * Processa os dados recebidos de roletas, tratando diferentes formatos
+   * @param data Dados brutos recebidos
+   * @returns Dados normalizados
    */
-  private handleRouletteData(data: any, source: string = 'desconhecido'): void {
+  private handleRouletteData(data: any): any[] {
     try {
-      logger.info(`📥 Recebendo dados de roleta de: ${source}`);
-      
-      // Caso 1: Processar evento global_update
-      if (data.event_type === 'global_update') {
-        logger.info(`🌐 Processando evento global_update [${source}]`);
+      // Caso 1: Se já for um array, verificar se os itens têm formato esperado
+      if (Array.isArray(data)) {
+        logger.info(`🎲 Processando ${data.length} roletas recebidas`);
         
-        if (Array.isArray(data.data)) {
-          // Se data.data for um array, processar cada item
-          logger.info(`🔄 Processando array com ${data.data.length} roletas`);
-          
-          data.data.forEach((rouletteItem: any) => {
-            const formattedItem = this.normalizeRouletteData(rouletteItem);
-            this.notifySubscribers(formattedItem);
-          });
-        } else {
-          // Se data.data for um objeto único, processá-lo diretamente
-          logger.info('🎯 Processando roleta única de global_update');
-          
-          const formattedItem = this.normalizeRouletteData(data.data);
-          this.notifySubscribers(formattedItem);
+        // Validar cada item do array
+        const validItems = data.filter(item => this.validateRouletteData(item));
+        
+        if (validItems.length !== data.length) {
+          logger.warn(`⚠️ ${data.length - validItems.length} roletas com dados inválidos foram removidas`);
         }
         
-        return;
+        return validItems.map(item => this.normalizeRouletteData(item));
       }
       
-      // Caso 2: Processar array de roletas
-      if (Array.isArray(data)) {
-        logger.info(`🔄 Processando array com ${data.length} roletas [${source}]`);
+      // Caso 2: Se for um objeto de atualização global (global_update)
+      if (data && typeof data === 'object' && data.type === 'global_update' && data.data) {
+        logger.info(`🔄 Processando atualização global de roleta`);
         
-        data.forEach((rouletteItem: any) => {
-          const formattedItem = this.normalizeRouletteData(rouletteItem);
-          this.notifySubscribers(formattedItem);
-        });
-        
-        return;
+        // Validar os dados do evento global_update
+        if (this.validateRouletteData(data.data)) {
+          return [this.normalizeRouletteData(data.data)];
+        } else {
+          logger.error(`❌ Dados de atualização global inválidos`);
+          return [];
+        }
       }
       
-      // Caso 3: Processar um item único de roleta
-      logger.info(`🎯 Processando roleta única [${source}]: ${data.roleta_nome || data.nome || data.roleta_id || data.id || 'sem nome/id'}`);
+      // Caso 3: Se for um único objeto de roleta
+      if (data && typeof data === 'object') {
+        logger.info(`🎯 Processando objeto único de roleta`);
+        
+        if (this.validateRouletteData(data)) {
+          return [this.normalizeRouletteData(data)];
+        } else {
+          logger.error(`❌ Dados de roleta única inválidos`);
+          return [];
+        }
+      }
       
-      const formattedItem = this.normalizeRouletteData(data);
-      this.notifySubscribers(formattedItem);
+      logger.error(`❌ Formato de dados desconhecido`, data);
+      return [];
     } catch (error) {
       logger.error(`❌ Erro ao processar dados de roleta: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
     }
   }
 
@@ -1229,7 +1229,7 @@ export default class RouletteFeedService {
           
           // Validar e processar dados recebidos
           if (this.validateRouletteData(data)) {
-            this.handleRouletteData(data, 'EventService:global_update');
+            this.handleRouletteData(data);
           } else {
             logger.warn('❌ Dados de evento global_update inválidos');
           }
@@ -1252,7 +1252,7 @@ export default class RouletteFeedService {
           
           // Validar e processar dados recebidos
           if (this.validateRouletteData(data)) {
-            this.handleRouletteData(data, 'EventService:new_number');
+            this.handleRouletteData(data);
           } else {
             logger.warn('❌ Dados de evento new_number inválidos');
           }
@@ -1574,8 +1574,33 @@ export default class RouletteFeedService {
   }
   
   private verifyAndCleanupStaleRequests(): void {
-    // Implementação do método
-    // Verifica e limpa requisições pendentes expiradas
+    try {
+      // Tempo atual
+      const now = Date.now();
+      
+      // Tempo máximo de espera para uma requisição (60 segundos)
+      const MAX_REQUEST_AGE = 60 * 1000;
+      
+      // Verificar requisições pendentes
+      let expiredCount = 0;
+      
+      this.pendingRequests.forEach((timestamp, requestId) => {
+        // Verificar se a requisição está expirada
+        if (now - timestamp > MAX_REQUEST_AGE) {
+          // Remover requisição expirada
+          this.pendingRequests.delete(requestId);
+          expiredCount++;
+          
+          logger.warn(`⏱️ Requisição ${requestId} expirada após ${Math.floor((now - timestamp) / 1000)}s`);
+        }
+      });
+      
+      if (expiredCount > 0) {
+        logger.info(`🧹 Removidas ${expiredCount} requisições pendentes expiradas`);
+      }
+    } catch (error) {
+      logger.error(`❌ Erro ao limpar requisições expiradas: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   
   /**
