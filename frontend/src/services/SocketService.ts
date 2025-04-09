@@ -335,10 +335,10 @@ class SocketService {
       console.warn('[SocketService] Erro ao obter URL do WebSocket da configuração:', error);
     }
     
-    // URL alternativa para backendscraper
-    const scraperUrl = 'wss://backendscraper-production.up.railway.app';
-    console.log(`[SocketService] Usando URL do WebSocket do scraper: ${scraperUrl}`);
-    return scraperUrl;
+    // URL do serviço backend
+    const backendUrl = 'wss://backend-production-2f96.up.railway.app';
+    console.log(`[SocketService] Usando URL do WebSocket do backend: ${backendUrl}`);
+    return backendUrl;
   }
   
   private connect(): void {
