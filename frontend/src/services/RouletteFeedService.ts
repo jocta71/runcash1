@@ -774,6 +774,13 @@ export default class RouletteFeedService {
       // podemos gradualmente reduzir o intervalo de volta ao normal
       if (this.currentPollingInterval > NORMAL_POLLING_INTERVAL && this.consecutiveSuccesses >= MIN_SUCCESS_STREAK_FOR_NORMALIZATION) {
         this.normalizeService();
+      } else if (this.currentPollingInterval !== NORMAL_POLLING_INTERVAL) {
+        // Se não estamos no intervalo normal, ajustar para o intervalo normal
+        this.currentPollingInterval = NORMAL_POLLING_INTERVAL;
+        logger.info(`⏱️ Ajustando intervalo de polling para ${this.currentPollingInterval}ms (normal)`);
+        
+        // Reiniciar o timer de polling com o intervalo normal
+        this.restartPollingTimer();
       }
     }
   }
@@ -1330,10 +1337,14 @@ export default class RouletteFeedService {
         this.currentPollingInterval * 0.7
       );
       logger.info(`⏱️ Normalizando intervalo de polling para ${this.currentPollingInterval}ms`);
-      
-      // Reiniciar o timer de polling com o novo intervalo
-      this.restartPollingTimer();
+    } else if (this.currentPollingInterval < NORMAL_POLLING_INTERVAL) {
+      // Se por algum motivo o intervalo estiver abaixo do normal, ajuste para o normal
+      this.currentPollingInterval = NORMAL_POLLING_INTERVAL;
+      logger.info(`⏱️ Restaurando intervalo normal de polling para ${this.currentPollingInterval}ms`);
     }
+    
+    // Sempre reiniciar o timer de polling com o intervalo atualizado
+    this.restartPollingTimer();
     
     // Se estiver totalmente recuperado, sair do modo de recuperação
     if (this.currentPollingInterval === NORMAL_POLLING_INTERVAL && this.recoveryMode) {
