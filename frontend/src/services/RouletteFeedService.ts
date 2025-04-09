@@ -1147,4 +1147,94 @@ export default class RouletteFeedService {
       logger.error(`❌ Erro ao processar item de roleta: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   }
+
+  /**
+   * Conecta ao EventService para receber atualizações em tempo real
+   */
+  private connectToEventService(): void {
+    try {
+      logger.info('🔌 Conectando ao EventService para eventos em tempo real');
+      
+      // Registrar listener para atualizações globais de roletas
+      EventService.on('roulette:global_update', (event: any) => {
+        try {
+          if (!event || !event.data) {
+            logger.warn('⚠️ Evento global_update recebido sem dados');
+            return;
+          }
+          
+          logger.debug(`📡 [EventService] Recebido evento global_update: ${JSON.stringify(event.type)}`);
+          
+          // Adicionar tipo de evento para que o validateRouletteData identifique corretamente
+          const eventData = {
+            ...event.data,
+            event_type: 'global_update'
+          };
+          
+          // Validar e processar os dados
+          if (this.validateRouletteData(eventData)) {
+            this.handleRouletteData(eventData);
+          } else {
+            logger.warn('❌ Dados de evento global_update inválidos', eventData);
+          }
+        } catch (error) {
+          logger.error('❌ Erro ao processar evento global_update:', error);
+        }
+      });
+      
+      // Registrar listener para atualizações de números
+      EventService.on('roulette:new_number', (event: any) => {
+        try {
+          if (!event || !event.data) {
+            logger.warn('⚠️ Evento new_number recebido sem dados');
+            return;
+          }
+          
+          logger.debug(`🎯 [EventService] Recebido novo número: roleta ${event.data.roleta_id}, número ${event.data.numero}`);
+          
+          // Adicionar tipo de evento para que o validateRouletteData identifique corretamente
+          const eventData = {
+            ...event.data,
+            event_type: 'new_number'
+          };
+          
+          // Validar e processar os dados
+          if (this.validateRouletteData(eventData)) {
+            this.handleRouletteData(eventData);
+          } else {
+            logger.warn('❌ Dados de evento new_number inválidos', eventData);
+          }
+        } catch (error) {
+          logger.error('❌ Erro ao processar evento new_number:', error);
+        }
+      });
+      
+      // Registrar listener para atualizações gerais de dados
+      EventService.on('roulette:data-updated', (event: any) => {
+        try {
+          logger.debug('🔄 [EventService] Recebido evento de atualização de dados');
+          
+          // Adicionar um atraso aleatório para evitar que todos os clientes
+          // atualizem ao mesmo tempo, evitando sobrecarga no servidor
+          const randomDelay = Math.floor(Math.random() * 2000) + 1000; // 1-3 segundos
+          
+          setTimeout(() => {
+            // Apenas atualizar se o cache estiver velho
+            if (!this.isCacheValid()) {
+              logger.info('📊 Atualizando cache após notificação de dados atualizados');
+              this.refreshCache();
+            } else {
+              logger.debug('💾 Cache ainda válido, ignorando notificação de atualização');
+            }
+          }, randomDelay);
+        } catch (error) {
+          logger.error('❌ Erro ao processar evento data-updated:', error);
+        }
+      });
+      
+      logger.success('✅ Listeners de eventos registrados com sucesso');
+    } catch (error) {
+      logger.error('❌ Erro ao conectar ao EventService:', error);
+    }
+  }
 } 
