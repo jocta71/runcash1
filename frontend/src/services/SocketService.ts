@@ -80,10 +80,10 @@ class SocketService {
   
   // Mapa para armazenar os intervalos de polling por roletaId
   private pollingIntervals: Map<string, any> = new Map();
-  private pollingInterval: number = 15000; // Intervalo padrão de 15 segundos para polling
-  private minPollingInterval: number = 10000; // 10 segundos mínimo
-  private maxPollingInterval: number = 60000; // 1 minuto máximo
-  private pollingBackoffFactor: number = 1.5; // Fator de aumento em caso de erro
+  private pollingInterval: number = 8000; // Alterado para 8 segundos conforme solicitado
+  private minPollingInterval: number = 8000; // Aumentado para 8 segundos mínimo
+  private maxPollingInterval: number = 8000; // Limitado a 8 segundos máximo
+  private pollingBackoffFactor: number = 1.0; // Sem aumento em caso de erro
   
   private _isLoadingHistoricalData: boolean = false;
   
@@ -93,7 +93,7 @@ class SocketService {
   
   // Adicionar propriedade para armazenar cache de dados das roletas
   private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
-  private cacheTTL: number = 5 * 60 * 1000; // 5 minutos em milissegundos
+  private cacheTTL: number = 8000; // 8 segundos em milissegundos
   
   // Propriedades para circuit breaker
   private circuitBreakerActive: boolean = false;
@@ -366,10 +366,10 @@ class SocketService {
         reconnection: true,
         reconnectionAttempts: 10,
         // Reduzir timeout para reconectar mais rapidamente
-        timeout: 5000,
+        timeout: 8000, // Alterado para 8 segundos
         // Configurar para reconexão mais agressiva
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000
+        reconnectionDelay: 8000, // Alterado para 8 segundos
+        reconnectionDelayMax: 8000 // Alterado para 8 segundos
       });
 
       this.socket.on('connect', () => {
@@ -458,8 +458,8 @@ class SocketService {
     // Incrementar tentativas
     this.connectionAttempts++;
     
-    // Calcular tempo de espera com backoff exponencial
-    const delay = Math.min(1000 * Math.pow(1.5, this.connectionAttempts), 30000);
+    // Usar intervalo fixo de 8 segundos
+    const delay = 8000;
     console.log(`[SocketService] Tentando reconectar em ${Math.round(delay/1000)}s (tentativa ${this.connectionAttempts})`);
     
     // Agendar reconexão
@@ -736,7 +736,7 @@ class SocketService {
       if (this.socket && this.connectionActive) {
         this.socket.emit('ping');
       }
-    }, 30000);
+    }, 8000); // Alterado de 30000 para 8000 (8 segundos)
   }
 
   /**

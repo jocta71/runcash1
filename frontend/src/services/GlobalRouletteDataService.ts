@@ -4,11 +4,11 @@ import EventService from './EventService';
 // Intervalo de polling padrão em milissegundos (8 segundos)
 const POLLING_INTERVAL = 8000;
 
-// Tempo de vida do cache em milissegundos (15 segundos)
-const CACHE_TTL = 15000;
+// Tempo de vida do cache em milissegundos (8 segundos)
+const CACHE_TTL = 8000;
 
-// Intervalo mínimo entre requisições forçadas (2 segundos)
-const MIN_FORCE_INTERVAL = 2000;
+// Intervalo mínimo entre requisições forçadas (8 segundos)
+const MIN_FORCE_INTERVAL = 8000;
 
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
