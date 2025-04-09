@@ -4,11 +4,11 @@ import EventService from './EventService';
 // Intervalo de polling padrão em milissegundos (8 segundos)
 const POLLING_INTERVAL = 8000;
 
-// Tempo de vida do cache em milissegundos (8 segundos)
-const CACHE_TTL = 8000;
+// Tempo de vida do cache em milissegundos (15 segundos)
+const CACHE_TTL = 15000;
 
-// Intervalo mínimo entre requisições forçadas (8 segundos)
-const MIN_FORCE_INTERVAL = 8000;
+// Intervalo mínimo entre requisições forçadas (2 segundos)
+const MIN_FORCE_INTERVAL = 2000;
 
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
@@ -100,6 +100,15 @@ class GlobalRouletteDataService {
    * Busca dados atualizados da API
    */
   private async fetchRouletteData(): Promise<void> {
+    // Desativando temporariamente as requisições
+    console.log('[GlobalRouletteService] ⛔ DESATIVADO: Requisição para API bloqueada para fins de diagnóstico');
+    
+    // Manter a flag para evitar múltiplas tentativas
+    this.isFetching = false;
+    
+    return;
+    
+    /* CÓDIGO ORIGINAL DESATIVADO
     // Evitar requisições simultâneas
     if (this.isFetching) {
       console.log('[GlobalRouletteService] Requisição já em andamento, ignorando');
@@ -137,6 +146,7 @@ class GlobalRouletteDataService {
     } finally {
       this.isFetching = false;
     }
+    */
   }
   
   /**

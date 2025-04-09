@@ -80,10 +80,10 @@ class SocketService {
   
   // Mapa para armazenar os intervalos de polling por roletaId
   private pollingIntervals: Map<string, any> = new Map();
-  private pollingInterval: number = 8000; // Alterado para 8 segundos conforme solicitado
-  private minPollingInterval: number = 8000; // Aumentado para 8 segundos mínimo
-  private maxPollingInterval: number = 8000; // Limitado a 8 segundos máximo
-  private pollingBackoffFactor: number = 1.0; // Sem aumento em caso de erro
+  private pollingInterval: number = 15000; // Intervalo padrão de 15 segundos para polling
+  private minPollingInterval: number = 10000; // 10 segundos mínimo
+  private maxPollingInterval: number = 60000; // 1 minuto máximo
+  private pollingBackoffFactor: number = 1.5; // Fator de aumento em caso de erro
   
   private _isLoadingHistoricalData: boolean = false;
   
@@ -93,7 +93,7 @@ class SocketService {
   
   // Adicionar propriedade para armazenar cache de dados das roletas
   private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
-  private cacheTTL: number = 8000; // 8 segundos em milissegundos
+  private cacheTTL: number = 5 * 60 * 1000; // 5 minutos em milissegundos
   
   // Propriedades para circuit breaker
   private circuitBreakerActive: boolean = false;
@@ -324,21 +324,37 @@ class SocketService {
   }
   
   private getSocketUrl(): string {
-    try {
-      // Tentar obter do arquivo de configuração primeiro
-      const configUrl = config.wsUrl;
-      if (configUrl && configUrl.length > 5) {
-        console.log(`[SocketService] Usando URL do WebSocket da configuração: ${configUrl}`);
-        return configUrl;
+    let wsUrl = getRequiredEnvVar('VITE_WS_URL');
+    
+    // Garantir que a URL use o protocolo wss://
+    if (wsUrl && !wsUrl.startsWith('wss://')) {
+      if (wsUrl.startsWith('https://')) {
+        console.warn('[SocketService] Convertendo URL de https:// para wss://');
+        wsUrl = wsUrl.replace('https://', 'wss://');
+      } else if (wsUrl.startsWith('http://')) {
+        console.warn('[SocketService] Convertendo URL de http:// para wss://');
+        wsUrl = wsUrl.replace('http://', 'wss://');
+      } else {
+        console.warn('[SocketService] URL não inicia com protocolo, adicionando wss://');
+        wsUrl = `wss://${wsUrl}`;
       }
-    } catch (error) {
-      console.warn('[SocketService] Erro ao obter URL do WebSocket da configuração:', error);
     }
     
-    // URL alternativa para backendscraper
-    const scraperUrl = 'wss://backendscraper-production.up.railway.app';
-    console.log(`[SocketService] Usando URL do WebSocket do scraper: ${scraperUrl}`);
-    return scraperUrl;
+    // Em produção, garantir que usamos uma URL segura (não localhost)
+    if (isProduction && (wsUrl.includes('localhost') || wsUrl.includes('127.0.0.1'))) {
+      console.warn('[SocketService] Detectada URL inválida para WebSocket em produção. Usando origem atual.');
+      const currentOrigin = window.location.origin;
+      wsUrl = currentOrigin.replace('https://', 'wss://').replace('http://', 'wss://');
+    }
+    
+    // Verificar se a URL é válida
+    if (!wsUrl || wsUrl === 'wss://') {
+      console.error('[SocketService] URL de WebSocket inválida. Usando padrão.');
+      wsUrl = 'wss://backend-production-2f96.up.railway.app';
+    }
+    
+    console.log('[SocketService] Usando URL de WebSocket:', wsUrl);
+    return wsUrl;
   }
   
   private connect(): void {
@@ -366,10 +382,10 @@ class SocketService {
         reconnection: true,
         reconnectionAttempts: 10,
         // Reduzir timeout para reconectar mais rapidamente
-        timeout: 8000, // Alterado para 8 segundos
+        timeout: 5000,
         // Configurar para reconexão mais agressiva
-        reconnectionDelay: 8000, // Alterado para 8 segundos
-        reconnectionDelayMax: 8000 // Alterado para 8 segundos
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000
       });
 
       this.socket.on('connect', () => {
@@ -458,8 +474,8 @@ class SocketService {
     // Incrementar tentativas
     this.connectionAttempts++;
     
-    // Usar intervalo fixo de 8 segundos
-    const delay = 8000;
+    // Calcular tempo de espera com backoff exponencial
+    const delay = Math.min(1000 * Math.pow(1.5, this.connectionAttempts), 30000);
     console.log(`[SocketService] Tentando reconectar em ${Math.round(delay/1000)}s (tentativa ${this.connectionAttempts})`);
     
     // Agendar reconexão
@@ -736,7 +752,7 @@ class SocketService {
       if (this.socket && this.connectionActive) {
         this.socket.emit('ping');
       }
-    }, 8000); // Alterado de 30000 para 8000 (8 segundos)
+    }, 30000);
   }
 
   /**
@@ -1032,6 +1048,18 @@ class SocketService {
   
   // Método para buscar roletas reais 
   private async fetchRealRoulettes(): Promise<any[]> {
+    console.log('[SocketService] ⛔ DESATIVADO: Busca de roletas reais bloqueada para diagnóstico');
+    
+    // Usar a lista local como fallback
+    const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+      _id: roleta.id,
+      nome: roleta.nome,
+      ativa: true
+    }));
+    
+    return roletasFallback;
+    
+    /* CÓDIGO ORIGINAL DESATIVADO
     console.log('[SocketService] Buscando lista de roletas reais...');
     
     // Verificar se o circuit breaker está ativo
@@ -1067,30 +1095,30 @@ class SocketService {
           
           // Se tiver sucesso, processar os dados
           if (response.ok) {
-            const data = await response.json();
+      const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
-              console.log(`[SocketService] ✅ Recebidas ${data.length} roletas da API`);
+            console.log(`[SocketService] ✅ Recebidas ${data.length} roletas da API`);
             
               // Sinalizar sucesso para o circuit breaker
               this.handleCircuitBreaker(true, endpoint);
               
               // Armazenar no cache global para uso futuro
-              const roletasComIdsCanonicos = data.map(roleta => {
-                const uuid = roleta.id;
-                const canonicalId = mapToCanonicalRouletteId(uuid);
+            const roletasComIdsCanonicos = data.map(roleta => {
+              const uuid = roleta.id;
+              const canonicalId = mapToCanonicalRouletteId(uuid);
               
-                return {
-                  ...roleta,
-                  _id: canonicalId, // Adicionar o ID canônico
-                  uuid: uuid        // Preservar o UUID original
-                };
-              });
+              return {
+                ...roleta,
+                _id: canonicalId, // Adicionar o ID canônico
+                uuid: uuid        // Preservar o UUID original
+              };
+            });
             
-              console.log(`[SocketService] Roletas mapeadas com IDs canônicos:`, 
-                  roletasComIdsCanonicos.length);
+            console.log(`[SocketService] Roletas mapeadas com IDs canônicos:`, 
+                roletasComIdsCanonicos.length);
             
-              return roletasComIdsCanonicos;
-            }
+            return roletasComIdsCanonicos;
+          }
             break; // Se chegou aqui mas não tem dados, sair do loop
           }
           
@@ -1130,14 +1158,14 @@ class SocketService {
       console.warn(`[SocketService] Falha ao buscar roletas após ${maxAttempts} tentativas`);
       
       // Usar a lista local de roletas canônicas como fallback
-      const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
-        _id: roleta.id,
-        nome: roleta.nome,
-        ativa: true
-      }));
+        const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+          _id: roleta.id,
+          nome: roleta.nome,
+          ativa: true
+        }));
         
-      console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback`);
-      return roletasFallback;
+        console.log(`[SocketService] Usando ${roletasFallback.length} roletas canônicas locais como fallback`);
+        return roletasFallback;
         
     } catch (error) {
       console.error('[SocketService] Erro ao buscar roletas:', error);
@@ -1146,18 +1174,37 @@ class SocketService {
       this.handleCircuitBreaker(false, 'fetchRealRoulettes');
       
       // Fallback para lista local
-      const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
-        _id: roleta.id,
-        nome: roleta.nome,
-        ativa: true
-      }));
+        const roletasFallback = ROLETAS_CANONICAS.map(roleta => ({
+          _id: roleta.id,
+          nome: roleta.nome,
+          ativa: true
+        }));
         
-      return roletasFallback;
+        return roletasFallback;
     }
+    */
   }
   
   // Método para buscar dados via REST como alternativa/complemento
   public async fetchRouletteNumbersREST(roletaId: string, limit: number = 1000): Promise<boolean> {
+    console.log(`[SocketService] ⛔ DESATIVADO: Busca de números REST para roleta ${roletaId} bloqueada para diagnóstico`);
+    
+    // Tentar usar o cache mesmo que antigo
+    const cachedData = this.rouletteDataCache.get(roletaId);
+    if (cachedData) {
+      const roleta = cachedData.data;
+      const numeros = roleta.numero || roleta.numeros || roleta.historico || [];
+      
+      if (Array.isArray(numeros) && numeros.length > 0) {
+        this.processNumbersData(numeros, roleta);
+        return true;
+      }
+    }
+    
+    // Se não tem cache, usar fallback
+    return this.useFallbackData(roletaId);
+    
+    /* CÓDIGO ORIGINAL DESATIVADO
     if (!roletaId) {
       console.error('[SocketService] ID de roleta inválido para buscar números:', roletaId);
       return false;
@@ -1338,6 +1385,7 @@ class SocketService {
       // Usar fallback
       return this.useFallbackData(roletaId);
     }
+    */
   }
 
   // Método auxiliar para usar dados de fallback quando necessário
