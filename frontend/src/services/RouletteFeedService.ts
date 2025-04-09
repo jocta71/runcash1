@@ -16,7 +16,7 @@ const HEALTH_CHECK_INTERVAL = 30000; // Verificar a saúde do sistema a cada 30 
 // Adicionar constantes para o sistema de recuperação inteligente
 const NORMAL_POLLING_INTERVAL = 8000; // 8 segundos em condições normais
 const ERROR_POLLING_INTERVAL = 15000; // 15 segundos quando ocorrem erros
-const MAX_ERROR_POLLING_INTERVAL = 45000; // 45 segundos no máximo após vários erros
+const MAX_ERROR_POLLING_INTERVAL = 8000; // 20 segundos no máximo após vários erros
 const RECOVERY_CHECK_INTERVAL = 60000; // 1 minuto para verificação de recuperação completa
 const MIN_SUCCESS_STREAK_FOR_NORMALIZATION = 3; // Sucessos consecutivos para normalizar
 
