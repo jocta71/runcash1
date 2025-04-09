@@ -17,7 +17,10 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
   // Caso contrário, combinamos com a URL base
   const url = endpoint.startsWith('http') ? 
     endpoint : 
-    `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    // Verificar se o endpoint já começa com 'api/' para evitar duplicação
+    endpoint.startsWith('api/') ? 
+      `${API_BASE_URL.replace(/\/api$/, '')}/${endpoint}` : 
+      `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   
   console.log(`[API] Fazendo requisição para: ${url}`);
   

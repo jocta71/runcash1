@@ -1,7 +1,6 @@
 // Serviço para gerenciar eventos em tempo real usando REST API
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
-import SocketService from '@/services/SocketService';
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 
 // Debug flag - set to false to disable logs in production
@@ -57,13 +56,22 @@ export type RouletteEventCallback = (event: RouletteNumberEvent | StrategyUpdate
 // Tipo para callbacks de eventos genéricos
 export type EventCallback = (data: any) => void;
 
+// Interface para SocketService
+export interface ISocketService {
+  subscribe(roletaNome: string, callback: RouletteEventCallback): void;
+  unsubscribe(roletaNome: string, callback: RouletteEventCallback): void;
+  isSocketConnected(): boolean;
+  disconnect(): void;
+  requestRecentNumbers(): void;
+}
+
 export class EventService {
   private static instance: EventService | null = null;
   private static isInitializing = false;
 
   private eventListeners: Record<string, Function[]> = {};
   private globalEventListeners: Record<string, Function[]> = {};
-  private socketServiceInstance: ReturnType<typeof SocketService.getInstance> | null = null;
+  private socketServiceInstance: ISocketService | null = null;
   private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
   private isConnected: boolean = false;
   private pollingActive: boolean = false;
@@ -86,12 +94,44 @@ export class EventService {
       debugLog(`[EventService][GLOBAL] Evento: ${event.roleta_nome}, número: ${event.numero}`);
     });
     
-    // Usar diretamente o SocketService para comunicação em tempo real
-    debugLog('[EventService] Usando SocketService para eventos em tempo real');
-    this.useSocketService();
+    // Carregar SocketService dinamicamente após inicialização
+    setTimeout(() => {
+      this.loadSocketService();
+    }, 100);
     
     // Adicionar listener para visibilidade da página
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
+  }
+
+  /**
+   * Carrega o SocketService de forma dinâmica para evitar dependência circular
+   */
+  private loadSocketService(): void {
+    try {
+      // Importar dinamicamente para evitar ciclo de dependência
+      import('@/services/SocketService').then(module => {
+        // O módulo importado tem uma propriedade 'default' que é o singleton já instanciado
+        const socketService = module.default;
+        
+        if (socketService) {
+          this.socketServiceInstance = socketService;
+          debugLog('[EventService] SocketService carregado com sucesso');
+          this.isConnected = true;
+          
+          toast({
+            title: "Conexão de dados",
+            description: "Usando REST API para receber atualizações",
+            variant: "default"
+          });
+        } else {
+          console.error('[EventService] SocketService carregado, mas instância não encontrada');
+        }
+      }).catch(error => {
+        console.error('[EventService] Erro ao carregar SocketService:', error);
+      });
+    } catch (error) {
+      console.error('[EventService] Erro ao importar SocketService:', error);
+    }
   }
 
   /**
@@ -138,24 +178,9 @@ export class EventService {
       // Tentar reconectar se a página ficar visível e não estiver conectado
       if (!this.isConnected) {
         debugLog('[EventService] Página tornou-se visível, reconectando...');
-        this.useSocketService();
+        this.loadSocketService();
       }
     }
-  }
-
-  private useSocketService(): void {
-    debugLog('[EventService] Utilizando SocketService para eventos em tempo real');
-    
-    this.isConnected = true; // Simular conexão estabelecida
-    
-    // Importar o SocketService e registrar para eventos globais
-    this.socketServiceInstance = SocketService.getInstance();
-    
-    toast({
-      title: "Conexão de dados",
-      description: "Usando REST API para receber atualizações",
-      variant: "default"
-    });
   }
 
   /**

@@ -1,10 +1,5 @@
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
-import EventService, { 
-  RouletteNumberEvent,
-  RouletteEventCallback,
-  StrategyUpdateEvent
-} from './EventService';
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import { mapToCanonicalRouletteId, ROLETAS_CANONICAS } from '../integrations/api/rouletteService';
 import { fetchWithCorsSupport } from '../utils/api-helpers';
@@ -46,6 +41,36 @@ export interface HistoryData {
   message?: string;
   error?: string;
 }
+
+// Definições de tipos para eventos
+export interface RouletteNumberEvent {
+  type: 'new_number';
+  roleta_id: string;
+  roleta_nome: string;
+  numero: number;
+  timestamp: string;
+  estado_estrategia?: string;
+  sugestao_display?: string;
+  terminais_gatilho?: number[];
+  preserve_existing?: boolean;
+  realtime_update?: boolean;
+}
+
+export interface StrategyUpdateEvent {
+  type: 'strategy_update';
+  roleta_id: string;
+  roleta_nome: string;
+  estado: string;
+  numero_gatilho: number;
+  terminais_gatilho: number[];
+  vitorias: number;
+  derrotas: number;
+  sugestao_display?: string;
+  timestamp?: string;
+}
+
+// Tipo para callbacks de eventos
+export type RouletteEventCallback = (event: RouletteNumberEvent | StrategyUpdateEvent) => void;
 
 // Importar a lista de roletas permitidas da configuração
 import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
@@ -400,7 +425,7 @@ class SocketService {
   }
 
   /**
-   * Obtém a instância única do serviço
+   * Obtém a instância única do SocketService (Singleton)
    */
   public static getInstance(): SocketService {
     if (!SocketService.instance) {
@@ -480,6 +505,6 @@ class SocketService {
   }
 }
 
-// Exportar a instância única do serviço
+// Exportar uma instância única como padrão
 const socketService = SocketService.getInstance();
 export default socketService; 
