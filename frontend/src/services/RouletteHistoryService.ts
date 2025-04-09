@@ -71,6 +71,20 @@ export class RouletteHistoryService {
 
   private async doFetchHistoricalNumbers(rouletteName: string): Promise<number[]> {
     try {
+      this.logger.info(`⛔ DESATIVADO: Busca de histórico para ${rouletteName} bloqueada para diagnóstico`);
+      
+      // Gerar números de fallback em vez de fazer requisição
+      const fallbackNumbers = this.generateFallbackNumbers();
+      
+      // Atualiza o cache com os números de fallback
+      this.cache[rouletteName] = {
+        data: fallbackNumbers,
+        timestamp: Date.now()
+      };
+      
+      return fallbackNumbers;
+      
+      /* CÓDIGO ORIGINAL DESATIVADO
       this.logger.info(`Buscando histórico para ${rouletteName} da API`);
       const startTime = Date.now();
       
@@ -116,6 +130,7 @@ export class RouletteHistoryService {
       this.logger.info(`Histórico obtido para ${rouletteName} em ${duration}ms`);
       
       return numbers;
+      */
     } catch (error) {
       this.logger.error(`Erro ao buscar histórico para ${rouletteName}:`, error);
       // Verificar se temos no cache mesmo expirado antes de gerar fallback
