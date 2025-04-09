@@ -3,7 +3,7 @@
  */
 
 // URL base da API
-export const API_BASE_URL = 'https://backendapi-production-36b5.up.railway.app';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app';
 
 // URL de proxy para contornar CORS
 export const PROXY_URL = '/api-proxy';

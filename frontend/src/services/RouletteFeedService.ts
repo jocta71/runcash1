@@ -907,47 +907,48 @@ export default class RouletteFeedService {
    * Atualiza o cache interno com os dados das roletas
    * e emite um evento de atualização
    */
-  private updateRouletteCache(data: any[]): void {
-    if (!Array.isArray(data)) {
-      logger.error('⚠️ Dados inválidos recebidos para cache:', data);
+  private updateRouletteCache(data: any): void {
+    if (!data) {
+      logger.error('❌ Dados inválidos para atualização do cache');
       return;
     }
-    
-    logger.info(`💾 Atualizando cache com ${data.length} roletas`);
-    
-    // Flag para verificar se há dados novos
-    this.hasNewData = false;
-    
-    // Para cada roleta, verificar se já existe no cache e se há atualizações
-    data.forEach(roleta => {
-      const roletaId = roleta.id || roleta._id;
-      
-      if (!roletaId) {
-        logger.warn('⚠️ Roleta sem ID ignorada:', roleta);
-        return;
-      }
-      
-      const cachedRoulette = this.rouletteDataCache.get(roletaId);
-      
-      // Verificar se temos uma atualização para esta roleta
-      if (!cachedRoulette || this.hasNewRouletteData(cachedRoulette, roleta)) {
-        this.rouletteDataCache.set(roletaId, roleta);
-        this.hasNewData = true;
-      }
-    });
-    
-    // Atualizar timestamp do cache
-    this.lastCacheUpdate = Date.now();
-    
-    // Se há novos dados, notificar os componentes
-    if (this.hasNewData) {
-      logger.info('🔔 Novos dados detectados, notificando componentes');
-      
-      // Emitir evento global para notificar os componentes
-      EventService.emit('roulette:data-updated', {
-        timestamp: new Date().toISOString()
-      });
+
+    // Lidar com dados de atualização global (objeto com array de roletas)
+    if (data.roletas && Array.isArray(data.roletas)) {
+      this.saveRoulettesToCache(data.roletas);
+      return;
     }
+
+    // Lidar com dados no formato de array simples
+    if (Array.isArray(data)) {
+      this.saveRoulettesToCache(data);
+      return;
+    }
+
+    // Lidar com uma única roleta
+    if (data.id || data.roleta_id) {
+      // Atualizar ou adicionar uma única roleta
+      const existingData = this.getRouletteCache();
+      const roletaId = data.id || data.roleta_id;
+      
+      let updated = false;
+      const updatedData = existingData.map((roleta: any) => {
+        if (roleta.id === roletaId || roleta.roleta_id === roletaId) {
+          updated = true;
+          return { ...roleta, ...data };
+        }
+        return roleta;
+      });
+      
+      if (!updated) {
+        updatedData.push(data);
+      }
+      
+      this.saveRoulettesToCache(updatedData);
+      return;
+    }
+
+    logger.error('❌ Formato de dados desconhecido para atualização do cache');
   }
   
   /**
