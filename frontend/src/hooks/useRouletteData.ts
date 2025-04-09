@@ -604,8 +604,23 @@ export function useRouletteData(
     let isActive = true;
     logger.debug(`⭐ INICIANDO CARREGAMENTO ÚNICO para ${roletaNome} (ID: ${roletaId})`);
     
-    // Carregar dados iniciais
-    loadNumbers();
+    // MODIFICADO: Gerar um ID de componente único para controle de requisições
+    const componentId = `roulette_${roletaId}_${Math.random().toString(36).substring(2, 9)}`;
+    
+    // MODIFICADO: Registrar este componente no serviço centralizado de feed
+    const shouldMakeRequest = feedService.registerRequestingComponent(componentId);
+    
+    // Carregar dados iniciais apenas se este componente for autorizado a fazer a requisição
+    if (shouldMakeRequest) {
+      logger.debug(`✅ Componente ${componentId} autorizado a fazer requisição para ${roletaNome}`);
+      loadNumbers();
+    } else {
+      logger.debug(`⏸️ Componente ${componentId} NÃO fará requisição para ${roletaNome}, usando dados existentes`);
+      // Marcar como carregado, mas sem fazer a requisição
+      setLoading(false);
+    }
+    
+    // Carregar estratégia (pode ser feito independentemente do controle de requisições)
     loadStrategy();
     
     // Cleanup
@@ -613,7 +628,7 @@ export function useRouletteData(
       isActive = false;
       logger.debug(`Componente desmontado, limpeza realizada para ${roletaNome}`);
     };
-  }, [loadNumbers, loadStrategy, roletaId, roletaNome]);
+  }, [loadNumbers, loadStrategy, roletaId, roletaNome, feedService]);
   
   // ===== EVENTOS E WEBSOCKETS =====
   
@@ -769,10 +784,24 @@ export function useRouletteData(
   // ===== FUNÇÕES PÚBLICAS =====
   
   // Função para atualizar manualmente os números
-  const refreshNumbers = useCallback(async (): Promise<boolean> => {
+  const refreshNumbers = useCallback(async () => {
     setRefreshLoading(true);
-    return await loadNumbers(true);
-  }, [loadNumbers]);
+    
+    // Verificar se este componente está autorizado a fazer a requisição
+    const componentId = `refresh_${roletaId}_${Date.now()}`;
+    const shouldMakeRequest = feedService.registerRequestingComponent(componentId);
+    
+    if (shouldMakeRequest) {
+      logger.debug(`🔄 Atualizando dados para ${roletaNome} (solicitado por componente)`);
+      const result = await loadNumbers(true);
+      setRefreshLoading(false);
+      return result;
+    } else {
+      logger.debug(`⏸️ Atualização ignorada para ${roletaNome} (já solicitada por outro componente)`);
+      setRefreshLoading(false);
+      return true;
+    }
+  }, [roletaId, roletaNome, loadNumbers, feedService]);
   
   // Função para atualizar manualmente a estratégia
   const refreshStrategy = useCallback(async (): Promise<boolean> => {

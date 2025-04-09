@@ -1,5 +1,6 @@
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
+import RouletteFeedService from './RouletteFeedService';
 
 // Intervalo de polling padrão em milissegundos (8 segundos)
 const POLLING_INTERVAL = 8000;
@@ -113,6 +114,21 @@ class GlobalRouletteDataService {
       // Verificar se os dados em cache ainda são válidos
       if (this.rouletteData.length > 0 && now - this.lastFetchTime < CACHE_TTL) {
         console.log(`[GlobalRouletteService] Usando dados em cache, idade: ${Math.round((now - this.lastFetchTime)/1000)}s`);
+        return;
+      }
+      
+      // NOVO: Verificar se já existe requisição global em andamento
+      // e aproveitar o sistema centralizado do RouletteFeedService
+      const feedService = RouletteFeedService.getInstance();
+      
+      // Registrar este componente com ID único do serviço global
+      const componentId = `global_service_${Date.now()}`;
+      const shouldMakeRequest = feedService.registerRequestingComponent(componentId);
+      
+      if (!shouldMakeRequest) {
+        console.log('[GlobalRouletteService] Requisição já foi feita por outro componente, aguardando cache');
+        // Marcar como não mais buscando
+        this.isFetching = false;
         return;
       }
       
