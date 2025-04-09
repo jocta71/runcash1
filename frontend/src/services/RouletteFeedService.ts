@@ -49,8 +49,6 @@ interface CustomWindow extends Window {
     };
   };
   _lastSuccessfulResponse?: number;
-  _rouletteComponentsRequesting?: Set<string>;
-  _initialDataRequested?: boolean;
 }
 
 declare const window: CustomWindow;
@@ -337,18 +335,13 @@ export default class RouletteFeedService {
    * Busca os dados iniciais das roletas
    */
   public fetchInitialData(): Promise<any> {
-    logger.info('Solicitação para buscar dados iniciais');
+    logger.info('⛔ DESATIVADO: Solicitação para buscar dados iniciais');
     
-    // NEW: Inicializar o conjunto de componentes se não existir
-    if (typeof window !== 'undefined' && !window._rouletteComponentsRequesting) {
-      window._rouletteComponentsRequesting = new Set<string>();
-    }
-
-    // NEW: Verificar se já temos uma requisição inicial global em andamento
-    if (typeof window !== 'undefined' && window._initialDataRequested === true) {
-      logger.info('Requisição inicial já foi realizada, usando cache');
-      return Promise.resolve(this.roulettes);
-    }
+    // Retornar array vazio em vez de fazer a requisição HTTP
+    return Promise.resolve(this.roulettes);
+    
+    /* CÓDIGO ORIGINAL DESATIVADO
+    logger.info('Solicitação para buscar dados iniciais');
     
     // Verificar se o cache está válido
     if (this.isCacheValid() && this.roulettes.length > 0) {
@@ -373,11 +366,6 @@ export default class RouletteFeedService {
     if (now - this.lastRequestTime < MIN_REQUEST_INTERVAL) {
       logger.info(`Requisição muito próxima da anterior (${now - this.lastRequestTime}ms), usando dados em cache`);
       return Promise.resolve(this.roulettes);
-    }
-    
-    // NEW: Marcar que a requisição inicial já foi solicitada
-    if (typeof window !== 'undefined') {
-      window._initialDataRequested = true;
     }
     
     // Marcar como buscando dados (local e global)
@@ -411,18 +399,28 @@ export default class RouletteFeedService {
         this.IS_FETCHING_DATA = false;
         GLOBAL_IS_FETCHING = false;
         GLOBAL_PENDING_REQUESTS.delete(requestId);
-        // NEW: Resetar flag para permitir novas tentativas em caso de erro
-        if (typeof window !== 'undefined') {
-          window._initialDataRequested = false;
-        }
         throw error;
       });
+    */
   }
 
   /**
    * Busca os dados mais recentes das roletas
    */
   public fetchLatestData(): Promise<any> {
+    logger.info('⛔ DESATIVADO: Solicitação para buscar dados mais recentes');
+    
+    // Simular sucesso sem fazer requisição real
+    this.requestStats.total++;
+    this.requestStats.success++;
+    this.lastSuccessfulResponse = Date.now();
+    this.lastCacheUpdate = Date.now();
+    this.consecutiveSuccesses++;
+    this.consecutiveErrors = 0;
+    
+    return Promise.resolve(this.roulettes);
+    
+    /* CÓDIGO ORIGINAL DESATIVADO
     // Verificar se podemos fazer a requisição
     if (!this.canMakeRequest()) {
       logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
@@ -533,6 +531,7 @@ export default class RouletteFeedService {
         
         return this.roulettes;
       });
+    */
   }
 
   /**
@@ -879,19 +878,6 @@ export default class RouletteFeedService {
       EventService.emit('roulette:data-updated', {
         timestamp: new Date().toISOString()
       });
-      
-      // NOVO: Resetar o controle de componentes após atualização bem-sucedida
-      // e um timeout para dar tempo aos componentes de processar os dados
-      setTimeout(() => {
-        this.resetRequestingComponents();
-        
-        // Resetar flag de requisição inicial para permitir novas requisições
-        if (typeof window !== 'undefined') {
-          window._initialDataRequested = false;
-        }
-        
-        logger.info('🧹 Controle de componentes limpo após atualização bem-sucedida');
-      }, 10000); // Esperar 10 segundos antes de permitir novas requisições
     }
   }
   
@@ -1113,7 +1099,7 @@ export default class RouletteFeedService {
       return false;
     }
   }
-
+  
   /**
    * Limpa todas as requisições pendentes e libera as travas
    */
@@ -1155,7 +1141,7 @@ export default class RouletteFeedService {
           const requestAge = now - requestTimestamp;
           
           if (requestAge > 30000) { // 30 segundos é muito tempo para uma requisição
-            logger.warn(`🧹 Limpando requisição antiga travada: ${requestId}`);
+            logger.warn(`🧹 Limpando requisição pendente antiga travada: ${requestId}`);
             GLOBAL_PENDING_REQUESTS.delete(requestId);
             staleRequestsFound = true;
           }
@@ -1328,6 +1314,12 @@ export default class RouletteFeedService {
    * Versão melhorada do método fetchLatestData com suporte a recuperação
    */
   private fetchWithRecovery(url: string, requestId: string): Promise<any> {
+    logger.info(`⛔ DESATIVADO: fetchWithRecovery para URL ${url} (ID: ${requestId})`);
+    
+    // Simular resposta sem fazer requisição real
+    return Promise.resolve(this.roulettes);
+    
+    /* CÓDIGO ORIGINAL DESATIVADO
     return new Promise((resolve, reject) => {
       // Timeout para a requisição
       const fetchTimeout = this.recoveryMode ? 20000 : 10000;
@@ -1401,6 +1393,7 @@ export default class RouletteFeedService {
         reject(error);
       });
     });
+    */
   }
 
   /**
@@ -1557,37 +1550,5 @@ export default class RouletteFeedService {
   // Função auxiliar para gerar IDs de requisição únicos
   private generateRequestId(): string {
     return `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  }
-
-  /**
-   * Registra um componente como solicitante de dados para evitar requisições duplicadas
-   * @param componentId ID único do componente solicitante
-   * @returns Verdadeiro se o componente foi registrado, falso se já estava registrado
-   */
-  public registerRequestingComponent(componentId: string): boolean {
-    if (typeof window === 'undefined' || !window._rouletteComponentsRequesting) {
-      return true; // Se não temos acesso ao window, permitir a requisição
-    }
-    
-    // Verificar se este componente já fez uma requisição
-    if (window._rouletteComponentsRequesting.has(componentId)) {
-      logger.info(`Componente ${componentId} já fez requisição anteriormente, ignorando nova solicitação`);
-      return false;
-    }
-    
-    // Registrar o componente
-    window._rouletteComponentsRequesting.add(componentId);
-    logger.info(`Componente ${componentId} registrado para requisição`);
-    return true;
-  }
-
-  /**
-   * Limpa o registro de componentes solicitantes para permitir novas requisições
-   */
-  public resetRequestingComponents(): void {
-    if (typeof window !== 'undefined' && window._rouletteComponentsRequesting) {
-      window._rouletteComponentsRequesting.clear();
-      logger.info('Registro de componentes solicitantes limpo');
-    }
   }
 } 
