@@ -3,4 +3,6 @@ npm-debug.log
 .env
 .git
 .gitignore
+README.md
+websocket_server.js
 scraper/ 
