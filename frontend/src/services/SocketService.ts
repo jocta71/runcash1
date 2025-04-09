@@ -742,21 +742,27 @@ export class SocketService {
     console.log('[SocketService] Iniciando carregamento de dados históricos das roletas');
     
     try {
-      // Lista de roletas para carregar dados históricos
-      const roletasPermitidas = ROLETAS_PERMITIDAS || [];
+      // Lista de roletas pré-definidas para carregar dados históricos
+      // Como ROLETAS_PERMITIDAS é apenas um array de strings, vamos criar uma lista própria
+      const roletasParaCarregar = [
+        { id: '2010012', nome: 'American Roulette' },
+        { id: '2010009', nome: 'Auto-Roulette' },
+        { id: '2010007', nome: 'Roulette' },
+        { id: '2010008', nome: 'Lightning Roulette' }
+      ];
       
-      if (!roletasPermitidas.length) {
+      if (!roletasParaCarregar.length) {
         console.warn('[SocketService] Nenhuma roleta configurada para carregamento de histórico');
         return Promise.resolve([]);
       }
       
-      console.log(`[SocketService] Carregando histórico para ${roletasPermitidas.length} roletas`);
+      console.log(`[SocketService] Carregando histórico para ${roletasParaCarregar.length} roletas`);
       
       // Array de promises para carregar dados de todas as roletas em paralelo
-      const loadPromises = roletasPermitidas.map(roleta => {
-        return this.loadRouletteHistory(roleta._id)
+      const loadPromises = roletasParaCarregar.map(roleta => {
+        return this.loadRouletteHistory(roleta.id)
           .catch(error => {
-            console.error(`[SocketService] Erro ao carregar histórico para roleta ${roleta.nome || roleta._id}:`, error);
+            console.error(`[SocketService] Erro ao carregar histórico para roleta ${roleta.nome || roleta.id}:`, error);
             return null; // Retorna null em caso de erro, para não interromper outras cargas
           });
       });
@@ -766,7 +772,7 @@ export class SocketService {
       
       this._isLoadingHistoricalData = false;
       console.log('[SocketService] Dados históricos carregados com sucesso:', 
-        results.filter(Boolean).length, 'de', roletasPermitidas.length, 'roletas');
+        results.filter(Boolean).length, 'de', roletasParaCarregar.length, 'roletas');
       
       return results.filter(Boolean);
     } catch (error) {
@@ -814,7 +820,12 @@ export class SocketService {
           const historyHandler = (data: any) => {
             if (data && data.roletaId === roletaId) {
               clearTimeout(timeout);
-              this.socket?.off('history_data', historyHandler);
+              
+              // Remover o listener
+              if (this.socket) {
+                // @ts-ignore - Ignorar erro de tipo, pois precisamos passar o handler
+                this.socket.off('history_data', historyHandler);
+              }
               
               // Armazenar em cache
               this.cache[cacheKey] = data;
