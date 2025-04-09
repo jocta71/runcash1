@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import RouletteCard from './RouletteCard';
-import { SocketService } from '../services/SocketService';
+import SocketService from '../services/SocketService';
 
 interface Roulette {
   id: string;

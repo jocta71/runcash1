@@ -152,12 +152,19 @@ export class SocketService {
     return SocketService.instance;
   }
 
-  // Método único para verificar a conexão do socket
+  /**
+   * Verifica se o socket está conectado e operacional
+   * @returns boolean
+   */
   private checkSocketConnection(): boolean {
     return this.connectionActive && !!this.socket;
   }
 
-  // Método único para obter o histórico de uma roleta
+  /**
+   * Obtém o histórico de números para uma roleta específica
+   * @param roletaId ID da roleta
+   * @returns Array com o histórico de números
+   */
   public getRouletteHistory(roletaId: string): number[] {
     if (!this.rouletteHistory.has(roletaId)) {
       return [];
@@ -165,6 +172,10 @@ export class SocketService {
     return this.rouletteHistory.get(roletaId) || [];
   }
 
+  /**
+   * Notifica sobre atualização do histórico de uma roleta
+   * @param roletaId ID da roleta
+   */
   private notifyHistoryUpdate(roletaId: string): void {
     const historico = this.getRouletteHistory(roletaId);
     
@@ -195,5 +206,5 @@ export class SocketService {
   }
 }
 
-// Exportação padrão da classe SocketService
+// Exportando a classe para ser importada como default
 export default SocketService;
