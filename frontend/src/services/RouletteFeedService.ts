@@ -1831,35 +1831,186 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Busca todas as roletas disponíveis
-   * @returns Lista de roletas
+   * Método principal para buscar dados das roletas
+   * @param forced Se verdadeiro, ignora o cache
+   * @returns Promise com os dados das roletas
    */
-  async fetchRoulettes() {
+  async fetchRouletteData(forced = false): Promise<RouletteData[]> {
     try {
-      this.logger.info('🔄 Buscando dados atualizados das roletas');
+      this.log.info(`🔄 Buscando dados das roletas (forced: ${forced})`);
       
-      // Usar o endpoint correto para buscar roletas
-      const response = await axios.get(getFullUrl(ENDPOINTS.ROULETTES));
-      
-      if (response.data && Array.isArray(response.data)) {
-        this.logger.info(`✅ Recebidas ${response.data.length} roletas da API`);
-        return response.data;
-      } else {
-        this.logger.warn('⚠️ Resposta da API não é um array válido');
-        return [];
+      // Verificar se já tem uma requisição em andamento
+      if (this.isFetching) {
+        this.log.info('⏳ Existe uma requisição em andamento, aguardando...');
+        if (this.fetchPromise) {
+          return this.fetchPromise;
+        }
       }
+      
+      // Verificar se podemos usar o cache
+      const now = Date.now();
+      if (!forced && this.hasCachedData && now - this.lastCacheUpdate < this.cacheTTL) {
+        this.log.info('🔄 Usando dados em cache...');
+        // Converter os valores do Map para uma array
+        return Array.from(this.rouletteDataCache.values());
+      }
+      
+      // Marcar que estamos buscando dados
+      this.isFetching = true;
+      const startTime = performance.now();
+      
+      // Criar uma promise para a requisição
+      this.fetchPromise = new Promise<RouletteData[]>(async (resolve, reject) => {
+        try {
+          // Usar o endpoint correto para buscar as roletas
+          const response = await axios.get(getFullUrl(ENDPOINTS.ROULETTES));
+          
+          if (response.status === 200 && response.data) {
+            const data = response.data;
+            
+            if (Array.isArray(data)) {
+              // Processar os dados recebidos
+              this.processRouletteData(data);
+              
+              // Registrar estatísticas
+              const endTime = performance.now();
+              this.requestStats.lastResponseTime = endTime - startTime;
+              this.requestStats.successfulRequests++;
+              this.requestStats.totalRequests++;
+              
+              this.log.info(`✅ Recebidas ${data.length} roletas da API`);
+              
+              // Atualizar tempo do último sucesso
+              this.lastSuccessfulResponse = now;
+              this.consecutiveSuccesses++;
+              this.consecutiveErrors = 0;
+              
+              // Resolver com os dados obtidos
+              resolve(data);
+            } else {
+              this.log.warn('⚠️ Resposta da API não é um array válido');
+              this.handleFetchError('invalid_data_format');
+              resolve([]);
+            }
+          } else {
+            this.log.warn(`⚠️ Resposta da API com status: ${response.status}`);
+            this.handleFetchError('api_error');
+            resolve([]);
+          }
+        } catch (error) {
+          this.log.error('❌ Erro ao buscar dados das roletas:', error);
+          this.handleFetchError('network_error', error);
+          resolve([]);
+        } finally {
+          // Limpar estado
+          this.isFetching = false;
+          this.fetchPromise = null;
+        }
+      });
+      
+      return this.fetchPromise;
     } catch (error) {
-      this.logger.error('❌ Erro ao buscar roletas:', error);
-      this.notifySubscribers('error', { message: 'Falha ao buscar roletas' });
+      this.log.error('❌ Erro inesperado ao buscar roletas:', error);
+      this.isFetching = false;
+      this.fetchPromise = null;
       return [];
     }
   }
 
   /**
-   * Busca roletas com limite 
-   * @param limit Limite de roletas (padrão: 100)
-   * @returns Lista limitada de roletas
+   * Notifica sobre atualização de dados
    */
-  async fetchLimitedRoulettes(limit = 100) {
+  private notifyDataUpdate(): void {
     try {
-      this.logger.info(`
+      // Notificar outras instâncias sobre a atualização de dados
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const updateData = {
+          timestamp: Date.now(),
+          instanceId: INSTANCE_ID
+        };
+        
+        // Salvar no localStorage para que outras instâncias possam detectar
+        window.localStorage.setItem(DATA_UPDATE_KEY, JSON.stringify(updateData));
+        
+        // Também notificar via Event Service
+        EventService.emit('roulette:data-updated', updateData);
+      }
+    } catch (error) {
+      logger.error(`❌ Erro ao notificar sobre atualização de dados: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Método para inicializar o serviço
+   */
+  async initialize() {
+    this.logger.info('🚀 Inicializando o serviço de alimentação de roletas...');
+    
+    try {
+      // Carregar dados iniciais das roletas através da API
+      await this.fetchRouletteDataFromApi();
+      
+      // Conectar ao serviço de eventos para atualizações em tempo real
+      this.connectToEventService();
+      
+      // Iniciar processo de atualização periódica
+      this.startPeriodicUpdates();
+      
+      this.logger.info('✅ Serviço de alimentação de roletas inicializado com sucesso');
+      this.isInitialized = true;
+    } catch (error) {
+      this.logger.error(`❌ Erro ao inicializar o serviço de roletas: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca dados das roletas a partir da API REST
+   */
+  async fetchRouletteDataFromApi() {
+    this.logger.info('🔄 Buscando dados das roletas da API...');
+    
+    try {
+      // Usar o endpoint /api/ROULETTES
+      const response = await fetch('https://backendscraper-production.up.railway.app/api/ROULETTES');
+      
+      if (!response.ok) {
+        throw new Error(`Falha na requisição: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      this.logger.info(`✅ Recebidos dados de ${data.length} roletas da API`);
+      
+      // Processar os dados recebidos
+      if (Array.isArray(data)) {
+        await this.processRouletteData(data);
+      } else {
+        this.logger.warn('⚠️ Dados recebidos da API não são um array de roletas');
+      }
+    } catch (error) {
+      this.logger.error(`❌ Erro ao buscar roletas da API: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Processa um lote de dados de roletas
+   * @param rouletteData Array de dados de roletas
+   */
+  async processRouletteData(rouletteData: any[]) {
+    this.logger.info(`🔄 Processando ${rouletteData.length} roletas recebidas...`);
+    
+    try {
+      // Atualizar cache com novos dados
+      this.updateRouletteCache(rouletteData);
+      
+      // Notificar sobre a atualização dos dados
+      this.notifySubscribers(rouletteData);
+      
+      this.logger.info(`✅ Processamento de ${rouletteData.length} roletas concluído`);
+    } catch (error) {
+      this.logger.error(`❌ Erro ao processar dados das roletas: ${error}`);
+      throw error;
+    }
+  }
+}

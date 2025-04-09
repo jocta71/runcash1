@@ -1,64 +1,68 @@
-import { ENDPOINTS } from './endpoints';
 import axios from 'axios';
+import { ENDPOINTS, getFullUrl } from './endpoints';
 import { getLogger } from '../utils/logger';
 
 const logger = getLogger('ApiService');
 
 const API_BASE_URL = 'https://backendscraper-production.up.railway.app';
 
-// Cliente Axios principal
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+// Configurar o cliente Axios
+const api = axios.create({
+  timeout: 30000, // 30 segundos
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
+  }
+});
+
+// Adicionar interceptadores para logging
+api.interceptors.request.use(
+  (config) => {
+    console.log(`🔄 Requisição enviada para: ${config.url}`);
+    return config;
   },
-  timeout: 20000 // 20 segundos de timeout
-});
+  (error) => {
+    console.error('❌ Erro na requisição:', error);
+    return Promise.reject(error);
+  }
+);
 
-// Interceptador para logging
-apiClient.interceptors.request.use(config => {
-  logger.debug(`📤 Requisição ${config.method?.toUpperCase()} para ${config.url}`);
-  return config;
-});
-
-apiClient.interceptors.response.use(
-  response => {
-    logger.debug(`📥 Resposta ${response.status} de ${response.config.url}`);
+api.interceptors.response.use(
+  (response) => {
+    console.log(`✅ Resposta recebida de: ${response.config.url}`);
     return response;
   },
-  error => {
-    if (error.response) {
-      logger.error(`🚫 Erro ${error.response.status} de ${error.config.url}: ${error.message}`);
-    } else if (error.request) {
-      logger.error(`🚫 Sem resposta para ${error.config.url}: ${error.message}`);
-    } else {
-      logger.error(`🚫 Erro na requisição para ${error.config.url}: ${error.message}`);
-    }
+  (error) => {
+    console.error('❌ Erro na resposta:', error);
     return Promise.reject(error);
   }
 );
 
 /**
- * Busca todas as roletas disponíveis
- * @param limit Limite opcional de resultados
+ * Função para buscar todas as roletas
  * @returns Promise com os dados das roletas
  */
-export const fetchRoulettes = async (limit?: number) => {
+export const fetchRoulettes = async () => {
   try {
-    const url = limit ? `${ENDPOINTS.ROULETTES}?limit=${limit}` : ENDPOINTS.ROULETTES;
-    logger.info(`Buscando roletas de ${url}`);
-    
-    const response = await apiClient.get(url);
-    logger.info(`Recebidos ${response.data.length} roletas`);
-    
+    const response = await api.get(getFullUrl(ENDPOINTS.ROULETTES));
     return response.data;
   } catch (error) {
-    logger.error('Erro ao buscar roletas:', error);
+    console.error('❌ Erro ao buscar roletas:', error);
     throw error;
   }
 };
 
-export default {
-  fetchRoulettes
-}; 
+/**
+ * Função para buscar roletas com limite
+ * @returns Promise com os dados das roletas limitadas
+ */
+export const fetchLimitedRoulettes = async () => {
+  try {
+    const response = await api.get(getFullUrl(ENDPOINTS.ROULETTES_WITH_LIMIT));
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erro ao buscar roletas limitadas:', error);
+    throw error;
+  }
+};
+
+export default api; 
