@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
-import SocketService from './services/SocketService';
+import SocketService from './services/SocketAdapter';
 import { initializeLogging } from './services/utils/initLogger';
 import { getLogger } from './services/utils/logger';
 import { setupGlobalErrorHandlers } from './utils/error-handlers';

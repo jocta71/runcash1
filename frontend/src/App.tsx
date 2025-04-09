@@ -5,7 +5,7 @@ import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
 import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
-import SocketService from '@/services/SocketService';
+import SocketService from '@/services/SocketAdapter';
 import LoadingScreen from './components/LoadingScreen';
 import RoulettesPage from './pages/Roulettes';
 import './App.css';

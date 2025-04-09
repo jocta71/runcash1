@@ -58,32 +58,22 @@ export interface HistoryData {
 import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 
 /**
- * Serviço que gerencia a conexão WebSocket via Socket.IO
- * para receber dados em tempo real do MongoDB
+ * Serviço que gerencia o acesso a dados de roletas via API REST
+ * Substitui o antigo serviço de WebSocket, mantendo a mesma interface
  */
 class SocketService {
   private static instance: SocketService;
-  private socket: Socket | null = null;
   private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
   private connectionActive: boolean = false;
-  private connectionAttempts: number = 0;
-  private reconnectTimeout: number | null = null;
   private timerId: NodeJS.Timeout | null = null;
-  private eventHandlers: Record<string, (data: any) => void> = {};
-  private autoReconnect: boolean = true;
+  private pollingInterval: number = 5000; // Intervalo de 5 segundos para polling
   private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
-  // Novo mapa para rastrear promessas pendentes de listeners assíncronos
-  private pendingPromises: Map<string, { promise: Promise<any>, timeout: NodeJS.Timeout }> = new Map();
   
-  // Propriedade para o cliente MongoDB (pode ser undefined em alguns contextos)
+  // Propriedade para simular estado de conexão
   public client?: MongoClient;
   
   // Mapa para armazenar os intervalos de polling por roletaId
   private pollingIntervals: Map<string, any> = new Map();
-  private pollingInterval: number = 15000; // Intervalo padrão de 15 segundos para polling
-  private minPollingInterval: number = 10000; // 10 segundos mínimo
-  private maxPollingInterval: number = 60000; // 1 minuto máximo
-  private pollingBackoffFactor: number = 1.5; // Fator de aumento em caso de erro
   
   private _isLoadingHistoricalData: boolean = false;
   
@@ -95,15 +85,8 @@ class SocketService {
   private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
   private cacheTTL: number = 5 * 60 * 1000; // 5 minutos em milissegundos
   
-  // Propriedades para circuit breaker
-  private circuitBreakerActive: boolean = false;
-  private circuitBreakerResetTimeout: any = null;
-  private consecutiveFailures: number = 0;
-  private failureThreshold: number = 5; // Quantas falhas para ativar o circuit breaker
-  private resetTime: number = 60000; // 1 minuto de espera antes de tentar novamente
-  
   private constructor() {
-    console.log('[SocketService] Inicializando serviço Socket.IO');
+    console.log('[SocketService] Inicializando serviço REST API com polling');
     
     // Adicionar listener global para logging de todos os eventos
     this.subscribe('*', (event: RouletteNumberEvent | StrategyUpdateEvent) => {
@@ -113,377 +96,300 @@ class SocketService {
         console.log(`[SocketService][GLOBAL] Atualização de estratégia para roleta: ${event.roleta_nome}, estado: ${event.estado}`);
       }
     });
-    
-    // Verificar se o socket já existe no localStorage para recuperar uma sessão anterior
-    const savedSocket = this.trySavedSocket();
-    if (!savedSocket) {
-      // Conectar normalmente se não houver sessão salva
-      this.connect();
-    }
 
+    // Iniciar o polling da API REST
+    this.startPolling();
+    
     // Adicionar event listener para quando a janela ficar visível novamente
     window.addEventListener('visibilitychange', this.handleVisibilityChange);
     
-    // Configurar handler para rejeições de promise não tratadas
-    this.setupUnhandledRejectionHandler();
+    // Iniciar como conectado
+    this.connectionActive = true;
     
-    console.log('[SocketService] Polling agressivo de roletas DESATIVADO - Centralizado no RouletteFeedService');
-    
-    // Reduzir frequência de recarregamento para minimizar requisições
-    // Desativar para usar apenas o RouletteFeedService como fonte única
-    // setInterval(() => this.requestRecentNumbers(), 30000);
+    // Carregar dados iniciais do localStorage se existirem
+    this.loadCachedData();
   }
 
   // Manipular alterações de visibilidade da página
   private handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
-      console.log('[SocketService] Página voltou a ficar visível, verificando conexão');
-      // Se não estiver conectado, tentar reconectar
-      if (!this.connectionActive || !this.socket || !this.socket.connected) {
-        console.log('[SocketService] Reconectando após retornar à visibilidade');
-        this.connect();
-      }
-      
-      // Recarregar dados recentes
-      this.requestRecentNumbers();
+      console.log('[SocketService] Página voltou a ficar visível, atualizando dados');
+      this.fetchDataFromREST();
     }
   }
 
-  private trySavedSocket(): boolean {
+  // Iniciar polling da API REST
+  private startPolling() {
+    this.connectionActive = true;
+    
+    // Executar imediatamente na inicialização
+    this.fetchDataFromREST();
+    
+    // Configurar intervalo de polling
+    this.timerId = setInterval(() => {
+      this.fetchDataFromREST();
+    }, this.pollingInterval);
+    
+    console.log(`[SocketService] Polling da API REST iniciado com intervalo de ${this.pollingInterval}ms`);
+  }
+  
+  // Buscar dados da API REST
+  private async fetchDataFromREST() {
     try {
-      // Verificar tempo da última conexão
-      const lastConnectionTime = localStorage.getItem('socket_last_connection');
-      if (lastConnectionTime) {
-        const lastTime = parseInt(lastConnectionTime, 10);
-        const now = Date.now();
-        const diff = now - lastTime;
-        
-        // Se a última conexão foi há menos de 2 minutos, pode ser recuperada
-        if (diff < 120000) {
-          console.log('[SocketService] Encontrada conexão recente. Tentando usar configurações salvas.');
-          return true;
-        } else {
-          console.log('[SocketService] Conexão antiga encontrada, iniciando nova conexão');
-          localStorage.removeItem('socket_last_connection');
-        }
-      }
-    } catch (error) {
-      console.warn('[SocketService] Erro ao verificar socket salvo:', error);
-    }
-    return false;
-  }
-
-  private setupEventListeners(): void {
-    if (!this.socket) return;
-    
-    console.log('[SocketService] Configurando event listeners para Socket.IO');
-    
-    // Limpar listeners anteriores para evitar duplicação
-    this.socket.off('new_number');
-    this.socket.off('recent_numbers');
-    this.socket.off('strategy_update');
-    this.socket.off('roulette_update');
-    
-    // Configurar listener para novos números - mais verboso para debug
-    this.socket.on('new_number', (data: any) => {
-      console.log('[SocketService] Novo número recebido via Socket.IO:', data);
-      this.processIncomingNumber(data);
+      console.log('[SocketService] Buscando dados da API REST');
       
-      // Emitir um evento de log para debug
-      console.log(`[SocketService] ✅ Processado número ${data.numero} para ${data.roleta_nome || 'desconhecida'}`);
-    });
-    
-    // Configurar listener para atualizações específicas de roleta
-    this.socket.on('roulette_update', (data: any) => {
-      console.log('[SocketService] Atualização específica de roleta recebida:', data);
+      const apiBaseUrl = this.getApiBaseUrl();
+      const url = `${apiBaseUrl}/ROULETTES?limit=100`;
       
-      if (data && data.roleta_id && data.numeros && Array.isArray(data.numeros)) {
-        const roletaId = data.roleta_id;
-        const roletaNome = data.roleta_nome || `Roleta ${roletaId}`;
-        
-        console.log(`[SocketService] Processando ${data.numeros.length} números para ${roletaNome}`);
-        
-        // Processar cada número individualmente para garantir atualização na interface
-        data.numeros.forEach((numero: any, index: number) => {
-          // Processar o número no formato correto
-          this.processIncomingNumber({
-            type: 'new_number',
-            roleta_id: roletaId,
-            roleta_nome: roletaNome,
-            numero: typeof numero === 'number' ? numero : parseInt(String(numero), 10),
-            timestamp: new Date().toISOString(),
-            preserve_existing: true,
-            realtime: true
-          });
-        });
-      }
-    });
-    
-    // Configurar listener para números em lote
-    this.socket.on('recent_numbers', (data: any) => {
-      console.log('[SocketService] Lote de números recentes recebido:', 
-        Array.isArray(data) ? `${data.length} itens` : 'formato inválido');
+      const response = await fetch(url);
       
-      if (Array.isArray(data)) {
-        // Processar do mais recente para o mais antigo
-        for (let i = 0; i < data.length; i++) {
-          this.processIncomingNumber(data[i]);
-        }
-      }
-    });
-    
-    // Configurar listener para atualizações de estratégia
-    this.socket.on('strategy_update', (data: any) => {
-      console.log('[SocketService] Atualização de estratégia recebida:', data);
-      this.processStrategyEvent(data);
-    });
-    
-    // Ping a cada 30 segundos para manter a conexão ativa
-    this.setupPing();
-    
-    // Solicitar números recentes imediatamente após configurar listeners
-    setTimeout(() => {
-      this.requestRecentNumbers();
-    }, 1000);
-  }
-
-  private processIncomingNumber(data: any): void {
-    // Log detalhado para debug
-    console.log('[SocketService] Processando número recebido:', data);
-    
-    try {
-      // Verificações de segurança
-      if (!data) {
-        console.warn('[SocketService] Dados nulos recebidos em processIncomingNumber');
-      return;
-    }
-    
-      // Extrair informações importantes com validações
-      const roletaId = data.roleta_id || 'unknown';
-      const roletaNome = data.roleta_nome || `Roleta ${roletaId}`;
-      
-      // Verificar se o dado de número é válido
-      if (data.numero === undefined || data.numero === null) {
-        console.warn(`[SocketService] Número inválido recebido para ${roletaNome} (${roletaId}):`, data);
-        return;
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar dados: ${response.status} ${response.statusText}`);
       }
       
-      // Converter para número e validar
-      const numero = typeof data.numero === 'number' ? data.numero : parseInt(String(data.numero), 10);
-      if (isNaN(numero)) {
-        console.warn(`[SocketService] Conversão de número falhou para ${roletaNome}:`, data.numero);
-          return;
-      }
-
-      // Usar um formato padrão de evento
-    const event: RouletteNumberEvent = {
-      type: 'new_number',
-        roleta_id: roletaId,
-        roleta_nome: roletaNome,
-        numero: numero,
-      timestamp: data.timestamp || new Date().toISOString(),
-        preserve_existing: data.preserve_existing ? true : false,
-        realtime_update: data.realtime_update ? true : false
-      };
+      const data = await response.json();
       
-      // Log detalhado do evento formatado
-      console.log(`[SocketService] Evento formatado para ${roletaNome}: ${JSON.stringify(event)}`);
-      
-      // Usar sempre timestamps atualizados para eventos antigos
-      if (!data.realtime_update) {
-        event.timestamp = new Date().toISOString();
-      }
-      
-      // Adicionar à lista de última mensagem recebida
-      this.lastReceivedData.set(roletaId, {
+      // Salvar no cache
+      localStorage.setItem('roulettes_data_cache', JSON.stringify({
         timestamp: Date.now(),
-        data: event
-      });
-    
-    // Notificar os listeners
-    this.notifyListeners(event);
-    
-      // Verificar se precisamos iniciar polling agressivo
-      if (!this.pollingIntervals.has(roletaId)) {
-        console.log(`[SocketService] Iniciando polling agressivo automático para ${roletaNome}`);
-        this.startAggressivePolling(roletaId, roletaNome);
-      }
-
-      // Adicionar ao histórico da roleta
-      this.addNumberToHistory(roletaId, numero);
+        data: data
+      }));
+      
+      // Processar os dados como eventos
+      this.processDataAsEvents(data);
+      
+      return true;
     } catch (error) {
-      console.error('[SocketService] Erro ao processar número recebido:', error);
+      console.error('[SocketService] Erro ao buscar dados da API REST:', error);
+      return false;
     }
   }
   
+  // Carregar dados do cache
+  private loadCachedData() {
+    try {
+      const cachedData = localStorage.getItem('roulettes_data_cache');
+      
+      if (cachedData) {
+        const parsed = JSON.parse(cachedData);
+        
+        // Verificar se o cache não está muito antigo (máx 10 minutos)
+        const now = Date.now();
+        if (now - parsed.timestamp < 10 * 60 * 1000) {
+          console.log('[SocketService] Usando dados em cache para inicialização rápida');
+          this.processDataAsEvents(parsed.data);
+        }
+      }
+    } catch (error) {
+      console.warn('[SocketService] Erro ao carregar dados do cache:', error);
+    }
+  }
+  
+  // Processar dados da API como eventos de WebSocket
+  private processDataAsEvents(data: any[]) {
+    if (!Array.isArray(data)) {
+      console.warn('[SocketService] Dados recebidos não são um array:', data);
+      return;
+    }
+    
+    console.log(`[SocketService] Processando ${data.length} roletas da API REST`);
+    
+    // Para cada roleta, emitir eventos
+    data.forEach(roulette => {
+      if (!roulette || !roulette.id) return;
+      
+      // Atualizar o historical da roleta se houver números
+      if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
+        // Mapear apenas os números para um array simples
+        const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
+        
+        // Atualizar o histórico
+        this.setRouletteHistory(roulette.id, numbers);
+        
+        // Emitir evento com o número mais recente
+        const lastNumber = roulette.numero[0];
+        
+        const event: RouletteNumberEvent = {
+          type: 'new_number',
+          roleta_id: roulette.id,
+          roleta_nome: roulette.nome,
+          numero: lastNumber.numero || lastNumber.number || 0,
+          cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
+          timestamp: lastNumber.timestamp || new Date().toISOString()
+        };
+        
+        // Notificar os listeners sobre o novo número
+        this.notifyListeners(event);
+      }
+      
+      // Emitir evento de estratégia se houver
+      if (roulette.estado_estrategia) {
+        const strategyEvent: StrategyUpdateEvent = {
+          type: 'strategy_update',
+          roleta_id: roulette.id,
+          roleta_nome: roulette.nome,
+          estado: roulette.estado_estrategia,
+          numero_gatilho: roulette.numero_gatilho || 0,
+          vitorias: roulette.vitorias || 0,
+          derrotas: roulette.derrotas || 0
+        };
+        
+        // Notificar os listeners sobre a atualização de estratégia
+        this.notifyListeners(strategyEvent);
+      }
+    });
+  }
+
+  private determinarCorNumero(numero: number): string {
+    if (numero === 0) return 'verde';
+    if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(numero)) {
+      return 'vermelho';
+    }
+    return 'preto';
+  }
+
+  // Singleton
   public static getInstance(): SocketService {
     if (!SocketService.instance) {
       SocketService.instance = new SocketService();
     }
     return SocketService.instance;
   }
-  
-  private getSocketUrl(): string {
-    let wsUrl = getRequiredEnvVar('VITE_WS_URL');
-    
-    // Garantir que a URL use o protocolo wss://
-    if (wsUrl && !wsUrl.startsWith('wss://')) {
-      if (wsUrl.startsWith('https://')) {
-        console.warn('[SocketService] Convertendo URL de https:// para wss://');
-        wsUrl = wsUrl.replace('https://', 'wss://');
-      } else if (wsUrl.startsWith('http://')) {
-        console.warn('[SocketService] Convertendo URL de http:// para wss://');
-        wsUrl = wsUrl.replace('http://', 'wss://');
-      } else {
-        console.warn('[SocketService] URL não inicia com protocolo, adicionando wss://');
-        wsUrl = `wss://${wsUrl}`;
-      }
-    }
-    
-    // Em produção, garantir que usamos uma URL segura (não localhost)
-    if (isProduction && (wsUrl.includes('localhost') || wsUrl.includes('127.0.0.1'))) {
-      console.warn('[SocketService] Detectada URL inválida para WebSocket em produção. Usando origem atual.');
-      const currentOrigin = window.location.origin;
-      wsUrl = currentOrigin.replace('https://', 'wss://').replace('http://', 'wss://');
-    }
-    
-    // Verificar se a URL é válida
-    if (!wsUrl || wsUrl === 'wss://') {
-      console.error('[SocketService] URL de WebSocket inválida. Usando padrão.');
-      wsUrl = 'wss://backend-production-2f96.up.railway.app';
-    }
-    
-    console.log('[SocketService] Usando URL de WebSocket:', wsUrl);
-    return wsUrl;
+
+  private getApiBaseUrl(): string {
+    const apiBaseUrl = getRequiredEnvVar('VITE_API_BASE_URL');
+    return apiBaseUrl;
   }
-  
-  private connect(): void {
-    if (this.socket) {
-      console.log('[SocketService] Socket já existente. Verificando estado da conexão...');
-      
-      if (this.socket.connected) {
-        console.log('[SocketService] Socket já conectado. Atualizando configurações de listener.');
-        this.setupEventListeners();
-        return;
-      } else {
-        console.log('[SocketService] Socket existente mas desconectado. Recriando conexão...');
-        this.socket.disconnect();
-        this.socket = null;
-      }
+
+  // Métodos públicos que mantém compatibilidade com a versão WebSocket
+
+  public subscribe(roletaNome: string, callback: RouletteEventCallback): void {
+    if (!this.listeners.has(roletaNome)) {
+      this.listeners.set(roletaNome, new Set());
     }
-
-    try {
-      const wsUrl = this.getSocketUrl();
-      console.log('[SocketService] Conectando ao servidor WebSocket:', wsUrl);
-      
-      this.socket = io(wsUrl, {
-        transports: ['websocket'],
-        autoConnect: true,
-        reconnection: true,
-        reconnectionAttempts: 10,
-        // Reduzir timeout para reconectar mais rapidamente
-        timeout: 5000,
-        // Configurar para reconexão mais agressiva
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000
-      });
-
-      this.socket.on('connect', () => {
-        console.log('[SocketService] Conectado ao servidor WebSocket com sucesso!');
-        this.connectionActive = true;
-        this.connectionAttempts = 0;
-        
-        // Solicitar números recentes imediatamente após a conexão
-        this.requestRecentNumbers();
-        
-        // Configurar os listeners de eventos
-        this.setupEventListeners();
-        
-        // Registrar para todos os canais ativos de roleta
-        this.registerToAllRoulettes();
-        
-        toast({
-          title: "Conexão em tempo real estabelecida",
-          description: "Recebendo atualizações instantâneas das roletas",
-          variant: "default"
-        });
-      });
-
-      this.socket.on('reconnect', (attempt) => {
-        console.log(`[SocketService] Reconectado ao servidor WebSocket após ${attempt} tentativas`);
-        this.connectionActive = true;
-        this.connectionAttempts = 0;
-        this.setupPing();
-        
-        // Solicitar dados novamente após reconexão
-        this.requestRecentNumbers();
-        
-        toast({
-          title: "Conexão restabelecida",
-          description: "Voltando a receber atualizações em tempo real",
-          variant: "default"
-        });
-      });
-
-      this.socket.on('disconnect', (reason) => {
-        console.log(`[SocketService] Desconectado do servidor WebSocket: ${reason}`);
-        this.connectionActive = false;
-        if (this.timerId) {
-          clearInterval(this.timerId);
-          this.timerId = null;
-        }
-        
-        // Mostrar toast apenas se for desconexão inesperada
-        if (reason !== 'io client disconnect') {
-          toast({
-            title: "Conexão em tempo real perdida",
-            description: "Tentando reconectar...",
-            variant: "destructive"
-          });
-        }
-      });
-
-      this.socket.on('error', (error) => {
-        console.error('[SocketService] Erro na conexão WebSocket:', error);
-      });
-
-      // Configurar handler genérico de eventos
-      this.socket.onAny((event, ...args) => {
-        console.log(`[SocketService] Evento recebido: ${event}`, args);
-        
-        if (this.eventHandlers[event]) {
-          this.eventHandlers[event](args[0]);
-        }
-      });
-
-    } catch (error) {
-      console.error('[SocketService] Erro ao conectar ao servidor WebSocket:', error);
-      
-      // Tentar reconectar após um atraso
-      this.scheduleReconnect();
+    
+    const listeners = this.listeners.get(roletaNome);
+    if (listeners) {
+      listeners.add(callback);
+      console.log(`[SocketService] Registrado listener para ${roletaNome}, total: ${listeners.size}`);
     }
   }
-  
-  private scheduleReconnect(): void {
-    // Limpar timeout existente
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
+
+  public unsubscribe(roletaNome: string, callback: RouletteEventCallback): void {
+    const listeners = this.listeners.get(roletaNome);
+    if (listeners) {
+      listeners.delete(callback);
+      console.log(`[SocketService] Listener removido para ${roletaNome}, restantes: ${listeners.size}`);
+    }
+  }
+
+  private notifyListeners(event: RouletteNumberEvent | StrategyUpdateEvent): void {
+    // Notificar listeners específicos para esta roleta
+    const listeners = this.listeners.get(event.roleta_nome);
+    if (listeners) {
+      listeners.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error(`[SocketService] Erro em listener para ${event.roleta_nome}:`, error);
+        }
+      });
     }
     
-    // Incrementar tentativas
-    this.connectionAttempts++;
-    
-    // Calcular tempo de espera com backoff exponencial
-    const delay = Math.min(1000 * Math.pow(1.5, this.connectionAttempts), 30000);
-    console.log(`[SocketService] Tentando reconectar em ${Math.round(delay/1000)}s (tentativa ${this.connectionAttempts})`);
-    
-    // Agendar reconexão
-    this.reconnectTimeout = window.setTimeout(() => {
-      console.log('[SocketService] Executando reconexão agendada');
-      this.connect();
-    }, delay);
+    // Notificar listeners globais (marcados com "*")
+    const globalListeners = this.listeners.get('*');
+    if (globalListeners) {
+      globalListeners.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error('[SocketService] Erro em listener global:', error);
+        }
+      });
+    }
   }
+
+  public disconnect(): void {
+    console.log('[SocketService] Desconectando serviço de polling');
+    
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+    
+    this.connectionActive = false;
+  }
+
+  public reconnect(): void {
+    console.log('[SocketService] Reconectando serviço de polling');
+    
+    // Limpar intervalo existente
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+    
+    // Reiniciar polling
+    this.startPolling();
+  }
+
+  public isSocketConnected(): boolean {
+    return this.connectionActive;
+  }
+
+  public getConnectionStatus(): boolean {
+    return this.connectionActive;
+  }
+
+  public emit(eventName: string, data: any): void {
+    console.log(`[SocketService] Simulando emissão de evento ${eventName} (não implementado em modo REST)`);
+  }
+
+  public hasRealData(): boolean {
+    return this.rouletteDataCache.size > 0 || this.lastReceivedData.size > 0;
+  }
+
+  public async requestRecentNumbers(): Promise<boolean> {
+    return this.fetchDataFromREST();
+  }
+
+  public getRouletteHistory(roletaId: string): number[] {
+    return this.rouletteHistory.get(roletaId) || [];
+  }
+
+  public setRouletteHistory(roletaId: string, numbers: number[]): void {
+    this.rouletteHistory.set(roletaId, numbers.slice(0, this.historyLimit));
+  }
+
+  public async requestRouletteNumbers(roletaId: string): Promise<boolean> {
+    return this.fetchDataFromREST();
+  }
+
+  public isConnected(): boolean {
+    return this.connectionActive;
+  }
+
+  public destroy(): void {
+    console.log('[SocketService] Destruindo serviço');
+    
+    // Limpar intervalos
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+    
+    // Remover event listeners
+    window.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    
+    // Limpar todos os listeners
+    this.listeners.clear();
+    
+    // Desativar conexão
+    this.connectionActive = false;
+  }
+}
+
+export default SocketService;
   
   // Método para registrar uma roleta para receber atualizações em tempo real
   private registerRouletteForRealTimeUpdates(roletaNome: string, roletaId?: string): void {
@@ -1388,497 +1294,135 @@ class SocketService {
     */
   }
 
-  // Método auxiliar para usar dados de fallback quando necessário
-  private useFallbackData(canonicalId: string): boolean {
-    const roleta = ROLETAS_CANONICAS.find(r => r.id === canonicalId);
-    const roletaNome = roleta ? roleta.nome : `Roleta ${canonicalId}`;
-    
-    console.log(`[SocketService] Usando dados de fallback para ${roletaNome}`);
-    
-    // Gerar alguns números aleatórios como fallback
-    const fakeNumbers = this.generateFallbackNumbers(canonicalId, roletaNome);
-    
-    // Extrair apenas os números e armazenar no histórico
-    const numeros = fakeNumbers.map(item => item.numero);
-    this.setRouletteHistory(canonicalId, numeros);
-    
-    // Processar os dados completos para o sistema de eventos e para os cards
-    this.processNumbersData(fakeNumbers, { _id: canonicalId, nome: roletaNome });
-    
-    return true;
-  }
-  
-  // Método auxiliar para gerar números de fallback em caso de erro de CORS
-  private generateFallbackNumbers(roletaId: string, roletaNome: string): any[] {
-    console.log(`[SocketService] Gerando números de fallback para ${roletaNome}`);
-    const numbers = [];
-    const count = 20;
-    
-    for (let i = 0; i < count; i++) {
-      const numero = Math.floor(Math.random() * 37); // 0-36
-      const timestamp = new Date(Date.now() - i * 60000).toISOString();
-      
-      // Determinar cor
-      let cor = 'verde';
-      if (numero > 0) {
-        const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-        cor = numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
-      }
-      
-      numbers.push({
-        numero,
-        cor,
-        roleta_id: roletaId,
-        roleta_nome: roletaNome,
-        timestamp
-      });
-    }
-    
-    return numbers;
-  }
-  
-  // Obter a URL base da API
-  private getApiBaseUrl(): string {
-    // Em vez de usar a URL completa do Railway, usar o endpoint relativo para aproveitar o proxy
-    return '/api';
-  }
+  // Métodos públicos que mantém compatibilidade com a versão WebSocket
 
-  // Adicionando um evento artificial para teste (deve ser removido em produção)
-  public injectTestEvent(roleta: string, numero: number): void {
-    if (!this.connectionActive) {
-      console.warn('[SocketService] Não é possível injetar evento de teste: socket não conectado');
-      return;
+  public subscribe(roletaNome: string, callback: RouletteEventCallback): void {
+    if (!this.listeners.has(roletaNome)) {
+      this.listeners.set(roletaNome, new Set());
     }
     
-    console.log(`[SocketService] Injetando número real para ${roleta}: número ${numero}`);
-    
-    // Criar evento com dados reais
-    const testEvent: RouletteNumberEvent = {
-      type: 'new_number',
-      roleta_id: 'real-data-' + Date.now(),
-      roleta_nome: roleta,
-      numero: numero,
-      timestamp: new Date().toISOString()
-    };
-    
-    // Processar evento como se tivesse vindo do socket
-    this.notifyListeners(testEvent);
-    
-    // Atualizar estado de carregamento
-    EventService.emitGlobalEvent('historical_data_loaded', {
-      success: true,
-      isRealData: true,
-      count: 1
-    });
-  }
-
-  /**
-   * Solicita dados de estratégia para uma roleta específica
-   * @param roletaId ID da roleta
-   * @param roletaNome Nome da roleta
-   */
-  public requestStrategy(roletaId: string, roletaNome: string): void {
-    console.log(`[SocketService] Solicitando dados de estratégia para ${roletaNome} (ID: ${roletaId})`);
-    
-    // Tentar enviar via socket se conectado
-    if (this.isConnected()) {
-      this.sendMessage({
-        type: 'get_strategy',
-        roleta_id: roletaId,
-        roleta_nome: roletaNome
-      });
-    } else {
-      console.log(`[SocketService] Socket não conectado, solicitação de estratégia ignorada`);
-    }
-    
-    // Emitir evento no Event Service para notificar componentes interessados
-    const eventService = EventService.getInstance();
-    const event = {
-      type: 'strategy_requested',
-          roleta_id: roletaId,
-          roleta_nome: roletaNome,
-          timestamp: new Date().toISOString()
-        };
-        
-    if (typeof eventService.dispatchEvent === 'function') {
-      eventService.dispatchEvent(event);
+    const listeners = this.listeners.get(roletaNome);
+    if (listeners) {
+      listeners.add(callback);
+      console.log(`[SocketService] Registrado listener para ${roletaNome}, total: ${listeners.size}`);
     }
   }
 
-  // Adicionar um método para verificar a conexão
-  public isConnectionActive(): boolean {
-    return this.connectionActive;
-  }
-
-  // Verifica se temos conexão ativa
-  private checkSocketConnection(): boolean {
-    return this.connectionActive && !!this.socket;
-  }
-
-  // Métodos adicionais para compatibilidade com qualquer código antigo
-  public isConnected(): boolean {
-    console.warn('[SocketService] Método isConnected() chamado. Usando verificação de topologia recomendada.');
-    
-    // Implementação recomendada para verificar a conexão no MongoDB moderno
-    if (this.client && this.client.topology && this.client.topology.isConnected()) {
-      return true;
-    } else if (this.connectionActive) {
-      // Fallback para a propriedade local connectionActive
-      return this.connectionActive;
-    }
-    return false;
-  }
-
-  // Método para processar eventos de estratégia
-  private processStrategyEvent(data: any): void {
-    if (!data || !data.roleta_id || !data.roleta_nome) {
-      console.warn('[SocketService] Dados de estratégia inválidos:', data);
-        return;
-      }
-
-    // Transformar em formato de evento para notificar
-      const event: StrategyUpdateEvent = {
-        type: 'strategy_update',
-      roleta_id: data.roleta_id,
-      roleta_nome: data.roleta_nome, // Corrigido de roleta_name para roleta_nome
-      estado: data.estado || 'unknown',
-        numero_gatilho: data.numero_gatilho || 0,
-        terminais_gatilho: data.terminais_gatilho || [],
-      vitorias: data.vitorias || 0,
-      derrotas: data.derrotas || 0,
-      sugestao_display: data.sugestao_display,
-        timestamp: data.timestamp || new Date().toISOString()
-      };
-
-      console.log(`[SocketService] Processando evento de estratégia:`, {
-      roleta: event.roleta_nome, // Corrigido de roleta_name para roleta_nome
-        vitorias: event.vitorias,
-        derrotas: event.derrotas,
-        timestamp: event.timestamp
-      });
-
-      // Notificar diretamente os callbacks específicos para esta roleta
-      this.notifyListeners(event);
-      
-      // Notificar também via EventService
-      const eventService = EventService.getInstance();
-      eventService.emitStrategyUpdate(event);
-  }
-
-  private ensureConnection() {
-    if (!this.socket || !this.socket.connected) {
-      console.log("[SocketService] Conexão Socket.IO não ativa, reconectando...");
-      this.connect();
-      return false;
-    }
-    return true;
-  }
-
-  // Adicionar um método para forçar reconexão - melhorado para garantir verificação adequada
-  public reconnect(): void {
-    console.log('[SocketService] Executando reconexão forçada...');
-    // Limpar todos os listeners pendentes
-    this.clearAllPendingPromises();
-    
-    // Desconectar socket existente
-      if (this.socket) {
-      // Remover todos os listeners para evitar duplicação
-      this.socket.offAny();
-          this.socket.disconnect();
-        this.socket = null;
-      }
-    
-    // Reiniciar contadores
-    this.connectionAttempts = 0;
-    this.connectionActive = false;
-      
-      // Reconectar
-      this.connect();
-  }
-
-  // Adicionar um método para transmitir o estado da conexão
-  public broadcastConnectionState(): void {
-    const isConnected = this.isSocketConnected();
-    console.log(`[SocketService] Enviando estado de conexão: ${isConnected ? 'Conectado' : 'Desconectado'}`);
-    
-    // Criar evento e notificar via mecanismo existente
-    const event = {
-      type: 'connection_state',
-      connected: isConnected,
-      timestamp: new Date().toISOString()
-    };
-    
-    // Usar o notifyListeners existente
-    this.notifyListeners(event as any);
-    
-    // Se conectado, solicitar dados mais recentes
-    if (isConnected) {
-      this.requestRecentNumbers();
+  public unsubscribe(roletaNome: string, callback: RouletteEventCallback): void {
+    const listeners = this.listeners.get(roletaNome);
+    if (listeners) {
+      listeners.delete(callback);
+      console.log(`[SocketService] Listener removido para ${roletaNome}, restantes: ${listeners.size}`);
     }
   }
 
-  /**
-   * Registra para receber atualizações em tempo real de uma roleta específica
-   * @param roletaId ID da roleta
-   * @param roletaNome Nome da roleta (para logs)
-   */
-  private subscribeToRouletteEndpoint(roletaId: string, roletaNome?: string): void {
-    try {
-      // Verificar se temos ID válido
-    if (!roletaId) {
-        console.warn('[SocketService] ID inválido para subscrição');
-      return;
-    }
-
-      // Usar nome da roleta para logs, ou o ID se não tivermos o nome
-      const displayName = roletaNome || `Roleta ${roletaId.substring(0, 8)}...`;
-      
-      console.log(`[SocketService] Registrando subscrição para ${displayName} (${roletaId})`);
-      
-      // Registrar via WebSocket se estiver conectado
-      if (this.socket && this.connectionActive) {
-        console.log(`[SocketService] Registrando via WebSocket para ${displayName}`);
-        this.socket.emit('subscribe', { 
-          roletaId, 
-          action: 'subscribe',
-          type: 'roleta_numbers'
-        });
-      } else {
-        console.log(`[SocketService] WebSocket não está conectado, usando apenas REST API para ${displayName}`);
-      }
-      
-      // Também registrar diretamente para o endpoint específico da roleta
-      this.startAggressivePolling(roletaId, displayName);
-    } catch (error) {
-      console.error(`[SocketService] Erro ao registrar subscrição para roleta ${roletaId}:`, error);
-    }
-  }
-
-  // Método para solicitar números específicos de uma roleta
-  public requestRouletteNumbers(roletaId: string): void {
-    if (!roletaId) {
-      console.warn('[SocketService] ID da roleta não especificado para solicitação de números');
-      return;
-    }
-    
-    // Garantir que estamos usando o ID canônico
-    const canonicalId = mapToCanonicalRouletteId(roletaId);
-    
-    if (!this.socket || !this.socket.connected) {
-      console.log('[SocketService] Socket não conectado. Reconectando antes de solicitar dados.');
-      this.connect();
-      // Programar nova tentativa após conexão
-      setTimeout(() => this.requestRouletteNumbers(canonicalId), 1000);
-      return;
-    }
-    
-    console.log(`[SocketService] Solicitando números específicos para roleta ID: ${canonicalId} (original: ${roletaId})`);
-    
-    // Solicitar via socket usando ID canônico
-    this.socket.emit('get_roulette_numbers', {
-      roletaId: canonicalId,
-      endpoint: `/api/ROULETTES`,
-      count: 50 // Solicitar até 50 números para garantir boa amostra
-    });
-    
-    // Fazer também uma solicitação REST para garantir dados completos
-    // Usar um valor intermediário para dados em tempo real
-    this.fetchRouletteNumbersREST(canonicalId, 50);
-  }
-
-  /**
-   * Inicia polling agressivo para uma roleta específica
-   * Desativado para centralizar no RouletteFeedService
-   */
-  public startAggressivePolling(roletaId: string, roletaNome: string): void {
-    console.log(`[SocketService] Polling agressivo DESATIVADO para ${roletaNome} (${roletaId})`);
-    // Implementação removida para evitar requisições duplicadas
-    return;
-    
-    /* IMPLEMENTAÇÃO ORIGINAL DESATIVADA
-    if (this.pollingIntervals.has(roletaId)) {
-      console.log(`[SocketService] Polling já ativo para ${roletaNome} (${roletaId})`);
-      return;
-    }
-    
-    console.log(`[SocketService] Iniciando polling agressivo para ${roletaNome} (${roletaId})`);
-    
-    // Configurar intervalo menor para roletas populares
-    const interval = setInterval(() => {
-      this.requestRouletteData(roletaId, roletaNome);
-    }, this.pollingInterval / 3); // 3x mais frequente que o polling normal
-    
-    // Armazenar intervalo para poder cancelar depois
-    this.pollingIntervals.set(roletaId, interval);
-    */
-  }
-
-  // Método para parar o polling para uma roleta específica
-  public stopPollingForRoulette(roletaId: string): void {
-    if (this.pollingIntervals.has(roletaId)) {
-      const pollingInfo = this.pollingIntervals.get(roletaId);
-      
-      if (pollingInfo && pollingInfo.timerId) {
-        clearTimeout(pollingInfo.timerId);
-      }
-      
-      this.pollingIntervals.delete(roletaId);
-      console.log(`[SocketService] Polling interrompido para roleta ${roletaId}`);
-    }
-  }
-
-  // Novo método para solicitar dados específicos de uma roleta
-  // Retorna Promise<boolean> indicando se novos dados foram recebidos
-  private async requestRouletteUpdate(roletaId: string, roletaNome: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      // Verificar se temos socket ativo
-      if (!this.socket || !this.connectionActive) {
-        console.log(`[SocketService] Socket não conectado ao tentar solicitar dados para ${roletaNome}`);
-        resolve(false);
-      return;
-    }
-    
-      // Flag para verificar se recebemos resposta
-      let receivedResponse = false;
-      let responseTimeout: NodeJS.Timeout;
-      
-      // Função de callback para quando receber os dados
-      const onData = (data: any) => {
-        // Limpar o timeout
-        clearTimeout(responseTimeout);
-        
-        // Verificar se temos dados válidos
-        const hasValidData = data && 
-          (Array.isArray(data.numeros) && data.numeros.length > 0 || 
-           Array.isArray(data.numero) && data.numero.length > 0);
-        
-        if (hasValidData) {
-          console.log(`[SocketService] Recebidos dados reais para ${roletaNome}`);
-          receivedResponse = true;
-          resolve(true);
-        } else {
-          console.log(`[SocketService] Resposta sem dados novos para ${roletaNome}`);
-          resolve(false);
+  private notifyListeners(event: RouletteNumberEvent | StrategyUpdateEvent): void {
+    // Notificar listeners específicos para esta roleta
+    const listeners = this.listeners.get(event.roleta_nome);
+    if (listeners) {
+      listeners.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error(`[SocketService] Erro em listener para ${event.roleta_nome}:`, error);
         }
-        
-        // Remover este listener após a resposta
-        this.socket?.off(`roulette_update_${roletaId}`, onData);
-      };
-      
-      // Configurar timeout para caso não receba resposta
-      responseTimeout = setTimeout(() => {
-        // Se não recebeu resposta em tempo hábil
-        if (!receivedResponse) {
-          this.socket?.off(`roulette_update_${roletaId}`, onData);
-          console.log(`[SocketService] Timeout ao aguardar resposta para ${roletaNome}`);
-          resolve(false);
+      });
+    }
+    
+    // Notificar listeners globais (marcados com "*")
+    const globalListeners = this.listeners.get('*');
+    if (globalListeners) {
+      globalListeners.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error('[SocketService] Erro em listener global:', error);
         }
-      }, 3000);
-      
-      // Registrar o evento para receber a resposta
-      this.socket.on(`roulette_update_${roletaId}`, onData);
-      
-      // Solicitar os dados da roleta
-      console.log(`[SocketService] Solicitando dados para ${roletaNome} (${roletaId})`);
-      this.socket.emit('get_roulette_data', {
-        roleta_id: roletaId,
-        roleta_nome: roletaNome,
-        timestamp: new Date().toISOString()
       });
-    });
-  }
-
-  // Adicione este método após o construtor
-  private setupUnhandledRejectionHandler(): void {
-    // Handler global para promises não tratadas
-    window.addEventListener('unhandledrejection', this.handleUnhandledRejection);
-  }
-
-  // Handler para rejeições de promise não tratadas
-  private handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-    console.error('[SocketService] Erro de promise não tratado:', event.reason);
-    // Verificar se o erro está relacionado com canal fechado ou socket
-    const errorMessage = String(event.reason).toLowerCase();
-    if (
-      errorMessage.includes('message channel closed') || 
-      errorMessage.includes('socket') || 
-      errorMessage.includes('connection')
-    ) {
-      console.warn('[SocketService] Detectado erro de canal fechado, tentando reconectar...');
-      // Se for erro de socket, verificar conexão e tentar reconectar
-      if (!this.connectionActive || !this.socket?.connected) {
-        this.reconnect();
-      }
     }
   }
 
-  // Gerenciar promessas pendentes de listeners assíncronos
-  private trackPromise(id: string, promise: Promise<any>, timeoutMs: number = 5000): void {
-    // Criar timeout para a promessa
-    const timeoutId = setTimeout(() => {
-      console.warn(`[SocketService] Promessa do listener ${id} expirou após ${timeoutMs}ms`);
-      // Remover do mapa de promessas pendentes
-      this.pendingPromises.delete(id);
-    }, timeoutMs);
-    
-    // Adicionar ao mapa de promessas pendentes
-    this.pendingPromises.set(id, { promise, timeout: timeoutId });
-    
-    // Adicionar handler para quando a promessa resolver ou rejeitar
-    promise
-      .then(() => {
-        clearTimeout(timeoutId);
-        this.pendingPromises.delete(id);
-      })
-      .catch(error => {
-        console.error(`[SocketService] Erro na promessa ${id}:`, error);
-        clearTimeout(timeoutId);
-        this.pendingPromises.delete(id);
-      });
-  }
-  
-  private clearAllPendingPromises(): void {
-    // Limpar todos os timeouts de promessas pendentes
-    this.pendingPromises.forEach(({ timeout }) => {
-      clearTimeout(timeout);
-    });
-    this.pendingPromises.clear();
-  }
-
-  // Destruidor para limpeza adequada
-  public destroy(): void {
-    console.log('[SocketService] Destruindo instância do SocketService');
-    
-    // Remover event listener global
-    window.removeEventListener('visibilitychange', this.handleVisibilityChange);
-    window.removeEventListener('unhandledrejection', this.handleUnhandledRejection);
-    
-    // Limpar todos os intervalos de polling
-    this.pollingIntervals.forEach((interval) => {
-      clearInterval(interval);
-    });
-    this.pollingIntervals.clear();
-    
-    // Limpar todos os timeouts
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
+  public disconnect(): void {
+    console.log('[SocketService] Desconectando serviço de polling');
     
     if (this.timerId) {
       clearInterval(this.timerId);
       this.timerId = null;
     }
     
-    // Limpar todas as promessas pendentes
-    this.clearAllPendingPromises();
-    
-    // Desconectar socket
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-    }
+    this.connectionActive = false;
   }
+
+  public reconnect(): void {
+    console.log('[SocketService] Reconectando serviço de polling');
+    
+    // Limpar intervalo existente
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+    
+    // Reiniciar polling
+    this.startPolling();
+  }
+
+  public isSocketConnected(): boolean {
+    return this.connectionActive;
+  }
+
+  public getConnectionStatus(): boolean {
+    return this.connectionActive;
+  }
+
+  public emit(eventName: string, data: any): void {
+    console.log(`[SocketService] Simulando emissão de evento ${eventName} (não implementado em modo REST)`);
+  }
+
+  public hasRealData(): boolean {
+    return this.rouletteDataCache.size > 0 || this.lastReceivedData.size > 0;
+  }
+
+  public async requestRecentNumbers(): Promise<boolean> {
+    return this.fetchDataFromREST();
+  }
+
+  public getRouletteHistory(roletaId: string): number[] {
+    return this.rouletteHistory.get(roletaId) || [];
+  }
+
+  public setRouletteHistory(roletaId: string, numbers: number[]): void {
+    this.rouletteHistory.set(roletaId, numbers.slice(0, this.historyLimit));
+  }
+
+  public async requestRouletteNumbers(roletaId: string): Promise<boolean> {
+    return this.fetchDataFromREST();
+  }
+
+  public isConnected(): boolean {
+    return this.connectionActive;
+  }
+
+  public destroy(): void {
+    console.log('[SocketService] Destruindo serviço');
+    
+    // Limpar intervalos
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+    
+    // Remover event listeners
+    window.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    
+    // Limpar todos os listeners
+    this.listeners.clear();
+    
+    // Desativar conexão
+    this.connectionActive = false;
+  }
+}
+
+export default SocketService;
 
   /**
    * Registra todas as roletas para receber atualizações em tempo real
