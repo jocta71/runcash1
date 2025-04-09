@@ -1083,9 +1083,28 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Processa os dados das roletas recebidos da API
+   * Processa os dados das roletas recebidos da API ou eventos do websocket
    */
   private handleRouletteData(data: any): void {
+    // Verificar se é um evento "global_update" do websocket
+    if (data && data.type === 'new_number' && data.roleta_id && data.roleta_nome) {
+      logger.info(`🎮 Processando evento global_update para roleta: ${data.roleta_nome} (${data.roleta_id}), número: ${data.numero}`);
+      
+      // Notificar assinantes sobre o evento
+      this.notifySubscribers(data);
+      
+      // Atualizar timestamp de última resposta bem-sucedida
+      this.lastSuccessfulResponse = Date.now();
+      this.lastSuccessTimestamp = Date.now();
+      
+      // Incrementar contadores de sucesso
+      this.consecutiveSuccesses++;
+      this.consecutiveErrors = 0;
+      
+      return;
+    }
+    
+    // Processamento original para arrays de roletas
     if (!Array.isArray(data)) {
       logger.error('⚠️ Dados inválidos recebidos:', data);
       return;
@@ -1112,6 +1131,12 @@ export default class RouletteFeedService {
    */
   private validateRouletteData(data: any): boolean {
     try {
+      // Verificar se é um evento "global_update" do websocket
+      if (data && data.type === 'new_number' && data.roleta_id && data.roleta_nome) {
+        logger.debug(`✅ Dados de evento global_update validados para roleta: ${data.roleta_nome}`);
+        return true;
+      }
+      
       // Verificar se temos um array
       if (!Array.isArray(data)) {
         logger.warn('❌ Dados de roleta inválidos: não é um array');

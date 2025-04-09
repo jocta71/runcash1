@@ -358,6 +358,28 @@ export class SocketService {
         this.handleReconnect();
       }
     });
+
+    // Adicionar listener para eventos global_update
+    this.socket.on('global_update', (data: any) => {
+      console.log('[SocketService] Evento global_update recebido:', data);
+      
+      // Verificar se os dados são válidos
+      if (data && typeof data === 'object' && data.type) {
+        try {
+          // Notificar ouvintes através do método notifyListeners
+          this.notifyListeners(data);
+          
+          // Notificar o EventService também
+          if (typeof EventService.emit === 'function') {
+            EventService.emit('roulette:global_update', data);
+          }
+        } catch (error) {
+          console.error('[SocketService] Erro ao processar evento global_update:', error);
+        }
+      } else {
+        console.warn('[SocketService] Dados inválidos recebidos em global_update:', data);
+      }
+    });
     
     // Adicionar mais eventos conforme necessário
   }
