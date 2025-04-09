@@ -192,7 +192,7 @@ export default class RouletteFeedService {
       autoStart = true,
       initialInterval = 8000, // 8 segundos padrão
       minInterval = 5000,
-      maxInterval = 60000,
+      maxInterval = 8000,
       historySize = 20
     } = options;
 
