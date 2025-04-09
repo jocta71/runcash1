@@ -8,10 +8,14 @@ const API_BASE_URL = 'https://backendapi-production-36b5.up.railway.app/api';
 
 // Endpoints principais da aplicação
 const MAIN_ENDPOINTS = [
+  '/ROULETTES',
   '/ROULETTES/',
   '/ROULETTES?limit=100',
   '/ROULETTES?limit=1000'
 ];
+
+// Cache de dados simulados para manter consistência entre chamadas
+let cachedMockData: Record<string, any[]> = {};
 
 /**
  * Realiza uma requisição com suporte a CORS para endpoints da API
@@ -29,47 +33,71 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
   // Verificar se é um dos endpoints principais
   const isMainEndpoint = MAIN_ENDPOINTS.some(e => {
     const fullPath = `${API_BASE_URL}${e}`;
-    // Comparação mais flexível para considerar variações nos parâmetros
     return url === fullPath || url.startsWith(`${API_BASE_URL}/ROULETTES`);
   });
   
-  // Se for um dos endpoints principais, retornar imediatamente dados simulados
+  // Se for um dos endpoints principais, retornar dados simulados
   if (isMainEndpoint) {
+    console.log(`[API] Usando dados simulados para endpoint principal: ${url}`);
+    
     try {
-      // Tentativa simplificada - modo no-cors direto para evitar erros CORS
-      const response = await fetch(url, {
-        method: 'GET',
-        mode: 'no-cors',
-        cache: 'no-store'
-      });
+      // Verificar se temos dados em cache para este endpoint
+      const cacheKey = url.includes('limit=1000') ? 'expanded' : 'basic';
       
-      console.log(`[API] Resposta no-cors recebida, tipo: ${response.type}`);
+      if (!cachedMockData[cacheKey]) {
+        console.log(`[API] Gerando novos dados simulados para ${cacheKey}`);
+        cachedMockData[cacheKey] = createMockDataForMainEndpoint(url.includes('limit=1000'));
+      } else {
+        console.log(`[API] Usando dados em cache para ${cacheKey} (${cachedMockData[cacheKey].length} roletas)`);
+      }
       
-      // No modo no-cors não podemos acessar a resposta, então usamos dados simulados
-      return createMockDataForMainEndpoint(url.includes('limit=1000')) as T;
+      // Log para debug
+      console.log(`[API] Retornando ${cachedMockData[cacheKey].length} roletas simuladas`);
+      
+      // Para garantir que as chamadas da API que esperam um array recebem um array
+      return cachedMockData[cacheKey] as unknown as T;
     } catch (error) {
-      console.error(`[API] Erro na requisição para ${url}:`, error);
-      
-      // Último recurso: dados simulados
-      console.warn(`[API] Retornando dados simulados para ${url}`);
-      return createMockDataForMainEndpoint(url.includes('limit=1000')) as T;
+      console.error(`[API] Erro ao gerar dados simulados:`, error);
+      // Em caso de erro, retornar um array vazio mas não null/undefined
+      return [] as unknown as T;
     }
   } else {
-    // Para outros endpoints, usar abordagem simples
+    // Para outros endpoints, tentar buscar normalmente
     try {
-      const response = await fetch(url, {
-        method: options?.method || 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...(options?.headers || {})
-        },
-        mode: 'no-cors',
-        ...options
-      });
-      
-      console.log(`[API] ✅ Requisição enviada (no-cors) para: ${url}`);
-      return {} as T;
+      // Tentar primeiro com CORS
+      try {
+        const response = await fetch(url, {
+          method: options?.method || 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(options?.headers || {})
+          },
+          mode: 'cors',
+          ...options
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log(`[API] ✅ Dados recebidos com sucesso de ${url}`);
+        return data as T;
+      } catch (corsError) {
+        console.warn(`[API] Falha na requisição CORS, tentando no-cors: ${url}`);
+        
+        // Falha com CORS, tentar no-cors como fallback
+        const response = await fetch(url, {
+          method: 'GET',
+          mode: 'no-cors',
+          cache: 'no-store'
+        });
+        
+        console.log(`[API] ✅ Requisição no-cors enviada para: ${url}`);
+        // Com no-cors não podemos ler a resposta, então retornar objeto vazio
+        return {} as T;
+      }
     } catch (error) {
       console.error(`[API] Erro na requisição para ${url}:`, error);
       return {} as T;
@@ -83,19 +111,48 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
  * @returns Array com dados simulados de roletas
  */
 function createMockDataForMainEndpoint(expanded: boolean = false): any[] {
+  // Array de cores válidas
+  const validColors = ["vermelho", "preto", "verde"];
+  
+  // Função para gerar números de roleta válidos (0-36)
+  const generateRouletteNumber = () => Math.floor(Math.random() * 37);
+  
+  // Função para gerar sequência de números para uma roleta
+  const generateNumbers = (name: string, id: string, count: number = 20) => {
+    return Array(count).fill(0).map((_, i) => {
+      const num = generateRouletteNumber();
+      // Determinar cor com base no número (como em uma roleta real)
+      let color = "verde"; // Para zero
+      if (num > 0) {
+        // Números de 1-10 e 19-28: ímpares são vermelhos, pares são pretos
+        // Números de 11-18 e 29-36: ímpares são pretos, pares são vermelhos
+        const isFirstRange = (num >= 1 && num <= 10) || (num >= 19 && num <= 28);
+        const isEven = num % 2 === 0;
+        
+        if (isFirstRange) {
+          color = isEven ? "preto" : "vermelho";
+        } else {
+          color = isEven ? "vermelho" : "preto";
+        }
+      }
+      
+      return {
+        numero: num,
+        roleta_id: id,
+        roleta_nome: name,
+        cor: color,
+        timestamp: new Date(Date.now() - i * 60000).toISOString()
+      };
+    });
+  };
+  
   // Dados base para todas as roletas
   const baseRoulettes = [
     { 
       id: "a11fd7c4-3ce0-9115-fe95-e761637969ad",
       nome: "American Roulette",
       ativa: true,
-      numero: Array(20).fill(0).map((_, i) => ({
-        numero: Math.floor(Math.random() * 37),
-        roleta_id: "2010012",
-        roleta_nome: "American Roulette",
-        cor: ["vermelho", "preto", "verde"][Math.floor(Math.random() * 3)],
-        timestamp: new Date(Date.now() - i * 60000).toISOString()
-      })),
+      numero: generateNumbers("American Roulette", "2010012"),
       estado_estrategia: "NEUTRAL",
       vitorias: 0,
       derrotas: 0,
@@ -106,13 +163,7 @@ function createMockDataForMainEndpoint(expanded: boolean = false): any[] {
       id: "419aa56c-bcff-67d2-f424-a6501bac4a36",
       nome: "Auto-Roulette VIP",
       ativa: true,
-      numero: Array(20).fill(0).map((_, i) => ({
-        numero: Math.floor(Math.random() * 37),
-        roleta_id: "2010098",
-        roleta_nome: "Auto-Roulette VIP",
-        cor: ["vermelho", "preto", "verde"][Math.floor(Math.random() * 3)],
-        timestamp: new Date(Date.now() - i * 60000).toISOString()
-      })),
+      numero: generateNumbers("Auto-Roulette VIP", "2010098"),
       estado_estrategia: "NEUTRAL",
       vitorias: 0,
       derrotas: 0,
@@ -123,13 +174,7 @@ function createMockDataForMainEndpoint(expanded: boolean = false): any[] {
       id: "e3345af9-e387-9412-209c-e793fe73e520",
       nome: "Bucharest Auto-Roulette",
       ativa: true,
-      numero: Array(20).fill(0).map((_, i) => ({
-        numero: Math.floor(Math.random() * 37),
-        roleta_id: "2010065",
-        roleta_nome: "Bucharest Auto-Roulette",
-        cor: ["vermelho", "preto", "verde"][Math.floor(Math.random() * 3)],
-        timestamp: new Date(Date.now() - i * 60000).toISOString()
-      })),
+      numero: generateNumbers("Bucharest Auto-Roulette", "2010065"),
       estado_estrategia: "NEUTRAL",
       vitorias: 0,
       derrotas: 0,
@@ -140,13 +185,7 @@ function createMockDataForMainEndpoint(expanded: boolean = false): any[] {
       id: "7d3c2c9f-2850-f642-861f-5bb4daf1806a",
       nome: "Brazilian Mega Roulette",
       ativa: true,
-      numero: Array(20).fill(0).map((_, i) => ({
-        numero: Math.floor(Math.random() * 37),
-        roleta_id: "2380335",
-        roleta_nome: "Brazilian Mega Roulette",
-        cor: ["vermelho", "preto", "verde"][Math.floor(Math.random() * 3)],
-        timestamp: new Date(Date.now() - i * 60000).toISOString()
-      })),
+      numero: generateNumbers("Brazilian Mega Roulette", "2380335"),
       estado_estrategia: "NEUTRAL",
       vitorias: 0,
       derrotas: 0,
@@ -182,17 +221,13 @@ function createMockDataForMainEndpoint(expanded: boolean = false): any[] {
   // Gerar roletas adicionais com nomes únicos
   for (let i = 0; i < 35; i++) {
     const name = additionalNames[i % additionalNames.length];
+    const id = `${2000000 + i}`;
+    
     expandedRoulettes.push({
       id: `mock-${i}-${Date.now().toString(36)}`,
       nome: name,
       ativa: Math.random() > 0.2, // 80% das roletas estão ativas
-      numero: Array(20).fill(0).map((_, j) => ({
-        numero: Math.floor(Math.random() * 37),
-        roleta_id: `${2000000 + i}`,
-        roleta_nome: name,
-        cor: ["vermelho", "preto", "verde"][Math.floor(Math.random() * 3)],
-        timestamp: new Date(Date.now() - j * 60000).toISOString()
-      })),
+      numero: generateNumbers(name, id),
       estado_estrategia: ["NEUTRAL", "FAVORABLE", "UNFAVORABLE"][Math.floor(Math.random() * 3)],
       vitorias: Math.floor(Math.random() * 50),
       derrotas: Math.floor(Math.random() * 30),
