@@ -2,6 +2,7 @@ import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
 import EventService, { 
+  RouletteEvent,
   RouletteNumberEvent,
   RouletteEventCallback,
   StrategyUpdateEvent,
@@ -296,6 +297,9 @@ export class SocketService {
 
   // Método público para obter o histórico de uma roleta
   public getRouletteHistory(roletaId: string): number[] {
+    if (!this.rouletteHistory.has(roletaId)) {
+      return [];
+    }
     return this.rouletteHistory.get(roletaId) || [];
   }
 
@@ -617,61 +621,33 @@ export class SocketService {
   }
   
   // Melhorar o método notifyListeners para lidar com retornos assíncronos dos callbacks
-  private notifyListeners(event: RouletteNumberEvent | StrategyUpdateEvent): void {
-    try {
-      // Se não for um evento válido, ignorar
-      if (!event || !event.type || !event.roleta_id) {
-        console.warn('[SocketService] Evento inválido recebido para notificação:', event);
-        return;
-      }
-      
-      // Log para debug
-      if (event.type === 'new_number') {
-        console.log(`[SocketService] Notificando listeners sobre novo número: ${event.numero} para roleta ${event.roleta_nome}`);
-      }
-      
-      const roletaNome = event.roleta_nome || 'desconhecida';
-      const roletaId = event.roleta_id;
-      
-      // Verificar se temos listeners para esta roleta
-      if (this.listeners.has(roletaNome)) {
-        const listeners = this.listeners.get(roletaNome);
-        
-        if (listeners && listeners.size > 0) {
-          listeners.forEach(callback => {
-            try {
-              // Chamar o callback, mas não confiar em seu retorno para async
-              callback(event);
-            } catch (error) {
-              console.error(`[SocketService] Erro ao notificar listener para ${roletaNome}:`, error);
-            }
-          });
-        } else {
-          console.log(`[SocketService] Nenhum listener para roleta ${roletaNome}`);
+  private notifyListeners(event: RouletteEvent): void {
+    if (!event || !event.type) return;
+    
+    // Notificar listeners globais primeiro
+    const globalListeners = this.listeners.get('*');
+    if (globalListeners) {
+      globalListeners.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error('[SocketService] Erro ao notificar listener global:', error);
         }
+      });
+    }
+    
+    // Notificar listeners específicos da roleta
+    if ('roleta_id' in event) {
+      const roletaListeners = this.listeners.get(event.roleta_id);
+      if (roletaListeners) {
+        roletaListeners.forEach(callback => {
+          try {
+            callback(event);
+          } catch (error) {
+            console.error(`[SocketService] Erro ao notificar listener da roleta ${event.roleta_id}:`, error);
+          }
+        });
       }
-      
-      // Notificar listeners globais (assinantes de '*')
-      if (this.listeners.has('*')) {
-        const globalListeners = this.listeners.get('*');
-        
-        if (globalListeners && globalListeners.size > 0) {
-          globalListeners.forEach(callback => {
-            try {
-              callback(event);
-            } catch (error) {
-              console.error('[SocketService] Erro ao notificar listener global:', error);
-            }
-          });
-        }
-      }
-      
-      // Enviar periodicamente um ping para manter os canais ativos
-      if (Math.random() < 0.1) { // 10% de chance para não sobrecarregar
-        this.checkChannelsHealth();
-      }
-    } catch (error) {
-      console.error('[SocketService] Erro ao processar notificação de evento:', error);
     }
   }
   
@@ -895,29 +871,7 @@ export class SocketService {
   
   // Verificar se o socket está realmente conectado
   private checkSocketConnection(): boolean {
-    if (!this.socket) {
-      console.warn('[SocketService] Socket não existe');
-      return false;
-    }
-    
-    if (!this.socket.connected) {
-      console.warn('[SocketService] Socket não conectado');
-      return false;
-    }
-    
-    if (!this.connectionActive) {
-      console.warn('[SocketService] Socket existe mas não está marcado como ativo');
-      return false;
-    }
-    
-    // Verificar se está respondendo
-    try {
-      this.socket.emit('echo', { message: 'test' });
-      return true;
-    } catch (error) {
-      console.error('[SocketService] Erro ao enviar eco para socket:', error);
-      return false;
-    }
+    return this.connectionActive && !!this.socket;
   }
 
   /**
@@ -2302,3 +2256,5 @@ export class SocketService {
     return true;
   }
 }
+
+export default SocketService;
