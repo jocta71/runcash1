@@ -330,26 +330,13 @@ export default class RouletteFeedService {
    * Inicia o polling
    */
   public startPolling(): void {
-    if (this.isPollingActive) {
-      logger.info('Polling já está ativo, ignorando solicitação');
-      return;
-    }
+    // DESABILITADO - Agora o polling é controlado exclusivamente pelo RESTSocketService
+    logger.info('Polling do RouletteFeedService desabilitado. Usando RESTSocketService');
+    // NÃO iniciar timer
 
-    // Verificar se já existe outro polling em andamento globalmente
-    if (window._roulettePollingActive === true) {
-      logger.warn('⚠️ Já existe um polling ativo globalmente, não iniciando outro');
-      // Mesmo assim, marcamos como ativo localmente para que não tentemos iniciar novamente
-      this.isPollingActive = true;
-      return;
-    }
-
-    logger.info(`Iniciando polling com intervalo de ${this.interval}ms`);
+    // Manter flags para compatibilidade
     this.isPollingActive = true;
-    // Marcar globalmente que há polling ativo
     window._roulettePollingActive = true;
-    
-    // Iniciar o timer de polling
-    this.startPollingTimer();
   }
 
   /**
@@ -824,61 +811,17 @@ export default class RouletteFeedService {
    * Inicia o timer de polling
    */
   private startPollingTimer(): void {
-    // Verificar se já existe um timer ativo
-    if (this.pollingTimer !== null) {
-      window.clearInterval(this.pollingTimer);
-    }
-    
-    // Definir intervalo inicial
-    const pollingInterval = this.currentPollingInterval;
-    
-    logger.info(`⏱️ Iniciando timer de polling com intervalo de ${pollingInterval}ms`);
-    
-    // Registrar o timer de polling
-    if (typeof window !== 'undefined') {
-      if (!window._rouletteTimers) {
-        window._rouletteTimers = [];
-      }
-      
-      // Criar um ID único para este timer
-      const timerId = Math.floor(Math.random() * 1000000);
-      
-      window._rouletteTimers.push({
-        id: timerId,
-        created: new Date(),
-        interval: pollingInterval
-      });
-      
-      // Limitar a 10 registros
-      if (window._rouletteTimers.length > 10) {
-        window._rouletteTimers = window._rouletteTimers.slice(-10);
-      }
-    }
-    
-    // Criar o timer que fará as atualizações periódicas
-    this.pollingTimer = window.setInterval(() => {
-      // Verificar se há condições para fazer a requisição
-      if (document.visibilityState === 'visible' && !this.isPaused) {
-        this.fetchLatestData()
-          .catch(error => {
-            logger.error('❌ Erro no timer de polling:', error);
-          });
-      } else {
-        logger.debug('⏸️ Polling pausado durante intervalo (página não visível ou serviço pausado)');
-      }
-    }, pollingInterval);
+    // DESABILITADO - Agora o polling é controlado exclusivamente pelo RESTSocketService
+    logger.info('Timer de polling desabilitado. Usando RESTSocketService');
+    // NÃO iniciar timer de polling
   }
   
   /**
    * Reinicia o timer de polling com o intervalo atual
    */
   private restartPollingTimer(): void {
-    if (this.pollingTimer !== null) {
-      window.clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
-    }
-    
-    this.startPollingTimer();
+    // DESABILITADO - Não faz nada
+    logger.info('Reinício de timer desabilitado. Usando RESTSocketService');
   }
   
   /**

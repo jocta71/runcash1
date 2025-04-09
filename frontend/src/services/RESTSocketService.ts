@@ -39,7 +39,7 @@ class RESTSocketService {
   private listeners: Map<string, Set<any>> = new Map();
   private connectionActive: boolean = false;
   private timerId: number | null = null;
-  private pollingInterval: number = 110100; // Intervalo de 8 segundos para polling
+  private pollingInterval: number = 8000; // Intervalo de 8 segundos para polling
   private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
   
   // Propriedade para simular estado de conexão
@@ -81,6 +81,11 @@ class RESTSocketService {
     
     // Carregar dados iniciais do localStorage se existirem
     this.loadCachedData();
+    
+    // Adicionar verificação de saúde do timer a cada 30 segundos
+    setInterval(() => {
+      this.checkTimerHealth();
+    }, 30000);
   }
 
   // Manipular alterações de visibilidade da página
@@ -93,29 +98,44 @@ class RESTSocketService {
 
   // Iniciar polling da API REST
   private startPolling() {
+    // Limpar qualquer timer existente
+    if (this.timerId) {
+      window.clearInterval(this.timerId);
+      this.timerId = null;
+    }
+
     this.connectionActive = true;
     
-    // Executar imediatamente na inicialização
-    this.fetchDataFromREST();
+    // Executar imediatamente a primeira vez
+    this.fetchDataFromREST().catch(err => 
+      console.error('[RESTSocketService] Erro na primeira chamada:', err)
+    );
     
-    // Configurar intervalo de polling com intervalo fixo, independente do tempo de resposta
+    // Criar um novo timer com intervalo FIXO de 8 segundos
+    // Este será o ÚNICO timer no sistema que consulta a API
     this.timerId = window.setInterval(() => {
-      // Usar Promise para não bloquear o timer
+      console.log('[RESTSocketService] Executando polling em intervalo FIXO de 8 segundos');
       this.fetchDataFromREST().catch(err => 
-        console.error('[RESTSocketService] Erro ao buscar dados:', err)
+        console.error('[RESTSocketService] Erro na chamada programada:', err)
       );
-    }, this.pollingInterval) as unknown as number;
+    }, 8000) as unknown as number;
     
-    console.log(`[RESTSocketService] Polling da API REST iniciado com intervalo fixo de ${this.pollingInterval}ms`);
+    console.log(`[RESTSocketService] Polling com intervalo FIXO de 8000ms iniciado`);
   }
   
   // Buscar dados da API REST
   private async fetchDataFromREST() {
     try {
-      console.log('[RESTSocketService] Buscando dados da API REST');
+      const startTime = Date.now();
+      console.log('[RESTSocketService] Iniciando chamada à API REST: ' + startTime);
       
       const apiBaseUrl = this.getApiBaseUrl();
+      
+      // IMPORTANTE: Esta é a ÚNICA chamada para a API em todo o sistema!
+      // Usar sempre o mesmo endpoint com mesmos parâmetros para consistência
       const url = `${apiBaseUrl}/ROULETTES?limit=100`;
+      
+      console.log(`[RESTSocketService] Chamando: ${url}`);
       
       const response = await fetch(url);
       
@@ -124,6 +144,8 @@ class RESTSocketService {
       }
       
       const data = await response.json();
+      const endTime = Date.now();
+      console.log(`[RESTSocketService] Chamada concluída em ${endTime - startTime}ms`);
       
       // Salvar no cache
       localStorage.setItem('roulettes_data_cache', JSON.stringify({
@@ -170,11 +192,18 @@ class RESTSocketService {
     
     console.log(`[RESTSocketService] Processando ${data.length} roletas da API REST`);
     
+    // Registrar esta chamada como bem-sucedida
+    const now = Date.now();
+    this.lastReceivedData.set('global', { timestamp: now, data: { count: data.length } });
+    
     // Para cada roleta, emitir eventos
     data.forEach(roulette => {
       if (!roulette || !roulette.id) return;
       
-      // Atualizar o historical da roleta se houver números
+      // Registrar timestamp para cada roleta
+      this.lastReceivedData.set(roulette.id, { timestamp: now, data: roulette });
+      
+      // Atualizar o histórico da roleta se houver números
       if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
         // Mapear apenas os números para um array simples
         const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
@@ -296,24 +325,37 @@ class RESTSocketService {
     console.log('[RESTSocketService] Desconectando serviço de polling');
     
     if (this.timerId) {
-      window.clearInterval(this.timerId);
+      console.log('[RESTSocketService] Limpando timer:', this.timerId);
+      try {
+        window.clearInterval(this.timerId);
+      } catch (e) {
+        console.error('[RESTSocketService] Erro ao limpar timer:', e);
+      }
       this.timerId = null;
     }
     
     this.connectionActive = false;
+    console.log('[RESTSocketService] Serviço de polling desconectado');
   }
 
   public reconnect(): void {
     console.log('[RESTSocketService] Reconectando serviço de polling');
     
-    // Limpar intervalo existente
+    // Limpar intervalo existente para garantir
     if (this.timerId) {
-      window.clearInterval(this.timerId);
+      console.log('[RESTSocketService] Limpando timer existente antes de reconectar');
+      try {
+        window.clearInterval(this.timerId);
+      } catch (e) {
+        console.error('[RESTSocketService] Erro ao limpar timer existente:', e);
+      }
       this.timerId = null;
     }
     
-    // Reiniciar polling
-    this.startPolling();
+    // Reiniciar polling com certeza de intervalo fixo de 8s
+    setTimeout(() => {
+      this.startPolling();
+    }, 100); // Pequeno atraso para garantir que o timer anterior foi limpo
   }
 
   public isSocketConnected(): boolean {
@@ -408,6 +450,30 @@ class RESTSocketService {
     
     // Desativar conexão
     this.connectionActive = false;
+  }
+
+  // Verificar a saúde do timer de polling e corrigir se necessário
+  private checkTimerHealth(): void {
+    console.log('[RESTSocketService] Verificando saúde do timer de polling');
+    
+    if (this.connectionActive && !this.timerId) {
+      console.warn('[RESTSocketService] Timer ativo mas variável timerId nula. Corrigindo...');
+      this.reconnect();
+      return;
+    }
+    
+    // Verificar se faz muito tempo desde a última chamada bem-sucedida
+    const now = Date.now();
+    const lastReceivedData = Array.from(this.lastReceivedData.values());
+    if (lastReceivedData.length > 0) {
+      const mostRecent = Math.max(...lastReceivedData.map(data => data.timestamp));
+      const timeSinceLastData = now - mostRecent;
+      
+      if (timeSinceLastData > 20000) { // Mais de 20 segundos sem dados
+        console.warn(`[RESTSocketService] Possível timer travado. Último dado recebido há ${timeSinceLastData}ms. Reiniciando...`);
+        this.reconnect();
+      }
+    }
   }
 }
 
