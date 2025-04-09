@@ -1174,46 +1174,37 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Valida os dados de roleta recebidos
-   * @param data Dados a serem validados
+   * Valida se os dados de roleta recebidos estão no formato esperado
+   * @param data Dados da roleta a serem validados
+   * @returns true se os dados são válidos, false caso contrário
    */
-  private validateRouletteData(data: any[] | any): boolean {
-    // Se não for um array, verificar se é um objeto único
-    if (!Array.isArray(data)) {
-      // Verificar se é um objeto com dados de evento único
-      if (typeof data === 'object' && data !== null) {
-        // Verificar se tem pelo menos id e nome (em qualquer formato)
-        return (!!data.roleta_id || !!data.id || !!data._id) && 
-               (!!data.roleta_nome || !!data.nome || !!data.name);
-      }
-      logger.warn('❌ Dados de roleta inválidos: não é um array nem um objeto válido');
-      return false;
-    }
-    
-    // Se for um array vazio
-    if (data.length === 0) {
-      logger.warn('❌ Dados de roleta inválidos: array vazio');
-      return false;
+  private validateRouletteData(data: any): boolean {
+    // Caso recebamos um evento do tipo 'global_update', verificamos apenas os campos essenciais
+    if (data.type === 'global_update' || data.event_type === 'global_update') {
+      return !!(data && data.roleta_id);
     }
 
-    // Verificar o primeiro item para determinar o formato dos dados
-    const firstItem = data[0];
-    
-    // Verificar se tem informações básicas (aceitando diferentes propriedades possíveis)
-    if ((!firstItem.id && !firstItem._id && !firstItem.roleta_id) || 
-        (!firstItem.name && !firstItem.nome && !firstItem.roleta_nome)) {
-      logger.warn('❌ Dados de roleta inválidos: estrutura incorreta. Faltam identificadores necessários.');
+    // Caso recebamos um evento do tipo 'new_number', verificamos campos relacionados ao número
+    if (data.type === 'new_number' || data.event_type === 'new_number') {
+      return !!(data && data.roleta_id && (data.numero !== undefined));
+    }
+
+    // Para os dados padrão de roleta (objetos completos), verificamos a estrutura esperada
+    if (!data || typeof data !== 'object') {
+      logger.warn('❌ Dados de roleta inválidos: não é um objeto', data);
       return false;
     }
 
-    // Verificar se todos os itens do array têm a estrutura mínima necessária
-    const invalidItems = data.filter(item => 
-      (!item.id && !item._id && !item.roleta_id) || 
-      (!item.name && !item.nome && !item.roleta_nome)
-    );
+    // Verificar campos essenciais para identificação da roleta
+    if (!data.roleta_id) {
+      logger.warn('❌ Dados de roleta inválidos: falta ID da roleta', data);
+      return false;
+    }
 
-    if (invalidItems.length > 0) {
-      logger.warn(`❌ Dados de roleta contêm ${invalidItems.length} itens com estrutura inválida`);
+    // Verificar se contém números quando for um objeto completo de roleta
+    // (não aplicável para eventos de atualização)
+    if (!data.type && !data.event_type && (!data.numeros || !Array.isArray(data.numeros))) {
+      logger.warn('❌ Dados de roleta inválidos: campo números ausente ou não é array', data);
       return false;
     }
 
@@ -1706,18 +1697,62 @@ export default class RouletteFeedService {
    */
   public connectToEventService(): void {
     try {
-      logger.info('Conectando RouletteFeedService ao EventService para eventos em tempo real');
+      logger.info('🔌 Conectando ao EventService para eventos em tempo real');
       
-      // Registrar para receber eventos de roulette:global_update
+      // Registrar para receber eventos global_update
       EventService.on('roulette:global_update', (data: any) => {
-        logger.info(`📩 Evento global_update recebido do EventService: ${data.roleta_nome} (${data.roleta_id})`);
+        if (!data) {
+          logger.warn('⚠️ Evento global_update sem dados recebido');
+          return;
+        }
         
-        // Processar o evento como dados da roleta
-        if (data && this.validateRouletteData(data)) {
+        logger.info(`📩 Evento global_update: ${data.roleta_nome || 'Desconhecida'} (${data.roleta_id || 'ID desconhecido'})`);
+        
+        // Processar os dados recebidos via event
+        if (this.validateRouletteData(data)) {
+          // Garantir que tem o tipo correto para processamento
+          if (!data.type) {
+            data.type = 'global_update';
+          }
+          
+          // Processar o evento como dados de roleta
           this.handleRouletteData(data);
         } else {
-          logger.warn('❌ Dados de roleta inválidos recebidos do EventService');
+          logger.warn(`❌ Dados inválidos recebidos em evento global_update: ${JSON.stringify(data).substring(0, 100)}`);
         }
+      });
+      
+      // Registrar para receber eventos de novo número
+      EventService.on('roulette:new_number', (data: any) => {
+        if (!data) {
+          logger.warn('⚠️ Evento new_number sem dados recebido');
+          return;
+        }
+        
+        logger.info(`🎲 Evento new_number: ${data.roleta_nome || 'Desconhecida'} (${data.roleta_id || 'ID desconhecido'}) - Número: ${data.numero || 'N/A'}`);
+        
+        // Garantir que tem tipo para processamento correto
+        if (!data.type) {
+          data.type = 'new_number';
+        }
+        
+        // Processar o evento como dados de roleta
+        if (this.validateRouletteData(data)) {
+          this.handleRouletteData(data);
+        } else {
+          logger.warn(`❌ Dados inválidos recebidos em evento new_number: ${JSON.stringify(data).substring(0, 100)}`);
+        }
+      });
+      
+      // Registrar para receber atualizações gerais de dados
+      EventService.on('roulette:data-updated', (data: any) => {
+        logger.info('📊 Evento de atualização geral de dados de roletas recebido');
+        
+        // Forçar atualização do cache após breve delay para evitar 
+        // que todas as instâncias atualizem simultaneamente
+        setTimeout(() => {
+          this.refreshCache();
+        }, Math.random() * 1000); // Delay aleatório até 1 segundo
       });
       
       logger.success('✅ RouletteFeedService conectado ao EventService com sucesso');
