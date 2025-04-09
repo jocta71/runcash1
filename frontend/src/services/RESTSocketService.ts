@@ -73,6 +73,9 @@ class RESTSocketService {
     // Iniciar o polling da API REST
     this.startPolling();
     
+    // Iniciar também o polling para o endpoint sem parâmetro
+    this.startSecondEndpointPolling();
+    
     // Adicionar event listener para quando a janela ficar visível novamente
     window.addEventListener('visibilitychange', this.handleVisibilityChange);
     
@@ -473,6 +476,56 @@ class RESTSocketService {
         console.warn(`[RESTSocketService] Possível timer travado. Último dado recebido há ${timeSinceLastData}ms. Reiniciando...`);
         this.reconnect();
       }
+    }
+  }
+
+  // Método para iniciar o polling do segundo endpoint (/api/ROULETTES sem parâmetro)
+  private startSecondEndpointPolling() {
+    console.log('[RESTSocketService] Iniciando polling do segundo endpoint sem parâmetro');
+    
+    // Executar imediatamente a primeira vez
+    this.fetchSecondEndpointData().catch(err => 
+      console.error('[RESTSocketService] Erro na primeira chamada ao segundo endpoint:', err)
+    );
+    
+    // Criar um timer com intervalo FIXO de 8 segundos para o segundo endpoint
+    setInterval(() => {
+      console.log('[RESTSocketService] Executando polling do segundo endpoint em intervalo FIXO de 8 segundos');
+      this.fetchSecondEndpointData().catch(err => 
+        console.error('[RESTSocketService] Erro na chamada ao segundo endpoint:', err)
+      );
+    }, 8000);
+  }
+  
+  // Método para buscar dados do segundo endpoint (/api/ROULETTES sem parâmetro)
+  private async fetchSecondEndpointData() {
+    try {
+      const startTime = Date.now();
+      console.log('[RESTSocketService] Iniciando chamada ao segundo endpoint: ' + startTime);
+      
+      const apiBaseUrl = this.getApiBaseUrl();
+      
+      // Endpoint sem parâmetro
+      const url = `${apiBaseUrl}/ROULETTES`;
+      
+      console.log(`[RESTSocketService] Chamando segundo endpoint: ${url}`);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar dados do segundo endpoint: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const endTime = Date.now();
+      console.log(`[RESTSocketService] Chamada ao segundo endpoint concluída em ${endTime - startTime}ms`);
+      
+      // Não processamos os dados, apenas mantemos o endpoint ativo
+      
+      return true;
+    } catch (error) {
+      console.error('[RESTSocketService] Erro ao buscar dados do segundo endpoint:', error);
+      return false;
     }
   }
 }
