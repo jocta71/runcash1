@@ -1603,21 +1603,35 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Notifica sobre um novo número em uma roleta
+   * Notifica sobre um novo número recebido
    * @param data Dados do novo número
    */
   private notifyNewNumber(data: any): void {
-    if (!data || !data.roleta_id || !data.ultimo_numero) {
-      logger.warn('⚠️ Dados insuficientes para notificar novo número');
-      return;
+    try {
+      if (!data || !data.roleta_id) {
+        logger.warn('⚠️ Dados insuficientes para notificar número');
+        return;
+      }
+
+      const roletaId = data.roleta_id.toString();
+      const numero = data.ultimo_numero || data.numero;
+      
+      if (numero === undefined) {
+        logger.warn(`⚠️ Sem número para notificar (${data.roleta_nome || roletaId})`);
+        return;
+      }
+
+      logger.info(`🎲 Notificando novo número: ${numero} para ${data.roleta_nome || roletaId}`);
+      
+      // Emitir evento específico para o novo número
+      EventService.emit('roulette:new_number_received', {
+        roletaId,
+        roleta_nome: data.roleta_nome,
+        numero,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error(`❌ Erro ao notificar novo número: ${error instanceof Error ? error.message : String(error)}`);
     }
-    
-    const roletaId = String(data.roleta_id);
-    logger.info(`🎲 Notificando novo número: ${data.ultimo_numero} para roleta ${roletaId}`);
-    
-    // Aqui você pode implementar qualquer lógica específica para novos números
-    // Por exemplo, notificar um sistema de som, animação, etc.
-    
-    // Por padrão, a notificação dos assinantes já é feita pelo updateRouletteData
   }
 } 
