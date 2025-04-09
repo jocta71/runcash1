@@ -29,6 +29,7 @@ import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import RouletteNumbers from './RouletteNumbers';
+import RouletteApi from '@/services/RouletteApi';
 
 // Logger específico para este componente
 const logger = getLogger('RouletteCard');
@@ -105,12 +106,69 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
   roletaNome,
   className = ''
 }) => {
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<boolean>(false);
+  const [numbers, setNumbers] = useState<number[]>([]);
+
+  useEffect(() => {
+    const loadRouletteData = async () => {
+      try {
+        setLoading(true);
+        
+        // Tentar obter dados da roleta usando a API
+        if (roletaId) {
+          const rouletteData = await RouletteApi.fetchRouletteHistory(roletaId);
+          if (rouletteData && rouletteData.length > 0) {
+            setNumbers(rouletteData.slice(0, 15).map((n: any) => n.numero || n));
+          }
+        }
+        
+        setError(false);
+      } catch (err) {
+        console.error(`Erro ao carregar dados da roleta ${roletaId}:`, err);
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadRouletteData();
+  }, [roletaId]);
+
+  if (loading) {
+    return (
+      <div className={`roulette-card p-4 bg-gray-800 rounded-lg shadow-lg ${className}`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white">{roletaNome}</h3>
+          <div className="text-sm text-gray-400">ID: {roletaId}</div>
+        </div>
+        <div className="flex justify-center items-center h-20">
+          <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-blue-500 rounded-full"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={`roulette-card p-4 bg-gray-800 rounded-lg shadow-lg ${className}`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white">{roletaNome}</h3>
+          <div className="text-sm text-gray-400">ID: {roletaId}</div>
+        </div>
+        <div className="text-center p-2 bg-red-900/50 rounded my-2">
+          <p className="text-sm text-red-200">Falha ao carregar dados</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`roulette-card p-4 bg-gray-800 rounded-lg shadow-lg ${className}`}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-white">{roletaNome}</h3>
         <div className="text-sm text-gray-400">ID: {roletaId}</div>
-        </div>
+      </div>
         
       <div className="mb-4">
         <RouletteNumbers
@@ -118,15 +176,15 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
           roletaNome={roletaNome}
           maxNumbers={15}
         />
-        </div>
+      </div>
         
       <div className="flex justify-between items-center text-sm text-gray-400">
-          <button 
+        <button 
           className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
           onClick={() => {/* Implementar visualização detalhada */}}
-          >
+        >
           Ver detalhes
-          </button>
+        </button>
         
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />

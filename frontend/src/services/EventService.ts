@@ -98,7 +98,7 @@ export class EventService {
       console.warn('[EventService] Parâmetros inválidos para registrar evento');
       return;
     }
-
+    
     // Se não existir um conjunto para este evento, criar
     if (!EventService.eventCallbacks.has(eventName)) {
       EventService.eventCallbacks.set(eventName, new Set());
@@ -119,7 +119,7 @@ export class EventService {
       console.warn('[EventService] Parâmetros inválidos para remover evento');
       return;
     }
-
+    
     // Se existir um conjunto para este evento, remover o callback
     if (EventService.eventCallbacks.has(eventName)) {
       EventService.eventCallbacks.get(eventName)?.delete(callback);
@@ -142,7 +142,7 @@ export class EventService {
       console.warn('[EventService] Nome de evento inválido para emitir');
       return;
     }
-
+    
     debugLog(`[EventService] Emitindo evento: ${eventName}`);
 
     // Se existir callbacks para este evento, chamar cada um
@@ -156,7 +156,7 @@ export class EventService {
         }
       });
     }
-
+    
     // Emitir também para listeners '*' (todos os eventos)
     const globalCallbacks = EventService.eventCallbacks.get('*');
     if (globalCallbacks && globalCallbacks.size > 0) {
