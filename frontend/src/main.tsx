@@ -30,6 +30,33 @@ logger.info('Manipuladores globais de erro configurados');
 // Flag global para controlar a inicialização do sistema de roletas
 window.ROULETTE_SYSTEM_INITIALIZED = false;
 
+// Função para carregar dados de roletas da API REST
+async function fetchRouletteData() {
+  try {
+    logger.info('Buscando dados de roletas via API REST...');
+    const apiUrl = 'https://backendscraper-production.up.railway.app/api/ROULETTES';
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Erro na resposta: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    logger.info(`Dados recebidos com sucesso: ${data.length} roletas`);
+    return data;
+  } catch (error) {
+    logger.error('Erro ao buscar dados de roletas:', error);
+    return [];
+  }
+}
+
 // Função para inicializar o sistema de roletas de forma centralizada
 function initializeRoulettesSystem() {
   if (window.ROULETTE_SYSTEM_INITIALIZED) {
@@ -47,24 +74,49 @@ function initializeRoulettesSystem() {
   // Registrar o SocketService no RouletteFeedService
   rouletteFeedService.registerSocketService(socketService);
   
-  // Buscar dados iniciais uma única vez
-  logger.info('Realizando busca inicial única de dados de roletas...');
-  rouletteFeedService.fetchInitialData().then(data => {
-    logger.info(`Dados iniciais obtidos: ${data.length} roletas`);
-    // Disparar evento para notificar componentes
-    eventService.dispatchEvent({
-      type: 'roulette:data-updated',
-      data: {
-        source: 'initial-load',
-        timestamp: new Date().toISOString()
-      }
-    });
+  // Buscar dados iniciais via API REST
+  logger.info('Realizando busca inicial única de dados de roletas via API REST...');
+  fetchRouletteData().then(data => {
+    if (data && data.length > 0) {
+      logger.info(`Dados iniciais obtidos via API REST: ${data.length} roletas`);
+      
+      // Disparar evento para notificar componentes
+      eventService.dispatchEvent({
+        type: 'roulette:data-updated',
+        data: {
+          source: 'api-rest',
+          timestamp: new Date().toISOString(),
+          roulettes: data
+        }
+      });
+    } else {
+      logger.warn('Nenhum dado obtido via API REST, tentando método alternativo...');
+      // Buscar dados iniciais se a API REST falhar
+      rouletteFeedService.fetchInitialData().then(fallbackData => {
+        logger.info(`Dados iniciais obtidos via método alternativo: ${fallbackData.length} roletas`);
+        // Disparar evento para notificar componentes
+        eventService.dispatchEvent({
+          type: 'roulette:data-updated',
+          data: {
+            source: 'initial-load',
+            timestamp: new Date().toISOString()
+          }
+        });
+      }).catch(fallbackError => {
+        logger.error('Erro ao carregar dados iniciais (método alternativo):', fallbackError);
+      });
+    }
     
-    // Iniciar polling com intervalo de 10 segundos
+    // Iniciar polling com intervalo de 10 segundos para manter dados atualizados
     rouletteFeedService.startPolling();
     logger.info('Polling de roletas iniciado (intervalo de 10s)');
   }).catch(error => {
-    logger.error('Erro ao carregar dados iniciais:', error);
+    logger.error('Erro ao carregar dados via API REST:', error);
+    
+    // Tentar método alternativo em caso de falha
+    rouletteFeedService.fetchInitialData().catch(fallbackError => {
+      logger.error('Erro ao carregar dados iniciais (método alternativo):', fallbackError);
+    });
   });
   
   // Marcar como inicializado

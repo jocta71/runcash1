@@ -83,6 +83,18 @@ interface RouletteFeedServiceOptions {
   historySize?: number;
 }
 
+interface RouletteData {
+  id: string;
+  nome: string;
+  status: string;
+  provider: string;
+  numeros: number[];
+  timestamp?: string;
+  cor_background?: string;
+  logo?: string;
+  // Outros campos que podem existir
+}
+
 /**
  * Serviço para obter atualizações das roletas usando polling único
  * Intervalo ajustado para 10 segundos conforme especificação
@@ -370,6 +382,8 @@ export default class RouletteFeedService {
   /**
    * Busca os dados iniciais das roletas (se não estiverem em cache)
    */
+  public async fetchInitialData(): Promise<RouletteData[]> {
+    try {
   public async fetchInitialData(): Promise<any[]> {
     // Verificar se já temos dados em cache e se são válidos
     if (this.hasCachedData && this.lastUpdateTime > 0) {
@@ -1229,7 +1243,8 @@ export default class RouletteFeedService {
           
           // Validar e processar dados recebidos
           if (this.validateRouletteData(data)) {
-            this.handleRouletteData(data);
+            const processedData = this.handleRouletteData(data);
+            processedData.forEach(item => this.notifySubscribers(item));
           } else {
             logger.warn('❌ Dados de evento global_update inválidos');
           }
@@ -1252,7 +1267,8 @@ export default class RouletteFeedService {
           
           // Validar e processar dados recebidos
           if (this.validateRouletteData(data)) {
-            this.handleRouletteData(data);
+            const processedData = this.handleRouletteData(data);
+            processedData.forEach(item => this.notifySubscribers(item));
           } else {
             logger.warn('❌ Dados de evento new_number inválidos');
           }
