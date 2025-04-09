@@ -2,6 +2,8 @@ import config from '@/config/env';
 import EventService from './EventService';
 import { getLogger } from './utils/logger';
 import { HistoryData } from './SocketService';
+import axios from 'axios';
+import { ENDPOINTS, getFullUrl } from './api/endpoints';
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');
@@ -384,98 +386,101 @@ export default class RouletteFeedService {
    */
   public async fetchInitialData(): Promise<RouletteData[]> {
     try {
-  public async fetchInitialData(): Promise<any[]> {
-    // Verificar se já temos dados em cache e se são válidos
-    if (this.hasCachedData && this.lastUpdateTime > 0) {
-      const cacheAge = Date.now() - this.lastUpdateTime;
+      // Verificar se já temos dados em cache e se são válidos
+      if (this.hasCachedData && this.lastUpdateTime > 0) {
+        const cacheAge = Date.now() - this.lastUpdateTime;
+        
+        // Se o cache é recente (menos de 2 minutos), usar dados em cache
+        if (cacheAge < 120000) {
+          logger.info(`📦 Usando dados em cache (${Math.round(cacheAge / 1000)}s)`);
+          return this.roulettes;
+        }
+      }
       
-      // Se o cache é recente (menos de 2 minutos), usar dados em cache
-      if (cacheAge < 120000) {
-        logger.info(`📦 Usando dados em cache (${Math.round(cacheAge / 1000)}s)`);
+      // Se alguém já está buscando dados, não fazer outra requisição
+      if (GLOBAL_IS_FETCHING) {
+        logger.warn('🔒 Outra instância já está buscando dados, aguardando...');
+        
+        // Aguardar até que o bloqueio global seja liberado
+        await new Promise<void>(resolve => {
+          const checkInterval = setInterval(() => {
+            if (!GLOBAL_IS_FETCHING) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+        });
+        
+        // Se já temos dados após a espera, retornar
+        if (this.hasCachedData) {
+          return this.roulettes;
+        }
+      }
+      
+      // Se ainda estamos processando uma requisição, não iniciar outra
+      if (this.isFetching) {
+        logger.warn('⌛ Já existe uma requisição em andamento, usando cache temporário');
+        return this.roulettes || [];
+      }
+      
+      // Verificar o intervalo mínimo entre requisições
+      const timeSinceLastFetch = Date.now() - this.lastFetchTime;
+      if (timeSinceLastFetch < this.minInterval) {
+        const waitTime = this.minInterval - timeSinceLastFetch;
+        logger.warn(`⏱️ Respeitando intervalo mínimo, aguardando ${waitTime}ms`);
+        
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+      
+      // Definir bloqueio global para evitar requisições simultâneas
+      GLOBAL_IS_FETCHING = true;
+      
+      // Gerar ID único para esta requisição
+      const requestId = `initial_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      
+      logger.info(`🚀 Buscando dados iniciais (ID: ${requestId})`);
+      
+      try {
+        // Realizar a requisição HTTP com recuperação automática
+        const result = await this.fetchWithRecovery(
+          `${this.baseUrl}/api/ROULETTES`,
+          requestId
+        );
+        
+        // Processar os resultados
+        if (result && Array.isArray(result)) {
+          logger.info(`✅ Dados iniciais recebidos: ${result.length} roletas`);
+          
+          // Armazenar os dados
+          this.lastUpdateTime = Date.now();
+          this.hasCachedData = true;
+          this.roulettes = result;
+          
+          // Ajustar intervalo de polling baseado no sucesso
+          this.adjustPollingInterval(false);
+          
+          // Notificar que temos novos dados
+          this.notifySubscribers(result);
+        } else {
+          logger.error('❌ Resposta inválida recebida');
+        }
+        
         return this.roulettes;
-      }
-    }
-    
-    // Se alguém já está buscando dados, não fazer outra requisição
-    if (GLOBAL_IS_FETCHING) {
-      logger.warn('🔒 Outra instância já está buscando dados, aguardando...');
-      
-      // Aguardar até que o bloqueio global seja liberado
-      await new Promise<void>(resolve => {
-        const checkInterval = setInterval(() => {
-          if (!GLOBAL_IS_FETCHING) {
-            clearInterval(checkInterval);
-            resolve();
-          }
-        }, 100);
-      });
-      
-      // Se já temos dados após a espera, retornar
-      if (this.hasCachedData) {
-        return this.roulettes;
-      }
-    }
-    
-    // Se ainda estamos processando uma requisição, não iniciar outra
-    if (this.isFetching) {
-      logger.warn('⌛ Já existe uma requisição em andamento, usando cache temporário');
-      return this.roulettes || [];
-    }
-    
-    // Verificar o intervalo mínimo entre requisições
-    const timeSinceLastFetch = Date.now() - this.lastFetchTime;
-    if (timeSinceLastFetch < this.minInterval) {
-      const waitTime = this.minInterval - timeSinceLastFetch;
-      logger.warn(`⏱️ Respeitando intervalo mínimo, aguardando ${waitTime}ms`);
-      
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-    
-    // Definir bloqueio global para evitar requisições simultâneas
-    GLOBAL_IS_FETCHING = true;
-    
-    // Gerar ID único para esta requisição
-    const requestId = `initial_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    
-    logger.info(`🚀 Buscando dados iniciais (ID: ${requestId})`);
-    
-    try {
-      // Realizar a requisição HTTP com recuperação automática
-      const result = await this.fetchWithRecovery(
-        `${this.baseUrl}/api/ROULETTES`,
-        requestId
-      );
-      
-      // Processar os resultados
-      if (result && Array.isArray(result)) {
-        logger.success(`✅ Dados iniciais recebidos: ${result.length} roletas`);
+      } catch (error) {
+        logger.error(`❌ Erro ao buscar dados iniciais: ${error.message || 'Desconhecido'}`);
         
-        // Armazenar os dados
-        this.lastUpdateTime = Date.now();
-        this.hasCachedData = true;
-        this.roulettes = result;
+        // Ajustar intervalo em caso de erro
+        this.adjustPollingInterval(true);
         
-        // Ajustar intervalo de polling baseado no sucesso
-        this.adjustPollingInterval(false);
-        
-        // Notificar que temos novos dados
-        this.notifySubscribers(result);
-      } else {
-        logger.error('❌ Resposta inválida recebida');
+        // Retornar dados em cache se existirem, ou array vazio
+        return this.roulettes || [];
+      } finally {
+        // Liberar o bloqueio global
+        GLOBAL_IS_FETCHING = false;
       }
-      
-      return this.roulettes;
     } catch (error) {
       logger.error(`❌ Erro ao buscar dados iniciais: ${error.message || 'Desconhecido'}`);
-      
-      // Ajustar intervalo em caso de erro
-      this.adjustPollingInterval(true);
-      
-      // Retornar dados em cache se existirem, ou array vazio
-      return this.roulettes || [];
-    } finally {
-      // Liberar o bloqueio global
-      GLOBAL_IS_FETCHING = false;
+      return [];
     }
   }
 
@@ -1824,4 +1829,37 @@ export default class RouletteFeedService {
     
     return true;
   }
-}
+
+  /**
+   * Busca todas as roletas disponíveis
+   * @returns Lista de roletas
+   */
+  async fetchRoulettes() {
+    try {
+      this.logger.info('🔄 Buscando dados atualizados das roletas');
+      
+      // Usar o endpoint correto para buscar roletas
+      const response = await axios.get(getFullUrl(ENDPOINTS.ROULETTES));
+      
+      if (response.data && Array.isArray(response.data)) {
+        this.logger.info(`✅ Recebidas ${response.data.length} roletas da API`);
+        return response.data;
+      } else {
+        this.logger.warn('⚠️ Resposta da API não é um array válido');
+        return [];
+      }
+    } catch (error) {
+      this.logger.error('❌ Erro ao buscar roletas:', error);
+      this.notifySubscribers('error', { message: 'Falha ao buscar roletas' });
+      return [];
+    }
+  }
+
+  /**
+   * Busca roletas com limite 
+   * @param limit Limite de roletas (padrão: 100)
+   * @returns Lista limitada de roletas
+   */
+  async fetchLimitedRoulettes(limit = 100) {
+    try {
+      this.logger.info(`
