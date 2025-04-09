@@ -77,7 +77,7 @@ class RouletteFeedService {
       this.isInitializing = false;
       
       // Iniciar polling automático
-      this.startPolling();
+          this.startPolling();
       
       logger.info('Dados iniciais obtidos com sucesso');
     } catch (error) {
@@ -177,8 +177,8 @@ class RouletteFeedService {
           EventService.emitGlobalEvent('roulette:all-data-updated', {
             count: data.count,
             source: 'websocket',
-            timestamp: new Date().toISOString()
-          });
+        timestamp: new Date().toISOString()
+      });
         } else {
           logger.error(`❌ Dados inválidos recebidos (ID: ${requestId})`);
           this.handleFetchError(new Error('Dados inválidos recebidos'));
@@ -264,11 +264,11 @@ class RouletteFeedService {
     } catch (error) {
       logger.error(`❌ Erro ao buscar dados (ID: ${requestId}):`, error);
       this.handleFetchError(error);
-      this.isFetching = false;
+    this.isFetching = false;
       this.currentRequestId = null;
     }
   }
-  
+
   /**
    * Lida com erro ao buscar dados
    */
@@ -294,9 +294,9 @@ class RouletteFeedService {
           title: "Problemas de conexão",
           description: "Encontramos dificuldades ao atualizar os dados. Tentando novamente...",
           variant: "destructive"
-        });
-      }
-    }
+            });
+          }
+        }
   }
   
   /**
@@ -324,6 +324,20 @@ class RouletteFeedService {
     EventService.unsubscribeAll();
     
     logger.info('Serviço RouletteFeedService parado e recursos liberados');
+  }
+
+  /**
+   * Registra o SocketService para uso no serviço de feed
+   * Mantido para compatibilidade com código existente
+   */
+  public registerSocketService(socketService: any): void {
+    if (!socketService) {
+      logger.warn('Tentativa de registrar SocketService inválido');
+      return;
+    }
+    
+    logger.info('SocketService registrado no RouletteFeedService');
+    this.socket = socketService;
   }
 }
 
