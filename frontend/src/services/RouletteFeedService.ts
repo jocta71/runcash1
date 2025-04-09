@@ -1295,34 +1295,6 @@ export default class RouletteFeedService {
   }
   
   /**
-   * Ajusta o intervalo de polling com base no histórico de sucesso/falha
-   * @param increase Se true, aumenta o intervalo (em caso de falha), se false, reduz para o normal
-   */
-  private adjustPollingInterval(increase: boolean): void {
-    if (increase) {
-      // Aumentar o intervalo (máximo 30 segundos)
-      const newInterval = Math.min(this.currentPollingInterval * 1.5, 30000);
-      
-      if (newInterval !== this.currentPollingInterval) {
-        this.currentPollingInterval = newInterval;
-        logger.info(`⏱️ Intervalo de polling aumentado para ${this.currentPollingInterval / 1000}s devido a falhas`);
-        
-        // Reiniciar o polling com o novo intervalo
-        this.startPollingAllRoulettes();
-      }
-    } else {
-      // Reduzir para o intervalo normal
-      if (this.currentPollingInterval !== NORMAL_POLLING_INTERVAL) {
-        this.currentPollingInterval = NORMAL_POLLING_INTERVAL;
-        logger.info(`⏱️ Intervalo de polling normalizado para ${this.currentPollingInterval / 1000}s`);
-        
-        // Reiniciar o polling com o novo intervalo
-        this.startPollingAllRoulettes();
-      }
-    }
-  }
-
-  /**
    * Atualiza os dados de uma roleta no cache
    * @param data Dados da roleta para atualizar
    */
@@ -1491,4 +1463,104 @@ export default class RouletteFeedService {
   private normalizeRouletteItem(item: any): any {
     try {
       if (!item || typeof item !== 'object') {
-        logger.warn(`
+        logger.warn(`⚠️ Item inválido para normalização`);
+        return null;
+      }
+      
+      // Log para depuração
+      logger.debug(`🔧 Normalizando item`);
+      
+      // Extrair IDs e nomes
+      const roletaId = item.roleta_id || item.id;
+      const roletaNome = item.roleta_nome || item.nome || 'Roleta sem nome';
+      
+      if (!roletaId) {
+        logger.warn(`⚠️ Item sem ID válido`);
+        return null;
+      }
+      
+      // Normalizar números, se existirem
+      let numeros: any[] = [];
+      if (item.numeros && Array.isArray(item.numeros)) {
+        numeros = [...item.numeros]; // clone array
+      } else if (item.ultimo_numero || item.numero) {
+        // Se temos apenas o último número, criar array com ele
+        const numero = item.ultimo_numero || item.numero;
+        numeros = [{
+          numero,
+          timestamp: new Date()
+        }];
+      }
+      
+      // Status da roleta
+      const status = item.status || 'ativo';
+      
+      // Criar objeto normalizado
+      const normalizedItem = {
+        roleta_id: roletaId,
+        roleta_nome: roletaNome,
+        numeros: numeros,
+        ultimo_numero: item.ultimo_numero || (numeros.length > 0 ? numeros[0].numero : null),
+        status: status,
+        ultima_atualizacao: new Date(),
+        // Preservar outros campos importantes
+        provider: item.provider || 'desconhecido',
+        tipo: item.tipo || 'desconhecido',
+        url: item.url || null
+      };
+      
+      logger.debug(`✅ Item normalizado com sucesso`);
+      
+      return normalizedItem;
+    } catch (error) {
+      logger.error(`❌ Erro ao normalizar item: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Valida os dados de roleta recebidos
+   * @param data Dados a serem validados
+   * @returns Verdadeiro se os dados são válidos
+   */
+  private validateRouletteData(data: any): boolean {
+    try {
+      // Se não houver dados, rejeitar
+      if (!data) {
+        logger.warn('❌ Dados de roleta inválidos: indefinidos');
+        return false;
+      }
+      
+      // Se for um evento de tipo global_update, validar a estrutura do evento
+      if (data.type === 'global_update') {
+        if (!data.data) {
+          logger.warn('❌ Evento global_update sem campo data');
+          return false;
+        }
+        
+        // Usar os dados dentro do campo data para validação
+        data = data.data;
+      }
+
+      // Verificar se temos o ID da roleta 
+      if (!data.roleta_id) {
+        logger.warn('❌ Dados de roleta inválidos: sem ID');
+        return false;
+      }
+
+      // Estrutura mínima esperada para uma roleta válida
+      const requiredFields = ['roleta_id', 'roleta_nome'];
+      const missingFields = requiredFields.filter(field => !data[field]);
+      
+      if (missingFields.length > 0) {
+        logger.warn(`❌ Dados de roleta inválidos: campos obrigatórios ausentes: ${missingFields.join(', ')}`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      logger.error(`❌ Erro ao validar dados de roleta: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
+  }
+}
