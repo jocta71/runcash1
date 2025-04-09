@@ -12,13 +12,19 @@ COPY package*.json ./
 # Instalar dependências
 RUN npm install --omit=dev
 
-# Copiar código-fonte
-COPY api_server.js healthcheck.js ./
+# Copiar código-fonte e script de entrada
+COPY api_server.js healthcheck.js entrypoint.sh ./
 COPY api/ ./api/
+
+# Tornar o script de entrada executável
+RUN chmod +x /app/entrypoint.sh
 
 # Definir variáveis de ambiente
 ENV PORT=3000
 ENV NODE_ENV=production
+
+# Verificar conteúdo do diretório
+RUN ls -la /app
 
 # Definir usuário não-root
 USER appuser
@@ -30,4 +36,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD ["node", "healthcheck.js"]
 
 # Comando para iniciar a aplicação
-CMD ["node", "api_server.js"] 
+CMD ["/app/entrypoint.sh"] 
