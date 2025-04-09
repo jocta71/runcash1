@@ -7,7 +7,7 @@ import { HistoryData } from './SocketService';
 const logger = getLogger('RouletteFeedService');
 
 // Configurações globais para o serviço
-const POLLING_INTERVAL = 8000; // Ajustado para 8 segundos baseado no código de referência
+const POLLING_INTERVAL = 8000; // Intervalo fixo de 8 segundos
 const MIN_REQUEST_INTERVAL = 3000; // Intervalo mínimo entre requisições em ms
 const CACHE_TTL = 15000; // 15 segundos de TTL para o cache
 const MAX_CONSECUTIVE_ERRORS = 5; // Máximo de erros consecutivos antes de pausar
@@ -15,7 +15,7 @@ const HEALTH_CHECK_INTERVAL = 30000; // Verificar a saúde do sistema a cada 30 
 
 // Adicionar constantes para o sistema de recuperação inteligente
 const NORMAL_POLLING_INTERVAL = 8000; // 8 segundos em condições normais
-const ERROR_POLLING_INTERVAL = 15000; // 15 segundos quando ocorrem erros
+const ERROR_POLLING_INTERVAL = 8000; // 8 segundos mesmo quando ocorrem erros
 const MAX_ERROR_POLLING_INTERVAL = 8000; // 8 segundos no máximo após vários erros
 const RECOVERY_CHECK_INTERVAL = 60000; // 1 minuto para verificação de recuperação completa
 const MIN_SUCCESS_STREAK_FOR_NORMALIZATION = 3; // Sucessos consecutivos para normalizar
@@ -117,8 +117,8 @@ export default class RouletteFeedService {
   
   // Configurações de polling
   private interval: number = POLLING_INTERVAL; // Usar o intervalo global
-  private minInterval: number = 5000; // Mínimo 5 segundos
-  private maxInterval: number = 8000; // Máximo 20 segundos
+  private minInterval: number = 8000; // Mínimo 8 segundos
+  private maxInterval: number = 8000; // Máximo 8 segundos
   private maxRequestsPerMinute: number = 120; // Aumentado para 120 requisições por minuto (2 por segundo)
   private backoffMultiplier: number = 1.5; // Multiplicador para backoff em caso de falhas
   
@@ -216,6 +216,20 @@ export default class RouletteFeedService {
     this.isInBackoff = false;
     this.isFetching = false;
     this.globalLock = false;
+
+    // Verificar se o intervalo especificado é válido
+    if (options.initialInterval) {
+      this.initialInterval = 8000; // Forçar a 8 segundos
+      this.currentPollingInterval = 8000; // Forçar a 8 segundos
+    }
+
+    if (options.minInterval) {
+      this.minInterval = 8000; // Forçar a 8 segundos
+    }
+
+    if (options.maxInterval) {
+      this.maxInterval = 8000; // Forçar a 8 segundos
+    }
 
     // Iniciar o serviço automaticamente se configurado
     if (autoStart) {
@@ -421,7 +435,7 @@ export default class RouletteFeedService {
     try {
       // Realizar a requisição HTTP com recuperação automática
       const result = await this.fetchWithRecovery(
-        `${this.baseUrl}/api/ROULETTES`,
+        `${this.baseUrl}/api/ROULETTES?limit=100`,
         requestId
       );
       
@@ -483,7 +497,7 @@ export default class RouletteFeedService {
       
       window._pendingRequests[requestId] = {
         timestamp: Date.now(),
-        url: '/api/ROULETTES',
+        url: '/api/ROULETTES?limit=100',
         service: 'RouletteFeed'
       };
       
@@ -498,7 +512,7 @@ export default class RouletteFeedService {
     
     logger.debug(`📡 Buscando dados mais recentes (ID: ${requestId})`);
     
-    return this.fetchWithRecovery('/api/ROULETTES', requestId)
+    return this.fetchWithRecovery('/api/ROULETTES?limit=100', requestId)
       .then(data => {
         // Atualizar estatísticas e estado
         this.requestStats.total++;
@@ -747,46 +761,36 @@ export default class RouletteFeedService {
    * Ajusta dinamicamente o intervalo de polling com base no sucesso ou falha das requisições
    */
   private adjustPollingInterval(hasError: boolean): void {
-    // Se houve erro, aumentar o intervalo para reduzir a carga
+    // Sempre manter o intervalo em 8 segundos exatos
+    this.currentPollingInterval = 8000; // Forçar a 8 segundos
+    
     if (hasError) {
       this.consecutiveErrors++;
       this.consecutiveSuccesses = 0;
       
-      // Aumentar gradualmente o intervalo até o máximo
-      if (this.currentPollingInterval < MAX_ERROR_POLLING_INTERVAL) {
-        this.currentPollingInterval = Math.min(
-          this.currentPollingInterval * 1.5,
-          MAX_ERROR_POLLING_INTERVAL
-        );
-        logger.info(`⏱️ Ajustando intervalo de polling para ${this.currentPollingInterval}ms devido a erros`);
-        
-        // Entrar em modo de recuperação
-        if (!this.recoveryMode && this.consecutiveErrors >= 3) {
-          logger.warn('🚑 Entrando em modo de recuperação após múltiplos erros');
-          this.recoveryMode = true;
-        }
-        
-        // Reiniciar o timer de polling com o novo intervalo
-        this.restartPollingTimer();
+      // Entrar em modo de recuperação após múltiplos erros
+      if (!this.recoveryMode && this.consecutiveErrors >= 3) {
+        logger.warn('🚑 Entrando em modo de recuperação após múltiplos erros');
+        this.recoveryMode = true;
       }
     } else {
       // Se não houve erro, registrar sucesso consecutivo
       this.consecutiveSuccesses++;
       this.consecutiveErrors = 0;
       
-      // Se estamos em um intervalo de erro, mas tivemos sucessos consecutivos,
-      // podemos gradualmente reduzir o intervalo de volta ao normal
-      if (this.currentPollingInterval > NORMAL_POLLING_INTERVAL && this.consecutiveSuccesses >= MIN_SUCCESS_STREAK_FOR_NORMALIZATION) {
-        this.normalizeService();
-      } else if (this.currentPollingInterval !== NORMAL_POLLING_INTERVAL) {
-        // Se não estamos no intervalo normal, ajustar para o intervalo normal
-        this.currentPollingInterval = NORMAL_POLLING_INTERVAL;
-        logger.info(`⏱️ Ajustando intervalo de polling para ${this.currentPollingInterval}ms (normal)`);
-        
-        // Reiniciar o timer de polling com o intervalo normal
-        this.restartPollingTimer();
+      // Sair do modo de recuperação após sucessos consecutivos
+      if (this.recoveryMode && this.consecutiveSuccesses >= MIN_SUCCESS_STREAK_FOR_NORMALIZATION) {
+        logger.info('✅ Saindo do modo de recuperação após múltiplos sucessos');
+        this.recoveryMode = false;
       }
     }
+    
+    // Garantir que o timer esteja utilizando o intervalo correto
+    if (this.pollingTimer !== null) {
+      this.restartPollingTimer();
+    }
+    
+    logger.info(`⏱️ Intervalo de polling mantido em ${this.currentPollingInterval}ms (fixo em 8s)`);
   }
   
   private pausePolling(): void {
