@@ -61,7 +61,7 @@ import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
  * Serviço que gerencia a conexão WebSocket via Socket.IO
  * para receber dados em tempo real do MongoDB
  */
-class SocketService {
+export class SocketService {
   private static instance: SocketService;
   private socket: Socket | null = null;
   private listeners: Record<string, Array<(data: any) => void>> = {};
@@ -70,7 +70,7 @@ class SocketService {
   private maxConnectionAttempts: number = 5;
   private cache: Record<string, any> = {};
   private connectionActive: boolean = false;
-  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
   private timerId: ReturnType<typeof setTimeout> | null = null;
   private eventHandlers: Record<string, (data: any) => void> = {};
   private autoReconnect: boolean = true;
@@ -100,10 +100,10 @@ class SocketService {
   
   // Propriedades para circuit breaker
   private circuitBreakerActive: boolean = false;
-  private circuitBreakerResetTimeout: any = null;
   private consecutiveFailures: number = 0;
   private failureThreshold: number = 5; // Quantas falhas para ativar o circuit breaker
   private resetTime: number = 60000; // 1 minuto de espera antes de tentar novamente
+  private circuitBreakerResetTimeout: NodeJS.Timeout | null = null;
   
   private constructor() {
     console.log('[SocketService] Inicializando serviço Socket.IO');
@@ -304,6 +304,17 @@ class SocketService {
     this.connectionActive = true;
     this.isConnected = true;
     this.connectionAttempts = 0;
+    this.consecutiveFailures = 0; // Resetar falhas após conexão bem-sucedida
+    
+    // Resetar circuit breaker se estiver ativo
+    if (this.circuitBreakerActive) {
+      console.log('[SocketService] Desativando circuit breaker após conexão bem-sucedida');
+      this.circuitBreakerActive = false;
+      if (this.circuitBreakerResetTimeout) {
+        clearTimeout(this.circuitBreakerResetTimeout);
+        this.circuitBreakerResetTimeout = null;
+      }
+    }
     
     // Salvar timestamp da conexão
     localStorage.setItem('socket_last_connection', Date.now().toString());
@@ -368,16 +379,77 @@ class SocketService {
   private reconnect(): void {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
     }
     
-    // Calcular delay baseado em backoff exponencial
-    const delay = Math.min(1000 * Math.pow(2, this.connectionAttempts), 30000);
-    console.log(`[SocketService] Tentando reconectar em ${delay/1000} segundos...`);
+    // Implementação de backoff exponencial mais robusta
+    const baseDelay = 1000; // 1 segundo como base
+    const maxDelay = 30000; // máximo de 30 segundos
+    const jitter = Math.random() * 1000; // adiciona até 1 segundo de aleatoriedade para evitar tempestade de reconexão
+    
+    // Calcular delay com backoff exponencial e jitter
+    const delay = Math.min(baseDelay * Math.pow(1.5, this.connectionAttempts), maxDelay) + jitter;
+    
+    console.log(`[SocketService] Tentando reconectar em ${(delay/1000).toFixed(1)} segundos... (tentativa ${this.connectionAttempts + 1})`);
+    
+    // Verificar o estado do circuit breaker
+    if (this.circuitBreakerActive) {
+      console.log('[SocketService] Circuit breaker ativo. Aguardando reset...');
+      return;
+    }
     
     this.reconnectTimeout = setTimeout(() => {
-      console.log(`[SocketService] Tentando reconectar (tentativa ${this.connectionAttempts + 1})...`);
+      // Verificar o estado da rede antes de tentar reconectar
+      if (navigator.onLine === false) {
+        console.log('[SocketService] Dispositivo offline. Reagendando tentativa de reconexão...');
+        // Tentar novamente após algum tempo
+        this.reconnect();
+        return;
+      }
+      
+      console.log(`[SocketService] Executando tentativa de reconexão ${this.connectionAttempts + 1}...`);
+      
+      // Incrementar falhas consecutivas para o circuit breaker
+      this.consecutiveFailures++;
+      
+      // Verificar se o circuit breaker deve ser ativado
+      if (this.consecutiveFailures >= this.failureThreshold) {
+        this.activateCircuitBreaker();
+        return;
+      }
+      
+      // Tentar conectar
       this.connect();
     }, delay);
+  }
+  
+  // Método para ativar o circuit breaker
+  private activateCircuitBreaker(): void {
+    if (this.circuitBreakerActive) return;
+    
+    console.log(`[SocketService] ⚡ Ativando circuit breaker após ${this.consecutiveFailures} falhas consecutivas`);
+    this.circuitBreakerActive = true;
+    
+    // Notificar o usuário
+    toast({
+      title: "Problemas de conexão detectados",
+      description: "Detectamos problemas persistentes na conexão. Tentaremos novamente em breve.",
+      variant: "destructive"
+    });
+    
+    // Configurar tempo para reset do circuit breaker
+    if (this.circuitBreakerResetTimeout) {
+      clearTimeout(this.circuitBreakerResetTimeout);
+    }
+    
+    this.circuitBreakerResetTimeout = setTimeout(() => {
+      console.log('[SocketService] 🔄 Resetando circuit breaker e tentando reconectar...');
+      this.circuitBreakerActive = false;
+      this.consecutiveFailures = 0;
+      
+      // Tentar reconectar após o reset
+      this.connect();
+    }, this.resetTime);
   }
   
   public static getInstance(): SocketService {
@@ -419,6 +491,12 @@ class SocketService {
     }
 
     try {
+      // Verificar estado do circuit breaker antes de tentar conectar
+      if (this.circuitBreakerActive) {
+        console.log('[SocketService] Circuit breaker ativo. Aguardando reset antes de conectar.');
+        return;
+      }
+      
       const wsUrl = this.getSocketUrl();
       console.log('[SocketService] Conectando ao servidor WebSocket:', wsUrl);
       
@@ -431,7 +509,29 @@ class SocketService {
         timeout: 5000,
         // Configurar para reconexão mais agressiva
         reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000
+        reconnectionDelayMax: 5000,
+        // Adicionar callbacks para monitorar eventos de reconexão
+        extraHeaders: {
+          'x-client-version': '1.2.0', // Ajudar o servidor a identificar versões problemáticas
+          'x-connection-attempt': String(this.connectionAttempts)
+        }
+      });
+
+      // Adicionar listener para monitorar tentativas de reconexão do socket.io
+      this.socket.io.on('reconnect_attempt', (attempt: number) => {
+        console.log(`[SocketService] Socket.IO tentativa de reconexão #${attempt}`);
+      });
+      
+      this.socket.io.on('reconnect_error', (error: Error) => {
+        console.error('[SocketService] Socket.IO erro de reconexão:', error.message);
+      });
+      
+      this.socket.io.on('reconnect_failed', () => {
+        console.error('[SocketService] Socket.IO falha na reconexão após todas as tentativas');
+      });
+      
+      this.socket.io.on('reconnect', (attempt: number) => {
+        console.log(`[SocketService] Socket.IO reconectado após ${attempt} tentativas`);
       });
 
       this.setupEventListeners();
@@ -443,7 +543,7 @@ class SocketService {
       // Notificar o usuário
       toast({
         title: "Erro de conexão",
-        description: "Não foi possível conectar ao servidor de dados em tempo real. Algumas funcionalidades podem não estar disponíveis.",
+        description: "Não foi possível conectar ao servidor de dados em tempo real. Tentaremos novamente automaticamente.",
         variant: "destructive"
       });
       
@@ -465,8 +565,43 @@ class SocketService {
     return 'preto';
   }
 
-  // Outros métodos existentes...
-// ... existing code ...
+  // Método para requisitar números recentes
+  private requestRecentNumbers(): void {
+    // Implementação do método
+    if (this.socket && this.isConnected) {
+      this.socket.emit('get_recent_numbers');
+    }
+  }
+  
+  // Processar eventos de estratégia
+  private processStrategyEvent(data: any): void {
+    // Implementação do processamento
+    console.log('[SocketService] Evento de estratégia recebido:', data);
+  }
+  
+  // Configurar ping periódico
+  private setupPing(): void {
+    // Implementação do ping
+    setInterval(() => {
+      if (this.socket && this.isConnected) {
+        this.socket.emit('ping');
+      }
+    }, 30000); // Ping a cada 30 segundos
+  }
+  
+  // Setup de handler para rejeições não tratadas
+  private setupUnhandledRejectionHandler(): void {
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('[SocketService] Rejeição não tratada em:', promise, 'razão:', reason);
+    });
+  }
+  
+  // Método de inscrição para eventos
+  public subscribe(event: string, callback: (data: any) => void): void {
+    if (this.socket) {
+      this.socket.on(event, callback);
+    }
+  }
 }
 
 export default SocketService; 
