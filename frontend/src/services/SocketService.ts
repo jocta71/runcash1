@@ -102,11 +102,6 @@ class SocketService {
   private failureThreshold: number = 5; // Quantas falhas para ativar o circuit breaker
   private resetTime: number = 60000; // 1 minuto de espera antes de tentar novamente
   
-  // Adicionar propriedade para controlar tentativas de conexão WebSocket
-  private websocketFailures: number = 0;
-  private maxWebsocketFailures: number = 5;
-  private usingPollingFallback: boolean = false;
-  
   private constructor() {
     console.log('[SocketService] Inicializando serviço Socket.IO');
     
@@ -365,63 +360,16 @@ class SocketService {
       const wsUrl = this.getSocketUrl();
       console.log('[SocketService] Conectando ao servidor WebSocket:', wsUrl);
       
-      // Se estamos no modo de fallback, usar apenas polling diretamente
-      if (this.usingPollingFallback) {
-        console.log('[SocketService] Usando diretamente o modo de polling HTTP (fallback)');
-        this.socket = io(wsUrl, {
-          transports: ['polling'],
-          autoConnect: true,
-          reconnection: true,
-          reconnectionAttempts: 10,
-          timeout: 10000
-        });
-      } else {
-        // Tentar primeiro com WebSocket e depois com polling se falhar
-        this.socket = io(wsUrl, {
-          transports: ['websocket', 'polling'],
-          autoConnect: true,
-          reconnection: true,
-          reconnectionAttempts: 10,
-          // Reduzir timeout para reconectar mais rapidamente
-          timeout: 5000,
-          // Configurar para reconexão mais agressiva
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 5000
-        });
-      }
-
-      // Adicionar handler para erros de transporte
-      this.socket.on('connect_error', (error) => {
-        console.error('[SocketService] Erro de conexão:', error);
-        
-        // Registrar falha de conexão WebSocket
-        this.handleWebSocketFailure();
-        
-        // Se o erro for relacionado ao WebSocket, tentar com polling
-        if (this.socket && this.socket.io.opts.transports.includes('websocket')) {
-          console.log('[SocketService] Falha no WebSocket, tentando com HTTP polling');
-          
-          // Desconectar socket atual
-          this.socket.disconnect();
-          
-          // Reconectar usando apenas polling
-          this.socket = io(wsUrl, {
-            transports: ['polling'],
-            autoConnect: true,
-            reconnection: true,
-            timeout: 5000
-          });
-          
-          // Configurar listeners novamente
-          this.setupEventListeners();
-          
-          // Notificar usuário
-          toast({
-            title: "Usando modo alternativo",
-            description: "WebSocket não disponível, usando polling HTTP para receber atualizações",
-            variant: "warning"
-          });
-        }
+      this.socket = io(wsUrl, {
+        transports: ['websocket'],
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: 10,
+        // Reduzir timeout para reconectar mais rapidamente
+        timeout: 5000,
+        // Configurar para reconexão mais agressiva
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000
       });
 
       this.socket.on('connect', () => {
@@ -2141,43 +2089,6 @@ class SocketService {
       return false;
     }
     return true;
-  }
-
-  // Método para detectar e tratar falhas de WebSocket
-  private handleWebSocketFailure(): void {
-    this.websocketFailures++;
-    console.log(`[SocketService] Falha de WebSocket #${this.websocketFailures}`);
-    
-    // Após várias tentativas, mudar permanentemente para polling
-    if (this.websocketFailures >= this.maxWebsocketFailures && !this.usingPollingFallback) {
-      console.log('[SocketService] Várias falhas de WebSocket, mudando permanentemente para polling HTTP');
-      this.usingPollingFallback = true;
-      
-      if (this.socket) {
-        // Desconectar socket atual
-        this.socket.disconnect();
-        
-        // Reconectar usando apenas polling
-        const wsUrl = this.getSocketUrl();
-        this.socket = io(wsUrl, {
-          transports: ['polling'],
-          autoConnect: true,
-          reconnection: true,
-          reconnectionAttempts: 10,
-          timeout: 10000
-        });
-        
-        // Configurar listeners novamente
-        this.setupEventListeners();
-        
-        // Notificar usuário
-        toast({
-          title: "Modo de contingência ativado",
-          description: "Usando método HTTP alternativo para manter conexão com o servidor",
-          variant: "warning"
-        });
-      }
-    }
   }
 }
 
