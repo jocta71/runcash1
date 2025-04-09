@@ -36,7 +36,7 @@ export interface HistoryData {
  */
 class RESTSocketService {
   private static instance: RESTSocketService;
-  private listeners: Map<string, Set<any>> = new Map();
+  private listeners: Map<string, Set<Function>> = new Map();
   private connectionActive: boolean = false;
   private timerId: number | null = null;
   private pollingInterval: number = 3000;
@@ -51,7 +51,7 @@ class RESTSocketService {
   private updateTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
-  private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
+  private lastReceivedData: Map<string, any> = new Map();
   
   // Propriedade para simular estado de conexão
   public client?: any;
@@ -63,11 +63,13 @@ class RESTSocketService {
   
   // Adicionar uma propriedade para armazenar o histórico completo por roleta  
   private rouletteHistory: Map<string, number[]> = new Map();
-  private historyLimit: number = 1000;
+  private historyLimit: number = 50;
   
   // Adicionar propriedade para armazenar cache de dados das roletas
   private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
   private cacheTTL: number = 5 * 60 * 1000; // 5 minutos em milissegundos
+  
+  private lastSuccessfulRequest: number = 0;
   
   private constructor() {
     console.log('[RESTSocketService] Inicializando serviço REST API com polling');
@@ -106,11 +108,11 @@ class RESTSocketService {
       this.forceUpdateAllListeners();
     }, 2500); // Reduzir para 2.5 segundos
 
-    // Iniciar também o polling para o endpoint sem parâmetros
-    // que pode ter dados mais recentes
-    setTimeout(() => {
-      this.startSecondEndpointPolling();
-    }, 1000);
+    // Não iniciar o polling para o endpoint secundário
+    // Comentado pois não está funcionando como esperado
+    // setTimeout(() => {
+    //   this.startSecondEndpointPolling();
+    // }, 1000);
   }
 
   // Manipular alterações de visibilidade da página
@@ -136,42 +138,80 @@ class RESTSocketService {
     this.fetchDataFromREST();
   }
   
-  // Buscar dados da API REST
-  private async fetchDataFromREST() {
+  // Função auxiliar para mesclar arrays de números sem duplicações
+  private mergeNumbersWithoutDuplicates(newNumbers: number[], existingNumbers: number[]): number[] {
+    // Se não temos números novos, retornar o existente
+    if (newNumbers.length === 0) return existingNumbers;
+    
+    // Se não temos histórico, retornar os novos
+    if (existingNumbers.length === 0) return [...newNumbers];
+    
+    // Criar um Set a partir dos números existentes para verificação rápida
+    const existingSet = new Set(existingNumbers);
+    
+    // Array para armazenar os números mesclados
+    const mergedNumbers = [...existingNumbers];
+    
+    // Adicionar apenas números novos
+    for (const num of newNumbers) {
+      if (!existingSet.has(num)) {
+        mergedNumbers.unshift(num); // Adicionar no início para manter os mais recentes primeiro
+        existingSet.add(num);
+      }
+    }
+    
+    return mergedNumbers;
+  }
+
+  // Executar chamada à API REST
+  private async fetchDataFromREST(): Promise<boolean> {
+    if (!this.connectionActive) {
+      console.log('[RESTSocketService] Conexão inativa, pulando requisição');
+      return false;
+    }
+
+    // Usar apenas endpoint sem parâmetros
+    const endpoint = this.baseEndpoint;
+    
     try {
-      const startTime = Date.now();
-      console.log('[RESTSocketService] Iniciando chamada à API REST: ' + startTime);
+      console.log(`[RESTSocketService] Buscando dados da API REST: ${endpoint}`);
       
-      const apiBaseUrl = this.getApiBaseUrl();
-      
-      // IMPORTANTE: Esta é a ÚNICA chamada para a API em todo o sistema!
-      // Usar sempre o mesmo endpoint com mesmos parâmetros para consistência
-      const url = `${apiBaseUrl}/ROULETTES?limit=100`;
-      
-      console.log(`[RESTSocketService] Chamando: ${url}`);
-      
-      const response = await fetch(url);
+      const response = await fetch(endpoint);
       
       if (!response.ok) {
-        throw new Error(`Erro ao buscar dados: ${response.status} ${response.statusText}`);
+        throw new Error(`Erro ao buscar dados da API: ${response.status} - ${response.statusText}`);
       }
       
       const data = await response.json();
-      const endTime = Date.now();
-      console.log(`[RESTSocketService] Chamada concluída em ${endTime - startTime}ms`);
       
-      // Salvar no cache
-      localStorage.setItem('roulettes_data_cache', JSON.stringify({
-        timestamp: Date.now(),
-        data: data
-      }));
+      // Registrar que a requisição foi bem-sucedida
+      this.lastSuccessfulRequest = Date.now();
+      this.reconnectAttempts = 0;
       
-      // Processar os dados como eventos
+      // Processar os dados como se fossem eventos de WebSocket
       this.processDataAsEvents(data);
+      
+      // Persistir os dados no localStorage
+      this.updateLocalStorage();
       
       return true;
     } catch (error) {
-      console.error('[RESTSocketService] Erro ao buscar dados da API REST:', error);
+      console.error('[RESTSocketService] Erro ao buscar dados:', error);
+      
+      // Incrementar número de tentativas de reconexão
+      this.reconnectAttempts++;
+      
+      // Se atingiu o número máximo de tentativas, parar o polling
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        console.error(`[RESTSocketService] Máximo de tentativas de reconexão (${this.maxReconnectAttempts}) atingido. Parando polling.`);
+        this.stopPolling();
+        
+        // Emitir evento de desconexão
+        this.emit('disconnect', { 
+          message: 'Máximo de tentativas de reconexão atingido', 
+          reconnectAttempts: this.reconnectAttempts 
+        });
+      }
       return false;
     }
   }
@@ -537,8 +577,21 @@ class RESTSocketService {
     return this.connectionActive;
   }
 
-  public emit(eventName: string, data: any): void {
-    console.log(`[RESTSocketService] Simulando emissão de evento ${eventName} (não implementado em modo REST)`);
+  public emit(eventName: string, data: any): boolean {
+    // Emitir evento para todos os listeners registrados
+    const listeners = this.listeners.get(eventName);
+    if (listeners && listeners.size > 0) {
+      console.log(`[RESTSocketService] Emitindo evento ${eventName} para ${listeners.size} listeners`);
+      listeners.forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`[RESTSocketService] Erro ao emitir evento ${eventName}:`, error);
+        }
+      });
+      return true;
+    }
+    return false;
   }
 
   public hasRealData(): boolean {
@@ -647,125 +700,11 @@ class RESTSocketService {
     }
   }
 
-  // Método para iniciar o polling do segundo endpoint (/api/ROULETTES sem parâmetro)
-  private startSecondEndpointPolling() {
-    console.log('[RESTSocketService] Iniciando polling do segundo endpoint sem parâmetro');
-    
-    // Executar imediatamente a primeira vez
-    this.fetchSecondEndpointData().catch(err => 
-      console.error('[RESTSocketService] Erro na primeira chamada ao segundo endpoint:', err)
-    );
-    
-    // Criar um timer com intervalo FIXO de 6 segundos para o segundo endpoint
-    // (diferente do polling principal para evitar sobrecarga simultânea)
-    setInterval(() => {
-      console.log('[RESTSocketService] Executando polling do segundo endpoint em intervalo FIXO de 6 segundos');
-      this.fetchSecondEndpointData().catch(err => 
-        console.error('[RESTSocketService] Erro na chamada ao segundo endpoint:', err)
-      );
-    }, 6000);
-  }
-  
-  // Método para buscar dados do segundo endpoint (/api/ROULETTES sem parâmetro)
-  private async fetchSecondEndpointData() {
-    try {
-      const startTime = Date.now();
-      console.log('[RESTSocketService] Iniciando chamada ao segundo endpoint: ' + startTime);
-      
-      const apiBaseUrl = this.getApiBaseUrl();
-      
-      // Endpoint sem parâmetro
-      const url = `${apiBaseUrl}/ROULETTES`;
-      
-      console.log(`[RESTSocketService] Chamando segundo endpoint: ${url}`);
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar dados do segundo endpoint: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      const endTime = Date.now();
-      console.log(`[RESTSocketService] Chamada ao segundo endpoint concluída em ${endTime - startTime}ms`);
-      
-      // Processar os dados recebidos
-      if (Array.isArray(data)) {
-        console.log(`[RESTSocketService] Processando ${data.length} roletas do endpoint sem parâmetro`);
-        
-        // Registrar esta chamada como bem-sucedida
-        const now = Date.now();
-        this.lastReceivedData.set('endpoint-base', { timestamp: now, data: { count: data.length } });
-        
-        // Salvar no cache com uma chave diferente para não conflitar
-        localStorage.setItem('roulettes_data_cache_base', JSON.stringify({
-          timestamp: Date.now(),
-          data: data
-        }));
-        
-        // Para cada roleta, processar os dados
-        data.forEach(roulette => {
-          if (!roulette || !roulette.id) return;
-          
-          // Registrar timestamp para cada roleta
-          this.lastReceivedData.set(`base-${roulette.id}`, { timestamp: now, data: roulette });
-          
-          // Sempre emitir um evento para manter o componente atualizado
-          this.emitRouletteUpdateEvent(roulette, 'base-endpoint-update');
-          
-          // Atualizar o histórico da roleta se houver números
-          if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
-            // Mapear apenas os números para um array simples
-            const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
-            
-            // Obter histórico existente 
-            const existingHistory = this.rouletteHistory.get(roulette.id) || [];
-            
-            // IMPORTANTE: Vamos forçar considerar como novos dados para garantir que os eventos sejam emitidos
-            const isNewData = true; // Forçar processamento mesmo sem números novos
-            
-            if (isNewData) {
-              console.log(`[RESTSocketService] Processando números para roleta ${roulette.nome || roulette.id} (endpoint-base)`);
-              
-              // Mesclar, evitando duplicações e preservando ordem
-              const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
-              
-              // Atualizar o histórico com mesclagem para preservar números antigos
-              this.setRouletteHistory(roulette.id, mergedNumbers);
-              
-              // Emitir evento com o número mais recente (versão compatível)
-              this.emitRouletteNumberEvent(roulette, 'base-endpoint');
-              
-              // Também emitir em formatos alternativos que podem ser esperados pelo RouletteCard
-              this.emitCompatibilityEvents(roulette, isNewData);
-            }
-          }
-          
-          // Emitir evento de estratégia se houver
-          if (roulette.estado_estrategia) {
-            const strategyEvent: any = {
-              type: 'strategy_update',
-              roleta_id: roulette.id,
-              roleta_nome: roulette.nome,
-              estado: roulette.estado_estrategia,
-              numero_gatilho: roulette.numero_gatilho || 0,
-              vitorias: roulette.vitorias || 0,
-              derrotas: roulette.derrotas || 0,
-              terminais_gatilho: roulette.terminais_gatilho || [],
-              source: 'base-endpoint' // Marcar a origem para depuração
-            };
-            
-            // Notificar os listeners sobre a atualização de estratégia
-            this.notifyListeners(strategyEvent);
-          }
-        });
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('[RESTSocketService] Erro ao buscar dados do segundo endpoint:', error);
-      return false;
-    }
+  // Função para iniciar polling secundário (desativada)
+  private startSecondEndpointPolling(): boolean {
+    // Desativado conforme solicitado pelo usuário
+    console.log('[RESTSocketService] Polling secundário foi desativado');
+    return true;
   }
   
   // Método auxiliar para emitir evento de número
@@ -896,6 +835,36 @@ class RESTSocketService {
     return (numero - 1) % 3 + 1;
   }
   
+  // Função para notificar ouvintes sobre atualizações em todas as roletas
+  private forceUpdateAllListeners(): void {
+    console.log('[RESTSocketService] Forçando atualização para todos os listeners');
+    
+    // Para cada roleta no histórico, emitir um evento de atualização
+    this.rouletteHistory.forEach((numbers, roletaId) => {
+      if (numbers.length > 0) {
+        const lastNumber = numbers[0];
+        
+        // Criar eventos simplificados para atualização forçada
+        const evento = {
+          type: 'forced_update',
+          roleta_id: roletaId,
+          roleta_nome: roletaId, // Pode ser melhorado se tivermos o nome armazenado
+          numero: lastNumber,
+          cor: this.determinarCorNumero(lastNumber),
+          timestamp: new Date().toISOString(),
+          historico: numbers.map(n => ({ 
+            numero: n, 
+            cor: this.determinarCorNumero(n) 
+          })),
+          source: 'forced-update'
+        };
+        
+        // Notificar pelo ID da roleta
+        this.notifySpecificListener(roletaId, evento);
+      }
+    });
+  }
+
   // Notificar especificamente um listener pelo ID
   private notifySpecificListener(id: string, data: any): void {
     const listeners = this.listeners.get(id);
@@ -916,90 +885,6 @@ class RESTSocketService {
         }
       });
     }
-  }
-
-  // Função auxiliar para mesclar arrays de números sem duplicações
-  private mergeNumbersWithoutDuplicates(newNumbers: number[], existingNumbers: number[]): number[] {
-    // Se não temos números novos, retornar o existente
-    if (newNumbers.length === 0) return existingNumbers;
-    
-    // Se não temos histórico, retornar os novos
-    if (existingNumbers.length === 0) return [...newNumbers];
-    
-    // Criar um Set a partir dos números existentes para verificação rápida
-    const existingSet = new Set(existingNumbers);
-    
-    // Array para armazenar os números mesclados
-    const mergedNumbers = [...existingNumbers];
-    
-    // Adicionar apenas números novos
-    for (const num of newNumbers) {
-      if (!existingSet.has(num)) {
-        mergedNumbers.unshift(num); // Adicionar no início para manter os mais recentes primeiro
-        existingSet.add(num);
-      }
-    }
-    
-    return mergedNumbers;
-  }
-
-  // Forçar atualização em todos os listeners
-  private forceUpdateAllListeners() {
-    console.log('[RESTSocketService] Forçando atualização em todos os listeners');
-    
-    // Para cada roleta no nosso cache de dados
-    this.lastReceivedData.forEach((data, id) => {
-      // Ignorar entradas que não são roletas específicas
-      if (id === 'global' || id === 'endpoint-base' || !data.data || !data.data.numero) {
-        return;
-      }
-      
-      try {
-        // Criar um evento simulado
-        const forceEvent = {
-          type: 'force_update',
-          roleta_id: id,
-          roleta_nome: data.data.nome || id,
-          timestamp: new Date().toISOString(),
-          data: data.data,
-          source: 'force-update'
-        };
-        
-        // Emitir para os listeners específicos desta roleta
-        this.notifySpecificListener(id, forceEvent);
-        
-        // Se tivermos números, emitir um evento de número também
-        if (data.data.numero && Array.isArray(data.data.numero) && data.data.numero.length > 0) {
-          const numero = data.data.numero[0].numero || data.data.numero[0].number || 0;
-          
-          // Evento de número simples
-          const numeroEvent = {
-            type: 'numero',
-            roleta_id: id,
-            numero: numero,
-            timestamp: new Date().toISOString()
-          };
-          
-          this.notifySpecificListener(id, numeroEvent);
-          
-          // Também notificar diretamente pelo tipo "new_number" que o RouletteCard pode estar ouvindo
-          const newNumberEvent = {
-            type: 'new_number',
-            roleta_id: id,
-            roleta_nome: data.data.nome || id,
-            numero: numero,
-            cor: this.determinarCorNumero(numero),
-            timestamp: new Date().toISOString(),
-            source: 'force-update'
-          };
-          
-          this.notifySpecificListener(id, newNumberEvent);
-          this.notifyListeners(newNumberEvent);
-        }
-      } catch (e) {
-        console.error(`[RESTSocketService] Erro ao forçar atualização para roleta ${id}:`, e);
-      }
-    });
   }
 
   private startUpdateTimer(): void {
@@ -1039,6 +924,18 @@ class RESTSocketService {
     this.fetchDataFromREST().catch(err => {
       console.error('[RESTSocketService] Erro ao buscar dados:', err);
     });
+  }
+
+  // Parar o polling da API REST
+  private stopPolling(): void {
+    console.log('[RESTSocketService] Parando polling');
+    
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+    
+    this.connectionActive = false;
   }
 }
 
