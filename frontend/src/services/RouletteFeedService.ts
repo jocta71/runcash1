@@ -2,8 +2,6 @@ import config from '@/config/env';
 import EventService from './EventService';
 import { getLogger } from './utils/logger';
 import { HistoryData } from './SocketService';
-import axios from 'axios';
-import { ENDPOINTS, getFullUrl, API_BASE_URL } from './api/endpoints';
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');
@@ -83,18 +81,6 @@ interface RouletteFeedServiceOptions {
   minInterval?: number;
   maxInterval?: number;
   historySize?: number;
-}
-
-interface RouletteData {
-  id: string;
-  nome: string;
-  status: string;
-  provider: string;
-  numeros: number[];
-  timestamp?: string;
-  cor_background?: string;
-  logo?: string;
-  // Outros campos que podem existir
 }
 
 /**
@@ -189,11 +175,6 @@ export default class RouletteFeedService {
 
   // Adicionar array de assinantes
   private subscribers: Array<(data: any) => void> = [];
-  
-  // Adicionar assinantes para roletas específicas
-  private idSubscribers: Map<string, Set<(data: any) => void>> = new Map();
-  private nameSubscribers: Map<string, Set<(data: any) => void>> = new Map();
-  private globalSubscribers: Set<(data: any) => void> = new Set();
 
   private lastSuccessfulResponse: number = 0;
 
@@ -201,9 +182,6 @@ export default class RouletteFeedService {
   private pendingRequests: {
     [key: string]: RequestInfo
   } = {};
-
-  // Contador de processos bem-sucedidos
-  private successCounter = 0;
 
   /**
    * O construtor configura os parâmetros iniciais e inicia o serviço
@@ -261,40 +239,22 @@ export default class RouletteFeedService {
    * Inicializa o serviço
    */
   public initialize(): Promise<any> {
-    // Verificar se o logger está definido
-    if (!logger) {
-      console.log('[RouletteFeedService] ⚠️ Logger não disponível durante a inicialização');
-    } else {
-      logger.info('Solicitação de inicialização recebida');
-    }
+    logger.info('Solicitação de inicialização recebida');
     
     // Se já existir uma promessa de inicialização em andamento, retorne-a
     if (this.GLOBAL_INITIALIZATION_PROMISE) {
-      if (logger) {
-        logger.info('Reutilizando promessa de inicialização existente');
-      } else {
-        console.log('[RouletteFeedService] Reutilizando promessa de inicialização existente');
-      }
+      logger.info('Reutilizando promessa de inicialização existente');
       return this.GLOBAL_INITIALIZATION_PROMISE;
     }
     
     // Se o serviço estiver inicializando, aguarde
     if (this.IS_INITIALIZING) {
-      if (logger) {
-        logger.info('Serviço já está inicializando, aguardando...');
-      } else {
-        console.log('[RouletteFeedService] Serviço já está inicializando, aguardando...');
-      }
-      
+      logger.info('Serviço já está inicializando, aguardando...');
       return new Promise((resolve) => {
         const checkInterval = setInterval(() => {
           if (!this.IS_INITIALIZING) {
             clearInterval(checkInterval);
-            if (logger) {
-              logger.info('Inicialização concluída, continuando');
-            } else {
-              console.log('[RouletteFeedService] Inicialização concluída, continuando');
-            }
+            logger.info('Inicialização concluída, continuando');
             resolve(this.roulettes);
           }
         }, 100);
@@ -303,23 +263,12 @@ export default class RouletteFeedService {
 
     // Se já estiver inicializado, retorne os dados existentes
     if (this.initialized) {
-      if (logger) {
-        logger.info('Serviço já inicializado, retornando dados existentes');
-      } else {
-        console.log('[RouletteFeedService] Serviço já inicializado, retornando dados existentes');
-      }
+      logger.info('Serviço já inicializado, retornando dados existentes');
       return Promise.resolve(this.roulettes);
     }
 
     // Marcar como inicializando
     this.IS_INITIALIZING = true;
-    
-    try {
-      // Conectar ao EventService para receber eventos em tempo real
-      this.connectToEventService();
-    } catch (error) {
-      console.error('[RouletteFeedService] Erro ao conectar ao EventService:', error);
-    }
     
     // Criar e armazenar a promessa de inicialização
     this.GLOBAL_INITIALIZATION_PROMISE = new Promise((resolve, reject) => {
@@ -410,8 +359,7 @@ export default class RouletteFeedService {
   /**
    * Busca os dados iniciais das roletas (se não estiverem em cache)
    */
-  public async fetchInitialData(): Promise<RouletteData[]> {
-    try {
+  public async fetchInitialData(): Promise<any[]> {
     // Verificar se já temos dados em cache e se são válidos
     if (this.hasCachedData && this.lastUpdateTime > 0) {
       const cacheAge = Date.now() - this.lastUpdateTime;
@@ -475,7 +423,7 @@ export default class RouletteFeedService {
       
       // Processar os resultados
       if (result && Array.isArray(result)) {
-          logger.info(`✅ Dados iniciais recebidos: ${result.length} roletas`);
+        logger.success(`✅ Dados iniciais recebidos: ${result.length} roletas`);
         
         // Armazenar os dados
         this.lastUpdateTime = Date.now();
@@ -503,10 +451,6 @@ export default class RouletteFeedService {
     } finally {
       // Liberar o bloqueio global
       GLOBAL_IS_FETCHING = false;
-      }
-    } catch (error) {
-      logger.error(`❌ Erro ao buscar dados iniciais: ${error.message || 'Desconhecido'}`);
-      return [];
     }
   }
 
@@ -933,48 +877,47 @@ export default class RouletteFeedService {
    * Atualiza o cache interno com os dados das roletas
    * e emite um evento de atualização
    */
-  private updateRouletteCache(data: any): void {
-    if (!data) {
-      logger.error('❌ Dados inválidos para atualização do cache');
+  private updateRouletteCache(data: any[]): void {
+    if (!Array.isArray(data)) {
+      logger.error('⚠️ Dados inválidos recebidos para cache:', data);
       return;
     }
     
-    // Lidar com dados de atualização global (objeto com array de roletas)
-    if (data.roletas && Array.isArray(data.roletas)) {
-      this.saveRoulettesToCache(data.roletas);
-      return;
-    }
-
-    // Lidar com dados no formato de array simples
-    if (Array.isArray(data)) {
-      this.saveRoulettesToCache(data);
+    logger.info(`💾 Atualizando cache com ${data.length} roletas`);
+    
+    // Flag para verificar se há dados novos
+    this.hasNewData = false;
+    
+    // Para cada roleta, verificar se já existe no cache e se há atualizações
+    data.forEach(roleta => {
+      const roletaId = roleta.id || roleta._id;
+      
+      if (!roletaId) {
+        logger.warn('⚠️ Roleta sem ID ignorada:', roleta);
         return;
       }
       
-    // Lidar com uma única roleta
-    if (data.id || data.roleta_id) {
-      // Atualizar ou adicionar uma única roleta
-      const existingData = this.getRouletteCache();
-      const roletaId = data.id || data.roleta_id;
+      const cachedRoulette = this.rouletteDataCache.get(roletaId);
       
-      let updated = false;
-      const updatedData = existingData.map((roleta: any) => {
-        if (roleta.id === roletaId || roleta.roleta_id === roletaId) {
-          updated = true;
-          return { ...roleta, ...data };
-        }
-        return roleta;
-      });
-      
-      if (!updated) {
-        updatedData.push(data);
+      // Verificar se temos uma atualização para esta roleta
+      if (!cachedRoulette || this.hasNewRouletteData(cachedRoulette, roleta)) {
+        this.rouletteDataCache.set(roletaId, roleta);
+        this.hasNewData = true;
       }
+    });
+    
+    // Atualizar timestamp do cache
+    this.lastCacheUpdate = Date.now();
+    
+    // Se há novos dados, notificar os componentes
+    if (this.hasNewData) {
+      logger.info('🔔 Novos dados detectados, notificando componentes');
       
-      this.saveRoulettesToCache(updatedData);
-      return;
+      // Emitir evento global para notificar os componentes
+      EventService.emit('roulette:data-updated', {
+        timestamp: new Date().toISOString()
+      });
     }
-
-    logger.error('❌ Formato de dados desconhecido para atualização do cache');
   }
   
   /**
@@ -1028,20 +971,11 @@ export default class RouletteFeedService {
   }
   
   /**
-   * Força uma atualização do cache
-   * @param force Flag para forçar atualização ignorando o tempo mínimo entre atualizações
+   * Força uma atualização do cache, ignorando o TTL
    */
-  public refreshCache(force: boolean = false): void {
-    const now = Date.now();
-    
-    // Verificar intervalo mínimo entre atualizações se não for forçado
-    if (!force && now - this.lastCacheUpdate < MIN_REQUEST_INTERVAL) {
-      logger.debug(`⏱️ Aguardando intervalo mínimo para refresh (${MIN_REQUEST_INTERVAL}ms)`);
-      return;
-    }
-    
+  public async refreshCache(): Promise<any> {
     logger.info('🔄 Forçando atualização do cache');
-    this.fetchLatestData();
+    return this.forceUpdate();
   }
   
   /**
@@ -1149,965 +1083,517 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Processa os dados recebidos de roletas, tratando diferentes formatos
-   * @param data Dados brutos recebidos
-   * @returns Dados normalizados
+   * Processa os dados das roletas recebidos da API
    */
-  private handleRouletteData(data: any): any[] {
-    try {
-      // Caso 1: Se já for um array, verificar se os itens têm formato esperado
-      if (Array.isArray(data)) {
-        logger.info(`🎲 Processando ${data.length} roletas recebidas`);
-        
-        // Validar cada item do array
-        const validItems = data.filter(item => this.validateRouletteData(item));
-        
-        if (validItems.length !== data.length) {
-          logger.warn(`⚠️ ${data.length - validItems.length} roletas com dados inválidos foram removidas`);
-        }
-        
-        return validItems.map(item => this.normalizeRouletteData(item));
-      }
-      
-      // Caso 2: Se for um objeto de atualização global (global_update)
-      if (data && typeof data === 'object' && data.type === 'global_update' && data.data) {
-        logger.info(`🔄 Processando atualização global de roleta`);
-        
-        // Validar os dados do evento global_update
-        if (this.validateRouletteData(data.data)) {
-          return [this.normalizeRouletteData(data.data)];
-        } else {
-          logger.error(`❌ Dados de atualização global inválidos`);
-          return [];
-        }
-      }
-      
-      // Caso 3: Se for um único objeto de roleta
-      if (data && typeof data === 'object') {
-        logger.info(`🎯 Processando objeto único de roleta`);
-        
-        if (this.validateRouletteData(data)) {
-          return [this.normalizeRouletteData(data)];
-        } else {
-          logger.error(`❌ Dados de roleta única inválidos`);
-          return [];
-        }
-      }
-      
-      logger.error(`❌ Formato de dados desconhecido`, data);
-      return [];
-    } catch (error) {
-      logger.error(`❌ Erro ao processar dados de roleta: ${error instanceof Error ? error.message : String(error)}`);
-      return [];
-    }
-  }
-
-  /**
-   * Normaliza os dados da roleta para um formato padrão
-   * @param data Dados da roleta para normalizar
-   * @returns Dados normalizados da roleta
-   */
-  private normalizeRouletteData(data: any): any {
-    try {
-      // Criar objeto base com dados normalizados
-      const normalized: any = {
-        roleta_id: data.roleta_id || data.id || 'unknown',
-        roleta_nome: data.roleta_nome || data.nome || 'Unknown',
-        provider: data.provider || data.provedor || 'unknown',
-        status: data.status || 'active',
-        timestamp: data.timestamp || Date.now(),
-        numeros: []
-      };
-      
-      // Normalizar histórico de números
-      if (Array.isArray(data.numeros) && data.numeros.length > 0) {
-        normalized.numeros = [...data.numeros];
-      } else {
-        normalized.numeros = [];
-      }
-      
-      // Adicionar último número se disponível
-      if (data.ultimo_numero !== undefined && data.ultimo_numero !== null) {
-        if (normalized.numeros.length === 0 || normalized.numeros[0] !== data.ultimo_numero) {
-          normalized.numeros.unshift(data.ultimo_numero);
-        }
-      } else if (data.evento && data.evento.numero !== undefined && data.evento.numero !== null) {
-        if (normalized.numeros.length === 0 || normalized.numeros[0] !== data.evento.numero) {
-          normalized.numeros.unshift(data.evento.numero);
-        }
-      }
-      
-      // Limitar o array de números para economizar memória
-      if (normalized.numeros.length > 50) {
-        normalized.numeros = normalized.numeros.slice(0, 50);
-      }
-      
-      // Adicionar metadados adicionais se disponíveis
-      if (data.meta) {
-        normalized.meta = { ...data.meta };
-      }
-      
-      return normalized;
-    } catch (error) {
-      logger.error(`❌ Erro ao normalizar dados de roleta: ${error instanceof Error ? error.message : String(error)}`);
-      return data; // Retornar dados originais em caso de erro
-    }
-  }
-  
-  /**
-   * Conecta ao EventService para receber eventos em tempo real
-   */
-  private connectToEventService(): void {
-    try {
-      if (!logger) {
-        console.error('[RouletteFeedService] Logger não disponível durante a inicialização');
-        return;
-      }
-      
-      logger.info('🔌 Conectando ao EventService para eventos em tempo real');
-      
-      // Registrar listener para eventos de atualização global
-      EventService.on('roulette:global_update', (data: any) => {
-        if (!data) {
-          logger.warn('⚠️ Evento global_update recebido sem dados');
-          return;
-        }
-        
-        logger.info(`🔄 Evento global_update recebido: ${data.roleta_id || 'ID não disponível'}`);
-        
-        // Validar dados recebidos
-        if (this.validateRouletteData(data)) {
-          // Processar os dados
-          const processedData = this.handleRouletteData(data);
-          processedData.forEach(item => this.notifySubscribers(item));
-        } else {
-          logger.error('❌ Dados de roleta inválidos: estrutura incorreta');
-        }
-      });
-      
-      // Registrar listener para eventos de novos números
-      EventService.on('roulette:new_number', (data: any) => {
-        if (!data) {
-          logger.warn('⚠️ Evento new_number recebido sem dados');
-          return;
-        }
-        
-        logger.info(`🎲 Novo número recebido para roleta: ${data.roleta_id || 'ID não disponível'}`);
-        
-        // Validar dados recebidos
-        if (this.validateRouletteData(data)) {
-          // Processar os dados
-          const processedData = this.handleRouletteData(data);
-          processedData.forEach(item => this.notifySubscribers(item));
-        } else {
-          logger.error('❌ Dados de roleta inválidos no evento new_number');
-        }
-      });
-      
-      // Registrar listener para notificações de atualização de dados
-      EventService.on('roulette:data-updated', () => {
-        logger.info('📊 Notificação de atualização de dados recebida');
-        
-        // Atualizar o cache após um pequeno atraso aleatório
-        // para evitar que todas as instâncias atualizem ao mesmo tempo
-        const randomDelay = Math.floor(Math.random() * 3000) + 1000; // 1-4 segundos
-        setTimeout(() => {
-          this.refreshCache(true);
-        }, randomDelay);
-      });
-      
-      logger.info('✅ Listeners de eventos registrados com sucesso');
-    } catch (error) {
-      if (logger) {
-        logger.error('❌ Erro ao conectar ao EventService:', error);
-      } else {
-        console.error('[RouletteFeedService] Erro ao conectar ao EventService:', error);
-      }
-    }
-  }
-  
-  /**
-   * Inicia o polling para buscar dados de todas as roletas periodicamente
-   */
-  private startPollingAllRoulettes(): void {
-    // Limpar qualquer polling existente
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
-    }
-    
-    // Definir o intervalo de polling
-    this.pollingTimer = setInterval(() => {
-      this.fetchAllRoulettes();
-    }, this.currentPollingInterval) as unknown as number;
-    
-    // Fazer a primeira busca imediatamente
-    this.fetchAllRoulettes();
-    
-    logger.info(`🔄 Polling de roletas iniciado a cada ${this.currentPollingInterval / 1000} segundos`);
-  }
-  
-  /**
-   * Busca dados de todas as roletas via API REST
-   */
-  private async fetchAllRoulettes(): Promise<void> {
-    try {
-      if (this.isFetching) {
-        logger.debug('⏳ Já existe uma busca em andamento, pulando ciclo');
-        return;
-      }
-      
-      this.isFetching = true;
-      
-      // Usar o proxy configurado no Vite para evitar problemas de CORS
-      const apiUrl = `/api-remote/roulettes`;
-      
-      logger.debug(`🔍 Buscando dados de todas as roletas: ${apiUrl}`);
-      
-      // Registrar início da requisição
-      const startTime = Date.now();
-      
-      // Tentar primeiro o endpoint API local que sabemos que funciona
-      try {
-        const localResponse = await fetch('/api/ROULETTES');
-        
-        if (localResponse.ok) {
-          const data = await localResponse.json();
-          this.processRouletteData(data, startTime);
-          return;
-        }
-      } catch (localError) {
-        logger.warn(`⚠️ Não foi possível usar API local: ${localError instanceof Error ? localError.message : String(localError)}`);
-      }
-      
-      // Se a API local falhar, tentar a API remota
-      try {
-        // Fazer a requisição
-        const response = await fetch(apiUrl);
-        
-        if (!response.ok) {
-          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        this.processRouletteData(data, startTime);
-      } catch (error) {
-        // Registrar erro
-        this.consecutiveErrors++;
-        this.consecutiveSuccesses = 0;
-        logger.error(`❌ Erro ao buscar roletas remotamente: ${error instanceof Error ? error.message : String(error)}`);
-        
-        // Aumentar o intervalo de polling em caso de erros consecutivos
-        if (this.consecutiveErrors > 2) {
-          this.adjustPollingInterval(true);
-        }
-      }
-    } catch (error) {
-      // Registrar erro
-      this.consecutiveErrors++;
-      this.consecutiveSuccesses = 0;
-      logger.error(`❌ Erro ao buscar roletas: ${error instanceof Error ? error.message : String(error)}`);
-      
-      // Aumentar o intervalo de polling em caso de erros consecutivos
-      if (this.consecutiveErrors > 2) {
-        this.adjustPollingInterval(true);
-      }
-    } finally {
-      this.isFetching = false;
-      
-      // Normalizar o intervalo de polling se tivermos sucesso consistente
-      if (this.consecutiveSuccesses >= MIN_SUCCESS_STREAK_FOR_NORMALIZATION) {
-        this.adjustPollingInterval(false);
-      }
-    }
-  }
-  
-  /**
-   * Processa os dados de roletas recebidos
-   */
-  private processRouletteData(data: any, startTime?: number): void {
-    try {
-      // Calcular tempo de resposta se fornecido
-      if (startTime) {
-        const responseTime = Date.now() - startTime;
-        logger.debug(`⚡ Resposta recebida em ${responseTime}ms`);
-      }
-      
-      // Processar os dados
-      if (Array.isArray(data)) {
-        // Atualizar a lista de roletas
-        this.roulettesList = data;
-        
-        // Processar cada roleta individualmente
-        let validRoulettes = 0;
-        data.forEach(roleta => {
-          if (this.validateRouletteData(roleta)) {
-            this.handleRouletteData(roleta);
-            validRoulettes++;
-          }
-        });
-        
-        // Notificar que os dados foram atualizados
-        EventService.emit('roulette:data-updated', {
-        timestamp: new Date().toISOString(),
-          count: validRoulettes
-        });
-        
-        // Registrar sucesso
-        this.consecutiveErrors = 0;
-        this.consecutiveSuccesses++;
-        this.lastSuccessTimestamp = Date.now();
-        
-        logger.info(`✅ ${validRoulettes} roletas válidas obtidas com sucesso`);
-      } else {
-        // Caso seja um objeto único
-        if (this.validateRouletteData(data)) {
-          this.handleRouletteData(data);
-          logger.info('✅ Dados de roleta processados com sucesso');
-        } else {
-          logger.warn('❌ Formato de dados inválido');
-          this.consecutiveErrors++;
-        }
-      }
-      
-      // Atualizar o cache
-      this.updateRouletteCache(data);
-    } catch (error) {
-      logger.error(`❌ Erro ao processar dados: ${error instanceof Error ? error.message : String(error)}`);
-      this.consecutiveErrors++;
-    }
-  }
-
-  /**
-   * Busca dados com recuperação automática
-   */
-  private fetchWithRecovery(url: string, requestId: string): Promise<any> {
-    const requestOptions: {
-      method: string;
-      headers: Record<string, string>;
-    } = {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    };
-
-    return fetch(url, requestOptions)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
-        }
-        return response.json();
-      });
-  }
-  
-  /**
-   * Notifica todos os assinantes sobre atualizações nos dados da roleta
-   * @param data Dados normalizados da roleta
-   */
-  private notifySubscribers(data: any): void {
-    try {
-      if (!data) {
-        logger.warn('⚠️ Tentativa de notificar com dados nulos');
-        return;
-      }
-
-      // Obtém o ID e nome da roleta para identificação
-      const roletaId = String(data.roleta_id || data.id || '');
-      const roletaNome = String(data.roleta_nome || data.nome || '');
-      
-      if (!roletaId && !roletaNome) {
-        logger.warn('⚠️ Roleta sem identificador, impossível notificar assinantes');
+  private handleRouletteData(data: any): void {
+    if (!Array.isArray(data)) {
+      logger.error('⚠️ Dados inválidos recebidos:', data);
       return;
     }
     
-      // Notificar assinantes por ID
-      if (roletaId) {
-        const idSubscribers = this.idSubscribers.get(roletaId);
-        if (idSubscribers && idSubscribers.size > 0) {
-          logger.debug(`🔔 Notificando ${idSubscribers.size} assinantes para roleta ID: ${roletaId}`);
-          idSubscribers.forEach(callback => {
-            try {
-              callback(data);
-            } catch (error) {
-              logger.error(`❌ Erro ao notificar assinante por ID: ${error instanceof Error ? error.message : String(error)}`);
-            }
-          });
-        }
-      }
-
-      // Notificar assinantes por nome
-      if (roletaNome) {
-        const nameSubscribers = this.nameSubscribers.get(roletaNome);
-        if (nameSubscribers && nameSubscribers.size > 0) {
-          logger.debug(`🔔 Notificando ${nameSubscribers.size} assinantes para roleta nome: ${roletaNome}`);
-          nameSubscribers.forEach(callback => {
-            try {
-              callback(data);
-            } catch (error) {
-              logger.error(`❌ Erro ao notificar assinante por nome: ${error instanceof Error ? error.message : String(error)}`);
-            }
-          });
-        }
-      }
-
-      // Notificar assinantes globais
-      if (this.globalSubscribers.size > 0) {
-        logger.debug(`🌐 Notificando ${this.globalSubscribers.size} assinantes globais`);
-        this.globalSubscribers.forEach(callback => {
-          try {
-            callback(data);
-          } catch (error) {
-            logger.error(`❌ Erro ao notificar assinante global: ${error instanceof Error ? error.message : String(error)}`);
-          }
-        });
-      }
-
-      // Atualizar cache com os dados mais recentes
-      this.updateRouletteCache(data);
-    } catch (error) {
-      logger.error(`❌ Erro ao notificar assinantes: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    // Atualizar a lista de roletas
+    this.roulettes = data;
+    
+    // Atualizar o cache
+    this.updateRouletteCache(data);
+    
+    // Registrar estatística de requisição bem-sucedida
+    this.requestStats.totalRequests++;
+    this.requestStats.successfulRequests++;
+    this.requestStats.lastMinuteRequests.push(Date.now());
+    
+    // Ajustar o intervalo de polling com base no sucesso
+    this.adjustPollingInterval(false);
   }
 
   /**
-   * Atualiza o cache de roletas com os dados mais recentes
-   * @param data Dados normalizados da roleta ou array de roletas
+   * Valida os dados de roleta recebidos
+   * @param data Dados a serem validados
    */
-  private updateRouletteCache(data: any): void {
+  private validateRouletteData(data: any): boolean {
     try {
-      // Caso seja um array, processar cada item individualmente
-      if (Array.isArray(data)) {
-        logger.info(`💾 Atualizando cache com ${data.length} roletas`);
-        
-        // Para cada roleta, verificar se já existe no cache e se há atualizações
-        data.forEach(roleta => {
-          const roletaId = roleta.id || roleta._id || roleta.roleta_id;
-          
-          if (!roletaId) {
-            logger.warn('⚠️ Roleta sem ID ignorada:', roleta);
-            return;
-          }
-          
-          const cachedRoulette = this.rouletteDataCache.get(roletaId);
-          
-          // Verificar se temos uma atualização para esta roleta
-          if (!cachedRoulette || this.hasNewRouletteData(cachedRoulette, roleta)) {
-            this.rouletteDataCache.set(roletaId, roleta);
-            this.hasNewData = true;
-          }
-        });
-      } else {
-        // Caso seja um objeto único, processar diretamente
-        // Identificar a roleta pelo ID ou nome
-        const roletaId = String(data.roleta_id || data.id || '');
-        const roletaNome = String(data.roleta_nome || data.nome || '');
-        
-        if (!roletaId && !roletaNome) {
-          logger.warn('⚠️ Impossível atualizar cache de roleta sem identificadores');
-          return;
-        }
-        
-        // Definir a chave para o cache (preferência para ID)
-        const cacheKey = roletaId || roletaNome;
-        
-        // Atualizar ou adicionar ao cache
-        this.rouletteDataCache.set(cacheKey, {
-          ...data,
-          last_updated: Date.now()
-        });
-        
-        logger.debug(`💾 Cache atualizado para roleta: ${roletaNome || roletaId}`);
+      // Verificar se temos um array
+      if (!Array.isArray(data)) {
+        logger.warn('❌ Dados de roleta inválidos: não é um array');
+        return false;
       }
       
-      // Atualizar timestamp do cache
-      this.lastCacheUpdate = Date.now();
-      this.hasNewData = true;
-      
-      // Se há novos dados, notificar os componentes
-      if (this.hasNewData) {
-        logger.info('🔔 Novos dados detectados, notificando componentes');
-        
-        // Emitir evento global para notificar os componentes
-        EventService.emit('roulette:data-updated', {
-          timestamp: new Date().toISOString()
-        });
+      // Verificar se temos pelo menos um item
+      if (data.length === 0) {
+        logger.warn('⚠️ Dados de roleta vazios (array vazio)');
+        return true; // Consideramos válido, pois pode ser um estado legítimo
       }
+      
+      // Verificar se o primeiro item tem a estrutura esperada
+      const firstItem = data[0];
+      if (!firstItem.id || !firstItem.name) {
+        logger.warn('❌ Dados de roleta inválidos: estrutura incorreta');
+        return false;
+      }
+      
+      logger.debug(`✅ Dados de roleta validados: ${data.length} itens`);
+      return true;
     } catch (error) {
-      logger.error(`❌ Erro ao atualizar cache de roleta: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error('❌ Erro ao validar dados de roleta:', error);
+      return false;
     }
-  }
-  
-  private generateRequestId(): string {
-    return `req_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
   }
   
   /**
-   * Notifica sobre atualização de dados
+   * Limpa todas as requisições pendentes e libera as travas
    */
-  private notifyDataUpdate(): void {
-    try {
-      // Notificar outras instâncias sobre a atualização de dados
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const updateData = {
-          timestamp: Date.now(),
-          instanceId: INSTANCE_ID
-        };
-        
-        // Salvar no localStorage para que outras instâncias possam detectar
-        window.localStorage.setItem(DATA_UPDATE_KEY, JSON.stringify(updateData));
-        
-        // Também notificar via Event Service
-        EventService.emit('roulette:data-updated', updateData);
-      }
-    } catch (error) {
-      logger.error(`❌ Erro ao notificar sobre atualização de dados: ${error instanceof Error ? error.message : String(error)}`);
+  private cleanupAllPendingRequests(): void {
+    // Limpar todas as requisições pendentes globais
+    GLOBAL_PENDING_REQUESTS.clear();
+    GLOBAL_IS_FETCHING = false;
+    window._requestInProgress = false;
+    
+    // Limpar registro global de requisições pendentes
+    if (window._pendingRequests) {
+      window._pendingRequests = {};
     }
+    
+    // Resetar estado local
+    this.IS_FETCHING_DATA = false;
+    this.isFetching = false;
+    this.hasPendingRequest = false;
+    
+    logger.info('🧹 Limpeza de todas as requisições pendentes realizada');
   }
-  
+
+  /**
+   * Verifica e limpa requisições pendentes que podem estar travadas
+   */
   private verifyAndCleanupStaleRequests(): void {
-    try {
-      // Tempo atual
-        const now = Date.now();
+    const now = Date.now();
+    let staleRequestsFound = false;
+    
+    // Verificar requisições pendentes globais
+    if (GLOBAL_PENDING_REQUESTS.size > 0) {
+      logger.info(`🔍 Verificando ${GLOBAL_PENDING_REQUESTS.size} requisições pendentes`);
       
-      // Tempo máximo de espera para uma requisição (60 segundos)
-      const MAX_REQUEST_AGE = 60 * 1000;
-      
-      // Verificar requisições pendentes
-      let expiredCount = 0;
-      
-      this.pendingRequests.forEach((timestamp, requestId) => {
-        // Verificar se a requisição está expirada
-        if (now - timestamp > MAX_REQUEST_AGE) {
-          // Remover requisição expirada
-          this.pendingRequests.delete(requestId);
-          expiredCount++;
+      const pendingRequestsArray = Array.from(GLOBAL_PENDING_REQUESTS);
+      for (const requestId of pendingRequestsArray) {
+        const timestampMatch = requestId.match(/_(\d+)(_|$)/);
+        if (timestampMatch && timestampMatch[1]) {
+          const requestTimestamp = parseInt(timestampMatch[1], 10);
+          const requestAge = now - requestTimestamp;
           
-          logger.warn(`⏱️ Requisição ${requestId} expirada após ${Math.floor((now - timestamp) / 1000)}s`);
+          if (requestAge > 30000) { // 30 segundos é muito tempo para uma requisição
+            logger.warn(`🧹 Limpando requisição pendente antiga travada: ${requestId}`);
+            GLOBAL_PENDING_REQUESTS.delete(requestId);
+            staleRequestsFound = true;
+          }
+        }
+      }
+      
+      // Se estiver vazio após limpeza, resetar flag global
+      if (GLOBAL_PENDING_REQUESTS.size === 0 && GLOBAL_IS_FETCHING) {
+        logger.info('🔄 Resetando trava global após limpeza');
+        GLOBAL_IS_FETCHING = false;
+      }
+    }
+    
+    // Verificar requisições pendentes no registro detalhado
+    if (window._pendingRequests) {
+      const pendingIds = Object.keys(window._pendingRequests);
+      if (pendingIds.length > 0) {
+        for (const requestId of pendingIds) {
+          const request = window._pendingRequests[requestId];
+          const requestAge = now - request.timestamp;
+          
+          if (requestAge > 30000) { // 30 segundos
+            logger.warn(`🧹 Limpando registro de requisição antiga: ${requestId} (${requestAge}ms)`);
+            delete window._pendingRequests[requestId];
+            staleRequestsFound = true;
+          }
+        }
+      }
+    }
+    
+    // Se encontramos requisições travadas, verificar se precisamos resetar o estado do sistema
+    if (staleRequestsFound) {
+      // Notificar sobre a limpeza
+      EventService.emit('roulette:stale-requests-cleanup', {
+        timestamp: new Date().toISOString(),
+        count: GLOBAL_PENDING_REQUESTS.size
+      });
+      
+      // Verificar se precisamos tentar reiniciar o polling
+      if (!this.isPollingActive && !this.isPaused) {
+        logger.info('🔄 Reiniciando polling após limpeza de requisições travadas');
+        this.startPolling();
+      }
+    }
+  }
+
+  /**
+   * Sistema de monitoramento de saúde para verificar e recuperar o serviço
+   */
+  private startHealthMonitoring(): void {
+    // Verificar saúde do sistema a cada minuto
+    this.healthCheckTimer = window.setInterval(() => {
+      this.checkServiceHealth();
+    }, RECOVERY_CHECK_INTERVAL);
+  }
+
+  /**
+   * Verifica a saúde do serviço e tenta recuperar se necessário
+   */
+  private checkServiceHealth(): void {
+    try {
+      logger.debug('🏥 Verificando saúde do serviço de feed de roleta...');
+      
+      const now = Date.now();
+      const timeSinceLastSuccess = now - (this.lastSuccessfulResponse || 0);
+      
+      // Verificar se o serviço está em um estado saudável
+      if (!this.isPollingActive || this.isPaused) {
+        logger.debug('⏸️ Serviço não está ativo ou está pausado durante verificação de saúde');
+      return;
+    }
+    
+      // Verificar se temos um período muito longo sem atualizações bem-sucedidas
+      if (this.lastSuccessfulResponse && timeSinceLastSuccess > (this.currentPollingInterval * 3)) {
+        logger.warn(`⚠️ Sem atualizações bem-sucedidas por ${Math.round(timeSinceLastSuccess / 1000)}s`);
+        
+        // Verificar se o serviço está realmente tentando fazer polling
+        if (this.pollingTimer === null) {
+          logger.warn('🔄 Timer de polling não está ativo. Reiniciando...');
+          this.restartPollingTimer();
+        }
+        
+        // Verificar se temos requisições pendentes há muito tempo
+        this.cleanupStalePendingRequests();
+        
+        // Se estiver em modo de recuperação, mas sem sucesso, forçar uma requisição
+        if (this.recoveryMode && this.consecutiveErrors > MAX_CONSECUTIVE_ERRORS) {
+          logger.warn('🚨 Modo de recuperação não está funcionando, forçando atualização');
+          this.forceUpdate();
+        }
+      }
+      
+      // Se estiver em modo de recuperação há muito tempo, tentar voltar ao normal
+      if (this.recoveryMode && this.consecutiveSuccesses >= MIN_SUCCESS_STREAK_FOR_NORMALIZATION) {
+        logger.info('✅ Suficientes sucessos consecutivos. Normalizando serviço...');
+        this.normalizeService();
+      }
+      
+      // Verificação global de saúde do sistema
+      if (!GLOBAL_SYSTEM_HEALTH) {
+        logger.warn('🌐 Sistema global em estado não saudável. Tentando recuperar...');
+        GLOBAL_SYSTEM_HEALTH = true; // Resetar para tentar novamente
+        this.adjustPollingInterval(true); // Ajustar intervalo de polling
+      }
+    } catch (error) {
+      logger.error('❌ Erro ao verificar saúde do serviço:', error);
+    }
+  }
+
+  /**
+   * Limpa requisições pendentes que estão paradas por muito tempo
+   */
+  private cleanupStalePendingRequests(): void {
+    try {
+      if (typeof window !== 'undefined' && window._pendingRequests) {
+        const now = Date.now();
+        let cleanedCount = 0;
+        
+        // Verificar todas as requisições pendentes
+        Object.entries(window._pendingRequests).forEach(([requestId, requestInfo]) => {
+          const requestAge = now - requestInfo.timestamp;
+          
+          // Se a requisição estiver pendente há mais de 15 segundos, considerá-la perdida
+          if (requestAge > 15000) {
+            logger.warn(`🗑️ Limpando requisição pendente ${requestId} (idade: ${Math.round(requestAge / 1000)}s)`);
+            delete window._pendingRequests[requestId];
+            cleanedCount++;
+          }
+        });
+        
+        if (cleanedCount > 0) {
+          logger.info(`🧹 Limpas ${cleanedCount} requisições pendentes antigas`);
+          
+          // Se estávamos travados por causa dessas requisições, liberar o estado global
+          if (window._requestInProgress) {
+            logger.info('🔓 Liberando trava global de requisições após limpeza');
+            window._requestInProgress = false;
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('❌ Erro ao limpar requisições pendentes:', error);
+    }
+  }
+
+  /**
+   * Normaliza o serviço após recuperação
+   */
+  private normalizeService(): void {
+    // Reduzir gradualmente o intervalo de polling de volta ao normal
+    if (this.currentPollingInterval > NORMAL_POLLING_INTERVAL) {
+      this.currentPollingInterval = Math.max(
+        NORMAL_POLLING_INTERVAL,
+        this.currentPollingInterval * 0.7
+      );
+      logger.info(`⏱️ Normalizando intervalo de polling para ${this.currentPollingInterval}ms`);
+    } else if (this.currentPollingInterval < NORMAL_POLLING_INTERVAL) {
+      // Se por algum motivo o intervalo estiver abaixo do normal, ajuste para o normal
+      this.currentPollingInterval = NORMAL_POLLING_INTERVAL;
+      logger.info(`⏱️ Restaurando intervalo normal de polling para ${this.currentPollingInterval}ms`);
+    }
+    
+    // Sempre reiniciar o timer de polling com o intervalo atualizado
+    this.restartPollingTimer();
+    
+    // Se estiver totalmente recuperado, sair do modo de recuperação
+    if (this.currentPollingInterval === NORMAL_POLLING_INTERVAL && this.recoveryMode) {
+      logger.info('✅ Saindo do modo de recuperação, serviço normalizado');
+      this.recoveryMode = false;
+    }
+  }
+
+  /**
+   * Realiza requisição com mecanismo de recuperação inteligente
+   */
+  private fetchWithRecovery(url: string, requestId: string, retryCount: number = 0): Promise<any> {
+    // Registrar a tentativa de requisição
+    this.requestStats.lastMinuteRequests.push(Date.now());
+    this.lastFetchTime = Date.now();
+    this.isFetching = true;
+    
+    // Usar o sistema de controller para poder cancelar a requisição se necessário
+    const controller = new AbortController();
+    const signal = controller.signal;
+    
+    // Definir timeout para abortar requisições que demoram muito
+    const timeoutId = setTimeout(() => {
+      logger.warn(`⏱️ Abortando requisição ${requestId} após 30s de timeout`);
+      controller.abort();
+    }, 30000);
+    
+    // Realizar a requisição
+    return fetch(url, { signal })
+      .then(response => {
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          // Registrar erro consecutivo
+          this.consecutiveErrors++;
+          this.consecutiveSuccesses = 0;
+          
+          // Se for erro de rate limit, ajustar o intervalo de polling
+          if (response.status === 429) {
+            this.adjustPollingInterval(true);
+            throw { status: 429, message: 'Rate limit exceeded' };
+          }
+          
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // Processar resposta com sucesso
+        this.consecutiveSuccesses++;
+        this.consecutiveErrors = 0;
+        
+        return response.json();
+      })
+      .then(data => {
+        this.isFetching = false;
+        
+        // Notificar sucesso
+        this.notifyRequestComplete(requestId, 'success');
+        
+        return data;
+      })
+      .catch(error => {
+        this.isFetching = false;
+        clearTimeout(timeoutId);
+        
+        // Notificar erro
+        this.notifyRequestComplete(requestId, 'error');
+        
+        // Se for erro de rede, tentar novamente até 3 vezes
+        if ((error.message && error.message.includes('network')) || 
+            error.name === 'TypeError' || 
+            error.name === 'AbortError') {
+          
+          if (retryCount < 2) {
+            logger.warn(`🔄 Tentativa ${retryCount + 1} falhou, tentando novamente em 2s...`);
+            
+            // Esperar 2 segundos antes de tentar novamente
+            return new Promise(resolve => {
+              setTimeout(() => {
+                resolve(this.fetchWithRecovery(url, `${requestId}_retry${retryCount + 1}`, retryCount + 1));
+              }, 2000);
+            });
+          }
+        }
+        
+        // Se chegou aqui, não conseguiu recuperar
+        throw error;
+      });
+  }
+
+  /**
+   * Inicializa o sistema de sincronização entre múltiplas instâncias
+   */
+  private initializeInstanceSync(): void {
+    try {
+      // Verificar se já existem dados de sincronização
+      const syncData = this.getSyncData();
+      
+      // Registrar esta instância
+      this.registerInstance();
+      
+      // Adicionar listener para eventos de storage
+      window.addEventListener('storage', this.handleStorageEvent.bind(this));
+      
+      // Iniciar atualizações periódicas
+      this.startSyncUpdates();
+      
+      logger.info(`🔄 Sincronização entre instâncias inicializada. ID: ${INSTANCE_ID}`);
+    } catch (error) {
+      logger.error('❌ Erro ao inicializar sincronização entre instâncias:', error);
+    }
+  }
+
+  /**
+   * Obtém dados de sincronização do localStorage
+   */
+  private getSyncData(): any {
+    try {
+      const rawData = localStorage.getItem(INSTANCE_SYNC_KEY);
+      return rawData ? JSON.parse(rawData) : { instances: {} };
+    } catch (error) {
+      logger.error('❌ Erro ao obter dados de sincronização:', error);
+      return { instances: {} };
+    }
+  }
+
+  /**
+   * Registra esta instância no sistema de sincronização
+   */
+  private registerInstance(): void {
+    try {
+      const syncData = this.getSyncData();
+      
+      // Atualizar informações desta instância
+      syncData.instances[INSTANCE_ID] = {
+        lastPing: Date.now(),
+        pollingActive: this.isPollingActive,
+        isPaused: this.isPaused
+      };
+      
+      // Limpar instâncias antigas (mais de 5 minutos sem ping)
+      const now = Date.now();
+      Object.keys(syncData.instances).forEach(id => {
+        if (now - syncData.instances[id].lastPing > 300000) {
+          delete syncData.instances[id];
         }
       });
       
-      if (expiredCount > 0) {
-        logger.info(`🧹 Removidas ${expiredCount} requisições pendentes expiradas`);
-      }
+      // Salvar dados atualizados
+      localStorage.setItem(INSTANCE_SYNC_KEY, JSON.stringify(syncData));
     } catch (error) {
-      logger.error(`❌ Erro ao limpar requisições expiradas: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error('❌ Erro ao registrar instância:', error);
     }
   }
 
   /**
-   * Normaliza o serviço após erros consecutivos
-   * @param forcedReset Se verdadeiro, força um reset completo
-   */
-  private normalizeService(forcedReset: boolean = false): void {
-    // Implementação do método
-    // Normaliza o serviço após múltiplos erros
-    
-    // Reduzir o intervalo gradualmente de volta ao normal
-    if (this.currentPollingInterval > NORMAL_POLLING_INTERVAL) {
-      // Se estiver acima do normal, reduzir em 25% a cada vez
-      this.currentPollingInterval = Math.max(
-        NORMAL_POLLING_INTERVAL,
-        this.currentPollingInterval * 0.75
-      );
-      
-      logger.info(`⏱️ Reduzindo intervalo de polling para ${this.currentPollingInterval}ms em direção ao normal`);
-    }
-    
-    // Se forçar reset, voltar imediatamente para o normal
-    if (forcedReset) {
-      this.currentPollingInterval = NORMAL_POLLING_INTERVAL;
-      logger.info(`⏱️ Forçando reset do intervalo de polling para ${NORMAL_POLLING_INTERVAL}ms (normal)`);
-    }
-    
-    // Reiniciar o timer com o novo intervalo
-    this.restartPollingTimer();
-    
-    // Sair do modo de recuperação
-      this.recoveryMode = false;
-    this.consecutiveErrors = 0;
-  }
-  
-  /**
-   * Manipula eventos de alteração no localStorage
+   * Manipula eventos de storage de outras instâncias
    */
   private handleStorageEvent(event: StorageEvent): void {
     try {
-      if (event.key === DATA_UPDATE_KEY) {
-        // Ignorar eventos originados desta instância
+      // Verificar se é um evento relevante
+      if (event.key === INSTANCE_SYNC_KEY) {
+        logger.debug('🔄 Recebida atualização de sincronização de outra instância');
+        
+        // Podemos verificar aqui se outra instância está fazendo polling
+        // e ajustar nosso comportamento conforme necessário
+      } else if (event.key === DATA_UPDATE_KEY) {
+        // Outra instância atualizou dados
         const updateData = event.newValue ? JSON.parse(event.newValue) : null;
         
-        if (updateData && updateData.instanceId !== INSTANCE_ID) {
-          logger.debug(`🔄 Detectada atualização de dados de outra instância: ${updateData.instanceId}`);
+        if (updateData && updateData.timestamp > this.lastCacheUpdate) {
+          logger.info('📡 Outra instância atualizou dados. Forçando atualização...');
           
-          // Recarregar dados após um pequeno atraso para evitar colisões
+          // Forçar atualização da cache após um pequeno delay
+          // para evitar que todas as instâncias atualizem simultaneamente
           setTimeout(() => {
-            this.refreshCache(true);
-          }, Math.random() * 1000 + 500);
+            this.forceUpdate();
+          }, Math.random() * 1000); // Delay aleatório de até 1 segundo
         }
       }
     } catch (error) {
-      logger.error(`❌ Erro ao processar evento de armazenamento: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error('❌ Erro ao processar evento de storage:', error);
     }
   }
 
   /**
-   * Normaliza um item de roleta para o formato padrão da aplicação
-   * @param item Item a ser normalizado
-   * @returns Item normalizado ou null se inválido
+   * Inicia atualizações periódicas de sincronização
    */
-  private normalizeRouletteItem(item: any): any {
+  private startSyncUpdates(): void {
+    // Atualizar registro a cada 30 segundos
+    this.syncUpdateTimer = window.setInterval(() => {
+      this.registerInstance();
+    }, 30000);
+  }
+
+  /**
+   * Notifica outras instâncias sobre atualização de dados
+   */
+  private notifyDataUpdate(): void {
     try {
-      if (!item || typeof item !== 'object') {
-        logger.warn(`⚠️ Item inválido para normalização`);
-        return null;
-      }
-      
-      // Log para depuração
-      logger.debug(`🔧 Normalizando item`);
-      
-      // Extrair IDs e nomes
-      const roletaId = item.roleta_id || item.id;
-      const roletaNome = item.roleta_nome || item.name || 'Roleta sem nome';
-      
-      if (!roletaId) {
-        logger.warn(`⚠️ Item sem ID válido`);
-        return null;
-      }
-      
-      // Normalizar números, se existirem
-      let numeros: any[] = [];
-      if (item.numeros && Array.isArray(item.numeros)) {
-        numeros = [...item.numeros]; // clone array
-      } else if (item.ultimo_numero || item.numero) {
-        // Se temos apenas o último número, criar array com ele
-        const numero = item.ultimo_numero || item.numero;
-        numeros = [{
-          numero,
-          timestamp: new Date()
-        }];
-      }
-      
-      // Status da roleta
-      const status = item.status || 'ativo';
-      
-      // Criar objeto normalizado
-      const normalizedItem = {
-        roleta_id: roletaId,
-        roleta_nome: roletaNome,
-        numeros: numeros,
-        ultimo_numero: item.ultimo_numero || (numeros.length > 0 ? numeros[0].numero : null),
-        status: status,
-        ultima_atualizacao: new Date(),
-        // Preservar outros campos importantes
-        provider: item.provider || 'desconhecido',
-        tipo: item.tipo || 'desconhecido',
-        url: item.url || null
-      };
-      
-      logger.debug(`✅ Item normalizado com sucesso`);
-      
-      return normalizedItem;
+      // Salvar informação de atualização no localStorage
+      localStorage.setItem(DATA_UPDATE_KEY, JSON.stringify({
+        timestamp: Date.now(),
+        instanceId: INSTANCE_ID
+      }));
     } catch (error) {
-      logger.error(`❌ Erro ao normalizar item: ${error instanceof Error ? error.message : String(error)}`);
-      return null;
+      logger.error('❌ Erro ao notificar outras instâncias:', error);
     }
   }
 
-  /**
-   * Valida se os dados da roleta possuem a estrutura correta
-   * @param data Dados da roleta para validação
-   * @returns true se os dados são válidos, false caso contrário
-   */
-  private validateRouletteData(data: any): boolean {
-    // Verificar se data existe
-    if (!data) {
-      logger.warn('❌ Dados de roleta inválidos: dados vazios');
-      return false;
-    }
-
-    // Caso 1: Validar evento do tipo global_update
-    if (data.event_type === 'global_update') {
-      // Verificar se data.data existe
-      if (!data.data) {
-        logger.warn('❌ Dados de roleta inválidos: evento global_update sem campo data');
-        return false;
-      }
-      
-      // Se data.data for um array, deve ter pelo menos um item
-      if (Array.isArray(data.data)) {
-        if (data.data.length === 0) {
-          logger.warn('❌ Dados de roleta inválidos: evento global_update com array vazio');
-          return false;
-        }
-        
-        // Validar o primeiro item para verificar a estrutura
-        return this.validateRouletteItemStructure(data.data[0]);
-      }
-      
-      // Se não for array, validar data.data como um item único
-      return this.validateRouletteItemStructure(data.data);
-    }
-    
-    // Caso 2: Validar array de roletas
-    if (Array.isArray(data)) {
-      if (data.length === 0) {
-        logger.warn('❌ Dados de roleta inválidos: array vazio');
-        return false;
-      }
-      
-      // Validar o primeiro item para verificar a estrutura
-      return this.validateRouletteItemStructure(data[0]);
-    }
-    
-    // Caso 3: Validar um item único de roleta
-    return this.validateRouletteItemStructure(data);
-  }
-
-  /**
-   * Valida a estrutura de um item individual de roleta
-   * @param item Item de roleta para validação
-   * @returns true se o item tem a estrutura válida, false caso contrário
-   */
-  private validateRouletteItemStructure(item: any): boolean {
-    // Verificar campos obrigatórios para identificação da roleta
-    const hasIdentification = (
-      (item.roleta_id !== undefined && item.roleta_id !== null) || 
-      (item.id !== undefined && item.id !== null) ||
-      (item.roleta_nome !== undefined && item.roleta_nome !== null && item.roleta_nome !== '') ||
-      (item.nome !== undefined && item.nome !== null && item.nome !== '')
-    );
-    
-    if (!hasIdentification) {
-      logger.warn('❌ Dados de roleta inválidos: sem identificação (id ou nome)');
-      return false;
-    }
-    
-    // Verificar se tem pelo menos uma das estruturas de números esperadas
-    const hasNumbersStructure = (
-      // Formato 1: números como histórico
-      (Array.isArray(item.numeros) && item.numeros.length > 0) ||
-      // Formato 2: último número como campo separado
-      (item.ultimo_numero !== undefined && item.ultimo_numero !== null) ||
-      // Formato 3: estrutura de evento com último número
-      (item.evento && item.evento.numero !== undefined && item.evento.numero !== null)
-    );
-    
-    if (!hasNumbersStructure) {
-      logger.warn('❌ Dados de roleta inválidos: estrutura de números ausente');
-      return false;
-    }
-    
-    return true;
-  }
-
-  /**
-   * Método principal para buscar dados das roletas
-   * @param forced Se verdadeiro, ignora o cache
-   * @returns Promise com os dados das roletas
-   */
-  async fetchRouletteData(forced = false): Promise<RouletteData[]> {
+  // Método para notificar assinantes
+  private notifySubscribers(data: any): void {
     try {
-      logger.info(`🔄 Buscando dados das roletas (forced: ${forced})`);
-      
-      // Verificar se já tem uma requisição em andamento
-      if (this.isFetching) {
-        logger.info('⏳ Existe uma requisição em andamento, aguardando...');
-        if (this.fetchPromise) {
-          return this.fetchPromise;
-        }
-      }
-      
-      // Verificar se podemos usar o cache
-      const now = Date.now();
-      if (!forced && this.hasCachedData && now - this.lastCacheUpdate < this.cacheTTL) {
-        logger.info('🔄 Usando dados em cache...');
-        // Converter os valores do Map para uma array
-        return Array.from(this.rouletteDataCache.values());
-      }
-      
-      // Marcar que estamos buscando dados
-      this.isFetching = true;
-      const startTime = performance.now();
-      
-      // Criar uma promise para a requisição
-      this.fetchPromise = new Promise<RouletteData[]>(async (resolve, reject) => {
-        try {
-          // Usar o endpoint correto para buscar as roletas
-          const response = await axios.get(getFullUrl(ENDPOINTS.ROULETTES, true));
-          
-          if (response.status === 200 && response.data) {
-            const data = response.data;
-            
-            if (Array.isArray(data)) {
-              // Processar os dados recebidos
-              this.processRouletteData(data);
-              
-              // Registrar estatísticas
-              const endTime = performance.now();
-              this.requestStats.lastResponseTime = endTime - startTime;
-              this.requestStats.successfulRequests++;
-              this.requestStats.totalRequests++;
-              
-              logger.info(`✅ Recebidas ${data.length} roletas da API`);
-              
-              // Atualizar tempo do último sucesso
-              this.lastSuccessfulResponse = now;
-              this.consecutiveSuccesses++;
-              this.consecutiveErrors = 0;
-              
-              // Resolver com os dados obtidos
-              resolve(data);
-            } else {
-              logger.warn('⚠️ Resposta da API não é um array válido');
-              this.handleFetchError('invalid_data_format');
-              resolve([]);
-            }
-          } else {
-            logger.warn(`⚠️ Resposta da API com status: ${response.status}`);
-            this.handleFetchError('api_error');
-            resolve([]);
-          }
-        } catch (error) {
-          logger.error('❌ Erro ao buscar dados das roletas:', error);
-          
-          // Em caso de erro, tentar fazer um fallback para fetch direto
+      // Implementação do método para notificar assinantes sobre atualizações
+      if (this.subscribers && this.subscribers.length > 0) {
+        this.subscribers.forEach(callback => {
           try {
-            logger.info('🔄 Tentando método alternativo com fetch...');
-            const fetchResponse = await fetch(`${API_BASE_URL}${ENDPOINTS.ROULETTES}`);
-            
-            if (fetchResponse.ok) {
-              const data = await fetchResponse.json();
-              if (Array.isArray(data)) {
-                this.processRouletteData(data);
-                logger.info(`✅ Recuperado com sucesso via fetch: ${data.length} roletas`);
-                resolve(data);
-                return;
-              }
-            }
-          } catch (fetchError) {
-            logger.error('❌ Tentativa de recuperação com fetch também falhou');
-          }
-          
-          this.handleFetchError('network_error', error);
-          resolve([]);
-        } finally {
-          // Limpar estado
-          this.isFetching = false;
-          this.fetchPromise = null;
-        }
-      });
-      
-      return this.fetchPromise;
-    } catch (error) {
-      logger.error('❌ Erro inesperado ao buscar roletas:', error);
-      this.isFetching = false;
-      this.fetchPromise = null;
-      return [];
-    }
-  }
-
-  /**
-   * Método para inicializar o serviço
-   */
-  async initialize() {
-    this.logger.info('🚀 Inicializando o serviço de alimentação de roletas...');
-    
-    try {
-      // Carregar dados iniciais das roletas através da API
-      await this.fetchRouletteDataFromApi();
-      
-      // Conectar ao serviço de eventos para atualizações em tempo real
-      this.connectToEventService();
-      
-      // Iniciar processo de atualização periódica
-      this.startPeriodicUpdates();
-      
-      this.logger.info('✅ Serviço de alimentação de roletas inicializado com sucesso');
-      this.isInitialized = true;
-    } catch (error) {
-      this.logger.error(`❌ Erro ao inicializar o serviço de roletas: ${error}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Busca dados das roletas a partir da API REST
-   */
-  async fetchRouletteDataFromApi() {
-    this.logger.info('🔄 Buscando dados das roletas da API...');
-    
-    try {
-      // Usar o endpoint correto importado do módulo de endpoints
-      const response = await fetch(`${API_BASE_URL}${ENDPOINTS.ROULETTES}`);
-      
-      if (!response.ok) {
-        throw new Error(`Falha na requisição: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      this.logger.info(`✅ Recebidos dados de ${data.length} roletas da API`);
-      
-      // Processar os dados recebidos
-      if (Array.isArray(data)) {
-        await this.processRouletteData(data);
-      } else {
-        this.logger.warn('⚠️ Dados recebidos da API não são um array de roletas');
-      }
-    } catch (error) {
-      this.logger.error(`❌ Erro ao buscar roletas da API: ${error}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Processa um lote de dados de roletas
-   * @param rouletteData Array de dados de roletas
-   */
-  async processRouletteData(rouletteData: any[]) {
-    this.logger.info(`🔄 Processando ${rouletteData.length} roletas recebidas...`);
-    
-    try {
-      // Atualizar cache com novos dados
-      this.updateRouletteCache(rouletteData);
-      
-      // Notificar sobre a atualização dos dados
-      this.notifySubscribers(rouletteData);
-      
-      this.logger.info(`✅ Processamento de ${rouletteData.length} roletas concluído`);
+            callback(data);
           } catch (error) {
-      this.logger.error(`❌ Erro ao processar dados das roletas: ${error}`);
-      throw error;
+            logger.error('❌ Erro ao notificar assinante:', error);
+          }
+        });
+        logger.debug(`🔔 Notificados ${this.subscribers.length} assinantes sobre atualização de dados`);
+      }
+    } catch (error) {
+      logger.error('❌ Erro ao notificar assinantes:', error);
     }
   }
 
-  /**
-   * Método para lidar com erros durante o fetch
-   * @param errorType Tipo do erro
-   * @param originalError Erro original (opcional)
-   */
-  private handleFetchError(errorType: string, originalError?: any): void {
-    // Incrementar contador de erros
-    this.consecutiveErrors++;
-    this.consecutiveSuccesses = 0;
-    
-    // Registrar o erro
-    logger.error(`❌ Erro ao buscar dados: ${errorType}`, originalError);
-    
-    // Ajustar intervalo em caso de erros consecutivos
-    if (this.consecutiveErrors > 1) {
-      this.adjustPollingInterval(true);
-    }
-    
-    // Guardar o tipo do último erro
-    this.lastErrorType = errorType;
-    
-    // Emitir evento de erro para interessados
-    EventService.emit('roulette:api-error', {
-      type: errorType,
-      timestamp: new Date().toISOString(),
-      error: originalError ? String(originalError) : 'Unknown error'
-    });
+  // Método para adicionar assinante
+  public subscribe(callback: (data: any) => void): void {
+    this.subscribers.push(callback);
+    logger.debug('➕ Novo assinante adicionado ao serviço RouletteFeedService');
+  }
+
+  // Método para remover assinante
+  public unsubscribe(callback: (data: any) => void): void {
+    this.subscribers = this.subscribers.filter(cb => cb !== callback);
+    logger.debug('➖ Assinante removido do serviço RouletteFeedService');
+  }
+
+  // Função auxiliar para gerar IDs de requisição únicos
+  private generateRequestId(): string {
+    return `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+
+  // Método para notificar sobre o término de uma requisição
+  private notifyRequestComplete(requestId: string, status: string): void {
+    // Implemente a lógica para notificar sobre o término de uma requisição
+    // Esta é uma implementação básica e pode ser expandida conforme necessário
+    logger.info(`🔄 Requisição ${requestId} concluída com sucesso: ${status}`);
   }
 } 

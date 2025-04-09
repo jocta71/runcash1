@@ -28,16 +28,6 @@ import RouletteStats from './RouletteStats';
 import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import RouletteFeedService from '@/services/RouletteFeedService';
-import RouletteNumbers from './RouletteNumbers';
-import { addRouletteToFavorites, removeRouletteFromFavorites } from "@/services/FavoritesService";
-import { RouletteApi } from '@/services/api/rouletteApi';
-import { Copy, Heart, BarChart2, Info, Server, Clock, Check, LinkIcon, MonitorSmartphone, PlayCircle, Bookmark, BookmarkCheck } from 'lucide-react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 // Logger específico para este componente
 const logger = getLogger('RouletteCard');
@@ -103,170 +93,574 @@ const getInsightMessage = (numbers: number[], wins: number, losses: number) => {
   return "Padrão normal, observe mais alguns números";
 };
 
-// Mapa de cores para os números da roleta
-const colorMap: Record<number, string> = {
-  0: 'bg-green-600',
-  1: 'bg-red-600',
-  2: 'bg-black',
-  3: 'bg-red-600',
-  // ... outros números
-};
-
-// Função auxiliar para determinar a cor de um número
-const getNumberColor = (number: number): string => {
-  if (number === 0) return 'bg-green-600';
-  return number % 2 === 0 ? 'bg-black' : 'bg-red-600';
-};
-
 interface RouletteCardProps {
-  roulette: any;
-  onSelectRoulette?: (roulette: any) => void;
-  showBadge?: boolean;
-  showStatusBadge?: boolean;
-  className?: string;
+  data: RouletteData;
+  isDetailView?: boolean;
 }
 
-const RouletteCard = ({ 
-  roulette, 
-  onSelectRoulette, 
-  showBadge = true,
-  showStatusBadge = true,
-  className = ''
-}: RouletteCardProps) => {
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [isLive, setIsLive] = useState(true);
-  const [lastNumbers, setLastNumbers] = useState<number[]>([]);
-  
-  useEffect(() => {
-    // Garantir que usamos o correto campo para últimos números
-    if (roulette.lastNumbers && Array.isArray(roulette.lastNumbers)) {
-      setLastNumbers(roulette.lastNumbers);
-    } else if (roulette.numeros && Array.isArray(roulette.numeros)) {
-      // Pegar os 5 primeiros números
-      setLastNumbers(roulette.numeros.slice(0, 5));
-    } else {
-      // Definir uma lista vazia para evitar erros
-      setLastNumbers([]);
+const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false }) => {
+  // Obter referência ao serviço de feed centralizado
+  const feedService = useMemo(() => {
+    // Verificar se o sistema já foi inicializado globalmente
+    if (window.isRouletteSystemInitialized && window.isRouletteSystemInitialized()) {
+      debugLog('[RouletteCard] Usando sistema de roletas já inicializado');
+      // Recuperar o serviço do sistema global
+      return window.getRouletteSystem 
+        ? window.getRouletteSystem().rouletteFeedService 
+        : RouletteFeedService.getInstance();
     }
     
-    // Determinar se a roleta está ao vivo
-    setIsLive(roulette.status === 'active' || roulette.status === 'live');
-  }, [roulette]);
+    // Fallback para o comportamento padrão
+    debugLog('[RouletteCard] Sistema global não detectado, usando instância padrão');
+    return RouletteFeedService.getInstance();
+  }, []);
   
-  const handleFavoriteToggle = (e: React.MouseEvent) => {
+  // Garantir que data é um objeto válido com valores padrão seguros
+  const safeData = useMemo(() => {
+    // Se data for null ou undefined, retornar objeto vazio com valores padrão
+    if (!data) {
+      console.warn('[RouletteCard] Dados inválidos: null ou undefined');
+      return {
+        id: 'unknown',
+        name: 'Roleta não identificada',
+        lastNumbers: [],
+      };
+    }
+    
+    // Certifique-se de que lastNumbers é sempre um array válido
+    const lastNumbers = Array.isArray(data.lastNumbers) 
+      ? data.lastNumbers 
+      : Array.isArray(data.numero) 
+        ? data.numero 
+        : [];
+    
+    return {
+      ...data,
+      id: data.id || data._id || 'unknown',
+      name: data.name || data.nome || 'Roleta sem nome',
+      lastNumbers,
+    };
+  }, [data]);
+  
+  // Usar safeData em vez de data diretamente para inicializar os estados
+  const [lastNumber, setLastNumber] = useState<number | null>(
+    getInitialLastNumber(safeData)
+  );
+  
+  const [recentNumbers, setRecentNumbers] = useState<number[]>(
+    getInitialRecentNumbers(safeData)
+  );
+  
+  const [isNewNumber, setIsNewNumber] = useState(false);
+  const [updateCount, setUpdateCount] = useState(0);
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
+  const [hasRealData, setHasRealData] = useState(recentNumbers.length > 0);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const hasInitialized = useRef(false);
+  const socketService = SocketService.getInstance();
+  const { enableSound, enableNotifications } = useRouletteSettingsStore();
+  const navigate = useNavigate();
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
+  const [showStats, setShowStats] = useState(false); // Estado para controlar exibição das estatísticas
+
+  console.log(`[RouletteCard] Inicializando card para ${safeData.name} (${safeData.id}) com ${Array.isArray(safeData.lastNumbers) ? safeData.lastNumbers.length : 0} números`);
+
+  // Função para alternar exibição de estatísticas
+  const toggleStats = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    setIsFavorite(!isFavorite);
+    setShowStats(!showStats);
+  };
+
+  // Função para processar um novo número em tempo real
+  const processRealtimeNumber = (newNumberEvent: RouletteNumberEvent) => {
+    // Ignorar atualizações muito frequentes (menos de 3 segundos entre elas)
+    // exceto se estivermos ainda sem dados reais
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastUpdateTime;
+    const isInitialData = !hasRealData && (
+      (Array.isArray(newNumberEvent.numero) && newNumberEvent.numero.length > 0) || 
+      (typeof newNumberEvent.numero === 'number')
+    );
     
-    // Adicionar/remover dos favoritos
-    if (!isFavorite) {
-      addRouletteToFavorites(roulette.id);
-    } else {
-      removeRouletteFromFavorites(roulette.id);
+    // Se não for dados iniciais e a atualização for muito recente, ignorar
+    if (!isInitialData && timeSinceLastUpdate < 3000) {
+      console.log(`[RouletteCard] Ignorando atualização muito frequente para ${safeData.name} (${timeSinceLastUpdate}ms)`);
+      return;
+    }
+    
+    // Verificar se é um array de números
+    if (Array.isArray(newNumberEvent.numero)) {
+      console.log(`[RouletteCard] Recebido array de números para ${safeData.name}:`, newNumberEvent.numero);
+      
+      // Extrair os números do array (verificando se são válidos)
+      const validNumbers = newNumberEvent.numero
+        .map(n => typeof n === 'object' && n !== null ? n.numero : n)
+        .filter(n => typeof n === 'number' && !isNaN(n));
+      
+      if (validNumbers.length === 0) {
+        console.warn('[RouletteCard] Array de números não contém valores válidos:', newNumberEvent);
+        return;
+      }
+      
+      // Verificar se já temos esses números no estado atual
+      if (!isInitialData && validNumbers.every(num => recentNumbers.includes(num))) {
+        console.log(`[RouletteCard] Ignorando números já conhecidos para ${safeData.name}`);
+        return;
+      }
+      
+      // Usar o primeiro número (mais recente) para update
+      const newNumber = validNumbers[0];
+      
+      // Atualizar o último número apenas se for diferente do atual
+      if (lastNumber !== newNumber) {
+        setLastNumber(newNumber);
+        setLastUpdateTime(now);
+        setHasRealData(true);
+        
+        // Incrementar contador de atualizações apenas para novos números reais
+        setUpdateCount(prev => prev + 1);
+        
+        // Ativar efeito visual de novo número
+        setIsNewNumber(true);
+        
+        // Desativar efeito após 1.5 segundos
+        setTimeout(() => {
+          setIsNewNumber(false);
+        }, 1500);
+      }
+      
+      // Atualizar a lista de números recentes
+      setRecentNumbers(prev => {
+        // Verificar se prevNumbers é um array válido
+        if (!Array.isArray(prev)) {
+          return validNumbers;
+        }
+        
+        // Verificar se há novos números (que não estejam na lista atual)
+        const hasNewNumbers = validNumbers.some(num => !prev.includes(num));
+        
+        if (!hasNewNumbers) {
+          return prev; // Não atualizar se não há números novos
+        }
+        
+        // Combinar os novos números com os existentes, removendo duplicatas
+        const combined = [...validNumbers];
+        
+        // Adicionar números antigos que não estão na nova lista
+        prev.forEach(oldNum => {
+          if (!combined.includes(oldNum)) {
+            combined.push(oldNum);
+          }
+        });
+        
+        // Limitar a 26 números para exibição no card
+        return combined.slice(0, 26);
+      });
+      
+      // Notificações e som - apenas para novos números
+      if (lastNumber !== newNumber) {
+        if (enableSound && audioRef.current) {
+          audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
+        }
+        
+        if (enableNotifications) {
+          toast({
+            title: `Novo número: ${newNumber}`,
+            description: `${safeData.name}: ${newNumber}`,
+            variant: "default"
+          });
+        }
+      }
+      
+      return;
+    }
+    
+    // Caso seja um número único (comportamento original)
+    if (typeof newNumberEvent.numero !== 'number' || isNaN(newNumberEvent.numero)) {
+      console.warn('[RouletteCard] Número inválido recebido:', newNumberEvent);
+      return;
+    }
+
+    console.log(`[RouletteCard] Processando número ${newNumberEvent.numero} para ${safeData.name}`);
+    const newNumber = newNumberEvent.numero;
+    
+    // Verificar se o número é realmente novo
+    const isReallyNew = lastNumber !== newNumber && !recentNumbers.includes(newNumber);
+    
+    // Se não for novo e não estivermos sem dados, ignorar
+    if (!isReallyNew && hasRealData) {
+      console.log(`[RouletteCard] Ignorando número repetido ${newNumber} para ${safeData.name}`);
+      return;
+    }
+    
+    // Atualizar o último número
+    setLastNumber(prevLastNumber => {
+      // Se o número for igual ao último, não fazer nada
+      if (prevLastNumber === newNumber) return prevLastNumber;
+      
+      console.log(`[RouletteCard] Atualizando último número de ${prevLastNumber} para ${newNumber}`);
+      // Se for um número diferente, atualizar
+      setLastUpdateTime(now);
+      setHasRealData(true);
+      return newNumber;
+    });
+
+    // Atualizar a lista de números recentes
+    setRecentNumbers(prevNumbers => {
+      // Verificar se prevNumbers é um array válido
+      if (!Array.isArray(prevNumbers)) {
+        console.warn('[RouletteCard] prevNumbers não é um array:', prevNumbers);
+        return [newNumber]; // Retornar array só com o novo número
+      }
+      
+      // Evitar duplicação do mesmo número em sequência
+      if (prevNumbers.length > 0 && prevNumbers[0] === newNumber) {
+        return prevNumbers;
+      }
+      
+      console.log(`[RouletteCard] Adicionando ${newNumber} à lista de números recentes`);
+      // Adicionar o novo número ao início e manter até 26 números
+      return [newNumber, ...prevNumbers].slice(0, 26);
+    });
+
+    // Incrementar contador apenas para novos números
+    if (isReallyNew) {
+      setUpdateCount(prev => prev + 1);
+      
+      // Ativar efeito visual de novo número
+      setIsNewNumber(true);
+      
+      // Tocar som se habilitado
+      if (enableSound && audioRef.current) {
+        audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
+      }
+      
+      // Mostrar notificação se habilitado
+      if (enableNotifications) {
+        toast({
+          title: `Novo número: ${newNumber}`,
+          description: `${safeData.name}: ${newNumber}`,
+          variant: "default"
+        });
+      }
+      
+      // Desativar efeito após 1.5 segundos
+      setTimeout(() => {
+        setIsNewNumber(false);
+      }, 1500);
     }
   };
+
+  // Efeito para se inscrever nos eventos de atualização de dados do feed service
+  useEffect(() => {
+    const handleDataUpdated = (updateData: any) => {
+      // Obter dados mais recentes do cache do feedService
+      const freshData = feedService.getRouletteData(safeData.id);
+      
+      if (freshData) {
+        // Se encontrarmos dados novos no cache, processá-los
+        const newNumbers = Array.isArray(freshData.numero) 
+          ? freshData.numero 
+          : [];
+          
+        if (newNumbers.length > 0) {
+          // Verificar se temos números novos comparando com os que já temos
+          const existingNumbers = recentNumbers;
+          
+          if (newNumbers.length !== existingNumbers.length) {
+            console.log(`[RouletteCard] Atualizando números para ${safeData.name} a partir do cache centralizado`);
+            
+            // Converter para o formato esperado pelo processador de eventos
+            const numberEvent: RouletteNumberEvent = {
+              type: 'new_number',
+              roleta_id: safeData.id,
+              roleta_nome: safeData.name,
+              numero: newNumbers.map(n => typeof n === 'object' ? n.numero : n),
+              timestamp: new Date().toISOString()
+            };
+            
+            // Processar os novos números
+            processRealtimeNumber(numberEvent);
+          }
+        }
+      }
+    };
+    
+    // Inscrever-se nos eventos do feed service
+    EventService.on('roulette:data-updated', handleDataUpdated);
+    
+    // Fazer uma verificação inicial para pegar os dados mais recentes
+    const initialData = feedService.getRouletteData(safeData.id);
+    if (initialData) {
+      handleDataUpdated({timestamp: new Date().toISOString()});
+    }
+    
+    // Limpeza ao desmontar
+    return () => {
+      EventService.off('roulette:data-updated', handleDataUpdated);
+    };
+  }, [feedService, safeData.id, safeData.name, recentNumbers]);
   
-  // Obter o nome da roleta de forma segura
-  const getRoutletteName = () => {
-    return roulette.nome || roulette.name || 'Roleta Sem Nome';
-  };
-  
+  // Ao montar o componente, verificar dados no cache em vez de fazer novas requisições
+  useEffect(() => {
+    // Verificar se já temos dados no cache ou se há números disponíveis nos dados da roleta
+    if (recentNumbers.length === 0) {
+      // Primeiro verificar se temos números diretamente nos dados da roleta
+      if (safeData.numbers && Array.isArray(safeData.numbers) && safeData.numbers.length > 0) {
+        console.log(`[RouletteCard] Usando números da propriedade .numbers para ${safeData.name}`);
+        
+        // Extrair os números do array de números
+        const extractedNumbers = safeData.numbers
+          .map(n => typeof n === 'object' && n !== null ? (n.number || n.numero) : n)
+          .filter(n => typeof n === 'number' && !isNaN(n));
+        
+        if (extractedNumbers.length > 0) {
+          setLastNumber(extractedNumbers[0]);
+          setRecentNumbers(extractedNumbers);
+          setHasRealData(true);
+          return;
+        }
+      }
+      
+      // Verificar os dados no cache da roleta como fallback
+      const cachedData = feedService.getRouletteData(safeData.id);
+      
+      if (cachedData && Array.isArray(cachedData.numero) && cachedData.numero.length > 0) {
+        console.log(`[RouletteCard] Usando dados do cache para ${safeData.name}`);
+        
+        // Extrair os números do format de objeto
+        const numbers = cachedData.numero.map(n => 
+          typeof n === 'object' ? n.numero : n
+        ).filter(n => typeof n === 'number' && !isNaN(n));
+        
+        if (numbers.length > 0) {
+          setLastNumber(numbers[0]);
+          setRecentNumbers(numbers);
+          setHasRealData(true);
+        }
+      }
+      // Removendo a solicitação direta para evitar múltiplas requisições
+      // Agora apenas o LiveRoulettePage inicializará o serviço
+    }
+  }, [feedService, safeData.id, safeData.name, safeData.numbers, recentNumbers]);
+
   return (
-    <div 
-      className={`relative bg-card rounded-lg overflow-hidden shadow-lg transform transition-all duration-200 hover:scale-105 hover:shadow-xl cursor-pointer ${className}`}
-      onClick={() => onSelectRoulette && onSelectRoulette(roulette)}
+    <Card 
+      ref={cardRef}
+      className={cn(
+        "relative overflow-hidden transition-all duration-300 hover:shadow-md", 
+        isNewNumber ? "border-green-500 shadow-green-200" : "",
+        isDetailView ? "w-full" : "w-full"
+      )}
     >
-      {/* Status badge */}
-      {showStatusBadge && (
-        <div className="absolute top-2 right-2 z-10">
-          {isLive ? (
-            <div className="flex items-center px-2 py-1 rounded-full bg-green-700 text-white text-xs font-medium animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-white mr-1"></span>
-              AO VIVO
-            </div>
-          ) : (
-            <div className="flex items-center px-2 py-1 rounded-full bg-gray-700 text-white text-xs font-medium">
-              <Clock className="w-3 h-3 mr-1" /> OFFLINE
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Provider badge */}
-      {showBadge && roulette.provider && (
-        <div className="absolute top-2 left-2 bg-gray-800/80 text-white text-xs px-2 py-1 rounded-full z-10">
-          {roulette.provider}
-        </div>
-      )}
-      
-      {/* Favorite button */}
-      <button
-        onClick={handleFavoriteToggle}
-        className="absolute bottom-2 right-2 bg-gray-800/80 text-white p-1.5 rounded-full z-10"
-      >
-        {isFavorite ? (
-          <BookmarkCheck className="h-4 w-4 text-yellow-400" />
-        ) : (
-          <Bookmark className="h-4 w-4" />
-        )}
-      </button>
-      
-      {/* Card header */}
-      <div className="relative" style={{ backgroundColor: roulette.cor_background || '#111827' }}>
-        <div className="p-4 text-white">
-          <h3 className="font-bold text-lg truncate">{getRoutletteName()}</h3>
-          <p className="text-sm text-gray-300 truncate">
-            ID: {roulette.id || roulette.roleta_id || "N/A"}
-          </p>
-        </div>
-      </div>
-      
-      {/* Numbers history */}
-      <div className="p-4 bg-card">
-        <div className="mb-4">
-          <h4 className="text-sm font-medium text-gray-400 mb-2">Últimos Números</h4>
-          <div className="flex space-x-1">
-            {lastNumbers.length > 0 ? (
-              <RouletteNumbers numbers={lastNumbers} />
-            ) : (
-              <div className="text-gray-500 text-sm">Sem números disponíveis</div>
-            )}
+      <CardContent className="p-4">
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-lg font-semibold truncate">{safeData.name}</h3>
+          <div className="flex gap-1 items-center">
+            <Badge variant="outline" className="bg-muted text-xs">
+              {updateCount > 0 ? `${updateCount} atualizações` : (hasRealData || recentNumbers.length > 0 ? "Aguardando..." : "Sem dados")}
+            </Badge>
+            
+            {/* Botão para abrir modal de estatísticas */}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={toggleStats}
+              className="h-7 w-7" 
+              title="Ver estatísticas detalhadas"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </Button>
           </div>
         </div>
         
-        {/* Strategy status */}
-        {roulette.estado_estrategia && (
-          <div className="mt-2">
-            <h4 className="text-sm font-medium text-gray-400 mb-1">Estratégia</h4>
-            <div className="flex items-center">
-              <div className={`px-2 py-1 rounded text-xs font-medium ${
-                roulette.estado_estrategia === 'vitoria' ? 'bg-green-900/30 text-green-400' :
-                roulette.estado_estrategia === 'derrota' ? 'bg-red-900/30 text-red-400' :
-                'bg-gray-800 text-gray-300'
-              }`}>
-                {roulette.estado_estrategia.charAt(0).toUpperCase() + roulette.estado_estrategia.slice(1)}
+        {/* Número atual - Removido para que não apareça em tamanho grande */}
+        <div className="my-4"></div>
+        
+        {/* Últimos números - Mostrando todos com o mesmo tamanho */}
+        <div className="flex flex-wrap gap-1 justify-center my-3">
+          {recentNumbers.slice(0, 26).map((num, idx) => (
+            <NumberDisplay 
+              key={`${num}-${idx}`}
+              number={num} 
+              size="small" 
+              highlight={idx === 0 && isNewNumber}
+            />
+          ))}
+        </div>
+        
+        {/* Botões de ação */}
+        <div className="mt-2 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline" 
+              size="sm"
+              className="bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-300"
+              onClick={toggleStats}
+            >
+              <BarChart3 className="h-4 w-4 mr-1" />
+              <span className="text-xs">Estatísticas</span>
+            </Button>
+          </div>
+          
+          <div className="flex items-center text-xs text-gray-400">
+            <Timer className="h-3 w-3 mr-1" />
+            <span>
+              {updateCount > 0 ? `${updateCount} atualizações` : (recentNumbers.length > 0 ? 'Aguardando...' : 'Sem atualizações')}
+            </span>
+          </div>
+        </div>
+      </CardContent>
+
+      {/* Painel de estatísticas */}
+      {showStats && (
+        <div className="mt-4 bg-gray-800 p-3 rounded-lg border border-gray-700">
+          <h3 className="text-sm font-medium text-green-500 mb-2 flex items-center">
+            <BarChart3 className="h-3 w-3 mr-1" />
+            Estatísticas
+          </h3>
+          
+          {/* Grid de estatísticas */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {/* Contadores */}
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">Vermelho</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
               </div>
-              
-              {/* Stats badges */}
-              {(roulette.vitorias || roulette.derrotas) && (
-                <div className="ml-2 flex space-x-1 text-xs">
-                  {typeof roulette.vitorias === 'number' && (
-                    <span className="bg-green-900/20 text-green-400 px-1.5 py-0.5 rounded">
-                      {roulette.vitorias} V
-                    </span>
-                  )}
-                  {typeof roulette.derrotas === 'number' && (
-                    <span className="bg-red-900/20 text-red-400 px-1.5 py-0.5 rounded">
-                      {roulette.derrotas} D
-                    </span>
-                  )}
-                </div>
-              )}
+            </div>
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">Preto</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => n !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
+              </div>
+            </div>
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">Par</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => n !== 0 && n % 2 === 0).length}
+              </div>
+            </div>
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">Ímpar</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => n % 2 === 1).length}
+              </div>
+            </div>
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">1-18</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => n >= 1 && n <= 18).length}
+              </div>
+            </div>
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">19-36</div>
+              <div className="text-white font-medium">
+                {recentNumbers.filter(n => n >= 19 && n <= 36).length}
+              </div>
             </div>
           </div>
-        )}
+          
+          {/* Últimos 8 números em linha */}
+          <div className="mt-3">
+            <div className="text-xs text-gray-400 mb-1">Últimos 8 números</div>
+            <div className="flex flex-wrap gap-1">
+              {recentNumbers.slice(0, 8).map((num, idx) => {
+                const bgColor = num === 0 
+                  ? "bg-green-600" 
+                  : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
+                    ? "bg-red-600"
+                    : "bg-black";
+                
+                return (
+                  <div 
+                    key={idx} 
+                    className={`${bgColor} text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium`}
+                  >
+                    {num}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+          {/* Link para estatísticas completas */}
+          <button 
+            onClick={() => setIsStatsModalOpen(true)}
+            className="mt-3 text-xs text-green-500 hover:text-green-400 flex items-center"
+          >
+            <PieChart className="h-3 w-3 mr-1" />
+            Ver estatísticas completas
+          </button>
+        </div>
+      )}
+      
+      {/* Modal de estatísticas completas */}
+      <div className={`fixed inset-0 z-50 ${isStatsModalOpen ? 'flex' : 'hidden'} items-center justify-center bg-black/70`}>
+        <div className="bg-gray-900 w-11/12 max-w-6xl h-[90vh] rounded-lg overflow-y-auto">
+          <div className="flex justify-between items-center p-4 border-b border-gray-800">
+            <h2 className="text-[#00ff00] text-xl font-bold">Estatísticas da {safeData.name}</h2>
+            <button 
+              onClick={() => setIsStatsModalOpen(false)}
+              className="text-gray-400 hover:text-white"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="p-4">
+            <RouletteSidePanelStats
+              roletaNome={safeData.name}
+              lastNumbers={recentNumbers}
+              wins={0}
+              losses={0}
+            />
+          </div>
+        </div>
       </div>
-    </div>
+    </Card>
   );
 };
+
+// Funções auxiliares para inicialização segura dos dados
+function getInitialLastNumber(data: any): number | null {
+  if (Array.isArray(data.numbers) && data.numbers.length > 0) {
+    const num = data.numbers[0];
+    return typeof num === 'object' ? (num.number || num.numero) : Number(num);
+  }
+  
+  if (Array.isArray(data.lastNumbers) && data.lastNumbers.length > 0) {
+    return Number(data.lastNumbers[0]);
+  }
+  
+  if (Array.isArray(data.numero) && data.numero.length > 0) {
+    const num = data.numero[0];
+    return typeof num === 'object' ? num.numero : Number(num);
+  }
+  
+  return null;
+}
+
+function getInitialRecentNumbers(data: any): number[] {
+  if (Array.isArray(data.numbers) && data.numbers.length > 0) {
+    return data.numbers.map(n => typeof n === 'object' ? (n.number || n.numero) : Number(n))
+      .filter(n => typeof n === 'number' && !isNaN(n));
+  }
+  
+  if (Array.isArray(data.lastNumbers) && data.lastNumbers.length > 0) {
+    return data.lastNumbers.map(n => Number(n))
+      .filter(n => typeof n === 'number' && !isNaN(n));
+  }
+  
+  if (Array.isArray(data.numero) && data.numero.length > 0) {
+    return data.numero.map(n => typeof n === 'object' ? n.numero : Number(n))
+      .filter(n => typeof n === 'number' && !isNaN(n));
+  }
+  
+  return [];
+}
 
 export default RouletteCard;

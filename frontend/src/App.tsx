@@ -3,7 +3,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
-import { AuthProvider } from "./context/AuthContext";
 import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import SocketService from '@/services/SocketService';
@@ -15,10 +14,8 @@ import { ThemeProvider } from './components/theme-provider';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
 
-// Importar Index diretamente em vez de lazy load para evitar problemas de carregamento
-import Index from "@/pages/Index";
-
-// Importação de componentes principais (mantidos como lazy para os outros)
+// Importação de componentes principais
+const Index = lazy(() => import("@/pages/Index"));
 const StrategiesPage = lazy(() => import("@/pages/StrategiesPage"));
 const StrategyFormPage = lazy(() => import("@/pages/StrategyFormPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
@@ -75,23 +72,66 @@ const App = () => {
     };
   }, []);
 
-  // Forçar renderização da página principal com dados simulados
   return (
     <div className="App">
       <ErrorBoundary fallback={<ErrorPage />}>
-        <AuthProvider>
-          <SubscriptionProvider>
-            <TooltipProvider>
-              <Toaster />
-              <ThemeProvider defaultTheme="dark" storageKey="runcash-theme">
-                <BrowserRouter>
-                  {/* Renderizar diretamente o Index para garantir que ele apareça */}
-                  <Index />
-                </BrowserRouter>
-              </ThemeProvider>
-            </TooltipProvider>
-          </SubscriptionProvider>
-        </AuthProvider>
+        <SubscriptionProvider>
+          <TooltipProvider>
+            <Toaster />
+            <ThemeProvider defaultTheme="dark" storageKey="runcash-theme">
+              <BrowserRouter>
+                <Suspense fallback={<LoadingScreen />}>
+                  <Routes>
+                    {/* Rota de autenticação */}
+                    <Route path="/auth" element={<AuthPage />} />
+                    
+                    {/* Página para popular números das roletas */}
+                    <Route path="/seed-numbers" element={<SeedPage />} />
+                    
+                    {/* Rota principal (com dados reais do MongoDB) */}
+                    <Route path="/" element={<Index />} />
+                    
+                    {/* Nova rota para roletas ao vivo */}
+                    <Route path="/live-roulettes" element={<LiveRoulettePage />} />
+                    
+                    {/* Página de teste */}
+                    <Route path="/test" element={<TestPage />} />
+                    
+                    {/* Rotas relacionadas a planos e pagamentos */}
+                    <Route path="/planos" element={<PlansPage />} />
+                    <Route path="/payment-success" element={<PaymentSuccess />} />
+                    <Route path="/payment-canceled" element={<PaymentCanceled />} />
+                    
+                    {/* Rota de perfil do usuário */}
+                    <Route path="/profile" element={<ProfilePage />} />
+                    
+                    {/* Rota para página não encontrada */}
+                    <Route path="*" element={<NotFound />} />
+
+                    {/* Rota para página de análise */}
+                    <Route path="/analise" element={<RouletteAnalysisPage />} />
+                    
+                    {/* Rotas para estratégias */}
+                    <Route path="/strategies" element={<StrategiesPage />} />
+                    <Route path="/strategies/create" element={<StrategyFormPage />} />
+                    <Route path="/strategies/edit/:id" element={<StrategyFormPage />} />
+                    <Route path="/strategies/view/:id" element={<StrategiesPage />} />
+                    
+                    {/* Redirecionamento da antiga rota de tempo real para a página principal */}
+                    <Route path="/realtime" element={<Navigate to="/" />} />
+
+                    {/* Rota para roletas */}
+                    <Route path="/roulettes" element={<LiveRoulettePage />} />
+                    
+                    {/* Rota para histórico de roletas */}
+                    <Route path="/historico" element={<LiveRoulettePage />} />
+                    <Route path="/historico/:roletaId" element={<RouletteHistoryPage />} />
+                  </Routes>
+                </Suspense>
+              </BrowserRouter>
+            </ThemeProvider>
+          </TooltipProvider>
+        </SubscriptionProvider>
       </ErrorBoundary>
     </div>
   );

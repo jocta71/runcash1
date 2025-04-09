@@ -1,57 +1,24 @@
-/**
- * Definição de endpoints da API
- */
-
-// URL base da API - removido o "/api" para evitar duplicação
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app';
-
-// URL de proxy para contornar CORS
-export const PROXY_URL = '/api-proxy';
-
-/**
- * Endpoints disponíveis
- */
+// URLs para os endpoints da API
 export const ENDPOINTS = {
-  // Roletas
+  // Endpoint principal para roletas (agora unificado)
   ROULETTES: '/api/ROULETTES',
-  ROULETTES_WITH_LIMIT: '/api/ROULETTES?limit=100'
-};
-
-/**
- * Obtém a URL completa para um endpoint
- * @param endpoint Endpoint a ser acessado
- * @param useProxy Se true, usa o proxy para contornar CORS
- * @returns URL completa
- */
-export const getFullUrl = (endpoint: string, useProxy = false): string => {
-  // Se estamos em produção e precisamos contornar CORS
-  if (useProxy) {
-    return `${PROXY_URL}${endpoint}`; 
-  }
   
-  // Se estamos em desenvolvimento local ou não precisamos contornar CORS
-  return `${API_BASE_URL}${endpoint}`;
+  // Endpoint para histórico de roletas
+  ROULETTE_HISTORY: '/api/roulettes/history',
+  
+  // Endpoint para eventos em tempo real
+  EVENTS: '/api/events',
+  
+  // Endpoint para estratégias
+  STRATEGIES: '/api/strategies'
 };
 
-// Função que verifica se a api está disponível e troca para local em caso de erro
-export const checkAPIHealth = async (): Promise<boolean> => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-    
-    // Corrigido para usar o endpoint correto sem duplicação de "/api"
-    const response = await fetch(`${API_BASE_URL}/api/health`, {
-      method: 'GET',
-      signal: controller.signal,
-      mode: 'no-cors'
-    });
-    
-    clearTimeout(timeoutId);
-    return true;
-  } catch (error) {
-    console.warn('❌ API remota não disponível, usando fallback local');
-    return false;
-  }
+// Obtém a URL base da API a partir de variáveis de ambiente
+export const getApiBaseUrl = (): string => {
+  return import.meta.env.VITE_API_BASE_URL || '/api';
 };
 
-export default ENDPOINTS; 
+// Obtém a URL completa para um endpoint
+export const getFullUrl = (endpoint: string): string => {
+  return `${getApiBaseUrl()}${endpoint}`;
+}; 
