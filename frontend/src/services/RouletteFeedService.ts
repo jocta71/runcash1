@@ -190,7 +190,7 @@ export default class RouletteFeedService {
   constructor(options: RouletteFeedServiceOptions = {}) {
     const {
       autoStart = true,
-      initialInterval = 10000, // 10 segundos padrão
+      initialInterval = 8000, // 8 segundos padrão
       minInterval = 5000,
       maxInterval = 60000,
       historySize = 20
