@@ -2257,4 +2257,6 @@ export class SocketService {
   }
 }
 
-export default SocketService;
+// Criar e exportar uma única instância
+const socketService = new SocketService();
+export default socketService;
