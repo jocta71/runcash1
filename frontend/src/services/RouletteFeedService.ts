@@ -183,7 +183,8 @@ export default class RouletteFeedService {
     [key: string]: RequestInfo
   } = {};
 
-  private successCounter = 0;  // Contador de sucessos para ajuste de polling
+  // Contador de processos bem-sucedidos
+  private successCounter = 0;
 
   /**
    * O construtor configura os parâmetros iniciais e inicia o serviço
@@ -1176,10 +1177,22 @@ export default class RouletteFeedService {
    * Valida os dados de roleta recebidos
    * @param data Dados a serem validados
    */
-  private validateRouletteData(data: any[]): boolean {
-    // Verificar se é um array e se tem itens
-    if (!Array.isArray(data) || data.length === 0) {
-      logger.warn('❌ Dados de roleta inválidos: não é um array ou está vazio');
+  private validateRouletteData(data: any[] | any): boolean {
+    // Se não for um array, verificar se é um objeto único
+    if (!Array.isArray(data)) {
+      // Verificar se é um objeto com dados de evento único
+      if (typeof data === 'object' && data !== null) {
+        // Verificar se tem pelo menos id e nome (em qualquer formato)
+        return (!!data.roleta_id || !!data.id || !!data._id) && 
+               (!!data.roleta_nome || !!data.nome || !!data.name);
+      }
+      logger.warn('❌ Dados de roleta inválidos: não é um array nem um objeto válido');
+      return false;
+    }
+    
+    // Se for um array vazio
+    if (data.length === 0) {
+      logger.warn('❌ Dados de roleta inválidos: array vazio');
       return false;
     }
 
@@ -1717,15 +1730,33 @@ export default class RouletteFeedService {
    * Processa um único item de dados de roleta e atualiza o cache
    */
   private processRouletteData(data: any): void {
-    if (!data || (!data.roleta_id && !data.id)) {
-      logger.warn('❌ Dados de roleta individual inválidos');
+    if (!data) {
+      logger.warn('❌ Dados de roleta individual vazios ou nulos');
       return;
     }
 
     try {
       // Normalizar o ID e nome da roleta
-      const roletaId = data.roleta_id || data.id;
-      const roletaNome = data.roleta_nome || data.name || data.nome;
+      const roletaId = String(data.roleta_id || data.id || data._id || '').trim();
+      const roletaNome = String(data.roleta_nome || data.nome || data.name || '').trim();
+
+      if (!roletaId) {
+        logger.warn(`❌ Dados de roleta sem ID válido: ${JSON.stringify(data).substring(0, 100)}...`);
+        return;
+      }
+
+      if (!roletaNome) {
+        logger.warn(`⚠️ Dados de roleta com nome ausente para ID ${roletaId}`);
+        // Continuar processamento mesmo sem nome, mas logar aviso
+      }
+
+      // Criar objeto normalizado com propriedades padronizadas
+      const normalizedData = {
+        ...data,
+        roleta_id: roletaId,
+        roleta_nome: roletaNome,
+        lastUpdate: Date.now()
+      };
 
       // Atualizar cache com os dados recebidos
       if (this.rouletteDataCache.has(roletaId)) {
@@ -1733,24 +1764,21 @@ export default class RouletteFeedService {
         const cachedData = this.rouletteDataCache.get(roletaId);
         this.rouletteDataCache.set(roletaId, {
           ...cachedData,
-          ...data,
-          lastUpdate: Date.now()
+          ...normalizedData
         });
+        logger.debug(`🔄 Dados de roleta atualizados: ${roletaNome} (${roletaId})`);
       } else {
         // Adicionar nova entrada ao cache
-        this.rouletteDataCache.set(roletaId, {
-          ...data,
-          lastUpdate: Date.now()
-        });
+        this.rouletteDataCache.set(roletaId, normalizedData);
         logger.info(`✅ Nova roleta adicionada ao cache: ${roletaNome} (${roletaId})`);
       }
 
       // Se for um evento de novo número, notificar os assinantes
       if (data.type === 'new_number') {
-        this.notifySubscribers(data);
+        this.notifySubscribers(normalizedData);
       }
     } catch (error) {
-      logger.error('❌ Erro ao processar item de roleta:', error);
+      logger.error(`❌ Erro ao processar item de roleta: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   }
 } 
