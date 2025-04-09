@@ -364,7 +364,14 @@ class RESTSocketService {
       console.log(`[RESTSocketService] Enviando para ${roletaListeners.size} listeners de ${event.roleta_nome}`);
       roletaListeners.forEach(callback => {
         try {
-          callback(event);
+          // Executar o callback sem esperar retorno assíncrono
+          const result = callback(event);
+          // Se o callback retornar uma Promise, capturá-la para evitar vazamento
+          if (result instanceof Promise) {
+            result.catch(error => {
+              console.error(`[RESTSocketService] Erro assíncrono em listener para ${event.roleta_nome}:`, error);
+            });
+          }
         } catch (error) {
           console.error(`[RESTSocketService] Erro em listener para ${event.roleta_nome}:`, error);
         }
@@ -379,7 +386,14 @@ class RESTSocketService {
       console.log(`[RESTSocketService] Enviando para ${globalListeners.size} listeners globais`);
       globalListeners.forEach(callback => {
         try {
-          callback(event);
+          // Executar o callback sem esperar retorno assíncrono
+          const result = callback(event);
+          // Se o callback retornar uma Promise, capturá-la para evitar vazamento
+          if (result instanceof Promise) {
+            result.catch(error => {
+              console.error('[RESTSocketService] Erro assíncrono em listener global:', error);
+            });
+          }
         } catch (error) {
           console.error('[RESTSocketService] Erro em listener global:', error);
         }
@@ -393,7 +407,14 @@ class RESTSocketService {
         console.log(`[RESTSocketService] Enviando para ${idListeners.size} listeners do ID ${event.roleta_id}`);
         idListeners.forEach(callback => {
           try {
-            callback(event);
+            // Executar o callback sem esperar retorno assíncrono
+            const result = callback(event);
+            // Se o callback retornar uma Promise, capturá-la para evitar vazamento
+            if (result instanceof Promise) {
+              result.catch(error => {
+                console.error(`[RESTSocketService] Erro assíncrono em listener para ID ${event.roleta_id}:`, error);
+              });
+            }
           } catch (error) {
             console.error(`[RESTSocketService] Erro em listener para ID ${event.roleta_id}:`, error);
           }
@@ -407,7 +428,14 @@ class RESTSocketService {
       console.log(`[RESTSocketService] Enviando para ${anyUpdateListeners.size} listeners de qualquer atualização`);
       anyUpdateListeners.forEach(callback => {
         try {
-          callback(event);
+          // Executar o callback sem esperar retorno assíncrono
+          const result = callback(event);
+          // Se o callback retornar uma Promise, capturá-la para evitar vazamento
+          if (result instanceof Promise) {
+            result.catch(error => {
+              console.error('[RESTSocketService] Erro assíncrono em listener de qualquer atualização:', error);
+            });
+          }
         } catch (error) {
           console.error('[RESTSocketService] Erro em listener de qualquer atualização:', error);
         }
@@ -779,7 +807,14 @@ class RESTSocketService {
       console.log(`[RESTSocketService] Notificando ${listeners.size} listeners específicos para ID ${id}`);
       listeners.forEach(callback => {
         try {
-          callback(data);
+          // Executar o callback sem esperar retorno assíncrono
+          const result = callback(data);
+          // Se o callback retornar uma Promise, capturá-la para evitar vazamento
+          if (result instanceof Promise) {
+            result.catch(error => {
+              console.error(`[RESTSocketService] Erro assíncrono ao notificar listener específico para ${id}:`, error);
+            });
+          }
         } catch (error) {
           console.error(`[RESTSocketService] Erro ao notificar listener específico para ${id}:`, error);
         }
