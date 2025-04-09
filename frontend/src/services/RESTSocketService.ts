@@ -39,7 +39,7 @@ class RESTSocketService {
   private listeners: Map<string, Set<any>> = new Map();
   private connectionActive: boolean = false;
   private timerId: number | null = null;
-  private pollingInterval: number = 8000; // Intervalo de 8 segundos para polling
+  private pollingInterval: number = 110100; // Intervalo de 8 segundos para polling
   private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
   
   // Propriedade para simular estado de conexão
