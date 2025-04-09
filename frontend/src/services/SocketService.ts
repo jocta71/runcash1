@@ -304,7 +304,7 @@ export class SocketService {
   private connect(): void {
     try {
       // Em produção, usar a URL real do servidor WebSocket
-      const socketUrl = config.SOCKET_URL || 'https://backend-production-2i96.up.railway.app';
+      const socketUrl = config.wsUrl || 'https://backend-production-2i96.up.railway.app';
       
       this.socket = io(socketUrl, {
         transports: ['websocket'],
