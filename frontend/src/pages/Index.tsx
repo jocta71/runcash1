@@ -12,6 +12,8 @@ import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
+import { getMockRoulettes } from '../services/api/mockData';
+import Navbar from '@/components/Navbar';
 import { 
   ResponsiveContainer, 
   BarChart as RechartsBarChart, 
@@ -54,15 +56,19 @@ interface KnownRoulette {
 }
 
 const Index = () => {
+  // Forçar a exibição das roletas simuladas no início do componente
+  const simulatedRoulettes = useMemo(() => getMockRoulettes(), []);
+  
+  // Restante do código original
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
+  const [isLoading, setIsLoading] = useState(false); // Mudado para false para evitar tela de carregamento
+  const [roulettes, setRoulettes] = useState<RouletteData[]>(simulatedRoulettes); // Usando dados simulados
   const [error, setError] = useState<string | null>(null);
   const [knownRoulettes, setKnownRoulettes] = useState<RouletteData[]>([]);
-  const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(false);
+  const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(true); // Mudado para true
   const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -472,76 +478,23 @@ const Index = () => {
   };
 
   return (
-    <Layout preloadData={true}>
-      <div className="container mx-auto px-4 pt-4 md:pt-8">
-        {/* Cabeçalho */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold mb-2 text-white">Roletas Disponíveis</h1>
-            <p className="text-sm text-gray-400 mb-4 md:mb-0">
-              Escolha uma roleta para começar a jogar
-            </p>
-          </div>
+    <Layout>
+      <div className="flex flex-col w-full min-h-screen bg-background">
+        <Navbar />
+        
+        <main className="flex-1 p-4 md:p-6">
+          <h1 className="text-2xl font-bold mb-6">Roletas Simuladas</h1>
           
-          <div className="w-full md:w-auto flex flex-col md:flex-row gap-3">
-            <div className="relative">
-              <input
-                type="text" 
-                placeholder="Buscar roleta..."
-                className="bg-[#1a1a1a] border border-gray-700 rounded-lg px-4 py-2 pl-10 w-full md:w-64 text-white"
-                value={search} 
-                onChange={(e) => {setSearch(e.target.value); setCurrentPage(1);}}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {simulatedRoulettes.map((roulette) => (
+              <RouletteCard 
+                key={roulette.id}
+                roulette={roulette}
+                onSelectRoulette={() => {}}
               />
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-            </div>
-          </div>
-        </div>
-        
-        {/* Mensagem de erro */}
-        {error && (
-          <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center">
-            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-            <p className="text-red-100">{error}</p>
-          </div>
-        )}
-        
-        {/* Estado de carregamento */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className="bg-[#1e1e24] animate-pulse rounded-xl h-64"></div>
             ))}
           </div>
-        ) : (
-          <div className="flex flex-col lg:flex-row gap-6">
-            {/* Cards de roleta à esquerda */}
-            <div className="w-full lg:w-3/4">
-              <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
-                {renderRouletteCards()}
-              </div>
-            </div>
-            
-            {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
-            <div className="w-full lg:w-1/4">
-              {selectedRoulette ? (
-                <RouletteSidePanelStats
-                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
-                  lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
-                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
-                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
-                />
-              ) : (
-                <div className="w-full bg-gray-900 rounded-lg p-6 text-center">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-[#00ff00] opacity-50" />
-                  <h3 className="text-lg font-medium text-white mb-2">Estatísticas da Roleta</h3>
-                  <p className="text-sm text-gray-400">
-                    Selecione uma roleta para ver estatísticas detalhadas
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        </main>
       </div>
     </Layout>
   );
