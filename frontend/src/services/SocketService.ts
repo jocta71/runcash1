@@ -554,6 +554,98 @@ export class SocketService {
       return false;
     }
   }
+
+  /**
+   * Processa os eventos recebidos via socket e emite para o EventService
+   * @param event Evento recebido via socket
+   */
+  private handleRouletteEvent(event: any): void {
+    try {
+      // Verificar se o evento tem dados válidos
+      if (!event || !event.type) {
+        console.warn('[SocketService] Evento sem tipo recebido');
+        return;
+      }
+
+      // Verificar se é um evento de roleta
+      if (event.type === 'roulette') {
+        const data = {
+          ...event,
+          timestamp: new Date().toISOString()
+        };
+
+        // Log detalhado para depuração
+        console.log(`[SocketService] Processando evento roulette: ${JSON.stringify(event)}`);
+        
+        // Emitir evento para o EventService
+        EventService.emit('roulette:global_update', data);
+        
+        // Notificar os callbacks específicos para esta roleta
+        const roletaId = event.roleta_id || event.id;
+        if (roletaId && this.listeners.has(roletaId)) {
+          const callbacks = this.listeners.get(roletaId);
+          callbacks?.forEach(callback => {
+            try {
+              callback(data);
+            } catch (callbackError) {
+              console.error(`[SocketService] Erro ao chamar callback para roleta ${roletaId}:`, callbackError);
+            }
+          });
+        }
+
+        // Notificar os callbacks globais
+        if (this.listeners.has('*')) {
+          const globalCallbacks = this.listeners.get('*');
+          globalCallbacks?.forEach(callback => {
+            try {
+              callback(data);
+            } catch (callbackError) {
+              console.error('[SocketService] Erro ao chamar callback global:', callbackError);
+            }
+          });
+        }
+      } else if (event.type === 'new_number') {
+        // Evento de novo número da roleta
+        const data = {
+          ...event,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Log detalhado para depuração
+        console.log(`[SocketService] Processando evento new_number: roleta=${event.roleta_id}, número=${event.numero}`);
+
+        // Emitir evento para o EventService
+        EventService.emit('roulette:new_number', data);
+
+        // Notificar os callbacks específicos para esta roleta
+        const roletaId = event.roleta_id || event.id;
+        if (roletaId && this.listeners.has(roletaId)) {
+          const callbacks = this.listeners.get(roletaId);
+          callbacks?.forEach(callback => {
+            try {
+              callback(data);
+            } catch (callbackError) {
+              console.error(`[SocketService] Erro ao chamar callback para roleta ${roletaId}:`, callbackError);
+            }
+          });
+        }
+
+        // Notificar os callbacks globais
+        if (this.listeners.has('*')) {
+          const globalCallbacks = this.listeners.get('*');
+          globalCallbacks?.forEach(callback => {
+            try {
+              callback(data);
+            } catch (callbackError) {
+              console.error('[SocketService] Erro ao chamar callback global:', callbackError);
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[SocketService] Erro ao processar evento:', error);
+    }
+  }
 }
 
 // Exportando a classe para ser importada como default
