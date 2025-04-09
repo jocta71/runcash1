@@ -1231,18 +1231,17 @@ export default class RouletteFeedService {
   /**
    * Conecta ao EventService para receber eventos em tempo real
    */
-  public connectToEventService(): void {
+  private connectToEventService(): void {
     try {
       if (!logger) {
-        console.log('[RouletteFeedService] Logger não disponível durante a inicialização');
+        console.error('[RouletteFeedService] Logger não disponível durante a inicialização');
         return;
       }
       
       logger.info('🔌 Conectando ao EventService para eventos em tempo real');
-      const eventService = EventService.getInstance();
       
       // Registrar listener para eventos de atualização global
-      eventService.subscribe('roulette:global_update', (data: any) => {
+      EventService.on('roulette:global_update', (data: any) => {
         if (!data) {
           logger.warn('⚠️ Evento global_update recebido sem dados');
           return;
@@ -1253,14 +1252,15 @@ export default class RouletteFeedService {
         // Validar dados recebidos
         if (this.validateRouletteData(data)) {
           // Processar os dados
-          this.handleRouletteData(data);
+          const processedData = this.handleRouletteData(data);
+          processedData.forEach(item => this.notifySubscribers(item));
         } else {
           logger.error('❌ Dados de roleta inválidos: estrutura incorreta');
         }
       });
       
       // Registrar listener para eventos de novos números
-      eventService.subscribe('roulette:new_number', (data: any) => {
+      EventService.on('roulette:new_number', (data: any) => {
         if (!data) {
           logger.warn('⚠️ Evento new_number recebido sem dados');
           return;
@@ -1271,14 +1271,15 @@ export default class RouletteFeedService {
         // Validar dados recebidos
         if (this.validateRouletteData(data)) {
           // Processar os dados
-          this.handleRouletteData(data);
+          const processedData = this.handleRouletteData(data);
+          processedData.forEach(item => this.notifySubscribers(item));
         } else {
           logger.error('❌ Dados de roleta inválidos no evento new_number');
         }
       });
       
       // Registrar listener para notificações de atualização de dados
-      eventService.subscribe('roulette:data-updated', (data: any) => {
+      EventService.on('roulette:data-updated', () => {
         logger.info('📊 Notificação de atualização de dados recebida');
         
         // Atualizar o cache após um pequeno atraso aleatório

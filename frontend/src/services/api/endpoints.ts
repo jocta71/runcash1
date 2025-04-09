@@ -2,7 +2,7 @@
  * Definição de endpoints da API
  */
 
-// URL base da API
+// URL base da API - removido o "/api" para evitar duplicação
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app';
 
 // URL de proxy para contornar CORS
@@ -39,6 +39,7 @@ export const checkAPIHealth = async (): Promise<boolean> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000);
     
+    // Corrigido para usar o endpoint correto sem duplicação de "/api"
     const response = await fetch(`${API_BASE_URL}/api/health`, {
       method: 'GET',
       signal: controller.signal,

@@ -7,17 +7,17 @@ export const isProduction = import.meta.env.PROD ||
   import.meta.env.MODE === 'production' ||
   window.location.hostname !== 'localhost';
 
-// Valores padrão para cada ambiente
+// Valores padrão para cada ambiente - removido "/api" do final das URLs para evitar duplicação
 const defaultValues: Record<string, Record<string, string>> = {
   development: {
     VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
-    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
-    VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
+    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app',
+    VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app'
   },
   production: {
     VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
-    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
-    VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
+    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app',
+    VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app'
   }
 };
 
@@ -67,13 +67,15 @@ export function getApiBaseUrl(): string {
       // Em produção, usar a origem da página
       if (isProduction) {
         const origin = window.location.origin;
-        console.log(`[ENV] Usando origem da página como URL da API: ${origin}/api`);
-        return `${origin}/api`;
+        // Removido "/api" do final para evitar duplicação
+        console.log(`[ENV] Usando origem da página como URL da API: ${origin}`);
+        return origin;
       }
       
       // Em desenvolvimento, retornar URL padrão
       console.log('[ENV] Usando URL padrão da API para desenvolvimento');
-      return 'https://backendapi-production-36b5.up.railway.app/api';
+      // Removido "/api" do final para evitar duplicação
+      return 'https://backendapi-production-36b5.up.railway.app';
     }
   }
 }
@@ -110,7 +112,8 @@ export function getRequiredEnvVar(name: string): string {
       return 'wss://backend-production-2f96.up.railway.app';
     }
     if (name === 'VITE_API_URL' || name === 'VITE_API_BASE_URL') {
-      return 'https://backendapi-production-36b5.up.railway.app/api';
+      // Removido "/api" do final para evitar duplicação
+      return 'https://backendapi-production-36b5.up.railway.app';
     }
   }
   
