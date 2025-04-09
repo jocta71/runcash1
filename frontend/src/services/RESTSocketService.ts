@@ -146,12 +146,9 @@ class RESTSocketService {
         throw new Error(`Erro ao buscar dados: ${response.status} ${response.statusText}`);
       }
       
-      let data = await response.json();
+      const data = await response.json();
       const endTime = Date.now();
       console.log(`[RESTSocketService] Chamada concluída em ${endTime - startTime}ms`);
-      
-      // Transformar a resposta para usar apenas os IDs simplificados
-      data = this.transformApiResponse(data);
       
       // Salvar no cache
       localStorage.setItem('roulettes_data_cache', JSON.stringify({
@@ -169,31 +166,6 @@ class RESTSocketService {
     }
   }
   
-  // Transformar resposta da API para usar apenas IDs simplificados
-  private transformApiResponse(roletas: any[]): any[] {
-    if (!Array.isArray(roletas)) return roletas;
-    
-    return roletas.map(roleta => {
-      // Se não tem números, não podemos transformar
-      if (!roleta.numero || !Array.isArray(roleta.numero) || roleta.numero.length === 0) {
-        return roleta;
-      }
-      
-      // Pegar o ID simples do primeiro número
-      const simpleId = roleta.numero[0].roleta_id;
-      
-      // Se não temos ID simples, manter o original
-      if (!simpleId) return roleta;
-      
-      // Criar uma cópia da roleta com o ID substituído
-      return {
-        ...roleta,
-        original_id: roleta.id, // Guardar o ID original como fallback
-        id: simpleId // Substituir o ID complexo pelo ID simples
-      };
-    });
-  }
-  
   // Carregar dados do cache
   private loadCachedData() {
     try {
@@ -206,10 +178,7 @@ class RESTSocketService {
         const now = Date.now();
         if (now - parsed.timestamp < 10 * 60 * 1000) {
           console.log('[RESTSocketService] Usando dados em cache para inicialização rápida');
-          
-          // Transformar os dados do cache para garantir que usam IDs simplificados
-          const transformedData = this.transformApiResponse(parsed.data);
-          this.processDataAsEvents(transformedData);
+          this.processDataAsEvents(parsed.data);
         }
       }
     } catch (error) {
@@ -234,55 +203,64 @@ class RESTSocketService {
     data.forEach(roulette => {
       if (!roulette || !roulette.id) return;
       
-      // Usar diretamente o ID que vem da API
-      const uuid = roulette.id;
-      
       // Registrar timestamp para cada roleta
-      this.lastReceivedData.set(uuid, { timestamp: now, data: roulette });
+      this.lastReceivedData.set(roulette.id, { timestamp: now, data: roulette });
       
       // Atualizar o histórico da roleta se houver números
       if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
         // Mapear apenas os números para um array simples
         const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
         
-        // Pegar o ID simplificado diretamente do primeiro número
-        const simpleId = roulette.numero[0].roleta_id || uuid;
+        // Obter histórico existente e mesclar com os novos números
+        const existingHistory = this.rouletteHistory.get(roulette.id) || [];
         
-        // Atualizar o histórico usando o ID simplificado
-        this.setRouletteHistory(simpleId, numbers);
+        // Verificar se já existe o primeiro número na lista para evitar duplicação
+        const isNewData = existingHistory.length === 0 || 
+                         existingHistory[0] !== numbers[0] ||
+                         !existingHistory.includes(numbers[0]);
         
-        // Emitir evento com o número mais recente
-        const lastNumber = roulette.numero[0];
-        
-        const event: any = {
-          type: 'new_number',
-          roleta_id: lastNumber.roleta_id || uuid, // Usar o ID que já vem no objeto de número
-          roleta_nome: roulette.nome,
-          numero: lastNumber.numero || lastNumber.number || 0,
-          cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
-          timestamp: lastNumber.timestamp || new Date().toISOString()
-        };
-        
-        // Notificar os listeners sobre o novo número
-        this.notifyListeners(event);
+        if (isNewData) {
+          console.log(`[RESTSocketService] Novos números detectados para roleta ${roulette.nome || roulette.id}`);
+          
+          // Mesclar, evitando duplicações e preservando ordem
+          const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
+          
+          // Limitar ao tamanho máximo
+          const limitedHistory = mergedNumbers.slice(0, this.historyLimit);
+          
+          // Atualizar o histórico
+          this.setRouletteHistory(roulette.id, limitedHistory);
+          
+          // Emitir evento com o número mais recente
+          const lastNumber = roulette.numero[0];
+          
+          const event: any = {
+            type: 'new_number',
+            roleta_id: roulette.id,
+            roleta_nome: roulette.nome,
+            numero: lastNumber.numero || lastNumber.number || 0,
+            cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
+            timestamp: lastNumber.timestamp || new Date().toISOString(),
+            source: 'limit-endpoint' // Marcar a origem para depuração
+          };
+          
+          // Notificar os listeners sobre o novo número
+          this.notifyListeners(event);
+        }
       }
       
       // Emitir evento de estratégia se houver
       if (roulette.estado_estrategia) {
-        // Tentar obter o ID simplificado do primeiro número, se existir
-        const simpleId = (roulette.numero && roulette.numero.length > 0) 
-          ? roulette.numero[0].roleta_id 
-          : uuid;
-          
         const strategyEvent: any = {
           type: 'strategy_update',
-          roleta_id: simpleId, // Usar o ID simplificado se disponível
+          roleta_id: roulette.id,
           roleta_nome: roulette.nome,
           estado: roulette.estado_estrategia,
           numero_gatilho: roulette.numero_gatilho || 0,
           vitorias: roulette.vitorias || 0,
           derrotas: roulette.derrotas || 0,
-          terminais_gatilho: roulette.terminais_gatilho || []
+          terminais_gatilho: roulette.terminais_gatilho || [],
+          source: 'limit-endpoint' // Marcar a origem para depuração
         };
         
         // Notificar os listeners sobre a atualização de estratégia
@@ -453,10 +431,7 @@ class RESTSocketService {
         throw new Error(`Erro ao buscar dados históricos: ${response.status}`);
       }
       
-      let data = await response.json();
-      
-      // Transformar a resposta para usar apenas IDs simplificados
-      data = this.transformApiResponse(data);
+      const data = await response.json();
       
       if (Array.isArray(data)) {
         // Processar os dados recebidos
@@ -465,11 +440,8 @@ class RESTSocketService {
             // Extrair apenas os números
             const numeros = roleta.numero.map((n: any) => n.numero || n.number || 0);
             
-            // Pegar o ID simplificado
-            const simpleId = roleta.id; // Agora já é o ID simplificado após a transformação
-            
             // Armazenar no histórico
-            this.setRouletteHistory(simpleId, numeros);
+            this.setRouletteHistory(roleta.id, numeros);
             
             console.log(`[RESTSocketService] Carregados ${numeros.length} números históricos para ${roleta.nome || 'roleta desconhecida'}`);
           }
@@ -564,19 +536,115 @@ class RESTSocketService {
         throw new Error(`Erro ao buscar dados do segundo endpoint: ${response.status} ${response.statusText}`);
       }
       
-      let data = await response.json();
+      const data = await response.json();
       const endTime = Date.now();
       console.log(`[RESTSocketService] Chamada ao segundo endpoint concluída em ${endTime - startTime}ms`);
       
-      // Transformar a resposta para usar apenas IDs simplificados
-      // Não processamos estes dados, mas faremos a transformação de qualquer forma para consistência
-      data = this.transformApiResponse(data);
+      // Processar os dados recebidos
+      if (Array.isArray(data)) {
+        console.log(`[RESTSocketService] Processando ${data.length} roletas do endpoint sem parâmetro`);
+        
+        // Registrar esta chamada como bem-sucedida
+        const now = Date.now();
+        this.lastReceivedData.set('endpoint-base', { timestamp: now, data: { count: data.length } });
+        
+        // Salvar no cache com uma chave diferente para não conflitar
+        localStorage.setItem('roulettes_data_cache_base', JSON.stringify({
+          timestamp: Date.now(),
+          data: data
+        }));
+        
+        // Para cada roleta, processar os dados
+        data.forEach(roulette => {
+          if (!roulette || !roulette.id) return;
+          
+          // Registrar timestamp para cada roleta
+          this.lastReceivedData.set(`base-${roulette.id}`, { timestamp: now, data: roulette });
+          
+          // Atualizar o histórico da roleta se houver números
+          if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
+            // Mapear apenas os números para um array simples
+            const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
+            
+            // Obter histórico existente 
+            const existingHistory = this.rouletteHistory.get(roulette.id) || [];
+            
+            // Verificar se já existe o primeiro número na lista para evitar duplicação
+            const isNewData = existingHistory.length === 0 || 
+                            existingHistory[0] !== numbers[0] ||
+                            !existingHistory.includes(numbers[0]);
+            
+            if (isNewData) {
+              console.log(`[RESTSocketService] Novos números detectados para roleta ${roulette.nome || roulette.id} (endpoint-base)`);
+              
+              // Mesclar, evitando duplicações e preservando ordem
+              const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
+              
+              // Atualizar o histórico com mesclagem para preservar números antigos
+              this.setRouletteHistory(roulette.id, mergedNumbers);
+              
+              // Emitir evento com o número mais recente
+              const lastNumber = roulette.numero[0];
+              
+              const event: any = {
+                type: 'new_number',
+                roleta_id: roulette.id,
+                roleta_nome: roulette.nome,
+                numero: lastNumber.numero || lastNumber.number || 0,
+                cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
+                timestamp: lastNumber.timestamp || new Date().toISOString(),
+                source: 'base-endpoint' // Marcar a origem para depuração
+              };
+              
+              // Notificar os listeners sobre o novo número
+              this.notifyListeners(event);
+            }
+          }
+          
+          // Emitir evento de estratégia se houver
+          if (roulette.estado_estrategia) {
+            const strategyEvent: any = {
+              type: 'strategy_update',
+              roleta_id: roulette.id,
+              roleta_nome: roulette.nome,
+              estado: roulette.estado_estrategia,
+              numero_gatilho: roulette.numero_gatilho || 0,
+              vitorias: roulette.vitorias || 0,
+              derrotas: roulette.derrotas || 0,
+              terminais_gatilho: roulette.terminais_gatilho || [],
+              source: 'base-endpoint' // Marcar a origem para depuração
+            };
+            
+            // Notificar os listeners sobre a atualização de estratégia
+            this.notifyListeners(strategyEvent);
+          }
+        });
+      }
       
       return true;
     } catch (error) {
       console.error('[RESTSocketService] Erro ao buscar dados do segundo endpoint:', error);
       return false;
     }
+  }
+
+  // Função auxiliar para mesclar arrays de números sem duplicações
+  private mergeNumbersWithoutDuplicates(newNumbers: number[], existingNumbers: number[]): number[] {
+    // Criar um Set a partir dos números existentes para verificação rápida
+    const existingSet = new Set(existingNumbers);
+    
+    // Array para armazenar os números mesclados
+    const mergedNumbers = [...existingNumbers];
+    
+    // Adicionar apenas números novos
+    for (const num of newNumbers) {
+      if (!existingSet.has(num)) {
+        mergedNumbers.unshift(num); // Adicionar no início para manter os mais recentes primeiro
+        existingSet.add(num);
+      }
+    }
+    
+    return mergedNumbers;
   }
 }
 
