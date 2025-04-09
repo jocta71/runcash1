@@ -738,12 +738,17 @@ export class SocketService {
    * @returns Promise que é resolvida quando os dados históricos são carregados
    */
   public async loadHistoricalRouletteNumbers(): Promise<any> {
-    this._isLoadingHistoricalData = true;
-    console.log('[SocketService] Iniciando carregamento de dados históricos das roletas');
-    
     try {
+      // Verificar se já está carregando para evitar chamadas concorrentes
+      if (this._isLoadingHistoricalData) {
+        console.log('[SocketService] Já existe um carregamento de dados históricos em andamento');
+        return Promise.resolve([]);
+      }
+      
+      this._isLoadingHistoricalData = true;
+      console.log('[SocketService] Iniciando carregamento de dados históricos das roletas');
+      
       // Lista de roletas pré-definidas para carregar dados históricos
-      // Como ROLETAS_PERMITIDAS é apenas um array de strings, vamos criar uma lista própria
       const roletasParaCarregar = [
         { id: '2010012', nome: 'American Roulette' },
         { id: '2010009', nome: 'Auto-Roulette' },
@@ -753,6 +758,7 @@ export class SocketService {
       
       if (!roletasParaCarregar.length) {
         console.warn('[SocketService] Nenhuma roleta configurada para carregamento de histórico');
+        this._isLoadingHistoricalData = false;
         return Promise.resolve([]);
       }
       
@@ -763,22 +769,40 @@ export class SocketService {
         return this.loadRouletteHistory(roleta.id)
           .catch(error => {
             console.error(`[SocketService] Erro ao carregar histórico para roleta ${roleta.nome || roleta.id}:`, error);
-            return null; // Retorna null em caso de erro, para não interromper outras cargas
+            // Retornar um objeto de histórico vazio mas válido, em vez de null
+            return {
+              roletaId: roleta.id,
+              roletaNome: roleta.nome,
+              numeros: [],
+              message: 'Erro ao carregar histórico'
+            };
           });
       });
       
-      // Aguardar todas as promises
-      const results = await Promise.all(loadPromises);
+      // Aguardar todas as promises com um timeout para evitar travamento
+      const timeoutPromise = new Promise((resolve) => {
+        setTimeout(() => {
+          console.warn('[SocketService] Timeout no carregamento de dados históricos');
+          resolve([]);
+        }, 15000); // 15 segundos de timeout
+      });
+      
+      // Usar Promise.race para limitar o tempo de espera
+      const results = await Promise.race([
+        Promise.all(loadPromises),
+        timeoutPromise
+      ]) as any[];
       
       this._isLoadingHistoricalData = false;
       console.log('[SocketService] Dados históricos carregados com sucesso:', 
         results.filter(Boolean).length, 'de', roletasParaCarregar.length, 'roletas');
       
-      return results.filter(Boolean);
+      return Array.isArray(results) ? results.filter(Boolean) : [];
     } catch (error) {
       this._isLoadingHistoricalData = false;
       console.error('[SocketService] Erro ao carregar dados históricos:', error);
-      throw error;
+      // Não propagar o erro, retornar array vazio
+      return [];
     }
   }
   
