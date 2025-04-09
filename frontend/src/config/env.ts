@@ -32,7 +32,7 @@ interface EnvConfig {
 // Configuração para ambiente de produção
 const productionConfig: EnvConfig = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backend-production-2f96.up.railway.app',
-  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'wss://runcash-websocket.up.railway.app',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'wss://backend-production-2f96.up.railway.app',
   debugMode: false,
   env: 'production',
   optimizePollingForVisibility: true
