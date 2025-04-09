@@ -1211,9 +1211,9 @@ export default class RouletteFeedService {
       // Verificar se o serviço está em um estado saudável
       if (!this.isPollingActive || this.isPaused) {
         logger.debug('⏸️ Serviço não está ativo ou está pausado durante verificação de saúde');
-        return;
-      }
-      
+      return;
+    }
+    
       // Verificar se temos um período muito longo sem atualizações bem-sucedidas
       if (this.lastSuccessfulResponse && timeSinceLastSuccess > (this.currentPollingInterval * 3)) {
         logger.warn(`⚠️ Sem atualizações bem-sucedidas por ${Math.round(timeSinceLastSuccess / 1000)}s`);
