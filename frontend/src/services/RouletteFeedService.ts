@@ -270,6 +270,9 @@ export default class RouletteFeedService {
     // Marcar como inicializando
     this.IS_INITIALIZING = true;
     
+    // Conectar ao EventService para receber eventos em tempo real
+    this.connectToEventService();
+    
     // Criar e armazenar a promessa de inicialização
     this.GLOBAL_INITIALIZATION_PROMISE = new Promise((resolve, reject) => {
       logger.info('Iniciando inicialização');
@@ -1579,20 +1582,43 @@ export default class RouletteFeedService {
     }
   }
 
-  // Método para notificar assinantes
+  /**
+   * Notifica todos os assinantes sobre novos dados
+   * @param data Dados a serem enviados aos assinantes
+   */
   private notifySubscribers(data: any): void {
     try {
-      // Implementação do método para notificar assinantes sobre atualizações
-      if (this.subscribers && this.subscribers.length > 0) {
+      // Verificar se temos assinantes
+      if (this.subscribers.length === 0) {
+        return;
+      }
+      
+      // Se for um evento global_update, enviá-lo diretamente para os assinantes
+      if (data && data.type === 'new_number' && data.roleta_id && data.roleta_nome) {
+        logger.debug(`🔔 Notificando ${this.subscribers.length} assinantes sobre evento da roleta ${data.roleta_nome}`);
+        
+        // Notificar cada assinante sobre o evento
         this.subscribers.forEach(callback => {
           try {
             callback(data);
           } catch (error) {
-            logger.error('❌ Erro ao notificar assinante:', error);
+            logger.error('❌ Erro ao notificar assinante sobre evento global_update:', error);
           }
         });
-        logger.debug(`🔔 Notificados ${this.subscribers.length} assinantes sobre atualização de dados`);
+        
+        return;
       }
+      
+      // Para outros tipos de dados (como array de roletas), processar normalmente
+      logger.debug(`🔔 Notificando ${this.subscribers.length} assinantes sobre atualização de dados`);
+      
+      this.subscribers.forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          logger.error('❌ Erro ao notificar assinante:', error);
+        }
+      });
     } catch (error) {
       logger.error('❌ Erro ao notificar assinantes:', error);
     }
@@ -1620,5 +1646,30 @@ export default class RouletteFeedService {
     // Implemente a lógica para notificar sobre o término de uma requisição
     // Esta é uma implementação básica e pode ser expandida conforme necessário
     logger.info(`🔄 Requisição ${requestId} concluída com sucesso: ${status}`);
+  }
+
+  /**
+   * Registra o serviço para escutar eventos do EventService
+   */
+  public connectToEventService(): void {
+    try {
+      logger.info('Conectando RouletteFeedService ao EventService para eventos em tempo real');
+      
+      // Registrar para receber eventos de roulette:global_update
+      EventService.on('roulette:global_update', (data: any) => {
+        logger.info(`📩 Evento global_update recebido do EventService: ${data.roleta_nome} (${data.roleta_id})`);
+        
+        // Processar o evento como dados da roleta
+        if (data && this.validateRouletteData(data)) {
+          this.handleRouletteData(data);
+        } else {
+          logger.warn('❌ Dados de roleta inválidos recebidos do EventService');
+        }
+      });
+      
+      logger.success('✅ RouletteFeedService conectado ao EventService com sucesso');
+    } catch (error) {
+      logger.error('❌ Erro ao conectar ao EventService:', error);
+    }
   }
 } 
