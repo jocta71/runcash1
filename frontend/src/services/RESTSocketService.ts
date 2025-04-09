@@ -231,8 +231,14 @@ class RESTSocketService {
   }
 
   private getApiBaseUrl(): string {
-    const apiBaseUrl = getRequiredEnvVar('VITE_API_BASE_URL');
-    return apiBaseUrl;
+    // Em ambiente de produção, usar o proxy da Vercel para evitar problemas de CORS
+    if (isProduction) {
+      // Usar o endpoint relativo que será tratado pelo proxy da Vercel
+      return '/api';
+    }
+    
+    // Em desenvolvimento, usar a URL completa da API
+    return getRequiredEnvVar('VITE_API_BASE_URL');
   }
 
   // Métodos públicos que mantém compatibilidade com a versão WebSocket
