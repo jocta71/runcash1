@@ -127,16 +127,21 @@ export function getSocketUrl(): string {
       }
     }
     
-    // Remover /api/ no final da URL se existir
-    if (configuredUrl.endsWith('/api/')) {
-      console.warn('[ENV] Removendo /api/ do final da URL WebSocket');
-      configuredUrl = configuredUrl.replace('/api/', '');
+    // Verificar se a URL termina com / e não com /api/ 
+    if (configuredUrl.endsWith('/') && !configuredUrl.endsWith('/api/')) {
+      console.warn('[ENV] Adicionando /api ao caminho da URL WebSocket');
+      configuredUrl = configuredUrl + 'api/';
+    }
+    // Adicionar api/ se não estiver presente e não terminar com /
+    else if (!configuredUrl.includes('/api/') && !configuredUrl.endsWith('/')) {
+      console.warn('[ENV] Adicionando /api/ ao caminho da URL WebSocket');
+      configuredUrl = configuredUrl + '/api/';
     }
     
     return configuredUrl;
   } catch (error) {
     console.warn('Não foi possível determinar a URL do socket, usando valor padrão');
-    return isProduction ? 'wss://backend-production-2f96.up.railway.app' : 'ws://localhost:3000';
+    return isProduction ? 'wss://backend-production-2f96.up.railway.app/api/' : 'ws://localhost:3000/api/';
   }
 }
 

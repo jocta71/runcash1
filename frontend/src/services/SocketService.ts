@@ -2069,8 +2069,11 @@ class SocketService {
     
     console.log('[SocketService] Solicitando dados de todas as roletas via WebSocket');
     
-    // Emitir evento para solicitar dados
-    this.socket.emit('get_all_roulettes', {});
+    // Emitir evento para solicitar dados com o endpoint correto
+    this.socket.emit('get_all_roulettes', { endpoint: '/api/ROULETTES' });
+    
+    // Tentar subscrever ao canal ROULETTES especificamente
+    this.subscribeToChannel('ROULETTES');
     
     // Registrar timestamp da solicitação para timeout
     const requestId = `req_${Date.now()}`;
@@ -2080,6 +2083,17 @@ class SocketService {
     setTimeout(() => {
       console.log(`[SocketService] Verificando status da solicitação ${requestId}...`);
     }, 5000);
+  }
+
+  // Método para subscrever a um canal específico
+  private subscribeToChannel(channel: string): void {
+    if (!this.socket || !this.socket.connected) {
+      console.warn(`[SocketService] Socket não conectado. Não é possível subscrever ao canal ${channel}.`);
+      return;
+    }
+    
+    console.log(`[SocketService] Subscrevendo ao canal: ${channel}`);
+    this.socket.emit('subscribe', { channel });
   }
 }
 
