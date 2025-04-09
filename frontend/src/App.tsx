@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
+import { AuthProvider } from "./context/AuthContext";
 import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import SocketService from '@/services/SocketService';
@@ -13,7 +14,6 @@ import RouletteHistoryPage from './pages/RouletteHistoryPage';
 import { ThemeProvider } from './components/theme-provider';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
-import { AuthProvider } from './context/AuthContext';
 
 // Importação de componentes principais
 const Index = lazy(() => import("@/pages/Index"));
@@ -67,16 +67,6 @@ const App = () => {
     
     // Também executar quando a janela é redimensionada, o que pode ajudar a "descongelar"
     window.addEventListener('resize', handleFreeze);
-
-    // Redirecionar para a página de autenticação
-    const redirectToAuth = () => {
-      if (window.location.pathname !== '/auth') {
-        window.location.href = '/auth';
-      }
-    };
-
-    // Verificar redirecionamento para autenticação
-    redirectToAuth();
     
     return () => {
       window.removeEventListener('resize', handleFreeze);
@@ -94,8 +84,8 @@ const App = () => {
                 <BrowserRouter>
                   <Suspense fallback={<LoadingScreen />}>
                     <Routes>
-                      {/* Rota de autenticação */}
-                      <Route path="/auth" element={<AuthPage />} />
+                      {/* Redirecionar da rota de autenticação para a página principal */}
+                      <Route path="/auth" element={<Navigate to="/" replace />} />
                       
                       {/* Página para popular números das roletas */}
                       <Route path="/seed-numbers" element={<SeedPage />} />

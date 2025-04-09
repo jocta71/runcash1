@@ -912,7 +912,7 @@ export default class RouletteFeedService {
       logger.error('❌ Dados inválidos para atualização do cache');
       return;
     }
-
+    
     // Lidar com dados de atualização global (objeto com array de roletas)
     if (data.roletas && Array.isArray(data.roletas)) {
       this.saveRoulettesToCache(data.roletas);
@@ -922,9 +922,9 @@ export default class RouletteFeedService {
     // Lidar com dados no formato de array simples
     if (Array.isArray(data)) {
       this.saveRoulettesToCache(data);
-      return;
-    }
-
+        return;
+      }
+      
     // Lidar com uma única roleta
     if (data.id || data.roleta_id) {
       // Atualizar ou adicionar uma única roleta
@@ -1428,7 +1428,7 @@ export default class RouletteFeedService {
         
         // Notificar que os dados foram atualizados
         EventService.emit('roulette:data-updated', {
-          timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString(),
           count: validRoulettes
         });
         
@@ -2055,7 +2055,7 @@ export default class RouletteFeedService {
       this.notifySubscribers(rouletteData);
       
       this.logger.info(`✅ Processamento de ${rouletteData.length} roletas concluído`);
-    } catch (error) {
+          } catch (error) {
       this.logger.error(`❌ Erro ao processar dados das roletas: ${error}`);
       throw error;
     }
