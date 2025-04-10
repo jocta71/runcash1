@@ -129,7 +129,7 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
   // Se minimizado, mostrar apenas o cabeçalho minimizado na parte inferior
   if (minimized) {
     return (
-      <div className="fixed bottom-0 left-1/2 transform -translate-x-1/2 z-50 bg-[#141318] border border-[#2a2a2e] rounded-t-lg shadow-lg w-80">
+      <div className="fixed bottom-0 right-4 z-50 bg-[#141318] border border-[#2a2a2e] rounded-t-lg shadow-lg w-80">
         <div className="flex items-center justify-between px-4 py-2">
           <div className="flex items-center space-x-2">
             <span className="text-white font-semibold">Chat ao Vivo</span>
