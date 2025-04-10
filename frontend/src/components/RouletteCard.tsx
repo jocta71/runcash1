@@ -102,6 +102,7 @@ class GlobalRouletteDataManager {
   private updateCallbacks: Map<string, (data: any) => void> = new Map();
   private fetchPromise: Promise<any> | null = null;
   private intervalId: NodeJS.Timeout | null = null;
+  private initialDataLoaded: boolean = false;
 
   private constructor() {
     // Iniciar polling imediatamente
@@ -143,7 +144,7 @@ class GlobalRouletteDataManager {
       return this.fetchPromise;
     }
     
-    console.log('[GlobalRouletteService] Buscando dados atualizados da API');
+    console.log(`[GlobalRouletteService] ${this.initialDataLoaded ? 'Atualizando' : 'Carregando dados iniciais'}`);
     
     try {
       // Criar nova promise
@@ -162,6 +163,12 @@ class GlobalRouletteDataManager {
           // Atualizar dados e timestamp
           this.data = data;
           this.lastUpdate = Date.now();
+          
+          // Marcar dados iniciais como carregados
+          if (!this.initialDataLoaded) {
+            this.initialDataLoaded = true;
+            console.log(`[GlobalRouletteService] Dados iniciais carregados: ${data.length} roletas`);
+          }
           
           // Notificar todos os assinantes
           this.notifySubscribers();
@@ -232,6 +239,11 @@ class GlobalRouletteDataManager {
   // Obter timestamp da última atualização
   public getLastUpdateTime(): number {
     return this.lastUpdate;
+  }
+
+  // Verificar se os dados iniciais foram carregados
+  public isInitialized(): boolean {
+    return this.initialDataLoaded;
   }
 }
 
@@ -317,6 +329,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   useEffect(() => {
     // Configurar loading inicial
     setLoading(true);
+    
+    // Desativar quaisquer inicializações de outros serviços
+    // SocketService.getInstance();
+    // RouletteFeedService.getInstance();
     
     // Assinar atualizações do gerenciador global
     const unsubscribe = dataManager.subscribe(componentId, handleDataUpdate);
