@@ -370,7 +370,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     if (!isDetailView) {
       // Carregar dados detalhados antes de navegar para a página de detalhes
       globalRouletteDataService.fetchDetailedRouletteData().then(() => {
-        navigate(`/${safeData.id}`);
+        navigate(`/roleta/${safeData.id}`);
       });
     }
   };

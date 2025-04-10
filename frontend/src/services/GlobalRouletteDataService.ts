@@ -24,11 +24,8 @@ type SubscriberCallback = () => void;
  * Este serviço implementa o padrão Singleton para garantir apenas uma instância
  * e evitar múltiplas requisições à API
  */
-export class GlobalRouletteDataService {
+class GlobalRouletteDataService {
   private static instance: GlobalRouletteDataService;
-  
-  // Flag estático para controle de polling externo
-  private static externalPollingActive: boolean = false;
   
   // Dados e estado
   private rouletteData: any[] = [];
@@ -40,18 +37,11 @@ export class GlobalRouletteDataService {
   private pollingTimer: number | null = null;
   private subscribers: Map<string, SubscriberCallback> = new Map();
   private detailedSubscribers: Map<string, SubscriberCallback> = new Map();
-  private pollingActive: boolean = true;
   
   // Construtor privado para garantir Singleton
   private constructor() {
     console.log('[GlobalRouletteService] Inicializando serviço global de roletas');
-    // Verificar se já existe um polling externo ativo antes de iniciar o próprio
-    if (!GlobalRouletteDataService.externalPollingActive) {
-      this.startPolling();
-    } else {
-      console.log('[GlobalRouletteService] Detectado polling externo ativo, não iniciando polling interno');
-      this.pollingActive = false;
-    }
+    this.startPolling();
   }
 
   /**
@@ -63,25 +53,6 @@ export class GlobalRouletteDataService {
     }
     return GlobalRouletteDataService.instance;
   }
-  
-  /**
-   * Configura se existe um polling externo ativo
-   * Este método deve ser chamado por serviços externos que também fazem polling
-   * para evitar requisições duplicadas
-   */
-  public static setExternalPollingActive(active: boolean): void {
-    GlobalRouletteDataService.externalPollingActive = active;
-    console.log(`[GlobalRouletteService] Polling externo ${active ? 'ativado' : 'desativado'}`);
-    
-    // Se temos uma instância, atualizar seu estado
-    if (GlobalRouletteDataService.instance) {
-      if (active) {
-        GlobalRouletteDataService.instance.stopPolling();
-      } else if (!GlobalRouletteDataService.instance.pollingActive) {
-        GlobalRouletteDataService.instance.startPolling();
-      }
-    }
-  }
 
   /**
    * Inicia o processo de polling
@@ -90,14 +61,6 @@ export class GlobalRouletteDataService {
     if (this.pollingTimer) {
       window.clearInterval(this.pollingTimer);
     }
-    
-    // Se há polling externo, não iniciar o próprio
-    if (GlobalRouletteDataService.externalPollingActive) {
-      console.log('[GlobalRouletteService] Polling externo ativo, não iniciando polling interno');
-      return;
-    }
-    
-    this.pollingActive = true;
     
     // Buscar dados imediatamente
     this.fetchRouletteData();
@@ -134,11 +97,6 @@ export class GlobalRouletteDataService {
    * Retoma o polling quando a página fica visível novamente
    */
   private resumePolling = (): void => {
-    // Se há polling externo ou o polling interno está desativado, não retomar
-    if (GlobalRouletteDataService.externalPollingActive || !this.pollingActive) {
-      return;
-    }
-    
     if (!this.pollingTimer) {
       console.log('[GlobalRouletteService] Retomando polling');
       this.fetchRouletteData(); // Buscar dados imediatamente
@@ -194,27 +152,6 @@ export class GlobalRouletteDataService {
       console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
     } finally {
       this.isFetching = false;
-    }
-  }
-  
-  /**
-   * Para completamente o polling
-   */
-  public stopPolling(): void {
-    if (this.pollingTimer) {
-      window.clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
-    }
-    this.pollingActive = false;
-    console.log('[GlobalRouletteService] Polling interno desativado');
-  }
-  
-  /**
-   * Reativa o polling se estiver desativado
-   */
-  public restartPolling(): void {
-    if (!this.pollingActive && !GlobalRouletteDataService.externalPollingActive) {
-      this.startPolling();
     }
   }
   
