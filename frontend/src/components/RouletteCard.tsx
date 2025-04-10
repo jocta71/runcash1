@@ -367,12 +367,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   
   // Função para abrir detalhes da roleta
   const handleCardClick = () => {
-    if (!isDetailView) {
-      // Carregar dados detalhados antes de navegar para a página de detalhes
-      globalRouletteDataService.fetchDetailedRouletteData().then(() => {
-        navigate(`/roleta/${safeData.id}`);
-      });
-    }
+    // Removida a navegação para a página de detalhes
+    return; // Não faz nada ao clicar no card
   };
   
   // Formatar tempo relativo
@@ -395,7 +391,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     <Card 
       ref={cardRef}
       className={cn(
-        "relative overflow-hidden transition-all duration-300 hover:shadow-md cursor-pointer", 
+        "relative overflow-hidden transition-all duration-300 hover:shadow-md", 
         isNewNumber ? "border-green-500 shadow-green-200 animate-pulse" : "",
         isDetailView ? "w-full" : "w-full"
       )}
