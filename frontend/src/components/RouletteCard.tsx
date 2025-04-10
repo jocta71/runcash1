@@ -191,22 +191,32 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       // Se temos números, processar (mantendo todos os números)
       if (newNumbers.length > 0) {
+        console.log(`[${Date.now()}] Números iniciais carregados: ${newNumbers.length} números`);
+        
+        // IMPORTANTE: Garantir que temos pelo menos 20 números iniciais
+        // Se a API retornar menos, repetimos os números para completar
+        let initialNumbers = [...newNumbers];
+        while (initialNumbers.length < 20) {
+          initialNumbers = [...initialNumbers, ...newNumbers];
+        }
+        initialNumbers = initialNumbers.slice(0, 20);
+        
         // Armazenar todos os números extraídos
-        setAllNumbers(newNumbers);
+        setAllNumbers(initialNumbers);
         
         // Definir os números recentes (limitados aos 20 primeiros)
-        setRecentNumbers(newNumbers.slice(0, 20));
+        setRecentNumbers(initialNumbers);
         
         // Definir o último número
-        setLastNumber(newNumbers[0]);
-      setHasRealData(true);
-    } 
+        setLastNumber(initialNumbers[0]);
+        setHasRealData(true);
+      }
       
       // Limpar erros e atualizar timestamp
       setError(null);
-        setLastUpdateTime(Date.now());
-        setUpdateCount(prev => prev + 1);
-        
+      setLastUpdateTime(Date.now());
+      setUpdateCount(prev => prev + 1);
+      
       return true;
     } catch (err: any) {
       // Registrar erro
@@ -326,25 +336,32 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       console.log(`[${Date.now()}] Números atuais: ${recentNumbers.slice(0, 5).join(', ')}...`);
       console.log(`[${Date.now()}] Números da API: ${apiNumbers.slice(0, 5).join(', ')}...`);
       
-      // Se temos números da API
-      if (apiNumbers.length > 0) {
-        // *** NOVA LÓGICA - SIMPLESMENTE MANTER OS NÚMEROS RECENTES E ADICIONAR O MAIS RECENTE ***
-        
-        // Verificar se temos um novo número mais recente (a primeira posição da API é diferente do nosso número mais recente)
+      // Se temos números da API e números já carregados anteriormente
+      if (apiNumbers.length > 0 && recentNumbers.length > 0) {
         const latestApiNumber = apiNumbers[0];
+        const currentLatestNumber = recentNumbers[0];
         
-        // Se o número mais recente da API for diferente do nosso número mais recente, adicioná-lo
-        if (recentNumbers.length === 0 || latestApiNumber !== recentNumbers[0]) {
-          console.log(`[${Date.now()}] Novo número mais recente detectado: ${latestApiNumber}`);
+        // Verificar se o último número da API é diferente do último número que temos
+        if (latestApiNumber !== currentLatestNumber) {
+          console.log(`[${Date.now()}] Novo número detectado: API=${latestApiNumber}, Atual=${currentLatestNumber}`);
           
-          // Criar nova lista adicionando o novo número no início
-          const updatedAllNumbers = [latestApiNumber, ...allNumbers];
-          setAllNumbers(updatedAllNumbers);
+          // IMPORTANTE: PRESERVAR TODOS OS NÚMEROS EXISTENTES!!!
+          // Criar cópias das listas atuais para não modificar os estados diretamente
+          const currentRecentNumbers = [...recentNumbers];
+          const currentAllNumbers = [...allNumbers];
           
-          // Atualizar números recentes (os 20 primeiros)
-          setRecentNumbers(updatedAllNumbers.slice(0, 20));
+          // Adicionar o novo número no início das listas
+          currentRecentNumbers.unshift(latestApiNumber);
+          currentAllNumbers.unshift(latestApiNumber);
           
-          // Atualizar o último número
+          // Limitar a lista de números recentes a 20 (removendo o último se necessário)
+          if (currentRecentNumbers.length > 20) {
+            currentRecentNumbers.length = 20;
+          }
+          
+          // Atualizar os estados com as novas listas
+          setRecentNumbers(currentRecentNumbers);
+          setAllNumbers(currentAllNumbers);
           setLastNumber(latestApiNumber);
           
           // Encontrar cor
@@ -369,7 +386,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           
           setHasRealData(true);
         } else {
-          console.log(`[${Date.now()}] Sem novos números - o mais recente continua sendo: ${latestApiNumber}`);
+          console.log(`[${Date.now()}] Sem novos números - mais recente continua sendo: ${latestApiNumber}`);
         }
       }
       
