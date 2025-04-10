@@ -494,20 +494,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Fazer a primeira busca imediatamente
     fetchRouletteData();
     
-    // Configurar intervalo para buscar dados periodicamente
-    // Usamos um intervalo aleatório entre 5 e 10 segundos para evitar sobrecarga e simular o comportamento real
-    const minInterval = 5000; // 5 segundos
-    const maxInterval = 10000; // 10 segundos
-    const randomInterval = Math.floor(Math.random() * (maxInterval - minInterval + 1) + minInterval);
+    // Configurar intervalo para buscar dados periodicamente com intervalo fixo de 8 segundos
+    const pollingInterval = 8000; // 8 segundos, conforme solicitado
     
-    console.log(`[ROULETTE-CARD] Configurado polling para ${safeData.name} a cada ${randomInterval}ms`);
-    const pollingInterval = setInterval(fetchRouletteData, randomInterval);
+    console.log(`[ROULETTE-CARD] Configurado polling para ${safeData.name} a cada ${pollingInterval}ms`);
+    const intervalId = setInterval(fetchRouletteData, pollingInterval);
     
     // Limpeza ao desmontar o componente
     return () => {
       console.log(`[ROULETTE-CARD] Encerrando sistema de polling para ${safeData.name}`);
       isMounted = false;
-      clearInterval(pollingInterval);
+      clearInterval(intervalId);
     };
   }, [safeData?.id, safeData?.name, lastNumber, enableSound, enableNotifications]);
   
