@@ -345,8 +345,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     const handleNumberUpdate = (eventData: any) => {
       if (!isMounted) return;
       
+      console.log(`[ROULETTE-CARD] Processando evento para ${safeData.name}:`, eventData);
+      
       // De acordo com os logs, o sistema emite eventos com o número
-      const number = eventData?.numero;
+      // O número pode estar em eventData.numero ou diretamente como eventData
+      const number = typeof eventData === 'number' ? eventData : eventData?.numero;
       
       // Validar que o número é válido
       if (typeof number === 'number' && !isNaN(number) && number >= 0 && number <= 36) {
