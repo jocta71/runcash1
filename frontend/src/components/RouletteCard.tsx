@@ -330,54 +330,122 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   };
 
   // ===================================================================
-  // SISTEMA DE ATUALIZAÇÃO - CORS WORKAROUND COM DADOS SIMULADOS
+  // SISTEMA DE ATUALIZAÇÃO - TENTATIVA COM POSTMAN HEADERS + FALLBACK
   // ===================================================================
   
-  // Efeito para simular dados em tempo real (já que a API está bloqueada por CORS)
+  // Efeito para buscar dados reais e simular em caso de falha de CORS
   useEffect(() => {
     if (!safeData || !safeData.id) return;
     
     let isMounted = true;
-    console.log(`[ROULETTE-CORS] Iniciando sistema de simulação para ${safeData.name} [ID: ${safeData.id}]`);
-    console.log(`[ROULETTE-CORS] A API real está bloqueada devido a erro de CORS. Usando dados simulados.`);
+    console.log(`[ROULETTE-API] Iniciando sistema para ${safeData.name} [ID: ${safeData.id}]`);
     
-    // CORS ERROR INFO: O erro ocorre porque o backend em backendapi-production-36b5.up.railway.app
-    // não tem as configurações CORS corretas para permitir solicitações do domínio do frontend
-    // Solução ideal: Configurar no backend os headers:
-    // Access-Control-Allow-Origin: https://runcashh1-blond.vercel.app
-    // Access-Control-Allow-Methods: GET, POST, OPTIONS
-    // Access-Control-Allow-Headers: Content-Type, Authorization
-    
-    // Como não podemos modificar o backend agora, usaremos dados simulados
-    // que mudam a cada 5 segundos, simulando atualizações reais da roleta
-    
-    // Função para gerar um novo número aleatório
-    const generateNewNumber = () => {
-      // Usar timestamp para garantir que seja diferente a cada execução
-      const timestamp = Date.now();
-      return timestamp % 37; // Números entre 0 e 36
+    // Tentativa de buscar dados reais usando headers similares ao Postman
+    const fetchRealData = async () => {
+      try {
+        // URL base da API
+        const url = `${config.apiUrl}/roulette/status?table=${safeData.id}`;
+        console.log(`[ROULETTE-API] Tentando acessar: ${url}`);
+        
+        // Configurar os headers similares ao que vimos no Postman
+        const headers = {
+          'User-Agent': 'PostmanRuntime/7.43.2',
+          'Accept': '*/*',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive'
+        };
+        
+        // Tentativa de fetch com os headers do Postman
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: headers,
+          // mode: 'no-cors' // Descomentado em caso de erro CORS persistente
+        });
+        
+        // Verificar se a resposta foi bem sucedida
+        if (response.ok) {
+          // Tentar processar os dados reais da API
+          const data = await response.json();
+          console.log(`[ROULETTE-API] Dados reais recebidos:`, data);
+          
+          // Processar os dados...
+          processRealData(data);
+          return true; // Indicar que conseguimos dados reais
+        } else {
+          console.warn(`[ROULETTE-API] Resposta não OK: ${response.status}`);
+          return false;
+        }
+      } catch (error) {
+        console.error(`[ROULETTE-API] Erro CORS ou outro problema:`, error);
+        console.log(`[ROULETTE-CORS] Fallback para dados simulados ativado.`);
+        return false;
+      }
     };
     
-    // Função que simula o recebimento de um novo número da API
-    const simulateNewNumber = () => {
+    // Função para processar os dados reais da API
+    const processRealData = (data: any) => {
       if (!isMounted) return;
       
-      // Gerar um novo número aleatório
-      const newNumber = generateNewNumber();
-      console.log(`[ROULETTE-CORS] Simulando novo número: ${newNumber} para ${safeData.name}`);
+      // Estrutura similar ao backend real visualizado no Postman
+      let targetTable = null;
       
-      // Verificar se é diferente do último número
-      if (newNumber !== lastNumber) {
-        console.log(`[ROULETTE-UPDATE] Novo número simulado: ${newNumber} (anterior: ${lastNumber})`);
+      // Procurar a roleta nos dados recebidos
+      if (data && Array.isArray(data.roulettes)) {
+        targetTable = data.roulettes.find((t: any) => 
+          t.id === safeData.id || t._id === safeData.id || t.name === safeData.name
+        );
+      } else if (data && data.id === safeData.id) {
+        targetTable = data;
+      }
+      
+      if (!targetTable) {
+        console.warn(`[ROULETTE-API] Mesa ${safeData.name} não encontrada nos dados reais`);
+        return;
+      }
+      
+      // Extrair números da roleta
+      let numbers: number[] = [];
+      
+      if (Array.isArray(targetTable.lastNumbers)) {
+        numbers = targetTable.lastNumbers;
+      } else if (Array.isArray(targetTable.RouletteLastNumbers)) {
+        numbers = targetTable.RouletteLastNumbers;
+      }
+      
+      if (numbers.length > 0) {
+        const latestNumber = numbers[0];
+        console.log(`[ROULETTE-API] Último número extraído: ${latestNumber}`);
         
-        // Atualizar o último número
+        // Atualizar componente com dados reais
+        updateComponent(latestNumber, numbers);
+      }
+    };
+    
+    // Função compartilhada para atualizar o componente (usada tanto pelos dados reais quanto simulados)
+    const updateComponent = (newNumber: number, allNumbers?: number[]) => {
+      if (!isMounted) return;
+      
+      // Verificar se é diferente do número atual
+      if (newNumber !== lastNumber) {
+        console.log(`[ROULETTE-UPDATE] Novo número: ${newNumber} (anterior: ${lastNumber})`);
+        
+        // Atualizar último número
         setLastNumber(newNumber);
         
-        // Atualizar lista de números recentes
+        // Atualizar lista de números
         setRecentNumbers(prev => {
           const prevArray = Array.isArray(prev) ? prev : [];
           
-          // Adicionar novo número no início
+          // Se lista completa foi fornecida, usá-la
+          if (allNumbers && allNumbers.length > 0) {
+            return [...allNumbers].slice(0, 26);
+          }
+          
+          // Caso contrário, apenas adicionar o novo número
+          if (prevArray.length > 0 && prevArray[0] === newNumber) {
+            return prevArray;
+          }
+          
           const updated = [newNumber, ...prevArray].slice(0, 26);
           console.log(`[ROULETTE-UPDATED] Lista atualizada:`, updated);
           return updated;
@@ -388,7 +456,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         setLastUpdateTime(Date.now());
         setUpdateCount(prev => prev + 1);
         
-        // Efeito visual de novo número
+        // Efeito visual
         setIsNewNumber(true);
         setTimeout(() => {
           if (isMounted) setIsNewNumber(false);
@@ -406,23 +474,63 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             variant: "default"
           });
         }
-      } else {
-        // Se for o mesmo número, forçar um diferente
-        setTimeout(simulateNewNumber, 500);
       }
     };
     
-    // Executar imediatamente
-    simulateNewNumber();
     
-    // Configurar intervalo para simular novos números a cada 5 segundos
-    const simulationInterval = setInterval(simulateNewNumber, 5000);
+    // CORS ERROR INFO: O erro ocorre porque o backend em backendapi-production-36b5.up.railway.app
+    // não tem as configurações CORS corretas para permitir solicitações do domínio do frontend
+    // Solução ideal: Configurar no backend os headers:
+    // Access-Control-Allow-Origin: https://runcashh1-blond.vercel.app
+    // Access-Control-Allow-Methods: GET, POST, OPTIONS
+    // Access-Control-Allow-Headers: Content-Type, Authorization
+    
+    // SOLUÇÃO HÍBRIDA: Tentar dados reais primeiro, fallback para simulação
+    
+    // Função para gerar um novo número aleatório (para simulação)
+    const generateNewNumber = () => {
+      // Usar timestamp para garantir que seja diferente a cada execução
+      const timestamp = Date.now();
+      return timestamp % 37; // Números entre 0 e 36
+    };
+    
+    // Função que simula o recebimento de um novo número da API
+    const simulateNewNumber = () => {
+      if (!isMounted) return;
+      
+      // Gerar um novo número aleatório
+      const newNumber = generateNewNumber();
+      console.log(`[ROULETTE-SIM] Simulando novo número: ${newNumber} para ${safeData.name}`);
+      
+      // Usar a função compartilhada para atualizar o componente
+      updateComponent(newNumber);
+    };
+    
+    // Estrategia principal: sistema híbrido que tenta dados reais primeiro
+    const runHybridSystem = async () => {
+      if (!isMounted) return;
+      
+      // Primeiro tentar obter dados reais
+      const realDataSuccess = await fetchRealData();
+      
+      // Se falhar, usar simulação
+      if (!realDataSuccess) {
+        console.log(`[ROULETTE-HYBRID] Usando dados simulados como fallback`);
+        simulateNewNumber();
+      }
+    };
+    
+    // Executar nossa estratégia híbrida imediatamente
+    runHybridSystem();
+    
+    // Configurar intervalo para atualizações periódicas (tenta dados reais primeiro sempre)
+    const updateInterval = setInterval(runHybridSystem, 7000); // A cada 7 segundos
     
     // Limpeza ao desmontar
     return () => {
       console.log(`[ROULETTE-CLEANUP] Cancelando sistema para ${safeData.name}`);
       isMounted = false;
-      clearInterval(simulationInterval);
+      clearInterval(updateInterval);
     };
   }, [safeData?.id, safeData?.name, lastNumber, enableSound, enableNotifications]);
   
