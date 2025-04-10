@@ -707,17 +707,13 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       // Função para simular dados quando a API falha completamente
       function simulateDataFallback() {
-        console.log(`[ROULETTE-CARD] ❗ Usando dados simulados para ${safeData.name}`);
+        console.log(`[ROULETTE-CARD] ❗ MOCKUP DESATIVADO: Não usando dados simulados para ${safeData.name}`);
         
-        // Gerar um número aleatório entre 0 e 36 (como numa roleta real)
-        const simulatedNumber = Math.floor(Math.random() * 37);
+        // MOCKUP DESATIVADO - apenas registrar no console
+        console.log(`[ROULETTE-CARD] ❌ API inacessível e mockup desativado - UI não será atualizada`);
         
-        console.log(`[ROULETTE-CARD] 🎰 Número simulado gerado: ${simulatedNumber}`);
-        
-        // Forçar update da UI com o número simulado
-        updateUIWithNumber(simulatedNumber);
-        
-        return true;
+        // Não forçar update da UI, apenas retornar false indicando que o polling falhou
+        return false;
       }
     };
     
