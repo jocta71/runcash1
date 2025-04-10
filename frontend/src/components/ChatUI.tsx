@@ -238,7 +238,7 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
   
   // Chat expandido (não minimizado)
   return (
-    <div className="flex flex-col bg-[#100f13] h-screen">
+    <div className="flex flex-col bg-[#100f13] h-screen relative">
       {/* Header do Chat */}
       <div className="flex items-center justify-between px-4 py-3 bg-[#141318] border-b border-[#2a2a2e]">
         <div className="flex items-center space-x-2">
@@ -273,7 +273,7 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
       </div>
 
       {/* Lista de Mensagens */}
-      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-150px)]">
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 pb-20">
         {messages.map((message) => (
           <div key={message.id} className="flex items-start space-x-3">
             <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center" 
@@ -319,18 +319,18 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
       </div>
 
       {/* Input de Mensagem */}
-      <div className="p-4 border-t border-[#2a2a2e] bg-[#141318] sticky bottom-0 z-10">
+      <div className="absolute bottom-0 left-0 right-0 p-3 bg-[#0f0e13] border-t border-[#2a2a2e]">
         <form onSubmit={handleSendMessage} className="flex space-x-2">
           <input
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            className="flex-1 bg-[#1e1e24] border border-[#2a2a2e] rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-green-500"
+            className="flex-1 bg-[#1a191e] border border-[#2a2a2e] rounded-md px-4 py-2 text-white text-sm focus:outline-none focus:border-green-500"
             placeholder="Digite sua mensagem..."
           />
           <button
             type="submit"
-            className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
+            className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors"
           >
             Enviar
           </button>
