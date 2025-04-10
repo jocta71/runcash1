@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { PieChart, Phone, Timer, Cpu, Zap, History } from "lucide-react";
 import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
+import { fetchWithCorsSupport } from '@/utils/api-helpers';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -76,13 +77,7 @@ class GlobalRouletteDataManager {
     
     try {
       // Criar nova promise
-      this.fetchPromise = fetch('/api/ROULETTES')
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`Erro na API: ${response.status}`);
-          }
-          return response.json();
-        })
+      this.fetchPromise = fetchWithCorsSupport('/api/ROULETTES')
         .then(data => {
           if (!data || !Array.isArray(data)) {
             throw new Error('Resposta da API inválida');
