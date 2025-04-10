@@ -367,12 +367,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   
   // Função para abrir detalhes da roleta
   const handleCardClick = () => {
-    if (!isDetailView) {
-      // Carregar dados detalhados antes de navegar para a página de detalhes
-      globalRouletteDataService.fetchDetailedRouletteData().then(() => {
-        navigate(`/${safeData.id}`);
-      });
-    }
+    // Função desativada - não navega mais para outra página quando o card é clicado
+    console.log(`[${componentId}] Clique no card ${safeData.name}`);
+    // Nenhuma navegação será feita
   };
   
   // Formatar tempo relativo
