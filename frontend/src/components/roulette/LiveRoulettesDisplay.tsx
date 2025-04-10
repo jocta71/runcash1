@@ -259,8 +259,8 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       setRoulettes(roulettesData);
       setIsLoading(false);
       
-      // Selecionar a primeira roleta automaticamente
-      if (!selectedRoulette) {
+      // Selecionar a segunda roleta automaticamente (índice 1)
+      if (!selectedRoulette && roulettesData.length > 1) {
         setSelectedRoulette(roulettesData[1]);
         setShowStatsInline(true);
       }
@@ -276,9 +276,9 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
         setRoulettes(cachedRoulettes);
         setIsLoading(false);
         
-        // Selecionar a primeira roleta automaticamente
-        if (!selectedRoulette) {
-          setSelectedRoulette(cachedRoulettes[0]);
+        // Selecionar a segunda roleta automaticamente (índice 1)
+        if (!selectedRoulette && cachedRoulettes.length > 1) {
+          setSelectedRoulette(cachedRoulettes[1]);
           setShowStatsInline(true);
         }
       } else {
@@ -294,9 +294,9 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
             setRoulettes(delayedRoulettes);
             setIsLoading(false);
             
-            // Selecionar a primeira roleta automaticamente
-            if (!selectedRoulette) {
-              setSelectedRoulette(delayedRoulettes[0]);
+            // Selecionar a segunda roleta automaticamente (índice 1)
+            if (!selectedRoulette && delayedRoulettes.length > 1) {
+              setSelectedRoulette(delayedRoulettes[1]);
               setShowStatsInline(true);
             }
           }
@@ -318,11 +318,11 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
         setRoulettes(updatedRoulettes);
         setIsLoading(false); // Garantir que o loading seja desativado
         
-        // Se ainda não houver roleta selecionada, selecionar a primeira
-        if (!selectedRoulette) {
-          setSelectedRoulette(updatedRoulettes[0]);
+        // Se ainda não houver roleta selecionada, selecionar a segunda
+        if (!selectedRoulette && updatedRoulettes.length > 1) {
+          setSelectedRoulette(updatedRoulettes[1]);
           setShowStatsInline(true);
-        } else {
+        } else if (selectedRoulette) {
           // Atualizar a roleta selecionada com dados mais recentes
           const updatedSelectedRoulette = updatedRoulettes.find(r => 
             r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
