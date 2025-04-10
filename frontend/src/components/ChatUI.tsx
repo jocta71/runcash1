@@ -273,7 +273,7 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
       </div>
 
       {/* Lista de Mensagens */}
-      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-150px)]">
         {messages.map((message) => (
           <div key={message.id} className="flex items-start space-x-3">
             <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center" 
@@ -319,7 +319,7 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
       </div>
 
       {/* Input de Mensagem */}
-      <div className="p-4 border-t border-[#2a2a2e] bg-[#141318]">
+      <div className="p-4 border-t border-[#2a2a2e] bg-[#141318] sticky bottom-0 z-10">
         <form onSubmit={handleSendMessage} className="flex space-x-2">
           <input
             type="text"
