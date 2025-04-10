@@ -330,213 +330,136 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   };
 
   // ===================================================================
-  // SISTEMA DE ATUALIZAÇÃO - TENTATIVA COM POSTMAN HEADERS + FALLBACK
+  // SISTEMA DE ATUALIZAÇÃO - ESCUTA DE EVENTOS DO RESTSocketService
   // ===================================================================
   
-  // Efeito para buscar dados reais e simular em caso de falha de CORS
+  // Baseado nos logs que vimos, o sistema já tem um serviço de eventos funcionando perfeitamente
+  // Vamos apenas escutar esses eventos em vez de tentar acessar a API diretamente
   useEffect(() => {
     if (!safeData || !safeData.id) return;
     
     let isMounted = true;
-    console.log(`[ROULETTE-API] Iniciando sistema para ${safeData.name} [ID: ${safeData.id}]`);
+    console.log(`[ROULETTE-CARD] Inscrevendo para eventos de ${safeData.name} [ID: ${safeData.id}]`);
     
-    // Tentativa de buscar dados reais usando o endpoint correto /api/ROULETTES
-    const fetchRealData = async () => {
-      try {
-        // URL CORRETA da API - o endpoint descoberto é /api/ROULETTES
-        const url = `${config.apiUrl}/ROULETTES`;
-        console.log(`[ROULETTE-API] Tentando acessar endpoint correto: ${url}`);
-        
-        // Configurar os headers similares ao que vimos no Postman
-        const headers = {
-          'User-Agent': 'PostmanRuntime/7.43.2',
-          'Accept': '*/*',
-          'Accept-Encoding': 'gzip, deflate',
-          'Connection': 'keep-alive'
-        };
-        
-        // Tentativa de fetch com os headers do Postman
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: headers,
-          // Usar no-cors se necessário como último recurso
-          // mode: 'no-cors'
-        });
-        
-        // Verificar se a resposta foi bem sucedida
-        if (response.ok) {
-          // Tentar processar os dados reais da API
-          const data = await response.json();
-          console.log(`[ROULETTE-API] Dados reais recebidos do endpoint correto:`, data);
-          
-          // Processar os dados usando o formato correto visto nas screenshots
-          processRealData(data);
-          return true; // Indicar que conseguimos dados reais
-        } else {
-          console.warn(`[ROULETTE-API] Resposta não OK: ${response.status}`);
-          return false;
-        }
-      } catch (error) {
-        console.error(`[ROULETTE-API] Erro ao acessar a API:`, error);
-        console.log(`[ROULETTE-FALLBACK] Usando dados simulados como alternativa.`);
-        return false;
-      }
-    };
-    
-    // Função para processar os dados reais da API - formato correto conforme as screenshots
-    const processRealData = (data: any) => {
+    // Função para processar novos números recebidos de eventos
+    const handleNumberUpdate = (eventData: any) => {
       if (!isMounted) return;
       
-      try {
-        // Baseado na estrutura JSON vista nas screenshots
-        // A API retorna um objeto com uma propriedade 'roulettes' que é um array
-        if (!data || !data.roulettes || !Array.isArray(data.roulettes)) {
-          console.warn(`[ROULETTE-API] Formato de dados inesperado:`, data);
-          return false;
-        }
-        
-        // Procurar a roleta correta pelo ID no array de roletas
-        const targetRoulette = data.roulettes.find((roulette: any) => 
-          roulette.roleta_id === safeData.id
-        );
-        
-        if (!targetRoulette) {
-          console.warn(`[ROULETTE-API] Roleta ${safeData.name} [ID: ${safeData.id}] não encontrada nos dados`);  
-          return false;
-        }
-        
-        // Obtivemos a roleta correta!
-        console.log(`[ROULETTE-API] Roleta encontrada:`, targetRoulette);
-        
-        // Extrair o número mais recente (conforme visto nas screenshots)
-        const latestNumber = targetRoulette.numero;
-        
-        if (typeof latestNumber === 'number') {
-          console.log(`[ROULETTE-API] Último número da API: ${latestNumber}`);
-          
-          // Atualizar o componente com o número real
-          updateComponent(latestNumber);
-          return true;
-        } else {
-          console.warn(`[ROULETTE-API] Número inválido na resposta:`, latestNumber);
-          return false;
-        }
-      } catch (error) {
-        console.error(`[ROULETTE-API] Erro ao processar dados:`, error);
-        return false;
-      }
-    };
-    
-    // Função compartilhada para atualizar o componente (usada tanto pelos dados reais quanto simulados)
-    const updateComponent = (newNumber: number, allNumbers?: number[]) => {
-      if (!isMounted) return;
+      // De acordo com os logs, o sistema emite eventos com o número
+      const number = eventData?.numero;
       
-      // Verificar se é diferente do número atual
-      if (newNumber !== lastNumber) {
-        console.log(`[ROULETTE-UPDATE] Novo número: ${newNumber} (anterior: ${lastNumber})`);
+      // Validar que o número é válido
+      if (typeof number === 'number' && !isNaN(number) && number >= 0 && number <= 36) {
+        console.log(`[ROULETTE-CARD] Recebido novo número ${number} para ${safeData.name}`);
         
-        // Atualizar último número
-        setLastNumber(newNumber);
-        
-        // Atualizar lista de números
-        setRecentNumbers(prev => {
-          const prevArray = Array.isArray(prev) ? prev : [];
+        // Só processar o número se for diferente do atual
+        if (number !== lastNumber) {
+          // Atualizar o último número
+          setLastNumber(number);
           
-          // Se lista completa foi fornecida, usá-la
-          if (allNumbers && allNumbers.length > 0) {
-            return [...allNumbers].slice(0, 26);
-          }
-          
-          // Caso contrário, apenas adicionar o novo número
-          if (prevArray.length > 0 && prevArray[0] === newNumber) {
-            return prevArray;
-          }
-          
-          const updated = [newNumber, ...prevArray].slice(0, 26);
-          console.log(`[ROULETTE-UPDATED] Lista atualizada:`, updated);
-          return updated;
-        });
-        
-        // Atualizar status
-        setHasRealData(true);
-        setLastUpdateTime(Date.now());
-        setUpdateCount(prev => prev + 1);
-        
-        // Efeito visual
-        setIsNewNumber(true);
-        setTimeout(() => {
-          if (isMounted) setIsNewNumber(false);
-        }, 2000);
-        
-        // Som e notificações
-        if (enableSound && audioRef.current) {
-          audioRef.current.play().catch(e => console.log('[ROULETTE-AUDIO] Erro:', e));
-        }
-        
-        if (enableNotifications) {
-          toast({
-            title: `Novo número: ${newNumber}`,
-            description: `${safeData.name}: ${newNumber}`,
-            variant: "default"
+          // Atualizar a lista de números recentes
+          setRecentNumbers(prev => {
+            const prevArray = Array.isArray(prev) ? prev : [];
+            
+            // Adicionar apenas se ainda não estiver no topo
+            if (prevArray.length > 0 && prevArray[0] === number) {
+              return prevArray;
+            }
+            
+            // Adicionar o novo número ao início e limitar a 26 números
+            const updated = [number, ...prevArray].slice(0, 26);
+            console.log(`[ROULETTE-CARD] Lista atualizada para ${safeData.name}:`, updated);
+            return updated;
           });
+          
+          // Atualizar estado e contadores
+          setHasRealData(true);
+          setLastUpdateTime(Date.now());
+          setUpdateCount(prev => prev + 1);
+          
+          // Efeito visual de novo número
+          setIsNewNumber(true);
+          setTimeout(() => {
+            if (isMounted) setIsNewNumber(false);
+          }, 2000);
+          
+          // Som e notificações se habilitados
+          if (enableSound && audioRef.current) {
+            audioRef.current.play().catch(e => console.log('[ROULETTE-AUDIO] Erro:', e));
+          }
+          
+          if (enableNotifications) {
+            toast({
+              title: `Novo número: ${number}`,
+              description: `${safeData.name}: ${number}`,
+              variant: "default"
+            });
+          }
+        } else {
+          console.log(`[ROULETTE-CARD] Número ${number} já é o atual para ${safeData.name}, ignorando`);
         }
       }
     };
     
+    // Com base nos logs, vamos nos inscrever para diversos eventos que podem conter números novos
     
-    // CORS ERROR INFO: O erro ocorre porque o backend em backendapi-production-36b5.up.railway.app
-    // não tem as configurações CORS corretas para permitir solicitações do domínio do frontend
-    // Solução ideal: Configurar no backend os headers:
-    // Access-Control-Allow-Origin: https://runcashh1-blond.vercel.app
-    // Access-Control-Allow-Methods: GET, POST, OPTIONS
-    // Access-Control-Allow-Headers: Content-Type, Authorization
+    // 1. Evento específico para o ID da roleta (visto no log: roulette_card_update)
+    const specificCardEventName = `roulette_card_update:${safeData.id}`;
+    console.log(`[ROULETTE-CARD] Inscrevendo para evento específico: ${specificCardEventName}`);
+    EventService.on(specificCardEventName, handleNumberUpdate);
     
-    // SOLUÇÃO HÍBRIDA: Tentar dados reais primeiro, fallback para simulação
+    // 2. Evento genérico de atualização de números (visto no log: new_number)
+    const genericNumberEventName = 'new_number';
+    console.log(`[ROULETTE-CARD] Inscrevendo para evento genérico: ${genericNumberEventName}`);
     
-    // Função para gerar um novo número aleatório (para simulação)
-    const generateNewNumber = () => {
-      // Usar timestamp para garantir que seja diferente a cada execução
-      const timestamp = Date.now();
-      return timestamp % 37; // Números entre 0 e 36
-    };
-    
-    // Função que simula o recebimento de um novo número da API
-    const simulateNewNumber = () => {
-      if (!isMounted) return;
-      
-      // Gerar um novo número aleatório
-      const newNumber = generateNewNumber();
-      console.log(`[ROULETTE-SIM] Simulando novo número: ${newNumber} para ${safeData.name}`);
-      
-      // Usar a função compartilhada para atualizar o componente
-      updateComponent(newNumber);
-    };
-    
-    // Estrategia principal: sistema híbrido que tenta dados reais primeiro
-    const runHybridSystem = async () => {
-      if (!isMounted) return;
-      
-      // Primeiro tentar obter dados reais
-      const realDataSuccess = await fetchRealData();
-      
-      // Se falhar, usar simulação
-      if (!realDataSuccess) {
-        console.log(`[ROULETTE-HYBRID] Usando dados simulados como fallback`);
-        simulateNewNumber();
+    // Handler filtrado para eventos genéricos que correspondem a esta roleta
+    const handleGenericNumberEvent = (eventData: any) => {
+      // Verificar se o evento é para esta roleta específica
+      if (eventData && (eventData.tableId === safeData.id || eventData.table === safeData.name)) {
+        handleNumberUpdate(eventData);
       }
     };
     
-    // Executar nossa estratégia híbrida imediatamente
-    runHybridSystem();
+    EventService.on(genericNumberEventName, handleGenericNumberEvent);
     
-    // Configurar intervalo para atualizações periódicas (tenta dados reais primeiro sempre)
-    const updateInterval = setInterval(runHybridSystem, 7000); // A cada 7 segundos
+    // 3. Evento de atualização completa da roleta (visto no log: roulette_update)
+    const rouletteUpdateEventName = 'roulette_update';
+    console.log(`[ROULETTE-CARD] Inscrevendo para atualizações completas: ${rouletteUpdateEventName}`);
     
-    // Limpeza ao desmontar
+    // Handler filtrado para eventos de atualização completa
+    const handleRouletteUpdate = (eventData: any) => {
+      // Verificar se o evento é para esta roleta específica
+      if (eventData && (eventData.tableId === safeData.id || eventData.table === safeData.name)) {
+        handleNumberUpdate(eventData);
+      }
+    };
+    
+    EventService.on(rouletteUpdateEventName, handleRouletteUpdate);
+    
+    // 4. Evento de atualização de números do sistema (visto no log: roulette_numbers_update)
+    const numbersUpdateEventName = 'roulette_numbers_update';
+    console.log(`[ROULETTE-CARD] Inscrevendo para atualizações de números: ${numbersUpdateEventName}`);
+    
+    // Handler filtrado para eventos de atualização de números
+    const handleNumbersUpdate = (eventData: any) => {
+      // Verificar se o evento é para esta roleta específica
+      if (eventData && (eventData.tableId === safeData.id || eventData.table === safeData.name)) {
+        handleNumberUpdate(eventData);
+      }
+    };
+    
+    EventService.on(numbersUpdateEventName, handleNumbersUpdate);
+    
+    // Limpeza ao desmontar o componente
     return () => {
-      console.log(`[ROULETTE-CLEANUP] Cancelando sistema para ${safeData.name}`);
+      console.log(`[ROULETTE-CARD] Cancelando inscrições para ${safeData.name}`);
       isMounted = false;
-      clearInterval(updateInterval);
+      
+      // Cancelar todas as inscrições de eventos
+      EventService.off(specificCardEventName, handleNumberUpdate);
+      EventService.off(genericNumberEventName, handleGenericNumberEvent);
+      EventService.off(rouletteUpdateEventName, handleRouletteUpdate);
+      EventService.off(numbersUpdateEventName, handleNumbersUpdate);
     };
   }, [safeData?.id, safeData?.name, lastNumber, enableSound, enableNotifications]);
   
