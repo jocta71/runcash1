@@ -36,7 +36,7 @@ export default function RouletteHistory() {
     fetchInitialHistory();
 
     // Configurar conexão WebSocket
-    const socketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'https://runcash-websocket.up.railway.app/';
+    const socketURL = import.meta.env.VITE_WS_URL || 'https://backend-production-2f96.up.railway.app';
     const newSocket = io(socketURL, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
