@@ -27,8 +27,8 @@ import { PieChart, Phone, Timer, Cpu, Zap, History } from "lucide-react";
 import RouletteStats from './RouletteStats';
 import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
-import RouletteFeedService from '@/services/RouletteFeedService';
-import RouletteStreamService from '@/services/RouletteStreamService';
+import { useRouletteSystem } from '@/providers/RouletteSystemProvider';
+import RouletteSystemInitializer from '@/services/RouletteSystemInitializer';
 
 // Logger específico para este componente
 const logger = getLogger('RouletteCard');
@@ -100,17 +100,12 @@ interface RouletteCardProps {
 }
 
 const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false }) => {
-  // Obter referência ao serviço de feed e ao novo serviço de streaming
-  const feedService = useMemo(() => {
-    return RouletteFeedService.getInstance();
-  }, []);
+  // Usar o contexto do sistema de roletas
+  const { isConnected, refreshData } = useRouletteSystem();
   
-  // Inicializar o serviço de streaming para garantir que ele esteja rodando
-  useMemo(() => {
-    const streamService = RouletteStreamService.getInstance();
-    // Garantir que o streaming está conectado
-    streamService.connect();
-    return streamService;
+  // Obter referência ao serviço de feed usando o inicializador centralizado
+  const feedService = useMemo(() => {
+    return RouletteSystemInitializer.getFeedService();
   }, []);
   
   // Garantir que data é um objeto válido com valores padrão seguros
@@ -443,12 +438,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   }, [feedService, safeData.id, safeData.name, safeData.numbers, recentNumbers]);
 
   // Adicionar botão para atualização manual dos dados
-  const handleManualRefresh = () => {
-    EventService.emit('roulette:manual-refresh', {
-      timestamp: new Date().toISOString(),
-      rouletteId: safeData.id
+  const handleManualRefresh = useCallback(() => {
+    // Usar a função do contexto para solicitar atualização
+    refreshData();
+    
+    // Feedback visual para o usuário
+    toast({
+      title: "Atualizando dados",
+      description: `Solicitando dados atualizados para ${safeData.name}`,
+      duration: 2000,
     });
-  };
+  }, [refreshData, safeData.name]);
 
   return (
     <Card 
@@ -516,7 +516,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
               onClick={handleManualRefresh}
               title="Atualizar dados"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={cn("h-4 w-4", isConnected ? "" : "animate-spin text-yellow-500")} />
             </Button>
           </div>
           
