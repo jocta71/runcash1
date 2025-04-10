@@ -89,7 +89,7 @@ interface RouletteFeedServiceOptions {
  */
 export default class RouletteFeedService {
   private static instance: RouletteFeedService | null = null;
-  private roulettes: any[] = [];
+  private roulettes: { [key: string]: any } = {}; // Alterado para um objeto em vez de array
   
   // Controle de estado global
   private IS_INITIALIZING: boolean = false;
@@ -370,7 +370,7 @@ export default class RouletteFeedService {
   /**
    * Busca os dados iniciais das roletas (se não estiverem em cache)
    */
-  public async fetchInitialData(): Promise<any[]> {
+  public async fetchInitialData(): Promise<{ [key: string]: any }> {
     // Verificar se já temos dados em cache e se são válidos
     if (this.hasCachedData && this.lastUpdateTime > 0) {
       const cacheAge = Date.now() - this.lastUpdateTime;
@@ -405,7 +405,7 @@ export default class RouletteFeedService {
     // Se ainda estamos processando uma requisição, não iniciar outra
     if (this.isFetching) {
       logger.warn('⌛ Já existe uma requisição em andamento, usando cache temporário');
-      return this.roulettes || [];
+      return this.roulettes || {};
     }
     
     // Verificar o intervalo mínimo entre requisições
@@ -432,20 +432,34 @@ export default class RouletteFeedService {
         requestId
       );
       
-      // Processar os resultados
-      if (result && result.LiveTables) {
-        logger.success(`✅ Dados iniciais recebidos: ${Object.keys(result.LiveTables).length} roletas`);
+      // Processar os resultados - agora esperamos um array diretamente da API
+      if (result && Array.isArray(result)) {
+        logger.success(`✅ Dados iniciais recebidos: ${result.length} roletas`);
+        
+        // Transformar dados para o formato esperado
+        const liveTables: { [key: string]: any } = {};
+        result.forEach(roleta => {
+          if (roleta && roleta.id) {
+            liveTables[roleta.id] = {
+              GameID: roleta.id,
+              Name: roleta.name || roleta.nome,
+              ativa: roleta.ativa,
+              numero: roleta.numero || [],
+              ...roleta // manter outros campos originais da roleta
+            };
+          }
+        });
         
         // Armazenar os dados
         this.lastUpdateTime = Date.now();
         this.hasCachedData = true;
-        this.roulettes = result.LiveTables;
+        this.roulettes = liveTables;
         
         // Ajustar intervalo de polling baseado no sucesso
         this.adjustPollingInterval(false);
         
         // Notificar que temos novos dados
-        this.notifySubscribers(result.LiveTables);
+        this.notifySubscribers(liveTables);
       } else {
         logger.error('❌ Resposta inválida recebida');
       }
@@ -457,8 +471,8 @@ export default class RouletteFeedService {
       // Ajustar intervalo em caso de erro
       this.adjustPollingInterval(true);
       
-      // Retornar dados em cache se existirem, ou array vazio
-      return this.roulettes || [];
+      // Retornar dados em cache se existirem, ou objeto vazio
+      return this.roulettes || {};
     } finally {
       // Liberar o bloqueio global
       GLOBAL_IS_FETCHING = false;
@@ -527,10 +541,24 @@ export default class RouletteFeedService {
         // Liberar a trava global
         window._requestInProgress = false;
         
-        // Processar os dados recebidos
-        if (data && data.LiveTables) {
-          this.roulettes = data.LiveTables;
-          this.notifySubscribers(data.LiveTables);
+        // Processar os dados recebidos - agora esperamos um array diretamente da API
+        if (data && Array.isArray(data)) {
+          // Transformar dados para o formato esperado
+          const liveTables: { [key: string]: any } = {};
+          data.forEach(roleta => {
+            if (roleta && roleta.id) {
+              liveTables[roleta.id] = {
+                GameID: roleta.id,
+                Name: roleta.name || roleta.nome,
+                ativa: roleta.ativa,
+                numero: roleta.numero || [],
+                ...roleta // manter outros campos originais da roleta
+              };
+            }
+          });
+          
+          this.roulettes = liveTables;
+          this.notifySubscribers(liveTables);
         }
         
         // Ajustar o intervalo de polling (sem erro)
@@ -1047,16 +1075,35 @@ export default class RouletteFeedService {
    * Processa os dados das roletas recebidos da API
    */
   private handleRouletteData(data: any): void {
-    if (!data || !data.LiveTables) {
+    if (!data || !Array.isArray(data)) {
       logger.error('⚠️ Dados inválidos recebidos:', data);
       return;
     }
     
+    // Transformar a resposta da API (array) para o formato esperado pelo resto do código
+    const liveTables: { [key: string]: any } = {};
+    data.forEach(roleta => {
+      if (roleta && roleta.id) {
+        liveTables[roleta.id] = {
+          GameID: roleta.id,
+          Name: roleta.name || roleta.nome,
+          ativa: roleta.ativa,
+          numero: roleta.numero || [],
+          ...roleta // manter outros campos originais da roleta
+        };
+      }
+    });
+    
+    // Criar o formato esperado pelo sistema
+    const formattedData = {
+      LiveTables: liveTables
+    };
+    
     // Atualizar a lista de roletas
-    this.roulettes = data.LiveTables;
+    this.roulettes = formattedData.LiveTables;
     
     // Atualizar o cache
-    this.updateRouletteCache(data.LiveTables);
+    this.updateRouletteCache(Object.values(formattedData.LiveTables));
     
     // Registrar estatística de requisição bem-sucedida
     this.requestStats.totalRequests++;
@@ -1067,7 +1114,7 @@ export default class RouletteFeedService {
     this.adjustPollingInterval(false);
     
     // Notificar que temos novos dados
-    this.notifySubscribers(data.LiveTables);
+    this.notifySubscribers(formattedData.LiveTables);
   }
 
   /**
@@ -1076,33 +1123,26 @@ export default class RouletteFeedService {
    */
   private validateRouletteData(data: any): boolean {
     try {
-      // Verificar se temos um objeto (a resposta real da API é um objeto, não um array)
-      if (!data || typeof data !== 'object' || Array.isArray(data)) {
-        logger.warn('❌ Dados de roleta inválidos: não é um objeto');
+      // Verificar se temos um array (a resposta real da API é um array, não um objeto)
+      if (!data || !Array.isArray(data)) {
+        logger.warn('❌ Dados de roleta inválidos: não é um array');
         return false;
       }
       
-      // Verificar se temos a propriedade LiveTables
-      if (!data.LiveTables || typeof data.LiveTables !== 'object') {
-        logger.warn('❌ Dados de roleta inválidos: falta propriedade LiveTables');
-        return false;
-      }
-      
-      // Verificar se temos pelo menos uma tabela
-      const tableKeys = Object.keys(data.LiveTables);
-      if (tableKeys.length === 0) {
-        logger.warn('⚠️ Dados de roleta vazios (sem tabelas)');
+      // Verificar se o array não está vazio
+      if (data.length === 0) {
+        logger.warn('⚠️ Dados de roleta vazios (array vazio)');
         return true; // Consideramos válido, pois pode ser um estado legítimo
       }
       
-      // Verificar se a primeira tabela tem a estrutura esperada
-      const firstTable = data.LiveTables[tableKeys[0]];
-      if (!firstTable.GameID || !firstTable.Name) {
+      // Verificar se o primeiro item tem a estrutura esperada
+      const firstItem = data[0];
+      if (!firstItem.id || !firstItem.name) {
         logger.warn('❌ Dados de roleta inválidos: estrutura incorreta');
         return false;
       }
       
-      logger.debug(`✅ Dados de roleta validados: ${tableKeys.length} tabelas`);
+      logger.debug(`✅ Dados de roleta validados: ${data.length} roletas`);
       return true;
     } catch (error) {
       logger.error('❌ Erro ao validar dados de roleta:', error);
