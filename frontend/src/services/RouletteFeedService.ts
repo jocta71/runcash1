@@ -97,6 +97,9 @@ export default class RouletteFeedService {
   private GLOBAL_INITIALIZATION_PROMISE: Promise<any> | null = null;
   private lastRequestTime: number = 0;
   
+  // Adicionar flag estático para controle de primeira inicialização
+  private static INITIAL_DATA_FETCHED: boolean = false;
+  
   // Estado de requisições
   private isFetching: boolean = false;
   private lastFetchTime: number = 0;
@@ -259,6 +262,12 @@ export default class RouletteFeedService {
   public initialize(): Promise<any> {
     logger.info('Solicitação de inicialização recebida');
     
+    // Se já foi inicializado globalmente, retornar os dados existentes
+    if (RouletteFeedService.INITIAL_DATA_FETCHED && this.hasCachedData) {
+      logger.info('Serviço já inicializado globalmente, retornando dados existentes');
+      return Promise.resolve(this.roulettes);
+    }
+    
     // Se já existir uma promessa de inicialização em andamento, retorne-a
     if (this.GLOBAL_INITIALIZATION_PROMISE) {
       logger.info('Reutilizando promessa de inicialização existente');
@@ -292,22 +301,32 @@ export default class RouletteFeedService {
     this.GLOBAL_INITIALIZATION_PROMISE = new Promise((resolve, reject) => {
       logger.info('Iniciando inicialização');
       
-      // Buscar dados iniciais
-      this.fetchInitialData()
-        .then(data => {
-          logger.info('Dados iniciais obtidos com sucesso');
-          this.initialRequestDone = true; // Marcar que a requisição inicial foi concluída
-          this.startPolling();
-          this.initialized = true;
-          this.IS_INITIALIZING = false;
-          resolve(data);
-        })
-        .catch(error => {
-          logger.error('Erro na inicialização:', error);
-          this.IS_INITIALIZING = false;
-          this.GLOBAL_INITIALIZATION_PROMISE = null;
-          reject(error);
-        });
+      // Buscar dados iniciais apenas se não foram buscados anteriormente
+      if (!RouletteFeedService.INITIAL_DATA_FETCHED) {
+        this.fetchInitialData()
+          .then(data => {
+            logger.info('Dados iniciais obtidos com sucesso');
+            this.initialRequestDone = true; // Marcar que a requisição inicial foi concluída
+            RouletteFeedService.INITIAL_DATA_FETCHED = true; // Marcar globalmente que os dados iniciais foram buscados
+            this.startPolling();
+            this.initialized = true;
+            this.IS_INITIALIZING = false;
+            resolve(data);
+          })
+          .catch(error => {
+            logger.error('Erro na inicialização:', error);
+            this.IS_INITIALIZING = false;
+            this.GLOBAL_INITIALIZATION_PROMISE = null;
+            reject(error);
+          });
+      } else {
+        // Se os dados já foram buscados antes, apenas iniciar o polling
+        logger.info('Usando dados iniciais já buscados anteriormente');
+        this.startPolling();
+        this.initialized = true;
+        this.IS_INITIALIZING = false;
+        resolve(this.roulettes);
+      }
     });
     
     return this.GLOBAL_INITIALIZATION_PROMISE;
@@ -371,6 +390,12 @@ export default class RouletteFeedService {
    * Busca os dados iniciais das roletas (se não estiverem em cache)
    */
   public async fetchInitialData(): Promise<{ [key: string]: any }> {
+    // Se já buscamos dados iniciais, retornar os dados em cache
+    if (RouletteFeedService.INITIAL_DATA_FETCHED) {
+      logger.info('📋 Dados iniciais já foram buscados anteriormente, usando cache');
+      return this.roulettes;
+    }
+    
     // Verificar se já temos dados em cache e se são válidos
     if (this.hasCachedData && this.lastUpdateTime > 0) {
       const cacheAge = Date.now() - this.lastUpdateTime;
@@ -378,6 +403,38 @@ export default class RouletteFeedService {
       // Se o cache é recente (menos de 2 minutos), usar dados em cache
       if (cacheAge < 120000) {
         logger.info(`📦 Usando dados em cache (${Math.round(cacheAge / 1000)}s)`);
+        return this.roulettes;
+      }
+    }
+    
+    // Usar localStorage para sincronização entre instâncias
+    const initialFetchKey = 'roulette_initial_fetch_in_progress';
+    const initialFetchTimestamp = localStorage.getItem(initialFetchKey);
+    
+    // Se outra instância está buscando dados nos últimos 10 segundos, aguardar
+    if (initialFetchTimestamp && (Date.now() - parseInt(initialFetchTimestamp, 10)) < 10000) {
+      logger.warn('🔄 Outra instância já está buscando dados iniciais, aguardando...');
+      
+      // Aguardar até 5 segundos para obter os dados
+      let waitCount = 0;
+      while (waitCount < 10) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        waitCount++;
+        
+        // Verificar se o flag de inicialização global foi setado
+        if (RouletteFeedService.INITIAL_DATA_FETCHED) {
+          logger.info('✅ Dados iniciais foram carregados por outra instância');
+          return this.roulettes;
+        }
+        
+        // Verificar se a outra instância liberou o bloqueio
+        if (!localStorage.getItem(initialFetchKey)) {
+          break;
+        }
+      }
+      
+      // Se após a espera tivermos dados, retornar
+      if (this.hasCachedData) {
         return this.roulettes;
       }
     }
@@ -416,6 +473,9 @@ export default class RouletteFeedService {
       
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
+    
+    // Marcar no localStorage que estamos buscando dados iniciais
+    localStorage.setItem(initialFetchKey, Date.now().toString());
     
     // Definir bloqueio global para evitar requisições simultâneas
     GLOBAL_IS_FETCHING = true;
@@ -461,6 +521,9 @@ export default class RouletteFeedService {
         this.hasCachedData = true;
         this.roulettes = liveTables;
         
+        // Sinalizar que dados iniciais foram carregados globalmente
+        RouletteFeedService.INITIAL_DATA_FETCHED = true;
+        
         // Ajustar intervalo de polling baseado no sucesso
         this.adjustPollingInterval(false);
         
@@ -482,6 +545,9 @@ export default class RouletteFeedService {
     } finally {
       // Liberar o bloqueio global
       GLOBAL_IS_FETCHING = false;
+      
+      // Remover marca no localStorage
+      localStorage.removeItem(initialFetchKey);
     }
   }
 
