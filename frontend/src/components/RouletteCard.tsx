@@ -322,52 +322,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
   };
 
-    // Atualizar a lista de números recentes
-    setRecentNumbers(prevNumbers => {
-      // Verificar se prevNumbers é um array válido
-      if (!Array.isArray(prevNumbers)) {
-        console.warn('[RouletteCard] prevNumbers não é um array:', prevNumbers);
-        return [newNumber]; // Retornar array só com o novo número
-      }
-      
-      // Evitar duplicação do mesmo número em sequência
-      if (prevNumbers.length > 0 && prevNumbers[0] === newNumber) {
-        return prevNumbers;
-      }
-      
-      console.log(`[RouletteCard] Adicionando ${newNumber} à lista de números recentes`);
-      // Adicionar o novo número ao início e manter até 26 números
-      return [newNumber, ...prevNumbers].slice(0, 26);
-    });
-
-    // Incrementar contador apenas para novos números
-    if (isReallyNew) {
-      setUpdateCount(prev => prev + 1);
-      
-      // Ativar efeito visual de novo número
-      setIsNewNumber(true);
-      
-      // Tocar som se habilitado
-      if (enableSound && audioRef.current) {
-        audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
-      }
-      
-      // Mostrar notificação se habilitado
-      if (enableNotifications) {
-        toast({
-          title: `Novo número: ${newNumber}`,
-          description: `${safeData.name}: ${newNumber}`,
-          variant: "default"
-        });
-      }
-      
-      // Desativar efeito após 1.5 segundos
-      setTimeout(() => {
-        setIsNewNumber(false);
-      }, 1500);
-    }
-  };
-
   // Efeito para se inscrever nos eventos de atualização em tempo real
   useEffect(() => {
     const handleDataUpdated = (updateData: any) => {
