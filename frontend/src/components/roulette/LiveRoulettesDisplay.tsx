@@ -258,6 +258,12 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       console.log(`[LiveRoulettesDisplay] Usando ${roulettesData.length} roletas fornecidas via props`);
       setRoulettes(roulettesData);
       setIsLoading(false);
+      
+      // Selecionar a primeira roleta automaticamente
+      if (!selectedRoulette) {
+        setSelectedRoulette(roulettesData[0]);
+        setShowStatsInline(true);
+      }
     } else {
       // Obter dados do feed service em vez de fazer requisições diretas
       console.log('[LiveRoulettesDisplay] Buscando dados de roletas do serviço centralizado');
@@ -269,6 +275,12 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
         console.log(`[LiveRoulettesDisplay] Usando ${cachedRoulettes.length} roletas do cache centralizado`);
         setRoulettes(cachedRoulettes);
         setIsLoading(false);
+        
+        // Selecionar a primeira roleta automaticamente
+        if (!selectedRoulette) {
+          setSelectedRoulette(cachedRoulettes[0]);
+          setShowStatsInline(true);
+        }
       } else {
         // Não inicializar mais o polling aqui - isso agora é responsabilidade do sistema centralizado
         console.log('[LiveRoulettesDisplay] Aguardando dados serem carregados pela inicialização central');
@@ -281,11 +293,17 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
             console.log(`[LiveRoulettesDisplay] Dados recebidos após espera: ${delayedRoulettes.length} roletas`);
             setRoulettes(delayedRoulettes);
             setIsLoading(false);
+            
+            // Selecionar a primeira roleta automaticamente
+            if (!selectedRoulette) {
+              setSelectedRoulette(delayedRoulettes[0]);
+              setShowStatsInline(true);
+            }
           }
         }, 3000); // Timeout mais curto, pois já temos um timeout na página
       }
     }
-  }, [feedService, roulettesData]);
+  }, [feedService, roulettesData, selectedRoulette]);
   
   // Inscrever-se para atualizações de dados do feed service
   useEffect(() => {
@@ -299,6 +317,21 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
         console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
         setRoulettes(updatedRoulettes);
         setIsLoading(false); // Garantir que o loading seja desativado
+        
+        // Se ainda não houver roleta selecionada, selecionar a primeira
+        if (!selectedRoulette) {
+          setSelectedRoulette(updatedRoulettes[0]);
+          setShowStatsInline(true);
+        } else {
+          // Atualizar a roleta selecionada com dados mais recentes
+          const updatedSelectedRoulette = updatedRoulettes.find(r => 
+            r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
+          );
+          
+          if (updatedSelectedRoulette) {
+            setSelectedRoulette(updatedSelectedRoulette);
+          }
+        }
       }
     };
     
@@ -309,7 +342,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     return () => {
       EventService.off('roulette:data-updated', handleDataUpdated);
     };
-  }, [feedService]);
+  }, [feedService, selectedRoulette]);
 
   // Função para selecionar uma roleta e mostrar estatísticas ao lado
   const handleRouletteSelect = (roleta: RouletteData) => {
