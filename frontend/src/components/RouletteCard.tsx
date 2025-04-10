@@ -94,6 +94,147 @@ const getInsightMessage = (numbers: number[], wins: number, losses: number) => {
   return "Padrão normal, observe mais alguns números";
 };
 
+// Gerenciador global de dados de roletas - usando singleton pattern
+class GlobalRouletteDataManager {
+  private static instance: GlobalRouletteDataManager;
+  private data: any[] = [];
+  private lastUpdate: number = 0;
+  private updateCallbacks: Map<string, (data: any) => void> = new Map();
+  private fetchPromise: Promise<any> | null = null;
+  private intervalId: NodeJS.Timeout | null = null;
+
+  private constructor() {
+    // Iniciar polling imediatamente
+    this.startPolling();
+  }
+
+  public static getInstance(): GlobalRouletteDataManager {
+    if (!GlobalRouletteDataManager.instance) {
+      GlobalRouletteDataManager.instance = new GlobalRouletteDataManager();
+      console.log('[GlobalRouletteService] Inicializando serviço global de roletas');
+    }
+    return GlobalRouletteDataManager.instance;
+  }
+
+  // Registrar um componente para receber atualizações
+  public subscribe(id: string, callback: (data: any) => void): () => void {
+    console.log(`[GlobalRouletteService] Novo assinante registrado: ${id}`);
+    this.updateCallbacks.set(id, callback);
+    
+    // Se já temos dados, notificar imediatamente
+    if (this.data.length > 0) {
+      callback(this.data);
+    } else if (!this.fetchPromise) {
+      // Forçar uma atualização se não estiver buscando dados ainda
+      this.fetchData();
+    }
+    
+    // Retornar função para cancelar inscrição
+    return () => {
+      this.updateCallbacks.delete(id);
+      console.log(`[GlobalRouletteService] Assinante removido: ${id}`);
+    };
+  }
+
+  // Buscar dados de todas as roletas
+  private async fetchData(): Promise<any[]> {
+    // Se já estamos buscando dados, retornar a Promise existente
+    if (this.fetchPromise) {
+      return this.fetchPromise;
+    }
+    
+    console.log('[GlobalRouletteService] Buscando dados atualizados da API');
+    
+    try {
+      // Criar nova promise
+      this.fetchPromise = fetch('/api/ROULETTES')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Erro na API: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (!data || !Array.isArray(data)) {
+            throw new Error('Resposta da API inválida');
+          }
+          
+          // Atualizar dados e timestamp
+          this.data = data;
+          this.lastUpdate = Date.now();
+          
+          // Notificar todos os assinantes
+          this.notifySubscribers();
+          
+          return data;
+        })
+        .catch(error => {
+          console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
+          return this.data; // Retornar dados antigos em caso de erro
+        })
+        .finally(() => {
+          this.fetchPromise = null;
+        });
+      
+      return this.fetchPromise;
+    } catch (error) {
+      console.error('[GlobalRouletteService] Erro ao iniciar requisição:', error);
+      this.fetchPromise = null;
+      return this.data;
+    }
+  }
+  
+  // Notificar todos os assinantes sobre novos dados
+  private notifySubscribers(): void {
+    if (this.updateCallbacks.size > 0) {
+      console.log(`[GlobalRouletteService] Notificando ${this.updateCallbacks.size} assinantes`);
+      this.updateCallbacks.forEach(callback => {
+        try {
+          callback(this.data);
+        } catch (error) {
+          console.error('[GlobalRouletteService] Erro ao notificar assinante:', error);
+        }
+      });
+    }
+  }
+  
+  // Iniciar polling para atualizações periódicas
+  private startPolling(interval = 8000): void {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+    }
+    
+    // Buscar dados imediatamente
+    this.fetchData();
+    
+    // Configurar intervalo
+    this.intervalId = setInterval(() => {
+      this.fetchData();
+    }, interval);
+    
+    console.log(`[GlobalRouletteService] Polling iniciado com intervalo de ${interval}ms`);
+  }
+  
+  // Parar polling
+  public stopPolling(): void {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+      console.log('[GlobalRouletteService] Polling parado');
+    }
+  }
+  
+  // Obter dados mais recentes (sem garantia de atualização)
+  public getData(): any[] {
+    return this.data;
+  }
+  
+  // Obter timestamp da última atualização
+  public getLastUpdateTime(): number {
+    return this.lastUpdate;
+  }
+}
+
 interface RouletteCardProps {
   data: RouletteData;
   isDetailView?: boolean;
@@ -132,6 +273,59 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     id: data?.id || data?._id || 'unknown',
     name: data?.name || data?.nome || 'Roleta sem nome',
   };
+  
+  // ID único para este componente
+  const componentId = useRef(`roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`).current;
+  
+  // Referência ao gerenciador global
+  const dataManager = useMemo(() => GlobalRouletteDataManager.getInstance(), []);
+  
+  // Função para lidar com atualizações de dados
+  const handleDataUpdate = useCallback((allRoulettes: any[]) => {
+    if (!allRoulettes || !Array.isArray(allRoulettes) || allRoulettes.length === 0) return;
+    
+    // Armazenar todas as roletas
+    setAllRoulettesData(allRoulettes);
+    
+    // Encontrar a roleta específica pelo ID ou nome
+    const myRoulette = allRoulettes.find((roulette: any) => 
+      roulette.id === safeData.id || 
+      roulette._id === safeData.id || 
+      roulette.name === safeData.name || 
+      roulette.nome === safeData.name
+    );
+    
+    if (!myRoulette) {
+      console.warn(`[${componentId}] Roleta com ID ${safeData.id} não encontrada na resposta`);
+      return;
+    }
+    
+    // Salvar dados brutos para uso posterior
+    setRawRouletteData(myRoulette);
+    
+    // Processar os dados da roleta
+    processApiData(myRoulette);
+    
+    // Atualizar timestamp e contador
+    setLastUpdateTime(Date.now());
+    setUpdateCount(prev => prev + 1);
+    setError(null);
+    setLoading(false);
+  }, [safeData.id, safeData.name]);
+  
+  // Efeito para iniciar a busca de dados
+  useEffect(() => {
+    // Configurar loading inicial
+    setLoading(true);
+    
+    // Assinar atualizações do gerenciador global
+    const unsubscribe = dataManager.subscribe(componentId, handleDataUpdate);
+    
+    // Limpar inscrição ao desmontar o componente
+    return () => {
+      unsubscribe();
+    };
+  }, [dataManager, componentId, handleDataUpdate]);
   
   // Função para verificar e processar números novos da API
   const processApiData = (apiRoulette: any) => {
@@ -200,71 +394,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
     
     return false;
-  };
-
-  // Função para buscar e processar dados de todas as roletas
-  const fetchAndProcessRouletteData = async () => {
-    try {
-      // URL da API
-      const url = `/api/ROULETTES`;
-      
-      // Log da requisição
-      console.log(`[${Date.now()}] Requisição de dados de roletas (${safeData.name})`);
-      
-      // Fazer a requisição para obter todas as roletas
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      // Validar resposta
-      if (!response.ok) {
-        throw new Error(`Erro na API: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!data || !Array.isArray(data)) {
-        throw new Error('Resposta da API inválida ou vazia');
-      }
-      
-      // Armazenar todas as roletas
-      setAllRoulettesData(data);
-      
-      // Encontrar a roleta específica pelo ID ou nome
-      const myRoulette = data.find((roulette: any) => 
-        roulette.id === safeData.id || 
-        roulette._id === safeData.id || 
-        roulette.name === safeData.name || 
-        roulette.nome === safeData.name
-      );
-      
-      if (!myRoulette) {
-        console.warn(`Roleta com ID ${safeData.id} não encontrada na resposta`);
-        return false;
-      }
-      
-      // Salvar dados brutos para uso posterior
-      setRawRouletteData(myRoulette);
-      
-      // Processar os dados da roleta
-      const processed = processApiData(myRoulette);
-      
-      // Atualizar timestamp e contador
-      setLastUpdateTime(Date.now());
-      setUpdateCount(prev => prev + 1);
-      setError(null);
-      
-      return processed;
-    } catch (err: any) {
-      console.error(`[${Date.now()}] Erro na requisição para ${safeData.name}:`, err);
-      setError(err.message || 'Erro ao buscar dados');
-      return false;
-    } finally {
-      setLoading(false);
-    }
   };
 
   // Função para extrair números da resposta da API
@@ -355,23 +484,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       navigate(`/roleta/${safeData.id}`);
     }
   };
-  
-  // Efeito para iniciar a busca de dados
-  useEffect(() => {
-    // Buscar dados iniciais
-    setLoading(true);
-    fetchAndProcessRouletteData();
-    
-    // Configurar intervalo de 8 segundos
-    const intervalId = setInterval(() => {
-      fetchAndProcessRouletteData();
-    }, 8000);
-    
-    // Limpar intervalo ao desmontar o componente
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [safeData.id]);
   
   // Formatar tempo relativo
   const getTimeAgo = () => {
