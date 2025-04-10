@@ -123,15 +123,29 @@ export const RouletteApi = {
     try {
       console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
       
-      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
+      // Usando o endpoint principal com filtro pelo nome da roleta
+      const response = await axios.get(`${ENDPOINTS.ROULETTES}?nome=${encodeURIComponent(rouletteName)}`);
       
       if (!response.data || !Array.isArray(response.data)) {
         console.error('[API] Resposta inválida do histórico:', response.data);
         return [];
       }
       
-      console.log(`[API] ✅ Obtidos ${response.data.length} números históricos`);
-      return response.data;
+      // Encontrar a roleta correta nos resultados
+      const targetRoulette = response.data.find((r: any) => 
+        (r.nome === rouletteName || r.name === rouletteName)
+      );
+      
+      if (!targetRoulette) {
+        console.warn(`[API] Roleta "${rouletteName}" não encontrada para histórico`);
+        return [];
+      }
+      
+      // Extrair os números históricos da roleta
+      const historicalNumbers = targetRoulette.numeros || targetRoulette.numbers || [];
+      
+      console.log(`[API] ✅ Obtidos ${historicalNumbers.length} números históricos`);
+      return historicalNumbers;
     } catch (error) {
       console.error(`[API] Erro ao buscar histórico da roleta ${rouletteName}:`, error);
       return [];

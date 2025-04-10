@@ -6,9 +6,6 @@ export const ENDPOINTS = {
   // Endpoint para roletas com limite de 100
   ROULETTES_LIMITED: '/api/ROULETTES?limit=100',
   
-  // Endpoint para histórico de roletas
-  ROULETTE_HISTORY: '/api/roulettes/history',
-  
   // Endpoint para eventos em tempo real
   EVENTS: '/api/events',
   
