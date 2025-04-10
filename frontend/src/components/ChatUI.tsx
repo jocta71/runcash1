@@ -8,21 +8,38 @@ interface ChatUIProps {
   isMobile?: boolean;
 }
 
-// Mensagens simuladas para alternar aleatoriamente
 const simulatedMessages = [
-  { sender: 'Zóio', message: 'Eae fi, qnd q isso vai tá ON? 🤔', isModerator: false, isAdmin: false },
-  { sender: 'Nandinha', message: 'Toh mó ansiozaaaa pra jogar vei', isModerator: false, isAdmin: false },
-  { sender: 'Mod Luizão', message: 'Suaviza tropa, já já vamo subir o bagui 🚀', isModerator: true, isAdmin: false },
-  { sender: 'Bibi Cria', message: 'Toh nem aí, só qro embolsar os pix msm 💸', isModerator: false, isAdmin: false },
-  { sender: 'Jhowzin', message: 'Viu meu msgm aê ou n?', isModerator: false, isAdmin: false },
-  { sender: 'Adm TH', message: 'Alguém deu um salve no motoca? vacilão sumiu faz tempão 😤', isModerator: false, isAdmin: true },
-  { sender: 'Rob Dog', message: 'Cê tá doido mlk, appzão brabo demais 🔥', isModerator: false, isAdmin: false },
-  { sender: 'Paty do Grau', message: 'Manoo, mt style o trem, curti d+ 😍', isModerator: false, isAdmin: false },
-  { sender: 'Duda 13', message: 'Tranquilo', isModerator: false, isAdmin: false },
-  { sender: 'Teuzin', message: 'E aí, q hora q solta a roletinha nova? 🎰', isModerator: false, isAdmin: false },
-  { sender: 'Mandinha', message: 'Sou nova aq, qm dá um help? 🥺', isModerator: false, isAdmin: false },
-  { sender: 'Bru Cria', message: 'Sai com 2 conto da última vez fi 🔥', isModerator: false, isAdmin: false },
+  { sender: 'mixfps', message: '7777777777777', isModerator: false, isAdmin: false },
+  { sender: 'andrelasn0r', message: '4', isModerator: false, isAdmin: false },
+  { sender: 'onlyvintink', message: '6', isModerator: false, isAdmin: false },
+  { sender: 'ShotzzzzX', message: 'Mining runnnnn', isModerator: false, isAdmin: false },
+  { sender: 'andre_oliver93', message: 'oi muié', isModerator: false, isAdmin: false },
+  { sender: 'Thiaguinho1910', message: '7', isModerator: false, isAdmin: false },
+  { sender: 'tasm23', message: 'CAM DO NADA 😂', isModerator: false, isAdmin: false },
+  { sender: 'pedrozooy', message: '4444444444444444444444', isModerator: false, isAdmin: false },
+  { sender: 'udaxkbanido', message: 'lkkkkkkkkkkkkkkkk', isModerator: false, isAdmin: false },
+  { sender: 'O_illusion', message: 'essa banca é confiável memo @dona ?', isModerator: false, isAdmin: false },
+  { sender: 'gxstavxxz_qs', message: '8', isModerator: false, isAdmin: false },
+  { sender: 'rayznnnnn', message: '4', isModerator: false, isAdmin: false },
+  { sender: 'fandodonaaa', message: 'diminui a mão doidao', isModerator: false, isAdmin: false },
+  { sender: 'velhas44', message: 'ANAOO', isModerator: false, isAdmin: false },
+  { sender: 'pirezzgod', message: 'to sentindo forra', isModerator: false, isAdmin: false },
+
+  // Novos adicionados com base no estilo
+  { sender: 'luquinha22', message: '33333333333333333', isModerator: false, isAdmin: false },
+  { sender: 'morenocria', message: 'só no 4 hj fi, confia', isModerator: false, isAdmin: false },
+  { sender: 'tatinhahh', message: 'n aguento mais perde vei pqp 😭', isModerator: false, isAdmin: false },
+  { sender: 'diguinbrabo', message: '8 ou nada', isModerator: false, isAdmin: false },
+  { sender: 'felpynhaa', message: 'sai fora q hj é só win', isModerator: false, isAdmin: false },
+  { sender: 'xkoringa07', message: '999999999999', isModerator: false, isAdmin: false },
+  { sender: 'malukyn_13', message: 'alguem me da cal q to quebrado', isModerator: false, isAdmin: false },
+  { sender: 'letcria', message: 'vem 7 por favorrr 🙏', isModerator: false, isAdmin: false },
+  { sender: 'caio_das_bet', message: 'entrei com 2, sai com 0 kkk', isModerator: false, isAdmin: false },
+  { sender: 'junimda44', message: 'mano do céu esse bot trolla', isModerator: false, isAdmin: false },
+  { sender: 'ta_sussa', message: '44444444444 confiando no insta', isModerator: false, isAdmin: false },
+  { sender: 'rabisquim', message: 'mó vacilação esse game ai', isModerator: false, isAdmin: false },
 ];
+
 
 
 const ChatUI = ({ isOpen = true, onClose, isMobile = false }: ChatUIProps) => {
