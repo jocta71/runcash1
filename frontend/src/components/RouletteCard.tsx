@@ -344,54 +344,68 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     const processNewNumber = (number: number) => {
       if (!isMounted) return;
       
-      // Verificar se o número é válido e diferente do atual
-      if (typeof number === 'number' && !isNaN(number) && number >= 0 && number <= 36 && number !== lastNumber) {
-        console.log(`[ROULETTE-CARD] Novo número para ${safeData.name}: ${number} (anterior: ${lastNumber})`);
+      console.log(`[ROULETTE-CARD] TENTANDO ATUALIZAR: Recebido ${number} para ${safeData.name} (atual: ${lastNumber})`);
+      
+      // Verificar se o número é válido
+      if (typeof number === 'number' && !isNaN(number) && number >= 0 && number <= 36) {
+        // SEMPRE atualizamos o estado para garantir que a UI seja atualizada
+        // mesmo se o número for igual ao anterior
         
-        // Atualizar o último número
+        // Forçar update do estado para garantir que a UI seja atualizada
+        console.log(`[ROULETTE-CARD] ATUALIZANDO UI: ${safeData.name} com número ${number}`);
+        
+        // IMPORTANTE: Forçar rerender atualizando TODOS os estados
         setLastNumber(number);
         
         // Atualizar a lista de números recentes
         setRecentNumbers(prev => {
           const prevArray = Array.isArray(prev) ? prev : [];
           
-          // Verificar se já não está no topo da lista
+          // Sempre manter o número mais recente no topo
           if (prevArray.length > 0 && prevArray[0] === number) {
-            return prevArray;
+            // Forçar um novo array mesmo se o conteúdo for o mesmo
+            // Isso garante que React detecte a mudança
+            return [...prevArray];
           }
           
           // Adicionar o novo número ao início e manter apenas os 26 mais recentes
           const updated = [number, ...prevArray].slice(0, 26);
-          console.log(`[ROULETTE-CARD] Lista atualizada para ${safeData.name}:`, updated);
+          console.log(`[ROULETTE-CARD] NOVA LISTA: ${safeData.name}:`, updated);
           return updated;
         });
         
-        // Atualizar estatísticas e estado
+        // Atualizar outros estados para garantir rerender
         setHasRealData(true);
-        setLastUpdateTime(Date.now());
-        setUpdateCount(prev => prev + 1);
+        setLastUpdateTime(Date.now()); // Timestamp atual
+        setUpdateCount(prev => prev + 1); // Incrementar contador
         
-        // Efeito visual para destacar o novo número
+        // Forçar efeito visual SEMPRE
         setIsNewNumber(true);
+        // Desativar efeito visual após 2 segundos
         setTimeout(() => {
-          if (isMounted) setIsNewNumber(false);
+          if (isMounted) {
+            console.log(`[ROULETTE-CARD] Desativando efeito visual para ${safeData.name}`);
+            setIsNewNumber(false);
+          }
         }, 2000);
         
         // Reproduzir som se habilitado
-        if (enableSound && audioRef.current) {
+        if (enableSound && audioRef?.current) {
+          console.log(`[ROULETTE-CARD] Tocando som para ${safeData.name}`);
           audioRef.current.play().catch(e => console.log('[ROULETTE-AUDIO] Erro:', e));
         }
         
         // Exibir notificação se habilitado
         if (enableNotifications) {
+          console.log(`[ROULETTE-CARD] Exibindo notificação para ${safeData.name}`);
           toast({
             title: `Novo número: ${number}`,
             description: `${safeData.name}: ${number}`,
             variant: "default"
           });
         }
-      } else if (number === lastNumber) {
-        console.log(`[ROULETTE-CARD] Número ${number} já é o atual para ${safeData.name}, ignorando`);
+      } else {
+        console.error(`[ROULETTE-CARD] Número inválido recebido para ${safeData.name}: ${number}`);
       }
     };
 
@@ -403,22 +417,57 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     const handleNumberEvent = (eventData: any) => {
       if (!isMounted) return;
       
-      // Verificar se o evento é para esta roleta
-      const isForThisRoulette = (
-        // Verificar por ID
-        eventData.roleta_id === safeData.id || 
-        eventData.tableId === safeData.id ||
-        // Verificar por nome
-        eventData.roleta_nome === safeData.name ||
-        eventData.table === safeData.name
-      );
+      console.log(`[ROULETTE-CARD] DEBUG: Evento recebido:`, eventData);
       
-      if (isForThisRoulette) {
-        console.log(`[ROULETTE-CARD] Recebido evento para ${safeData.name}:`, eventData);
+      try {
+        // Verificar se o evento tem dados mínimos necessários
+        if (!eventData) {
+          console.error('[ROULETTE-CARD] Evento sem dados recebido');
+          return;
+        }
         
-        // Extrair número do evento
-        const number = eventData.numero || eventData.number;
-        processNewNumber(number);
+        // Verificar se o evento é para esta roleta
+        const isForThisRoulette = (
+          // Verificar por ID
+          (eventData.roleta_id && eventData.roleta_id === safeData.id) || 
+          (eventData.tableId && eventData.tableId === safeData.id) ||
+          // Verificar por nome
+          (eventData.roleta_nome && eventData.roleta_nome === safeData.name) ||
+          (eventData.table && eventData.table === safeData.name)
+        );
+        
+        if (!isForThisRoulette) {
+          // Evento não é para esta roleta, ignorar
+          return;
+        }
+        
+        console.log(`[ROULETTE-CARD] ✅ Evento para ${safeData.name} recebido:`, eventData);
+        
+        // Extrair número do evento - testar vários campos possíveis
+        let number = null;
+        
+        // Tenta extrair o número de vários campos
+        if (typeof eventData.numero === 'number') {
+          number = eventData.numero;
+        } else if (typeof eventData.number === 'number') {
+          number = eventData.number;
+        } else if (typeof eventData === 'number') {
+          number = eventData;
+        } else if (typeof eventData.numero === 'string' && !isNaN(parseInt(eventData.numero))) {
+          number = parseInt(eventData.numero);
+        } else if (typeof eventData.number === 'string' && !isNaN(parseInt(eventData.number))) {
+          number = parseInt(eventData.number);
+        }
+        
+        // Se encontrou um número, processá-lo
+        if (number !== null) {
+          console.log(`[ROULETTE-CARD] ✅ Número extraído do evento: ${number}`);
+          processNewNumber(number);
+        } else {
+          console.error(`[ROULETTE-CARD] ❌ Não foi possível extrair número do evento:`, eventData);
+        }
+      } catch (error) {
+        console.error(`[ROULETTE-CARD] Erro ao processar evento:`, error);
       }
     };
     
@@ -426,13 +475,48 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     const handleCardEvent = (eventData: any) => {
       if (!isMounted) return;
       
-      // Verificar se o evento tem o ID do cartão
-      if (eventData && eventData.id === safeData.id) {
-        console.log(`[ROULETTE-CARD] Recebido evento específico para cartão ${safeData.id}:`, eventData);
+      console.log(`[ROULETTE-CARD] DEBUG: Evento específico recebido:`, eventData);
+      
+      try {
+        // Verificar se o evento tem dados mínimos
+        if (!eventData) {
+          console.error('[ROULETTE-CARD] Evento específico sem dados recebido');
+          return;
+        }
         
-        // Processar o número (pode ser diretamente o número ou estar em .numero)
-        const number = (typeof eventData === 'number') ? eventData : eventData.numero;
-        processNewNumber(number);
+        // Extrair e validar ID
+        let isMatch = false;
+        let extractedNumber = null;
+        
+        if (typeof eventData === 'object') {
+          // Verificar se o objeto tem o ID desta roleta
+          if (eventData.id === safeData.id || eventData.roleta_id === safeData.id) {
+            isMatch = true;
+            console.log(`[ROULETTE-CARD] ✅ Evento específico para roleta ${safeData.id}`);
+            
+            // Tentar extrair o número de várias formas
+            if (typeof eventData.numero === 'number') {
+              extractedNumber = eventData.numero;
+            } else if (typeof eventData.number === 'number') {
+              extractedNumber = eventData.number;
+            } else if (typeof eventData.numero === 'string' && !isNaN(parseInt(eventData.numero))) {
+              extractedNumber = parseInt(eventData.numero);
+            }
+          }
+        } else if (typeof eventData === 'number') {
+          // O próprio evento é o número
+          isMatch = true;
+          extractedNumber = eventData;
+        }
+        
+        if (isMatch && extractedNumber !== null) {
+          console.log(`[ROULETTE-CARD] ✅ Processando número ${extractedNumber} de evento específico`);
+          processNewNumber(extractedNumber);
+        } else if (isMatch) {
+          console.error(`[ROULETTE-CARD] ❌ Evento específico para esta roleta não contém número válido:`, eventData);
+        }
+      } catch (error) {
+        console.error(`[ROULETTE-CARD] Erro ao processar evento específico:`, error);
       }
     };
     
@@ -458,51 +542,136 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       if (!isMounted) return;
       
       try {
+        console.log(`[ROULETTE-CARD] 🔄 Iniciando busca para ${safeData.name} (ID: ${safeData.id})`);
+        
         // URL da API para obter dados
         const url = `${config.apiUrl}/ROULETTES`;
+        console.log(`[ROULETTE-CARD] Fazendo requisição para: ${url}`);
         
         // Adicionar headers para lidar com CORS
         const headers = {
-          'Accept': '*/*',
+          'Accept': 'application/json, */*',
           'User-Agent': 'RouletteCard/1.0',
           'Origin': window.location.origin,
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         };
         
         // Tentar fazer a requisição
         const response = await fetch(url, {
           method: 'GET',
           headers,
-          mode: 'cors'
+          mode: 'cors',
+          cache: 'no-store'
         });
         
-        if (response.ok) {
-          const data = await response.json();
+        if (!response.ok) {
+          throw new Error(`Resposta não OK: ${response.status} ${response.statusText}`);
+        }
+        
+        // Obtém o texto da resposta primeiro para debug
+        const responseText = await response.text();
+        console.log(`[ROULETTE-CARD] Resposta bruta: ${responseText.substring(0, 100)}...`);
+        
+        // Tenta fazer o parse do JSON
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          console.error(`[ROULETTE-CARD] ❌ Erro ao parsear JSON: ${e}`);
+          console.log(`[ROULETTE-CARD] Resposta completa: ${responseText}`);
+          return false;
+        }
+        
+        console.log(`[ROULETTE-CARD] ✅ Dados obtidos:`, data);
+        
+        // Garantir que temos um array
+        if (!data || !Array.isArray(data)) {
+          console.error(`[ROULETTE-CARD] ❌ Dados não são um array:`, data);
+          return false;
+        }
+        
+        // Debug: mostrar todos os IDs disponíveis
+        console.log(`[ROULETTE-CARD] IDs disponíveis:`, data.map((r: any) => ({ id: r.id, name: r.name })));
+        
+        // Buscar roleta específica - comparar como string para evitar problemas de tipo
+        const currentRoulette = data.find((roulette: any) => 
+          String(roulette.id) === String(safeData.id) || 
+          String(roulette.roleta_id) === String(safeData.id) ||
+          (roulette.name && roulette.name.toLowerCase() === safeData.name.toLowerCase())
+        );
+        
+        if (!currentRoulette) {
+          console.warn(`[ROULETTE-CARD] ❌ Roleta ${safeData.id} (${safeData.name}) não encontrada no array`);
           
-          // Processar dados recebidos
-          if (!data || !Array.isArray(data)) {
-            return false;
+          // FALLBACK: usar primeiro item se não encontrar a roleta específica
+          if (data.length > 0) {
+            console.log(`[ROULETTE-CARD] 🔄 Usando primeiro item como fallback:`, data[0]);
+            const fallbackItem = data[0];
+            
+            // Extrair número do fallback
+            let fallbackNumber = null;
+            if (typeof fallbackItem.numero === 'number') {
+              fallbackNumber = fallbackItem.numero;
+            } else if (typeof fallbackItem.number === 'number') {
+              fallbackNumber = fallbackItem.number;
+            } else if (typeof fallbackItem.lastNumber === 'number') {
+              fallbackNumber = fallbackItem.lastNumber;
+            }
+            
+            if (fallbackNumber !== null) {
+              console.log(`[ROULETTE-CARD] ✅ Usando número de fallback: ${fallbackNumber}`);
+              // Forçar processamento em async para garantir update da UI
+              setTimeout(() => {
+                if (isMounted) processNewNumber(fallbackNumber);
+              }, 0);
+              return true;
+            }
           }
           
-          // Buscar roleta específica
-          const currentRoulette = data.find((roulette: any) => 
-            roulette.id === safeData.id || roulette.roleta_id === safeData.id
-          );
+          return false;
+        }
+        
+        console.log(`[ROULETTE-CARD] ✅ Roleta encontrada:`, currentRoulette);
+        
+        // Extrair número - tentar vários campos possíveis
+        let latestNumber = null;
+        
+        if (typeof currentRoulette.numero === 'number') {
+          latestNumber = currentRoulette.numero;
+        } else if (typeof currentRoulette.number === 'number') {
+          latestNumber = currentRoulette.number;
+        } else if (typeof currentRoulette.lastNumber === 'number') {
+          latestNumber = currentRoulette.lastNumber;
+        } else if (typeof currentRoulette.numero === 'string' && !isNaN(parseInt(currentRoulette.numero))) {
+          latestNumber = parseInt(currentRoulette.numero);
+        }
+        
+        if (latestNumber !== null) {
+          console.log(`[ROULETTE-CARD] ✅ Número extraído: ${latestNumber}`);
           
-          if (!currentRoulette) {
-            return false;
-          }
+          // Forçar processamento assíncrono para garantir update da UI
+          setTimeout(() => {
+            if (isMounted) {
+              console.log(`[ROULETTE-CARD] 🚀 Processando número ${latestNumber} para ${safeData.name}`);
+              processNewNumber(latestNumber);
+              
+              // Forçar outro update após um breve delay para garantir
+              setTimeout(() => {
+                if (isMounted) {
+                  console.log(`[ROULETTE-CARD] 🔄 Re-aplicando número ${latestNumber} para ${safeData.name}`);
+                  setUpdateCount(prev => prev + 1); // Forçar update
+                }
+              }, 1000);
+            }
+          }, 0);
           
-          // Extrair e processar número
-          const latestNumber = currentRoulette.numero || currentRoulette.lastNumber;
-          
-          if (typeof latestNumber === 'number') {
-            processNewNumber(latestNumber);
-            return true;
-          }
+          return true;
+        } else {
+          console.error(`[ROULETTE-CARD] ❌ Número não encontrado na roleta:`, currentRoulette);
         }
       } catch (error) {
-        console.error(`[ROULETTE-CARD] Erro no polling de backup: ${error}`);
+        console.error(`[ROULETTE-CARD] ❌ Erro no polling: ${error}`);
       }
       
       return false;
