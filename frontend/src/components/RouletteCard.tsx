@@ -115,6 +115,23 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     return RouletteFeedService.getInstance();
   }, []);
   
+  // DEBUG: Verificar formato dos dados recebidos
+  useEffect(() => {
+    if (data) {
+      console.log(`[DEBUG] Dados recebidos para ${data.name || data.nome || 'roleta desconhecida'} (ID: ${data.id || 'unknown'}):`);
+      console.log('- data.numero:', data.numero);
+      console.log('- Formato de data.numero:', Array.isArray(data.numero) ? 'Array' : typeof data.numero);
+      
+      if (Array.isArray(data.numero) && data.numero.length > 0) {
+        console.log('- Primeiro elemento de data.numero:', data.numero[0]);
+        console.log('- Tipo do primeiro elemento:', typeof data.numero[0]);
+        if (typeof data.numero[0] === 'object') {
+          console.log('- Propriedades do objeto número:', Object.keys(data.numero[0]));
+        }
+      }
+    }
+  }, [data]);
+  
   // Garantir que data é um objeto válido com valores padrão seguros
   const safeData = useMemo(() => {
     // Se data for null ou undefined, retornar objeto vazio com valores padrão
@@ -131,7 +148,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     const lastNumbers = Array.isArray(data.lastNumbers) 
       ? data.lastNumbers 
       : Array.isArray(data.numero) 
-        ? data.numero 
+        ? data.numero.map(n => typeof n === 'object' && n !== null ? n.numero : n).filter(Boolean)
         : [];
     
     return {
@@ -702,40 +719,60 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
 // Funções auxiliares para inicialização segura dos dados
 function getInitialLastNumber(data: any): number | null {
-  if (Array.isArray(data.numbers) && data.numbers.length > 0) {
-    const num = data.numbers[0];
-    return typeof num === 'object' ? (num.number || num.numero) : Number(num);
+  try {
+    // Verificar se temos lastNumbers
+    if (Array.isArray(data.lastNumbers) && data.lastNumbers.length > 0) {
+      const number = data.lastNumbers[0];
+      return typeof number === 'number' ? number : null;
+    }
+    
+    // Verificar se temos a propriedade 'numero' que pode ser um array
+    if (Array.isArray(data.numero) && data.numero.length > 0) {
+      const firstItem = data.numero[0];
+      
+      // Verificar se o primeiro item é um objeto com propriedade 'numero'
+      if (typeof firstItem === 'object' && firstItem !== null && 'numero' in firstItem) {
+        return typeof firstItem.numero === 'number' ? firstItem.numero : null;
+      }
+      
+      // Ou se é um número diretamente
+      return typeof firstItem === 'number' ? firstItem : null;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[RouletteCard] Erro ao processar número inicial:', error);
+    return null;
   }
-  
-  if (Array.isArray(data.lastNumbers) && data.lastNumbers.length > 0) {
-    return Number(data.lastNumbers[0]);
-  }
-  
-  if (Array.isArray(data.numero) && data.numero.length > 0) {
-    const num = data.numero[0];
-    return typeof num === 'object' ? num.numero : Number(num);
-  }
-  
-  return null;
 }
 
 function getInitialRecentNumbers(data: any): number[] {
-  if (Array.isArray(data.numbers) && data.numbers.length > 0) {
-    return data.numbers.map(n => typeof n === 'object' ? (n.number || n.numero) : Number(n))
-      .filter(n => typeof n === 'number' && !isNaN(n));
+  try {
+    // Verificar se temos algum array de números disponível
+    if (Array.isArray(data.lastNumbers) && data.lastNumbers.length > 0) {
+      return data.lastNumbers.slice(0, 20).filter(n => typeof n === 'number');
+    }
+    
+    // Verificar se temos a propriedade 'numero' que pode ser um array
+    if (Array.isArray(data.numero) && data.numero.length > 0) {
+      // Verificar se os elementos são objetos com propriedade 'numero' ou números diretos
+      return data.numero
+        .map(n => {
+          if (typeof n === 'object' && n !== null && 'numero' in n) {
+            return n.numero;
+          }
+          return typeof n === 'number' ? n : null;
+        })
+        .filter(n => n !== null && !isNaN(n))
+        .slice(0, 20);
+    }
+    
+    // Se não encontramos nenhum número, retornar array vazio
+    return [];
+  } catch (error) {
+    console.error('[RouletteCard] Erro ao processar números iniciais:', error);
+    return [];
   }
-  
-  if (Array.isArray(data.lastNumbers) && data.lastNumbers.length > 0) {
-    return data.lastNumbers.map(n => Number(n))
-      .filter(n => typeof n === 'number' && !isNaN(n));
-  }
-  
-  if (Array.isArray(data.numero) && data.numero.length > 0) {
-    return data.numero.map(n => typeof n === 'object' ? n.numero : Number(n))
-      .filter(n => typeof n === 'number' && !isNaN(n));
-  }
-  
-  return [];
 }
 
 export default RouletteCard;

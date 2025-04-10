@@ -440,12 +440,18 @@ export default class RouletteFeedService {
         const liveTables: { [key: string]: any } = {};
         result.forEach(roleta => {
           if (roleta && roleta.id) {
+            // Certifique-se de que estamos lidando corretamente com o campo numero
+            // Na API, o 'numero' é um array de objetos com propriedade 'numero'
+            const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+            
             liveTables[roleta.id] = {
               GameID: roleta.id,
               Name: roleta.name || roleta.nome,
               ativa: roleta.ativa,
-              numero: roleta.numero || [],
-              ...roleta // manter outros campos originais da roleta
+              // Manter a estrutura do campo numero exatamente como está na API
+              numero: numeroArray,
+              // Incluir outras propriedades da roleta
+              ...roleta
             };
           }
         });
@@ -547,12 +553,18 @@ export default class RouletteFeedService {
           const liveTables: { [key: string]: any } = {};
           data.forEach(roleta => {
             if (roleta && roleta.id) {
+              // Certifique-se de que estamos lidando corretamente com o campo numero
+              // Na API, o 'numero' é um array de objetos com propriedade 'numero'
+              const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+              
               liveTables[roleta.id] = {
                 GameID: roleta.id,
                 Name: roleta.name || roleta.nome,
                 ativa: roleta.ativa,
-                numero: roleta.numero || [],
-                ...roleta // manter outros campos originais da roleta
+                // Manter a estrutura do campo numero exatamente como está na API
+                numero: numeroArray,
+                // Incluir outras propriedades da roleta
+                ...roleta
               };
             }
           });
@@ -1084,12 +1096,18 @@ export default class RouletteFeedService {
     const liveTables: { [key: string]: any } = {};
     data.forEach(roleta => {
       if (roleta && roleta.id) {
+        // Certifique-se de que estamos lidando corretamente com o campo numero
+        // Na API, o 'numero' é um array de objetos com propriedade 'numero'
+        const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+        
         liveTables[roleta.id] = {
           GameID: roleta.id,
           Name: roleta.name || roleta.nome,
           ativa: roleta.ativa,
-          numero: roleta.numero || [],
-          ...roleta // manter outros campos originais da roleta
+          // Manter a estrutura do campo numero exatamente como está na API
+          numero: numeroArray,
+          // Incluir outras propriedades da roleta
+          ...roleta
         };
       }
     });
