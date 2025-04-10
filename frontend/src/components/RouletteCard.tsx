@@ -111,10 +111,13 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [hasRealData, setHasRealData] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
+  const [rawRouletteData, setRawRouletteData] = useState<any>(null); // Armazenar dados brutos da API
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   
@@ -174,6 +177,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         return false;
       }
       
+      // Salvar dados brutos para uso posterior
+      setRawRouletteData(myRoulette);
+      
       // Processar dados da roleta encontrada
       console.log(`[${Date.now()}] Dados encontrados para ${safeData.name}:`, myRoulette);
       
@@ -187,9 +193,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       // Limpar erros e atualizar timestamp
       setError(null);
-      setLastUpdateTime(Date.now());
-      setUpdateCount(prev => prev + 1);
-      
+        setLastUpdateTime(Date.now());
+        setUpdateCount(prev => prev + 1);
+        
       return true;
     } catch (err: any) {
       // Ignorar erros de abortamento
@@ -214,91 +220,90 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Array para armazenar os números
     let extractedNumbers: number[] = [];
     
-    // Tentar extrair de diferentes formatos
-    if (Array.isArray(apiData.lastNumbers) && apiData.lastNumbers.length > 0) {
-      extractedNumbers = apiData.lastNumbers
-        .map((n: any) => typeof n === 'number' ? n : (typeof n === 'object' && n?.numero ? n.numero : null))
-        .filter((n: any) => n !== null && !isNaN(n));
-    } else if (Array.isArray(apiData.numeros) && apiData.numeros.length > 0) {
-      extractedNumbers = apiData.numeros
-        .map((n: any) => typeof n === 'number' ? n : (typeof n === 'object' && n?.numero ? n.numero : null))
-        .filter((n: any) => n !== null && !isNaN(n));
-    } else if (Array.isArray(apiData.numero) && apiData.numero.length > 0) {
-      extractedNumbers = apiData.numero
-        .map((n: any) => typeof n === 'number' ? n : (typeof n === 'object' && n?.numero ? n.numero : null))
-        .filter((n: any) => n !== null && !isNaN(n));
-    } else if (Array.isArray(apiData.numbers) && apiData.numbers.length > 0) {
-      extractedNumbers = apiData.numbers
-        .map((n: any) => {
-          if (typeof n === 'object' && n) {
-            return n.numero || n.number || n.value;
-          }
-          return typeof n === 'number' ? n : null;
-        })
-        .filter((n: any) => n !== null && !isNaN(n));
+    try {
+      // A estrutura principal tem um campo "numero" que é um array de objetos
+      if (apiData && Array.isArray(apiData.numero) && apiData.numero.length > 0) {
+        console.log(`Extraindo números a partir do campo 'numero' para ${safeData.name}`);
+        
+        // Mapear cada objeto do array para extrair o número
+        extractedNumbers = apiData.numero
+          .map((item: any) => {
+            // Cada item deve ter uma propriedade 'numero'
+            if (item && typeof item === 'object' && 'numero' in item) {
+              return typeof item.numero === 'number' ? item.numero : parseInt(item.numero);
+            }
+            return null;
+          })
+          .filter((n: any) => n !== null && !isNaN(n));
+      } 
+      // Outros formatos de dados possíveis como fallback
+      else if (Array.isArray(apiData.lastNumbers) && apiData.lastNumbers.length > 0) {
+        extractedNumbers = apiData.lastNumbers
+          .map((n: any) => typeof n === 'number' ? n : (typeof n === 'object' && n?.numero ? n.numero : null))
+          .filter((n: any) => n !== null && !isNaN(n));
+      } else if (Array.isArray(apiData.numeros) && apiData.numeros.length > 0) {
+        extractedNumbers = apiData.numeros
+          .map((n: any) => typeof n === 'number' ? n : (typeof n === 'object' && n?.numero ? n.numero : null))
+          .filter((n: any) => n !== null && !isNaN(n));
+      } else if (Array.isArray(apiData.numbers) && apiData.numbers.length > 0) {
+        extractedNumbers = apiData.numbers
+          .map((n: any) => {
+            if (typeof n === 'object' && n) {
+              return n.numero || n.number || n.value;
+            }
+            return typeof n === 'number' ? n : null;
+          })
+          .filter((n: any) => n !== null && !isNaN(n));
+      }
+      
+      // Se não encontramos números em nenhum dos formatos, log de aviso
+      if (extractedNumbers.length === 0) {
+        console.warn(`Não foi possível extrair números para ${safeData.name}. Estrutura de dados:`, apiData);
+      } else {
+        console.log(`Extraídos ${extractedNumbers.length} números para ${safeData.name}:`, extractedNumbers.slice(0, 5));
+      }
+    } catch (err) {
+      console.error(`Erro ao extrair números para ${safeData.name}:`, err);
     }
-    
-    console.log(`Números extraídos para ${safeData.name}:`, extractedNumbers.slice(0, 5));
     
     return extractedNumbers;
   };
   
   // Função para processar novos números
-  const processNewNumbers = (newNumbers: number[]) => {
-    // Verificar se temos números
-    if (newNumbers.length === 0) return;
+  const processNewNumbers = useCallback((numbers: number[]) => {
+    if (!numbers || numbers.length === 0) return false;
+    setLoading(false);
     
-    // Obter o último número
-    const newLastNumber = newNumbers[0];
+    const latestNumber = numbers[0];
     
-    // Verificar se é um novo número
-    const isNewLastNumber = newLastNumber !== lastNumber;
-    
-    // Se for novo, atualizar estado e mostrar efeito
-    if (isNewLastNumber) {
-      console.log(`Novo número recebido para ${safeData.name}: ${newLastNumber} (anterior: ${lastNumber})`);
+    if (latestNumber !== recentNumbers[0]) {
+      // Se temos acesso à API, obter a cor diretamente dos dados
+      let color = 'cinza';
       
-      // Atualizar último número
-      setLastNumber(newLastNumber);
-      
-      // Mostrar efeito visual
-      setIsNewNumber(true);
-      setTimeout(() => setIsNewNumber(false), 2000);
-      
-      // Tocar som se habilitado
-      if (enableSound && audioRef.current) {
-        audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
+      if (rawRouletteData && rawRouletteData.numero && rawRouletteData.numero.length > 0) {
+        // Encontrar o número correspondente nos dados brutos
+        const matchingNumber = rawRouletteData.numero.find((n: any) => n.numero === latestNumber);
+        if (matchingNumber && matchingNumber.cor) {
+          color = matchingNumber.cor.toLowerCase();
+        }
       }
       
-      // Mostrar notificação se habilitado
-      if (enableNotifications) {
-        toast({
-          title: `Novo número: ${newLastNumber}`,
-          description: `${safeData.name}: ${newLastNumber}`,
-          variant: "default"
-        });
+      // Mostrar notificação
+      setToastVisible(true);
+      setToastMessage(`Novo número: ${latestNumber} (${color})`);
+      setTimeout(() => setToastVisible(false), 3000);
+      
+      // Atualizar a lista de números recentes
+      const newRecentNumbers = [latestNumber, ...recentNumbers];
+      if (newRecentNumbers.length > 26) {
+        newRecentNumbers.pop();
       }
+      setRecentNumbers(newRecentNumbers);
+      setHasRealData(true);
     }
     
-    // Atualizar lista de números recentes
-    setRecentNumbers(prev => {
-      // Criar novo array com os novos números
-      const updatedNumbers = [...newNumbers];
-      
-      // Adicionar números antigos que não estão no novo array
-      prev.forEach(oldNum => {
-        if (!updatedNumbers.includes(oldNum)) {
-          updatedNumbers.push(oldNum);
-        }
-      });
-      
-      // Limitar a 26 números
-      return updatedNumbers.slice(0, 26);
-    });
-    
-    // Indicar que temos dados reais
-    setHasRealData(true);
-  };
+    return true;
+  }, [recentNumbers, rawRouletteData]);
   
   // Função para alternar exibição de estatísticas
   const toggleStats = (e: React.MouseEvent) => {
@@ -354,7 +359,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
     return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
   };
-  
+
   return (
     <Card 
       ref={cardRef}
@@ -412,12 +417,12 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         <div className="flex flex-wrap gap-1 justify-center my-3">
           {recentNumbers.length > 0 ? (
             recentNumbers.slice(0, 24).map((num, idx) => (
-              <NumberDisplay 
-                key={`${num}-${idx}`}
-                number={num} 
-                size="small" 
-                highlight={idx === 0 && isNewNumber}
-              />
+            <NumberDisplay 
+              key={`${num}-${idx}`}
+              number={num} 
+              size="small" 
+              highlight={idx === 0 && isNewNumber}
+            />
             ))
           ) : (
             <div className="text-center text-gray-500 py-2">
@@ -461,50 +466,50 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         <div className="mt-0 px-4 pb-4">
           <div className="bg-gray-100 p-3 rounded-lg border border-gray-200">
             <h3 className="text-sm font-medium text-gray-800 mb-2 flex items-center">
-              <BarChart3 className="h-3 w-3 mr-1" />
-              Estatísticas
-            </h3>
-            
-            {/* Grid de estatísticas */}
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              {/* Contadores */}
+            <BarChart3 className="h-3 w-3 mr-1" />
+            Estatísticas
+          </h3>
+          
+          {/* Grid de estatísticas */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {/* Contadores */}
               <div className="bg-white p-2 rounded shadow-sm">
                 <div className="text-gray-500">Vermelho</div>
                 <div className="text-gray-900 font-medium">
-                  {recentNumbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
-                </div>
+                {recentNumbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
               </div>
+            </div>
               <div className="bg-white p-2 rounded shadow-sm">
                 <div className="text-gray-500">Preto</div>
                 <div className="text-gray-900 font-medium">
-                  {recentNumbers.filter(n => n !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
-                </div>
+                {recentNumbers.filter(n => n !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
               </div>
+            </div>
               <div className="bg-white p-2 rounded shadow-sm">
                 <div className="text-gray-500">Par</div>
                 <div className="text-gray-900 font-medium">
-                  {recentNumbers.filter(n => n !== 0 && n % 2 === 0).length}
-                </div>
+                {recentNumbers.filter(n => n !== 0 && n % 2 === 0).length}
               </div>
+            </div>
               <div className="bg-white p-2 rounded shadow-sm">
                 <div className="text-gray-500">Ímpar</div>
                 <div className="text-gray-900 font-medium">
-                  {recentNumbers.filter(n => n % 2 === 1).length}
-                </div>
+                {recentNumbers.filter(n => n % 2 === 1).length}
               </div>
             </div>
-            
-            {/* Link para estatísticas completas */}
-            <button 
+          </div>
+          
+          {/* Link para estatísticas completas */}
+          <button 
               onClick={(e) => {
                 e.stopPropagation();
                 setIsStatsModalOpen(true);
               }}
               className="mt-3 text-xs text-blue-600 hover:text-blue-800 flex items-center"
-            >
-              <PieChart className="h-3 w-3 mr-1" />
-              Ver estatísticas completas
-            </button>
+          >
+            <PieChart className="h-3 w-3 mr-1" />
+            Ver estatísticas completas
+          </button>
           </div>
         </div>
       )}
