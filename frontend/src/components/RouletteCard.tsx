@@ -328,73 +328,48 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       // Se temos números da API
       if (apiNumbers.length > 0) {
-        // IMPORTANTE: Adicionar SOMENTE novos números que não existem na nossa lista
-        const newNumbers = [];
+        // *** NOVA LÓGICA - SIMPLESMENTE MANTER OS NÚMEROS RECENTES E ADICIONAR O MAIS RECENTE ***
         
-        // Verificar cada número da API, começando do mais recente
-        for (let i = 0; i < apiNumbers.length; i++) {
-          const apiNumber = apiNumbers[i];
-          
-          // Se este número da API não existe em nossa lista atual, é um número novo
-          if (!allNumbers.includes(apiNumber)) {
-            console.log(`[${Date.now()}] Novo número encontrado: ${apiNumber}`);
-            newNumbers.push(apiNumber);
-          } else {
-            // Se encontramos um número que já temos, podemos parar de procurar
-            // porque números mais antigos provavelmente já estão em nossa lista
-            console.log(`[${Date.now()}] Número já existente: ${apiNumber}, parando busca por novos números`);
-            break;
-          }
-        }
+        // Verificar se temos um novo número mais recente (a primeira posição da API é diferente do nosso número mais recente)
+        const latestApiNumber = apiNumbers[0];
         
-        // Se encontramos números novos, processar
-        if (newNumbers.length > 0) {
-          console.log(`[${Date.now()}] Adicionando ${newNumbers.length} novos números: ${newNumbers.join(', ')}`);
+        // Se o número mais recente da API for diferente do nosso número mais recente, adicioná-lo
+        if (recentNumbers.length === 0 || latestApiNumber !== recentNumbers[0]) {
+          console.log(`[${Date.now()}] Novo número mais recente detectado: ${latestApiNumber}`);
           
-          // Criar nova lista combinando os números novos (no início) com todos os números existentes
-          const updatedAllNumbers = [...newNumbers, ...allNumbers];
+          // Criar nova lista adicionando o novo número no início
+          const updatedAllNumbers = [latestApiNumber, ...allNumbers];
           setAllNumbers(updatedAllNumbers);
           
           // Atualizar números recentes (os 20 primeiros)
           setRecentNumbers(updatedAllNumbers.slice(0, 20));
           
           // Atualizar o último número
-          setLastNumber(newNumbers[0]);
+          setLastNumber(latestApiNumber);
           
-          // Notificação
-          if (newNumbers.length === 1) {
-            // Se só temos um número novo, mostrar notificação
-            const newNumber = newNumbers[0];
-            
-            // Encontrar cor
-            let color = 'cinza';
-            if (rawRouletteData && rawRouletteData.numero && rawRouletteData.numero.length > 0) {
-              const matchingNumber = rawRouletteData.numero.find((n: any) => n.numero === newNumber);
-              if (matchingNumber && matchingNumber.cor) {
-                color = matchingNumber.cor.toLowerCase();
-              }
+          // Encontrar cor
+          let color = 'cinza';
+          if (rawRouletteData && rawRouletteData.numero && rawRouletteData.numero.length > 0) {
+            const matchingNumber = rawRouletteData.numero.find((n: any) => n.numero === latestApiNumber);
+            if (matchingNumber && matchingNumber.cor) {
+              color = matchingNumber.cor.toLowerCase();
             }
-            
-            // Mostrar notificação
-            setToastVisible(true);
-            setToastMessage(`Novo número: ${newNumber} (${color})`);
-            setTimeout(() => setToastVisible(false), 3000);
-            
-            // Animação
-            setIsNewNumber(true);
-            setTimeout(() => {
-              setIsNewNumber(false);
-            }, 2000);
-          } else if (newNumbers.length > 1) {
-            // Se temos múltiplos números novos, notificação diferente
-            setToastVisible(true);
-            setToastMessage(`${newNumbers.length} novos números adicionados`);
-            setTimeout(() => setToastVisible(false), 3000);
           }
+          
+          // Mostrar notificação
+          setToastVisible(true);
+          setToastMessage(`Novo número: ${latestApiNumber} (${color})`);
+          setTimeout(() => setToastVisible(false), 3000);
+          
+          // Animação
+          setIsNewNumber(true);
+          setTimeout(() => {
+            setIsNewNumber(false);
+          }, 2000);
           
           setHasRealData(true);
         } else {
-          console.log(`[${Date.now()}] Nenhum número novo encontrado para ${safeData.name}`);
+          console.log(`[${Date.now()}] Sem novos números - o mais recente continua sendo: ${latestApiNumber}`);
         }
       }
       
