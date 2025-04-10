@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ChatHeader from './chat/ChatHeader';
 import ChatMessageList from './chat/ChatMessageList';
 import ChatInput from './chat/ChatInput';
@@ -10,6 +10,30 @@ interface ChatUIProps {
   onClose?: () => void;
   isMobile?: boolean;
 }
+
+// Mensagens simuladas para alternar aleatoriamente
+const simulatedMessages = [
+  { sender: 'Zé das Couves', message: 'Quando que vai ficar pronto, mano?', isModerator: false, isAdmin: false },
+  { sender: 'Fernandinha', message: 'Tô mó ansiedade pra jogar, viu?', isModerator: false, isAdmin: false },
+  { sender: 'Moderador', message: 'Galera, calma que já vai rolar!', isModerator: true, isAdmin: false },
+  { sender: 'Bia', message: 'Tô nem aí, só quero ganhar uma grana!', isModerator: false, isAdmin: false },
+  { sender: 'Juninho', message: 'Recebeu minha mensagem?', isModerator: false, isAdmin: false },
+  { sender: 'Admin', message: 'Cês falaram com o entregador? Mó vacilo, tá atrasado mais de uma hora!', isModerator: false, isAdmin: true },
+  { sender: 'Robertão', message: 'Mano, esse app é show de bola!', isModerator: false, isAdmin: false },
+  { sender: 'Paty', message: 'Tá top demais, curti mesmo!', isModerator: false, isAdmin: false },
+  { sender: 'Dudinha', message: 'Blz', isModerator: false, isAdmin: false },
+  { sender: 'Matheuzinho', message: 'Fala aí, quando vai rolar a nova roleta?', isModerator: false, isAdmin: false },
+  { sender: 'Zé das Couves', message: 'Quando que vai ficar pronto, mano?', isModerator: false, isAdmin: false },
+  { sender: 'Moderador', message: 'Já vai rolar galera, mais uns minutos!', isModerator: true, isAdmin: false },
+  { sender: 'Bia', message: 'Quero ver quem vai ganhar dessa vez!', isModerator: false, isAdmin: false },
+  { sender: 'Amanda', message: 'Primeira vez aqui, alguém me ajuda?', isModerator: false, isAdmin: false },
+  { sender: 'Rodrigo', message: 'Joga na vermelho que dá bom!', isModerator: false, isAdmin: false },
+  { sender: 'Lucas', message: 'Zero é o melhor número', isModerator: false, isAdmin: false },
+  { sender: 'Admin', message: 'Sistema atualizado com sucesso!', isModerator: false, isAdmin: true },
+  { sender: 'Bruna', message: 'Ganhei 200 na última vez', isModerator: false, isAdmin: false },
+  { sender: 'Carlos', message: 'Alguém pode me ajudar com o saque?', isModerator: false, isAdmin: false },
+  { sender: 'Moderador', message: 'Por favor, mantenham o chat limpo!', isModerator: true, isAdmin: false },
+];
 
 const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -96,6 +120,50 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
   
   const [newMessage, setNewMessage] = useState('');
   const [minimized, setMinimized] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Função para adicionar uma mensagem simulada ao chat
+  const addSimulatedMessage = () => {
+    // Escolher uma mensagem aleatória do array de mensagens simuladas
+    const randomIndex = Math.floor(Math.random() * simulatedMessages.length);
+    const randomMessage = simulatedMessages[randomIndex];
+    
+    // Criar um novo objeto de mensagem
+    const newMsg = {
+      id: Date.now(),
+      sender: randomMessage.sender,
+      message: randomMessage.message,
+      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
+      timestamp: new Date(),
+      isModerator: randomMessage.isModerator,
+      isAdmin: randomMessage.isAdmin
+    };
+    
+    // Adicionar a nova mensagem ao chat
+    setMessages(prevMessages => [...prevMessages, newMsg]);
+    
+    // Limitar o número de mensagens para não sobrecarregar a interface
+    if (messages.length > 20) {
+      setMessages(prevMessages => prevMessages.slice(prevMessages.length - 20));
+    }
+  };
+  
+  // Efeito para iniciar a simulação de mensagens
+  useEffect(() => {
+    // Intervalo para adicionar mensagens a cada 2-8 segundos
+    const intervalTime = Math.floor(Math.random() * 6000) + 2000;
+    const interval = setInterval(addSimulatedMessage, intervalTime);
+    
+    // Limpar o intervalo quando o componente for desmontado
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Efeito para rolar para o final quando novas mensagens são adicionadas
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [messages]);
   
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,7 +270,7 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
       </div>
 
       {/* Lista de Mensagens */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div key={message.id} className="flex items-start space-x-3">
             <div className="w-8 h-8 rounded-full bg-[#1e1e24] flex-shrink-0 overflow-hidden">
