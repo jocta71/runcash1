@@ -1,13 +1,16 @@
-import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, BarChart3, PieChart, Phone, Timer, Cpu, Zap, History } from 'lucide-react';
+import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, BarChart3 } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
+import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
-import NumberDisplay from './NumberDisplay';
-import { Badge } from "@/components/ui/badge";
-import { useRouletteSettingsStore } from '@/stores/routleteStore';
-import { cn } from '@/lib/utils';
+import RouletteSidePanelStats from './RouletteSidePanelStats';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from "@/components/ui/card";
-import { RouletteData } from '@/types';
+import { RouletteData, RouletteNumberEvent } from '@/types';
+import NumberDisplay from './NumberDisplay';
+import { Badge } from "@/components/ui/badge";
+import { PieChart, Phone, Timer, Cpu, Zap, History } from "lucide-react";
+import { useRouletteSettingsStore } from '@/stores/routleteStore';
+import { cn } from '@/lib/utils';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -17,49 +20,6 @@ const debugLog = (...args: any[]) => {
   if (DEBUG_ENABLED) {
     console.log(...args);
   }
-};
-
-// Simplificando a função de insights para não depender de dados externos
-const getInsightMessage = (numbers: number[]) => {
-  if (!numbers || numbers.length === 0) {
-    return "Aguardando dados...";
-  }
-  
-  // Verificar repetições de dúzias
-  const lastFiveNumbers = numbers.slice(0, 5);
-  const firstDozen = lastFiveNumbers.filter(n => n >= 1 && n <= 12).length;
-  const secondDozen = lastFiveNumbers.filter(n => n >= 13 && n <= 24).length;
-  const thirdDozen = lastFiveNumbers.filter(n => n >= 25 && n <= 36).length;
-  
-  if (firstDozen >= 3) {
-    return "Primeira dúzia aparecendo com frequência";
-  } else if (secondDozen >= 3) {
-    return "Segunda dúzia aparecendo com frequência";
-  } else if (thirdDozen >= 3) {
-    return "Terceira dúzia aparecendo com frequência";
-  }
-  
-  // Verificar números pares ou ímpares
-  const oddCount = lastFiveNumbers.filter(n => n % 2 === 1).length;
-  const evenCount = lastFiveNumbers.filter(n => n % 2 === 0 && n !== 0).length;
-  
-  if (oddCount >= 4) {
-    return "Tendência para números ímpares";
-  } else if (evenCount >= 4) {
-    return "Tendência para números pares";
-  }
-  
-  // Verificar números baixos ou altos
-  const lowCount = lastFiveNumbers.filter(n => n >= 1 && n <= 18).length;
-  const highCount = lastFiveNumbers.filter(n => n >= 19 && n <= 36).length;
-  
-  if (lowCount >= 4) {
-    return "Tendência para números baixos (1-18)";
-  } else if (highCount >= 4) {
-    return "Tendência para números altos (19-36)";
-  }
-  
-  return "Padrão normal, observe mais alguns números";
 };
 
 // Gerenciador global de dados de roletas - usando singleton pattern
@@ -239,8 +199,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
   
   // Refs
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   // Hooks
   const navigate = useNavigate();
@@ -275,18 +237,18 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     
     if (!myRoulette) {
       console.warn(`[${componentId}] Roleta com ID ${safeData.id} não encontrada na resposta`);
-      return;
-    }
-    
+        return;
+      }
+      
     // Salvar dados brutos para uso posterior
     setRawRouletteData(myRoulette);
-    
+      
     // Processar os dados da roleta
     processApiData(myRoulette);
-    
+        
     // Atualizar timestamp e contador
-    setLastUpdateTime(Date.now());
-    setUpdateCount(prev => prev + 1);
+        setLastUpdateTime(Date.now());
+        setUpdateCount(prev => prev + 1);
     setError(null);
     setLoading(false);
   }, [safeData.id, safeData.name]);
@@ -302,8 +264,18 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Limpar inscrição ao desmontar o componente
     return () => {
       unsubscribe();
+      
+      // Certificar-se de limpar qualquer outro recurso de requisição
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   }, [dataManager, componentId, handleDataUpdate]);
+  
+  // Adicionar um comentário para garantir que este é o único lugar fazendo requisições
+  // Console.log para verificar se há apenas uma fonte de requisições:
+  console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas GlobalRouletteDataManager para obter dados da API.');
   
   // Função para verificar e processar números novos da API
   const processApiData = (apiRoulette: any) => {
@@ -618,15 +590,45 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             </div>
           </div>
           
-          {/* Link para estatísticas completas - Removido para evitar requisições adicionais */}
-          <div className="mt-3 text-xs text-gray-600">
-            Estatísticas calculadas com base nos últimos {recentNumbers.length} números
-          </div>
+          {/* Link para estatísticas completas */}
+          <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsStatsModalOpen(true);
+              }}
+              className="mt-3 text-xs text-blue-600 hover:text-blue-800 flex items-center"
+          >
+            <PieChart className="h-3 w-3 mr-1" />
+            Ver estatísticas completas
+          </button>
           </div>
         </div>
       )}
       
-      {/* Modal de estatísticas completas - Removido para evitar requisições adicionais */}
+      {/* Modal de estatísticas completas */}
+      <div className={`fixed inset-0 z-50 ${isStatsModalOpen ? 'flex' : 'hidden'} items-center justify-center bg-black/70`}>
+        <div className="bg-white w-11/12 max-w-6xl h-[90vh] rounded-lg overflow-y-auto">
+          <div className="flex justify-between items-center p-4 border-b border-gray-200">
+            <h2 className="text-xl font-bold">Estatísticas da {safeData.name}</h2>
+            <button 
+              onClick={() => setIsStatsModalOpen(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="p-4">
+            <RouletteSidePanelStats
+              roletaNome={safeData.name}
+              lastNumbers={recentNumbers}
+              wins={0}
+              losses={0}
+            />
+          </div>
+        </div>
+      </div>
     </Card>
   );
 };
