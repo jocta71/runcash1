@@ -329,198 +329,159 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
   };
 
-  // ==========================================================================
-  // SISTEMA DE ATUALIZAÇÃO EM TEMPO REAL - VERSÃO SIMPLIFICADA E DIRETA
-  // ==========================================================================
+  // ===================================================================
+  // SISTEMA DE ATUALIZAÇÃO ULTRA SIMPLIFICADO - APENAS POLLING DIRETO
+  // ===================================================================
   
-  // Efeito para implementar polling direto à API e atualizar a interface
+  // Efeito para buscar dados diretamente da API a cada 3 segundos
   useEffect(() => {
-    if (!safeData || !safeData.id) return; // Sair se não temos dados suficientes
+    if (!safeData || !safeData.id) return;
     
-    // Flag para controlar se o componente está montado
     let isMounted = true;
-    console.log(`[RouletteCard][NOVA IMPLEMENTAÇÃO] Iniciando sistema de atualização para ${safeData.name} (ID: ${safeData.id})`);
+    console.log(`[ROULETTE-UPDATE] Iniciando sistema simplificado para ${safeData.name} [ID: ${safeData.id}]`);
     
-    // Função que efetivamente processa novos números recebidos da API
-    const processNewNumber = (newNumber: number) => {
-      if (!isMounted) return;
-      
-      console.log(`[RouletteCard][PROCESSANDO] Novo número ${newNumber} para ${safeData.name}`);
-      
-      // Atualizar o último número
-      setLastNumber(newNumber);
-      
-      // Atualizar a lista de números recentes, evitando duplicação
-      setRecentNumbers(prev => {
-        // Verificar se prev é um array válido
-        const prevArray = Array.isArray(prev) ? prev : [];
+    // Função para buscar dados da API
+    const fetchLatestData = async () => {
+      try {
+        // Mostrar no console que estamos buscando dados
+        console.log(`[ROULETTE-FETCH] Buscando dados para ${safeData.name}...`);
         
-        // Se o número já está na primeira posição, não fazer nada
-        if (prevArray.length > 0 && prevArray[0] === newNumber) {
-          return prevArray;
+        // Fazer requisição direta à API
+        const url = `${config.apiUrl}/roulette/status?table=${safeData.id}`;
+        console.log(`[ROULETTE-URL] ${url}`);
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
         }
         
-        // Adicionar o novo número ao início e limitar a 26 números
-        const updated = [newNumber, ...prevArray].slice(0, 26);
-        console.log(`[RouletteCard][ATUALIZADO] Nova lista de números para ${safeData.name}:`, updated);
-        return updated;
-      });
-      
-      // Marcar como tendo dados reais
-      setHasRealData(true);
-      
-      // Atualizar último horário de atualização
-      setLastUpdateTime(Date.now());
-      
-      // Ativar efeito visual de novo número
-      setIsNewNumber(true);
-      setTimeout(() => {
-        if (isMounted) setIsNewNumber(false);
-      }, 1500);
-      
-      // Notificações
-      if (enableSound && audioRef.current) {
-        audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
-      }
-      
-      if (enableNotifications) {
-        toast({
-          title: `Novo número: ${newNumber}`,
-          description: `${safeData.name}: ${newNumber}`,
-          variant: "default"
-        });
-      }
-      
-      // Incrementar contador de atualizações
-      setUpdateCount(prev => prev + 1);
-    };
-    
-    // Função para buscar dados diretamente da API
-    const fetchData = async () => {
-      if (!isMounted) return;
-      
-      try {
-        // Fazer requisição direta à API com o ID da roleta
-        const response = await fetch(`${config.apiUrl}/roulette/status?table=${safeData.id}`);
-        if (!response.ok) throw new Error(`Status ${response.status}`);
-        
+        // Converter resposta para JSON
         const data = await response.json();
-        console.log(`[RouletteCard][API] Dados recebidos para ${safeData.name}:`, data);
+        console.log(`[ROULETTE-DATA] Dados recebidos:`, data);
         
-        // Processar os dados recebidos
+        // Tentar extrair números da resposta
         if (!data) return;
         
-        // Tenta encontrar a roleta correta nos dados
-        let rouletteData = null;
+        // Encontrar dados da roleta específica
+        let targetTable = null;
         
-        // Caso 1: Dados diretos da roleta
-        if (data.id === safeData.id || data.name === safeData.name) {
-          rouletteData = data;
+        // Caso 1: Dados diretos
+        if (data.id === safeData.id || data._id === safeData.id || data.name === safeData.name) {
+          targetTable = data;
         }
         // Caso 2: Array de roletas
         else if (Array.isArray(data)) {
-          rouletteData = data.find((table: any) => 
-            (table.id === safeData.id || table._id === safeData.id) || 
-            (table.name === safeData.name || table.nome === safeData.name)
+          targetTable = data.find(t => 
+            t.id === safeData.id || t._id === safeData.id || t.name === safeData.name
           );
         }
-        // Caso 3: Objeto com propriedade tables
+        // Caso 3: Objeto com propriedade 'tables'
         else if (data.tables && Array.isArray(data.tables)) {
-          rouletteData = data.tables.find((table: any) => 
-            (table.id === safeData.id || table._id === safeData.id) || 
-            (table.name === safeData.name || table.nome === safeData.name)
+          targetTable = data.tables.find(t => 
+            t.id === safeData.id || t._id === safeData.id || t.name === safeData.name
           );
         }
         
-        if (!rouletteData) {
-          console.warn(`[RouletteCard][API] Dados da roleta ${safeData.name} não encontrados na resposta`);
+        if (!targetTable) {
+          console.warn(`[ROULETTE-WARN] Mesa ${safeData.name} não encontrada nos dados`);
           return;
         }
         
-        // Extrair números da resposta
-        let numbers: number[] = [];
+        // Extrair números da mesa
+        let newNumbers: number[] = [];
         
-        // Tentar vários campos possíveis onde os números podem estar
-        const possibleFields = ['lastNumbers', 'RouletteLastNumbers', 'RouletteLast5Numbers', 'numbers', 'numero'];
+        // Verificar todos os campos possíveis
+        const fields = ['lastNumbers', 'RouletteLastNumbers', 'numbers', 'RouletteLast5Numbers', 'numero'];
         
-        for (const field of possibleFields) {
-          if (Array.isArray(rouletteData[field]) && rouletteData[field].length > 0) {
-            numbers = rouletteData[field].map((n: any) => {
-              if (typeof n === 'number') return n;
-              if (typeof n === 'string') return Number(n);
-              if (typeof n === 'object' && n !== null) return n.number || n.numero || 0;
-              return 0;
-            }).filter((n: number) => typeof n === 'number' && !isNaN(n) && n >= 0 && n <= 36);
+        for (const field of fields) {
+          if (Array.isArray(targetTable[field]) && targetTable[field].length > 0) {
+            // Converter e filtrar números válidos
+            const numbersFromField = targetTable[field]
+              .map((n: any) => {
+                if (typeof n === 'number') return n;
+                if (typeof n === 'string') return Number(n);
+                if (typeof n === 'object' && n !== null) return n.number || n.numero || 0;
+                return 0;
+              })
+              .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
             
-            if (numbers.length > 0) break;
+            if (numbersFromField.length > 0) {
+              newNumbers = numbersFromField;
+              break;
+            }
           }
         }
         
-        if (numbers.length > 0) {
-          // Encontrou novos números, verificar se são diferentes dos atuais
-          const latestNumber = numbers[0];
+        // Se encontramos números válidos
+        if (newNumbers.length > 0) {
+          console.log(`[ROULETTE-NUMBERS] Números encontrados para ${safeData.name}:`, newNumbers);
           
-          // Se o novo número for diferente do último número conhecido, processá-lo
+          // Verificar se o último número é diferente do atual
+          const latestNumber = newNumbers[0];
           if (latestNumber !== lastNumber) {
-            processNewNumber(latestNumber);
+            console.log(`[ROULETTE-UPDATE] Novo número detectado: ${latestNumber} (anterior: ${lastNumber})`);
+            
+            // Atualizar o último número
+            setLastNumber(latestNumber);
+            
+            // Atualizar lista de números recentes
+            setRecentNumbers(prev => {
+              const prevArray = Array.isArray(prev) ? prev : [];
+              
+              // Evitar duplicação se o número já estiver no topo
+              if (prevArray.length > 0 && prevArray[0] === latestNumber) {
+                return prevArray;
+              }
+              
+              // Adicionar novo número no início
+              const updated = [latestNumber, ...prevArray].slice(0, 26);
+              console.log(`[ROULETTE-UPDATED] Lista atualizada:`, updated);
+              return updated;
+            });
+            
+            // Atualizar status
+            setHasRealData(true);
+            setLastUpdateTime(Date.now());
+            setUpdateCount(prev => prev + 1);
+            
+            // Efeito visual
+            setIsNewNumber(true);
+            setTimeout(() => {
+              if (isMounted) setIsNewNumber(false);
+            }, 2000);
+            
+            // Som e notificações
+            if (enableSound && audioRef.current) {
+              audioRef.current.play().catch(e => console.log('[ROULETTE-AUDIO] Erro:', e));
+            }
+            
+            if (enableNotifications) {
+              toast({
+                title: `Novo número: ${latestNumber}`,
+                description: `${safeData.name}: ${latestNumber}`,
+                variant: "default"
+              });
+            }
+          } else {
+            console.log(`[ROULETTE-SAME] Número ${latestNumber} já está atualizado`); 
           }
         }
       } catch (error) {
-        console.error(`[RouletteCard][API] Erro ao buscar dados para ${safeData.name}:`, error);
+        console.error(`[ROULETTE-ERROR] Erro ao buscar dados:`, error);
       }
     };
     
-    // Função para tratar mensagens de eventos
-    const handleEvent = (event: any) => {
-      if (!isMounted) return;
-      console.log(`[RouletteCard][EVENTO] Recebido evento para ${safeData.name}:`, event);
-      
-      // Verificar se o evento é para esta roleta
-      if (event.roleta_id && event.roleta_id !== safeData.id && 
-          event.table !== safeData.id && event.tableId !== safeData.id) {
-        return; // Ignorar eventos de outras roletas
-      }
-      
-      // Extrair o número do evento
-      let newNumber: number | null = null;
-      
-      if (typeof event.numero === 'number') {
-        newNumber = event.numero;
-      } else if (typeof event.numero === 'string') {
-        newNumber = Number(event.numero);
-      } else if (Array.isArray(event.numero) && event.numero.length > 0) {
-        const num = event.numero[0];
-        if (typeof num === 'number') newNumber = num;
-        else if (typeof num === 'string') newNumber = Number(num);
-        else if (typeof num === 'object' && num !== null) newNumber = num.number || num.numero || null;
-      }
-      
-      // Processar o novo número se for válido
-      if (newNumber !== null && !isNaN(newNumber) && newNumber >= 0 && newNumber <= 36) {
-        processNewNumber(newNumber);
-      }
-    };
-    
-    // Buscar dados imediatamente ao montar o componente
-    fetchData();
-    
-    // Configurar polling a cada 5 segundos
-    const pollId = setInterval(fetchData, 5000);
-    
-    // Inscrever-se nos eventos do EventService
-    EventService.on('roulette:data-updated', handleEvent);
-    const specificEvent = `roulette:update:${safeData.id}`;
-    EventService.on(specificEvent, handleEvent);
+    // Executar imediatamente e iniciar polling
+    fetchLatestData();
+    const pollInterval = setInterval(fetchLatestData, 3000); // A cada 3 segundos
     
     // Limpeza ao desmontar
     return () => {
-      console.log(`[RouletteCard][CLEANUP] Cancelando inscrições para ${safeData.name}`);
+      console.log(`[ROULETTE-CLEANUP] Cancelando sistema para ${safeData.name}`);
       isMounted = false;
-      clearInterval(pollId);
-      EventService.off('roulette:data-updated', handleEvent);
-      EventService.off(specificEvent, handleEvent);
+      clearInterval(pollInterval);
     };
-  }, [safeData.id, safeData.name, lastNumber, enableSound, enableNotifications]);
+  }, [safeData?.id, safeData?.name, lastNumber, enableSound, enableNotifications]);
   
   // Inicialização do componente e configuração de áudio para notificações
   useEffect(() => {
