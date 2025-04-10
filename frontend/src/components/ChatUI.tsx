@@ -133,7 +133,7 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
       id: Date.now(),
       sender: randomMessage.sender,
       message: randomMessage.message,
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
+      avatar: '', // Não usamos mais imagens, usaremos iniciais
       timestamp: new Date(),
       isModerator: randomMessage.isModerator,
       isAdmin: randomMessage.isAdmin
@@ -150,8 +150,11 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
   
   // Efeito para iniciar a simulação de mensagens
   useEffect(() => {
-    // Intervalo para adicionar mensagens a cada 2-8 segundos
-    const intervalTime = Math.floor(Math.random() * 6000) + 2000;
+    // Adicionar uma mensagem imediatamente após a montagem do componente
+    addSimulatedMessage();
+    
+    // Intervalo para adicionar mensagens a cada 1-5 segundos (mais rápido que antes)
+    const intervalTime = Math.floor(Math.random() * 4000) + 1000;
     const interval = setInterval(addSimulatedMessage, intervalTime);
     
     // Limpar o intervalo quando o componente for desmontado
@@ -273,10 +276,17 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
       <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div key={message.id} className="flex items-start space-x-3">
-            <div className="w-8 h-8 rounded-full bg-[#1e1e24] flex-shrink-0 overflow-hidden">
-              {message.avatar && (
-                <img src={message.avatar} alt={message.sender} className="w-full h-full object-cover" />
-              )}
+            <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center" 
+                 style={{ 
+                   backgroundColor: message.isAdmin 
+                     ? '#10b981' 
+                     : message.isModerator 
+                       ? '#4f46e5' 
+                       : `hsl(${message.sender.charCodeAt(0) * 10 % 360}, 70%, 45%)`
+                 }}>
+              <span className="text-white font-medium text-sm">
+                {message.sender.charAt(0).toUpperCase()}
+              </span>
             </div>
             <div className="flex-1">
               <div className="flex items-center space-x-2">
