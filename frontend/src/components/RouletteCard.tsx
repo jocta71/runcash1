@@ -104,16 +104,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [lastNumber, setLastNumber] = useState<number | null>(null);
   const [recentNumbers, setRecentNumbers] = useState<number[]>([]);
   const [isNewNumber, setIsNewNumber] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
   const [updateCount, setUpdateCount] = useState(0);
   const [hasRealData, setHasRealData] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
-  const [rawRouletteData, setRawRouletteData] = useState<any>(null); // Armazenar dados brutos da API
+  const [rawRouletteData, setRawRouletteData] = useState<any>(null);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -131,29 +132,19 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     name: data?.name || data?.nome || 'Roleta sem nome',
   };
   
-  // Função para buscar dados da API
-  const fetchLatestData = async () => {
+  // Função para buscar dados iniciais uma única vez
+  const fetchInitialData = async () => {
     try {
-      // Cancelar requisição anterior se existir
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      
-      // Criar novo controller
-      abortControllerRef.current = new AbortController();
-      
       // Indicar que está carregando
       setLoading(true);
       
-      // URL da API - Usando o endpoint de proxy local para evitar problemas de CORS
-      // Utilizando o proxy definido em pages/api/proxy-roulette.js
+      // URL da API
       const url = `/api/ROULETTES`;
       
-      console.log(`[${Date.now()}] Buscando dados de todas as roletas para encontrar ${safeData.name} (ID: ${safeData.id})`);
+      console.log(`[${Date.now()}] Carregando dados iniciais de todas as roletas`);
       
-      // Fazer a requisição para obter todas as roletas através do proxy
+      // Fazer a requisição para obter todas as roletas
       const response = await fetch(url, {
-        signal: abortControllerRef.current.signal,
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -171,6 +162,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         throw new Error('Resposta da API inválida ou vazia');
       }
       
+      // Armazenar todas as roletas
+      setAllRoulettesData(data);
+      
       // Encontrar a roleta específica pelo ID
       const myRoulette = data.find((roulette: any) => 
         roulette.id === safeData.id || 
@@ -181,7 +175,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       if (!myRoulette) {
         console.warn(`Roleta com ID ${safeData.id} não encontrada na resposta`);
-        // Continuar mesmo sem encontrar para evitar erro na UI, pode ser que encontre na próxima atualização
         setLoading(false);
         return false;
       }
@@ -190,37 +183,34 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       setRawRouletteData(myRoulette);
       
       // Processar dados da roleta encontrada
-      console.log(`[${Date.now()}] Dados encontrados para ${safeData.name}:`, myRoulette);
+      console.log(`[${Date.now()}] Dados iniciais encontrados para ${safeData.name}:`, myRoulette);
       
       // Extrair números da roleta encontrada
       const newNumbers = extractNumbers(myRoulette);
       
-      // Se temos números, processar
+      // Se temos números, processar (limitando a 20)
       if (newNumbers.length > 0) {
-        processNewNumbers(newNumbers);
+        // Definir os números recentes limitados aos 20 primeiros
+        setRecentNumbers(newNumbers.slice(0, 20));
+        // Definir o último número
+        setLastNumber(newNumbers[0]);
+        setHasRealData(true);
       }
       
       // Limpar erros e atualizar timestamp
       setError(null);
-        setLastUpdateTime(Date.now());
-        setUpdateCount(prev => prev + 1);
-        
+      setLastUpdateTime(Date.now());
+      setUpdateCount(prev => prev + 1);
+      
       return true;
     } catch (err: any) {
-      // Ignorar erros de abortamento
-      if (err.name === 'AbortError') {
-        console.log('Requisição cancelada');
-        return false;
-      }
-      
       // Registrar erro
-      console.error(`Erro ao buscar dados da roleta ${safeData.name}:`, err);
-      setError(err.message || 'Erro ao buscar dados');
+      console.error(`Erro ao buscar dados iniciais da roleta ${safeData.name}:`, err);
+      setError(err.message || 'Erro ao buscar dados iniciais');
       
       return false;
     } finally {
       setLoading(false);
-      abortControllerRef.current = null;
     }
   };
   
@@ -278,13 +268,91 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     return extractedNumbers;
   };
   
+  // Função para atualizar dados a partir dos dados já carregados
+  const updateFromExistingData = async () => {
+    try {
+      // Indicar que está atualizando
+      setLoading(true);
+      
+      // URL da API
+      const url = `/api/ROULETTES`;
+      
+      // Fazer a requisição para obter todas as roletas
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      // Validar resposta
+      if (!response.ok) {
+        throw new Error(`Erro na API: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data || !Array.isArray(data)) {
+        throw new Error('Resposta da API inválida ou vazia');
+      }
+      
+      // Atualizar todas as roletas
+      setAllRoulettesData(data);
+      
+      // Encontrar a roleta específica pelo ID
+      const myRoulette = data.find((roulette: any) => 
+        roulette.id === safeData.id || 
+        roulette._id === safeData.id || 
+        roulette.name === safeData.name || 
+        roulette.nome === safeData.name
+      );
+      
+      if (!myRoulette) {
+        console.warn(`Roleta com ID ${safeData.id} não encontrada na atualização`);
+        return false;
+      }
+      
+      // Salvar dados brutos para uso posterior
+      setRawRouletteData(myRoulette);
+      
+      // Extrair números da roleta encontrada
+      const newNumbers = extractNumbers(myRoulette);
+      
+      // Se temos números, processar
+      if (newNumbers.length > 0) {
+        processNewNumbers(newNumbers);
+      }
+      
+      // Limpar erros e atualizar timestamp
+      setError(null);
+      setLastUpdateTime(Date.now());
+      setUpdateCount(prev => prev + 1);
+      
+      return true;
+    } catch (err: any) {
+      // Ignorar erros de abortamento
+      if (err.name === 'AbortError') {
+        console.log('Requisição cancelada');
+        return false;
+      }
+      
+      // Registrar erro
+      console.error(`Erro ao atualizar dados da roleta ${safeData.name}:`, err);
+      setError(err.message || 'Erro ao atualizar dados');
+      
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   // Função para processar novos números
   const processNewNumbers = useCallback((numbers: number[]) => {
     if (!numbers || numbers.length === 0) return false;
-    setLoading(false);
     
     const latestNumber = numbers[0];
     
+    // Verificar se o último número é diferente do atual
     if (latestNumber !== recentNumbers[0]) {
       // Se temos acesso à API, obter a cor diretamente dos dados
       let color = 'cinza';
@@ -302,13 +370,22 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       setToastMessage(`Novo número: ${latestNumber} (${color})`);
       setTimeout(() => setToastVisible(false), 3000);
       
-      // Atualizar a lista de números recentes
+      // Atualizar o último número
+      setLastNumber(latestNumber);
+      
+      // Atualizar a lista de números recentes (limitando a 20)
       const newRecentNumbers = [latestNumber, ...recentNumbers];
-      if (newRecentNumbers.length > 26) {
-        newRecentNumbers.pop();
+      if (newRecentNumbers.length > 20) {
+        newRecentNumbers.length = 20; // Manter apenas os 20 mais recentes
       }
       setRecentNumbers(newRecentNumbers);
       setHasRealData(true);
+      setIsNewNumber(true);
+      
+      // Resetar o isNewNumber após 2 segundos para remover a animação
+      setTimeout(() => {
+        setIsNewNumber(false);
+      }, 2000);
     }
     
     return true;
@@ -331,12 +408,12 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   // Efeito para buscar dados iniciais e configurar intervalo de atualização
   useEffect(() => {
     // Buscar dados iniciais
-    fetchLatestData();
-    
-    // Configurar intervalo de 8 segundos
-    intervalRef.current = setInterval(() => {
-      fetchLatestData();
-    }, 8000); // 8 segundos
+    fetchInitialData().then(() => {
+      // Configurar intervalo de 8 segundos para atualizações após carregar dados iniciais
+      intervalRef.current = setInterval(() => {
+        updateFromExistingData();
+      }, 8000); // 8 segundos
+    });
     
     // Limpar intervalo ao desmontar
     return () => {
@@ -425,7 +502,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         {/* Números recentes */}
         <div className="flex flex-wrap gap-1 justify-center my-3">
           {recentNumbers.length > 0 ? (
-            recentNumbers.slice(0, 24).map((num, idx) => (
+            recentNumbers.slice(0, 20).map((num, idx) => (
             <NumberDisplay 
               key={`${num}-${idx}`}
               number={num} 
