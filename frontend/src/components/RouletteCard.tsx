@@ -467,46 +467,46 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             )}
             
             {/* Números recentes */}
-            <div className="flex flex-wrap gap-1 justify-center my-3">
+        <div className="flex flex-wrap gap-1 justify-center my-3">
               {recentNumbers.length > 0 ? (
                 recentNumbers.slice(0, 20).map((num, idx) => (
-                <NumberDisplay 
-                  key={`${num}-${idx}`}
-                  number={num} 
-                  size="small" 
-                  highlight={idx === 0 && isNewNumber}
-                />
+            <NumberDisplay 
+              key={`${num}-${idx}`}
+              number={num} 
+              size="small" 
+              highlight={idx === 0 && isNewNumber}
+            />
                 ))
               ) : (
                 <div className="text-center text-gray-500 py-2">
                   {loading ? "Carregando números..." : "Nenhum número disponível"}
                 </div>
               )}
-            </div>
-            
+        </div>
+        
             {/* Rodapé */}
             <div className="mt-3 flex items-center justify-between text-xs">
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline" 
-                  size="sm"
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline" 
+              size="sm"
                   className="h-7 py-0 px-2"
-                  onClick={toggleStats}
-                >
+              onClick={toggleStats}
+            >
                   <BarChart3 className="h-3 w-3 mr-1" />
-                  <span className="text-xs">Estatísticas</span>
-                </Button>
-              </div>
-              
-              <div className="flex items-center text-xs text-gray-400">
-                <Timer className="h-3 w-3 mr-1" />
-                <span>
+              <span className="text-xs">Estatísticas</span>
+            </Button>
+          </div>
+          
+          <div className="flex items-center text-xs text-gray-400">
+            <Timer className="h-3 w-3 mr-1" />
+            <span>
                   {hasRealData 
                     ? `Atualizado ${getTimeAgo()}` 
                     : (loading ? "Carregando..." : "Aguardando dados")}
-                </span>
-              </div>
-            </div>
+            </span>
+          </div>
+        </div>
             
             {/* Indicador de sincronização */}
             <div className="mt-2 text-xs text-center text-gray-500 border-t border-gray-100 pt-1">

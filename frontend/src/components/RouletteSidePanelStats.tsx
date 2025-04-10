@@ -223,15 +223,15 @@ const RouletteSidePanelStats = ({
         setHistoricalNumbers(apiNumbers.slice(0, 1000));
       } 
       else {
-        // Se não temos nenhum dado real disponível
-        logger.info(`Sem dados históricos disponíveis`);
+        // Se não temos nenhum dado, usar apenas os números recentes (ou array vazio)
+        logger.info(`Sem dados históricos, usando apenas números recentes: ${(lastNumbers || []).length}`);
         setHistoricalNumbers(lastNumbers || []);
       }
       
       isInitialRequestDone.current = true;
     } catch (error) {
       logger.error('Erro ao carregar dados históricos:', error);
-      // Em caso de erro, usar apenas os números recentes ou array vazio
+      // Em caso de erro, usar apenas os números recentes em vez de gerar aleatórios
       setHistoricalNumbers(lastNumbers || []);
     } finally {
       setIsLoading(false);
