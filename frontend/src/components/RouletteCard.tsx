@@ -1,37 +1,13 @@
-import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, BarChart3 } from 'lucide-react';
+import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, BarChart3, PieChart, Phone, Timer, Cpu, Zap, History } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
-import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { strategies, numberGroups } from './roulette/constants';
-import LastNumbers from './roulette/LastNumbers';
-import WinRateDisplay from './roulette/WinRateDisplay';
-import RouletteTrendChart from './roulette/RouletteTrendChart';
-import SuggestionDisplay from './roulette/SuggestionDisplay';
-import RouletteActionButtons from './roulette/RouletteActionButtons';
-import RouletteSidePanelStats from './RouletteSidePanelStats';
-import { useRouletteData } from '@/hooks/useRouletteData';
-import { Button } from '@/components/ui/button';
-import { StrategyUpdateEvent } from '@/services/EventService';
-import EventService from '@/services/EventService';
-import SocketService from '@/services/SocketService';
-import StrategySelector from '@/components/StrategySelector';
-import { Strategy } from '@/services/StrategyService';
-import RouletteNumber from './roulette/RouletteNumber';
-import { RequestThrottler } from '@/services/utils/requestThrottler';
-import { getLogger } from '@/services/utils/logger';
-import { Card, CardContent } from "@/components/ui/card";
-import { RouletteData, RouletteNumberEvent } from '@/types';
 import NumberDisplay from './NumberDisplay';
 import { Badge } from "@/components/ui/badge";
-import { PieChart, Phone, Timer, Cpu, Zap, History } from "lucide-react";
-import RouletteStats from './RouletteStats';
 import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
-import RouletteFeedService from '@/services/RouletteFeedService';
-import axios from 'axios';
-
-// Logger específico para este componente
-const logger = getLogger('RouletteCard');
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from "@/components/ui/card";
+import { RouletteData } from '@/types';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -43,8 +19,8 @@ const debugLog = (...args: any[]) => {
   }
 };
 
-// Função para gerar insights com base nos números
-const getInsightMessage = (numbers: number[], wins: number, losses: number) => {
+// Simplificando a função de insights para não depender de dados externos
+const getInsightMessage = (numbers: number[]) => {
   if (!numbers || numbers.length === 0) {
     return "Aguardando dados...";
   }
@@ -81,14 +57,6 @@ const getInsightMessage = (numbers: number[], wins: number, losses: number) => {
     return "Tendência para números baixos (1-18)";
   } else if (highCount >= 4) {
     return "Tendência para números altos (19-36)";
-  }
-  
-  // Baseado na taxa de vitória
-  const winRate = wins / (wins + losses);
-  if (winRate > 0.7) {
-    return "Boa taxa de acerto! Continue com a estratégia";
-  } else if (winRate < 0.3) {
-    return "Taxa de acerto baixa, considere mudar a estratégia";
   }
   
   return "Padrão normal, observe mais alguns números";
@@ -271,10 +239,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
   
   // Refs
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
   
   // Hooks
   const navigate = useNavigate();
@@ -329,10 +295,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   useEffect(() => {
     // Configurar loading inicial
     setLoading(true);
-    
-    // Desativar quaisquer inicializações de outros serviços
-    // SocketService.getInstance();
-    // RouletteFeedService.getInstance();
     
     // Assinar atualizações do gerenciador global
     const unsubscribe = dataManager.subscribe(componentId, handleDataUpdate);
@@ -656,45 +618,15 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             </div>
           </div>
           
-          {/* Link para estatísticas completas */}
-          <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsStatsModalOpen(true);
-              }}
-              className="mt-3 text-xs text-blue-600 hover:text-blue-800 flex items-center"
-          >
-            <PieChart className="h-3 w-3 mr-1" />
-            Ver estatísticas completas
-          </button>
+          {/* Link para estatísticas completas - Removido para evitar requisições adicionais */}
+          <div className="mt-3 text-xs text-gray-600">
+            Estatísticas calculadas com base nos últimos {recentNumbers.length} números
+          </div>
           </div>
         </div>
       )}
       
-      {/* Modal de estatísticas completas */}
-      <div className={`fixed inset-0 z-50 ${isStatsModalOpen ? 'flex' : 'hidden'} items-center justify-center bg-black/70`}>
-        <div className="bg-white w-11/12 max-w-6xl h-[90vh] rounded-lg overflow-y-auto">
-          <div className="flex justify-between items-center p-4 border-b border-gray-200">
-            <h2 className="text-xl font-bold">Estatísticas da {safeData.name}</h2>
-            <button 
-              onClick={() => setIsStatsModalOpen(false)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="p-4">
-            <RouletteSidePanelStats
-              roletaNome={safeData.name}
-              lastNumbers={recentNumbers}
-              wins={0}
-              losses={0}
-            />
-          </div>
-        </div>
-      </div>
+      {/* Modal de estatísticas completas - Removido para evitar requisições adicionais */}
     </Card>
   );
 };
