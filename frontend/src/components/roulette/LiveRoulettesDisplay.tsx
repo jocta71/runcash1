@@ -358,7 +358,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
         {/* Layout flexbox: roletas à esquerda, estatísticas à direita */}
         <div className="flex flex-col md:flex-row gap-4">
           {/* Lista de roletas à esquerda */}
-          <div className="w-full md:w-1/3 overflow-y-auto max-h-[calc(100vh-200px)]">
+          <div className="w-full md:w-1/2 overflow-y-auto max-h-[calc(100vh-200px)]">
             <div className="grid grid-cols-1 gap-3">
               {roulettes.map(roleta => (
                 <div 
@@ -454,7 +454,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
           </div>
           
           {/* Painel de estatísticas à direita */}
-          <div className="w-full md:w-2/3 bg-gray-900 rounded-lg overflow-hidden shadow-lg border border-gray-800">
+          <div className="w-full md:w-1/2 bg-gray-900 rounded-lg overflow-hidden shadow-lg border border-gray-800">
             {selectedRoulette && Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0 ? (
               <RouletteStatsInline 
                 roletaNome={selectedRoulette.nome}
