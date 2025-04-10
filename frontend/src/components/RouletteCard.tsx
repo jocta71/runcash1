@@ -175,6 +175,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
   // Função para processar um novo número em tempo real
   const processRealtimeNumber = (newNumberEvent: RouletteNumberEvent) => {
+    if (!newNumberEvent) {
+      console.warn('[RouletteCard] Evento de número vazio recebido');
+      return;
+    }
+    
     // Ignorar atualizações muito frequentes (menos de 3 segundos entre elas)
     // exceto se estivermos ainda sem dados reais
     const now = Date.now();
@@ -187,17 +192,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       return;
     }
     
-    // Garantir que temos um número válido
-    let newNumber: number;
-    let validNumbers: number[] = [];
-    
     // Verificar se o número está disponível
     if (newNumberEvent.numero === null) {
       console.warn('[RouletteCard] Número nulo recebido:', newNumberEvent);
       return;
     }
     
-    // Extrair o número conforme seu tipo
+    // Variáveis para armazenar o novo número e a lista de números válidos
+    let newNumber: number;
+    let validNumbers: number[] = [];
+    
+    // Extrair o número com base no tipo de dados recebido
     if (Array.isArray(newNumberEvent.numero)) {
       if (newNumberEvent.numero.length === 0) {
         console.warn('[RouletteCard] Array de números vazio recebido:', newNumberEvent);
@@ -207,7 +212,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       const firstNumberObject = newNumberEvent.numero[0];
       if (typeof firstNumberObject === 'object' && firstNumberObject !== null) {
         // Se for um objeto, extrair a propriedade numero ou number
-        newNumber = (firstNumberObject.numero as number) || (firstNumberObject.number as number);
+        newNumber = Number(firstNumberObject.numero || firstNumberObject.number || 0);
       } else {
         // Se for um valor direto no array
         newNumber = Number(firstNumberObject);
@@ -217,14 +222,14 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       validNumbers = newNumberEvent.numero
         .map(item => {
           if (typeof item === 'object' && item !== null) {
-            return Number(item.numero || item.number);
+            return Number(item.numero || item.number || 0);
           }
           return Number(item);
         })
         .filter(num => !isNaN(num) && typeof num === 'number');
     } else if (typeof newNumberEvent.numero === 'object' && newNumberEvent.numero !== null) {
       // Se for um objeto direto, tentar extrair a propriedade numero ou number
-      newNumber = Number(newNumberEvent.numero.numero || newNumberEvent.numero.number);
+      newNumber = Number(newNumberEvent.numero.numero || newNumberEvent.numero.number || 0);
       validNumbers = [newNumber];
     } else {
       // Se for um valor direto, garantir que é um número
@@ -245,14 +250,23 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       console.log(`[RouletteCard] Ignorando número já conhecido para ${safeData.name}: ${newNumber}`);
       return;
     }
-      
+    
+    // Verificar se o número é realmente novo
+    const isReallyNew = lastNumber !== newNumber && !recentNumbers.includes(newNumber);
+    
+    // Se não for novo e não estivermos sem dados, ignorar
+    if (!isReallyNew && hasRealData && !isInitialData) {
+      console.log(`[RouletteCard] Ignorando número repetido ${newNumber} para ${safeData.name}`);
+      return;
+    }
+    
     // Atualizar o último número apenas se for diferente do atual
     if (lastNumber !== newNumber) {
       setLastNumber(newNumber);
       setLastUpdateTime(now);
       setHasRealData(true);
       
-      // Incrementar contador de atualizações apenas para novos números reais
+      // Incrementar contador de atualizações
       setUpdateCount(prev => prev + 1);
       
       // Ativar efeito visual de novo número
@@ -306,37 +320,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         });
       }
     }
-  }
-    
-    // Caso seja um número único (comportamento original)
-    if (typeof newNumberEvent.numero !== 'number' || isNaN(newNumberEvent.numero)) {
-      console.warn('[RouletteCard] Número inválido recebido:', newNumberEvent);
-      return;
-    }
-
-    console.log(`[RouletteCard] Processando número ${newNumberEvent.numero} para ${safeData.name}`);
-    const newNumber = newNumberEvent.numero;
-    
-    // Verificar se o número é realmente novo
-    const isReallyNew = lastNumber !== newNumber && !recentNumbers.includes(newNumber);
-    
-    // Se não for novo e não estivermos sem dados, ignorar
-    if (!isReallyNew && hasRealData) {
-      console.log(`[RouletteCard] Ignorando número repetido ${newNumber} para ${safeData.name}`);
-      return;
-    }
-    
-    // Atualizar o último número
-    setLastNumber(prevLastNumber => {
-      // Se o número for igual ao último, não fazer nada
-      if (prevLastNumber === newNumber) return prevLastNumber;
-      
-      console.log(`[RouletteCard] Atualizando último número de ${prevLastNumber} para ${newNumber}`);
-      // Se for um número diferente, atualizar
-      setLastUpdateTime(now);
-      setHasRealData(true);
-      return newNumber;
-    });
+  };
 
     // Atualizar a lista de números recentes
     setRecentNumbers(prevNumbers => {
