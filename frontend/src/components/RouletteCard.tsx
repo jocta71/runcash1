@@ -549,20 +549,35 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         const url = `${config.apiUrl}/ROULETTES`;
         console.log(`[ROULETTE-CARD] Fazendo requisição simples para: ${url}`);
         
+        // Log detalhado da URL para verificação
+        console.log(`[ROULETTE-CARD] URL completa: ${url}`);
+        
         try {
           // Usar a mesma abordagem do RESTSocketService que está funcionando
           // Uma requisição simples sem headers complexos ou modos especiais
           const response = await fetch(url);
           
           if (!response.ok) {
-            throw new Error(`Resposta não OK: ${response.status} ${response.statusText}`);
+            // Verificar se temos um statusText na resposta para melhor logging
+            const errorMsg = response.statusText 
+              ? `Resposta não OK: ${response.status} ${response.statusText}` 
+              : `Resposta não OK: ${response.status}`;
+            throw new Error(errorMsg);
           }
           
           const data = await response.json();
           return processApiData(data);
           
         } catch (error) {
-          console.error(`[ROULETTE-CARD] ❌ Erro na requisição:`, error);
+          // Melhorando o logging do erro com mais detalhes
+          const errorMsg = error instanceof Error ? error.message : "Erro desconhecido";
+          console.error(`[ROULETTE-CARD] ❌ Erro na requisição: ${errorMsg}`);
+          
+          // Se for um erro de fetch (TypeError), geralmente indica um problema de rede
+          if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+            console.error('[ROULETTE-CARD] ❌ Erro de rede: Verifique se o servidor está acessível ou se há problemas de CORS');
+          }
+          
           return false;
         }
       } catch (error) {
