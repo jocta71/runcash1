@@ -545,32 +545,24 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       try {
         console.log(`[ROULETTE-CARD] 🔄 Iniciando busca para ${safeData.name} (ID: ${safeData.id})`);
         
-        // URL da API para obter dados - usar o endpoint base sem parâmetros adicionais
+        // URL da API para obter dados
         const url = `${config.apiUrl}/ROULETTES`;
-        console.log(`[ROULETTE-CARD] Fazendo requisição simples para: ${url}`);
-        
-        // Log detalhado da URL para verificação
-        console.log(`[ROULETTE-CARD] URL completa: ${url}`);
+        console.log(`[ROULETTE-CARD] Fazendo requisição para: ${url}`);
         
         try {
-          // Usando EXATAMENTE a mesma implementação do RESTSocketService que funciona:
-          // - Sem cabeçalhos personalizados
-          // - Sem modo especial
-          // - Apenas fetch simples
+          // Usando EXATAMENTE o mesmo código que está funcionando no sistema
           const response = await fetch(url);
+          
+          // Verificar se a resposta está OK - isso é importante
+          if (!response.ok)
+            throw new Error(`Erro ao buscar dados da API: ${response.status} - ${response.statusText}`);
+          
           const data = await response.json();
+          
+          console.log(`[ROULETTE-CARD] ✅ Dados obtidos com sucesso da API`);
           return processApiData(data);
-          
         } catch (error) {
-          // Melhorando o logging do erro com mais detalhes
-          const errorMsg = error instanceof Error ? error.message : "Erro desconhecido";
-          console.error(`[ROULETTE-CARD] ❌ Erro na requisição: ${errorMsg}`);
-          
-          // Se for um erro de fetch (TypeError), geralmente indica um problema de rede
-          if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-            console.error('[ROULETTE-CARD] ❌ Erro de rede: Verifique se o servidor está acessível ou se há problemas de CORS');
-          }
-          
+          console.error(`[ROULETTE-CARD] ❌ Erro na requisição:`, error);
           return false;
         }
       } catch (error) {
