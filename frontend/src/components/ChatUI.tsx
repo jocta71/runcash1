@@ -10,19 +10,20 @@ interface ChatUIProps {
 
 // Mensagens simuladas para alternar aleatoriamente
 const simulatedMessages = [
-  { sender: 'Zé das Couves', message: 'Quando que vai ficar pronto, mano?', isModerator: false, isAdmin: false },
-  { sender: 'Fernandinha', message: 'Tô mó ansiedade pra jogar, viu?', isModerator: false, isAdmin: false },
-  { sender: 'Moderador', message: 'Galera, calma que já vai rolar!', isModerator: true, isAdmin: false },
-  { sender: 'Bia', message: 'Tô nem aí, só quero ganhar uma grana!', isModerator: false, isAdmin: false },
-  { sender: 'Juninho', message: 'Recebeu minha mensagem?', isModerator: false, isAdmin: false },
-  { sender: 'Admin', message: 'Cês falaram com o entregador? Mó vacilo, tá atrasado mais de uma hora!', isModerator: false, isAdmin: true },
-  { sender: 'Robertão', message: 'Mano, esse app é show de bola!', isModerator: false, isAdmin: false },
-  { sender: 'Paty', message: 'Tá top demais, curti mesmo!', isModerator: false, isAdmin: false },
-  { sender: 'Dudinha', message: 'Blz', isModerator: false, isAdmin: false },
-  { sender: 'Matheuzinho', message: 'Fala aí, quando vai rolar a nova roleta?', isModerator: false, isAdmin: false },
-  { sender: 'Amanda', message: 'Primeira vez aqui, alguém me ajuda?', isModerator: false, isAdmin: false },
-  { sender: 'Bruna', message: 'Ganhei 200 na última vez', isModerator: false, isAdmin: false },
+  { sender: 'Zóio', message: 'Eae fi, qnd q isso vai tá ON? 🤔', isModerator: false, isAdmin: false },
+  { sender: 'Nandinha', message: 'Toh mó ansiozaaaa pra jogar vei', isModerator: false, isAdmin: false },
+  { sender: 'Mod Luizão', message: 'Suaviza tropa, já já vamo subir o bagui 🚀', isModerator: true, isAdmin: false },
+  { sender: 'Bibi Cria', message: 'Toh nem aí, só qro embolsar os pix msm 💸', isModerator: false, isAdmin: false },
+  { sender: 'Jhowzin', message: 'Viu meu msgm aê ou n?', isModerator: false, isAdmin: false },
+  { sender: 'Adm TH', message: 'Alguém deu um salve no motoca? vacilão sumiu faz tempão 😤', isModerator: false, isAdmin: true },
+  { sender: 'Rob Dog', message: 'Cê tá doido mlk, appzão brabo demais 🔥', isModerator: false, isAdmin: false },
+  { sender: 'Paty do Grau', message: 'Manoo, mt style o trem, curti d+ 😍', isModerator: false, isAdmin: false },
+  { sender: 'Duda 13', message: 'Tranquilo', isModerator: false, isAdmin: false },
+  { sender: 'Teuzin', message: 'E aí, q hora q solta a roletinha nova? 🎰', isModerator: false, isAdmin: false },
+  { sender: 'Mandinha', message: 'Sou nova aq, qm dá um help? 🥺', isModerator: false, isAdmin: false },
+  { sender: 'Bru Cria', message: 'Sai com 2 conto da última vez fi 🔥', isModerator: false, isAdmin: false },
 ];
+
 
 const ChatUI = ({ isOpen = true, onClose, isMobile = false }: ChatUIProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
