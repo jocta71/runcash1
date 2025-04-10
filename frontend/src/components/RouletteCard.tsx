@@ -563,11 +563,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           
         } catch (error) {
           console.error(`[ROULETTE-CARD] ❌ Erro na requisição:`, error);
-          return simulateDataFallback();
+          return false;
         }
       } catch (error) {
         console.error(`[ROULETTE-CARD] ❌ Erro geral no polling:`, error);
-        return simulateDataFallback();
+        return false;
       }
       
       // Função para processar dados da API
@@ -577,7 +577,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         // Garantir que temos um array
         if (!data || !Array.isArray(data)) {
           console.error(`[ROULETTE-CARD] ❌ Dados não são um array:`, data);
-          return simulateDataFallback();
+          return false;
         }
         
         // Debug: mostrar todos os IDs disponíveis
@@ -615,7 +615,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             }
           }
           
-          return simulateDataFallback();
+          return false;
         }
         
         console.log(`[ROULETTE-CARD] ✅ Roleta encontrada:`, currentRoulette);
@@ -639,7 +639,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           return true;
         } else {
           console.error(`[ROULETTE-CARD] ❌ Número não encontrado na roleta:`, currentRoulette);
-          return simulateDataFallback();
+          return false;
         }
       }
       
@@ -660,21 +660,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             }, 1000);
           }
         }, 0);
-      }
-      
-      // Função para simular dados quando a API falha completamente
-      function simulateDataFallback() {
-        console.log(`[ROULETTE-CARD] ❗ Ativando dados simulados para ${safeData.name} devido a bloqueio CORS persistente`);
-        
-        // Gerar um número aleatório entre 0 e 36 (como numa roleta real)
-        const simulatedNumber = Math.floor(Math.random() * 37);
-        
-        console.log(`[ROULETTE-CARD] 🎰 Número simulado gerado: ${simulatedNumber}`);
-        
-        // Forçar update da UI com o número simulado
-        updateUIWithNumber(simulatedNumber);
-        
-        return true;
       }
     };
     
