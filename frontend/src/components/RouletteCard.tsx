@@ -122,7 +122,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
-  const [estrategiaSelecionada, setEstrategiaSelecionada] = useState<string | null>(null);
+  const [estrategiaSelecionada, setEstrategiaSelecionada] = useState<string>('martingale'); // Martingale selecionado por padrão
   const [showEstrategiaDropdown, setShowEstrategiaDropdown] = useState(false);
   
   // Refs
@@ -199,6 +199,19 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       }
     };
   }, [dataManager, componentId, handleDataUpdate]);
+  
+  // Efeito para mostrar notificação da estratégia selecionada por padrão
+  useEffect(() => {
+    // Mostrar notificação sobre a estratégia padrão selecionada
+    if (enableNotifications) {
+      const estrategiaPadrao = ESTRATEGIAS_ROLETA.find(e => e.id === 'martingale');
+      if (estrategiaPadrao) {
+        setToastVisible(true);
+        setToastMessage(`Estratégia "${estrategiaPadrao.nome}" selecionada por padrão`);
+        setTimeout(() => setToastVisible(false), 3000);
+      }
+    }
+  }, [enableNotifications]); // Executar apenas uma vez após a montagem inicial
   
   // Adicionar um comentário para garantir que este é o único lugar fazendo requisições
   // Console.log para verificar se há apenas uma fonte de requisições:
