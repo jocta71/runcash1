@@ -433,19 +433,19 @@ export default class RouletteFeedService {
       );
       
       // Processar os resultados
-      if (result && Array.isArray(result)) {
-        logger.success(`✅ Dados iniciais recebidos: ${result.length} roletas`);
+      if (result && result.LiveTables) {
+        logger.success(`✅ Dados iniciais recebidos: ${Object.keys(result.LiveTables).length} roletas`);
         
         // Armazenar os dados
         this.lastUpdateTime = Date.now();
         this.hasCachedData = true;
-        this.roulettes = result;
+        this.roulettes = result.LiveTables;
         
         // Ajustar intervalo de polling baseado no sucesso
         this.adjustPollingInterval(false);
         
         // Notificar que temos novos dados
-        this.notifySubscribers(result);
+        this.notifySubscribers(result.LiveTables);
       } else {
         logger.error('❌ Resposta inválida recebida');
       }
@@ -528,9 +528,9 @@ export default class RouletteFeedService {
         window._requestInProgress = false;
         
         // Processar os dados recebidos
-        if (data && this.validateRouletteData(data)) {
-          this.roulettes = data;
-          this.notifySubscribers(data);
+        if (data && data.LiveTables) {
+          this.roulettes = data.LiveTables;
+          this.notifySubscribers(data.LiveTables);
         }
         
         // Ajustar o intervalo de polling (sem erro)
@@ -819,7 +819,7 @@ export default class RouletteFeedService {
   private restartPollingTimer(): void {
     // Limpar qualquer timer existente
     if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
+      window.clearInterval(this.pollingTimer);
       this.pollingTimer = null;
     }
     
@@ -1047,16 +1047,16 @@ export default class RouletteFeedService {
    * Processa os dados das roletas recebidos da API
    */
   private handleRouletteData(data: any): void {
-    if (!Array.isArray(data)) {
+    if (!data || !data.LiveTables) {
       logger.error('⚠️ Dados inválidos recebidos:', data);
       return;
     }
     
     // Atualizar a lista de roletas
-    this.roulettes = data;
+    this.roulettes = data.LiveTables;
     
     // Atualizar o cache
-    this.updateRouletteCache(data);
+    this.updateRouletteCache(data.LiveTables);
     
     // Registrar estatística de requisição bem-sucedida
     this.requestStats.totalRequests++;
@@ -1067,7 +1067,7 @@ export default class RouletteFeedService {
     this.adjustPollingInterval(false);
     
     // Notificar que temos novos dados
-    this.notifySubscribers(data);
+    this.notifySubscribers(data.LiveTables);
   }
 
   /**
@@ -1076,26 +1076,33 @@ export default class RouletteFeedService {
    */
   private validateRouletteData(data: any): boolean {
     try {
-      // Verificar se temos um array
-      if (!Array.isArray(data)) {
-        logger.warn('❌ Dados de roleta inválidos: não é um array');
+      // Verificar se temos um objeto (a resposta real da API é um objeto, não um array)
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        logger.warn('❌ Dados de roleta inválidos: não é um objeto');
         return false;
       }
       
-      // Verificar se temos pelo menos um item
-      if (data.length === 0) {
-        logger.warn('⚠️ Dados de roleta vazios (array vazio)');
+      // Verificar se temos a propriedade LiveTables
+      if (!data.LiveTables || typeof data.LiveTables !== 'object') {
+        logger.warn('❌ Dados de roleta inválidos: falta propriedade LiveTables');
+        return false;
+      }
+      
+      // Verificar se temos pelo menos uma tabela
+      const tableKeys = Object.keys(data.LiveTables);
+      if (tableKeys.length === 0) {
+        logger.warn('⚠️ Dados de roleta vazios (sem tabelas)');
         return true; // Consideramos válido, pois pode ser um estado legítimo
       }
       
-      // Verificar se o primeiro item tem a estrutura esperada
-      const firstItem = data[0];
-      if (!firstItem.id || !firstItem.name) {
+      // Verificar se a primeira tabela tem a estrutura esperada
+      const firstTable = data.LiveTables[tableKeys[0]];
+      if (!firstTable.GameID || !firstTable.Name) {
         logger.warn('❌ Dados de roleta inválidos: estrutura incorreta');
         return false;
       }
       
-      logger.debug(`✅ Dados de roleta validados: ${data.length} itens`);
+      logger.debug(`✅ Dados de roleta validados: ${tableKeys.length} tabelas`);
       return true;
     } catch (error) {
       logger.error('❌ Erro ao validar dados de roleta:', error);
