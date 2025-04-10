@@ -28,6 +28,7 @@ import RouletteStats from './RouletteStats';
 import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import RouletteFeedService from '@/services/RouletteFeedService';
+import config from '@/config/env';
 
 // Logger específico para este componente
 const logger = getLogger('RouletteCard');
@@ -330,12 +331,20 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
   // Efeito para se inscrever nos eventos de atualização em tempo real
   useEffect(() => {
+    // Flag para controlar se o componente está montado
+    let isMounted = true;
+    
+    console.log(`[RouletteCard][SUBSCRIBE] Iniciando inscrição aos eventos para ${safeData.name}`);
+    
+    // Função para processar atualizações de dados
     const handleDataUpdated = (updateData: any) => {
-      console.log(`[RouletteCard] Recebida atualização de dados para ${safeData.name}`);
+      if (!isMounted) return; // Evitar atualizações se o componente for desmontado
+      
+      console.log(`[RouletteCard][EVENTO] Recebida atualização de dados para ${safeData.name}`, updateData);
       
       // Validar se temos dados válidos
       if (!updateData) {
-        console.warn(`[RouletteCard] Dados inválidos recebidos para ${safeData.name}`);
+        console.warn(`[RouletteCard][ERRO] Dados inválidos recebidos para ${safeData.name}`);
         return;
       }
       
@@ -451,13 +460,56 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Inscrever-se também nos eventos do EventService (para compatibilidade)
     EventService.on('roulette:data-updated', handleDataUpdated);
     
+    // Configurar um polling direto para o caso do sistema de eventos falhar
+    const setupDirectPolling = () => {
+      // Polling de backup a cada 10 segundos
+      const pollingId = setInterval(() => {
+        if (!isMounted) return;
+        console.log(`[RouletteCard][POLLING] Verificando atualizações diretas para ${safeData.name}`);
+        
+        // Fazer uma chamada direta à API
+        fetch(`${config.apiUrl}/roulette/status?table=${safeData.id || safeData.name}`)
+          .then(res => res.json())
+          .then(data => {
+            if (!isMounted) return;
+            
+            console.log(`[RouletteCard][POLLING] Dados recebidos para ${safeData.name}:`, data);
+            handleDataUpdated(data);
+          })
+          .catch(err => {
+            console.error(`[RouletteCard][POLLING] Erro ao buscar dados para ${safeData.name}:`, err);
+          });
+      }, 10000);
+      
+      return pollingId;
+    };
+    
+    // Iniciar polling direto como backup
+    const pollingId = setupDirectPolling();
+    
+    // Inscrever-se para eventos de atualização da mesa específica
+    const specificTableEvent = `roulette:update:${safeData.id || safeData.name}`;
+    console.log(`[RouletteCard][SUBSCRIBE] Inscrevendo em evento específico: ${specificTableEvent}`);
+    EventService.on(specificTableEvent, handleDataUpdated);
+    
     // Limpeza ao desmontar o componente
     return () => {
-      console.log(`[RouletteCard] Cancelando inscrições para ${safeData.name}`);
-      if (feedService) {
+      console.log(`[RouletteCard][CLEANUP] Cancelando inscrições para ${safeData.name}`);
+      
+      // Marcar componente como desmontado
+      isMounted = false;
+      
+      // Cancelar todos os timers e inscrições
+      clearInterval(pollingId);
+      
+      // Cancelar inscrições nos serviços
+      if (feedService && typeof feedService.unsubscribe === 'function') {
         feedService.unsubscribe(handleDataUpdated);
       }
+      
+      // Cancelar inscrições de eventos
       EventService.off('roulette:data-updated', handleDataUpdated);
+      EventService.off(specificTableEvent, handleDataUpdated);
     };
   }, [feedService, safeData.id, safeData.name, recentNumbers, enableSound, enableNotifications]);
   
