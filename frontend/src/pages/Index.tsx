@@ -515,14 +515,14 @@ const Index = () => {
         ) : (
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Cards de roleta à esquerda */}
-            <div className="w-full lg:w-3/4">
-              <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+            <div className="w-full lg:w-1/2">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 {renderRouletteCards()}
               </div>
             </div>
             
             {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
-            <div className="w-full lg:w-1/4">
+            <div className="w-full lg:w-1/2">
               {selectedRoulette ? (
                 <RouletteSidePanelStats
                   roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
