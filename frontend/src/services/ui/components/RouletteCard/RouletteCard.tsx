@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { RouletteRepository } from '../../../data/rouletteRepository';
+import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 import NumberHistory from '../NumberHistory';
 import './RouletteCard.css';
 
@@ -11,56 +11,112 @@ interface RouletteCardProps {
 
 /**
  * Componente que exibe um cartão com informações de uma roleta
+ * Implementa sincronização automática a cada 8 segundos
  */
 const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
+  // Estados do componente
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rouletteData, setRouletteData] = useState<any>(null);
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
+  const [isNewNumber, setIsNewNumber] = useState(false);
   
-  // Função para carregar os dados da roleta
-  const loadData = async () => {
+  // Referências
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastNumberRef = useRef<number | null>(null);
+  const fetchCountRef = useRef(0);
+  
+  // Função para buscar dados da API
+  const fetchRouletteData = async () => {
     try {
-      setLoading(true);
-      const data = await RouletteRepository.fetchRouletteById(rouletteId);
+      fetchCountRef.current += 1;
+      const fetchCount = fetchCountRef.current;
       
-      if (data) {
-        setRouletteData(data);
-        setError(null);
-      } else {
-        const errorMsg = `Roleta não encontrada (ID: ${rouletteId})`;
+      console.log(`[RouletteCard] Buscando dados da roleta (ID: ${rouletteId}) - Tentativa #${fetchCount}`);
+      setLoading(true);
+      
+      // URL da API
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api';
+      const url = `${apiBaseUrl}/roulette/${rouletteId}`;
+      
+      // Fazer a requisição
+      const response = await axios.get(url);
+      
+      // Validar resposta
+      if (!response.data) {
+        throw new Error('Resposta vazia da API');
+      }
+      
+      // Processar dados
+      const apiData = response.data;
+      console.log(`[RouletteCard] Dados recebidos para roleta ${rouletteId} [${fetchCount}]`, apiData);
+      
+      // Verificar se há um novo número
+      if (apiData.numbers && apiData.numbers.length > 0) {
+        const latestNumber = apiData.numbers[0].value;
+        
+        // Se é um novo número, mostrar efeito visual
+        if (lastNumberRef.current !== latestNumber) {
+          console.log(`[RouletteCard] Novo número detectado: ${latestNumber} (anterior: ${lastNumberRef.current})`);
+          lastNumberRef.current = latestNumber;
+          setIsNewNumber(true);
+          
+          // Remover efeito visual após 2 segundos
+          setTimeout(() => setIsNewNumber(false), 2000);
+        }
+      }
+      
+      // Atualizar estados
+      setRouletteData(apiData);
+      setLastUpdateTime(Date.now());
+      setError(null);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
+      console.error('[RouletteCard] Erro ao buscar dados:', err);
+      
+      // Só definir erro se ainda não tivermos dados
+      if (!rouletteData) {
         setError(errorMsg);
         if (onError) onError(errorMsg);
       }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
-      console.error('RouletteCard error:', err);
-      setError(errorMsg);
-      if (onError) onError(errorMsg);
     } finally {
       setLoading(false);
     }
   };
   
-  // Carregar dados e configurar assinatura em tempo real
+  // Efeito para carregar dados e configurar atualização periódica
   useEffect(() => {
-    loadData();
+    // Buscar dados iniciais
+    fetchRouletteData();
     
-    // Assinar atualizações em tempo real
-    const unsubscribe = RouletteRepository.subscribeToRouletteUpdates(
-      rouletteId,
-      (updatedData) => {
-        setRouletteData(updatedData);
-      }
-    );
+    // Configurar atualização a cada 8 segundos
+    timerRef.current = setInterval(() => {
+      fetchRouletteData();
+    }, 8000); // 8 segundos
     
-    // Limpar ao desmontar
+    // Limpar intervalo ao desmontar
     return () => {
-      unsubscribe();
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
-  }, [rouletteId]);
+  }, [rouletteId]); // Recriar efeito se o ID da roleta mudar
   
-  // Renderizar estado de carregamento
-  if (loading) {
+  // Formatar timestamp
+  const formatTimestamp = (timestamp: string | number) => {
+    return new Date(timestamp).toLocaleTimeString();
+  };
+  
+  // Calcular tempo desde a última atualização
+  const getTimeElapsed = () => {
+    const seconds = Math.floor((Date.now() - lastUpdateTime) / 1000);
+    if (seconds < 60) return `${seconds}s atrás`;
+    return `${Math.floor(seconds / 60)}m ${seconds % 60}s atrás`;
+  };
+  
+  // Renderizar estado de carregamento inicial
+  if (loading && !rouletteData) {
     return (
       <div className="roulette-card loading">
         <div className="loading-indicator">Carregando...</div>
@@ -68,11 +124,20 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
     );
   }
   
-  // Renderizar estado de erro
-  if (error) {
+  // Renderizar estado de erro inicial
+  if (error && !rouletteData) {
     return (
       <div className="roulette-card error">
         <div className="error-message">{error}</div>
+      </div>
+    );
+  }
+  
+  // Se não temos dados ainda, mostrar placeholder
+  if (!rouletteData) {
+    return (
+      <div className="roulette-card">
+        <div className="loading-indicator">Aguardando dados...</div>
       </div>
     );
   }
@@ -81,14 +146,22 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
   const { name, numbers, active, strategyState, wins, losses } = rouletteData;
   const latestNumber = numbers && numbers.length > 0 ? numbers[0] : null;
   
+  // Determinar a classe do card com base em se há um novo número
+  const cardClassName = `roulette-card ${active ? 'active' : 'inactive'} ${isNewNumber ? 'new-number' : ''}`;
+  
   // Renderizar a roleta
   return (
-    <div className={`roulette-card ${active ? 'active' : 'inactive'}`}>
+    <div className={cardClassName}>
       <div className="roulette-header">
         <h3 className="roulette-name">{name}</h3>
-        <span className={`status-badge ${active ? 'active' : 'inactive'}`}>
-          {active ? 'Ativa' : 'Inativa'}
-        </span>
+        <div className="status-container">
+          <span className={`status-badge ${active ? 'active' : 'inactive'}`}>
+            {active ? 'Ativa' : 'Inativa'}
+          </span>
+          {loading && (
+            <span className="loading-indicator-small"></span>
+          )}
+        </div>
       </div>
       
       {latestNumber && (
@@ -98,7 +171,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
             {latestNumber.value}
           </div>
           <div className="timestamp">
-            {new Date(latestNumber.timestamp).toLocaleTimeString()}
+            {formatTimestamp(latestNumber.timestamp)}
+            <span className="update-time">Atualizado {getTimeElapsed()}</span>
           </div>
         </div>
       )}
@@ -121,6 +195,13 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
       </div>
       
       <NumberHistory numbers={numbers} maxItems={10} />
+      
+      <div className="card-footer">
+        <div className="sync-info">
+          <span className="sync-icon"></span>
+          <span className="sync-text">Sincroniza a cada 8s</span>
+        </div>
+      </div>
     </div>
   );
 };
