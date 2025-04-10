@@ -147,7 +147,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       // URL da API - Usando o endpoint de proxy local para evitar problemas de CORS
       // Utilizando o proxy definido em pages/api/proxy-roulette.js
-      const url = `/api/proxy-roulette`;
+      const url = `/api/ROULETTES`;
       
       console.log(`[${Date.now()}] Buscando dados de todas as roletas para encontrar ${safeData.name} (ID: ${safeData.id})`);
       
