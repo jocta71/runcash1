@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 
 export default function RouletteHistory() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [socket, setSocket] = useState(null);
 
   useEffect(() => {
-    async function fetchHistory() {
+    async function fetchInitialHistory() {
       try {
         setLoading(true);
         
@@ -18,27 +20,53 @@ export default function RouletteHistory() {
         }
         
         const data = await response.json();
-        console.log(`Recebidos ${data.data.length} registros históricos`);
+        console.log(`Recebidos ${data.data.length} registros históricos iniciais`);
         
         setHistory(data.data);
         setError(null);
       } catch (err) {
-        console.error('Erro ao carregar histórico:', err);
+        console.error('Erro ao carregar histórico inicial:', err);
         setError(err.message);
       } finally {
         setLoading(false);
       }
     }
-    
-    fetchHistory();
-    
-    // Configurar polling para atualizar a cada 30 segundos
-    const intervalId = setInterval(() => {
-      fetchHistory();
-    }, 30000);
-    
-    // Limpar o intervalo quando o componente for desmontado
-    return () => clearInterval(intervalId);
+
+    // Buscar histórico inicial
+    fetchInitialHistory();
+
+    // Configurar conexão WebSocket
+    const socketURL = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'https://runcash-websocket.up.railway.app/';
+    const newSocket = io(socketURL, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+    });
+
+    newSocket.on('connect', () => {
+      console.log('Conectado ao servidor WebSocket!');
+    });
+
+    newSocket.on('connect_error', (err) => {
+      console.error('Erro de conexão WebSocket:', err);
+    });
+
+    newSocket.on('roulette_number', (newData) => {
+      console.log('Novo número recebido via WebSocket:', newData);
+      setHistory((prevHistory) => [newData, ...prevHistory]);
+    });
+
+    setSocket(newSocket);
+
+    // Limpar conexão quando o componente for desmontado
+    return () => {
+      if (newSocket) {
+        console.log('Desconectando do WebSocket...');
+        newSocket.disconnect();
+      }
+    };
   }, []);
   
   // Função para formatar data
@@ -66,7 +94,12 @@ export default function RouletteHistory() {
     <div className="container mx-auto py-6">
       <h2 className="text-2xl font-bold mb-4">Histórico de Números ({history.length})</h2>
       
-      {loading && <p className="text-gray-500 mb-4">Atualizando dados...</p>}
+      {loading && <p className="text-gray-500 mb-4">Carregando dados iniciais...</p>}
+      {socket ? (
+        <p className="text-green-500 mb-4">Conectado para atualizações em tempo real</p>
+      ) : (
+        <p className="text-yellow-500 mb-4">Aguardando conexão em tempo real...</p>
+      )}
       
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white border border-gray-200">
