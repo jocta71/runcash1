@@ -330,7 +330,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   };
 
   // ===================================================================
-  // SISTEMA DE ATUALIZAÇÃO - POLLING DIRETO PARA ROULETTECARD
+  // SISTEMA DE ATUALIZAÇÃO - EVENTOS + POLLING DIRETO
   // ===================================================================
   
   // Sistema de polling dedicado para o componente RouletteCard
@@ -338,98 +338,14 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     if (!safeData || !safeData.id) return;
     
     let isMounted = true;
-    console.log(`[ROULETTE-CARD] Iniciando sistema de polling para ${safeData.name} [ID: ${safeData.id}]`);
+    console.log(`[ROULETTE-CARD] Iniciando sistema híbrido para ${safeData.name} [ID: ${safeData.id}]`);
     
-    // Função para buscar dados diretamente da API
-    const fetchRouletteData = async () => {
-      if (!isMounted) return;
-      
-      try {
-        // URL da API para obter dados das roletas
-        const url = `${config.apiUrl}/ROULETTES`;
-        console.log(`[ROULETTE-CARD] Buscando dados de ${safeData.name} em: ${url}`);
-        
-        // Adicionar headers necessários para tentar contornar CORS
-        const headers = {
-          'Accept': '*/*',
-          'User-Agent': 'RouletteCard/1.0',
-          'Origin': window.location.origin,
-          'Cache-Control': 'no-cache'
-        };
-        
-        // Tentar fazer a requisição
-        const response = await fetch(url, {
-          method: 'GET',
-          headers,
-          // Tentar sem o modo CORS
-          mode: 'cors'
-        });
-        
-        // Verificar se a resposta foi bem-sucedida
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`[ROULETTE-CARD] Dados recebidos para ${safeData.name}:`, data);
-          
-          // Processar os dados de roleta recebidos
-          processRoulettesData(data);
-          return true;
-        } else {
-          console.warn(`[ROULETTE-CARD] Erro na resposta da API: ${response.status}`);
-          return false;
-        }
-      } catch (error) {
-        console.error(`[ROULETTE-CARD] Erro ao buscar dados: ${error}`);
-        
-        // Se falhar, ainda podemos tentar simular dados
-        simulateNewNumber();
-        return false;
-      }
-    };
-    
-    // Função para processar os dados recebidos da API
-    const processRoulettesData = (data: any) => {
-      if (!isMounted) return;
-      
-      try {
-        // Verificar se temos dados nas roletas
-        if (!data || !Array.isArray(data)) {
-          console.warn(`[ROULETTE-CARD] Formato de dados inesperado:`, data);
-          return false;
-        }
-        
-        // Buscar a roleta atual pelo ID
-        const currentRoulette = data.find((roulette: any) => 
-          roulette.id === safeData.id || roulette.roleta_id === safeData.id
-        );
-        
-        if (!currentRoulette) {
-          console.warn(`[ROULETTE-CARD] Roleta ${safeData.id} não encontrada nos dados`);  
-          return false;
-        }
-        
-        // Extrair o número mais recente
-        const latestNumber = currentRoulette.numero || currentRoulette.lastNumber;
-        
-        if (typeof latestNumber === 'number' && !isNaN(latestNumber) && latestNumber >= 0 && latestNumber <= 36) {
-          // Processar o novo número
-          processNewNumber(latestNumber);
-          return true;
-        } else {
-          console.warn(`[ROULETTE-CARD] Número inválido: ${latestNumber}`);
-          return false;
-        }
-      } catch (error) {
-        console.error(`[ROULETTE-CARD] Erro ao processar dados: ${error}`);
-        return false;
-      }
-    };
-    
-    // Função para processar um novo número
+    // Função para processar um novo número recebido
     const processNewNumber = (number: number) => {
       if (!isMounted) return;
       
-      // Verificar se o número é diferente do atual
-      if (number !== lastNumber) {
+      // Verificar se o número é válido e diferente do atual
+      if (typeof number === 'number' && !isNaN(number) && number >= 0 && number <= 36 && number !== lastNumber) {
         console.log(`[ROULETTE-CARD] Novo número para ${safeData.name}: ${number} (anterior: ${lastNumber})`);
         
         // Atualizar o último número
@@ -474,37 +390,145 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             variant: "default"
           });
         }
-      } else {
-        console.log(`[ROULETTE-CARD] Número ${number} já é o atual para ${safeData.name}`);
+      } else if (number === lastNumber) {
+        console.log(`[ROULETTE-CARD] Número ${number} já é o atual para ${safeData.name}, ignorando`);
+      }
+    };
+
+    // ===================================================================
+    // PARTE 1: INSCRIÇÃO NOS EVENTOS DO SISTEMA
+    // ===================================================================
+    
+    // Handler para eventos de atualização de números
+    const handleNumberEvent = (eventData: any) => {
+      if (!isMounted) return;
+      
+      // Verificar se o evento é para esta roleta
+      const isForThisRoulette = (
+        // Verificar por ID
+        eventData.roleta_id === safeData.id || 
+        eventData.tableId === safeData.id ||
+        // Verificar por nome
+        eventData.roleta_nome === safeData.name ||
+        eventData.table === safeData.name
+      );
+      
+      if (isForThisRoulette) {
+        console.log(`[ROULETTE-CARD] Recebido evento para ${safeData.name}:`, eventData);
+        
+        // Extrair número do evento
+        const number = eventData.numero || eventData.number;
+        processNewNumber(number);
       }
     };
     
-    // Função para simular um novo número (usado quando a API falhar)
-    const simulateNewNumber = () => {
+    // Handler para eventos específicos de cartão
+    const handleCardEvent = (eventData: any) => {
       if (!isMounted) return;
       
-      // Gerar um número aleatório entre 0 e 36
-      const randomNumber = Math.floor(Math.random() * 37);
-      console.log(`[ROULETTE-CARD] Simulando novo número para ${safeData.name}: ${randomNumber}`);
-      
-      // Processar o número simulado
-      processNewNumber(randomNumber);
+      // Verificar se o evento tem o ID do cartão
+      if (eventData && eventData.id === safeData.id) {
+        console.log(`[ROULETTE-CARD] Recebido evento específico para cartão ${safeData.id}:`, eventData);
+        
+        // Processar o número (pode ser diretamente o número ou estar em .numero)
+        const number = (typeof eventData === 'number') ? eventData : eventData.numero;
+        processNewNumber(number);
+      }
     };
+    
+    // Registrar para eventos específicos usando a API correta do EventService
+    console.log(`[ROULETTE-CARD] Registrando listeners de eventos para ${safeData.name}`);
+    
+    // 1. Evento específico para esta roleta (formato roulette_card_update:ID)
+    const cardEventName = `roulette_card_update:${safeData.id}`;
+    EventService.on(cardEventName, handleCardEvent);
+    console.log(`[ROULETTE-CARD] Registrado para evento ${cardEventName}`);
+    
+    // 2. Eventos genéricos que podem conter dados desta roleta
+    EventService.on('new_number', handleNumberEvent);
+    EventService.on('roulette_update', handleNumberEvent);
+    EventService.on('roulette_numbers_update', handleNumberEvent);
+    
+    // ===================================================================
+    // PARTE 2: POLLING PARA BACKUP
+    // ===================================================================
+    
+    // Função para buscar dados diretamente da API como backup
+    const fetchRouletteData = async () => {
+      if (!isMounted) return;
+      
+      try {
+        // URL da API para obter dados
+        const url = `${config.apiUrl}/ROULETTES`;
+        
+        // Adicionar headers para lidar com CORS
+        const headers = {
+          'Accept': '*/*',
+          'User-Agent': 'RouletteCard/1.0',
+          'Origin': window.location.origin,
+          'Cache-Control': 'no-cache'
+        };
+        
+        // Tentar fazer a requisição
+        const response = await fetch(url, {
+          method: 'GET',
+          headers,
+          mode: 'cors'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Processar dados recebidos
+          if (!data || !Array.isArray(data)) {
+            return false;
+          }
+          
+          // Buscar roleta específica
+          const currentRoulette = data.find((roulette: any) => 
+            roulette.id === safeData.id || roulette.roleta_id === safeData.id
+          );
+          
+          if (!currentRoulette) {
+            return false;
+          }
+          
+          // Extrair e processar número
+          const latestNumber = currentRoulette.numero || currentRoulette.lastNumber;
+          
+          if (typeof latestNumber === 'number') {
+            processNewNumber(latestNumber);
+            return true;
+          }
+        }
+      } catch (error) {
+        console.error(`[ROULETTE-CARD] Erro no polling de backup: ${error}`);
+      }
+      
+      return false;
+    };
+    
+    // Configurar intervalo fixo de 8 segundos para o polling de backup
+    const pollingInterval = 8000;
+    const intervalId = setInterval(fetchRouletteData, pollingInterval);
+    console.log(`[ROULETTE-CARD] Configurado polling de backup a cada ${pollingInterval}ms`);    
     
     // Fazer a primeira busca imediatamente
     fetchRouletteData();
     
-    // Configurar intervalo para buscar dados periodicamente com intervalo fixo de 8 segundos
-    const pollingInterval = 8000; // 8 segundos, conforme solicitado
-    
-    console.log(`[ROULETTE-CARD] Configurado polling para ${safeData.name} a cada ${pollingInterval}ms`);
-    const intervalId = setInterval(fetchRouletteData, pollingInterval);
-    
     // Limpeza ao desmontar o componente
     return () => {
-      console.log(`[ROULETTE-CARD] Encerrando sistema de polling para ${safeData.name}`);
+      console.log(`[ROULETTE-CARD] Encerrando sistema híbrido para ${safeData.name}`);
       isMounted = false;
+      
+      // Limpar intervalo de polling
       clearInterval(intervalId);
+      
+      // Cancelar inscrições de eventos
+      EventService.off(cardEventName, handleCardEvent);
+      EventService.off('new_number', handleNumberEvent);
+      EventService.off('roulette_update', handleNumberEvent);
+      EventService.off('roulette_numbers_update', handleNumberEvent);
     };
   }, [safeData?.id, safeData?.name, lastNumber, enableSound, enableNotifications]);
   
