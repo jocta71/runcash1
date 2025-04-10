@@ -16,6 +16,7 @@ import { useState, useEffect, useRef } from 'react';
 import globalRouletteDataService from '../services/GlobalRouletteDataService';
 import rouletteHistoryService from '../services/RouletteHistoryService';
 import { getLogger } from '../services/utils/logger';
+import NumberDisplay from './NumberDisplay';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -314,6 +315,37 @@ const RouletteSidePanelStats = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+          {/* Último Número Sorteado - Novo componente */}
+          <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light md:col-span-2">
+            <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
+              <BarChart className="mr-2 h-5 w-5" /> Último Número Sorteado
+            </h3>
+            <div className="flex flex-col items-center justify-center p-3">
+              {historicalNumbers.length > 0 && (
+                <div className="flex flex-col items-center space-y-2">
+                  <NumberDisplay number={historicalNumbers[0]} size="large" highlight={true} />
+                  <div className="text-sm text-gray-300 mt-2">
+                    {historicalNumbers[0] === 0 
+                      ? "Verde" 
+                      : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(historicalNumbers[0])
+                        ? "Vermelho"
+                        : "Preto"}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-center mt-3">
+              <div className="flex space-x-2 items-center">
+                <div className="text-xs text-gray-400">Últimos 10:</div>
+                <div className="flex space-x-1">
+                  {historicalNumbers.slice(0, 10).map((num, idx) => (
+                    <NumberDisplay key={idx} number={num} size="small" highlight={idx === 0} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
           <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light md:col-span-2">
             <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
