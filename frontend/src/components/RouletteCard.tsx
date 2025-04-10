@@ -553,18 +553,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         console.log(`[ROULETTE-CARD] URL completa: ${url}`);
         
         try {
-          // Usar requisição mais simples possível para evitar preflight CORS
-          // Requisições GET simples sem headers customizados não disparam preflight
+          // Usando EXATAMENTE a mesma implementação do RESTSocketService que funciona:
+          // - Sem cabeçalhos personalizados
+          // - Sem modo especial
+          // - Apenas fetch simples
           const response = await fetch(url);
-          
-          if (!response.ok) {
-            // Verificar se temos um statusText na resposta para melhor logging
-            const errorMsg = response.statusText 
-              ? `Resposta não OK: ${response.status} ${response.statusText}` 
-              : `Resposta não OK: ${response.status}`;
-            throw new Error(errorMsg);
-          }
-          
           const data = await response.json();
           return processApiData(data);
           
