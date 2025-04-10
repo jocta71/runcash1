@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import RouletteCard from '@/components/RouletteCard';
 import { RouletteData } from '@/integrations/api/rouletteService';
 import RouletteFeedService from '@/services/RouletteFeedService';
@@ -235,6 +235,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
   const [showStatsInline, setShowStatsInline] = useState(false);
+  const rouletteCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   
   // Referência ao serviço de feed centralizado, sem iniciar novo polling
   const feedService = React.useMemo(() => {
@@ -259,11 +260,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       setRoulettes(roulettesData);
       setIsLoading(false);
       
-      // Selecionar a segunda roleta automaticamente (índice 1)
-      if (!selectedRoulette && roulettesData.length > 1) {
-        setSelectedRoulette(roulettesData[1]);
-        setShowStatsInline(true);
-      }
+      // Em vez de definir diretamente, vamos simular um clique mais tarde
     } else {
       // Obter dados do feed service em vez de fazer requisições diretas
       console.log('[LiveRoulettesDisplay] Buscando dados de roletas do serviço centralizado');
@@ -276,11 +273,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
         setRoulettes(cachedRoulettes);
         setIsLoading(false);
         
-        // Selecionar a segunda roleta automaticamente (índice 1)
-        if (!selectedRoulette && cachedRoulettes.length > 1) {
-          setSelectedRoulette(cachedRoulettes[1]);
-          setShowStatsInline(true);
-        }
+        // Em vez de definir diretamente, vamos simular um clique mais tarde
       } else {
         // Não inicializar mais o polling aqui - isso agora é responsabilidade do sistema centralizado
         console.log('[LiveRoulettesDisplay] Aguardando dados serem carregados pela inicialização central');
@@ -294,17 +287,27 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
             setRoulettes(delayedRoulettes);
             setIsLoading(false);
             
-            // Selecionar a segunda roleta automaticamente (índice 1)
-            if (!selectedRoulette && delayedRoulettes.length > 1) {
-              setSelectedRoulette(delayedRoulettes[1]);
-              setShowStatsInline(true);
-            }
+            // Em vez de definir diretamente, vamos simular um clique mais tarde
           }
         }, 3000); // Timeout mais curto, pois já temos um timeout na página
       }
     }
-  }, [feedService, roulettesData, selectedRoulette]);
+  }, [feedService, roulettesData]);
   
+  // Efeito para simular clique automático quando os dados são carregados
+  useEffect(() => {
+    // Verificar se temos roletas carregadas, não temos roleta selecionada,
+    // e a segunda roleta existe
+    if (roulettes.length > 1 && !selectedRoulette && !isLoading) {
+      console.log('[LiveRoulettesDisplay] Simulando clique na segunda roleta');
+      // Pequeno delay para garantir que a UI já renderizou
+      setTimeout(() => {
+        // Simular clique usando a função de manipulação de clique existente
+        handleRouletteSelect(roulettes[1]);
+      }, 100);
+    }
+  }, [roulettes, selectedRoulette, isLoading]);
+
   // Inscrever-se para atualizações de dados do feed service
   useEffect(() => {
     const handleDataUpdated = (updateData: any) => {
@@ -393,9 +396,10 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
           {/* Lista de roletas à esquerda */}
           <div className="w-full md:w-1/2 overflow-y-auto max-h-[calc(100vh-200px)]">
             <div className="grid grid-cols-1 gap-3">
-              {roulettes.map(roleta => (
+              {roulettes.map((roleta, index) => (
                 <div 
                   key={roleta.id} 
+                  ref={el => rouletteCardRefs.current[index] = el}
                   className={`bg-gray-900 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-800 transition-colors border border-gray-800 ${selectedRoulette?.id === roleta.id ? 'ring-2 ring-[#00ff00]' : ''}`}
                   onClick={() => handleRouletteSelect(roleta)}
                 >
