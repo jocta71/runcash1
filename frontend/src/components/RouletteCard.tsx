@@ -195,98 +195,126 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   // Função para processar um novo número em tempo real
   const processRealtimeNumber = (newNumberEvent: RouletteNumberEvent) => {
     // Logs para debug
-    console.log(`[RouletteCard] Processando novo número para ${safeData.name}:`, newNumberEvent);
+    console.log(`[RouletteCard] Processando números para ${safeData.name}:`, newNumberEvent);
     
-    // Ignorar atualizações muito frequentes (menos de 3 segundos entre elas)
-    // exceto se estivermos ainda sem dados reais
-    const now = Date.now();
-    const timeSinceLastUpdate = now - lastUpdateTime;
-    const isInitialData = !hasRealData && (
-      (Array.isArray(newNumberEvent.numero) && newNumberEvent.numero.length > 0) || 
-      (typeof newNumberEvent.numero === 'number')
-    );
-    
-    // Se não for dados iniciais e a atualização for muito recente, ignorar
-    if (!isInitialData && timeSinceLastUpdate < 3000) {
-      console.log(`[RouletteCard] Ignorando atualização muito frequente para ${safeData.name} (${timeSinceLastUpdate}ms)`);
-      return;
-    }
-    
-    // Verificar se é um array de números
+    // Verificar se é um array de números (pode ser array de objetos com propriedade 'numero')
     if (Array.isArray(newNumberEvent.numero)) {
-      console.log(`[RouletteCard] Recebido array de números para ${safeData.name}:`, newNumberEvent.numero);
+      console.log(`[RouletteCard] Recebido array com ${newNumberEvent.numero.length} números para ${safeData.name}`);
       
-      // Extrair os números do array (verificando se são válidos)
+      // Extrair os números do array para fácil manipulação
       const validNumbers = newNumberEvent.numero
-        .map(n => typeof n === 'object' && n !== null ? n.numero : n)
-        .filter(n => typeof n === 'number' && !isNaN(n));
+        .map(n => {
+          // Caso seja um objeto com propriedade 'numero'
+          if (typeof n === 'object' && n !== null && 'numero' in n) {
+            return n.numero;
+          }
+          // Caso seja um número diretamente
+          return typeof n === 'number' ? n : null;
+        })
+        .filter(n => n !== null && typeof n === 'number' && !isNaN(n)) as number[];
+      
+      console.log(`[RouletteCard] Números extraídos para ${safeData.name}:`, validNumbers.slice(0, 5));
       
       if (validNumbers.length === 0) {
-        console.warn('[RouletteCard] Array de números não contém valores válidos:', newNumberEvent);
+        console.warn(`[RouletteCard] Nenhum número válido encontrado para ${safeData.name}`);
         return;
       }
       
-      // Verificar se já temos esses números no estado atual
-      if (!isInitialData && validNumbers.every(num => recentNumbers.includes(num))) {
-        console.log(`[RouletteCard] Ignorando números já conhecidos para ${safeData.name}`);
-        return;
-      }
+      // Verificar se o primeiro número (mais recente) é diferente do último número atual
+      const latestNumber = validNumbers[0];
+      const isNewLatestNumber = lastNumber !== latestNumber;
       
-      // Usar o primeiro número (mais recente) para update
-      const newNumber = validNumbers[0];
-      
-      // Atualizar o último número apenas se for diferente do atual
-      if (lastNumber !== newNumber) {
-        setLastNumber(newNumber);
-        setLastUpdateTime(now);
-        setHasRealData(true);
+      // Se temos um novo número mais recente
+      if (isNewLatestNumber) {
+        console.log(`[RouletteCard] Novo número mais recente para ${safeData.name}: ${latestNumber} (anterior: ${lastNumber})`);
         
-        // Incrementar contador de atualizações apenas para novos números reais
+        // Atualizar o último número
+        setLastNumber(latestNumber);
+        
+        // Registrar o momento da atualização
+        setLastUpdateTime(Date.now());
+        
+        // Incrementar contador de atualizações
         setUpdateCount(prev => prev + 1);
         
         // Ativar efeito visual de novo número
         setIsNewNumber(true);
+        setTimeout(() => setIsNewNumber(false), 1500);
         
-        // Desativar efeito após 1.5 segundos
-        setTimeout(() => {
-          setIsNewNumber(false);
-        }, 1500);
-      }
-      
-      // Atualizar a lista de números recentes
-      setRecentNumbers(prev => {
-        // Verificar se prevNumbers é um array válido
-        if (!Array.isArray(prev)) {
-          return validNumbers;
-        }
-        
-        // Verificar se há novos números (que não estejam na lista atual)
-        const hasNewNumbers = validNumbers.some(num => !prev.includes(num));
-        
-        if (!hasNewNumbers) {
-          return prev; // Não atualizar se não há números novos
-        }
-        
-        // Combinar os novos números com os existentes, removendo duplicatas
-        const combined = [...validNumbers];
-        
-        // Adicionar números antigos que não estão na nova lista
-        prev.forEach(oldNum => {
-          if (!combined.includes(oldNum)) {
-            combined.push(oldNum);
-          }
-        });
-        
-        // Limitar a 26 números para exibição no card
-        return combined.slice(0, 26);
-      });
-      
-      // Notificações e som - apenas para novos números
-      if (lastNumber !== newNumber) {
+        // Tocar som se habilitado
         if (enableSound && audioRef.current) {
           audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
         }
         
+        // Mostrar notificação se habilitado
+        if (enableNotifications) {
+          toast({
+            title: `Novo número: ${latestNumber}`,
+            description: `${safeData.name}: ${latestNumber}`,
+            variant: "default"
+          });
+        }
+      }
+      
+      // Atualizar a lista de números recentes
+      setRecentNumbers(prev => {
+        // Se não temos uma lista válida, usar os números recebidos
+        if (!Array.isArray(prev)) {
+          return validNumbers;
+        }
+        
+        // Verificar se há alterações (sem fazer atualizações desnecessárias)
+        if (prev.length > 0 && prev[0] === validNumbers[0] && prev.length >= validNumbers.length) {
+          return prev; // Se o primeiro número é igual e já temos pelo menos a mesma quantidade, manter o estado atual
+        }
+        
+        // Criar nova lista combinando os números recebidos com os anteriores
+        const combinedNumbers = [...validNumbers];
+        
+        // Adicionar números anteriores que não estão na nova lista
+        prev.forEach(oldNum => {
+          if (!combinedNumbers.includes(oldNum)) {
+            combinedNumbers.push(oldNum);
+          }
+        });
+        
+        // Limitar a 26 números para a exibição
+        const result = combinedNumbers.slice(0, 26);
+        console.log(`[RouletteCard] Lista atualizada para ${safeData.name}: ${result.slice(0, 5).join(', ')}...`);
+        return result;
+      });
+      
+      // Marcar que temos dados reais
+      setHasRealData(true);
+    } 
+    // Se for um número único (não um array)
+    else if (typeof newNumberEvent.numero === 'number' && !isNaN(newNumberEvent.numero)) {
+      const newNumber = newNumberEvent.numero;
+      console.log(`[RouletteCard] Recebido número único para ${safeData.name}: ${newNumber}`);
+      
+      // Verificar se é diferente do número atual
+      if (lastNumber !== newNumber) {
+        console.log(`[RouletteCard] Atualizando último número de ${lastNumber} para ${newNumber}`);
+        
+        // Atualizar o último número
+        setLastNumber(newNumber);
+        
+        // Registrar o momento da atualização
+        setLastUpdateTime(Date.now());
+        
+        // Incrementar contador de atualizações
+        setUpdateCount(prev => prev + 1);
+        
+        // Ativar efeito visual de novo número
+        setIsNewNumber(true);
+        setTimeout(() => setIsNewNumber(false), 1500);
+        
+        // Tocar som se habilitado
+        if (enableSound && audioRef.current) {
+          audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
+        }
+        
+        // Mostrar notificação se habilitado
         if (enableNotifications) {
           toast({
             title: `Novo número: ${newNumber}`,
@@ -294,121 +322,61 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             variant: "default"
           });
         }
-      }
-      
-      return;
-    }
-    
-    // Caso seja um número único (comportamento original)
-    if (typeof newNumberEvent.numero !== 'number' || isNaN(newNumberEvent.numero)) {
-      console.warn('[RouletteCard] Número inválido recebido:', newNumberEvent);
-      return;
-    }
-
-    console.log(`[RouletteCard] Processando número ${newNumberEvent.numero} para ${safeData.name}`);
-    const newNumber = newNumberEvent.numero;
-    
-    // Verificar se o número é realmente novo
-    const isReallyNew = lastNumber !== newNumber && !recentNumbers.includes(newNumber);
-    
-    // Se não for novo e não estivermos sem dados, ignorar
-    if (!isReallyNew && hasRealData) {
-      console.log(`[RouletteCard] Ignorando número repetido ${newNumber} para ${safeData.name}`);
-      return;
-    }
-    
-    // Atualizar o último número
-    setLastNumber(prevLastNumber => {
-      // Se o número for igual ao último, não fazer nada
-      if (prevLastNumber === newNumber) return prevLastNumber;
-      
-      console.log(`[RouletteCard] Atualizando último número de ${prevLastNumber} para ${newNumber}`);
-      // Se for um número diferente, atualizar
-      setLastUpdateTime(now);
-      setHasRealData(true);
-      return newNumber;
-    });
-
-    // Atualizar a lista de números recentes
-    setRecentNumbers(prevNumbers => {
-      // Verificar se prevNumbers é um array válido
-      if (!Array.isArray(prevNumbers)) {
-        console.warn('[RouletteCard] prevNumbers não é um array:', prevNumbers);
-        return [newNumber]; // Retornar array só com o novo número
-      }
-      
-      // Evitar duplicação do mesmo número em sequência
-      if (prevNumbers.length > 0 && prevNumbers[0] === newNumber) {
-        return prevNumbers;
-      }
-      
-      console.log(`[RouletteCard] Adicionando ${newNumber} à lista de números recentes`);
-      // Adicionar o novo número ao início e manter até 26 números
-      return [newNumber, ...prevNumbers].slice(0, 26);
-    });
-
-    // Incrementar contador apenas para novos números
-    if (isReallyNew) {
-      setUpdateCount(prev => prev + 1);
-      
-      // Ativar efeito visual de novo número
-      setIsNewNumber(true);
-      
-      // Tocar som se habilitado
-      if (enableSound && audioRef.current) {
-        audioRef.current.play().catch(e => console.log('Erro ao tocar áudio:', e));
-      }
-      
-      // Mostrar notificação se habilitado
-      if (enableNotifications) {
-        toast({
-          title: `Novo número: ${newNumber}`,
-          description: `${safeData.name}: ${newNumber}`,
-          variant: "default"
+        
+        // Atualizar a lista de números recentes
+        setRecentNumbers(prev => {
+          // Evitar repetição do mesmo número
+          if (prev.length > 0 && prev[0] === newNumber) {
+            return prev;
+          }
+          
+          const newList = [newNumber, ...prev].slice(0, 26);
+          console.log(`[RouletteCard] Lista atualizada para ${safeData.name} (número único): ${newList.slice(0, 5).join(', ')}...`);
+          return newList;
         });
+        
+        // Marcar que temos dados reais
+        setHasRealData(true);
       }
-      
-      // Desativar efeito após 1.5 segundos
-      setTimeout(() => {
-        setIsNewNumber(false);
-      }, 1500);
+    } else {
+      console.warn(`[RouletteCard] Formato inválido de número recebido:`, newNumberEvent.numero);
     }
   };
 
   // Efeito para se inscrever nos eventos de atualização de dados do feed service
   useEffect(() => {
     const handleDataUpdated = (updateData: any) => {
+      console.log(`[RouletteCard] Evento 'roulette:data-updated' recebido para ${safeData.name}`);
+      
       // Obter dados mais recentes do cache do feedService
       const freshData = feedService.getRouletteData(safeData.id);
       
       if (freshData) {
+        // Mostrar informações detalhadas sobre os dados recebidos
+        console.log(`[RouletteCard] Dados encontrados para ${safeData.name}:`, {
+          id: freshData.id || freshData._id,
+          name: freshData.name || freshData.nome,
+          numeroLength: Array.isArray(freshData.numero) ? freshData.numero.length : 0,
+          numero: Array.isArray(freshData.numero) ? freshData.numero.slice(0, 3) : null  // Mostrar apenas primeiros 3 para debug
+        });
+        
         // Se encontrarmos dados novos no cache, processá-los
-        const newNumbers = Array.isArray(freshData.numero) 
-          ? freshData.numero 
-          : Array.isArray(freshData.numero) 
-            ? freshData.numero 
-            : [];
+        if (Array.isArray(freshData.numero) && freshData.numero.length > 0) {
+          // Converter para o formato esperado pelo processador de eventos
+          const numberEvent: RouletteNumberEvent = {
+            type: 'new_number',
+            roleta_id: safeData.id,
+            roleta_nome: safeData.name,
+            numero: freshData.numero,  // Passar o array completo, sem transformação
+            timestamp: new Date().toISOString()
+          };
           
-        if (newNumbers.length > 0) {
-          // Verificar se temos números novos comparando com os que já temos
-          const existingNumbers = recentNumbers;
-          
-          if (newNumbers.length !== existingNumbers.length) {
-            console.log(`[RouletteCard] Atualizando números para ${safeData.name} a partir do cache centralizado`);
-            
-            // Converter para o formato esperado pelo processador de eventos
-            const numberEvent: RouletteNumberEvent = {
-              type: 'new_number',
-              roleta_id: safeData.id,
-              roleta_nome: safeData.name,
-              numero: newNumbers.map(n => typeof n === 'object' ? n.numero : n),
-              timestamp: new Date().toISOString()
-            };
-            
-            // Processar os novos números
-            processRealtimeNumber(numberEvent);
-          }
+          // Processar os novos números
+          console.log(`[RouletteCard] Processando novos números para ${safeData.name}`);
+          processRealtimeNumber(numberEvent);
         }
+      } else {
+        console.log(`[RouletteCard] Nenhum dado encontrado para ${safeData.name} no cache`);
       }
     };
     
@@ -418,14 +386,28 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Fazer uma verificação inicial para pegar os dados mais recentes
     const initialData = feedService.getRouletteData(safeData.id);
     if (initialData) {
+      console.log(`[RouletteCard] Dados iniciais encontrados para ${safeData.name}, processando...`);
       handleDataUpdated({timestamp: new Date().toISOString()});
+    } else {
+      console.log(`[RouletteCard] Sem dados iniciais para ${safeData.name}, aguardando atualizações...`);
     }
+    
+    // Configurar um timer para verificar atualizações a cada 8 segundos (mesmo intervalo do GlobalRouletteService)
+    const checkTimer = setInterval(() => {
+      const freshData = feedService.getRouletteData(safeData.id);
+      if (freshData && Array.isArray(freshData.numero) && freshData.numero.length > 0) {
+        console.log(`[RouletteCard] Verificação periódica: dados encontrados para ${safeData.name}`);
+        handleDataUpdated({timestamp: new Date().toISOString()});
+      }
+    }, 8000);
     
     // Limpeza ao desmontar
     return () => {
       EventService.off('roulette:data-updated', handleDataUpdated);
+      clearInterval(checkTimer);
+      console.log(`[RouletteCard] Desmontando componente para ${safeData.name}, limpando listeners`);
     };
-  }, [feedService, safeData.id, safeData.name, recentNumbers]);
+  }, [feedService, safeData.id, safeData.name, processRealtimeNumber]);
   
   // Ao montar o componente, verificar dados no cache em vez de fazer novas requisições
   useEffect(() => {
