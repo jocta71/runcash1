@@ -1,4 +1,4 @@
-import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, BarChart3 } from 'lucide-react';
+import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, BarChart3, ChevronDown } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -94,6 +94,17 @@ interface RouletteCardProps {
   isDetailView?: boolean;
 }
 
+// Lista de estratégias disponíveis para a roleta
+const ESTRATEGIAS_ROLETA = [
+  { id: 'martingale', nome: 'Martingale', descricao: 'Dobre a aposta após cada perda' },
+  { id: 'dalembert', nome: 'D\'Alembert', descricao: 'Aumente a aposta em 1 unidade após perda, diminua após ganho' },
+  { id: 'fibonacci', nome: 'Fibonacci', descricao: 'Siga a sequência de Fibonacci para apostas' },
+  { id: 'labouchere', nome: 'Labouchère', descricao: 'Crie uma sequência de números e aposte a soma do primeiro e último' },
+  { id: 'paroli', nome: 'Paroli', descricao: 'Dobre a aposta após cada vitória' },
+  { id: 'colunas', nome: 'Colunas Alternadas', descricao: 'Aposte nas colunas alternando padrões' },
+  { id: 'duzias', nome: 'Dúzias Progressivas', descricao: 'Aposte nas dúzias com progressão' },
+];
+
 const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false }) => {
   // Estados
   const [lastNumber, setLastNumber] = useState<number | null>(null);
@@ -111,6 +122,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
+  const [estrategiaSelecionada, setEstrategiaSelecionada] = useState<string | null>(null);
+  const [showEstrategiaDropdown, setShowEstrategiaDropdown] = useState(false);
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -387,6 +400,19 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
   };
 
+  // Função para selecionar uma estratégia
+  const selecionarEstrategia = (estrategiaId: string) => {
+    const estrategia = ESTRATEGIAS_ROLETA.find(e => e.id === estrategiaId);
+    setEstrategiaSelecionada(estrategiaId);
+    setShowEstrategiaDropdown(false);
+    
+    if (estrategia && enableNotifications) {
+      setToastVisible(true);
+      setToastMessage(`Estratégia "${estrategia.nome}" selecionada`);
+      setTimeout(() => setToastVisible(false), 3000);
+    }
+  };
+
   return (
     <Card 
       ref={cardRef}
@@ -458,8 +484,54 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           )}
         </div>
         
+        {/* Seletor de Estratégia */}
+        <div className="mt-3 mb-2">
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowEstrategiaDropdown(!showEstrategiaDropdown);
+              }}
+              className="w-full flex items-center justify-between bg-gray-100 hover:bg-gray-200 text-gray-800 rounded px-3 py-2 text-sm transition-colors"
+            >
+              <div className="flex items-center">
+                <Target className="h-3 w-3 mr-2" />
+                <span>
+                  {estrategiaSelecionada 
+                    ? ESTRATEGIAS_ROLETA.find(e => e.id === estrategiaSelecionada)?.nome 
+                    : "Selecionar estratégia"}
+                </span>
+              </div>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            
+            {showEstrategiaDropdown && (
+              <div 
+                className="absolute z-50 mt-1 w-full bg-white rounded-md shadow-lg border border-gray-200 py-1 text-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {ESTRATEGIAS_ROLETA.map((estrategia) => (
+                  <div
+                    key={estrategia.id}
+                    className={`px-3 py-2 hover:bg-gray-100 cursor-pointer ${
+                      estrategiaSelecionada === estrategia.id ? "bg-gray-100" : ""
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selecionarEstrategia(estrategia.id);
+                    }}
+                  >
+                    <div className="font-medium">{estrategia.nome}</div>
+                    <div className="text-xs text-gray-500">{estrategia.descricao}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        
         {/* Rodapé */}
-        <div className="mt-3 flex items-center justify-between text-xs">
+        <div className="mt-2 flex items-center justify-between text-xs">
           <div className="flex items-center space-x-2">
             <Button
               variant="outline" 
@@ -590,6 +662,13 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           </div>
         </div>
       </div>
+
+      {/* Toast de notificação */}
+      {toastVisible && (
+        <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-50 animate-fade-in">
+          {toastMessage}
+        </div>
+      )}
     </Card>
   );
 };
