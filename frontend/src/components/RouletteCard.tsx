@@ -12,6 +12,7 @@ import { PieChart, Phone, Timer, Cpu, Zap, History } from "lucide-react";
 import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import { fetchWithCorsSupport } from '@/utils/api-helpers';
+import globalRouletteDataService from '@/services/GlobalRouletteDataService';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -23,145 +24,63 @@ const debugLog = (...args: any[]) => {
   }
 };
 
-// Gerenciador global de dados de roletas - usando singleton pattern
+// Modificando a classe GlobalRouletteDataManager para usar o serviço global
 class GlobalRouletteDataManager {
-  private static instance: GlobalRouletteDataManager;
-  private data: any[] = [];
-  private lastUpdate: number = 0;
+  private static instance: GlobalRouletteDataManager | null = null;
   private updateCallbacks: Map<string, (data: any) => void> = new Map();
-  private fetchPromise: Promise<any> | null = null;
-  private intervalId: NodeJS.Timeout | null = null;
   private initialDataLoaded: boolean = false;
-
+  
   private constructor() {
-    // Iniciar polling imediatamente
-    this.startPolling();
+    console.log('[RouletteCard] Inicializando gerenciador de dados');
   }
-
+  
   public static getInstance(): GlobalRouletteDataManager {
     if (!GlobalRouletteDataManager.instance) {
       GlobalRouletteDataManager.instance = new GlobalRouletteDataManager();
-      console.log('[GlobalRouletteService] Inicializando serviço global de roletas');
     }
     return GlobalRouletteDataManager.instance;
   }
-
-  // Registrar um componente para receber atualizações
+  
   public subscribe(id: string, callback: (data: any) => void): () => void {
-    console.log(`[GlobalRouletteService] Novo assinante registrado: ${id}`);
+    console.log(`[RouletteCard] Novo assinante registrado: ${id}`);
     this.updateCallbacks.set(id, callback);
     
+    // Usar o globalRouletteDataService para obter dados
+    const currentData = globalRouletteDataService.getAllRoulettes();
+    
     // Se já temos dados, notificar imediatamente
-    if (this.data.length > 0) {
-      callback(this.data);
-    } else if (!this.fetchPromise) {
-      // Forçar uma atualização se não estiver buscando dados ainda
-      this.fetchData();
+    if (currentData && currentData.length > 0) {
+      callback(currentData);
+      this.initialDataLoaded = true;
+    } else {
+      // Forçar uma atualização usando o serviço global
+      globalRouletteDataService.forceUpdate();
     }
+    
+    // Registrar callback no serviço global para receber atualizações
+    globalRouletteDataService.subscribe(id, () => {
+      const rouletteData = globalRouletteDataService.getAllRoulettes();
+      if (rouletteData && rouletteData.length > 0) {
+        callback(rouletteData);
+      }
+    });
     
     // Retornar função para cancelar inscrição
     return () => {
       this.updateCallbacks.delete(id);
-      console.log(`[GlobalRouletteService] Assinante removido: ${id}`);
+      globalRouletteDataService.unsubscribe(id);
+      console.log(`[RouletteCard] Assinante removido: ${id}`);
     };
   }
 
-  // Buscar dados de todas as roletas
-  private async fetchData(): Promise<any[]> {
-    // Se já estamos buscando dados, retornar a Promise existente
-    if (this.fetchPromise) {
-      return this.fetchPromise;
-    }
-    
-    console.log(`[GlobalRouletteService] ${this.initialDataLoaded ? 'Atualizando' : 'Carregando dados iniciais'}`);
-    
-    try {
-      // Criar nova promise
-      this.fetchPromise = fetchWithCorsSupport('/api/ROULETTES')
-        .then(data => {
-          if (!data || !Array.isArray(data)) {
-            throw new Error('Resposta da API inválida');
-          }
-          
-          // Atualizar dados e timestamp
-          this.data = data;
-          this.lastUpdate = Date.now();
-          
-          // Marcar dados iniciais como carregados
-          if (!this.initialDataLoaded) {
-            this.initialDataLoaded = true;
-            console.log(`[GlobalRouletteService] Dados iniciais carregados: ${data.length} roletas`);
-          }
-          
-          // Notificar todos os assinantes
-          this.notifySubscribers();
-          
-          return data;
-        })
-        .catch(error => {
-          console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
-          return this.data; // Retornar dados antigos em caso de erro
-        })
-        .finally(() => {
-          this.fetchPromise = null;
-        });
-      
-      return this.fetchPromise;
-    } catch (error) {
-      console.error('[GlobalRouletteService] Erro ao iniciar requisição:', error);
-      this.fetchPromise = null;
-      return this.data;
-    }
-  }
-  
-  // Notificar todos os assinantes sobre novos dados
-  private notifySubscribers(): void {
-    if (this.updateCallbacks.size > 0) {
-      console.log(`[GlobalRouletteService] Notificando ${this.updateCallbacks.size} assinantes`);
-      this.updateCallbacks.forEach(callback => {
-        try {
-          callback(this.data);
-        } catch (error) {
-          console.error('[GlobalRouletteService] Erro ao notificar assinante:', error);
-        }
-      });
-    }
-  }
-  
-  // Iniciar polling para atualizações periódicas
-  private startPolling(interval = 8000): void {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-    }
-    
-    // Buscar dados imediatamente
-    this.fetchData();
-    
-    // Configurar intervalo
-    this.intervalId = setInterval(() => {
-      this.fetchData();
-    }, interval);
-    
-    console.log(`[GlobalRouletteService] Polling iniciado com intervalo de ${interval}ms`);
-  }
-  
-  // Parar polling
-  public stopPolling(): void {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-      console.log('[GlobalRouletteService] Polling parado');
-    }
-  }
-  
   // Obter dados mais recentes (sem garantia de atualização)
   public getData(): any[] {
-    return this.data;
+    return globalRouletteDataService.getAllRoulettes();
   }
   
   // Obter timestamp da última atualização
   public getLastUpdateTime(): number {
-    return this.lastUpdate;
+    return Date.now(); // Usar o timestamp atual como fallback
   }
 
   // Verificar se os dados iniciais foram carregados
