@@ -23,33 +23,10 @@ console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 // Inicializar Express
 const app = express();
 
-// Função para verificar se uma origem é de um domínio do Vercel
-const isVercelDomain = (origin) => {
-  if (!origin) return false;
-  
-  // Verificar se é um domínio do Vercel
-  return (
-    origin.endsWith('.vercel.app') ||
-    origin.includes('localhost') ||
-    origin.includes('127.0.0.1')
-  );
-};
-
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
-  // Obter a origem da requisição
-  const origin = req.headers.origin;
-  
-  // Se for uma origem do Vercel ou localhost, permitir
-  if (isVercelDomain(origin)) {
-    console.log(`[CORS] Permitindo domínio Vercel: ${origin}`);
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    // Para desenvolvimento e outras origens, permitir todas
-    res.header('Access-Control-Allow-Origin', '*');
-    console.log(`[CORS] Origem não reconhecida: ${origin || 'desconhecida'}`);
-  }
-  
+  // Sempre permitir todas as origens para simplificar
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
@@ -520,22 +497,45 @@ app.get('/api/roulettes', async (req, res) => {
 // Rota específica para /api/ROULETTES
 app.get('/api/ROULETTES', async (req, res) => {
   console.log('[API] Requisição recebida para /api/ROULETTES');
+  
+  // Configurar CORS explicitamente para esta rota
+  configureCors(req, res);
+  
+  // Responder com os dados da roleta
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json([]);
+    }
+    
+    // Obter roletas únicas da coleção
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
+    
+    if (roulettes.length > 0) {
+      console.log(`[API] Retornando ${roulettes.length} roletas`);
+      res.json(roulettes);
+    } else {
+      console.log('[API] Nenhuma roleta disponível');
+      res.status(404).json({ error: 'Nenhuma roleta disponível' });
+    }
+  } catch (error) {
+    console.error('[API] Erro ao buscar roletas:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
+app.get('/api/ROULETTES', async (req, res) => {
+  console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
   console.log('[API] Query params:', req.query);
   console.log('[API] Headers:', req.headers);
   console.log('[API] Origin:', req.headers.origin);
   
   // Aplicar cabeçalhos CORS explicitamente para esta rota
-  const origin = req.headers.origin;
-  
-  // Se for uma origem do Vercel ou localhost, permitir
-  if (isVercelDomain(origin)) {
-    console.log(`[CORS] Permitindo domínio Vercel: ${origin}`);
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    // Para desenvolvimento e outras origens, permitir todas
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
@@ -895,22 +895,11 @@ app.get('/api/ROULETTES/historico', async (req, res) => {
 app.options('/api/ROULETTES', (req, res) => {
   console.log('[CORS] Requisição OPTIONS recebida para /api/ROULETTES');
   
-  // Obter a origem da requisição
-  const origin = req.headers.origin;
-  
-  // Se for uma origem do Vercel ou localhost, permitir
-  if (isVercelDomain(origin)) {
-    console.log(`[CORS] Permitindo domínio Vercel: ${origin}`);
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    // Para desenvolvimento e outras origens, permitir todas
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
+  // Aplicar cabeçalhos CORS necessários
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', '*');
   res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
-  res.header('Access-Control-Allow-Credentials', 'true');
   
   // Responder imediatamente com sucesso
   res.status(204).end();
@@ -920,48 +909,14 @@ app.options('/api/ROULETTES', (req, res) => {
 app.options('/api/ROULETTES/historico', (req, res) => {
   console.log('[CORS] Requisição OPTIONS recebida para /api/ROULETTES/historico');
   
-  // Obter a origem da requisição
-  const origin = req.headers.origin;
-  
-  // Se for uma origem do Vercel ou localhost, permitir
-  if (isVercelDomain(origin)) {
-    console.log(`[CORS] Permitindo domínio Vercel: ${origin}`);
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    // Para desenvolvimento e outras origens, permitir todas
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
+  // Aplicar cabeçalhos CORS necessários
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', '*');
   res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
-  res.header('Access-Control-Allow-Credentials', 'true');
   
   // Responder imediatamente com sucesso
   res.status(204).end();
-});
-
-// Modificar a rota /api/ROULETTES para aplicar CORS corretamente
-app.get('/api/ROULETTES', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/ROULETTES');
-  console.log('[API] Origin:', req.headers.origin);
-  
-  // Aplicar cabeçalhos CORS explicitamente para esta rota
-  const origin = req.headers.origin;
-  
-  // Se for uma origem do Vercel ou localhost, permitir
-  if (isVercelDomain(origin)) {
-    console.log(`[CORS] Permitindo domínio Vercel: ${origin}`);
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    // Para desenvolvimento e outras origens, permitir todas
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
-  // Resto da implementação...
 });
 
 // Socket.IO connection handler
