@@ -556,7 +556,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       {/* Modal de estatísticas completas */}
       <div className={`fixed inset-0 z-50 ${isStatsModalOpen ? 'flex' : 'hidden'} items-center justify-center bg-black/70`}>
-        <div className="bg-white w-11/12 max-w-6xl h-[90vh] rounded-lg overflow-y-auto">
+        <div className="bg-white w-1/2 h-[90vh] rounded-lg overflow-y-auto">
           <div className="flex justify-between items-center p-4 border-b border-gray-200">
             <h2 className="text-xl font-bold">Estatísticas da {safeData.name}</h2>
             <div className="flex items-center space-x-2">
