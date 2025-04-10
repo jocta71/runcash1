@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 
 export default function RouletteHistory() {
@@ -6,8 +6,14 @@ export default function RouletteHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [socket, setSocket] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
+
+  // Usar ref para acompanhar o último número recebido e evitar duplicatas
+  const lastReceivedNumber = useRef(null);
 
   useEffect(() => {
+    let isMounted = true;
+    
     async function fetchInitialHistory() {
       try {
         setLoading(true);
@@ -22,13 +28,27 @@ export default function RouletteHistory() {
         const data = await response.json();
         console.log(`Recebidos ${data.data.length} registros históricos iniciais`);
         
-        setHistory(data.data);
-        setError(null);
+        if (isMounted) {
+          setHistory(data.data);
+          setError(null);
+          
+          // Armazenar o último número recebido para evitar duplicatas
+          if (data.data && data.data.length > 0) {
+            lastReceivedNumber.current = {
+              numero: data.data[0].numero,
+              roleta: data.data[0].roleta_nome
+            };
+          }
+        }
       } catch (err) {
         console.error('Erro ao carregar histórico inicial:', err);
-        setError(err.message);
+        if (isMounted) {
+          setError(err.message);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
@@ -37,7 +57,7 @@ export default function RouletteHistory() {
 
     // Configurar conexão WebSocket
     const socketURL = import.meta.env.VITE_WS_URL || 'https://backend-production-2f96.up.railway.app';
-    console.log(`Conectando ao WebSocket: ${socketURL}`);
+    console.log(`[RouletteHistory] Conectando ao WebSocket: ${socketURL}`);
     
     const newSocket = io(socketURL, {
       transports: ['websocket', 'polling'],
@@ -45,73 +65,148 @@ export default function RouletteHistory() {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
+      autoConnect: true,
+      forceNew: true
     });
 
+    // Logger para todos os eventos recebidos (debug)
+    const originalOnEvent = newSocket.onevent;
+    newSocket.onevent = function(packet) {
+      const args = packet.data || [];
+      console.log(`[Socket Debug] Evento recebido: ${args[0]}`, args.slice(1));
+      originalOnEvent.call(this, packet);
+    };
+
     newSocket.on('connect', () => {
-      console.log('Conectado ao servidor WebSocket!');
+      console.log('[RouletteHistory] Conectado ao servidor WebSocket!');
       
       // Solicitar inscrição para receber atualizações de todas as roletas
       newSocket.emit('subscribe', { channel: 'roulette_updates' });
+      
+      // Também emitir um evento para solicitar o último número
+      newSocket.emit('get_latest_numbers');
+      
+      if (isMounted) {
+        setSocket(newSocket);
+      }
     });
 
     newSocket.on('connect_error', (err) => {
-      console.error('Erro de conexão WebSocket:', err);
+      console.error('[RouletteHistory] Erro de conexão WebSocket:', err);
     });
 
     // Lidar com eventos específicos do servidor
     newSocket.on('roulette_number', (newData) => {
-      console.log('Novo número recebido via WebSocket:', newData);
+      console.log('[RouletteHistory] Novo número recebido via WebSocket (roulette_number):', newData);
+      processNewNumber(newData);
+    });
+    
+    // Também escutar o evento 'new_number' (nome alternativo)
+    newSocket.on('new_number', (newData) => {
+      console.log('[RouletteHistory] Novo número recebido via WebSocket (new_number):', newData);
+      processNewNumber(newData);
+    });
+    
+    // Escutar evento específico para números
+    newSocket.on('number', (newData) => {
+      console.log('[RouletteHistory] Novo número recebido via WebSocket (number):', newData);
+      processNewNumber(newData);
+    });
+    
+    // Manipular evento genérico 'update'
+    newSocket.on('update', (data) => {
+      console.log('[RouletteHistory] Atualização genérica recebida (update):', data);
       
-      // Garantir que o formato do objeto seja correto
-      if (newData && typeof newData === 'object') {
-        // Criar um novo objeto no formato esperado pelo componente
-        const formattedData = {
-          numero: newData.numero || newData.number,
-          cor: newData.cor || getRouletteNumberColor(newData.numero || newData.number),
-          roleta_nome: newData.roleta_nome || newData.roulette_name || 'Desconhecida',
-          timestamp: newData.timestamp || new Date().toISOString()
-        };
-        
-        console.log('Dados formatados:', formattedData);
-        
-        // Adicionar ao histórico se for um número válido
-        if (formattedData.numero !== undefined && formattedData.numero !== null) {
-          setHistory(prevHistory => {
-            // Verificar se este número já é o primeiro na lista
-            if (prevHistory.length > 0 && 
-                prevHistory[0].numero === formattedData.numero && 
-                prevHistory[0].roleta_nome === formattedData.roleta_nome) {
-              return prevHistory;
-            }
-            
-            return [formattedData, ...prevHistory];
-          });
-        }
+      if (data && (data.type === 'roulette_number' || data.type === 'new_number')) {
+        processNewNumber(data);
       }
     });
     
-    // Manipular evento genérico 'update' que também pode conter números de roleta
-    newSocket.on('update', (data) => {
-      console.log('Atualização genérica recebida:', data);
+    // Manipular evento do backend do Railway
+    newSocket.on('message', (data) => {
+      console.log('[RouletteHistory] Mensagem recebida do WebSocket (message):', data);
       
-      if (data && data.type === 'roulette_number' && data.numero !== undefined) {
-        const formattedData = {
-          numero: data.numero,
-          cor: data.cor || getRouletteNumberColor(data.numero),
-          roleta_nome: data.roleta_nome || 'Desconhecida',
-          timestamp: data.timestamp || new Date().toISOString()
-        };
-        
-        setHistory(prevHistory => [formattedData, ...prevHistory]);
+      if (typeof data === 'string') {
+        try {
+          // Tentar interpretar como JSON se for string
+          const jsonData = JSON.parse(data);
+          processNewNumber(jsonData);
+        } catch (e) {
+          console.log('[RouletteHistory] Não foi possível analisar a mensagem como JSON');
+        }
+      } else {
+        processNewNumber(data);
       }
     });
 
-    setSocket(newSocket);
+    // Função centralizada para processar novos números
+    function processNewNumber(data) {
+      if (!isMounted) return;
+      
+      // Registrar cada atualização para debug
+      setLastUpdate(new Date().toISOString());
+      
+      // Garantir que o formato do objeto seja correto
+      if (data && typeof data === 'object') {
+        // Extrair número, tentando diferentes propriedades possíveis
+        const numero = data.numero || data.number || data.value || data.num;
+        
+        // Se não conseguirmos extrair um número válido, ignorar
+        if (numero === undefined || numero === null) {
+          console.log('[RouletteHistory] Ignorando dados sem número válido');
+          return;
+        }
+        
+        // Extrair nome da roleta
+        const roletaNome = 
+          data.roleta_nome || 
+          data.roulette_name || 
+          data.roleta || 
+          data.roulette || 
+          'Desconhecida';
+          
+        // Criar objeto formatado
+        const formattedData = {
+          numero: parseInt(numero),
+          cor: data.cor || data.color || getRouletteNumberColor(numero),
+          roleta_nome: roletaNome,
+          timestamp: data.timestamp || new Date().toISOString()
+        };
+        
+        // Verificar se este é o mesmo número que já recebemos por último
+        const isDuplicate = 
+          lastReceivedNumber.current && 
+          lastReceivedNumber.current.numero === formattedData.numero && 
+          lastReceivedNumber.current.roleta === formattedData.roleta_nome;
+          
+        if (isDuplicate) {
+          console.log('[RouletteHistory] Ignorando número duplicado:', formattedData.numero);
+          return;
+        }
+        
+        console.log('[RouletteHistory] Adicionando novo número ao histórico:', formattedData);
+        
+        // Atualizar o último número recebido
+        lastReceivedNumber.current = {
+          numero: formattedData.numero,
+          roleta: formattedData.roleta_nome
+        };
+        
+        // Atualizar o histórico com o novo número
+        setHistory(prevHistory => {
+          // Criar um novo array com o novo número no início
+          const newHistory = [formattedData, ...prevHistory];
+          console.log('[RouletteHistory] Novo tamanho do histórico:', newHistory.length);
+          return newHistory;
+        });
+      }
+    }
 
     // Limpar conexão quando o componente for desmontado
     return () => {
+      isMounted = false;
       if (newSocket) {
-        console.log('Desconectando do WebSocket...');
+        console.log('[RouletteHistory] Desconectando do WebSocket...');
         newSocket.disconnect();
       }
     };
@@ -157,17 +252,26 @@ export default function RouletteHistory() {
       <h2 className="text-2xl font-bold mb-4">Histórico de Números ({history.length})</h2>
       
       {loading && <p className="text-gray-500 mb-4">Carregando dados iniciais...</p>}
-      {socket ? (
-        <p className="text-green-500 mb-4">
-          <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-          Conectado para atualizações em tempo real
-        </p>
-      ) : (
-        <p className="text-yellow-500 mb-4">
-          <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
-          Aguardando conexão em tempo real...
-        </p>
-      )}
+      
+      <div className="flex items-center space-x-2 mb-4">
+        {socket ? (
+          <p className="text-green-500 flex items-center">
+            <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+            Conectado em tempo real
+          </p>
+        ) : (
+          <p className="text-yellow-500 flex items-center">
+            <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
+            Aguardando conexão...
+          </p>
+        )}
+        
+        {lastUpdate && (
+          <p className="text-xs text-gray-500">
+            Última atualização: {new Date(lastUpdate).toLocaleTimeString()}
+          </p>
+        )}
+      </div>
       
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white border border-gray-200">
@@ -181,7 +285,7 @@ export default function RouletteHistory() {
           </thead>
           <tbody>
             {history.map((item, index) => (
-              <tr key={`${item.timestamp}-${index}`} className="hover:bg-gray-50">
+              <tr key={`${item.timestamp}-${index}`} className={index === 0 ? 'bg-green-50 animate-pulse' : 'hover:bg-gray-50'}>
                 <td className="py-2 px-4 border-b text-center">
                   <span 
                     className={`inline-block w-8 h-8 rounded-full text-white font-bold flex items-center justify-center
