@@ -189,16 +189,22 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Extrair números da roleta encontrada
       const newNumbers = extractNumbers(myRoulette);
       
-      // Se temos números, processar (mantendo todos os números)
+      // Debug para ver quais números foram encontrados
+      console.log(`[${Date.now()}] Números iniciais para ${safeData.name}:`, newNumbers.slice(0, 20));
+      
+      // Se temos números, armazenar (mantendo todos os números)
       if (newNumbers.length > 0) {
+        // IMPORTANTE: Reverter a ordem dos números - os mais recentes devem vir primeiro
+        const orderedNumbers = [...newNumbers]; // Criar uma cópia para não mutar o array original
+        
         // Armazenar todos os números extraídos
-        setAllNumbers(newNumbers);
+        setAllNumbers(orderedNumbers);
         
         // Definir os números recentes (limitados aos 20 primeiros)
-        setRecentNumbers(newNumbers.slice(0, 20));
+        setRecentNumbers(orderedNumbers.slice(0, 20));
         
         // Definir o último número
-        setLastNumber(newNumbers[0]);
+        setLastNumber(orderedNumbers[0]);
         setHasRealData(true);
       }
       
@@ -276,9 +282,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   // Função para atualizar dados a partir dos dados já carregados
   const updateFromExistingData = async () => {
     try {
-      // Indicar que está atualizando
-      setLoading(true);
-      
       // URL da API
       const url = `/api/ROULETTES`;
       
@@ -301,9 +304,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         throw new Error('Resposta da API inválida ou vazia');
       }
       
-      // Atualizar todas as roletas
-      setAllRoulettesData(data);
-      
       // Encontrar a roleta específica pelo ID
       const myRoulette = data.find((roulette: any) => 
         roulette.id === safeData.id || 
@@ -321,11 +321,47 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       setRawRouletteData(myRoulette);
       
       // Extrair números da roleta encontrada
-      const newNumbers = extractNumbers(myRoulette);
+      const apiNumbers = extractNumbers(myRoulette);
       
-      // Se temos números, processar
-      if (newNumbers.length > 0) {
-        processNewNumbers(newNumbers);
+      // Se não temos números da API ou números existentes, não há o que fazer
+      if (apiNumbers.length === 0 || allNumbers.length === 0) {
+        return false;
+      }
+      
+      // O número mais recente da API
+      const latestApiNumber = apiNumbers[0];
+      
+      // O número mais recente que temos
+      const latestExistingNumber = allNumbers[0];
+      
+      // Se o número mais recente da API for diferente do nosso número mais recente,
+      // precisamos adicionar um novo número
+      if (latestApiNumber !== latestExistingNumber) {
+        console.log(`[${Date.now()}] Novo número detectado:`, latestApiNumber);
+        console.log(`[${Date.now()}] Número atual mais recente:`, latestExistingNumber);
+        
+        // Adicionar o novo número ao início da lista
+        const updatedAllNumbers = [latestApiNumber, ...allNumbers];
+        
+        // Atualizar todos os números
+        setAllNumbers(updatedAllNumbers);
+        
+        // Atualizar números recentes para exibição (primeiros 20)
+        setRecentNumbers(updatedAllNumbers.slice(0, 20));
+        
+        // Atualizar último número
+        setLastNumber(latestApiNumber);
+        
+        // Mostrar notificação de novo número
+        setToastVisible(true);
+        setToastMessage(`Novo número: ${latestApiNumber}`);
+        setTimeout(() => setToastVisible(false), 3000);
+        
+        // Animar
+        setIsNewNumber(true);
+        setTimeout(() => setIsNewNumber(false), 2000);
+        
+        setHasRealData(true);
       }
       
       // Limpar erros e atualizar timestamp
@@ -335,12 +371,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       return true;
     } catch (err: any) {
-      // Ignorar erros de abortamento
-      if (err.name === 'AbortError') {
-        console.log('Requisição cancelada');
-        return false;
-      }
-      
       // Registrar erro
       console.error(`Erro ao atualizar dados da roleta ${safeData.name}:`, err);
       setError(err.message || 'Erro ao atualizar dados');
@@ -350,52 +380,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       setLoading(false);
     }
   };
-  
-  // Função para processar novos números
-  const processNewNumbers = useCallback((numbers: number[]) => {
-    if (!numbers || numbers.length === 0) return false;
-    
-    const latestNumber = numbers[0];
-    
-    // Verificar se o último número é diferente do atual
-    if (latestNumber !== recentNumbers[0]) {
-      // Se temos acesso à API, obter a cor diretamente dos dados
-      let color = 'cinza';
-      
-      if (rawRouletteData && rawRouletteData.numero && rawRouletteData.numero.length > 0) {
-        // Encontrar o número correspondente nos dados brutos
-        const matchingNumber = rawRouletteData.numero.find((n: any) => n.numero === latestNumber);
-        if (matchingNumber && matchingNumber.cor) {
-          color = matchingNumber.cor.toLowerCase();
-        }
-      }
-      
-      // Mostrar notificação
-      setToastVisible(true);
-      setToastMessage(`Novo número: ${latestNumber} (${color})`);
-      setTimeout(() => setToastVisible(false), 3000);
-      
-      // Atualizar o último número
-      setLastNumber(latestNumber);
-      
-      // Importante: Atualizar a lista completa de números primeiro
-      const newAllNumbers = [latestNumber, ...allNumbers];
-      setAllNumbers(newAllNumbers);
-      
-      // Atualizar a lista de números recentes para exibição (somente os 20 mais recentes)
-      setRecentNumbers(newAllNumbers.slice(0, 20));
-      
-      setHasRealData(true);
-      setIsNewNumber(true);
-      
-      // Resetar o isNewNumber após 2 segundos para remover a animação
-      setTimeout(() => {
-        setIsNewNumber(false);
-      }, 2000);
-    }
-    
-    return true;
-  }, [recentNumbers, allNumbers, rawRouletteData]);
   
   // Função para alternar exibição de estatísticas
   const toggleStats = (e: React.MouseEvent) => {
