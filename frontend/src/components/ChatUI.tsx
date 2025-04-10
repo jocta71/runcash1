@@ -302,7 +302,17 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
                   </span>
                 )}
               </div>
-              <p className="text-sm text-gray-300 mt-1">{message.message}</p>
+              <div className={`mt-1 px-3 py-2 rounded-lg text-left max-w-[85%] ${
+                message.sender === 'Você' 
+                  ? 'bg-green-600 text-white ml-auto'
+                  : message.isAdmin 
+                    ? 'bg-[#1e293b] text-white' 
+                    : message.isModerator
+                      ? 'bg-[#1e1e3f] text-white'
+                      : 'bg-[#2a2a36] text-gray-200'
+              }`}>
+                <p className="text-sm">{message.message}</p>
+              </div>
             </div>
           </div>
         ))}
