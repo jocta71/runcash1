@@ -172,3 +172,42 @@ function MyComponent() {
 3. **Facilidade de Manutenção**: Estrutura organizada facilita a localização e manutenção do código
 4. **Escalabilidade**: Novos componentes podem ser adicionados seguindo o mesmo padrão
 5. **Performance**: Implementação de cache e otimização de requisições 
+
+# Atualização do Sistema para API REST
+
+## Mudanças Implementadas
+
+Foram realizadas as seguintes alterações no sistema:
+
+1. **Remoção do WebSocket**:
+   - Todo o código que utilizava WebSocket para atualizações em tempo real foi removido
+   - O componente `RouletteCard` agora usa apenas API REST com polling
+
+2. **Implementação de Polling para Atualização em Tempo Real**:
+   - O componente `RouletteCard` agora faz requisições periódicas à API REST
+   - O intervalo padrão foi ajustado para 5 segundos para garantir atualizações frequentes
+   - O cache das requisições foi reduzido para 30 segundos para manter os dados atualizados
+
+3. **Novos Endpoints**:
+   - Foi adicionado um endpoint específico para obter até 100 roletas: `/api/ROULETTES?limit=100`
+   - O serviço `RouletteApi` foi atualizado para utilizar este endpoint
+
+4. **Otimizações**:
+   - O `RouletteRepository` foi atualizado para usar apenas API REST
+   - O método de atualização de estratégia foi melhorado para evitar mutações diretamente nos objetos
+
+## Como Funciona Agora
+
+A interface agora é atualizada em tempo real através de polling dos endpoints de API REST. O componente faz requisições periódicas à API e, quando detecta novos dados (como um novo número), atualiza a interface com um efeito visual.
+
+O sistema mantém um cache local para otimizar o número de requisições, mas este cache tem uma duração limitada para garantir que os dados sejam atualizados com frequência.
+
+## Endpoints de API REST
+
+- `/api/ROULETTES` - Lista todas as roletas disponíveis
+- `/api/ROULETTES?limit=100` - Lista até 100 roletas disponíveis
+- `/api/roulettes/history` - Retorna o histórico de números
+
+## Exemplo de Uso
+
+O componente `RouletteCard` é um exemplo completo de como implementar atualizações em tempo real via polling de API REST. 

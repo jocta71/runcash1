@@ -1,5 +1,4 @@
 import { RouletteApi } from '../api/rouletteApi';
-import { socketClient } from '../socket/socketClient';
 import { transformRouletteData, getNumericId } from './rouletteTransformer';
 import { getLogger } from '../utils/logger';
 
@@ -25,7 +24,7 @@ export interface RouletteData {
 
 // Cache local para otimizar requisições
 const cache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 60000; // 1 minuto em milissegundos
+const CACHE_TTL = 30000; // 30 segundos para atualizações mais frequentes
 
 // Rastreamento de requisições pendentes para evitar chamadas duplicadas
 const pendingRequests = new Map<string, Promise<any>>();
@@ -172,10 +171,6 @@ export const RouletteRepository = {
             });
             
             logger.info(`✅ Roleta encontrada: ${roulette.name}`);
-            
-            // Também assinar em tempo real via socket
-            socketClient.subscribeToRoulette(numericId, roulette.name);
-            
             resolve(roulette);
           } else {
             logger.warn(`❌ Roleta com ID ${numericId} não encontrada`);
@@ -248,124 +243,69 @@ export const RouletteRepository = {
         }
       }
       
-      // Adicionar no início do array de números
-      cachedRoulette.numbers.unshift(transformedNumber);
+      // Adicionar o número ao array 'numbers' no início (mais recente primeiro)
+      const updatedRoulette = {
+        ...cachedRoulette,
+        numbers: [transformedNumber, ...(cachedRoulette.numbers || [])]
+      };
       
-      // Atualizar cache
+      // Atualizar a propriedade 'numero' também para manter compatibilidade
+      if (!updatedRoulette.numero) {
+        updatedRoulette.numero = [];
+      }
+      (updatedRoulette as any).numero = [transformedNumber.number, ...(updatedRoulette.numero || [])];
+      
+      // Atualizar o cache
       cache.set(cacheKey, {
-        data: cachedRoulette,
+        data: updatedRoulette,
         timestamp: Date.now()
       });
       
-      logger.debug(`✅ Número ${transformedNumber.number} adicionado à roleta ${numericId}`);
+      logger.debug(`Número ${transformedNumber.number} adicionado à roleta ${numericId}`);
     } catch (error) {
       logger.error(`Erro ao adicionar número à roleta ${roletaId}:`, error);
     }
   },
   
   /**
-   * Atualiza a estratégia de uma roleta no cache
+   * Atualiza o estado da estratégia de uma roleta no cache
    * @param roletaId ID da roleta
    * @param strategy Dados da estratégia
    */
   updateRouletteStrategy(roletaId: string, strategy: any): void {
     try {
       const numericId = getNumericId(roletaId);
+      
+      logger.debug(`Atualizando estratégia para roleta ${numericId}`);
+      
       const cacheKey = `roulette_${numericId}`;
       
       // Verificar se temos essa roleta em cache
       if (!cache.has(cacheKey)) {
-        logger.debug(`Roleta ${numericId} não está em cache, ignorando atualização de estratégia`);
+        // Se não temos em cache, buscar primeiro
+        this.fetchRouletteById(numericId);
         return;
       }
       
       const cachedRoulette = cache.get(cacheKey)!.data;
       
-      // Atualizar dados de estratégia
-      cachedRoulette.strategyState = strategy.estado || strategy.state || cachedRoulette.strategyState;
-      cachedRoulette.wins = strategy.vitorias || strategy.wins || cachedRoulette.wins;
-      cachedRoulette.losses = strategy.derrotas || strategy.losses || cachedRoulette.losses;
+      // Atualizar campos de estratégia
+      const updatedRoulette = {
+        ...cachedRoulette,
+        strategyState: strategy.estado || strategy.state || cachedRoulette.strategyState,
+        wins: strategy.vitorias || strategy.wins || cachedRoulette.wins,
+        losses: strategy.derrotas || strategy.losses || cachedRoulette.losses
+      };
       
-      // Atualizar cache
+      // Atualizar o cache
       cache.set(cacheKey, {
-        data: cachedRoulette,
+        data: updatedRoulette,
         timestamp: Date.now()
       });
       
-      logger.debug(`✅ Estratégia atualizada para roleta ${numericId}: ${cachedRoulette.strategyState}`);
+      logger.debug(`Estratégia atualizada para roleta ${numericId}`);
     } catch (error) {
       logger.error(`Erro ao atualizar estratégia da roleta ${roletaId}:`, error);
     }
-  },
-  
-  /**
-   * Assina atualizações em tempo real para uma roleta específica
-   * @param id ID da roleta
-   * @param callback Função a ser chamada quando houver atualizações
-   * @returns Função para cancelar a assinatura
-   */
-  subscribeToRouletteUpdates(id: string, callback: (data: RouletteData) => void): () => void {
-    const numericId = getNumericId(id);
-    logger.debug(`Assinando atualizações para roleta ${numericId}`);
-    
-    // Buscar dados iniciais
-    this.fetchRouletteById(numericId).then(roulette => {
-      if (roulette) {
-        callback(roulette);
-      }
-    });
-    
-    // Assinar eventos do socket para atualizações de números
-    const numberEventCallback = (data: any) => {
-      logger.verbose(`Evento de novo número recebido para roleta ${numericId}`);
-      
-      // Adicionar número ao cache
-      if (data.numero !== undefined || data.number !== undefined) {
-        this.addNewNumberToRoulette(numericId, data);
-        
-        // Extrair o ID da roleta do evento
-        let eventRouletaId = data.roleta_id || data.roulette_id;
-        if (eventRouletaId && eventRouletaId !== numericId) {
-          logger.debug(`⚠️ ID da roleta no evento (${eventRouletaId}) é diferente do ID assinado (${numericId})`);
-          
-          // Verificar se podemos mapear o ID do evento para nosso ID numérico
-          const mappedId = getNumericId(eventRouletaId);
-          if (mappedId === numericId) {
-            logger.debug(`✅ IDs mapeados corretamente: ${eventRouletaId} -> ${numericId}`);
-          } else {
-            logger.warn(`❌ IDs não correspondem após mapeamento: ${eventRouletaId} -> ${mappedId} != ${numericId}`);
-          }
-        }
-      }
-      
-      // Buscar roleta atualizada do cache e notificar
-      const cacheKey = `roulette_${numericId}`;
-      if (cache.has(cacheKey)) {
-        callback(cache.get(cacheKey)!.data);
-      }
-    };
-    
-    // Assinar eventos do socket para atualizações de estratégia
-    const strategyEventCallback = (data: any) => {
-      logger.verbose(`Evento de estratégia recebido para roleta ${numericId}`);
-      this.updateRouletteStrategy(numericId, data);
-      
-      // Buscar roleta atualizada do cache e notificar
-      const cacheKey = `roulette_${numericId}`;
-      if (cache.has(cacheKey)) {
-        callback(cache.get(cacheKey)!.data);
-      }
-    };
-    
-    // Assinar eventos específicos para esta roleta
-    socketClient.on(`new_number_${numericId}`, numberEventCallback);
-    socketClient.on(`strategy_update_${numericId}`, strategyEventCallback);
-    
-    // Retornar função para cancelar assinatura
-    return () => {
-      // Usar removeListener para especificidade
-      socketClient.removeListener(`new_number_${numericId}`, numberEventCallback);
-      socketClient.removeListener(`strategy_update_${numericId}`, strategyEventCallback);
-    };
   }
 }; 

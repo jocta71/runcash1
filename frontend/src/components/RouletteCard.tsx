@@ -14,7 +14,7 @@ interface RouletteCardProps {
  */
 const RouletteCard: React.FC<RouletteCardProps> = ({
   rouletteId,
-  refreshInterval = 5000, // Intervalo menor para atualizações mais frequentes
+  refreshInterval = 5000, // Intervalo para polling da API
   onUpdate
 }) => {
   const [loading, setLoading] = useState(true);
@@ -26,113 +26,66 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
   // Referência para o número atual
   const latestNumberRef = useRef<number | null>(null);
   
-  // Função para buscar dados atualizados da API REST
-  const fetchLatestRouletteData = async () => {
+  // Função para carregar dados da roleta via API REST
+  const loadData = async () => {
     try {
       setLoading(true);
-      console.log(`[RouletteCard] Buscando dados atualizados para roleta ${rouletteId}...`);
+      console.log(`[RouletteCard] Consultando API para roleta ${rouletteId}...`);
       
-      // Chamada à API de produção
-      const response = await fetch(`/api/ROULETTES?limit=100`);
+      const data = await RouletteRepository.fetchRouletteById(rouletteId);
       
-      if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
-      }
-      
-      const allRoulettes = await response.json();
-      const currentRoulette = allRoulettes.find((r: any) => r.id === rouletteId || r.uuid === rouletteId);
-      
-      if (currentRoulette) {
-        console.log(`[RouletteCard] Dados atualizados recebidos: ${currentRoulette.name}`);
-        
-        // Processar e atualizar dados no estado
-        processNewRouletteData(currentRoulette);
-        setError(null);
-      } else {
-        console.error(`[RouletteCard] Roleta não encontrada: ${rouletteId}`);
-        setError(`Roleta não encontrada: ${rouletteId}`);
-      }
-    } catch (err) {
-      console.error(`[RouletteCard] Erro ao buscar dados da API:`, err);
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Função para buscar uma roleta específica por ID
-  const fetchRouletteById = async () => {
-    try {
-      setLoading(true);
-      console.log(`[RouletteCard] Buscando roleta pelo ID ${rouletteId}...`);
-      
-      // Chamada à API de produção para uma roleta específica
-      const response = await fetch(`/api/ROULETTES/${rouletteId}`);
-      
-      if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
-      }
-      
-      const data = await response.json();
       if (data) {
-        console.log(`[RouletteCard] Dados da roleta recebidos: ${data.name}`);
-        processNewRouletteData(data);
-        setError(null);
-      } else {
-        console.error(`[RouletteCard] Roleta não encontrada: ${rouletteId}`);
-        setError(`Roleta não encontrada: ${rouletteId}`);
-      }
-    } catch (err) {
-      console.error(`[RouletteCard] Erro ao buscar roleta:`, err);
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-    } finally {
-      setLoading(false);
-    }
-  };
-   
-  // Função para processar dados novos da roleta da API REST
-  const processNewRouletteData = (data: any) => {
-    // Se já temos dados da roleta
-    if (data) {
-      // Se houver novos números
-      if (data.numbers && data.numbers.length > 0) {
-        const newNumber = data.numbers[0].number;
+        console.log(`[RouletteCard] Dados obtidos da API: ${data.name}`);
         
-        // Se tivermos um número anterior para comparar e ele mudou
-        if (latestNumberRef.current !== null && latestNumberRef.current !== newNumber) {
-          console.log(`[RouletteCard] Novo número atualizado: ${newNumber} (anterior: ${latestNumberRef.current})`);
-          setIsUpdated(true);
+        // Verificar se há um novo número
+        if (data.numbers && data.numbers.length > 0) {
+          const newNumber = data.numbers[0].number;
           
-          // Desativar a animação após 2 segundos
-          setTimeout(() => {
-            setIsUpdated(false);
-          }, 2000);
+          // Se tivermos um número anterior para comparar e ele mudou
+          if (latestNumberRef.current !== null && latestNumberRef.current !== newNumber) {
+            console.log(`[RouletteCard] Novo número detectado via polling: ${newNumber} (anterior: ${latestNumberRef.current})`);
+            setIsUpdated(true);
+            
+            // Desativar a animação após 2 segundos
+            setTimeout(() => {
+              setIsUpdated(false);
+            }, 2000);
+          }
+          
+          // Atualizar a referência do número
+          latestNumberRef.current = newNumber;
         }
         
-        // Atualizar a referência do número
-        latestNumberRef.current = newNumber;
+        // Atualizar o estado com os novos dados
+        setRouletteData(data);
+        setLastUpdateTime(new Date());
+        setError(null);
+        
+        // Notificar o componente pai se necessário
+        if (onUpdate) {
+          onUpdate(data);
+        }
+      } else {
+        console.error(`[RouletteCard] Roleta não encontrada: ${rouletteId}`);
+        setError(`Roleta não encontrada: ${rouletteId}`);
       }
-      
-      // Atualizar o estado com os novos dados
-      setRouletteData(data);
-      setLastUpdateTime(new Date());
-      
-      // Notificar o componente pai
-      if (onUpdate) {
-        onUpdate(data);
-      }
+    } catch (err) {
+      console.error(`[RouletteCard] Erro ao carregar dados:`, err);
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+    } finally {
+      setLoading(false);
     }
   };
   
-  // Efeito para carregar dados iniciais e configurar atualizações periódicas
+  // Efeito para carregar dados iniciais e configurar polling da API
   useEffect(() => {
     // Carregar dados imediatamente
-    fetchRouletteById();
+    loadData();
     
-    // Configurar atualização periódica via API REST
+    // Configurar polling periódico para obter atualizações em tempo real
     const intervalId = setInterval(() => {
-      console.log(`[RouletteCard] Executando atualização periódica para ${rouletteId}`);
-      fetchLatestRouletteData();
+      console.log(`[RouletteCard] Executando polling para roleta ${rouletteId}`);
+      loadData();
     }, refreshInterval);
     
     // Limpar ao desmontar
@@ -155,7 +108,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
     return (
       <div className="roulette-card error">
         <div className="error-message">{error}</div>
-        <button className="refresh-button" onClick={fetchLatestRouletteData}>Tentar novamente</button>
+        <button className="refresh-button" onClick={loadData}>Tentar novamente</button>
       </div>
     );
   }
@@ -222,7 +175,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
       </div>
       
       <div className="card-footer">
-        <button className="refresh-button" onClick={fetchLatestRouletteData} title="Atualizar dados">
+        <button className="refresh-button" onClick={loadData} title="Atualizar dados">
           ↻
         </button>
         {lastUpdateTime && (

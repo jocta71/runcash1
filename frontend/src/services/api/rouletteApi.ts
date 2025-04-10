@@ -13,7 +13,8 @@ export const RouletteApi = {
   async fetchAllRoulettes() {
     try {
       console.log('[API] Buscando todas as roletas disponíveis');
-      const response = await axios.get(ENDPOINTS.ROULETTES);
+      // Usando o endpoint com limite para obter no máximo 100 roletas
+      const response = await axios.get(ENDPOINTS.ROULETTES_LIMITED);
       
       if (!response.data || !Array.isArray(response.data)) {
         console.error('[API] Resposta inválida da API de roletas:', response.data);
