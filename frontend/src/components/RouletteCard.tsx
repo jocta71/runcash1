@@ -189,30 +189,24 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Extrair números da roleta encontrada
       const newNumbers = extractNumbers(myRoulette);
       
-      // Debug para ver quais números foram encontrados
-      console.log(`[${Date.now()}] Números iniciais para ${safeData.name}:`, newNumbers.slice(0, 20));
-      
-      // Se temos números, armazenar (mantendo todos os números)
+      // Se temos números, processar (mantendo todos os números)
       if (newNumbers.length > 0) {
-        // IMPORTANTE: Reverter a ordem dos números - os mais recentes devem vir primeiro
-        const orderedNumbers = [...newNumbers]; // Criar uma cópia para não mutar o array original
-        
         // Armazenar todos os números extraídos
-        setAllNumbers(orderedNumbers);
+        setAllNumbers(newNumbers);
         
         // Definir os números recentes (limitados aos 20 primeiros)
-        setRecentNumbers(orderedNumbers.slice(0, 20));
+        setRecentNumbers(newNumbers.slice(0, 20));
         
         // Definir o último número
-        setLastNumber(orderedNumbers[0]);
-        setHasRealData(true);
-      }
+        setLastNumber(newNumbers[0]);
+      setHasRealData(true);
+    } 
       
       // Limpar erros e atualizar timestamp
       setError(null);
-      setLastUpdateTime(Date.now());
-      setUpdateCount(prev => prev + 1);
-      
+        setLastUpdateTime(Date.now());
+        setUpdateCount(prev => prev + 1);
+        
       return true;
     } catch (err: any) {
       // Registrar erro
@@ -285,6 +279,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // URL da API
       const url = `/api/ROULETTES`;
       
+      console.log(`[${Date.now()}] Verificando atualizações para ${safeData.name}`);
+      
       // Fazer a requisição para obter todas as roletas
       const response = await fetch(url, {
         method: 'GET',
@@ -303,6 +299,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       if (!data || !Array.isArray(data)) {
         throw new Error('Resposta da API inválida ou vazia');
       }
+      
+      // Atualizar todas as roletas
+      setAllRoulettesData(data);
       
       // Encontrar a roleta específica pelo ID
       const myRoulette = data.find((roulette: any) => 
@@ -323,61 +322,96 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Extrair números da roleta encontrada
       const apiNumbers = extractNumbers(myRoulette);
       
-      // Se não temos números da API ou números existentes, não há o que fazer
-      if (apiNumbers.length === 0 || allNumbers.length === 0) {
-        return false;
-      }
+      // Log para depuração
+      console.log(`[${Date.now()}] Números atuais: ${recentNumbers.slice(0, 5).join(', ')}...`);
+      console.log(`[${Date.now()}] Números da API: ${apiNumbers.slice(0, 5).join(', ')}...`);
       
-      // O número mais recente da API
-      const latestApiNumber = apiNumbers[0];
-      
-      // O número mais recente que temos
-      const latestExistingNumber = allNumbers[0];
-      
-      // Se o número mais recente da API for diferente do nosso número mais recente,
-      // precisamos adicionar um novo número
-      if (latestApiNumber !== latestExistingNumber) {
-        console.log(`[${Date.now()}] Novo número detectado:`, latestApiNumber);
-        console.log(`[${Date.now()}] Número atual mais recente:`, latestExistingNumber);
+      // Se temos números da API
+      if (apiNumbers.length > 0) {
+        // IMPORTANTE: Adicionar SOMENTE novos números que não existem na nossa lista
+        const newNumbers = [];
         
-        // Adicionar o novo número ao início da lista
-        const updatedAllNumbers = [latestApiNumber, ...allNumbers];
+        // Verificar cada número da API, começando do mais recente
+        for (let i = 0; i < apiNumbers.length; i++) {
+          const apiNumber = apiNumbers[i];
+          
+          // Se este número da API não existe em nossa lista atual, é um número novo
+          if (!allNumbers.includes(apiNumber)) {
+            console.log(`[${Date.now()}] Novo número encontrado: ${apiNumber}`);
+            newNumbers.push(apiNumber);
+          } else {
+            // Se encontramos um número que já temos, podemos parar de procurar
+            // porque números mais antigos provavelmente já estão em nossa lista
+            console.log(`[${Date.now()}] Número já existente: ${apiNumber}, parando busca por novos números`);
+            break;
+          }
+        }
         
-        // Atualizar todos os números
-        setAllNumbers(updatedAllNumbers);
-        
-        // Atualizar números recentes para exibição (primeiros 20)
-        setRecentNumbers(updatedAllNumbers.slice(0, 20));
-        
-        // Atualizar último número
-        setLastNumber(latestApiNumber);
-        
-        // Mostrar notificação de novo número
-        setToastVisible(true);
-        setToastMessage(`Novo número: ${latestApiNumber}`);
-        setTimeout(() => setToastVisible(false), 3000);
-        
-        // Animar
-        setIsNewNumber(true);
-        setTimeout(() => setIsNewNumber(false), 2000);
-        
-        setHasRealData(true);
+        // Se encontramos números novos, processar
+        if (newNumbers.length > 0) {
+          console.log(`[${Date.now()}] Adicionando ${newNumbers.length} novos números: ${newNumbers.join(', ')}`);
+          
+          // Criar nova lista combinando os números novos (no início) com todos os números existentes
+          const updatedAllNumbers = [...newNumbers, ...allNumbers];
+          setAllNumbers(updatedAllNumbers);
+          
+          // Atualizar números recentes (os 20 primeiros)
+          setRecentNumbers(updatedAllNumbers.slice(0, 20));
+          
+          // Atualizar o último número
+          setLastNumber(newNumbers[0]);
+          
+          // Notificação
+          if (newNumbers.length === 1) {
+            // Se só temos um número novo, mostrar notificação
+            const newNumber = newNumbers[0];
+            
+            // Encontrar cor
+            let color = 'cinza';
+            if (rawRouletteData && rawRouletteData.numero && rawRouletteData.numero.length > 0) {
+              const matchingNumber = rawRouletteData.numero.find((n: any) => n.numero === newNumber);
+              if (matchingNumber && matchingNumber.cor) {
+                color = matchingNumber.cor.toLowerCase();
+              }
+            }
+            
+            // Mostrar notificação
+            setToastVisible(true);
+            setToastMessage(`Novo número: ${newNumber} (${color})`);
+            setTimeout(() => setToastVisible(false), 3000);
+            
+            // Animação
+            setIsNewNumber(true);
+            setTimeout(() => {
+              setIsNewNumber(false);
+            }, 2000);
+          } else if (newNumbers.length > 1) {
+            // Se temos múltiplos números novos, notificação diferente
+            setToastVisible(true);
+            setToastMessage(`${newNumbers.length} novos números adicionados`);
+            setTimeout(() => setToastVisible(false), 3000);
+          }
+          
+          setHasRealData(true);
+        } else {
+          console.log(`[${Date.now()}] Nenhum número novo encontrado para ${safeData.name}`);
+        }
       }
       
       // Limpar erros e atualizar timestamp
       setError(null);
       setLastUpdateTime(Date.now());
       setUpdateCount(prev => prev + 1);
+      setLoading(false);
       
       return true;
     } catch (err: any) {
       // Registrar erro
       console.error(`Erro ao atualizar dados da roleta ${safeData.name}:`, err);
       setError(err.message || 'Erro ao atualizar dados');
+      setLoading(false);
       
       return false;
-    } finally {
-      setLoading(false);
     }
   };
   
@@ -397,9 +431,18 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   
   // Efeito para buscar dados iniciais e configurar intervalo de atualização
   useEffect(() => {
+    console.log(`[${Date.now()}] Iniciando carregamento de dados para ${safeData.name}`);
+    
     // Buscar dados iniciais
-    fetchInitialData().then(() => {
+    fetchInitialData().then((success) => {
+      if (success) {
+        console.log(`[${Date.now()}] Dados iniciais carregados com sucesso para ${safeData.name}`);
+      } else {
+        console.log(`[${Date.now()}] Falha ao carregar dados iniciais para ${safeData.name}`);
+      }
+      
       // Configurar intervalo de 8 segundos para atualizações após carregar dados iniciais
+      console.log(`[${Date.now()}] Configurando intervalo de atualização a cada 8 segundos`);
       intervalRef.current = setInterval(() => {
         updateFromExistingData();
       }, 8000); // 8 segundos
@@ -407,6 +450,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     
     // Limpar intervalo ao desmontar
     return () => {
+      console.log(`[${Date.now()}] Limpando recursos para ${safeData.name}`);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;

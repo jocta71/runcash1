@@ -29,8 +29,8 @@ export default function RouletteHistory() {
         console.log(`Recebidos ${data.data.length} registros históricos iniciais`);
         
         if (isMounted) {
-          setHistory(data.data);
-          setError(null);
+        setHistory(data.data);
+        setError(null);
           
           // Armazenar o último número recebido para evitar duplicatas
           if (data.data && data.data.length > 0) {
@@ -43,11 +43,11 @@ export default function RouletteHistory() {
       } catch (err) {
         console.error('Erro ao carregar histórico inicial:', err);
         if (isMounted) {
-          setError(err.message);
+        setError(err.message);
         }
       } finally {
         if (isMounted) {
-          setLoading(false);
+        setLoading(false);
         }
       }
     }
