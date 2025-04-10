@@ -3,7 +3,7 @@ import ChatHeader from './chat/ChatHeader';
 import ChatMessageList from './chat/ChatMessageList';
 import ChatInput from './chat/ChatInput';
 import { ChatMessage } from './chat/types';
-import { X } from 'lucide-react';
+import { X, Minimize2, Maximize2 } from 'lucide-react';
 
 interface ChatUIProps {
   isOpen?: boolean;
@@ -95,6 +95,7 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
   ]);
   
   const [newMessage, setNewMessage] = useState('');
+  const [minimized, setMinimized] = useState(false);
   
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +112,10 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
     ]);
     
     setNewMessage('');
+  };
+
+  const toggleMinimize = () => {
+    setMinimized(!minimized);
   };
 
   // Styles for mobile vs desktop
@@ -136,55 +141,81 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
             <span className="text-green-500 text-sm">128</span>
           </div>
         </div>
-      </div>
-
-      {/* Lista de Mensagens */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
-          <div key={message.id} className="flex items-start space-x-3">
-            <div className="w-8 h-8 rounded-full bg-[#1e1e24] flex-shrink-0 overflow-hidden">
-              {message.avatar && (
-                <img src={message.avatar} alt={message.sender} className="w-full h-full object-cover" />
-              )}
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-white">{message.sender}</span>
-                {message.isModerator && (
-                  <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded">
-                    Moderator
-                  </span>
-                )}
-                {message.isAdmin && (
-                  <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded">
-                    Admin
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-gray-300 mt-1">{message.message}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Input de Mensagem */}
-      <div className="p-4 border-t border-[#2a2a2e] bg-[#141318]">
-        <form onSubmit={handleSendMessage} className="flex space-x-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            className="flex-1 bg-[#1e1e24] border border-[#2a2a2e] rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-green-500"
-            placeholder="Digite sua mensagem..."
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
+        <div className="flex items-center space-x-2">
+          <button 
+            onClick={toggleMinimize} 
+            className="text-gray-400 hover:text-white p-1 rounded-md transition-colors"
+            title={minimized ? "Maximizar" : "Minimizar"}
           >
-            Enviar
+            {minimized ? 
+              <Maximize2 size={18} /> : 
+              <Minimize2 size={18} />
+            }
           </button>
-        </form>
+          {onClose && (
+            <button 
+              onClick={onClose} 
+              className="text-gray-400 hover:text-white p-1 rounded-md transition-colors"
+              title="Fechar"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Conteúdo do Chat (escondido quando minimizado) */}
+      {!minimized && (
+        <>
+          {/* Lista de Mensagens */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.map((message) => (
+              <div key={message.id} className="flex items-start space-x-3">
+                <div className="w-8 h-8 rounded-full bg-[#1e1e24] flex-shrink-0 overflow-hidden">
+                  {message.avatar && (
+                    <img src={message.avatar} alt={message.sender} className="w-full h-full object-cover" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-white">{message.sender}</span>
+                    {message.isModerator && (
+                      <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded">
+                        Moderator
+                      </span>
+                    )}
+                    {message.isAdmin && (
+                      <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-300 mt-1">{message.message}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Input de Mensagem */}
+          <div className="p-4 border-t border-[#2a2a2e] bg-[#141318]">
+            <form onSubmit={handleSendMessage} className="flex space-x-2">
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                className="flex-1 bg-[#1e1e24] border border-[#2a2a2e] rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-green-500"
+                placeholder="Digite sua mensagem..."
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
+              >
+                Enviar
+              </button>
+            </form>
+          </div>
+        </>
+      )}
     </div>
   );
 };

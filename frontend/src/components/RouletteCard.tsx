@@ -498,9 +498,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           <div className="bg-gray-100 p-3 rounded-lg border border-gray-200">
             <div className="flex justify-between items-center mb-2">
               <h3 className="text-sm font-medium text-gray-800 flex items-center">
-                <BarChart3 className="h-3 w-3 mr-1" />
-                Estatísticas
-              </h3>
+            <BarChart3 className="h-3 w-3 mr-1" />
+            Estatísticas
+          </h3>
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -573,15 +573,15 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              <button 
-                onClick={() => setIsStatsModalOpen(false)}
+            <button 
+              onClick={() => setIsStatsModalOpen(false)}
                 className="text-gray-500 hover:text-gray-700"
                 title="Fechar"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
             </div>
           </div>
           <div className="p-4">
