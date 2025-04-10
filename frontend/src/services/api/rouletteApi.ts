@@ -1,154 +1,139 @@
 import axios from 'axios';
-import ENDPOINTS, { getFullUrl } from './endpoints';
-import { getLogger } from '../utils/logger';
-
-// Logger para a API
-const Logger = getLogger('RouletteAPI');
+import { ENDPOINTS } from './endpoints';
+import { getNumericId } from '../data/rouletteTransformer';
 
 /**
- * Interface para dados da roleta
+ * Cliente de API para comunicação com os endpoints de roleta
  */
-export interface RouletteData {
-  id?: string;
-  _id?: string;
-  roleta_id?: string;
-  name?: string;
-  nome?: string;
-  numeros?: Array<{
-    numero: string | number;
-    roleta_id?: string;
-    timestamp?: number;
-    cor?: string;
-  }>;
-  lastNumbers?: Array<{
-    numero: string | number;
-    roleta_id?: string;
-    timestamp?: number;
-    cor?: string;
-  }>;
-  vitorias?: number;
-  derrotas?: number;
-  estado_estrategia?: string;
-  active?: boolean;
-}
-
-/**
- * Função auxiliar para extrair o ID numérico da roleta
- * @param roulette Dados da roleta
- * @returns ID numérico da roleta
- */
-function getNumericId(roulette: RouletteData): string {
-  if (roulette.roleta_id) return roulette.roleta_id;
-  
-  if (roulette.numeros && roulette.numeros.length > 0) {
-    const firstNumber = roulette.numeros[0];
-    if (firstNumber && firstNumber.roleta_id) {
-      return firstNumber.roleta_id;
-    }
-  }
-  
-  return roulette.id || roulette._id || '';
-}
-
-/**
- * API para interação com dados de roletas
- */
-export class RouletteApi {
+export const RouletteApi = {
   /**
    * Busca todas as roletas disponíveis
-   * @returns Lista de roletas processadas
+   * @returns Array de objetos de roleta
    */
-  static async fetchAllRoulettes(): Promise<RouletteData[]> {
+  async fetchAllRoulettes() {
     try {
-      Logger.info('Buscando todas as roletas do servidor de produção');
-      const response = await axios.get(getFullUrl(ENDPOINTS.ROULETTES_LIMITED));
+      console.log('[API] Buscando todas as roletas disponíveis');
+      const response = await axios.get(ENDPOINTS.ROULETTES);
       
-      if (!response || !response.data) {
-        Logger.warn('Nenhuma roleta retornada pela API');
+      if (!response.data || !Array.isArray(response.data)) {
+        console.error('[API] Resposta inválida da API de roletas:', response.data);
         return [];
       }
       
-      // Certifica que todas as roletas tenham um ID válido
-      const roulettes = response.data.map((roulette: RouletteData) => {
-        // Garante que cada roleta tenha um roleta_id (pode vir de diferentes lugares)
-        if (!roulette.roleta_id) {
-          const numericId = getNumericId(roulette);
-          if (numericId) {
-            roulette.roleta_id = numericId;
-          } else {
-            Logger.warn(`Roleta sem ID válido: ${JSON.stringify(roulette)}`);
-          }
+      console.log(`[API] ✅ Obtidas ${response.data.length} roletas`);
+      
+      // Processar cada roleta para extrair campos relevantes
+      const processedRoulettes = response.data.map((roulette: any) => {
+        // Garantir que temos o campo roleta_id em cada objeto
+        if (!roulette.roleta_id && roulette._id) {
+          const numericId = getNumericId(roulette._id);
+          console.log(`[API] Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
+          roulette.roleta_id = numericId;
         }
         return roulette;
       });
       
-      return roulettes;
+      return processedRoulettes;
     } catch (error) {
-      Logger.error('Erro ao buscar roletas:', error);
+      console.error('[API] Erro ao buscar roletas:', error);
       return [];
     }
-  }
-  
+  },
+
   /**
    * Busca uma roleta específica pelo ID
-   * @param id ID da roleta
-   * @returns Dados da roleta ou null se não encontrada
+   * @param id ID da roleta a ser buscada
+   * @returns Objeto da roleta encontrada ou null
    */
-  static async fetchRouletteById(id: string): Promise<RouletteData | null> {
-    if (!id) {
-      Logger.warn('ID da roleta não fornecido para busca');
+  async fetchRouletteById(id: string) {
+    try {
+      console.log(`[API] Buscando roleta com ID: ${id}`);
+      // Converter para ID numérico para normalização
+      const numericId = getNumericId(id);
+      
+      // Buscar todas as roletas e filtrar localmente
+      // Este método é mais eficiente do que fazer múltiplas requisições
+      const allRoulettes = await this.fetchAllRoulettes();
+      
+      // Buscar com prioridade pelo campo roleta_id
+      const roulette = allRoulettes.find((r: any) => 
+        r.roleta_id === numericId || 
+        r.id === numericId || 
+        r._id === id
+      );
+      
+      if (roulette) {
+        console.log(`[API] ✅ Roleta encontrada: ${roulette.nome || roulette.name}`);
+        return roulette;
+      }
+      
+      console.warn(`[API] ❌ Roleta com ID ${numericId} não encontrada`);
+      return null;
+    } catch (error) {
+      console.error(`[API] Erro ao buscar roleta ${id}:`, error);
       return null;
     }
-    
+  },
+  
+  /**
+   * Busca a estratégia atual para uma roleta
+   * @param id ID da roleta
+   * @returns Objeto de estratégia ou null
+   */
+  async fetchRouletteStrategy(id: string) {
     try {
-      Logger.info(`Buscando roleta com ID: ${id}`);
-      const response = await axios.get(getFullUrl(`${ENDPOINTS.ROULETTES}/${id}`));
+      console.log(`[API] Buscando estratégia para roleta ID: ${id}`);
       
-      if (!response || !response.data) {
-        Logger.warn(`Roleta com ID ${id} não encontrada`);
+      // Converter para ID numérico para normalização
+      const numericId = getNumericId(id);
+      
+      // Buscar dados da roleta que já incluem a estratégia
+      const roulette = await this.fetchRouletteById(numericId);
+      
+      if (!roulette) {
+        console.warn(`[API] Roleta ${numericId} não encontrada para estratégia`);
         return null;
       }
       
-      // Garante que a roleta retornada tenha um ID válido
-      const roulette = response.data;
-      if (!roulette.roleta_id) {
-        roulette.roleta_id = id;
-      }
+      // Extrair dados da estratégia do objeto da roleta
+      const strategy = {
+        estado: roulette.estado_estrategia || 'NEUTRAL',
+        numero_gatilho: roulette.numero_gatilho || null,
+        terminais_gatilho: roulette.terminais_gatilho || [],
+        vitorias: roulette.vitorias || 0,
+        derrotas: roulette.derrotas || 0,
+        sugestao_display: roulette.sugestao_display || ''
+      };
       
-      return roulette;
+      console.log(`[API] ✅ Estratégia obtida para roleta ${numericId}`);
+      return strategy;
     } catch (error) {
-      Logger.error(`Erro ao buscar roleta com ID ${id}:`, error);
+      console.error(`[API] Erro ao buscar estratégia para roleta ${id}:`, error);
       return null;
     }
-  }
+  },
   
   /**
    * Busca o histórico de números de uma roleta específica
-   * @param id ID da roleta
-   * @returns Lista de números da roleta
+   * @param rouletteName Nome da roleta
+   * @returns Array com até 1000 números históricos
    */
-  static async fetchRouletteHistory(id: string): Promise<any[]> {
-    if (!id) {
-      Logger.warn('ID da roleta não fornecido para busca de histórico');
-      return [];
-    }
-    
+  async fetchRouletteHistory(rouletteName: string) {
     try {
-      Logger.info(`Buscando histórico da roleta com ID: ${id}`);
-      const response = await axios.get(getFullUrl(`${ENDPOINTS.HISTORY}/${id}`));
+      console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
       
-      if (!response || !response.data) {
-        Logger.warn(`Histórico da roleta com ID ${id} não encontrado`);
+      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
+      
+      if (!response.data || !Array.isArray(response.data)) {
+        console.error('[API] Resposta inválida do histórico:', response.data);
         return [];
       }
       
-      return Array.isArray(response.data) ? response.data : [];
+      console.log(`[API] ✅ Obtidos ${response.data.length} números históricos`);
+      return response.data;
     } catch (error) {
-      Logger.error(`Erro ao buscar histórico da roleta com ID ${id}:`, error);
+      console.error(`[API] Erro ao buscar histórico da roleta ${rouletteName}:`, error);
       return [];
     }
   }
-}
-
-// Exportar a API como default
-export default RouletteApi; 
+}; 

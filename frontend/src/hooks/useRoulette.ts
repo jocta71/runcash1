@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import * as rouletteRepository from '../services/data/rouletteRepository';
+import { useState, useEffect } from 'react';
+import { RouletteRepository, RouletteData } from '../services/data/rouletteRepository';
 
 /**
  * Hook personalizado para acessar os dados de uma roleta específica
@@ -7,7 +7,7 @@ import * as rouletteRepository from '../services/data/rouletteRepository';
  * @returns Estado do hook contendo os dados, estado de carregamento e erro
  */
 export function useRoulette(rouletteId: string) {
-  const [roulette, setRoulette] = useState<rouletteRepository.RouletteData | null>(null);
+  const [roulette, setRoulette] = useState<RouletteData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -22,7 +22,7 @@ export function useRoulette(rouletteId: string) {
           throw new Error('ID da roleta não fornecido');
         }
         
-        const data = await rouletteRepository.fetchRouletteById(rouletteId);
+        const data = await RouletteRepository.fetchRouletteById(rouletteId);
         
         if (!isMounted) return;
         
@@ -48,7 +48,7 @@ export function useRoulette(rouletteId: string) {
     loadData();
     
     // Assinar atualizações em tempo real
-    const unsubscribe = rouletteRepository.subscribeToRouletteUpdates(
+    const unsubscribe = RouletteRepository.subscribeToRouletteUpdates(
       rouletteId,
       (updatedData) => {
         if (isMounted) {
@@ -73,7 +73,7 @@ export function useRoulette(rouletteId: string) {
  * @returns Estado do hook contendo um objeto mapeado de IDs para dados, estado de carregamento e erro
  */
 export function useMultipleRoulettes(rouletteIds: string[]) {
-  const [roulettes, setRoulettes] = useState<Record<string, rouletteRepository.RouletteData>>({});
+  const [roulettes, setRoulettes] = useState<Record<string, RouletteData>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -91,10 +91,10 @@ export function useMultipleRoulettes(rouletteIds: string[]) {
         }
         
         // Mapa para armazenar dados das roletas
-        const roulettesMap: Record<string, rouletteRepository.RouletteData> = {};
+        const roulettesMap: Record<string, RouletteData> = {};
         
         // Carregar todas as roletas de uma vez para otimizar
-        const allRoulettes = await rouletteRepository.fetchAllRoulettesWithNumbers();
+        const allRoulettes = await RouletteRepository.fetchAllRoulettesWithNumbers();
         
         if (!isMounted) return;
         
@@ -108,7 +108,7 @@ export function useMultipleRoulettes(rouletteIds: string[]) {
             roulettesMap[id] = roulette;
             
             // Assinar atualizações em tempo real para cada roleta
-            const unsubscribe = rouletteRepository.subscribeToRouletteUpdates(
+            const unsubscribe = RouletteRepository.subscribeToRouletteUpdates(
               id,
               (updatedData) => {
                 if (isMounted) {

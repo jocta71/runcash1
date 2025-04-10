@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMultipleRoulettes } from '../hooks/useRoulette';
 import RouletteCard from '../services/ui/components/RouletteCard';
-import * as rouletteRepository from '../services/data/rouletteRepository';
+import { RouletteRepository } from '../services/data/rouletteRepository';
 import './Roulettes.css';
 
 /**
@@ -17,7 +17,7 @@ const RoulettesPage: React.FC = () => {
     const loadRouletteIds = async () => {
       try {
         setLoading(true);
-        const roulettes = await rouletteRepository.fetchAllRoulettesWithNumbers();
+        const roulettes = await RouletteRepository.fetchAllRoulettesWithNumbers();
         setAllRouletteIds(roulettes.map(r => r.id));
         setError(null);
       } catch (err) {
