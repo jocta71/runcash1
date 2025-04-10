@@ -1,6 +1,9 @@
 import axios from 'axios';
-import { ENDPOINTS } from './endpoints';
-import { Logger } from '../../utils/logger';
+import ENDPOINTS, { getFullUrl } from './endpoints';
+import { getLogger } from '../utils/logger';
+
+// Logger para a API
+const Logger = getLogger('RouletteAPI');
 
 /**
  * Interface para dados da roleta
@@ -15,11 +18,13 @@ export interface RouletteData {
     numero: string | number;
     roleta_id?: string;
     timestamp?: number;
+    cor?: string;
   }>;
   lastNumbers?: Array<{
     numero: string | number;
     roleta_id?: string;
     timestamp?: number;
+    cor?: string;
   }>;
   vitorias?: number;
   derrotas?: number;
@@ -56,7 +61,7 @@ export class RouletteApi {
   static async fetchAllRoulettes(): Promise<RouletteData[]> {
     try {
       Logger.info('Buscando todas as roletas do servidor de produção');
-      const response = await axios.get(ENDPOINTS.ROULETTES_LIMITED);
+      const response = await axios.get(getFullUrl(ENDPOINTS.ROULETTES_LIMITED));
       
       if (!response || !response.data) {
         Logger.warn('Nenhuma roleta retornada pela API');
@@ -80,7 +85,7 @@ export class RouletteApi {
       return roulettes;
     } catch (error) {
       Logger.error('Erro ao buscar roletas:', error);
-      throw error;
+      return [];
     }
   }
   
@@ -97,7 +102,7 @@ export class RouletteApi {
     
     try {
       Logger.info(`Buscando roleta com ID: ${id}`);
-      const response = await axios.get(`${ENDPOINTS.ROULETTES}/${id}`);
+      const response = await axios.get(getFullUrl(`${ENDPOINTS.ROULETTES}/${id}`));
       
       if (!response || !response.data) {
         Logger.warn(`Roleta com ID ${id} não encontrada`);
@@ -119,7 +124,7 @@ export class RouletteApi {
   
   /**
    * Busca o histórico de números de uma roleta específica
-   * @param roletaId ID da roleta
+   * @param id ID da roleta
    * @returns Lista de números da roleta
    */
   static async fetchRouletteHistory(id: string): Promise<any[]> {
@@ -130,7 +135,7 @@ export class RouletteApi {
     
     try {
       Logger.info(`Buscando histórico da roleta com ID: ${id}`);
-      const response = await axios.get(`${ENDPOINTS.HISTORY}/${id}`);
+      const response = await axios.get(getFullUrl(`${ENDPOINTS.HISTORY}/${id}`));
       
       if (!response || !response.data) {
         Logger.warn(`Histórico da roleta com ID ${id} não encontrado`);
@@ -145,4 +150,5 @@ export class RouletteApi {
   }
 }
 
-export default new RouletteApi(); 
+// Exportar a API como default
+export default RouletteApi; 

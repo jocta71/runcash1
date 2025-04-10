@@ -2,7 +2,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import './RouletteCard.css';
 import { RouletteData } from '../services/api/rouletteApi';
 import * as rouletteRepository from '../services/data/rouletteRepository';
-import { Logger } from '../utils/logger';
+import { getLogger } from '../services/utils/logger';
+
+// Inicializa o logger para este componente
+const Logger = getLogger('RouletteCard');
 
 interface RouletteCardProps {
   data: RouletteData; // Dados iniciais da roleta
@@ -57,7 +60,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
       setRouletteData(updatedData);
       
       // Extrai os últimos números
-      const numbers = updatedData.numeros || updatedData.lastNumbers || [];
+      const numbers = updatedData.numeros || [];
       
       // Verifica se há um novo número
       if (numbers.length > 0 && 

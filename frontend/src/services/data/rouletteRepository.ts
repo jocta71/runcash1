@@ -1,5 +1,5 @@
 import { RouletteApi, RouletteData as ApiRouletteData } from '../api/rouletteApi';
-import { getLogger } from '../../utils/logger';
+import { getLogger } from '../utils/logger';
 
 // Logger para o repositório
 const Logger = getLogger('Repository');
@@ -57,14 +57,14 @@ function transformRouletteData(data: ApiRouletteData): RouletteData {
   if (data.numeros && Array.isArray(data.numeros)) {
     numeros = data.numeros.map(num => ({
       numero: num.numero,
-      cor: num.cor,
-      timestamp: num.timestamp
+      cor: typeof num.cor !== 'undefined' ? num.cor : undefined,
+      timestamp: typeof num.timestamp !== 'undefined' ? String(num.timestamp) : undefined
     }));
   } else if (data.lastNumbers && Array.isArray(data.lastNumbers)) {
     numeros = data.lastNumbers.map(num => ({
       numero: num.numero,
-      cor: num.cor,
-      timestamp: num.timestamp
+      cor: typeof num.cor !== 'undefined' ? num.cor : undefined,
+      timestamp: typeof num.timestamp !== 'undefined' ? String(num.timestamp) : undefined
     }));
   }
   
@@ -328,4 +328,12 @@ const rouletteRepository = {
   }
 };
 
+// Exportar todas as funções individualmente para facilitar o acesso
+export const clearCache = rouletteRepository.clearCache;
+export const fetchAllRoulettesWithNumbers = rouletteRepository.fetchAllRoulettesWithNumbers;
+export const fetchRouletteById = rouletteRepository.fetchRouletteById;
+export const addNewNumberToRoulette = rouletteRepository.addNewNumberToRoulette;
+export const updateRouletteStrategy = rouletteRepository.updateRouletteStrategy;
+
+// Exportar o repositório como default
 export default rouletteRepository; 
