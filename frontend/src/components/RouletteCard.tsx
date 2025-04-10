@@ -111,7 +111,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
-  const [isMinimized, setIsMinimized] = useState(false);
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -389,13 +388,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
   };
 
-  // Função para minimizar/maximizar o card
-  const toggleMinimize = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsMinimized(!isMinimized);
-  };
-
   return (
     <Card 
       ref={cardRef}
@@ -421,20 +413,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={toggleMinimize}
-              className="h-7 w-7" 
-              title={isMinimized ? "Expandir" : "Minimizar"}
-            >
-              {isMinimized ? (
-                <ArrowDown className="h-4 w-4" />
-              ) : (
-                <ArrowUp className="h-4 w-4" />
-              )}
-            </Button>
-            
-            <Button 
-              variant="ghost" 
-              size="icon" 
               onClick={toggleStats}
               className="h-7 w-7" 
               title="Ver estatísticas"
@@ -444,56 +422,53 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           </div>
         </div>
         
-        {/* Conteúdo principal - só exibe se não estiver minimizado */}
-        {!isMinimized && (
-          <>
-            {/* Último número (grande) */}
-            {lastNumber !== null ? (
-              <div className="flex justify-center my-4">
-                <div 
-                  className={`w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-bold
-                    ${getNumberColor(lastNumber) === 'vermelho' ? 'bg-red-600' : 
-                      getNumberColor(lastNumber) === 'preto' ? 'bg-black' : 'bg-green-600'}`}
-                >
-                  {lastNumber}
-                </div>
-              </div>
-            ) : (
-              <div className="flex justify-center my-4">
-                <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center text-gray-500 text-xl">
-                  {loading ? "..." : "?"}
-                </div>
-              </div>
-            )}
-            
-            {/* Números recentes */}
+        {/* Último número (grande) */}
+        {lastNumber !== null ? (
+          <div className="flex justify-center my-4">
+            <div 
+              className={`w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-bold
+                ${getNumberColor(lastNumber) === 'vermelho' ? 'bg-red-600' : 
+                  getNumberColor(lastNumber) === 'preto' ? 'bg-black' : 'bg-green-600'}`}
+            >
+              {lastNumber}
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-center my-4">
+            <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center text-gray-500 text-xl">
+              {loading ? "..." : "?"}
+            </div>
+          </div>
+        )}
+        
+        {/* Números recentes */}
         <div className="flex flex-wrap gap-1 justify-center my-3">
-              {recentNumbers.length > 0 ? (
-                recentNumbers.slice(0, 20).map((num, idx) => (
+          {recentNumbers.length > 0 ? (
+            recentNumbers.slice(0, 20).map((num, idx) => (
             <NumberDisplay 
               key={`${num}-${idx}`}
               number={num} 
               size="small" 
               highlight={idx === 0 && isNewNumber}
             />
-                ))
-              ) : (
-                <div className="text-center text-gray-500 py-2">
-                  {loading ? "Carregando números..." : "Nenhum número disponível"}
-                </div>
-              )}
+            ))
+          ) : (
+            <div className="text-center text-gray-500 py-2">
+              {loading ? "Carregando números..." : "Nenhum número disponível"}
+            </div>
+          )}
         </div>
         
-            {/* Rodapé */}
-            <div className="mt-3 flex items-center justify-between text-xs">
+        {/* Rodapé */}
+        <div className="mt-3 flex items-center justify-between text-xs">
           <div className="flex items-center space-x-2">
             <Button
               variant="outline" 
               size="sm"
-                  className="h-7 py-0 px-2"
+              className="h-7 py-0 px-2"
               onClick={toggleStats}
             >
-                  <BarChart3 className="h-3 w-3 mr-1" />
+              <BarChart3 className="h-3 w-3 mr-1" />
               <span className="text-xs">Estatísticas</span>
             </Button>
           </div>
@@ -501,23 +476,21 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           <div className="flex items-center text-xs text-gray-400">
             <Timer className="h-3 w-3 mr-1" />
             <span>
-                  {hasRealData 
-                    ? `Atualizado ${getTimeAgo()}` 
-                    : (loading ? "Carregando..." : "Aguardando dados")}
+              {hasRealData 
+                ? `Atualizado ${getTimeAgo()}` 
+                : (loading ? "Carregando..." : "Aguardando dados")}
             </span>
           </div>
         </div>
-            
-            {/* Indicador de sincronização */}
-            <div className="mt-2 text-xs text-center text-gray-500 border-t border-gray-100 pt-1">
-              Sincroniza automaticamente a cada 8s ({updateCount} atualizações)
-            </div>
-          </>
-        )}
+        
+        {/* Indicador de sincronização */}
+        <div className="mt-2 text-xs text-center text-gray-500 border-t border-gray-100 pt-1">
+          Sincroniza automaticamente a cada 8s ({updateCount} atualizações)
+        </div>
       </CardContent>
 
-      {/* Painel de estatísticas - só exibe se não estiver minimizado */}
-      {showStats && !isMinimized && (
+      {/* Painel de estatísticas */}
+      {showStats && (
         <div className="mt-0 px-4 pb-4">
           <div className="bg-gray-100 p-3 rounded-lg border border-gray-200">
             <h3 className="text-sm font-medium text-gray-800 mb-2 flex items-center">

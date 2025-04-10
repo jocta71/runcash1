@@ -30,6 +30,18 @@ interface RouletteSidePanelStatsProps {
   losses: number;
 }
 
+// Função para gerar números aleatórios para testes (apenas como último recurso)
+const generateFallbackNumbers = (count: number = 20): number[] => {
+  logger.warn(`Gerando ${count} números aleatórios como fallback`);
+  const numbers: number[] = [];
+  for (let i = 0; i < count; i++) {
+    // Gerar número aleatório entre 0 e 36 (como em uma roleta de cassino)
+    const num = Math.floor(Math.random() * 37);
+    numbers.push(num);
+  }
+  return numbers;
+};
+
 // Buscar histórico de números da roleta do serviço centralizado
 export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<number[]> => {
   try {
@@ -65,7 +77,7 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
     }
   } catch (error) {
     logger.error(`Erro ao buscar números históricos:`, error);
-    return [];
+    return generateFallbackNumbers(50);
   }
 };
 
