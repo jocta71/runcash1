@@ -261,7 +261,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       
       // Selecionar a primeira roleta automaticamente
       if (!selectedRoulette) {
-        setSelectedRoulette(roulettesData[0]);
+        setSelectedRoulette(roulettesData[1]);
         setShowStatsInline(true);
       }
     } else {
