@@ -145,25 +145,34 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Indicar que está carregando
       setLoading(true);
       
-      // URL da API - Correção: usar o endpoint ROULETTES em maiúsculos
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api';
-      const url = `${apiBaseUrl}/ROULETTES`; // Endpoint correto
+      // URL da API - Usando o endpoint de proxy local para evitar problemas de CORS
+      // Utilizando o proxy definido em pages/api/proxy-roulette.js
+      const url = `/api/proxy-roulette`;
       
       console.log(`[${Date.now()}] Buscando dados de todas as roletas para encontrar ${safeData.name} (ID: ${safeData.id})`);
       
-      // Fazer a requisição para obter todas as roletas
-      const response = await axios.get(url, { 
+      // Fazer a requisição para obter todas as roletas através do proxy
+      const response = await fetch(url, {
         signal: abortControllerRef.current.signal,
-        timeout: 5000 // 5 segundos de timeout
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
       });
       
       // Validar resposta
-      if (!response.data || !Array.isArray(response.data)) {
+      if (!response.ok) {
+        throw new Error(`Erro na API: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data || !Array.isArray(data)) {
         throw new Error('Resposta da API inválida ou vazia');
       }
       
       // Encontrar a roleta específica pelo ID
-      const myRoulette = response.data.find((roulette: any) => 
+      const myRoulette = data.find((roulette: any) => 
         roulette.id === safeData.id || 
         roulette._id === safeData.id || 
         roulette.name === safeData.name || 
