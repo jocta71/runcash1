@@ -7,16 +7,16 @@ import { HistoryData } from './SocketService';
 const logger = getLogger('RouletteFeedService');
 
 // Configurações globais para o serviço
-const POLLING_INTERVAL = 8000; // Intervalo fixo de 8 segundos
+const POLLING_INTERVAL = 10000; // Intervalo fixo de 10 segundos
 const MIN_REQUEST_INTERVAL = 3000; // Intervalo mínimo entre requisições em ms
 const CACHE_TTL = 15000; // 15 segundos de TTL para o cache
 const MAX_CONSECUTIVE_ERRORS = 5; // Máximo de erros consecutivos antes de pausar
 const HEALTH_CHECK_INTERVAL = 30000; // Verificar a saúde do sistema a cada 30 segundos
 
 // Adicionar constantes para o sistema de recuperação inteligente
-const NORMAL_POLLING_INTERVAL = 8000; // 8 segundos em condições normais
-const ERROR_POLLING_INTERVAL = 8000; // 8 segundos mesmo quando ocorrem erros
-const MAX_ERROR_POLLING_INTERVAL = 8000; // 8 segundos no máximo após vários erros
+const NORMAL_POLLING_INTERVAL = 10000; // 10 segundos em condições normais
+const ERROR_POLLING_INTERVAL = 10000; // 10 segundos mesmo quando ocorrem erros
+const MAX_ERROR_POLLING_INTERVAL = 10000; // 10 segundos no máximo após vários erros
 const RECOVERY_CHECK_INTERVAL = 60000; // 1 minuto para verificação de recuperação completa
 const MIN_SUCCESS_STREAK_FOR_NORMALIZATION = 3; // Sucessos consecutivos para normalizar
 
@@ -116,9 +116,9 @@ export default class RouletteFeedService {
   };
   
   // Configurações de polling
-  private interval: number = POLLING_INTERVAL; // Usar o intervalo global
-  private minInterval: number = 8000; // Mínimo 8 segundos
-  private maxInterval: number = 8000; // Máximo 8 segundos
+  private interval: number = 10000; // Usar o intervalo global
+  private minInterval: number = 10000; // Mínimo 10 segundos
+  private maxInterval: number = 10000; // Máximo 10 segundos
   private maxRequestsPerMinute: number = 120; // Aumentado para 120 requisições por minuto (2 por segundo)
   private backoffMultiplier: number = 1.5; // Multiplicador para backoff em caso de falhas
   
@@ -194,9 +194,9 @@ export default class RouletteFeedService {
   constructor(options: RouletteFeedServiceOptions = {}) {
     const {
       autoStart = true,
-      initialInterval = 8000, // 8 segundos padrão
-      minInterval = 5000,
-      maxInterval = 8000,
+      initialInterval = 10000, // 10 segundos padrão
+      minInterval = 10000,
+      maxInterval = 10000,
       historySize = 20
     } = options;
 
@@ -219,16 +219,16 @@ export default class RouletteFeedService {
 
     // Verificar se o intervalo especificado é válido
     if (options.initialInterval) {
-      this.initialInterval = 8000; // Forçar a 8 segundos
-      this.currentPollingInterval = 8000; // Forçar a 8 segundos
+      this.initialInterval = 10000; // Forçar a 10 segundos
+      this.currentPollingInterval = 10000; // Forçar a 10 segundos
     }
 
     if (options.minInterval) {
-      this.minInterval = 8000; // Forçar a 8 segundos
+      this.minInterval = 10000; // Forçar a 10 segundos
     }
 
     if (options.maxInterval) {
-      this.maxInterval = 8000; // Forçar a 8 segundos
+      this.maxInterval = 10000; // Forçar a 10 segundos
     }
 
     // Iniciar o serviço automaticamente se configurado
@@ -748,8 +748,8 @@ export default class RouletteFeedService {
    * Ajusta dinamicamente o intervalo de polling com base no sucesso ou falha das requisições
    */
   private adjustPollingInterval(hasError: boolean): void {
-    // Sempre manter o intervalo em 8 segundos exatos
-    this.currentPollingInterval = 8000; // Forçar a 8 segundos
+    // Sempre manter o intervalo em 10 segundos exatos
+    this.currentPollingInterval = 10000; // Forçar a 10 segundos
     
     if (hasError) {
       this.consecutiveErrors++;
@@ -777,7 +777,7 @@ export default class RouletteFeedService {
       this.restartPollingTimer();
     }
     
-    logger.info(`⏱️ Intervalo de polling mantido em ${this.currentPollingInterval}ms (fixo em 8s)`);
+    logger.info(`⏱️ Intervalo de polling mantido em ${this.currentPollingInterval}ms (fixo em 10s)`);
   }
   
   private pausePolling(): void {
@@ -1055,6 +1055,9 @@ export default class RouletteFeedService {
     
     // Ajustar o intervalo de polling com base no sucesso
     this.adjustPollingInterval(false);
+    
+    // Notificar que temos novos dados
+    this.notifySubscribers(data);
   }
 
   /**

@@ -80,23 +80,7 @@ export class RouletteHistoryService {
     
     // Simulando um atraso para evitar loop infinito
     await new Promise(resolve => setTimeout(resolve, 200));
-    
-    // DESATIVADO: Código original de requisição HTTP
-    /*
-    try {
-      const apiResponse = await fetch(`${API_BASE_URL}/api/ROULETTES/historico?id=${rouletteName}`);
-      
-      if (!apiResponse.ok) {
-        throw new Error(`Erro ao buscar histórico da roleta ${rouletteName}: ${apiResponse.statusText}`);
-      }
-      
-      const data = await apiResponse.json();
-      return data;
-    } catch (error) {
-      console.error(`[RouletteHistoryService] Erro ao buscar histórico da roleta ${rouletteName}:`, error);
-      throw error;
-    }
-    */
+  
     
     // Atualiza o cache
     this.cache[rouletteName] = {
