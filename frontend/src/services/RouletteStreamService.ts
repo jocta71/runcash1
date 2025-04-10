@@ -1,32 +1,37 @@
-import { getLogger } from './utils/logger';
 import EventService from './EventService';
-import { RouletteData, RouletteNumberEvent } from '@/types';
-import config from '@/config/env';
+import RouletteFeedService from './RouletteFeedService';
+import { getLogger } from './utils/logger';
 
+// Logger para este serviço
 const logger = getLogger('RouletteStreamService');
 
+// Configurações para o streaming
+const BASE_API_URL = 'https://backendapi-production-36b5.up.railway.app';
+const POLL_INTERVAL = 8000; // 8 segundos para polling - podemos ajustar conforme necessidade
+const MAX_RETRY_ATTEMPTS = 3;
+const RETRY_DELAY = 2000; // 2 segundos entre tentativas
+
 /**
- * Serviço para conectar ao endpoint de streaming de dados da API REST
- * Utiliza Server-Sent Events (SSE) para receber atualizações em tempo real
+ * Serviço para streaming de dados de roletas em tempo real
+ * Usa a API REST: https://backendapi-production-36b5.up.railway.app/api/ROULETTES
  */
 export default class RouletteStreamService {
   private static instance: RouletteStreamService | null = null;
-  private eventSource: EventSource | null = null;
+  private pollingTimer: number | null = null;
+  private isPolling: boolean = false;
   private isConnected: boolean = false;
-  private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 5;
-  private reconnectTimeout: number | null = null;
-  private baseApiUrl: string = '';
-  
-  // Cache local de dados
-  private rouletteDataCache: Map<string, RouletteData> = new Map();
-  
+  private lastFetchTime: number = 0;
+  private retryAttempts: number = 0;
+  private feedService: RouletteFeedService;
+
+  /**
+   * Construtor privado para implementação do Singleton
+   */
   private constructor() {
-    // Usar o endpoint específico do Railway
-    this.baseApiUrl = 'https://backendapi-production-36b5.up.railway.app';
-    this.setupVisibilityChangeListener();
+    this.feedService = RouletteFeedService.getInstance();
+    this.setupEventListeners();
   }
-  
+
   /**
    * Obtém a instância única do serviço
    */
@@ -36,291 +41,215 @@ export default class RouletteStreamService {
     }
     return RouletteStreamService.instance;
   }
-  
+
   /**
-   * Configura listener para mudanças de visibilidade da página
-   * Isso permite reconectar quando a página volta a ficar visível
+   * Configura listeners para eventos relacionados
    */
-  private setupVisibilityChangeListener(): void {
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        if (!this.isConnected) {
-          logger.info('👁️ Página visível, reconectando ao stream');
-          this.connect();
-        }
-      } else {
-        // Desconecta quando a página não está visível para economizar recursos
-        logger.info('🔒 Página em segundo plano, desconectando do stream');
-        this.disconnect();
-      }
-    });
+  private setupEventListeners(): void {
+    // Monitorar mudanças de visibilidade do documento
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    }
+
+    // Escutar por solicitações de atualização manual
+    EventService.on('roulette:manual-refresh', this.fetchDataImmediately);
   }
-  
+
   /**
-   * Conecta ao endpoint de streaming da API
+   * Inicia a conexão e o streaming de dados
    */
   public connect(): void {
-    if (this.isConnected || this.eventSource) {
-      logger.info('Já conectado ao stream, ignorando nova conexão');
+    if (this.isConnected) {
+      logger.info('Já está conectado ao streaming de dados');
       return;
     }
+
+    logger.info('Iniciando conexão com o streaming de dados de roletas');
+    this.isConnected = true;
     
-    try {
-      logger.info('🔌 Conectando ao endpoint de streaming...');
-      
-      // Cria uma conexão SSE com o endpoint de streaming
-      // Usando o endpoint existente e adicionando o parâmetro stream=true
-      const url = `${this.baseApiUrl}/api/ROULETTES?stream=true`;
-      this.eventSource = new EventSource(url);
-      
-      // Configura handlers de eventos
-      this.eventSource.onopen = () => {
-        logger.success('✅ Conexão de streaming estabelecida');
-        this.isConnected = true;
-        this.reconnectAttempts = 0;
-        
-        // Notificar sobre a conexão bem sucedida
-        EventService.emit('roulette:stream-connected', {
-          timestamp: new Date().toISOString()
-        });
-      };
-      
-      // Handler para mensagens recebidas
-      this.eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          this.handleStreamData(data);
-        } catch (error) {
-          logger.error('❌ Erro ao processar mensagem do stream:', error);
-        }
-      };
-      
-      // Handler específico para novos números
-      this.eventSource.addEventListener('new_number', (event: any) => {
-        try {
-          const data = JSON.parse(event.data);
-          this.handleNewNumber(data);
-        } catch (error) {
-          logger.error('❌ Erro ao processar evento de novo número:', error);
-        }
-      });
-      
-      // Handler específico para atualizações de roletas
-      this.eventSource.addEventListener('roulette_update', (event: any) => {
-        try {
-          const data = JSON.parse(event.data);
-          this.handleRouletteUpdate(data);
-        } catch (error) {
-          logger.error('❌ Erro ao processar atualização de roleta:', error);
-        }
-      });
-      
-      // Handler para erros
-      this.eventSource.onerror = (error) => {
-        logger.error('❌ Erro na conexão de streaming:', error);
-        this.isConnected = false;
-        
-        // Fechar conexão atual
-        if (this.eventSource) {
-          this.eventSource.close();
-          this.eventSource = null;
-        }
-        
-        // Tentar reconexão com backoff exponencial
-        this.attemptReconnect();
-        
-        // Notificar sobre o erro de conexão
-        EventService.emit('roulette:stream-error', {
-          timestamp: new Date().toISOString(),
-          error: 'Conexão de streaming perdida'
-        });
-      };
-    } catch (error) {
-      logger.error('❌ Erro ao iniciar conexão de streaming:', error);
-      this.isConnected = false;
-      this.attemptReconnect();
-    }
+    // Fazer uma busca inicial imediata
+    this.fetchDataImmediately();
+    
+    // Iniciar o polling
+    this.startPolling();
   }
-  
+
   /**
-   * Desconecta do endpoint de streaming
+   * Desconecta do streaming de dados
    */
   public disconnect(): void {
-    if (!this.eventSource) {
+    logger.info('Desconectando do streaming de dados de roletas');
+    this.isConnected = false;
+    this.stopPolling();
+    
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    }
+    
+    EventService.off('roulette:manual-refresh', this.fetchDataImmediately);
+  }
+
+  /**
+   * Inicia o polling para obter atualizações periódicas
+   */
+  private startPolling(): void {
+    if (this.isPolling) return;
+    
+    this.isPolling = true;
+    logger.info(`Iniciando polling de dados a cada ${POLL_INTERVAL/1000} segundos`);
+    
+    this.pollingTimer = window.setInterval(() => {
+      this.fetchRouletteData();
+    }, POLL_INTERVAL);
+  }
+
+  /**
+   * Para o polling
+   */
+  private stopPolling(): void {
+    if (!this.isPolling) return;
+    
+    logger.info('Parando polling de dados');
+    if (this.pollingTimer !== null) {
+      window.clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+    
+    this.isPolling = false;
+  }
+
+  /**
+   * Busca dados imediatamente, ignorando o intervalo de polling
+   */
+  private fetchDataImmediately = (): void => {
+    logger.info('Solicitação de dados imediata');
+    this.fetchRouletteData(true);
+  }
+
+  /**
+   * Verifica e manipula mudanças de visibilidade do documento
+   */
+  private handleVisibilityChange = (): void => {
+    const isVisible = document.visibilityState === 'visible';
+    
+    if (isVisible) {
+      logger.info('Documento visível, retomando streaming');
+      if (this.isConnected && !this.isPolling) {
+        this.startPolling();
+        this.fetchDataImmediately(); // Atualizar imediatamente ao retornar à página
+      }
+    } else {
+      logger.info('Documento em segundo plano, pausando streaming');
+      this.stopPolling();
+    }
+  }
+
+  /**
+   * Busca os dados mais recentes da API de roletas
+   */
+  private fetchRouletteData = async (force = false): Promise<void> => {
+    // Evitar solicitações muito frequentes
+    const now = Date.now();
+    const timeSinceLastFetch = now - this.lastFetchTime;
+    
+    if (!force && timeSinceLastFetch < 3000) {
+      logger.debug('Ignorando solicitação muito frequente');
       return;
     }
+    
+    this.lastFetchTime = now;
     
     try {
-      logger.info('Desconectando do stream...');
-      this.eventSource.close();
-      this.eventSource = null;
-      this.isConnected = false;
+      logger.debug('Obtendo dados atualizados de roletas');
       
-      // Limpar qualquer tentativa pendente de reconexão
-      if (this.reconnectTimeout) {
-        clearTimeout(this.reconnectTimeout);
-        this.reconnectTimeout = null;
+      const response = await fetch(`${BASE_API_URL}/api/ROULETTES`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
       }
       
-      // Notificar sobre a desconexão
-      EventService.emit('roulette:stream-disconnected', {
-        timestamp: new Date().toISOString()
-      });
+      const data = await response.json();
+      
+      // Processar os dados recebidos
+      this.processRouletteData(data);
+      
+      // Resetar contador de tentativas após sucesso
+      this.retryAttempts = 0;
     } catch (error) {
-      logger.error('❌ Erro ao desconectar do stream:', error);
-    }
-  }
-  
-  /**
-   * Tenta reconectar ao endpoint de streaming com backoff exponencial
-   */
-  private attemptReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      logger.warn(`⚠️ Máximo de ${this.maxReconnectAttempts} tentativas de reconexão atingido`);
+      logger.error(`Erro ao buscar dados: ${error.message}`);
       
-      // Notificar sobre falha na reconexão
-      EventService.emit('roulette:stream-reconnect-failed', {
-        timestamp: new Date().toISOString()
-      });
+      // Implementar lógica de retry
+      if (this.retryAttempts < MAX_RETRY_ATTEMPTS) {
+        this.retryAttempts++;
+        
+        logger.info(`Tentando novamente em ${RETRY_DELAY/1000} segundos (tentativa ${this.retryAttempts}/${MAX_RETRY_ATTEMPTS})`);
+        
+        setTimeout(() => {
+          this.fetchRouletteData(true);
+        }, RETRY_DELAY);
+      } else {
+        logger.error(`Falha após ${MAX_RETRY_ATTEMPTS} tentativas`);
+        this.retryAttempts = 0;
+      }
+    }
+  }
+
+  /**
+   * Processa os dados recebidos da API
+   */
+  private processRouletteData(data: any[]): void {
+    if (!Array.isArray(data)) {
+      logger.error('Dados inválidos recebidos da API (não é um array)');
+      return;
+    }
+    
+    logger.info(`Dados recebidos: ${data.length} roletas`);
+    
+    // Processar e normalizar os dados para o formato esperado pelo sistema
+    const normalizedData = data.map(roulette => {
+      // Verificar se temos a propriedade numero e converter para o formato esperado
+      let numeros = [];
       
-      return;
-    }
-    
-    // Calcular tempo de espera com backoff exponencial
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-    logger.info(`🔄 Tentando reconectar em ${delay/1000} segundos (tentativa ${this.reconnectAttempts + 1})`);
-    
-    // Agendar tentativa de reconexão
-    this.reconnectTimeout = window.setTimeout(() => {
-      this.reconnectAttempts++;
-      this.connect();
-    }, delay);
-  }
-  
-  /**
-   * Processa dados recebidos do stream
-   */
-  private handleStreamData(data: any): void {
-    // Verificar se os dados são válidos
-    if (!data || (Array.isArray(data) && data.length === 0)) {
-      logger.warn('⚠️ Recebidos dados vazios do stream');
-      return;
-    }
-    
-    logger.debug(`📦 Dados recebidos do stream:`, data);
-    
-    // Atualizar cache com os dados recebidos
-    if (Array.isArray(data)) {
-      // Caso seja uma lista de roletas
-      data.forEach(roulette => {
-        if (roulette && roulette.id) {
-          this.updateRouletteCache(roulette);
-        }
-      });
-    } else if (data && data.id) {
-      // Caso seja uma única roleta
-      this.updateRouletteCache(data);
-    }
-    
-    // Emitir evento para notificar componentes
-    EventService.emit('roulette:data-updated', {
-      timestamp: new Date().toISOString(),
-      source: 'stream'
-    });
-  }
-  
-  /**
-   * Processa evento de novo número
-   */
-  private handleNewNumber(data: RouletteNumberEvent): void {
-    if (!data || !data.roleta_id) {
-      logger.warn('⚠️ Evento de número inválido:', data);
-      return;
-    }
-    
-    logger.info(`🎲 Novo número recebido para ${data.roleta_nome || data.roleta_id}: ${data.numero}`);
-    
-    // Atualizar o cache com o novo número
-    const cachedRoulette = this.rouletteDataCache.get(data.roleta_id);
-    if (cachedRoulette) {
-      // Se for um número único
-      if (typeof data.numero === 'number') {
-        // Adicionar o novo número ao início da lista
-        cachedRoulette.lastNumbers = [data.numero, ...(cachedRoulette.lastNumbers || [])].slice(0, 50);
-      } 
-      // Se for uma lista de números
-      else if (Array.isArray(data.numero)) {
-        cachedRoulette.lastNumbers = [...data.numero, ...(cachedRoulette.lastNumbers || [])].slice(0, 50);
+      if (roulette.numeros && Array.isArray(roulette.numeros)) {
+        numeros = roulette.numeros;
+      } else if (roulette.numero && Array.isArray(roulette.numero)) {
+        numeros = roulette.numero;
+      } else if (roulette.lastNumbers && Array.isArray(roulette.lastNumbers)) {
+        numeros = roulette.lastNumbers;
       }
       
-      // Atualizar cache
-      this.rouletteDataCache.set(data.roleta_id, cachedRoulette);
+      // Garantir que todos os IDs estão em um formato consistente
+      const id = roulette.id || roulette._id;
+      
+      return {
+        id,
+        _id: id,
+        name: roulette.name || roulette.nome || `Roleta ${id}`,
+        numero: numeros,
+        lastNumbers: numeros,
+        timestamp: roulette.timestamp || new Date().toISOString()
+      };
+    });
+    
+    // Atualizar cada roleta individualmente no cache do RouletteFeedService
+    // em vez de tentar usar o método privado updateRouletteCache
+    if (normalizedData.length > 0) {
+      normalizedData.forEach(roulette => {
+        // Em vez de tentar acessar métodos privados, vamos usar o sistema de eventos
+        // O FeedService escuta estes eventos e atualiza seu cache interno
+        EventService.emit('roulette:new-data', {
+          roulette: roulette,
+          timestamp: new Date().toISOString(),
+          source: 'api-stream'
+        });
+      });
     }
     
-    // Emitir evento de novo número
-    EventService.emit('roulette:new-number', data);
-  }
-  
-  /**
-   * Processa atualização de informações da roleta
-   */
-  private handleRouletteUpdate(data: any): void {
-    if (!data || !data.id) {
-      logger.warn('⚠️ Atualização de roleta inválida:', data);
-      return;
-    }
-    
-    logger.info(`📊 Atualização recebida para roleta ${data.name || data.id}`);
-    
-    // Atualizar cache com os novos dados
-    this.updateRouletteCache(data);
-    
-    // Emitir evento de atualização
-    EventService.emit('roulette:updated', data);
-  }
-  
-  /**
-   * Atualiza o cache local com dados da roleta
-   */
-  private updateRouletteCache(roulette: RouletteData): void {
-    if (!roulette || !roulette.id) return;
-    
-    const cachedRoulette = this.rouletteDataCache.get(roulette.id) || {};
-    
-    // Mesclar dados novos com existentes
-    const updatedRoulette = {
-      ...cachedRoulette,
-      ...roulette,
-      lastUpdate: new Date().toISOString()
-    };
-    
-    // Assegurar que lastNumbers é sempre um array
-    if (!updatedRoulette.lastNumbers) {
-      updatedRoulette.lastNumbers = [];
-    }
-    
-    // Atualizar cache
-    this.rouletteDataCache.set(roulette.id, updatedRoulette);
-  }
-  
-  /**
-   * Obtém dados de uma roleta específica do cache
-   */
-  public getRouletteData(roletaId: string): RouletteData | null {
-    return this.rouletteDataCache.get(roletaId) || null;
-  }
-  
-  /**
-   * Obtém todas as roletas do cache
-   */
-  public getAllRoulettes(): RouletteData[] {
-    return Array.from(this.rouletteDataCache.values());
-  }
-  
-  /**
-   * Verifica se o serviço está conectado ao stream
-   */
-  public isStreamConnected(): boolean {
-    return this.isConnected;
+    // Emitir evento com os novos dados para que os componentes possam reagir
+    EventService.emit('roulette:data-updated', {
+      data: normalizedData,
+      timestamp: new Date().toISOString(),
+      source: 'live-stream'
+    });
   }
 }

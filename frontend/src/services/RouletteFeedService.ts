@@ -230,29 +230,76 @@ export default class RouletteFeedService {
     if (options.maxInterval) {
       this.maxInterval = 8000; // Forçar a 8 segundos
     }
+    
+    // Configurar listeners de evento para dados do streaming
+    this.setupEventListeners();
 
     // Iniciar o serviço automaticamente se configurado
     if (autoStart) {
       this.initialize();
     }
   }
-
+  
   /**
-   * Verifica se uma requisição global está em andamento e libera se estiver bloqueada por muito tempo
+   * Configura listeners para eventos de streaming de dados
    */
-  private checkAndReleaseGlobalLock(): boolean {
-    const now = Date.now();
+  private setupEventListeners(): void {
+    // Escutar por eventos de novas roletas individuais do serviço de streaming
+    EventService.on('roulette:new-data', this.handleRouletteStreamData);
     
-    // Se há uma trava global e já passou muito tempo, liberar a trava
-    if (GLOBAL_IS_FETCHING && (now - GLOBAL_LAST_REQUEST_TIME > GLOBAL_REQUEST_LOCK_TIME)) {
-      logger.warn('🔓 Trava global expirou, liberando para novas requisições');
-      GLOBAL_IS_FETCHING = false;
-      return true;
+    // Configurar o listener de mudanças de visibilidade do documento
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    }
+  }
+  
+  /**
+   * Processa dados recebidos do serviço de streaming
+   */
+  private handleRouletteStreamData = (event: any): void => {
+    if (!event || !event.roulette) {
+      return;
     }
     
-    return !GLOBAL_IS_FETCHING;
+    const roulette = event.roulette;
+    
+    // Verificar se temos um ID válido
+    if (!roulette.id) {
+      logger.warn('Dados de roleta recebidos sem ID válido');
+      return;
+    }
+    
+    logger.info(`Recebido atualização da roleta ${roulette.name || roulette.id} via streaming`);
+    
+    // Verificar se já temos esta roleta no cache
+    const existingRoulette = this.rouletteDataCache.get(roulette.id);
+    
+    // Se a roleta já existe no cache e tem dados novos, atualizar
+    if (existingRoulette) {
+      // Verificar se há dados novos
+      const hasNewData = this.hasNewRouletteData(existingRoulette, roulette);
+      
+      if (hasNewData) {
+        logger.info(`Atualizando roleta ${roulette.name || roulette.id} no cache`);
+        this.rouletteDataCache.set(roulette.id, { ...existingRoulette, ...roulette });
+        this.hasNewData = true;
+      }
+    } else {
+      // Se não existe, adicionar ao cache
+      logger.info(`Adicionando nova roleta ${roulette.name || roulette.id} ao cache`);
+      this.rouletteDataCache.set(roulette.id, roulette);
+      this.hasNewData = true;
+    }
+    
+    // Atualizar timestamp do cache
+    this.lastCacheUpdate = Date.now();
+    
+    // Se tivemos novos dados, notificar os assinantes
+    if (this.hasNewData) {
+      this.notifySubscribers([...this.rouletteDataCache.values()]);
+    }
   }
-
+  
   /**
    * Inicializa o serviço
    */
@@ -733,7 +780,7 @@ export default class RouletteFeedService {
     // Marcar que uma requisição global está em andamento
     window._requestInProgress = true;
     
-    // Definir um timeout para liberar a flag caso a requisição não seja concluída
+    // Definir timeout para liberar a flag caso a requisição não seja concluída
     setTimeout(() => {
       if (window._requestInProgress === true) {
         logger.warn('🔄 Liberando trava de requisição após timeout');
@@ -990,47 +1037,50 @@ export default class RouletteFeedService {
    * Para completamente o serviço e libera recursos
    */
   public stop(): void {
-    logger.info('Parando serviço RouletteFeedService');
+    logger.info('🛑 Parando serviço de feed de roleta');
     
-    // Parar o polling
-    if (this.pollingTimer !== null) {
-      window.clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
-    }
+    this.pausePolling();
     
-    // Limpar timeout de backoff se existir
-    if (this.backoffTimeout !== null) {
-      window.clearTimeout(this.backoffTimeout);
-      this.backoffTimeout = null;
-    }
-    
-    // Limpar timer de monitoramento de saúde
-    if (this.healthCheckTimer !== null) {
-      window.clearInterval(this.healthCheckTimer);
+    // Limpar todos os timers
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer);
       this.healthCheckTimer = null;
     }
     
-    // Limpar timer de sincronização
-    if (this.syncUpdateTimer !== null) {
-      window.clearInterval(this.syncUpdateTimer);
+    if (this.syncUpdateTimer) {
+      clearInterval(this.syncUpdateTimer);
       this.syncUpdateTimer = null;
-      
-      // Remover listener de storage
-      window.removeEventListener('storage', this.handleStorageEvent.bind(this));
     }
     
-    // Remover listeners de visibilidade
+    if (this.recoveryTimer) {
+      clearTimeout(this.recoveryTimer);
+      this.recoveryTimer = null;
+    }
+    
+    if (this.backoffTimeout) {
+      clearTimeout(this.backoffTimeout);
+      this.backoffTimeout = null;
+    }
+    
+    // Limpar todos os listeners
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     }
     
-    // Limpar flags
-    this.isPollingActive = false;
-    this.isFetching = false;
-    this.IS_FETCHING_DATA = false;
-    this.hasFetchedInitialData = false;
+    // Remover o listener de dados de streaming
+    EventService.off('roulette:new-data', this.handleRouletteStreamData);
     
-    logger.info('Serviço RouletteFeedService parado e recursos liberados');
+    // Limpar o cache
+    this.rouletteDataCache.clear();
+    
+    // Reiniciar flags
+    this.initialized = false;
+    this.isInitialized = false;
+    this.isPollingActive = false;
+    this.hasCachedData = false;
+    
+    // Limpar a instância singleton para permitir nova instância limpa
+    RouletteFeedService.instance = null;
   }
 
   /**
@@ -1546,5 +1596,21 @@ export default class RouletteFeedService {
     // Implemente a lógica para notificar sobre o término de uma requisição
     // Esta é uma implementação básica e pode ser expandida conforme necessário
     logger.info(`🔄 Requisição ${requestId} concluída com sucesso: ${status}`);
+  }
+
+  /**
+   * Verifica se uma requisição global está em andamento e libera se estiver bloqueada por muito tempo
+   */
+  private checkAndReleaseGlobalLock(): boolean {
+    const now = Date.now();
+    
+    // Se há uma trava global e já passou muito tempo, liberar a trava
+    if (GLOBAL_IS_FETCHING && (now - GLOBAL_LAST_REQUEST_TIME > GLOBAL_REQUEST_LOCK_TIME)) {
+      logger.warn('🔓 Trava global expirou, liberando para novas requisições');
+      GLOBAL_IS_FETCHING = false;
+      return true;
+    }
+    
+    return !GLOBAL_IS_FETCHING;
   }
 } 

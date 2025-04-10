@@ -527,7 +527,58 @@ app.get('/api/ROULETTES', async (req, res) => {
   }
 });
 
-// Rota para listar todas as roletas (endpoint em inglês - compatibilidade)
+// Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
+app.get('/api/ROULETTES', async (req, res) => {
+  console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
+  console.log('[API] Query params:', req.query);
+  console.log('[API] Headers:', req.headers);
+  console.log('[API] Origin:', req.headers.origin);
+  
+  // Aplicar cabeçalhos CORS explicitamente para esta rota
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json([]);
+    }
+    
+    // Parâmetros de paginação
+    const limit = parseInt(req.query.limit) || 20;
+    console.log(`[API] Usando limit: ${limit}`);
+    
+    // Se um limite maior for solicitado, estamos buscando o histórico de números
+    if (limit > 100) {
+      console.log(`[API] Solicitação de histórico com ${limit} registros`);
+      
+      // Buscar histórico de números ordenados por timestamp
+      const numeros = await collection
+        .find({})
+        .sort({ timestamp: -1 })
+        .limit(limit)
+        .toArray();
+      
+      console.log(`[API] Retornando ${numeros.length} números do histórico`);
+      return res.json(numeros);
+    }
+    
+    // Caso contrário, retorna a lista de roletas únicas (comportamento original)
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
+    
+    console.log(`[API] Processadas ${roulettes.length} roletas`);
+    res.json(roulettes);
+  } catch (error) {
+    console.error('[API] Erro ao listar roletas ou histórico:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar dados' });
+  }
+});
+
+// Rota para listar todas as roletas (endpoint em português - compatibilidade)
 app.get('/api/roletas', async (req, res) => {
   console.log('[API] Endpoint de compatibilidade /api/roletas acessado');
   try {
@@ -867,214 +918,6 @@ app.options('/api/ROULETTES/historico', (req, res) => {
   // Responder imediatamente com sucesso
   res.status(204).end();
 });
-
-// Estrutura para manter as conexões ativas de SSE
-const sseClients = new Set();
-
-// Função para enviar atualizações para clientes SSE
-const sendSSEUpdate = (data) => {
-  if (sseClients.size === 0) return;
-  
-  console.log(`[SSE] Enviando atualização para ${sseClients.size} clientes`);
-  
-  const eventData = typeof data === 'string' ? data : JSON.stringify(data);
-  sseClients.forEach(client => {
-    try {
-      client.write(`data: ${eventData}\n\n`);
-    } catch (err) {
-      console.error('[SSE] Erro ao enviar atualização para cliente:', err);
-    }
-  });
-};
-
-// Função para enviar eventos específicos para clientes SSE
-const sendSSEEvent = (eventName, data) => {
-  if (sseClients.size === 0) return;
-  
-  console.log(`[SSE] Enviando evento ${eventName} para ${sseClients.size} clientes`);
-  
-  const eventData = typeof data === 'string' ? data : JSON.stringify(data);
-  sseClients.forEach(client => {
-    try {
-      client.write(`event: ${eventName}\ndata: ${eventData}\n\n`);
-    } catch (err) {
-      console.error(`[SSE] Erro ao enviar evento ${eventName} para cliente:`, err);
-    }
-  });
-};
-
-// Função auxiliar para remover cliente SSE
-const removeSSEClient = (res) => {
-  console.log('[SSE] Cliente desconectado');
-  sseClients.delete(res);
-};
-
-// Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
-app.get('/api/ROULETTES', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
-  console.log('[API] Query params:', req.query);
-  console.log('[API] Headers:', req.headers);
-  console.log('[API] Origin:', req.headers.origin);
-  
-  // Aplicar cabeçalhos CORS explicitamente para esta rota
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
-  try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json([]);
-    }
-    
-    // Verificar se o cliente solicitou streaming via SSE
-    if (req.query.stream === 'true') {
-      console.log('[API] Requisição de streaming (SSE) recebida');
-      
-      // Configurar cabeçalhos para SSE
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no' // Impedir buffering de proxy Nginx
-      });
-      
-      // Enviar evento de heartbeat inicial para evitar timeout
-      res.write(': heartbeat\n\n');
-      
-      // Obter dados iniciais das roletas
-      const roulettes = await collection.aggregate([
-        { $group: { 
-          _id: "$roleta_id", 
-          nome: { $first: "$roleta_nome" }, 
-          numeros: { $push: "$numero" },
-          timestamps: { $push: "$timestamp" }
-        }},
-        { $project: { 
-          _id: 0, 
-          id: "$_id", 
-          name: "$nome", 
-          numero: { $slice: ["$numeros", 50] },  // Limitar a 50 números
-          timestamps: { $slice: ["$timestamps", 50] }  // Timestamps correspondentes
-        }},
-        { $sort: { id: 1 } }
-      ]).toArray();
-      
-      console.log(`[SSE] Enviando dados iniciais: ${roulettes.length} roletas`);
-      
-      // Enviar dados iniciais
-      res.write(`data: ${JSON.stringify(roulettes)}\n\n`);
-      
-      // Adicionar este cliente à lista de clientes SSE
-      sseClients.add(res);
-      
-      // Monitorar desconexão do cliente
-      req.on('close', () => removeSSEClient(res));
-      
-      // Configurar heartbeat periódico para manter a conexão ativa
-      const heartbeatInterval = setInterval(() => {
-        try {
-          res.write(': heartbeat\n\n');
-        } catch (err) {
-          console.error('[SSE] Erro ao enviar heartbeat:', err);
-          clearInterval(heartbeatInterval);
-          removeSSEClient(res);
-        }
-      }, 30000); // Heartbeat a cada 30 segundos
-      
-      console.log('[SSE] Cliente conectado com sucesso');
-      return; // Não encerrar a resposta
-    }
-    
-    // Parâmetros de paginação
-    const limit = parseInt(req.query.limit) || 20;
-    console.log(`[API] Usando limit: ${limit}`);
-    
-    // Se um limite maior for solicitado, estamos buscando o histórico de números
-    if (limit > 100) {
-      console.log(`[API] Solicitação de histórico com ${limit} registros`);
-      
-      // Buscar histórico de números ordenados por timestamp
-      const numeros = await collection
-        .find({})
-        .sort({ timestamp: -1 })
-        .limit(limit)
-        .toArray();
-      
-      console.log(`[API] Retornando ${numeros.length} números do histórico`);
-      return res.json(numeros);
-    }
-    
-    // Caso contrário, retorna a lista de roletas únicas (comportamento original)
-    const roulettes = await collection.aggregate([
-      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-      { $project: { _id: 0, id: 1, nome: "$_id" } }
-    ]).toArray();
-    
-    console.log(`[API] Processadas ${roulettes.length} roletas`);
-    res.json(roulettes);
-  } catch (error) {
-    console.error('[API] Erro ao listar roletas ou histórico:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar dados' });
-  }
-});
-
-// Modificar a função checkForNewNumbers para notificar clientes SSE
-checkForNewNumbers = async () => {
-  try {
-    // ...
-    
-    if (newNumbersCount > 0) {
-      console.log(`[POLL] ${newNumbersCount} novos números encontrados`);
-      
-      // Acessar collection precisa estar dentro deste escopo
-      if (!collection || !isConnected) {
-        console.warn('[POLL] Não foi possível obter collection para notificação SSE');
-        return;
-      }
-      
-      // Buscar roletas atualizadas para notificar clientes SSE
-      if (sseClients.size > 0) {
-        console.log(`[SSE] Enviando atualizações para ${sseClients.size} clientes`);
-        
-        // Obter dados atualizados das roletas
-        const updatedRoulettes = await collection.aggregate([
-          { $match: { timestamp: { $gte: new Date(lastCheckTime) } } },
-          { $group: { 
-            _id: "$roleta_id", 
-            nome: { $first: "$roleta_nome" }, 
-            numeros: { $push: "$numero" },
-            timestamps: { $push: "$timestamp" }
-          }},
-          { $project: { 
-            _id: 0, 
-            id: "$_id", 
-            name: "$nome",
-            numero: { $slice: ["$numeros", 1] },  // Apenas o número mais recente
-            timestamp: { $slice: ["$timestamps", 1] }  // Timestamp correspondente
-          }}
-        ]).toArray();
-        
-        // Notificar clientes SSE com evento de novo número para cada roleta
-        updatedRoulettes.forEach(roulette => {
-          const newNumberEvent = {
-            type: 'new_number',
-            roleta_id: roulette.id,
-            roleta_nome: roulette.name,
-            numero: roulette.numero[0],
-            timestamp: roulette.timestamp[0]
-          };
-          
-          // Enviar como evento específico e também como dados gerais
-          sendSSEEvent('new_number', newNumberEvent);
-        });
-      }
-    }
-    // ...
-  } catch (err) {
-    // ...
-  }
-}
 
 // Socket.IO connection handler
 io.on('connection', async (socket) => {

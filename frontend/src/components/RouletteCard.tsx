@@ -100,25 +100,17 @@ interface RouletteCardProps {
 }
 
 const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false }) => {
-  // Obter referência ao serviço de feed centralizado e serviço de streaming
+  // Obter referência ao serviço de feed e ao novo serviço de streaming
   const feedService = useMemo(() => {
-    // Verificar se o sistema já foi inicializado globalmente
-    if (window.isRouletteSystemInitialized && window.isRouletteSystemInitialized()) {
-      debugLog('[RouletteCard] Usando sistema de roletas já inicializado');
-      // Recuperar o serviço do sistema global
-      return window.getRouletteSystem 
-        ? window.getRouletteSystem().rouletteFeedService 
-        : RouletteFeedService.getInstance();
-    }
-    
-    // Fallback para o comportamento padrão
-    debugLog('[RouletteCard] Sistema global não detectado, usando instância padrão');
     return RouletteFeedService.getInstance();
   }, []);
   
-  // Serviço de streaming em tempo real
-  const streamService = useMemo(() => {
-    return RouletteStreamService.getInstance();
+  // Inicializar o serviço de streaming para garantir que ele esteja rodando
+  useMemo(() => {
+    const streamService = RouletteStreamService.getInstance();
+    // Garantir que o streaming está conectado
+    streamService.connect();
+    return streamService;
   }, []);
   
   // Garantir que data é um objeto válido com valores padrão seguros
@@ -359,24 +351,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
   };
 
-  // Efeito para se inscrever nos eventos de atualização de dados do feed service e stream service
+  // Efeito para se inscrever nos eventos de atualização de dados do feed service
   useEffect(() => {
     const handleDataUpdated = (updateData: any) => {
-      // Tentar obter dados atualizados do streamService primeiro (mais recentes)
-      let freshData = streamService.getRouletteData(safeData.id);
-      
-      // Se não encontrar no stream service, tentar o feed service tradicional
-      if (!freshData) {
-        freshData = feedService.getRouletteData(safeData.id);
-      }
+      // Obter dados mais recentes do cache do feedService
+      const freshData = feedService.getRouletteData(safeData.id);
       
       if (freshData) {
         // Se encontrarmos dados novos no cache, processá-los
-        const newNumbers = Array.isArray(freshData.lastNumbers) 
-          ? freshData.lastNumbers 
-          : Array.isArray(freshData.numero) 
-            ? freshData.numero 
-            : [];
+        const newNumbers = Array.isArray(freshData.numero) 
+          ? freshData.numero 
+          : [];
           
         if (newNumbers.length > 0) {
           // Verificar se temos números novos comparando com os que já temos
@@ -401,25 +386,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       }
     };
     
-    // Handler específico para novos números do streaming
-    const handleNewNumber = (numberEvent: RouletteNumberEvent) => {
-      // Verificar se este evento pertence a esta roleta
-      if (numberEvent.roleta_id === safeData.id) {
-        console.log(`[RouletteCard] Novo número via streaming para ${safeData.name}: ${numberEvent.numero}`);
-        processRealtimeNumber(numberEvent);
-      }
-    };
-    
-    // Inscrever-se nos eventos do feed service e stream service
+    // Inscrever-se nos eventos do feed service
     EventService.on('roulette:data-updated', handleDataUpdated);
-    EventService.on('roulette:new-number', handleNewNumber);
     
     // Fazer uma verificação inicial para pegar os dados mais recentes
-    // 1. Verificar primeiro no stream service
-    const streamData = streamService.getRouletteData(safeData.id);
-    
-    // 2. Se não encontrar no stream, verificar no feed service tradicional
-    const initialData = streamData || feedService.getRouletteData(safeData.id);
+    const initialData = feedService.getRouletteData(safeData.id);
     if (initialData) {
       handleDataUpdated({timestamp: new Date().toISOString()});
     }
@@ -427,9 +398,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Limpeza ao desmontar
     return () => {
       EventService.off('roulette:data-updated', handleDataUpdated);
-      EventService.off('roulette:new-number', handleNewNumber);
     };
-  }, [feedService, streamService, safeData.id, safeData.name, recentNumbers]);
+  }, [feedService, safeData.id, safeData.name, recentNumbers]);
   
   // Ao montar o componente, verificar dados no cache em vez de fazer novas requisições
   useEffect(() => {
@@ -452,26 +422,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         }
       }
       
-      // Verificar primeiro no serviço de streaming
-      const streamData = streamService.getRouletteData(safeData.id);
-      
-      if (streamData && Array.isArray(streamData.lastNumbers) && streamData.lastNumbers.length > 0) {
-        console.log(`[RouletteCard] Usando dados do stream para ${safeData.name}`);
-        
-        // Extrair os números do formato de objeto
-        const numbers = streamData.lastNumbers.map(n => 
-          typeof n === 'object' ? n.numero : n
-        ).filter(n => typeof n === 'number' && !isNaN(n));
-        
-        if (numbers.length > 0) {
-          setLastNumber(numbers[0]);
-          setRecentNumbers(numbers);
-          setHasRealData(true);
-          return;
-        }
-      }
-      
-      // Como fallback, verificar os dados no cache tradicional
+      // Verificar os dados no cache da roleta como fallback
       const cachedData = feedService.getRouletteData(safeData.id);
       
       if (cachedData && Array.isArray(cachedData.numero) && cachedData.numero.length > 0) {
@@ -489,8 +440,16 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         }
       }
     }
-  }, [feedService, streamService, safeData.id, safeData.name, safeData.numbers, recentNumbers]);
-  
+  }, [feedService, safeData.id, safeData.name, safeData.numbers, recentNumbers]);
+
+  // Adicionar botão para atualização manual dos dados
+  const handleManualRefresh = () => {
+    EventService.emit('roulette:manual-refresh', {
+      timestamp: new Date().toISOString(),
+      rouletteId: safeData.id
+    });
+  };
+
   return (
     <Card 
       ref={cardRef}
@@ -547,6 +506,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             >
               <BarChart3 className="h-4 w-4 mr-1" />
               <span className="text-xs">Estatísticas</span>
+            </Button>
+            
+            {/* Botão para atualização manual */}
+            <Button
+              variant="outline" 
+              size="sm"
+              className="bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-300"
+              onClick={handleManualRefresh}
+              title="Atualizar dados"
+            >
+              <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
           
