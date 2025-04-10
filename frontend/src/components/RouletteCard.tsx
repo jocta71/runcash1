@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RouletteRepository } from '../services/data/rouletteRepository';
-import { socketClient } from '../services/socket/socketClient';
 import './RouletteCard.css';
 
 // Interface para as props do componente
@@ -11,11 +10,11 @@ interface RouletteCardProps {
 }
 
 /**
- * Componente de cartão de roleta que exibe informações em tempo real
+ * Componente de cartão de roleta que exibe informações em tempo real via API REST
  */
 const RouletteCard: React.FC<RouletteCardProps> = ({
   rouletteId,
-  refreshInterval = 30000,
+  refreshInterval = 5000, // Intervalo menor para atualizações mais frequentes
   onUpdate
 }) => {
   const [loading, setLoading] = useState(true);
@@ -23,65 +22,16 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
   const [rouletteData, setRouletteData] = useState<any>(null);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
   const [isUpdated, setIsUpdated] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connected'|'disconnected'|'connecting'>('connecting');
   
   // Referência para o número atual
   const latestNumberRef = useRef<number | null>(null);
   
-  // Função para carregar dados da roleta via API REST
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      console.log(`[RouletteCard] Carregando dados para roleta ${rouletteId}...`);
-      
-      const data = await RouletteRepository.fetchRouletteById(rouletteId);
-      
-      if (data) {
-        console.log(`[RouletteCard] Dados carregados com sucesso: ${data.name}`);
-        
-        // Verificar se há um novo número
-        if (data.numbers && data.numbers.length > 0) {
-          const newNumber = data.numbers[0].number;
-          
-          // Se tivermos um número anterior para comparar e ele mudou
-          if (latestNumberRef.current !== null && latestNumberRef.current !== newNumber) {
-            console.log(`[RouletteCard] Novo número detectado: ${newNumber} (anterior: ${latestNumberRef.current})`);
-            setIsUpdated(true);
-            
-            // Desativar a animação após 2 segundos
-            setTimeout(() => {
-              setIsUpdated(false);
-            }, 2000);
-          }
-          
-          // Atualizar a referência do número
-          latestNumberRef.current = newNumber;
-        }
-        
-        // Atualizar o estado com os novos dados
-        setRouletteData(data);
-        setLastUpdateTime(new Date());
-        setError(null);
-        
-        // Notificar o componente pai se necessário
-        if (onUpdate) {
-          onUpdate(data);
-        }
-      } else {
-        console.error(`[RouletteCard] Roleta não encontrada: ${rouletteId}`);
-        setError(`Roleta não encontrada: ${rouletteId}`);
-      }
-    } catch (err) {
-      console.error(`[RouletteCard] Erro ao carregar dados:`, err);
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Função para buscar dados atualizados da API REST
   const fetchLatestRouletteData = async () => {
     try {
+      setLoading(true);
+      console.log(`[RouletteCard] Buscando dados atualizados para roleta ${rouletteId}...`);
+      
       // Chamada à API de produção
       const response = await fetch(`/api/ROULETTES?limit=100`);
       
@@ -93,15 +43,54 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
       const currentRoulette = allRoulettes.find((r: any) => r.id === rouletteId || r.uuid === rouletteId);
       
       if (currentRoulette) {
+        console.log(`[RouletteCard] Dados atualizados recebidos: ${currentRoulette.name}`);
+        
         // Processar e atualizar dados no estado
         processNewRouletteData(currentRoulette);
+        setError(null);
+      } else {
+        console.error(`[RouletteCard] Roleta não encontrada: ${rouletteId}`);
+        setError(`Roleta não encontrada: ${rouletteId}`);
       }
     } catch (err) {
       console.error(`[RouletteCard] Erro ao buscar dados da API:`, err);
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+    } finally {
+      setLoading(false);
     }
   };
   
-  // Função para processar dados novos da roleta (da API ou WebSocket)
+  // Função para buscar uma roleta específica por ID
+  const fetchRouletteById = async () => {
+    try {
+      setLoading(true);
+      console.log(`[RouletteCard] Buscando roleta pelo ID ${rouletteId}...`);
+      
+      // Chamada à API de produção para uma roleta específica
+      const response = await fetch(`/api/ROULETTES/${rouletteId}`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      if (data) {
+        console.log(`[RouletteCard] Dados da roleta recebidos: ${data.name}`);
+        processNewRouletteData(data);
+        setError(null);
+      } else {
+        console.error(`[RouletteCard] Roleta não encontrada: ${rouletteId}`);
+        setError(`Roleta não encontrada: ${rouletteId}`);
+      }
+    } catch (err) {
+      console.error(`[RouletteCard] Erro ao buscar roleta:`, err);
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+    } finally {
+      setLoading(false);
+    }
+  };
+   
+  // Função para processar dados novos da roleta da API REST
   const processNewRouletteData = (data: any) => {
     // Se já temos dados da roleta
     if (data) {
@@ -135,161 +124,22 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
     }
   };
   
-  // Efeito para monitorar o status da conexão
-  useEffect(() => {
-    const handleConnect = () => {
-      console.log('[RouletteCard] WebSocket conectado');
-      setConnectionStatus('connected');
-      
-      // Recarregar dados ao conectar
-      loadData();
-    };
-    
-    const handleDisconnect = () => {
-      console.log('[RouletteCard] WebSocket desconectado');
-      setConnectionStatus('disconnected');
-    };
-    
-    const handleConnecting = () => {
-      console.log('[RouletteCard] WebSocket conectando...');
-      setConnectionStatus('connecting');
-    };
-    
-    // Registrar handlers de eventos
-    socketClient.getInstance().on('connect', handleConnect);
-    socketClient.getInstance().on('disconnect', handleDisconnect);
-    socketClient.getInstance().on('connecting', handleConnecting);
-    
-    // Verificar estado atual
-    if (socketClient.getInstance().isConnected()) {
-      setConnectionStatus('connected');
-    }
-    
-    // Limpar handlers ao desmontar
-    return () => {
-      socketClient.getInstance().removeListener('connect', handleConnect);
-      socketClient.getInstance().removeListener('disconnect', handleDisconnect);
-      socketClient.getInstance().removeListener('connecting', handleConnecting);
-    };
-  }, []);
-  
-  // Efeito para carregar dados iniciais e configurar atualizações
+  // Efeito para carregar dados iniciais e configurar atualizações periódicas
   useEffect(() => {
     // Carregar dados imediatamente
-    loadData();
-    // Buscar dados atualizados da API REST
-    fetchLatestRouletteData();
+    fetchRouletteById();
     
-    // Configurar atualização periódica
+    // Configurar atualização periódica via API REST
     const intervalId = setInterval(() => {
       console.log(`[RouletteCard] Executando atualização periódica para ${rouletteId}`);
       fetchLatestRouletteData();
     }, refreshInterval);
     
-    // Configurar event handler para novos números
-    const handleNewNumber = (data: any) => {
-      // Verificar se o evento é para esta roleta
-      if (data.roleta_id === rouletteId || data.uuid === rouletteId) {
-        console.log(`[RouletteCard] Novo número recebido via WebSocket: ${data.numero || data.number}`);
-        
-        // Se já temos dados da roleta
-        if (rouletteData) {
-          const newNumber = data.numero || data.number;
-          
-          // Se tivermos um número anterior para comparar e ele mudou
-          if (latestNumberRef.current !== null && latestNumberRef.current !== newNumber) {
-            console.log(`[RouletteCard] Novo número diferente do anterior: ${newNumber} (anterior: ${latestNumberRef.current})`);
-            setIsUpdated(true);
-            
-            // Desativar a animação após 2 segundos
-            setTimeout(() => {
-              setIsUpdated(false);
-            }, 2000);
-          }
-          
-          // Atualizar a referência do número
-          latestNumberRef.current = newNumber;
-          
-          // Criar o novo objeto de número
-          const numberObject = {
-            number: newNumber,
-            color: data.cor || data.color || 
-                  (newNumber === 0 ? 'green' : 
-                  [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(newNumber) 
-                    ? 'red' : 'black'),
-            timestamp: data.timestamp || new Date().toISOString()
-          };
-          
-          // Atualizar os dados com o novo número
-          const updatedData = {
-            ...rouletteData,
-            numbers: [numberObject, ...(rouletteData.numbers || [])]
-          };
-          
-          setRouletteData(updatedData);
-          setLastUpdateTime(new Date());
-          
-          // Notificar o componente pai
-          if (onUpdate) {
-            onUpdate(updatedData);
-          }
-        } else {
-          // Se não temos dados ainda, carregá-los completamente
-          loadData();
-        }
-      }
-    };
-    
-    // Configurar event handler para atualizações de estratégia
-    const handleStrategyUpdate = (data: any) => {
-      // Verificar se o evento é para esta roleta
-      if (data.roleta_id === rouletteId || data.uuid === rouletteId) {
-        console.log(`[RouletteCard] Atualização de estratégia recebida via WebSocket`);
-        
-        // Se já temos dados da roleta
-        if (rouletteData) {
-          // Atualizar os dados com a nova estratégia
-          const updatedData = {
-            ...rouletteData,
-            strategyState: data.estado || data.state || rouletteData.strategyState,
-            wins: data.vitorias || data.wins || rouletteData.wins,
-            losses: data.derrotas || data.losses || rouletteData.losses
-          };
-          
-          setRouletteData(updatedData);
-          setLastUpdateTime(new Date());
-          setIsUpdated(true);
-          
-          // Desativar a animação após 2 segundos
-          setTimeout(() => {
-            setIsUpdated(false);
-          }, 2000);
-          
-          // Notificar o componente pai
-          if (onUpdate) {
-            onUpdate(updatedData);
-          }
-        } else {
-          // Se não temos dados ainda, carregá-los completamente
-          loadData();
-        }
-      }
-    };
-    
-    // Registrar os handlers de eventos
-    socketClient.getInstance().on('new_number', handleNewNumber);
-    socketClient.getInstance().on('strategy_update', handleStrategyUpdate);
-    
-    // Garantir conexão com o WebSocket
-    socketClient.getInstance().connect();
-    
     // Limpar ao desmontar
     return () => {
       clearInterval(intervalId);
-      socketClient.getInstance().removeListener('new_number', handleNewNumber);
-      socketClient.getInstance().removeListener('strategy_update', handleStrategyUpdate);
     };
-  }, [rouletteId, refreshInterval, rouletteData, onUpdate]);
+  }, [rouletteId, refreshInterval]);
   
   // Se estiver carregando e não tivermos dados ainda
   if (loading && !rouletteData) {
@@ -305,7 +155,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
     return (
       <div className="roulette-card error">
         <div className="error-message">{error}</div>
-        <button className="refresh-button" onClick={loadData}>Tentar novamente</button>
+        <button className="refresh-button" onClick={fetchLatestRouletteData}>Tentar novamente</button>
       </div>
     );
   }
@@ -327,10 +177,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
         <div className="roulette-status">
           <span className={`status-badge ${active ? 'active' : 'inactive'}`}>
             {active ? 'Ativa' : 'Inativa'}
-          </span>
-          <span className={`connection-badge ${connectionStatus}`}>
-            {connectionStatus === 'connected' ? '•' : 
-             connectionStatus === 'connecting' ? '•••' : '×'}
           </span>
         </div>
       </div>
