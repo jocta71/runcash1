@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ChatHeader from './chat/ChatHeader';
-import ChatMessageList from './chat/ChatMessageList';
-import ChatInput from './chat/ChatInput';
-import { ChatMessage } from './chat/types';
 import { X, Minimize2, Maximize2 } from 'lucide-react';
+import { ChatMessage } from './chat/types';
 
 interface ChatUIProps {
   isOpen?: boolean;
@@ -23,32 +20,22 @@ const simulatedMessages = [
   { sender: 'Paty', message: 'Tá top demais, curti mesmo!', isModerator: false, isAdmin: false },
   { sender: 'Dudinha', message: 'Blz', isModerator: false, isAdmin: false },
   { sender: 'Matheuzinho', message: 'Fala aí, quando vai rolar a nova roleta?', isModerator: false, isAdmin: false },
-  { sender: 'Zé das Couves', message: 'Quando que vai ficar pronto, mano?', isModerator: false, isAdmin: false },
-  { sender: 'Moderador', message: 'Já vai rolar galera, mais uns minutos!', isModerator: true, isAdmin: false },
-  { sender: 'Bia', message: 'Quero ver quem vai ganhar dessa vez!', isModerator: false, isAdmin: false },
   { sender: 'Amanda', message: 'Primeira vez aqui, alguém me ajuda?', isModerator: false, isAdmin: false },
-  { sender: 'Rodrigo', message: 'Joga na vermelho que dá bom!', isModerator: false, isAdmin: false },
-  { sender: 'Lucas', message: 'Zero é o melhor número', isModerator: false, isAdmin: false },
-  { sender: 'Admin', message: 'Sistema atualizado com sucesso!', isModerator: false, isAdmin: true },
   { sender: 'Bruna', message: 'Ganhei 200 na última vez', isModerator: false, isAdmin: false },
-  { sender: 'Carlos', message: 'Alguém pode me ajudar com o saque?', isModerator: false, isAdmin: false },
-  { sender: 'Moderador', message: 'Por favor, mantenham o chat limpo!', isModerator: true, isAdmin: false },
 ];
 
-const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
+const ChatUI = ({ isOpen = true, onClose, isMobile = false }: ChatUIProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 1,
       sender: 'Zé das Couves',
       message: 'Quando que vai ficar pronto, mano?',
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
       timestamp: new Date(Date.now() - 1000 * 60 * 5)
     },
     {
       id: 2,
       sender: 'Fernandinha',
       message: 'Tô mó ansiedade pra jogar, viu?',
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
       timestamp: new Date(Date.now() - 1000 * 60 * 4)
     },
     {
@@ -56,21 +43,18 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
       sender: 'Moderador',
       message: 'Galera, calma que já vai rolar!',
       isModerator: true,
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
       timestamp: new Date(Date.now() - 1000 * 60 * 3)
     },
     {
       id: 4,
       sender: 'Bia',
       message: 'Tô nem aí, só quero ganhar uma grana!',
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
       timestamp: new Date(Date.now() - 1000 * 60 * 2)
     },
     {
       id: 5,
       sender: 'Juninho',
       message: 'Recebeu minha mensagem?',
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
       timestamp: new Date(Date.now() - 1000 * 60 * 1)
     },
     {
@@ -78,43 +62,19 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
       sender: 'Admin',
       message: 'Cês falaram com o entregador? Mó vacilo, tá atrasado mais de uma hora!',
       isAdmin: true,
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
       timestamp: new Date(Date.now() - 1000 * 30)
     },
     {
       id: 7,
-      sender: 'Robertão',
-      message: 'Mano, esse app é show de bola!',
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
+      sender: 'Amanda',
+      message: 'Primeira vez aqui, alguém me ajuda?',
       timestamp: new Date(Date.now() - 1000 * 20)
     },
     {
       id: 8,
-      sender: 'Paty',
-      message: 'Tá top demais, curti mesmo!',
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
-      timestamp: new Date(Date.now() - 1000 * 15)
-    },
-    {
-      id: 9,
-      sender: 'Dudinha',
-      message: 'Blz',
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
+      sender: 'Bruna',
+      message: 'Ganhei 200 na última vez',
       timestamp: new Date(Date.now() - 1000 * 10)
-    },
-    {
-      id: 10,
-      sender: 'Matheuzinho',
-      message: 'Fala aí, quando vai rolar a nova roleta?',
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
-      timestamp: new Date(Date.now() - 1000 * 5)
-    },
-    {
-      id: 11,
-      sender: 'Você',
-      message: 'Fala galera! Qual a boa?',
-      avatar: '/lovable-uploads/433b5fd4-2378-47fe-9d10-276fead4ebce.png',
-      timestamp: new Date()
     }
   ]);
   
@@ -133,7 +93,6 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
       id: Date.now(),
       sender: randomMessage.sender,
       message: randomMessage.message,
-      avatar: '', // Não usamos mais imagens, usaremos iniciais
       timestamp: new Date(),
       isModerator: randomMessage.isModerator,
       isAdmin: randomMessage.isAdmin
@@ -143,8 +102,8 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
     setMessages(prevMessages => [...prevMessages, newMsg]);
     
     // Limitar o número de mensagens para não sobrecarregar a interface
-    if (messages.length > 20) {
-      setMessages(prevMessages => prevMessages.slice(prevMessages.length - 20));
+    if (messages.length > 30) {
+      setMessages(prevMessages => prevMessages.slice(prevMessages.length - 30));
     }
   };
   
@@ -153,8 +112,8 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
     // Adicionar uma mensagem imediatamente após a montagem do componente
     addSimulatedMessage();
     
-    // Intervalo para adicionar mensagens a cada 1-5 segundos (mais rápido que antes)
-    const intervalTime = Math.floor(Math.random() * 4000) + 1000;
+    // Intervalo para adicionar mensagens a cada 2-5 segundos
+    const intervalTime = Math.floor(Math.random() * 3000) + 2000;
     const interval = setInterval(addSimulatedMessage, intervalTime);
     
     // Limpar o intervalo quando o componente for desmontado
@@ -189,11 +148,6 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
     setMinimized(!minimized);
   };
 
-  // Styles for mobile vs desktop
-  const chatClasses = isMobile
-    ? "h-full w-full mobile-chat-inner animate-slide-left"
-    : "h-screen w-full flex flex-col bg-vegas-darkgray z-40 border-l border-[#33333359]";
-  
   // For mobile, if it's not open, don't render
   if (isMobile && !isOpen) return null;
   
@@ -238,7 +192,7 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
   
   // Chat expandido (não minimizado)
   return (
-    <div className="flex flex-col bg-[#100f13] h-screen overflow-hidden">
+    <div className="fixed inset-0 lg:inset-auto lg:right-4 lg:bottom-4 lg:top-auto lg:left-auto lg:w-96 lg:h-[600px] z-50 flex flex-col bg-[#100f13] rounded-lg shadow-xl overflow-hidden border border-[#2a2a2e]">
       {/* Header do Chat */}
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 bg-[#141318] border-b border-[#2a2a2e]">
         <div className="flex items-center space-x-2">
