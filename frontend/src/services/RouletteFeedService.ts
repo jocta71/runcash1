@@ -2,6 +2,7 @@ import config from '@/config/env';
 import EventService from './EventService';
 import { getLogger } from './utils/logger';
 import { HistoryData } from './SocketService';
+import globalRouletteDataService from './GlobalRouletteDataService';
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');
@@ -262,6 +263,15 @@ export default class RouletteFeedService {
   public initialize(): Promise<any> {
     logger.info('Solicitação de inicialização recebida');
     
+    // Registrar ouvintes para eventos do serviço global
+    const globalDataUpdateHandler = () => {
+      logger.info('Recebida atualização do serviço global de roletas');
+      this.fetchLatestData();
+    };
+    
+    // Inscrever no serviço global
+    globalRouletteDataService.subscribe('RouletteFeedService', globalDataUpdateHandler);
+    
     // Se já foi inicializado globalmente, retornar os dados existentes
     if (RouletteFeedService.INITIAL_DATA_FETCHED && this.hasCachedData) {
       logger.info('Serviço já inicializado globalmente, retornando dados existentes');
@@ -393,6 +403,45 @@ export default class RouletteFeedService {
     // Se já buscamos dados iniciais, retornar os dados em cache
     if (RouletteFeedService.INITIAL_DATA_FETCHED) {
       logger.info('📋 Dados iniciais já foram buscados anteriormente, usando cache');
+      return this.roulettes;
+    }
+    
+    // Verificar se o serviço global já tem dados das roletas
+    const globalRoulettes = globalRouletteDataService.getAllRoulettes();
+    if (globalRoulettes && globalRoulettes.length > 0) {
+      logger.info(`📋 Usando ${globalRoulettes.length} roletas do serviço global`);
+      
+      // Transformar dados para o formato esperado
+      const liveTables: { [key: string]: any } = {};
+      globalRoulettes.forEach(roleta => {
+        if (roleta && roleta.id) {
+          // Certifique-se de que estamos lidando corretamente com o campo numero
+          // Na API, o 'numero' é um array de objetos com propriedade 'numero'
+          const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+          
+          liveTables[roleta.id] = {
+            GameID: roleta.id,
+            Name: roleta.name || roleta.nome,
+            ativa: roleta.ativa,
+            // Manter a estrutura do campo numero exatamente como está na API
+            numero: numeroArray,
+            // Incluir outras propriedades da roleta
+            ...roleta
+          };
+        }
+      });
+      
+      // Armazenar os dados
+      this.lastUpdateTime = Date.now();
+      this.hasCachedData = true;
+      this.roulettes = liveTables;
+      
+      // Sinalizar que dados iniciais foram carregados globalmente
+      RouletteFeedService.INITIAL_DATA_FETCHED = true;
+      
+      // Notificar que temos novos dados
+      this.notifySubscribers(liveTables);
+      
       return this.roulettes;
     }
     
@@ -555,6 +604,42 @@ export default class RouletteFeedService {
    * Busca os dados mais recentes das roletas
    */
   public fetchLatestData(): Promise<any> {
+    // Verificar se podemos usar dados do serviço global
+    const globalRoulettes = globalRouletteDataService.getAllRoulettes();
+    if (globalRoulettes && globalRoulettes.length > 0) {
+      logger.debug(`📡 Usando ${globalRoulettes.length} roletas do serviço global`);
+      
+      // Transformar dados para o formato esperado
+      const liveTables: { [key: string]: any } = {};
+      globalRoulettes.forEach(roleta => {
+        if (roleta && roleta.id) {
+          // Certifique-se de que estamos lidando corretamente com o campo numero
+          // Na API, o 'numero' é um array de objetos com propriedade 'numero'
+          const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+          
+          liveTables[roleta.id] = {
+            GameID: roleta.id,
+            Name: roleta.name || roleta.nome,
+            ativa: roleta.ativa,
+            // Manter a estrutura do campo numero exatamente como está na API
+            numero: numeroArray,
+            // Incluir outras propriedades da roleta
+            ...roleta
+          };
+        }
+      });
+      
+      // Atualizar cache
+      this.roulettes = liveTables;
+      this.lastUpdateTime = Date.now();
+      this.hasCachedData = true;
+      
+      // Notificar que temos novos dados
+      this.notifySubscribers(liveTables);
+      
+      return Promise.resolve(this.roulettes);
+    }
+    
     // Verificar se podemos fazer a requisição
     if (!this.canMakeRequest()) {
       logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');

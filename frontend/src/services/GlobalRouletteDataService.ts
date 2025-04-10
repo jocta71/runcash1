@@ -100,15 +100,6 @@ class GlobalRouletteDataService {
    * Busca dados atualizados da API
    */
   private async fetchRouletteData(): Promise<void> {
-    // Desativando temporariamente as requisições
-    console.log('[GlobalRouletteService] ⛔ DESATIVADO: Requisição para API bloqueada para fins de diagnóstico');
-    
-    // Manter a flag para evitar múltiplas tentativas
-    this.isFetching = false;
-    
-    return;
-    
-    /* CÓDIGO ORIGINAL DESATIVADO
     // Evitar requisições simultâneas
     if (this.isFetching) {
       console.log('[GlobalRouletteService] Requisição já em andamento, ignorando');
@@ -138,6 +129,12 @@ class GlobalRouletteDataService {
         
         // Notificar todos os assinantes sobre a atualização
         this.notifySubscribers();
+        
+        // Emitir evento global para outros componentes que possam estar ouvindo
+        EventService.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          count: data.length
+        });
       } else {
         console.error('[GlobalRouletteService] Resposta inválida da API');
       }
@@ -146,7 +143,6 @@ class GlobalRouletteDataService {
     } finally {
       this.isFetching = false;
     }
-    */
   }
   
   /**

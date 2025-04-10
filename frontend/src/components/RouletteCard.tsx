@@ -119,15 +119,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   useEffect(() => {
     if (data) {
       console.log(`[DEBUG] Dados recebidos para ${data.name || data.nome || 'roleta desconhecida'} (ID: ${data.id || 'unknown'}):`);
-      console.log('- data.numero:', data.numero);
-      console.log('- Formato de data.numero:', Array.isArray(data.numero) ? 'Array' : typeof data.numero);
       
       if (Array.isArray(data.numero) && data.numero.length > 0) {
-        console.log('- Primeiro elemento de data.numero:', data.numero[0]);
-        console.log('- Tipo do primeiro elemento:', typeof data.numero[0]);
-        if (typeof data.numero[0] === 'object') {
-          console.log('- Propriedades do objeto número:', Object.keys(data.numero[0]));
-        }
+        console.log(`[DEBUG] Roleta ${data.name || data.nome}: ${data.numero.length} números disponíveis`);
+        
+        // Mostrar até 5 números mais recentes para verificação
+        const recentNumbers = data.numero.slice(0, 5);
+        console.log(`[DEBUG] Números recentes para ${data.name || data.nome}:`, 
+          recentNumbers.map(n => typeof n === 'object' ? `${n.numero}` : `${n}`).join(', ')
+        );
+      } else {
+        console.warn(`[DEBUG] Roleta ${data.name || data.nome}: sem números disponíveis`);
       }
     }
   }, [data]);
@@ -192,6 +194,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
   // Função para processar um novo número em tempo real
   const processRealtimeNumber = (newNumberEvent: RouletteNumberEvent) => {
+    // Logs para debug
+    console.log(`[RouletteCard] Processando novo número para ${safeData.name}:`, newNumberEvent);
+    
     // Ignorar atualizações muito frequentes (menos de 3 segundos entre elas)
     // exceto se estivermos ainda sem dados reais
     const now = Date.now();
