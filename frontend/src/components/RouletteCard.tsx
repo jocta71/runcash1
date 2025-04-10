@@ -339,13 +339,39 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const toggleStats = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    // Se vamos mostrar as estatísticas e ainda não as abrimos antes,
+    // solicitar dados detalhados apenas neste momento
+    if (!showStats) {
+      // Carrega dados detalhados apenas quando necessário
+      globalRouletteDataService.fetchDetailedRouletteData().then(detailedData => {
+        // Procurar os dados detalhados da roleta atual
+        const myDetailedRoulette = detailedData.find((roulette: any) => 
+          roulette.id === safeData.id || 
+          roulette._id === safeData.id || 
+          roulette.name === safeData.name || 
+          roulette.nome === safeData.name
+        );
+        
+        if (myDetailedRoulette) {
+          console.log(`[${componentId}] Dados detalhados carregados para ${safeData.name}`);
+          // Processar os dados detalhados
+          setRawRouletteData(myDetailedRoulette);
+          processApiData(myDetailedRoulette);
+        }
+      });
+    }
+    
     setShowStats(!showStats);
   };
   
   // Função para abrir detalhes da roleta
   const handleCardClick = () => {
     if (!isDetailView) {
-      navigate(`/roleta/${safeData.id}`);
+      // Carregar dados detalhados antes de navegar para a página de detalhes
+      globalRouletteDataService.fetchDetailedRouletteData().then(() => {
+        navigate(`/roleta/${safeData.id}`);
+      });
     }
   };
   

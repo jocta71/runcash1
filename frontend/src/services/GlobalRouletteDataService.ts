@@ -10,6 +10,12 @@ const CACHE_TTL = 15000;
 // Intervalo mínimo entre requisições forçadas (2 segundos)
 const MIN_FORCE_INTERVAL = 2000;
 
+// Limite padrão para requisições normais (100 itens)
+const DEFAULT_LIMIT = 100;
+
+// Limite para requisições detalhadas (1000 itens)
+const DETAILED_LIMIT = 1000;
+
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
 
@@ -23,10 +29,14 @@ class GlobalRouletteDataService {
   
   // Dados e estado
   private rouletteData: any[] = [];
+  private detailedRouletteData: any[] = [];
   private lastFetchTime: number = 0;
+  private lastDetailedFetchTime: number = 0;
   private isFetching: boolean = false;
+  private isFetchingDetailed: boolean = false;
   private pollingTimer: number | null = null;
   private subscribers: Map<string, SubscriberCallback> = new Map();
+  private detailedSubscribers: Map<string, SubscriberCallback> = new Map();
   
   // Construtor privado para garantir Singleton
   private constructor() {
@@ -97,7 +107,7 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados atualizados da API
+   * Busca dados atualizados da API (usando limit=100 para polling regular)
    */
   private async fetchRouletteData(): Promise<void> {
     // Evitar requisições simultâneas
@@ -116,10 +126,10 @@ class GlobalRouletteDataService {
         return;
       }
       
-      console.log('[GlobalRouletteService] Buscando dados atualizados da API');
+      console.log('[GlobalRouletteService] Buscando dados atualizados da API (limit=100)');
       
-      // Usar a função utilitária com suporte a CORS
-      const data = await fetchWithCorsSupport<any[]>('/api/ROULETTES?limit=1000');
+      // Usar a função utilitária com suporte a CORS - com limit=100 para polling regular
+      const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
       
       // Verificar se os dados são válidos
       if (data && Array.isArray(data)) {
@@ -142,6 +152,53 @@ class GlobalRouletteDataService {
       console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
     } finally {
       this.isFetching = false;
+    }
+  }
+  
+  /**
+   * Busca dados detalhados (usando limit=1000) - apenas para visualizações detalhadas
+   * Esta função deve ser chamada somente quando precisamos de dados detalhados para estatísticas
+   */
+  public async fetchDetailedRouletteData(): Promise<any[]> {
+    // Evitar requisições simultâneas
+    if (this.isFetchingDetailed) {
+      console.log('[GlobalRouletteService] Requisição detalhada já em andamento, ignorando');
+      return this.detailedRouletteData;
+    }
+    
+    try {
+      const now = Date.now();
+      this.isFetchingDetailed = true;
+      
+      // Verificar se os dados detalhados em cache ainda são válidos
+      if (this.detailedRouletteData.length > 0 && now - this.lastDetailedFetchTime < CACHE_TTL) {
+        console.log(`[GlobalRouletteService] Usando dados detalhados em cache, idade: ${Math.round((now - this.lastDetailedFetchTime)/1000)}s`);
+        return this.detailedRouletteData;
+      }
+      
+      console.log('[GlobalRouletteService] Buscando dados detalhados (limit=1000)');
+      
+      // Usar a função utilitária com suporte a CORS - com limit=1000 para dados detalhados
+      const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DETAILED_LIMIT}`);
+      
+      // Verificar se os dados são válidos
+      if (data && Array.isArray(data)) {
+        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${data.length} roletas`);
+        this.detailedRouletteData = data;
+        this.lastDetailedFetchTime = now;
+        
+        // Notificar assinantes de dados detalhados
+        this.notifyDetailedSubscribers();
+      } else {
+        console.error('[GlobalRouletteService] Resposta inválida da API detalhada');
+      }
+      
+      return this.detailedRouletteData;
+    } catch (error) {
+      console.error('[GlobalRouletteService] Erro ao buscar dados detalhados:', error);
+      return this.detailedRouletteData;
+    } finally {
+      this.isFetchingDetailed = false;
     }
   }
   
@@ -177,14 +234,22 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Retorna todas as roletas disponíveis
+   * Retorna todas as roletas disponíveis (dados básicos)
    */
   public getAllRoulettes(): any[] {
     return this.rouletteData || [];
   }
   
   /**
-   * Inscreve um componente para receber atualizações
+   * Retorna dados detalhados de todas as roletas (dados completos)
+   */
+  public getAllDetailedRoulettes(): any[] {
+    // Se não temos dados detalhados, usar os dados normais como fallback
+    return this.detailedRouletteData.length > 0 ? this.detailedRouletteData : this.rouletteData;
+  }
+  
+  /**
+   * Inscreve um componente para receber atualizações de dados básicos
    */
   public subscribe(id: string, callback: SubscriberCallback): void {
     console.log(`[GlobalRouletteService] Novo assinante registrado: ${id}`);
@@ -197,15 +262,32 @@ class GlobalRouletteDataService {
   }
   
   /**
+   * Inscreve um componente para receber atualizações de dados detalhados
+   */
+  public subscribeToDetailedData(id: string, callback: SubscriberCallback): void {
+    console.log(`[GlobalRouletteService] Novo assinante para dados detalhados: ${id}`);
+    this.detailedSubscribers.set(id, callback);
+    
+    // Se já tivermos dados detalhados, notificar o novo assinante imediatamente
+    if (this.detailedRouletteData.length > 0) {
+      setTimeout(() => callback(), 0);
+    } else {
+      // Se não temos dados detalhados ainda, buscar
+      this.fetchDetailedRouletteData();
+    }
+  }
+  
+  /**
    * Cancela a inscrição de um componente
    */
   public unsubscribe(id: string): void {
     console.log(`[GlobalRouletteService] Assinante removido: ${id}`);
     this.subscribers.delete(id);
+    this.detailedSubscribers.delete(id);
   }
   
   /**
-   * Notifica todos os assinantes sobre a atualização de dados
+   * Notifica todos os assinantes sobre a atualização de dados básicos
    */
   private notifySubscribers(): void {
     console.log(`[GlobalRouletteService] Notificando ${this.subscribers.size} assinantes`);
@@ -215,6 +297,20 @@ class GlobalRouletteDataService {
         setTimeout(() => callback(), 0);
       } catch (error) {
         console.error('[GlobalRouletteService] Erro ao notificar assinante:', error);
+      }
+    });
+  }
+  
+  /**
+   * Notifica assinantes de dados detalhados
+   */
+  private notifyDetailedSubscribers(): void {
+    console.log(`[GlobalRouletteService] Notificando ${this.detailedSubscribers.size} assinantes de dados detalhados`);
+    this.detailedSubscribers.forEach(callback => {
+      try {
+        setTimeout(() => callback(), 0);
+      } catch (error) {
+        console.error('[GlobalRouletteService] Erro ao notificar assinante de dados detalhados:', error);
       }
     });
   }
@@ -233,6 +329,7 @@ class GlobalRouletteDataService {
     window.removeEventListener('blur', this.handleVisibilityChange);
     
     this.subscribers.clear();
+    this.detailedSubscribers.clear();
     console.log('[GlobalRouletteService] Serviço encerrado e recursos liberados');
   }
 }
