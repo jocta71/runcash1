@@ -37,6 +37,8 @@ export default function RouletteHistory() {
 
     // Configurar conexão WebSocket
     const socketURL = import.meta.env.VITE_WS_URL || 'https://backend-production-2f96.up.railway.app';
+    console.log(`Conectando ao WebSocket: ${socketURL}`);
+    
     const newSocket = io(socketURL, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
@@ -47,15 +49,61 @@ export default function RouletteHistory() {
 
     newSocket.on('connect', () => {
       console.log('Conectado ao servidor WebSocket!');
+      
+      // Solicitar inscrição para receber atualizações de todas as roletas
+      newSocket.emit('subscribe', { channel: 'roulette_updates' });
     });
 
     newSocket.on('connect_error', (err) => {
       console.error('Erro de conexão WebSocket:', err);
     });
 
+    // Lidar com eventos específicos do servidor
     newSocket.on('roulette_number', (newData) => {
       console.log('Novo número recebido via WebSocket:', newData);
-      setHistory((prevHistory) => [newData, ...prevHistory]);
+      
+      // Garantir que o formato do objeto seja correto
+      if (newData && typeof newData === 'object') {
+        // Criar um novo objeto no formato esperado pelo componente
+        const formattedData = {
+          numero: newData.numero || newData.number,
+          cor: newData.cor || getRouletteNumberColor(newData.numero || newData.number),
+          roleta_nome: newData.roleta_nome || newData.roulette_name || 'Desconhecida',
+          timestamp: newData.timestamp || new Date().toISOString()
+        };
+        
+        console.log('Dados formatados:', formattedData);
+        
+        // Adicionar ao histórico se for um número válido
+        if (formattedData.numero !== undefined && formattedData.numero !== null) {
+          setHistory(prevHistory => {
+            // Verificar se este número já é o primeiro na lista
+            if (prevHistory.length > 0 && 
+                prevHistory[0].numero === formattedData.numero && 
+                prevHistory[0].roleta_nome === formattedData.roleta_nome) {
+              return prevHistory;
+            }
+            
+            return [formattedData, ...prevHistory];
+          });
+        }
+      }
+    });
+    
+    // Manipular evento genérico 'update' que também pode conter números de roleta
+    newSocket.on('update', (data) => {
+      console.log('Atualização genérica recebida:', data);
+      
+      if (data && data.type === 'roulette_number' && data.numero !== undefined) {
+        const formattedData = {
+          numero: data.numero,
+          cor: data.cor || getRouletteNumberColor(data.numero),
+          roleta_nome: data.roleta_nome || 'Desconhecida',
+          timestamp: data.timestamp || new Date().toISOString()
+        };
+        
+        setHistory(prevHistory => [formattedData, ...prevHistory]);
+      }
     });
 
     setSocket(newSocket);
@@ -73,6 +121,20 @@ export default function RouletteHistory() {
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleString();
+  };
+  
+  // Função para determinar a cor do número da roleta
+  const getRouletteNumberColor = (num) => {
+    if (num === undefined || num === null) return 'cinza';
+    
+    num = parseInt(num);
+    if (isNaN(num)) return 'cinza';
+    
+    if (num === 0) return 'verde';
+    
+    // Números vermelhos na roleta europeia
+    const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
   };
   
   // Renderizar estado de carregamento
@@ -96,9 +158,15 @@ export default function RouletteHistory() {
       
       {loading && <p className="text-gray-500 mb-4">Carregando dados iniciais...</p>}
       {socket ? (
-        <p className="text-green-500 mb-4">Conectado para atualizações em tempo real</p>
+        <p className="text-green-500 mb-4">
+          <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+          Conectado para atualizações em tempo real
+        </p>
       ) : (
-        <p className="text-yellow-500 mb-4">Aguardando conexão em tempo real...</p>
+        <p className="text-yellow-500 mb-4">
+          <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
+          Aguardando conexão em tempo real...
+        </p>
       )}
       
       <div className="overflow-x-auto">
