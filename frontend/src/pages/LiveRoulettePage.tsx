@@ -2,36 +2,25 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import { RouletteData } from '@/integrations/api/rouletteService';
-// import axios from 'axios'; // Removido - não precisamos mais de requisições diretas
 import { Loader2 } from 'lucide-react';
-import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
-import RouletteFeedService from '@/services/RouletteFeedService';
-// Remover a importação do initializeRouletteSystem pois vamos usar o service diretamente
-// import { initializeRouletteSystem } from '@/hooks/useRouletteData';
+import RouletteSystemInitializer from '@/services/RouletteSystemInitializer';
+import { useRouletteSystem } from '@/providers/RouletteSystemProvider';
 
 // Flag para controlar se o componente já foi inicializado
 let IS_COMPONENT_INITIALIZED = false;
 
 const LiveRoulettePage: React.FC = () => {
+  // Usar o contexto do sistema de roletas
+  const { isInitialized, isConnected, refreshData } = useRouletteSystem();
+  
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Obter referência ao serviço de feed centralizado sem inicializar novo polling
+  // Obter referência ao serviço de feed centralizado
   const feedService = useMemo(() => {
-    // Verificar se o sistema já foi inicializado globalmente
-    if (window.isRouletteSystemInitialized && window.isRouletteSystemInitialized()) {
-      console.log('[LiveRoulettePage] Usando sistema de roletas já inicializado');
-      // Recuperar o serviço do sistema global
-      return window.getRouletteSystem 
-        ? window.getRouletteSystem().rouletteFeedService 
-        : RouletteFeedService.getInstance();
-    }
-    
-    // Fallback para o comportamento padrão
-    console.log('[LiveRoulettePage] Sistema global não detectado, usando instância padrão');
-    return RouletteFeedService.getInstance();
+    return RouletteSystemInitializer.getFeedService();
   }, []);
 
   // Função para adicionar um novo número a uma roleta específica
@@ -82,7 +71,12 @@ const LiveRoulettePage: React.FC = () => {
     
     console.log('[LiveRoulettePage] Inicializando componente');
     
-    // Buscar dados iniciais sem iniciar polling
+    // Garantir que o sistema de roletas esteja inicializado
+    if (!isInitialized) {
+      RouletteSystemInitializer.initialize();
+    }
+    
+    // Buscar dados iniciais
     async function fetchInitialData() {
       try {
         setLoading(true);
@@ -95,8 +89,9 @@ const LiveRoulettePage: React.FC = () => {
           setRoulettes(cachedRoulettes);
           setLoading(false);
         } else {
-          // NÃO iniciar polling ou buscar dados aqui - apenas aguardar dados do sistema centralizado
-          console.log('[LiveRoulettePage] Aguardando dados do sistema centralizado');
+          // Solicitar atualização manual para obter dados rapidamente
+          console.log('[LiveRoulettePage] Solicitando dados atualizados');
+          refreshData();
           
           // Definir timeout de fallback caso demore muito
           setTimeout(() => {
@@ -143,7 +138,7 @@ const LiveRoulettePage: React.FC = () => {
       // Não resetamos IS_COMPONENT_INITIALIZED pois queremos garantir que só haja
       // uma inicialização durante todo o ciclo de vida da aplicação
     };
-  }, [feedService]);
+  }, [feedService, isInitialized, refreshData]);
 
   return (
     <>
@@ -152,7 +147,10 @@ const LiveRoulettePage: React.FC = () => {
       </Helmet>
       
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-6">Roletas ao vivo</h1>
+        <h1 className="text-3xl font-bold mb-6">
+          Roletas ao vivo
+          {!isConnected && <span className="text-yellow-500 ml-2 text-sm">(Reconectando...)</span>}
+        </h1>
         
         {loading ? (
           <div className="flex justify-center items-center py-20">
@@ -175,4 +173,4 @@ const LiveRoulettePage: React.FC = () => {
   );
 };
 
-export default LiveRoulettePage; 
+export default LiveRoulettePage;
