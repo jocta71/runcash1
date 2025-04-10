@@ -142,29 +142,43 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Indicar que está carregando
       setLoading(true);
       
-      // URL da API
+      // URL da API - Correção: usar o endpoint ROULETTES em maiúsculos
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api';
-      const url = `${apiBaseUrl}/roulette/${safeData.id}`;
+      const url = `${apiBaseUrl}/ROULETTES`; // Endpoint correto
       
-      console.log(`[${Date.now()}] Buscando dados da roleta ${safeData.name} (ID: ${safeData.id})`);
+      console.log(`[${Date.now()}] Buscando dados de todas as roletas para encontrar ${safeData.name} (ID: ${safeData.id})`);
       
-      // Fazer a requisição
+      // Fazer a requisição para obter todas as roletas
       const response = await axios.get(url, { 
         signal: abortControllerRef.current.signal,
         timeout: 5000 // 5 segundos de timeout
       });
       
       // Validar resposta
-      if (!response.data) {
-        throw new Error('Resposta vazia da API');
+      if (!response.data || !Array.isArray(response.data)) {
+        throw new Error('Resposta da API inválida ou vazia');
       }
       
-      // Processar dados
-      const apiData = response.data;
-      console.log(`[${Date.now()}] Dados recebidos para ${safeData.name}:`, apiData);
+      // Encontrar a roleta específica pelo ID
+      const myRoulette = response.data.find((roulette: any) => 
+        roulette.id === safeData.id || 
+        roulette._id === safeData.id || 
+        roulette.name === safeData.name || 
+        roulette.nome === safeData.name
+      );
       
-      // Extrair números da resposta
-      const newNumbers = extractNumbers(apiData);
+      if (!myRoulette) {
+        console.warn(`Roleta com ID ${safeData.id} não encontrada na resposta`);
+        // Continuar mesmo sem encontrar para evitar erro na UI, pode ser que encontre na próxima atualização
+        setLoading(false);
+        return false;
+      }
+      
+      // Processar dados da roleta encontrada
+      console.log(`[${Date.now()}] Dados encontrados para ${safeData.name}:`, myRoulette);
+      
+      // Extrair números da roleta encontrada
+      const newNumbers = extractNumbers(myRoulette);
       
       // Se temos números, processar
       if (newNumbers.length > 0) {
