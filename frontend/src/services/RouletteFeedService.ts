@@ -2,7 +2,7 @@ import config from '@/config/env';
 import EventService from './EventService';
 import { getLogger } from './utils/logger';
 import { HistoryData } from './SocketService';
-import globalRouletteDataService from './GlobalRouletteDataService';
+import globalRouletteDataService, { GlobalRouletteDataService } from './GlobalRouletteDataService';
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');
@@ -191,6 +191,9 @@ export default class RouletteFeedService {
   private requestCounter: number = 0;
   private requestTimestamp: number = 0;
 
+  // Antes do construtor, adicionar esta propriedade para indicar que este serviço está gerenciando o polling
+  private static hasInformedGlobalService = false;
+
   /**
    * O construtor configura os parâmetros iniciais e inicia o serviço
    * @param options Opções de configuração para o serviço
@@ -198,18 +201,22 @@ export default class RouletteFeedService {
   constructor(options: RouletteFeedServiceOptions = {}) {
     const {
       autoStart = true,
-      initialInterval = 10000, // 10 segundos padrão
+      initialInterval = NORMAL_POLLING_INTERVAL,
       minInterval = 10000,
       maxInterval = 10000,
       historySize = 20
     } = options;
 
-    // Inicializar parâmetros
+    // Configurar propriedades
     this.initialInterval = initialInterval;
     this.currentPollingInterval = initialInterval;
+    this.interval = initialInterval;
     this.minInterval = minInterval;
     this.maxInterval = maxInterval;
     this.historySize = historySize;
+    this.baseUrl = '';
+    
+    // Inicializar outras propriedades
     this.subscribers = [];  // Inicializar como array vazio em vez de Map
     this.roulettesList = [];
     this.lastSuccessTimestamp = 0;
@@ -233,6 +240,25 @@ export default class RouletteFeedService {
 
     if (options.maxInterval) {
       this.maxInterval = 10000; // Forçar a 10 segundos
+    }
+    
+    // Registrar serviço no localStorage para sincronização entre abas
+    this.registerInstance();
+    
+    // Iniciar monitoramento de saúde do sistema
+    this.startHealthMonitoring();
+    
+    // Informar ao GlobalRouletteDataService que este serviço vai fazer polling
+    if (!RouletteFeedService.hasInformedGlobalService) {
+      RouletteFeedService.hasInformedGlobalService = true;
+      
+      // Informar ao serviço global que este serviço está fazendo polling
+      try {
+        GlobalRouletteDataService.setExternalPollingActive(true);
+        logger.info('✅ Informado ao GlobalRouletteDataService sobre polling externo ativo');
+      } catch (error) {
+        logger.error('❌ Erro ao informar ao GlobalRouletteDataService:', error);
+      }
     }
 
     // Iniciar o serviço automaticamente se configurado
@@ -640,6 +666,7 @@ export default class RouletteFeedService {
       return Promise.resolve(this.roulettes);
     }
     
+    // Se não conseguimos obter dados do serviço global, fazer requisição própria
     // Verificar se podemos fazer a requisição
     if (!this.canMakeRequest()) {
       logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
