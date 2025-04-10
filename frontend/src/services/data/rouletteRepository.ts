@@ -325,6 +325,37 @@ const rouletteRepository = {
     } catch (error) {
       Logger.error(`Erro ao atualizar estratégia da roleta ${roletaId}:`, error);
     }
+  },
+
+  /**
+   * Assina atualizações em tempo real para uma roleta específica
+   * @param roletaId ID da roleta
+   * @param callback Função a ser chamada quando houver atualização
+   * @returns Função para cancelar a assinatura
+   */
+  subscribeToRouletteUpdates(roletaId: string, callback: (data: RouletteData) => void): () => void {
+    Logger.info(`Assinando atualizações para roleta ${roletaId}`);
+    
+    // Intervalo para verificar atualizações via polling
+    const intervalId = setInterval(async () => {
+      try {
+        // Busca dados atualizados
+        const updatedData = await this.fetchRouletteById(roletaId);
+        
+        // Se encontrar dados, chama o callback
+        if (updatedData) {
+          callback(updatedData);
+        }
+      } catch (error) {
+        Logger.error(`Erro ao buscar atualizações para roleta ${roletaId}:`, error);
+      }
+    }, 5000); // Verificar a cada 5 segundos
+    
+    // Retorna função para cancelar o intervalo
+    return () => {
+      clearInterval(intervalId);
+      Logger.info(`Assinatura cancelada para roleta ${roletaId}`);
+    };
   }
 };
 
@@ -334,6 +365,7 @@ export const fetchAllRoulettesWithNumbers = rouletteRepository.fetchAllRoulettes
 export const fetchRouletteById = rouletteRepository.fetchRouletteById;
 export const addNewNumberToRoulette = rouletteRepository.addNewNumberToRoulette;
 export const updateRouletteStrategy = rouletteRepository.updateRouletteStrategy;
+export const subscribeToRouletteUpdates = rouletteRepository.subscribeToRouletteUpdates;
 
 // Exportar o repositório como default
 export default rouletteRepository; 

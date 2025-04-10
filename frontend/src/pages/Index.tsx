@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import AnimatedInsights from '@/components/AnimatedInsights';
 import ProfileDropdown from '@/components/ProfileDropdown';
 import Layout from '@/components/Layout';
-import { RouletteRepository } from '../services/data/rouletteRepository';
+import * as rouletteRepository from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
@@ -187,7 +187,7 @@ const Index = () => {
         'index_roulettes',
         async () => {
           console.log('📊 Buscando roletas disponíveis...');
-          const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
+          const response = await rouletteRepository.fetchAllRoulettesWithNumbers();
           console.log(`✅ ${response.length} roletas encontradas`);
           return response;
         }
@@ -275,7 +275,7 @@ const Index = () => {
           'index_roulettes',
           async () => {
             console.log('🔄 Atualizando roletas periodicamente...');
-            const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
+            const response = await rouletteRepository.fetchAllRoulettesWithNumbers();
             console.log(`✅ ${response.length} roletas atualizadas`);
             return response;
           },

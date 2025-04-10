@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RouletteRepository } from '../../../data/rouletteRepository';
+import * as rouletteRepository from '../../../data/rouletteRepository';
 import NumberHistory from '../NumberHistory';
 import './RouletteCard.css';
 
@@ -21,7 +21,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const data = await RouletteRepository.fetchRouletteById(rouletteId);
+      const data = await rouletteRepository.fetchRouletteById(rouletteId);
       
       if (data) {
         setRouletteData(data);
@@ -46,7 +46,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
     loadData();
     
     // Assinar atualizações em tempo real
-    const unsubscribe = RouletteRepository.subscribeToRouletteUpdates(
+    const unsubscribe = rouletteRepository.subscribeToRouletteUpdates(
       rouletteId,
       (updatedData) => {
         setRouletteData(updatedData);
