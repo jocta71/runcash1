@@ -353,57 +353,70 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
   };
 
-  // Efeito para se inscrever nos eventos de atualização de dados do feed service
+  // Efeito para se inscrever nas atualizações em tempo real direto do feed service
   useEffect(() => {
     const handleDataUpdated = (updateData: any) => {
-      // Obter dados mais recentes do cache do feedService
-      const freshData = feedService.getRouletteData(safeData.id);
+      debugLog(`[RouletteCard] Recebida atualização de dados:`, updateData);
       
-      if (freshData) {
-        // Se encontrarmos dados novos no cache, processá-los
-        const newNumbers = Array.isArray(freshData.numero) 
-          ? freshData.numero 
-          : [];
-          
+      // Ignorar atualizações sem dados válidos
+      if (!updateData || !updateData.tables) {
+        return;
+      }
+      
+      // Buscar a roleta específica deste card nos dados atualizados
+      const updatedTable = updateData.tables.find((table: any) => {
+        // Tentar identificar a roleta correta por diversos atributos
+        return (
+          (safeData.id && table.id === safeData.id) ||
+          (safeData.tableId && table.tableId === safeData.tableId) ||
+          (safeData.name && table.name === safeData.name)
+        );
+      });
+      
+      if (updatedTable) {
+        debugLog(`[RouletteCard] Encontrada atualização para ${safeData.name}:`, updatedTable);
+        
+        // Extrair números da atualização
+        const newNumbers = updatedTable.lastNumbers || [];
+        
         if (newNumbers.length > 0) {
-          // Verificar se temos números novos comparando com os que já temos
-          const existingNumbers = recentNumbers;
+          console.log(`[RouletteCard] Novos números para ${safeData.name}:`, newNumbers);
           
-          if (newNumbers.length !== existingNumbers.length) {
-            console.log(`[RouletteCard] Atualizando números para ${safeData.name} a partir do cache centralizado`);
-            
-            // Converter para o formato esperado pelo processador de eventos
-            const numberEvent: RouletteNumberEvent = {
-              type: 'new_number',
-              roleta_id: safeData.id,
-              roleta_nome: safeData.name,
-              numero: newNumbers.map(n => typeof n === 'object' ? n.numero : n),
-              timestamp: new Date().toISOString()
-            };
-            
-            // Processar os novos números
-            processRealtimeNumber(numberEvent);
-          }
+          // Converter para o formato esperado pelo processador de eventos
+          const numberEvent: RouletteNumberEvent = {
+            type: 'new_number',
+            roleta_id: safeData.id,
+            roleta_nome: safeData.name,
+            numero: newNumbers,
+            timestamp: Date.now()
+          };
+          
+          // Processar os novos números
+          processRealtimeNumber(numberEvent);
         }
       }
     };
-    
-    // Inscrever-se nos eventos do feed service
-    EventService.on('roulette:data-updated', handleDataUpdated);
-    
-    // Fazer uma verificação inicial para pegar os dados mais recentes
-    const initialData = feedService.getRouletteData(safeData.id);
-    if (initialData) {
-      handleDataUpdated({timestamp: new Date().toISOString()});
+
+    // Inscrever-se diretamente no serviço de feed para receber atualizações em tempo real
+    if (feedService) {
+      console.log(`[RouletteCard] Inscrevendo-se no RouletteFeedService para ${safeData.name}`);
+      feedService.subscribe(handleDataUpdated);
+      
+      // Também manter a escuta dos eventos do EventService para compatibilidade
+      EventService.on('roulette:data-updated', handleDataUpdated);
     }
     
     // Limpeza ao desmontar
     return () => {
+      if (feedService) {
+        console.log(`[RouletteCard] Cancelando inscrição no RouletteFeedService para ${safeData.name}`);
+        feedService.unsubscribe(handleDataUpdated);
+      }
       EventService.off('roulette:data-updated', handleDataUpdated);
     };
-  }, [feedService, safeData.id, safeData.name, recentNumbers]);
+  }, [feedService, safeData.id, safeData.tableId, safeData.name]);
   
-  // Ao montar o componente, verificar dados no cache em vez de fazer novas requisições
+  // Ao montar o componente, verificar dados no cache e solicitar atualização imediata
   useEffect(() => {
     // Verificar se já temos dados no cache ou se há números disponíveis nos dados da roleta
     if (recentNumbers.length === 0) {
@@ -430,7 +443,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       if (cachedData && Array.isArray(cachedData.numero) && cachedData.numero.length > 0) {
         console.log(`[RouletteCard] Usando dados do cache para ${safeData.name}`);
         
-        // Extrair os números do format de objeto
+        // Extrair os números do formato de objeto
         const numbers = cachedData.numero.map(n => 
           typeof n === 'object' ? n.numero : n
         ).filter(n => typeof n === 'number' && !isNaN(n));
@@ -441,10 +454,20 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           setHasRealData(true);
         }
       }
-      // Removendo a solicitação direta para evitar múltiplas requisições
-      // Agora apenas o LiveRoulettePage inicializará o serviço
     }
-  }, [feedService, safeData.id, safeData.name, safeData.numbers, recentNumbers]);
+    
+    // Solicitar uma atualização imediata ao montar o componente
+    if (feedService) {
+      console.log(`[RouletteCard] Solicitando atualização imediata dos dados para ${safeData.name}`);
+      feedService.fetchLatestData()
+        .then(data => {
+          console.log(`[RouletteCard] Atualização inicial recebida para ${safeData.name}`);
+        })
+        .catch(err => {
+          console.error(`[RouletteCard] Erro ao buscar atualização inicial:`, err);
+        });
+    }
+  }, [feedService, safeData.id, safeData.name, safeData.numbers, recentNumbers.length]);
 
   return (
     <Card 
