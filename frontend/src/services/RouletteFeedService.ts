@@ -330,13 +330,19 @@ export default class RouletteFeedService {
    * Inicia o polling
    */
   public startPolling(): void {
-    // DESABILITADO - Agora o polling é controlado exclusivamente pelo RESTSocketService
-    logger.info('Polling do RouletteFeedService desabilitado. Usando RESTSocketService');
-    // NÃO iniciar timer
-
-    // Manter flags para compatibilidade
-    this.isPollingActive = true;
-    window._roulettePollingActive = true;
+    // Iniciar o polling se não estiver já ativo
+    if (!this.pollingTimer && !this.isPaused) {
+      logger.info('▶️ Iniciando polling de dados de roletas a cada 10 segundos');
+      this.pollingTimer = window.setInterval(() => {
+        this.fetchLatestData();
+      }, 10000);
+      
+      // Atualizar flags
+      this.isPollingActive = true;
+      window._roulettePollingActive = true;
+    } else {
+      logger.info('ℹ️ Polling já está ativo ou sistema está em pausa');
+    }
   }
 
   /**
@@ -808,20 +814,24 @@ export default class RouletteFeedService {
   }
   
   /**
-   * Inicia o timer de polling
-   */
-  private startPollingTimer(): void {
-    // DESABILITADO - Agora o polling é controlado exclusivamente pelo RESTSocketService
-    logger.info('Timer de polling desabilitado. Usando RESTSocketService');
-    // NÃO iniciar timer de polling
-  }
-  
-  /**
    * Reinicia o timer de polling com o intervalo atual
    */
   private restartPollingTimer(): void {
-    // DESABILITADO - Não faz nada
-    logger.info('Reinício de timer desabilitado. Usando RESTSocketService');
+    // Limpar qualquer timer existente
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+    
+    // Reiniciar o timer com o intervalo correto
+    if (!this.isPaused) {
+      logger.info('🔄 Reiniciando timer de polling a cada 10 segundos');
+      this.pollingTimer = window.setInterval(() => {
+        this.fetchLatestData();
+      }, 10000);
+    } else {
+      logger.info('⏸️ Sistema em pausa, não reiniciando timer');
+    }
   }
   
   /**
