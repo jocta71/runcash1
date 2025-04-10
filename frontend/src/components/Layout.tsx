@@ -4,7 +4,7 @@ import ChatUI from './ChatUI';
 import { Search, Wallet, Loader2 } from 'lucide-react';
 import ProfileDropdown from './ProfileDropdown';
 import { Link } from 'react-router-dom';
-import { RouletteRepository } from '../services/data/rouletteRepository';
+import * as rouletteRepository from '../services/data/rouletteRepository';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -26,7 +26,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         console.log('[Layout] Pré-carregando dados da API...');
         
         // Buscar todas as roletas usando o novo repositório
-        const data = await RouletteRepository.fetchAllRoulettesWithNumbers();
+        const data = await rouletteRepository.fetchAllRoulettesWithNumbers();
         
         if (!data || !Array.isArray(data)) {
           throw new Error('Dados inválidos retornados pela API');
