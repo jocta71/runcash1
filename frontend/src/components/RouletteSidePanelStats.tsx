@@ -30,18 +30,6 @@ interface RouletteSidePanelStatsProps {
   losses: number;
 }
 
-// Função para gerar números aleatórios para testes (apenas como último recurso)
-const generateFallbackNumbers = (count: number = 20): number[] => {
-  logger.warn(`Gerando ${count} números aleatórios como fallback`);
-  const numbers: number[] = [];
-  for (let i = 0; i < count; i++) {
-    // Gerar número aleatório entre 0 e 36 (como em uma roleta de cassino)
-    const num = Math.floor(Math.random() * 37);
-    numbers.push(num);
-  }
-  return numbers;
-};
-
 // Buscar histórico de números da roleta do serviço centralizado
 export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<number[]> => {
   try {
@@ -77,7 +65,7 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
     }
   } catch (error) {
     logger.error(`Erro ao buscar números históricos:`, error);
-    return generateFallbackNumbers(50);
+    return [];
   }
 };
 
@@ -235,15 +223,15 @@ const RouletteSidePanelStats = ({
         setHistoricalNumbers(apiNumbers.slice(0, 1000));
       } 
       else {
-        // Se não temos nenhum dado, usar apenas os números recentes (ou array vazio)
-        logger.info(`Sem dados históricos, usando apenas números recentes: ${(lastNumbers || []).length}`);
+        // Se não temos nenhum dado real disponível
+        logger.info(`Sem dados históricos disponíveis`);
         setHistoricalNumbers(lastNumbers || []);
       }
       
       isInitialRequestDone.current = true;
     } catch (error) {
       logger.error('Erro ao carregar dados históricos:', error);
-      // Em caso de erro, usar apenas os números recentes em vez de gerar aleatórios
+      // Em caso de erro, usar apenas os números recentes ou array vazio
       setHistoricalNumbers(lastNumbers || []);
     } finally {
       setIsLoading(false);
