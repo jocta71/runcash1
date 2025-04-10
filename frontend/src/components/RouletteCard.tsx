@@ -340,12 +340,12 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     let isMounted = true;
     console.log(`[ROULETTE-API] Iniciando sistema para ${safeData.name} [ID: ${safeData.id}]`);
     
-    // Tentativa de buscar dados reais usando headers similares ao Postman
+    // Tentativa de buscar dados reais usando o endpoint correto /api/ROULETTES
     const fetchRealData = async () => {
       try {
-        // URL base da API
-        const url = `${config.apiUrl}/roulette/status?table=${safeData.id}`;
-        console.log(`[ROULETTE-API] Tentando acessar: ${url}`);
+        // URL CORRETA da API - o endpoint descoberto é /api/ROULETTES
+        const url = `${config.apiUrl}/ROULETTES`;
+        console.log(`[ROULETTE-API] Tentando acessar endpoint correto: ${url}`);
         
         // Configurar os headers similares ao que vimos no Postman
         const headers = {
@@ -359,16 +359,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         const response = await fetch(url, {
           method: 'GET',
           headers: headers,
-          // mode: 'no-cors' // Descomentado em caso de erro CORS persistente
+          // Usar no-cors se necessário como último recurso
+          // mode: 'no-cors'
         });
         
         // Verificar se a resposta foi bem sucedida
         if (response.ok) {
           // Tentar processar os dados reais da API
           const data = await response.json();
-          console.log(`[ROULETTE-API] Dados reais recebidos:`, data);
+          console.log(`[ROULETTE-API] Dados reais recebidos do endpoint correto:`, data);
           
-          // Processar os dados...
+          // Processar os dados usando o formato correto visto nas screenshots
           processRealData(data);
           return true; // Indicar que conseguimos dados reais
         } else {
@@ -376,48 +377,53 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           return false;
         }
       } catch (error) {
-        console.error(`[ROULETTE-API] Erro CORS ou outro problema:`, error);
-        console.log(`[ROULETTE-CORS] Fallback para dados simulados ativado.`);
+        console.error(`[ROULETTE-API] Erro ao acessar a API:`, error);
+        console.log(`[ROULETTE-FALLBACK] Usando dados simulados como alternativa.`);
         return false;
       }
     };
     
-    // Função para processar os dados reais da API
+    // Função para processar os dados reais da API - formato correto conforme as screenshots
     const processRealData = (data: any) => {
       if (!isMounted) return;
       
-      // Estrutura similar ao backend real visualizado no Postman
-      let targetTable = null;
-      
-      // Procurar a roleta nos dados recebidos
-      if (data && Array.isArray(data.roulettes)) {
-        targetTable = data.roulettes.find((t: any) => 
-          t.id === safeData.id || t._id === safeData.id || t.name === safeData.name
-        );
-      } else if (data && data.id === safeData.id) {
-        targetTable = data;
-      }
-      
-      if (!targetTable) {
-        console.warn(`[ROULETTE-API] Mesa ${safeData.name} não encontrada nos dados reais`);
-        return;
-      }
-      
-      // Extrair números da roleta
-      let numbers: number[] = [];
-      
-      if (Array.isArray(targetTable.lastNumbers)) {
-        numbers = targetTable.lastNumbers;
-      } else if (Array.isArray(targetTable.RouletteLastNumbers)) {
-        numbers = targetTable.RouletteLastNumbers;
-      }
-      
-      if (numbers.length > 0) {
-        const latestNumber = numbers[0];
-        console.log(`[ROULETTE-API] Último número extraído: ${latestNumber}`);
+      try {
+        // Baseado na estrutura JSON vista nas screenshots
+        // A API retorna um objeto com uma propriedade 'roulettes' que é um array
+        if (!data || !data.roulettes || !Array.isArray(data.roulettes)) {
+          console.warn(`[ROULETTE-API] Formato de dados inesperado:`, data);
+          return false;
+        }
         
-        // Atualizar componente com dados reais
-        updateComponent(latestNumber, numbers);
+        // Procurar a roleta correta pelo ID no array de roletas
+        const targetRoulette = data.roulettes.find((roulette: any) => 
+          roulette.roleta_id === safeData.id
+        );
+        
+        if (!targetRoulette) {
+          console.warn(`[ROULETTE-API] Roleta ${safeData.name} [ID: ${safeData.id}] não encontrada nos dados`);  
+          return false;
+        }
+        
+        // Obtivemos a roleta correta!
+        console.log(`[ROULETTE-API] Roleta encontrada:`, targetRoulette);
+        
+        // Extrair o número mais recente (conforme visto nas screenshots)
+        const latestNumber = targetRoulette.numero;
+        
+        if (typeof latestNumber === 'number') {
+          console.log(`[ROULETTE-API] Último número da API: ${latestNumber}`);
+          
+          // Atualizar o componente com o número real
+          updateComponent(latestNumber);
+          return true;
+        } else {
+          console.warn(`[ROULETTE-API] Número inválido na resposta:`, latestNumber);
+          return false;
+        }
+      } catch (error) {
+        console.error(`[ROULETTE-API] Erro ao processar dados:`, error);
+        return false;
       }
     };
     
