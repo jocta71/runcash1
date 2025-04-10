@@ -29,6 +29,7 @@ import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import config from '@/config/env';
+import { CorsProxy } from "../services/CorsProxy";
 
 // Logger específico para este componente
 const logger = getLogger('RouletteCard');
@@ -548,72 +549,26 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         const url = `${config.apiUrl}/ROULETTES`;
         console.log(`[ROULETTE-CARD] Fazendo requisição para: ${url}`);
         
-        // Adicionar headers para lidar com CORS
-        const headers = {
-          'Accept': 'application/json, */*',
-          'User-Agent': 'RouletteCard/1.0',
-          'Origin': window.location.origin,
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        };
-        
         try {
-          // PRIMEIRA TENTATIVA: Com modo cors padrão
-          const response = await fetch(url, {
-            method: 'GET',
-            headers,
+          // Usando nosso novo serviço de proxy CORS para tentar várias abordagens
+          const data = await CorsProxy.fetch(url, {
             mode: 'cors',
-            cache: 'no-store'
+            timeout: 10000,
+            retry: 2
           });
-          
-          if (!response.ok) {
-            throw new Error(`Resposta não OK: ${response.status} ${response.statusText}`);
-          }
-          
-          // Obtém o texto da resposta primeiro para debug
-          const responseText = await response.text();
-          console.log(`[ROULETTE-CARD] Resposta bruta: ${responseText.substring(0, 100)}...`);
-          
-          // Tenta fazer o parse do JSON
-          let data;
-          try {
-            data = JSON.parse(responseText);
-          } catch (e) {
-            console.error(`[ROULETTE-CARD] ❌ Erro ao parsear JSON: ${e}`);
-            throw e; // Relançar para tentar a próxima abordagem
-          }
           
           return processApiData(data);
           
-        } catch (corsError) {
-          console.warn(`[ROULETTE-CARD] ⚠️ Erro no modo cors, tentando no-cors: ${corsError}`);
-          
-          try {
-            // SEGUNDA TENTATIVA: Com modo no-cors
-            const noCorsResponse = await fetch(url, {
-              method: 'GET',
-              headers,
-              mode: 'no-cors', // Tenta contornar CORS
-              cache: 'no-store'
-            });
-            
-            console.log(`[ROULETTE-CARD] Resposta no-cors obtida, tipo: ${noCorsResponse.type}`);
-            
-            // IMPORTANTE: no modo no-cors, a resposta será opaca e não podemos acessar o conteúdo
-            // Vamos simular dados para manter a UI funcional
-            return simulateDataFallback();
-            
-          } catch (noCorsError) {
-            console.error(`[ROULETTE-CARD] ❌ Erro também no modo no-cors: ${noCorsError}`);
-            throw noCorsError; // Relançar para ir para o fallback final
-          }
+        } catch (error) {
+          console.error(`[ROULETTE-CARD] ❌ Todas as tentativas falharam:`, error);
+          return simulateDataFallback();
         }
       } catch (error) {
-        console.error(`[ROULETTE-CARD] ❌ Todos os métodos de fetch falharam: ${error}`);
-        return simulateDataFallback(); // Garantir que temos uma última solução de backup
+        console.error(`[ROULETTE-CARD] ❌ Erro geral no polling:`, error);
+        return simulateDataFallback();
       }
       
-      // Função interna para processar dados da API
+      // Função para processar dados da API
       function processApiData(data: any) {
         console.log(`[ROULETTE-CARD] ✅ Dados obtidos:`, data);
         
