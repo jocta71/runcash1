@@ -72,23 +72,19 @@ export class RouletteHistoryService {
   private async doFetchHistoricalNumbers(rouletteName: string): Promise<number[]> {
     console.log(`[RouletteHistoryService] Requisição desativada para histórico da roleta ${rouletteName}`);
     
-    // Gerando números aleatórios como fallback
-    const randomNumbers: number[] = [];
-    for (let i = 0; i < 100; i++) {
-      randomNumbers.push(Math.floor(Math.random() * 36));
-    }
+    // Retornar um array vazio em vez de gerar números aleatórios
+    const emptyNumbers: number[] = [];
     
     // Simulando um atraso para evitar loop infinito
     await new Promise(resolve => setTimeout(resolve, 200));
   
-    
-    // Atualiza o cache
+    // Atualiza o cache com array vazio
     this.cache[rouletteName] = {
-      data: randomNumbers,
+      data: emptyNumbers,
       timestamp: Date.now()
     };
     
-    return randomNumbers;
+    return emptyNumbers;
   }
 
   /**
