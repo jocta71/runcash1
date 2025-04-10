@@ -471,44 +471,105 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   }, [feedService, safeData.id, safeData.name, safeData.numbers, recentNumbers]);
 
   // Função de callback para processar atualizações recebidas do serviço
-  const handleRouletteUpdate = useCallback((updatedData: any[]) => {
-    if (!Array.isArray(updatedData) || updatedData.length === 0 || !safeData || !safeData.id) {
+  const handleRouletteUpdate = useCallback((updatedData: any) => {
+    console.log(`[RouletteCard] handleRouletteUpdate chamado para ${safeData.name}`, updatedData);
+    
+    if (!updatedData || !safeData || !safeData.id) {
       return; // Ignorar dados inválidos
     }
     
-    // Encontrar dados específicos para esta roleta
-    const roletaData = updatedData.find(r => 
-      r.id === safeData.id || 
-      r.nome === safeData.name
-    );
-    
-    if (roletaData) {
-      console.log(`[RouletteCard] Recebida atualização em tempo real para ${safeData.name}`);
+    // Ver se os dados são um array ou um objeto único
+    if (Array.isArray(updatedData)) {
+      // Encontrar dados específicos para esta roleta no array
+      const roletaData = updatedData.find((r: any) => 
+        r.id === safeData.id || 
+        r._id === safeData.id ||
+        r.name === safeData.name ||
+        r.nome === safeData.name
+      );
       
-      // Processar números recebidos - numero é um array de objetos com propriedade 'numero'
+      if (roletaData) {
+        processRouletteData(roletaData);
+      }
+    } else if (typeof updatedData === 'object' && updatedData !== null) {
+      // Se for um objeto (roleta única), verificar se é para esta roleta
+      if (
+        updatedData.id === safeData.id ||
+        updatedData._id === safeData.id ||
+        updatedData.name === safeData.name ||
+        updatedData.nome === safeData.name
+      ) {
+        processRouletteData(updatedData);
+      }
+    }
+    
+    // Função para processar os dados de uma roleta
+    function processRouletteData(roletaData: any) {
+      console.log(`[RouletteCard] Processando dados para ${safeData.name}:`, roletaData);
+      
+      // Processar números recebidos
       if (Array.isArray(roletaData.numero) && roletaData.numero.length > 0) {
-        // Extrair apenas os valores numéricos para facilitar o processamento
-        const newNumberValues = roletaData.numero.map(item => item.numero);
+        // Extrair números do array de objetos
+        const extractedNumbers = roletaData.numero.map(item => {
+          if (typeof item === 'object' && item !== null && 'numero' in item) {
+            return item.numero;
+          }
+          return typeof item === 'number' ? item : null;
+        }).filter(num => num !== null && !isNaN(num as number));
         
-        // Atualizar o último número se houver um novo
-        if (newNumberValues[0] !== lastNumber) {
-          setLastNumber(newNumberValues[0]);
+        console.log(`[RouletteCard] Números extraídos para ${safeData.name}:`, extractedNumbers);
+        
+        if (extractedNumbers.length === 0) {
+          return; // Sem números válidos
+        }
+        
+        // Verificar se temos números novos
+        const newLastNumber = extractedNumbers[0] as number;
+        const hasNewLastNumber = newLastNumber !== lastNumber;
+        
+        if (hasNewLastNumber) {
+          console.log(`[RouletteCard] Atualizando último número para ${safeData.name}: ${lastNumber} -> ${newLastNumber}`);
+          setLastNumber(newLastNumber);
+          setLastUpdateTime(Date.now());
+          
+          // Ativar efeito visual de novo número
+          setIsNewNumber(true);
+          setTimeout(() => setIsNewNumber(false), 1500);
+          
+          // Incrementar contador de atualizações
+          setUpdateCount(prev => prev + 1);
         }
         
         // Atualizar a lista completa de números recentes
         setRecentNumbers(prev => {
-          // Combinar números anteriores com novos, sem duplicatas, limitando ao tamanho máximo
-          const combined = [...new Set([...newNumberValues, ...prev])].slice(0, 20);
-          return combined;
+          // Verificar se temos números novos para evitar renderizações desnecessárias
+          const currentFirstNumber = prev.length > 0 ? prev[0] : null;
+          const newFirstNumber = extractedNumbers[0];
+          
+          if (currentFirstNumber === newFirstNumber && prev.length >= extractedNumbers.length) {
+            // Se o primeiro número é o mesmo e temos pelo menos a mesma quantidade de números,
+            // provavelmente não há atualização real
+            return prev;
+          }
+          
+          // Combinar números novos com existentes, sem duplicatas, limitando ao tamanho máximo
+          const combinedNumbers = [...extractedNumbers];
+          
+          // Adicionar números antigos que não estão na nova lista
+          prev.forEach(oldNum => {
+            if (!combinedNumbers.includes(oldNum)) {
+              combinedNumbers.push(oldNum);
+            }
+          });
+          
+          // Limitar a 26 números para exibição
+          const limitedNumbers = combinedNumbers.slice(0, 26);
+          console.log(`[RouletteCard] Lista de números atualizada para ${safeData.name}:`, limitedNumbers);
+          return limitedNumbers;
         });
         
-        // Se houver detalhes extras disponíveis para o número mais recente
-        if (roletaData.numero[0]) {
-          // Você pode armazenar outras informações como cor, timestamp, etc.
-          // em estados adicionais se necessário
-          const latestNumberDetails = roletaData.numero[0];
-          console.log(`[RouletteCard] Detalhes do último número: cor=${latestNumberDetails.cor}, timestamp=${latestNumberDetails.timestamp}`);
-        }
+        // Definir que temos dados reais
+        setHasRealData(true);
       }
     }
   }, [safeData, lastNumber]);
@@ -519,9 +580,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       console.log(`[RouletteCard] Inscrevendo para atualizações em tempo real: ${safeData.name}`);
       feedService.subscribe(handleRouletteUpdate);
       
-      // Forçar uma atualização imediata
-      feedService.forceUpdate();
-      
       // Limpar inscrição quando componente desmontar
       return () => {
         console.log(`[RouletteCard] Cancelando inscrição de atualizações: ${safeData.name}`);
@@ -529,19 +587,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       };
     }
   }, [feedService, safeData, handleRouletteUpdate]);
-
-  // Efeito para atualizar a cada 10 segundos
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      if (feedService) {
-        feedService.forceUpdate();
-      }
-    }, 10000);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [feedService]);
 
   return (
     <Card 
