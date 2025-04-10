@@ -24,20 +24,29 @@ const simulatedMessages = [
   { sender: 'fandodonaaa', message: 'diminui a mão doidao', isModerator: false, isAdmin: false },
   { sender: 'velhas44', message: 'ANAOO', isModerator: false, isAdmin: false },
   { sender: 'pirezzgod', message: 'to sentindo forra', isModerator: false, isAdmin: false },
-
-  // Novos adicionados com base no estilo
-  { sender: 'luquinha22', message: '33333333333333333', isModerator: false, isAdmin: false },
-  { sender: 'morenocria', message: 'só no 4 hj fi, confia', isModerator: false, isAdmin: false },
-  { sender: 'tatinhahh', message: 'n aguento mais perde vei pqp 😭', isModerator: false, isAdmin: false },
-  { sender: 'diguinbrabo', message: '8 ou nada', isModerator: false, isAdmin: false },
-  { sender: 'felpynhaa', message: 'sai fora q hj é só win', isModerator: false, isAdmin: false },
-  { sender: 'xkoringa07', message: '999999999999', isModerator: false, isAdmin: false },
-  { sender: 'malukyn_13', message: 'alguem me da cal q to quebrado', isModerator: false, isAdmin: false },
-  { sender: 'letcria', message: 'vem 7 por favorrr 🙏', isModerator: false, isAdmin: false },
-  { sender: 'caio_das_bet', message: 'entrei com 2, sai com 0 kkk', isModerator: false, isAdmin: false },
-  { sender: 'junimda44', message: 'mano do céu esse bot trolla', isModerator: false, isAdmin: false },
-  { sender: 'ta_sussa', message: '44444444444 confiando no insta', isModerator: false, isAdmin: false },
-  { sender: 'rabisquim', message: 'mó vacilação esse game ai', isModerator: false, isAdmin: false },
+ 
+    { sender: 'miltonzin22', message: 'boraaaa q hj é win fi🔥', isModerator: false, isAdmin: false },
+    { sender: 'cria_do_7', message: 'se vim 4 dnv eu largo', isModerator: false, isAdmin: false },
+    { sender: 'luanbet12', message: 'cam do nada dnv???', isModerator: false, isAdmin: false },
+    { sender: 'rayzinn_157', message: 'vixi perdi tudo kk', isModerator: false, isAdmin: false },
+    { sender: 'juninhloko', message: 'vem 36 pa nóis 🔥🔥🔥', isModerator: false, isAdmin: false },
+    { sender: 'bruxinhaxd', message: 'mds essa roleta é ladrona msm', isModerator: false, isAdmin: false },
+    { sender: 'dudinhaaa', message: 'socorroooo q veio 0 😭', isModerator: false, isAdmin: false },
+    { sender: 'pedrogolpe', message: '44444444444444444', isModerator: false, isAdmin: false },
+    { sender: 'leleks2k', message: 'alguem tem cal da relampago??', isModerator: false, isAdmin: false },
+    { sender: 'thamy_cria', message: 'afff errei a mão pqp', isModerator: false, isAdmin: false },
+    { sender: 'tiaguu_invest', message: 'colokei 20 ganhei 200 KAKAKA', isModerator: false, isAdmin: false },
+    { sender: 'rafa_pulafase', message: 'vem 13 q nois lucra', isModerator: false, isAdmin: false },
+    { sender: 'tavinhobet', message: 'rapaz essa ai é boa d+', isModerator: false, isAdmin: false },
+    { sender: 'duduqehvapo', message: '0 veio do além 😱', isModerator: false, isAdmin: false },
+    { sender: 'natyvrau', message: 'hj to só na russian fi', isModerator: false, isAdmin: false },
+    { sender: 'manoquebrada', message: 'deus me dibre desse 17', isModerator: false, isAdmin: false },
+    { sender: 'joaosemfreio', message: 'mulequeeeeee acertei o 25 😎', isModerator: false, isAdmin: false },
+    { sender: 'betodomal', message: 'camzao slk 😈', isModerator: false, isAdmin: false },
+    { sender: 'leticia.cash', message: 'primeira vez aq, como joga?', isModerator: false, isAdmin: false },
+    { sender: 'caio_das_bet', message: 'entrei com 2, sai com 0 kkk', isModerator: false, isAdmin: false },
+  
+  
 ];
 
 
