@@ -407,9 +407,22 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Com base nos logs, vamos nos inscrever para diversos eventos que podem conter números novos
     
     // 1. Evento específico para o ID da roleta (visto no log: roulette_card_update)
-    const specificCardEventName = `roulette_card_update:${safeData.id}`;
-    console.log(`[ROULETTE-CARD] Inscrevendo para evento específico: ${specificCardEventName}`);
-    EventService.on(specificCardEventName, handleNumberUpdate);
+    // Note que RESTSocketService emite eventos com o formato roulette_card_update e depois checa o ID
+    const specificCardEventName = `roulette_card_update`;
+    console.log(`[ROULETTE-CARD] Inscrevendo para evento de cartão de roleta: ${specificCardEventName}`);
+    
+    // Nos logs, vemos "Emitido evento específico para RouletteCard: a11fd7c4-3ce0-9115-fe95-e761637969ad, número 10"
+    // Isso indica que precisamos filtrar eventos por ID
+    const handleCardEvent = (eventData: any) => {
+      // Verificar se o evento é para esta roleta específica comparando IDs
+      if (eventData && eventData.id === safeData.id) {
+        console.log(`[ROULETTE-CARD] Recebido evento específico para ${safeData.name}`);
+        handleNumberUpdate(eventData);
+      }
+    };
+    
+    // Registrar listener para evento específico
+    EventService.on(specificCardEventName, handleCardEvent);
     
     // 2. Evento genérico de atualização de números (visto no log: new_number)
     const genericNumberEventName = 'new_number';
@@ -453,13 +466,16 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     
     EventService.on(numbersUpdateEventName, handleNumbersUpdate);
     
+    // Adicionar log para confirmar a configuração
+    console.log(`[ROULETTE-CARD] ${safeData.name} (ID: ${safeData.id}) configurado com todos os listeners`);
+    
     // Limpeza ao desmontar o componente
     return () => {
       console.log(`[ROULETTE-CARD] Cancelando inscrições para ${safeData.name}`);
       isMounted = false;
       
-      // Cancelar todas as inscrições de eventos
-      EventService.off(specificCardEventName, handleNumberUpdate);
+      // Cancelar todas as inscrições de eventos - usando os handlers corretos
+      EventService.off(specificCardEventName, handleCardEvent);
       EventService.off(genericNumberEventName, handleGenericNumberEvent);
       EventService.off(rouletteUpdateEventName, handleRouletteUpdate);
       EventService.off(numbersUpdateEventName, handleNumbersUpdate);
