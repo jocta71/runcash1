@@ -103,6 +103,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   // Estados
   const [lastNumber, setLastNumber] = useState<number | null>(null);
   const [recentNumbers, setRecentNumbers] = useState<number[]>([]);
+  const [allNumbers, setAllNumbers] = useState<number[]>([]); // Array com todos os números, sem limite
   const [isNewNumber, setIsNewNumber] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -188,10 +189,14 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Extrair números da roleta encontrada
       const newNumbers = extractNumbers(myRoulette);
       
-      // Se temos números, processar (limitando a 20)
+      // Se temos números, processar (mantendo todos os números)
       if (newNumbers.length > 0) {
-        // Definir os números recentes limitados aos 20 primeiros
+        // Armazenar todos os números extraídos
+        setAllNumbers(newNumbers);
+        
+        // Definir os números recentes (limitados aos 20 primeiros)
         setRecentNumbers(newNumbers.slice(0, 20));
+        
         // Definir o último número
         setLastNumber(newNumbers[0]);
         setHasRealData(true);
@@ -373,12 +378,13 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Atualizar o último número
       setLastNumber(latestNumber);
       
-      // Atualizar a lista de números recentes (limitando a 20)
-      const newRecentNumbers = [latestNumber, ...recentNumbers];
-      if (newRecentNumbers.length > 20) {
-        newRecentNumbers.length = 20; // Manter apenas os 20 mais recentes
-      }
-      setRecentNumbers(newRecentNumbers);
+      // Importante: Atualizar a lista completa de números primeiro
+      const newAllNumbers = [latestNumber, ...allNumbers];
+      setAllNumbers(newAllNumbers);
+      
+      // Atualizar a lista de números recentes para exibição (somente os 20 mais recentes)
+      setRecentNumbers(newAllNumbers.slice(0, 20));
+      
       setHasRealData(true);
       setIsNewNumber(true);
       
@@ -389,7 +395,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
     
     return true;
-  }, [recentNumbers, rawRouletteData]);
+  }, [recentNumbers, allNumbers, rawRouletteData]);
   
   // Função para alternar exibição de estatísticas
   const toggleStats = (e: React.MouseEvent) => {
