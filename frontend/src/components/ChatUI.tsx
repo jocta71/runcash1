@@ -319,7 +319,7 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
       </div>
 
       {/* Input de Mensagem */}
-      <div className="absolute bottom-0 left-0 right-0 p-3 bg-[#0f0e13] border-t border-[#2a2a2e]">
+      <div className="fixed bottom-0 left-0 right-0 p-3 bg-[#0f0e13] border-t border-[#2a2a2e] z-20">
         <form onSubmit={handleSendMessage} className="flex space-x-2">
           <input
             type="text"
