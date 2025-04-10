@@ -17,6 +17,8 @@ const LiveRoulettePage: React.FC = () => {
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState<boolean>(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
   
   // Obter referência ao serviço de feed centralizado sem inicializar novo polling
   const feedService = useMemo(() => {
@@ -59,6 +61,9 @@ const LiveRoulettePage: React.FC = () => {
         return roleta;
       });
     });
+    
+    // Atualizar timestamp da última atualização
+    setLastUpdateTime(Date.now());
   }, []);
 
   // Função para determinar a cor de um número da roleta
@@ -82,68 +87,95 @@ const LiveRoulettePage: React.FC = () => {
     
     console.log('[LiveRoulettePage] Inicializando componente');
     
-    // Buscar dados iniciais sem iniciar polling
-    async function fetchInitialData() {
-      try {
-        setLoading(true);
+    // Inicializar o serviço de feed, que agora só busca dados iniciais uma vez
+    feedService.initialize()
+      .then(() => {
+        console.log('[LiveRoulettePage] Serviço de feed inicializado com sucesso');
+        setInitialized(true);
         
-        // Verificar se já temos dados em cache
-        const cachedRoulettes = feedService.getAllRoulettes();
-        
-        if (cachedRoulettes && cachedRoulettes.length > 0) {
-          console.log(`[LiveRoulettePage] Usando ${cachedRoulettes.length} roletas do cache`);
-          setRoulettes(cachedRoulettes);
+        // Obter dados do serviço após inicialização
+        const rouletteData = Object.values(feedService.getAllRoulettes());
+        if (rouletteData.length > 0) {
+          console.log(`[LiveRoulettePage] Carregados ${rouletteData.length} roletas do serviço`);
+          setRoulettes(rouletteData);
           setLoading(false);
         } else {
-          // NÃO iniciar polling ou buscar dados aqui - apenas aguardar dados do sistema centralizado
-          console.log('[LiveRoulettePage] Aguardando dados do sistema centralizado');
-          
-          // Definir timeout de fallback caso demore muito
+          // Se não temos dados ainda, aguardar até 5 segundos
           setTimeout(() => {
-            // Verificar novamente se já temos dados em cache depois de alguns segundos
-            const delayedRoulettes = feedService.getAllRoulettes();
-            if (delayedRoulettes && delayedRoulettes.length > 0) {
-              console.log(`[LiveRoulettePage] Dados recebidos após espera: ${delayedRoulettes.length} roletas`);
-              setRoulettes(delayedRoulettes);
-            } else {
-              console.log('[LiveRoulettePage] Sem dados após espera, mostrando página vazia');
-            }
+            const delayedData = Object.values(feedService.getAllRoulettes());
+            console.log(`[LiveRoulettePage] Carregados ${delayedData.length} roletas após aguardar`);
+            setRoulettes(delayedData);
             setLoading(false);
-          }, 5000); // Timeout de 5 segundos para fallback
+          }, 5000);
         }
-      } catch (err: any) {
-        console.error('Erro ao carregar dados de roletas:', err);
-        setError(err.message || 'Erro ao carregar roletas');
+      })
+      .catch(err => {
+        console.error('[LiveRoulettePage] Erro ao inicializar serviço de feed:', err);
+        setError('Erro ao carregar dados. Por favor, tente novamente.');
         setLoading(false);
-      }
-    }
-    
-    fetchInitialData();
+      });
     
     // Inscrever-se no evento de atualização de dados
     const handleDataUpdated = (updateData: any) => {
       console.log('[LiveRoulettePage] Recebida atualização de dados');
       
       // Obter dados atualizados do cache
-      const updatedRoulettes = feedService.getAllRoulettes();
+      const updatedRoulettes = Object.values(feedService.getAllRoulettes());
       
       if (updatedRoulettes && updatedRoulettes.length > 0) {
         console.log(`[LiveRoulettePage] Atualizando com ${updatedRoulettes.length} roletas`);
         setRoulettes(updatedRoulettes);
         setLoading(false); // Garantir que o loading seja desativado ao receber dados
+        setLastUpdateTime(Date.now()); // Registrar momento da atualização
       }
     };
     
-    // Inscrever-se no evento
+    // Registrar manipulador para evento de socket (caso a versão use sockets)
+    const handleSocketUpdate = (event: any) => {
+      if (event && event.type === 'new_number' && event.roleta_id && event.numero) {
+        console.log(`[LiveRoulettePage] Recebido novo número via socket: ${event.numero} para roleta ${event.roleta_id}`);
+        addNewNumberToRoulette(event.roleta_id, {
+          numero: event.numero,
+          timestamp: event.timestamp
+        });
+      }
+    };
+    
+    // Inscrever-se nos eventos
     EventService.on('roulette:data-updated', handleDataUpdated);
+    EventService.on('roulette:new-number', handleSocketUpdate);
+    
+    // Iniciar timer para verificar atualizações periódicas
+    const updateCheckTimer = setInterval(() => {
+      // Verificar quanto tempo se passou desde a última atualização
+      const timeSinceLastUpdate = Date.now() - lastUpdateTime;
+      
+      if (timeSinceLastUpdate > 30000) { // 30 segundos sem atualizações
+        console.log('[LiveRoulettePage] Mais de 30s sem atualizações, verificando novos dados...');
+        
+        // Forçar uma atualização manual dos dados
+        feedService.refreshCache()
+          .then(() => {
+            console.log('[LiveRoulettePage] Dados atualizados manualmente');
+            const refreshedData = Object.values(feedService.getAllRoulettes());
+            setRoulettes(refreshedData);
+            setLastUpdateTime(Date.now());
+          })
+          .catch(err => {
+            console.error('[LiveRoulettePage] Erro ao atualizar dados manualmente:', err);
+          });
+      }
+    }, 10000); // Verificar a cada 10 segundos
     
     return () => {
-      // Limpar listener ao desmontar
+      // Limpar listeners ao desmontar
       EventService.off('roulette:data-updated', handleDataUpdated);
+      EventService.off('roulette:new-number', handleSocketUpdate);
+      clearInterval(updateCheckTimer);
       // Não resetamos IS_COMPONENT_INITIALIZED pois queremos garantir que só haja
       // uma inicialização durante todo o ciclo de vida da aplicação
     };
-  }, [feedService]);
+  }, [feedService, addNewNumberToRoulette, lastUpdateTime]);
 
   return (
     <>
@@ -153,6 +185,29 @@ const LiveRoulettePage: React.FC = () => {
       
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Roletas ao vivo</h1>
+        
+        {/* Indicador de última atualização */}
+        {initialized && !loading && (
+          <div className="text-sm text-gray-500 mb-4">
+            Última atualização: {new Date(lastUpdateTime).toLocaleTimeString()}
+            <button 
+              onClick={() => {
+                setLoading(true);
+                feedService.refreshCache()
+                  .then(() => {
+                    const refreshedData = Object.values(feedService.getAllRoulettes());
+                    setRoulettes(refreshedData);
+                    setLastUpdateTime(Date.now());
+                    setLoading(false);
+                  })
+                  .catch(() => setLoading(false));
+              }}
+              className="ml-2 text-blue-500 hover:text-blue-700"
+            >
+              Atualizar agora
+            </button>
+          </div>
+        )}
         
         {loading ? (
           <div className="flex justify-center items-center py-20">
