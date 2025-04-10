@@ -238,7 +238,7 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
   
   // Chat expandido (não minimizado)
   return (
-    <div className="flex flex-col bg-[#100f13] h-screen">
+    <div className="flex flex-col bg-[#100f13] h-screen overflow-hidden">
       {/* Header do Chat */}
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 bg-[#141318] border-b border-[#2a2a2e]">
         <div className="flex items-center space-x-2">
@@ -272,73 +272,75 @@ const ChatUI = ({ isOpen = false, onClose, isMobile = false }: ChatUIProps) => {
         </div>
       </div>
 
-      {/* Lista de Mensagens - Usa flex-1 para ocupar o espaço disponível */}
-      <div 
-        ref={chatContainerRef} 
-        className="flex-1 overflow-y-auto p-4 space-y-4"
-        style={{ marginBottom: '70px' }} // Garante espaço suficiente para a caixa de entrada
-      >
-        {messages.map((message) => (
-          <div key={message.id} className="flex items-start space-x-3">
-            <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center" 
-                 style={{ 
-                   backgroundColor: message.isAdmin 
-                     ? '#10b981' 
-                     : message.isModerator 
-                       ? '#4f46e5' 
-                       : `hsl(${message.sender.charCodeAt(0) * 10 % 360}, 70%, 45%)`
-                 }}>
-              <span className="text-white font-medium text-sm">
-                {message.sender.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-white">{message.sender}</span>
-                {message.isModerator && (
-                  <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded">
-                    Moderator
-                  </span>
-                )}
-                {message.isAdmin && (
-                  <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded">
-                    Admin
-                  </span>
-                )}
+      {/* Container que engloba mensagens e input */}
+      <div className="flex-1 flex flex-col relative overflow-hidden">
+        {/* Lista de Mensagens */}
+        <div 
+          ref={chatContainerRef} 
+          className="flex-1 overflow-y-auto p-4 space-y-4 pb-20"
+        >
+          {messages.map((message) => (
+            <div key={message.id} className="flex items-start space-x-3">
+              <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center" 
+                   style={{ 
+                     backgroundColor: message.isAdmin 
+                       ? '#10b981' 
+                       : message.isModerator 
+                         ? '#4f46e5' 
+                         : `hsl(${message.sender.charCodeAt(0) * 10 % 360}, 70%, 45%)`
+                   }}>
+                <span className="text-white font-medium text-sm">
+                  {message.sender.charAt(0).toUpperCase()}
+                </span>
               </div>
-              <div className={`mt-1 px-3 py-2 rounded-lg text-left max-w-[85%] ${
-                message.sender === 'Você' 
-                  ? 'bg-green-600 text-white ml-auto'
-                  : message.isAdmin 
-                    ? 'bg-[#1e293b] text-white' 
-                    : message.isModerator
-                      ? 'bg-[#1e1e3f] text-white'
-                      : 'bg-[#2a2a36] text-gray-200'
-              }`}>
-                <p className="text-sm">{message.message}</p>
+              <div className="flex-1">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-white">{message.sender}</span>
+                  {message.isModerator && (
+                    <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded">
+                      Moderator
+                    </span>
+                  )}
+                  {message.isAdmin && (
+                    <span className="px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded">
+                      Admin
+                    </span>
+                  )}
+                </div>
+                <div className={`mt-1 px-3 py-2 rounded-lg text-left max-w-[85%] ${
+                  message.sender === 'Você' 
+                    ? 'bg-green-600 text-white ml-auto'
+                    : message.isAdmin 
+                      ? 'bg-[#1e293b] text-white' 
+                      : message.isModerator
+                        ? 'bg-[#1e1e3f] text-white'
+                        : 'bg-[#2a2a36] text-gray-200'
+                }`}>
+                  <p className="text-sm">{message.message}</p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {/* Input de Mensagem - position fixed para garantir que esteja sempre visível */}
-      <div className="fixed bottom-0 left-0 right-0 p-3 bg-[#0f0e13] border-t border-[#2a2a2e]" style={{ height: '70px' }}>
-        <form onSubmit={handleSendMessage} className="flex space-x-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            className="flex-1 bg-[#1a191e] border border-[#2a2a2e] rounded-md px-4 py-2 text-white text-sm focus:outline-none focus:border-green-500"
-            placeholder="Digite sua mensagem..."
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors"
-          >
-            Enviar
-          </button>
-        </form>
+        {/* Input de Mensagem - posição absoluta em relação ao container */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 bg-[#0f0e13] border-t border-[#2a2a2e]">
+          <form onSubmit={handleSendMessage} className="flex space-x-2">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              className="flex-1 bg-[#1a191e] border border-[#2a2a2e] rounded-md px-4 py-2 text-white text-sm focus:outline-none focus:border-green-500"
+              placeholder="Digite sua mensagem..."
+            />
+            <button
+              type="submit"
+              className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors"
+            >
+              Enviar
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
