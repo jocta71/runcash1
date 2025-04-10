@@ -17,10 +17,45 @@ const LiveRoulettePage: React.FC = () => {
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [useLocalData, setUseLocalData] = useState<boolean>(false);
   
   // Obter referência ao serviço de feed centralizado
   const feedService = useMemo(() => {
     return RouletteSystemInitializer.getFeedService();
+  }, []);
+
+  // Função para tentar usar dados de fallback
+  const useFallbackData = useCallback(() => {
+    console.log('[LiveRoulettePage] Usando dados de fallback devido a problemas na API');
+    
+    // Dados mínimos para exibir quando a API estiver com problemas
+    const fallbackData: RouletteData[] = [
+      {
+        id: 'fallback-1',
+        _id: 'fallback-1',
+        name: 'Roleta Platinum (Offline)',
+        numero: [
+          { numero: 7, cor: 'vermelho', timestamp: new Date().toISOString() },
+          { numero: 11, cor: 'preto', timestamp: new Date().toISOString() },
+          { numero: 0, cor: 'verde', timestamp: new Date().toISOString() }
+        ]
+      },
+      {
+        id: 'fallback-2',
+        _id: 'fallback-2',
+        name: 'Roleta Gold (Offline)',
+        numero: [
+          { numero: 5, cor: 'vermelho', timestamp: new Date().toISOString() },
+          { numero: 8, cor: 'preto', timestamp: new Date().toISOString() },
+          { numero: 21, cor: 'vermelho', timestamp: new Date().toISOString() }
+        ]
+      }
+    ];
+    
+    setRoulettes(fallbackData);
+    setLoading(false);
+    setUseLocalData(true);
+    setError('Usando dados offline devido a problemas de conexão com a API. As atualizações em tempo real estão desativadas.');
   }, []);
 
   // Função para adicionar um novo número a uma roleta específica
@@ -73,7 +108,13 @@ const LiveRoulettePage: React.FC = () => {
     
     // Garantir que o sistema de roletas esteja inicializado
     if (!isInitialized) {
-      RouletteSystemInitializer.initialize();
+      try {
+        RouletteSystemInitializer.initialize();
+      } catch (err) {
+        console.error('[LiveRoulettePage] Erro ao inicializar sistema:', err);
+        useFallbackData();
+        return;
+      }
     }
     
     // Buscar dados iniciais
@@ -100,16 +141,17 @@ const LiveRoulettePage: React.FC = () => {
             if (delayedRoulettes && delayedRoulettes.length > 0) {
               console.log(`[LiveRoulettePage] Dados recebidos após espera: ${delayedRoulettes.length} roletas`);
               setRoulettes(delayedRoulettes);
+              setLoading(false);
             } else {
-              console.log('[LiveRoulettePage] Sem dados após espera, mostrando página vazia');
+              console.log('[LiveRoulettePage] Sem dados após espera, usando fallback');
+              useFallbackData();
             }
-            setLoading(false);
           }, 5000); // Timeout de 5 segundos para fallback
         }
       } catch (err: any) {
         console.error('Erro ao carregar dados de roletas:', err);
         setError(err.message || 'Erro ao carregar roletas');
-        setLoading(false);
+        useFallbackData();
       }
     }
     
@@ -126,6 +168,12 @@ const LiveRoulettePage: React.FC = () => {
         console.log(`[LiveRoulettePage] Atualizando com ${updatedRoulettes.length} roletas`);
         setRoulettes(updatedRoulettes);
         setLoading(false); // Garantir que o loading seja desativado ao receber dados
+        
+        // Se estávamos usando dados offline, atualizar para dados online
+        if (useLocalData) {
+          setUseLocalData(false);
+          setError(null);
+        }
       }
     };
     
@@ -138,7 +186,7 @@ const LiveRoulettePage: React.FC = () => {
       // Não resetamos IS_COMPONENT_INITIALIZED pois queremos garantir que só haja
       // uma inicialização durante todo o ciclo de vida da aplicação
     };
-  }, [feedService, isInitialized, refreshData]);
+  }, [feedService, isInitialized, refreshData, useFallbackData, useLocalData]);
 
   return (
     <>
@@ -152,12 +200,28 @@ const LiveRoulettePage: React.FC = () => {
           {!isConnected && <span className="text-yellow-500 ml-2 text-sm">(Reconectando...)</span>}
         </h1>
         
+        {useLocalData && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4">
+            {error}
+            <button
+              className="ml-4 underline text-blue-600 hover:text-blue-800"
+              onClick={() => {
+                setLoading(true);
+                refreshData();
+                setTimeout(() => setLoading(false), 3000);
+              }}
+            >
+              Tentar reconectar
+            </button>
+          </div>
+        )}
+        
         {loading ? (
           <div className="flex justify-center items-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <span className="ml-2">Carregando roletas...</span>
           </div>
-        ) : error ? (
+        ) : error && !useLocalData ? (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
             {error}
           </div>

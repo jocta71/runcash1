@@ -16,24 +16,27 @@ const RETRY_DELAY = 2000; // 2 segundos entre tentativas
  * Usa a API REST: https://backendapi-production-36b5.up.railway.app/api/ROULETTES
  */
 export default class RouletteStreamService {
-  private static instance: RouletteStreamService | null = null;
-  private pollingTimer: number | null = null;
-  private isPolling: boolean = false;
-  private isConnected: boolean = false;
-  private lastFetchTime: number = 0;
-  private retryAttempts: number = 0;
-  private feedService: RouletteFeedService;
-
-  /**
-   * Construtor privado para implementação do Singleton
-   */
+  private static instance: RouletteStreamService;
+  private isConnected = false;
+  private apiEndpoint = 'https://backendapi-production-36b5.up.railway.app/api/ROULETTES';
+  private pollingInterval: any = null;
+  private pollingRetryCount = 0;
+  private readonly MAX_RETRY_COUNT = 5;
+  private initialBackoffDelay = 2000; // 2 segundos
+  private maxBackoffDelay = 30000; // 30 segundos
+  
   private constructor() {
-    this.feedService = RouletteFeedService.getInstance();
-    this.setupEventListeners();
+    logger.info('Inicializando serviço de streaming de dados de roletas');
+    
+    // Registrar para eventos de visibilidade
+    this.setupVisibilityHandling();
+    
+    // Registrar para eventos de atualização manual
+    document.addEventListener('roulette:manual-refresh', this.handleManualRefresh);
   }
-
+  
   /**
-   * Obtém a instância única do serviço
+   * Obter a instância única do serviço
    */
   public static getInstance(): RouletteStreamService {
     if (!RouletteStreamService.instance) {
@@ -41,215 +44,284 @@ export default class RouletteStreamService {
     }
     return RouletteStreamService.instance;
   }
-
+  
   /**
-   * Configura listeners para eventos relacionados
-   */
-  private setupEventListeners(): void {
-    // Monitorar mudanças de visibilidade do documento
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', this.handleVisibilityChange);
-    }
-
-    // Escutar por solicitações de atualização manual
-    EventService.on('roulette:manual-refresh', this.fetchDataImmediately);
-  }
-
-  /**
-   * Inicia a conexão e o streaming de dados
+   * Conectar ao serviço de streaming e iniciar polling
    */
   public connect(): void {
     if (this.isConnected) {
       logger.info('Já está conectado ao streaming de dados');
       return;
     }
-
-    logger.info('Iniciando conexão com o streaming de dados de roletas');
+    
     this.isConnected = true;
-    
-    // Fazer uma busca inicial imediata
-    this.fetchDataImmediately();
-    
-    // Iniciar o polling
+    this.notifyConnectionStateChange(true);
     this.startPolling();
+    logger.info('Conectado ao streaming de dados de roletas');
   }
 
   /**
-   * Desconecta do streaming de dados
+   * Desconectar do serviço de streaming e parar polling
    */
   public disconnect(): void {
-    logger.info('Desconectando do streaming de dados de roletas');
-    this.isConnected = false;
-    this.stopPolling();
-    
-    if (typeof document !== 'undefined') {
-      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    if (!this.isConnected) {
+      return;
     }
     
-    EventService.off('roulette:manual-refresh', this.fetchDataImmediately);
+    this.stopPolling();
+    this.isConnected = false;
+    this.notifyConnectionStateChange(false);
+    logger.info('Desconectado do streaming de dados de roletas');
   }
-
+  
   /**
-   * Inicia o polling para obter atualizações periódicas
+   * Verificar se o serviço está conectado
+   */
+  public isStreamConnected(): boolean {
+    return this.isConnected;
+  }
+  
+  /**
+   * Manipular requisição manual de atualização
+   */
+  private handleManualRefresh = (event: Event): void => {
+    logger.info('Recebida solicitação manual de atualização de dados');
+    // Forçar busca imediata
+    this.fetchRouletteData(true);
+  };
+  
+  /**
+   * Configurar manipulação de visibilidade da página
+   */
+  private setupVisibilityHandling(): void {
+    // Quando a página ficar oculta, podemos pausar o polling
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        // A página está oculta, pausar o polling mas manter conectado
+        this.pausePolling();
+        logger.info('Página oculta, polling pausado');
+      } else {
+        // A página está visível novamente, retomar o polling
+        if (this.isConnected) {
+          this.resumePolling();
+          logger.info('Página visível, polling retomado');
+        }
+      }
+    });
+  }
+  
+  /**
+   * Iniciar o polling de dados
    */
   private startPolling(): void {
-    if (this.isPolling) return;
+    // Parar qualquer polling existente
+    this.stopPolling();
     
-    this.isPolling = true;
-    logger.info(`Iniciando polling de dados a cada ${POLL_INTERVAL/1000} segundos`);
+    // Fazer a primeira requisição imediatamente
+    this.fetchRouletteData();
     
-    this.pollingTimer = window.setInterval(() => {
+    // Iniciar o intervalo para buscas regulares (10s)
+    this.pollingInterval = setInterval(() => {
       this.fetchRouletteData();
-    }, POLL_INTERVAL);
+    }, 10000);
+    
+    logger.info('Polling de dados de roletas iniciado');
   }
-
+  
   /**
-   * Para o polling
+   * Pausar o polling temporariamente
+   */
+  private pausePolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+      logger.info('Polling de dados pausado');
+    }
+  }
+  
+  /**
+   * Retomar o polling
+   */
+  private resumePolling(): void {
+    if (!this.pollingInterval) {
+      // Fazer uma requisição imediata e então iniciar o intervalo
+      this.fetchRouletteData();
+      
+      this.pollingInterval = setInterval(() => {
+        this.fetchRouletteData();
+      }, 10000);
+      
+      logger.info('Polling de dados retomado');
+    }
+  }
+  
+  /**
+   * Parar o polling
    */
   private stopPolling(): void {
-    if (!this.isPolling) return;
-    
-    logger.info('Parando polling de dados');
-    if (this.pollingTimer !== null) {
-      window.clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
-    }
-    
-    this.isPolling = false;
-  }
-
-  /**
-   * Busca dados imediatamente, ignorando o intervalo de polling
-   */
-  private fetchDataImmediately = (): void => {
-    logger.info('Solicitação de dados imediata');
-    this.fetchRouletteData(true);
-  }
-
-  /**
-   * Verifica e manipula mudanças de visibilidade do documento
-   */
-  private handleVisibilityChange = (): void => {
-    const isVisible = document.visibilityState === 'visible';
-    
-    if (isVisible) {
-      logger.info('Documento visível, retomando streaming');
-      if (this.isConnected && !this.isPolling) {
-        this.startPolling();
-        this.fetchDataImmediately(); // Atualizar imediatamente ao retornar à página
-      }
-    } else {
-      logger.info('Documento em segundo plano, pausando streaming');
-      this.stopPolling();
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+      logger.info('Polling de dados parado');
     }
   }
 
   /**
-   * Busca os dados mais recentes da API de roletas
+   * Buscar dados de roletas da API
    */
-  private fetchRouletteData = async (force = false): Promise<void> => {
-    // Evitar solicitações muito frequentes
-    const now = Date.now();
-    const timeSinceLastFetch = now - this.lastFetchTime;
+  private fetchRouletteData(forceRefresh: boolean = false): void {
+    // Adicionar parâmetro de cache busting para forçar refresh se necessário
+    const cacheBustingParam = forceRefresh ? `?_=${new Date().getTime()}` : '';
+    const url = `${this.apiEndpoint}${cacheBustingParam}`;
     
-    if (!force && timeSinceLastFetch < 3000) {
-      logger.debug('Ignorando solicitação muito frequente');
-      return;
-    }
+    // Usar AbortController para permitir cancelar a requisição se demorar muito
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
     
-    this.lastFetchTime = now;
-    
-    try {
-      logger.debug('Obtendo dados atualizados de roletas');
-      
-      const response = await fetch(`${BASE_API_URL}/api/ROULETTES`);
-      
-      if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      // Processar os dados recebidos
-      this.processRouletteData(data);
-      
-      // Resetar contador de tentativas após sucesso
-      this.retryAttempts = 0;
-    } catch (error) {
-      logger.error(`Erro ao buscar dados: ${error.message}`);
-      
-      // Implementar lógica de retry
-      if (this.retryAttempts < MAX_RETRY_ATTEMPTS) {
-        this.retryAttempts++;
+    // Tentar obter dados da API
+    fetch(url, { 
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        // Adicionar headers para ajudar com CORS
+        'Origin': window.location.origin
+      },
+      mode: 'cors', // Modo explícito CORS
+      signal: controller.signal 
+    })
+      .then(response => {
+        clearTimeout(timeoutId);
         
-        logger.info(`Tentando novamente em ${RETRY_DELAY/1000} segundos (tentativa ${this.retryAttempts}/${MAX_RETRY_ATTEMPTS})`);
+        if (!response.ok) {
+          throw new Error(`Erro HTTP ${response.status}: ${response.statusText}`);
+        }
         
-        setTimeout(() => {
-          this.fetchRouletteData(true);
-        }, RETRY_DELAY);
-      } else {
-        logger.error(`Falha após ${MAX_RETRY_ATTEMPTS} tentativas`);
-        this.retryAttempts = 0;
-      }
-    }
-  }
-
-  /**
-   * Processa os dados recebidos da API
-   */
-  private processRouletteData(data: any[]): void {
-    if (!Array.isArray(data)) {
-      logger.error('Dados inválidos recebidos da API (não é um array)');
-      return;
-    }
-    
-    logger.info(`Dados recebidos: ${data.length} roletas`);
-    
-    // Processar e normalizar os dados para o formato esperado pelo sistema
-    const normalizedData = data.map(roulette => {
-      // Verificar se temos a propriedade numero e converter para o formato esperado
-      let numeros = [];
-      
-      if (roulette.numeros && Array.isArray(roulette.numeros)) {
-        numeros = roulette.numeros;
-      } else if (roulette.numero && Array.isArray(roulette.numero)) {
-        numeros = roulette.numero;
-      } else if (roulette.lastNumbers && Array.isArray(roulette.lastNumbers)) {
-        numeros = roulette.lastNumbers;
-      }
-      
-      // Garantir que todos os IDs estão em um formato consistente
-      const id = roulette.id || roulette._id;
-      
-      return {
-        id,
-        _id: id,
-        name: roulette.name || roulette.nome || `Roleta ${id}`,
-        numero: numeros,
-        lastNumbers: numeros,
-        timestamp: roulette.timestamp || new Date().toISOString()
-      };
-    });
-    
-    // Atualizar cada roleta individualmente no cache do RouletteFeedService
-    // em vez de tentar usar o método privado updateRouletteCache
-    if (normalizedData.length > 0) {
-      normalizedData.forEach(roulette => {
-        // Em vez de tentar acessar métodos privados, vamos usar o sistema de eventos
-        // O FeedService escuta estes eventos e atualiza seu cache interno
-        EventService.emit('roulette:new-data', {
-          roulette: roulette,
-          timestamp: new Date().toISOString(),
-          source: 'api-stream'
-        });
+        return response.json();
+      })
+      .then(data => {
+        // Processar dados recebidos
+        this.processRouletteData(data);
+        
+        // Resetar contador de tentativas em caso de sucesso
+        this.pollingRetryCount = 0;
+      })
+      .catch(error => {
+        clearTimeout(timeoutId);
+        
+        // Verificar se é erro de abort/timeout
+        if (error.name === 'AbortError') {
+          logger.error('Timeout na requisição de dados de roletas');
+        } else {
+          logger.error('Erro ao buscar dados de roletas:', error);
+        }
+        
+        // Implementar backoff exponencial para novas tentativas
+        this.handleRequestFailure();
       });
+  }
+  
+  /**
+   * Processar os dados recebidos da API
+   */
+  private processRouletteData(data: any): void {
+    try {
+      // Verificar se os dados são válidos
+      if (!data || !Array.isArray(data)) {
+        logger.warn('Dados de roletas inválidos recebidos:', data);
+        return;
+      }
+      
+      // Emitir evento com os dados recebidos
+      const event = new CustomEvent('roulette:stream-data', {
+        detail: { 
+          data,
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+      document.dispatchEvent(event);
+      
+      // Também notificar que houve atualização de dados
+      const updateEvent = new CustomEvent('roulette:data-updated', {
+        detail: { timestamp: new Date().toISOString() }
+      });
+      
+      document.dispatchEvent(updateEvent);
+      
+      logger.info(`Processados dados de ${data.length} roletas do streaming`);
+    } catch (error) {
+      logger.error('Erro ao processar dados de roletas:', error);
     }
+  }
+  
+  /**
+   * Lidar com falhas na requisição usando backoff exponencial
+   */
+  private handleRequestFailure(): void {
+    this.pollingRetryCount++;
     
-    // Emitir evento com os novos dados para que os componentes possam reagir
-    EventService.emit('roulette:data-updated', {
-      data: normalizedData,
-      timestamp: new Date().toISOString(),
-      source: 'live-stream'
+    // Se exceder o número máximo de tentativas, diminuir a frequência das requisições
+    if (this.pollingRetryCount > this.MAX_RETRY_COUNT) {
+      // Pausar temporariamente e depois retomar com intervalo maior
+      this.pausePolling();
+      
+      // Calcular o backoff usando exponencial com jitter
+      const baseDelay = Math.min(
+        this.initialBackoffDelay * Math.pow(2, this.pollingRetryCount - this.MAX_RETRY_COUNT), 
+        this.maxBackoffDelay
+      );
+      
+      // Adicionar jitter para evitar sincronização de clientes
+      const jitter = Math.random() * 0.3 + 0.85; // 0.85-1.15
+      const delayWithJitter = Math.floor(baseDelay * jitter);
+      
+      logger.warn(`Muitas falhas consecutivas, usando backoff: ${delayWithJitter}ms`);
+      
+      // Tentar novamente após o atraso
+      setTimeout(() => {
+        if (this.isConnected) {
+          // Se ainda estivermos conectados, iniciar polling novamente
+          this.startPolling();
+        }
+      }, delayWithJitter);
+      
+      // Notificar desconexão temporária
+      this.notifyConnectionStateChange(false);
+    }
+  }
+  
+  /**
+   * Notificar mudança no estado da conexão
+   */
+  private notifyConnectionStateChange(connected: boolean): void {
+    const event = new CustomEvent('roulette:connection-changed', {
+      detail: { connected }
     });
+    
+    document.dispatchEvent(event);
+  }
+  
+  /**
+   * Inicializar o serviço ao carregar a aplicação
+   */
+  public static initialize(): boolean {
+    try {
+      const instance = RouletteStreamService.getInstance();
+      instance.connect();
+      return true;
+    } catch (error) {
+      logger.error('Falha ao inicializar serviço de streaming:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Desligar o serviço ao desmontar a aplicação
+   */
+  public static shutdown(): void {
+    if (RouletteStreamService.instance) {
+      RouletteStreamService.instance.disconnect();
+    }
   }
 }
