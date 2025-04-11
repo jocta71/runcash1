@@ -9,14 +9,14 @@ dotenv.config();
 
 // Configuração
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash';
+const MONGODB_URI = process.env.MONGODB_URI;
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
 
 // Informações de configuração
 console.log('==== Configuração do Servidor WebSocket ====');
 console.log(`PORT: ${PORT}`);
-console.log(`MONGODB_URI: ${MONGODB_URI.replace(/:.*@/, ':****@')}`);
+console.log(`MONGODB_URI: ${MONGODB_URI ? MONGODB_URI.replace(/:.*@/, ':****@') : 'Não definida'}`);
 console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
 console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 

@@ -18,7 +18,7 @@ def main():
     print(f"Diretório atual: {os.getcwd()}")
     
     # Configurações do MongoDB Atlas
-    mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash')
+    mongodb_uri = os.environ.get('MONGODB_URI')
     mongodb_db_name = os.environ.get('MONGODB_DB_NAME', 'runcash')
     mongodb_enabled = os.environ.get('MONGODB_ENABLED', 'true')
     railway_url = os.environ.get('RAILWAY_URL', 'https://runcash1-production.up.railway.app')
