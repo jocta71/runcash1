@@ -13,8 +13,6 @@ import {
   Legend,
 } from "recharts";
 import { useState, useEffect, useRef } from 'react';
-import globalRouletteDataService from '../services/GlobalRouletteDataService';
-import rouletteHistoryService from '../services/RouletteHistoryService';
 import { getLogger } from '../services/utils/logger';
 
 // Criando um logger específico para este componente
@@ -30,50 +28,9 @@ interface RouletteSidePanelStatsProps {
   losses: number;
 }
 
-// Função para gerar números aleatórios para testes (apenas como último recurso)
-const generateFallbackNumbers = (count: number = 20): number[] => {
-  logger.warn(`Não serão gerados números aleatórios`);
-  return []; // Retornar array vazio em vez de números aleatórios
-};
 
-// Buscar histórico de números da roleta do serviço centralizado
-export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<number[]> => {
-  try {
-    logger.info(`Buscando dados históricos para: ${rouletteName}`);
-    
-    // Usar o serviço centralizado para buscar os dados históricos
-    const numbers = await rouletteHistoryService.fetchRouletteHistoricalNumbers(rouletteName);
-    
-    if (numbers && numbers.length > 0) {
-      logger.info(`Obtidos ${numbers.length} números históricos para ${rouletteName}`);
-      return numbers;
-    }
-    
-    // Se não encontrou dados no serviço, tenta buscar do serviço global
-    logger.info(`Sem dados no serviço de histórico, tentando serviço global para ${rouletteName}`);
-    
-    // Obter a roleta pelo nome do serviço global
-    const targetRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
-    
-    if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-      // Extrair apenas os números da roleta encontrada
-      const processedNumbers = targetRoulette.numero
-        .map((n: any) => Number(n.numero))
-        .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
-      
-      logger.info(`Obtidos ${processedNumbers.length} números históricos para ${rouletteName} do serviço global`);
-      return processedNumbers;
-    } else {
-      logger.warn(`Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
-      // Se não encontrou a roleta, forçar uma atualização dos dados
-      globalRouletteDataService.forceUpdate();
-      return [];
-    }
-  } catch (error) {
-    logger.error(`Erro ao buscar números históricos:`, error);
-    return []; // Retorna array vazio em vez de números aleatórios
-  }
-};
+
+
 
 // Generate frequency data for numbers
 export const generateFrequencyData = (numbers: number[]) => {
@@ -192,20 +149,21 @@ const RouletteSidePanelStats = ({
 }: RouletteSidePanelStatsProps) => {
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
   
   // Função para carregar dados históricos
   const loadHistoricalData = async () => {
     try {
       logger.info(`Buscando histórico para ${roletaNome}...`);
-      // Buscar dados históricos usando a função atualizada
-      let apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
       
-      if (apiNumbers.length === 0 && isInitialRequestDone.current) {
-        logger.info(`Sem novos dados disponíveis, mantendo estado atual`);
-        return;
+      // Fazer a chamada direta à API com limit=1000
+      const response = await fetch(`/api/ROULETTES?limit=1000`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar histórico: ${response.status}`);
       }
+      
+      const apiNumbers = await response.json();
       
       // Se houver lastNumbers nas props, garantir que eles estão incluídos
       if (lastNumbers && lastNumbers.length > 0) {
@@ -219,14 +177,12 @@ const RouletteSidePanelStats = ({
         });
         
         logger.info(`Total após combinação: ${combinedNumbers.length} números`);
-        // Limitando a 1000 números no máximo
-        setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+        setHistoricalNumbers(combinedNumbers);
       } 
       else if (apiNumbers.length > 0) {
         // Se não temos lastNumbers mas temos dados da API
         logger.info(`Usando apenas números da API: ${apiNumbers.length}`);
-        // Limitando a 1000 números no máximo
-        setHistoricalNumbers(apiNumbers.slice(0, 1000));
+        setHistoricalNumbers(apiNumbers);
       } 
       else {
         // Se não temos nenhum dado, usar apenas os números recentes (ou array vazio)
@@ -237,39 +193,30 @@ const RouletteSidePanelStats = ({
       isInitialRequestDone.current = true;
     } catch (error) {
       logger.error('Erro ao carregar dados históricos:', error);
-      // Em caso de erro, usar apenas os números recentes em vez de gerar aleatórios
+      // Em caso de erro, usar apenas os números recentes
       setHistoricalNumbers(lastNumbers || []);
     } finally {
       setIsLoading(false);
     }
   };
   
-  // Usar o serviço global para obter atualizações
+  // Carregar dados históricos apenas quando o componente for montado
   useEffect(() => {
     logger.info(`Inicializando para roleta ${roletaNome}`);
     
-    // Resetar o estado de inicialização se a roleta mudar
+    // Resetar o estado de inicialização
     isInitialRequestDone.current = false;
     setIsLoading(true);
     
-    // Registrar no serviço global para receber atualizações
-    globalRouletteDataService.subscribe(subscriberId.current, () => {
-      logger.info(`Recebendo atualização de dados para ${roletaNome}`);
-      loadHistoricalData();
-    });
-    
-    // Carregar dados imediatamente
+    // Carregar dados históricos uma única vez
     loadHistoricalData();
     
-    return () => {
-      // Cancelar inscrição ao desmontar
-      globalRouletteDataService.unsubscribe(subscriberId.current);
-    };
-  }, [roletaNome]); // Dependência apenas na roleta
+    // Não há necessidade de cleanup pois não há inscrição
+  }, []); // Array vazio para executar apenas na montagem
 
-  // Atualizar números quando lastNumbers mudar, sem fazer nova requisição à API
+  // Atualizar números quando lastNumbers mudar
   useEffect(() => {
-    if (isInitialRequestDone.current && lastNumbers && lastNumbers.length > 0) {
+    if (lastNumbers && lastNumbers.length > 0) {
       logger.info(`Atualizando com ${lastNumbers.length} novos números recentes`);
       
       // Combinar com os números históricos existentes
@@ -281,8 +228,7 @@ const RouletteSidePanelStats = ({
         }
       });
       
-      // Limitando a 1000 números no máximo
-      setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+      setHistoricalNumbers(combinedNumbers);
     }
   }, [lastNumbers]);
   

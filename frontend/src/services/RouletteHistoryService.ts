@@ -70,21 +70,30 @@ export class RouletteHistoryService {
   }
 
   private async doFetchHistoricalNumbers(rouletteName: string): Promise<number[]> {
-    console.log(`[RouletteHistoryService] Requisição desativada para histórico da roleta ${rouletteName}`);
-    
-    // Retornar um array vazio em vez de gerar números aleatórios
-    const emptyNumbers: number[] = [];
-    
-    // Simulando um atraso para evitar loop infinito
-    await new Promise(resolve => setTimeout(resolve, 200));
-  
-    // Atualiza o cache com array vazio
-    this.cache[rouletteName] = {
-      data: emptyNumbers,
-      timestamp: Date.now()
-    };
-    
-    return emptyNumbers;
+    try {
+      this.logger.info(`Buscando histórico da roleta ${rouletteName} via API`);
+      
+      const response = await fetchWithCorsSupport(`/api/ROULETTES?limit=1000`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar histórico: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Atualiza o cache
+      this.cache[rouletteName] = {
+        data: data,
+        timestamp: Date.now()
+      };
+      
+      this.logger.info(`Recebidos ${data.length} números históricos para ${rouletteName}`);
+      return data;
+      
+    } catch (error) {
+      this.logger.error(`Erro ao buscar histórico para ${rouletteName}:`, error);
+      return [];
+    }
   }
 
   /**
