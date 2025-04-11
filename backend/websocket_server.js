@@ -775,6 +775,35 @@ app.get('/api/numbers', async (req, res) => {
   }
 });
 
+// Endpoint de diagnóstico
+app.get('/api/diagnostico', (req, res) => {
+  console.log('==== Diagnóstico da API ====');
+  console.log('Headers:', req.headers);
+  console.log('MongoDB Status:', isConnected ? 'Conectado' : 'Desconectado');
+
+  // Configurar CORS
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', '*');
+  res.header('Access-Control-Allow-Headers', '*');
+
+  res.json({
+    status: 'online',
+    mongodb: {
+      connected: isConnected,
+      collection: COLLECTION_NAME
+    },
+    server: {
+      port: PORT,
+      timestamp: new Date().toISOString()
+    },
+    request: {
+      origin: req.headers.origin || 'unknown',
+      ip: req.ip,
+      path: req.path
+    }
+  });
+});
+
 // Endpoint para forçar retorno com cabeçalho CORS para qualquer origem
 app.get('/disable-cors-check', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -791,9 +820,19 @@ app.get('/disable-cors-check', (req, res) => {
 
 // Endpoint para listar todas as roletas
 app.get('/api/roulettes', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/ROULETTES');
+  console.log('==== Requisição /api/roulettes ====');
+  console.log('Headers:', req.headers);
+  console.log('Query:', req.query);
+  console.log('Origin:', req.headers.origin);
+
+  // Configurar CORS para esta rota específica
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+
   try {
     if (!isConnected) {
+      console.log('[API] MongoDB não conectado');
       return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
     }
 
