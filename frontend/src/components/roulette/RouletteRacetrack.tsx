@@ -36,56 +36,121 @@ export const RouletteRacetrack: React.FC<RouletteRacetrackProps> = ({ frequencyD
     return numData ? numData.frequency : 0;
   };
 
-  // Array com os números na ordem do racetrack da roleta europeia
-  const firstRow = [1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
-  const secondRow = [15, 4, 2, 17, 6, 8, 10, 24, 33, 16, 5, 23, 30, 36, 13, 27, 0, 32, 19, 21, 25, 34, 11];
+  // Números configurados exatamente como na imagem
+  const topRow = [24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35];
+  const leftSide = [5, 10, 23, 8, 30, 11, 36];
+  const rightSide = [3, 26, 0, 32];
+  const bottomRow = [13, 27, 6, 34, 17, 25, 2, 21, 4, 19, 15];
 
   return (
     <div className="w-full overflow-hidden rounded-lg border border-[#00ff00]/20 bg-vegas-black-light p-4">
       <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
         <ChartBar className="mr-2" /> Racetrack da Roleta Europeia
       </h3>
-      <div className="p-4">
-        <div className="relative rounded-full border border-[#00ff00]/30 p-6">
-          <div className="flex flex-col items-center">
-            {/* Linha superior de números */}
-            <div className="flex justify-center mb-4 flex-wrap gap-1">
-              {firstRow.map((num) => (
-                <div 
-                  key={`top-${num}`}
-                  style={{
-                    width: '30px', 
-                    height: '30px', 
-                    borderRadius: '50%',
-                    boxShadow: isHotNumber(num) ? '0 0 10px #ffcc00' : 'none'
-                  }} 
-                  className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative`}
-                  title={`Frequência: ${getFrequency(num)}`}
-                >
-                  {num}
-                  {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+      <div className="p-2">
+        {/* Container principal com fundo preto */}
+        <div className="relative bg-black rounded-lg overflow-hidden" style={{ height: '200px' }}>
+          {/* Container interno oval/arredondado */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="relative w-full h-[90%] mx-2 rounded-[60px] bg-black border border-gray-800 overflow-hidden">
+              
+              {/* Seções internas */}
+              <div className="absolute inset-0 flex">
+                <div className="grid grid-cols-4 w-full h-full">
+                  <div className="bg-[#111] border-r border-gray-800 flex items-center justify-center">
+                    <span className="text-white text-sm">Tier</span>
+                  </div>
+                  <div className="bg-[#111] border-r border-gray-800 flex items-center justify-center">
+                    <span className="text-white text-sm">Orphelins</span>
+                  </div>
+                  <div className="bg-[#111] border-r border-gray-800 flex items-center justify-center">
+                    <span className="text-white text-sm">Voisins</span>
+                  </div>
+                  <div className="bg-[#111] flex items-center justify-center">
+                    <span className="text-white text-sm">Zero</span>
+                  </div>
                 </div>
-              ))}
-            </div>
-            
-            {/* Linha inferior de números */}
-            <div className="flex justify-center flex-wrap gap-1">
-              {secondRow.map((num) => (
-                <div 
-                  key={`bottom-${num}`}
-                  style={{
-                    width: '30px', 
-                    height: '30px', 
-                    borderRadius: '50%',
-                    boxShadow: isHotNumber(num) ? '0 0 10px #ffcc00' : 'none'
-                  }}
-                  className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative`}
-                  title={`Frequência: ${getFrequency(num)}`}
-                >
-                  {num}
-                  {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
-                </div>
-              ))}
+              </div>
+
+              {/* Linha superior */}
+              <div className="absolute top-0 w-full flex justify-center space-x-0.5">
+                {topRow.map((num) => (
+                  <div 
+                    key={`top-${num}`}
+                    style={{
+                      width: '26px', 
+                      height: '26px', 
+                      borderRadius: '50%',
+                      boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none'
+                    }} 
+                    className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
+                    title={`Frequência: ${getFrequency(num)}`}
+                  >
+                    {num}
+                    {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Lado esquerdo */}
+              <div className="absolute left-0 top-6 h-[calc(100%-12px)] flex flex-col justify-between py-1">
+                {leftSide.map((num) => (
+                  <div 
+                    key={`left-${num}`}
+                    style={{
+                      width: '26px', 
+                      height: '26px', 
+                      borderRadius: '50%',
+                      boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none'
+                    }} 
+                    className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
+                    title={`Frequência: ${getFrequency(num)}`}
+                  >
+                    {num}
+                    {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Lado direito */}
+              <div className="absolute right-0 top-6 h-[calc(100%-12px)] flex flex-col justify-between py-1">
+                {rightSide.map((num) => (
+                  <div 
+                    key={`right-${num}`}
+                    style={{
+                      width: '26px', 
+                      height: '26px', 
+                      borderRadius: '50%',
+                      boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none'
+                    }} 
+                    className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
+                    title={`Frequência: ${getFrequency(num)}`}
+                  >
+                    {num}
+                    {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Linha inferior */}
+              <div className="absolute bottom-0 w-full flex justify-center space-x-0.5">
+                {bottomRow.map((num) => (
+                  <div 
+                    key={`bottom-${num}`}
+                    style={{
+                      width: '26px', 
+                      height: '26px', 
+                      borderRadius: '50%',
+                      boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none'
+                    }}
+                    className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
+                    title={`Frequência: ${getFrequency(num)}`}
+                  >
+                    {num}
+                    {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
