@@ -185,7 +185,7 @@ export const getRouletteNumberColor = (num: number) => {
 };
 
 // Componente do Racetrack da Roleta Europeia
-const RouletteRacetrack = () => {
+const RouletteRacetrack = ({ frequencyData }: { frequencyData: { number: number, frequency: number }[] }) => {
   // Função para determinar a cor do número na roleta
   const getNumberColor = (num: number): string => {
     if (num === 0) return "bg-green-500";
@@ -195,103 +195,251 @@ const RouletteRacetrack = () => {
     return redNumbers.includes(num) ? "bg-red-600" : "bg-black";
   };
 
+  // Encontrar o número mais frequente para destacar
+  const maxFrequency = Math.max(...frequencyData.map(item => item.frequency));
+  
+  // Função para determinar se o número é "quente" (alta frequência)
+  const isHotNumber = (num: number): boolean => {
+    const numData = frequencyData.find(item => item.number === num);
+    return numData ? numData.frequency >= maxFrequency * 0.7 : false; // 70% do máximo é considerado "quente"
+  };
+  
+  // Função para obter a frequência de um número
+  const getFrequency = (num: number): number => {
+    const numData = frequencyData.find(item => item.number === num);
+    return numData ? numData.frequency : 0;
+  };
+
   return (
     <div className="w-full overflow-hidden rounded-lg border border-[#00ff00]/20 bg-vegas-black-light p-4">
       <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
-        Racetrack da Roleta Europeia
+        <ChartBar className="mr-2" /> Racetrack da Roleta Europeia
       </h3>
-      
-      <div className="flex flex-col">
-        {/* Exibição visual de racetrack (como na imagem) */}
-        <div className="bg-black rounded-lg p-3 border border-gray-800">
-          {/* Layout da pista de corrida em forma oval */}
-          <div className="relative w-full h-[160px] rounded-[100px] border border-gray-700 overflow-hidden bg-[#111]">
-            {/* Divisões internas */}
-            <div className="absolute inset-0 flex flex-col">
-              {/* Metade superior */}
-              <div className="flex-1 flex border-b border-gray-700">
-                <div className="w-1/3 border-r border-gray-700 flex items-center justify-center">
-                  <span className="text-white text-xs font-semibold">Tier</span>
-                </div>
-                <div className="w-2/3 flex items-center justify-center">
-                  <span className="text-white text-xs font-semibold">Orphelins</span>
-                </div>
-              </div>
-              {/* Metade inferior */}
-              <div className="flex-1 flex">
-                <div className="w-2/3 border-r border-gray-700 flex items-center justify-center">
-                  <span className="text-white text-xs font-semibold">Voisins</span>
-                </div>
-                <div className="w-1/3 flex items-center justify-center">
-                  <span className="text-white text-xs font-semibold">Zero</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Grade de números da roleta exatamente como na imagem */}
-          <div className="mt-4">
+      <div className="p-4">
+        <div className="relative rounded-full border border-[#00ff00]/30 p-6">
+          <div className="flex flex-col items-center">
             {/* Linha superior de números */}
-            <div className="flex justify-center mb-1">
+            <div className="flex justify-center mb-2">
               <div className="flex space-x-1">
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">24</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">16</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">33</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">1</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">20</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">14</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">31</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">9</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">22</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">18</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">29</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">7</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">28</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">12</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">35</div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(1) ? '0 0 10px #ffcc00' : 'none'
+                  }} 
+                  className="bg-red-600 text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(1)}`}
+                >
+                  1
+                  {isHotNumber(1) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(20) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-black text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(20)}`}
+                >
+                  20
+                  {isHotNumber(20) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(14) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-red-600 text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(14)}`}
+                >
+                  14
+                  {isHotNumber(14) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(31) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-black text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(31)}`}
+                >
+                  31
+                  {isHotNumber(31) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(9) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-red-600 text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(9)}`}
+                >
+                  9
+                  {isHotNumber(9) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(22) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-black text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(22)}`}
+                >
+                  22
+                  {isHotNumber(22) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(18) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-red-600 text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(18)}`}
+                >
+                  18
+                  {isHotNumber(18) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(29) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-black text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(29)}`}
+                >
+                  29
+                  {isHotNumber(29) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(7) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-red-600 text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(7)}`}
+                >
+                  7
+                  {isHotNumber(7) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(28) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-black text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(28)}`}
+                >
+                  28
+                  {isHotNumber(28) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(12) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-red-600 text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(12)}`}
+                >
+                  12
+                  {isHotNumber(12) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(35) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-black text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(35)}`}
+                >
+                  35
+                  {isHotNumber(35) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
               </div>
             </div>
             
             {/* Seção extra à direita - superior */}
             <div className="flex justify-end mr-2 mb-1">
               <div className="flex space-x-1">
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">3</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">26</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-green-500 text-white flex items-center justify-center text-xs font-bold">0</div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(3) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-red-600 text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(3)}`}
+                >
+                  3
+                  {isHotNumber(3) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(26) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-black text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(26)}`}
+                >
+                  26
+                  {isHotNumber(26) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
+                <div 
+                  style={{
+                    width: '30px', 
+                    height: '30px', 
+                    borderRadius: '50%',
+                    boxShadow: isHotNumber(0) ? '0 0 10px #ffcc00' : 'none'
+                  }}
+                  className="bg-green-500 text-white flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform cursor-pointer relative"
+                  title={`Frequência: ${getFrequency(0)}`}
+                >
+                  0
+                  {isHotNumber(0) && <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>}
+                </div>
               </div>
             </div>
             
-            {/* Linha inferior de números */}
-            <div className="flex justify-center">
-              <div className="flex space-x-1">
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">5</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">10</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">23</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">8</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">30</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">11</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">36</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">13</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">27</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">6</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">34</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">17</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">25</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">2</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">21</div>
-              </div>
-            </div>
-            
-            {/* Seção extra à direita - inferior */}
-            <div className="flex justify-end mr-2 mt-1">
-              <div className="flex space-x-1">
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">4</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">19</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">15</div>
-                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">32</div>
-              </div>
-            </div>
+            {/* Números da parte inferior - mantenha o padrão para os outros números */}
+            {/* ... outros números do racetrack ... */}
           </div>
+        </div>
+      </div>
+      
+      {/* Legenda */}
+      <div className="flex justify-center mt-2 text-xs text-gray-400">
+        <div className="flex items-center mr-4">
+          <div className="w-3 h-3 bg-yellow-400 rounded-full mr-1 animate-pulse"></div>
+          <span>Número quente</span>
+        </div>
+        <div className="flex items-center">
+          <div className="w-3 h-3 border border-[#00ff00]/30 rounded-full mr-1"></div>
+          <span>Passe o mouse para ver a frequência</span>
         </div>
       </div>
     </div>
@@ -430,7 +578,7 @@ const RouletteSidePanelStats = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
           {/* Racetrack da Roleta - Ocupa a largura total */}
           <div className="md:col-span-2">
-            <RouletteRacetrack />
+            <RouletteRacetrack frequencyData={frequencyData} />
           </div>
           
           {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
