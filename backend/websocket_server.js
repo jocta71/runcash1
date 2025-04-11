@@ -169,6 +169,7 @@ async function initializeModels() {
   }
 }
 
+// Função para conectar ao MongoDB
 async function connectToMongoDB() {
   try {
     console.log('Attempting to connect to MongoDB at:', MONGODB_URI);
@@ -181,6 +182,7 @@ async function connectToMongoDB() {
     await client.connect();
     console.log('Connected to MongoDB successfully');
     
+    // Usar explicitamente o banco de dados 'runcash'
     db = client.db('runcash');
     collection = db.collection(COLLECTION_NAME);
     isConnected = true;
@@ -190,6 +192,17 @@ async function connectToMongoDB() {
     const collections = await db.listCollections().toArray();
     console.log(`Database name: ${dbName}`);
     console.log('Available collections:', collections.map(c => c.name).join(', '));
+    
+    // Verificar se há dados na coleção
+    const count = await collection.countDocuments();
+    console.log(`Número de documentos na coleção ${COLLECTION_NAME}: ${count}`);
+    
+    if (count > 0) {
+      // Mostrar alguns exemplos de documentos
+      const samples = await collection.find().limit(3).toArray();
+      console.log('Exemplos de documentos:');
+      console.log(JSON.stringify(samples, null, 2));
+    }
     
     // Iniciar o polling para verificar novos dados
     startPolling();
@@ -201,6 +214,7 @@ async function connectToMongoDB() {
     await initializeModels();
     
     return true;
+    
   } catch (error) {
     console.error('MongoDB connection error:', error);
     isConnected = false;
@@ -510,8 +524,17 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
+    // Verificar se a coleção tem dados
+    const count = await collection.countDocuments();
+    console.log(`[API] Total de documentos na coleção: ${count}`);
+    
+    if (count === 0) {
+      console.log('[API] Nenhum dado encontrado na coleção');
+      return res.json([]);
+    }
+    
     // Parâmetros de paginação
-    const limit = parseInt(req.query.limit) || 200;  // Aumentado para sempre retornar o histórico
+    const limit = parseInt(req.query.limit) || 200;
     console.log(`[API] Usando limit: ${limit}`);
     
     // Buscar histórico de números ordenados por timestamp
@@ -522,6 +545,17 @@ app.get('/api/ROULETTES', async (req, res) => {
       .toArray();
     
     console.log(`[API] Retornando ${numeros.length} números do histórico`);
+    
+    // Verificar se temos dados para retornar
+    if (numeros.length === 0) {
+      console.log('[API] Nenhum número encontrado');
+      return res.json([]);
+    }
+    
+    // Log de alguns exemplos para diagnóstico
+    console.log('[API] Exemplos de dados retornados:');
+    console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
+    
     return res.json(numeros);
   } catch (error) {
     console.error('[API] Erro ao listar roletas ou histórico:', error);
@@ -975,4 +1009,64 @@ server.listen(PORT, async () => {
 process.on('SIGINT', () => {
   console.log('Encerrando servidor...');
   process.exit(0);
+});
+
+// Rota para verificar o status do MongoDB e dados disponíveis
+app.get('/api/status', async (req, res) => {
+  console.log('[API] Requisição recebida para /api/status');
+  
+  // Aplicar cabeçalhos CORS
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  try {
+    if (!isConnected || !db || !collection) {
+      return res.status(503).json({
+        status: 'error',
+        connected: false,
+        message: 'Servidor não está conectado ao MongoDB'
+      });
+    }
+    
+    // Verificar configurações atuais
+    const dbName = db.databaseName;
+    const collectionName = collection.collectionName;
+    
+    // Verificar contagem de documentos
+    const count = await collection.countDocuments();
+    
+    // Obter amostra de documentos
+    const recentDocs = count > 0 
+      ? await collection.find().sort({timestamp: -1}).limit(5).toArray()
+      : [];
+    
+    // Obter lista de coleções
+    const collections = await db.listCollections().toArray();
+    const collectionsList = collections.map(c => c.name);
+    
+    // Retornar status completo
+    return res.json({
+      status: 'ok',
+      connected: true,
+      database: {
+        name: dbName,
+        collection: collectionName,
+        documentCount: count,
+        collections: collectionsList
+      },
+      recentDocuments: recentDocs,
+      connection: {
+        uri: MONGODB_URI.replace(/:.*@/, ':****@'),
+      }
+    });
+    
+  } catch (error) {
+    console.error('[API] Erro ao verificar status:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Erro interno ao verificar status',
+      error: error.message
+    });
+  }
 });
