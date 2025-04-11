@@ -7,16 +7,19 @@ require('dotenv').config();
 const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
 
 // Configuração MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/runcash';
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
+const DB_NAME = 'runcash';
 let db = null;
 
 // Conectar ao MongoDB
 async function connectToMongoDB() {
   try {
+    console.log(`Conectando ao MongoDB: ${MONGODB_URI.replace(/:.*@/, ':****@')}`);
     const client = new MongoClient(MONGODB_URI);
     await client.connect();
     console.log('Conectado ao MongoDB com sucesso');
-    db = client.db();
+    db = client.db(DB_NAME);
+    console.log(`Usando banco de dados: ${DB_NAME}`);
     return db;
   } catch (error) {
     console.error('Erro ao conectar ao MongoDB:', error);
