@@ -480,8 +480,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           <RouletteRacetrack 
             type="european"
             lastNumber={lastNumber} 
-            size="small"
-            className="mx-auto w-4/5"
+            size="medium"
+            className="mx-auto w-11/12"
+            showSectors={true}
           />
         </div>
         
