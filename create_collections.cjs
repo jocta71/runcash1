@@ -20,24 +20,6 @@ function determinarCorNumero(numero) {
   return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
 }
 
-// Função para gerar números aleatórios para uma roleta
-function gerarNumerosRoleta(roletaId, roletaNome, quantidade = 20) {
-  const numeros = [];
-  for (let i = 0; i < quantidade; i++) {
-    const numero = Math.floor(Math.random() * 37); // 0-36
-    const timestamp = new Date(Date.now() - i * 120000); // Cada número com 2 minutos de diferença
-    
-    numeros.push({
-      roleta_id: roletaId,
-      roleta_nome: roletaNome,
-      numero: numero,
-      cor: determinarCorNumero(numero),
-      timestamp: timestamp
-    });
-  }
-  return numeros;
-}
-
 async function criarColecoes() {
   let client;
   
