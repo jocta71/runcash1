@@ -54,7 +54,8 @@ interface KnownRoulette {
 }
 
 const Index = () => {
-  const [search, setSearch] = useState("");
+  // Remover o estado de busca
+  // const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -306,34 +307,8 @@ const Index = () => {
     };
   }, [loadRouletteData, knownRoulettes]);
   
-  const filteredRoulettes = useMemo(() => {
-    try {
-      // Se não houver termo de busca, retorna todas as roletas
-      if (!search) {
-        return roulettes;
-      }
-
-      const searchTermLower = String(search).toLowerCase();
-
-      return roulettes.filter(roulette => {
-        // Verificação de segurança para evitar erro com valores undefined
-        if (!roulette || !roulette.nome) {
-          return false;
-        }
-        
-        try {
-          const nomeLower = String(roulette.nome).toLowerCase();
-          return nomeLower.includes(searchTermLower);
-        } catch (error) {
-          console.error('Erro ao processar nome da roleta:', roulette, error);
-          return false;
-        }
-      });
-    } catch (error) {
-      console.error('Erro ao filtrar roletas:', error);
-      return roulettes;
-    }
-  }, [roulettes, search]);
+  // Simplificar para usar diretamente as roletas
+  const filteredRoulettes = roulettes;
   
   const topRoulettes = useMemo(() => {
     return [...roulettes].sort((a, b) => {
@@ -356,27 +331,11 @@ const Index = () => {
     // Log para depuração
     console.log(`[Index] Renderizando ${roulettes.length} roletas disponíveis`);
 
+    // Usar diretamente todas as roletas, sem filtro
     let filteredRoulettes = roulettes;
     
-    // Aplicar filtro de busca se houver
-    if (search.trim()) {
-      const searchLower = search.toLowerCase().trim();
-      filteredRoulettes = roulettes.filter(roulette => 
-        (roulette.nome || '').toLowerCase().includes(searchLower) ||
-        (roulette.name || '').toLowerCase().includes(searchLower)
-      );
-      
-      if (filteredRoulettes.length === 0) {
-        return (
-          <div className="col-span-full text-center py-8">
-            <p className="text-muted-foreground">Nenhuma roleta encontrada com o termo "{search}".</p>
-          </div>
-        );
-      }
-    }
-
     // Mais logs para depuração - mostrar o total de roletas
-    console.log(`[Index] Após filtro de busca: ${filteredRoulettes.length} roletas - EXIBINDO TODAS`);
+    console.log(`[Index] Exibindo todas as ${filteredRoulettes.length} roletas disponíveis`);
     
     // MODIFICAÇÃO CRÍTICA: Mostrar todas as roletas sem paginação
     const allRoulettes = filteredRoulettes;
@@ -430,16 +389,8 @@ const Index = () => {
       return null;
     }
     
+    // Usar todas as roletas diretamente, sem filtro
     let filteredRoulettes = roulettes;
-    
-    // Aplicar filtro de busca para calcular o total de páginas
-    if (search.trim()) {
-      const searchLower = search.toLowerCase().trim();
-      filteredRoulettes = roulettes.filter(roulette => 
-        (roulette.nome || '').toLowerCase().includes(searchLower) ||
-        (roulette.name || '').toLowerCase().includes(searchLower)
-      );
-    }
     
     const totalPages = Math.ceil(filteredRoulettes.length / itemsPerPage);
     
