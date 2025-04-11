@@ -9,7 +9,7 @@ const dotenv = require('dotenv');
 // Carregar variáveis de ambiente
 dotenv.config();
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/runcash';
+const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/runcash';
 const DB_NAME = process.env.DB_NAME || 'runcash';
 
 let client = null;
