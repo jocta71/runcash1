@@ -152,50 +152,23 @@ let lastProcessedIds = new Set();
 // Conectar ao MongoDB
 let db, collection;
 let isConnected = false;
-
-// Importar serviços necessários
-const mongodb = require('./api/libs/mongodb');
-const RouletteHistory = require('./api/models/RouletteHistory');
-
-// Inicializar o modelo de histórico quando MongoDB estiver conectado
-let historyModel = null;
-
-// Conectar ao MongoDB e inicializar modelos
-async function initializeModels() {
-  try {
-    if (!mongodb.isConnected()) {
-      await mongodb.connect();
-    }
-    
-    if (!historyModel && mongodb.getDb()) {
-      historyModel = new RouletteHistory(mongodb.getDb());
-      console.log('Modelo de histórico inicializado com sucesso');
-    }
-  } catch (error) {
-    console.error('Erro ao inicializar modelos:', error);
-  }
-}
+let client = null;
 
 async function connectToMongoDB() {
   try {
     console.log('Attempting to connect to MongoDB at:', MONGODB_URI);
     
-    const client = new MongoClient(MONGODB_URI, { 
-      useNewUrlParser: true, 
-      useUnifiedTopology: true 
-    });
-    
+    client = new MongoClient(MONGODB_URI);
     await client.connect();
     console.log('Connected to MongoDB successfully');
     
-    db = client.db();
+    db = client.db('runcash'); // Especificando o banco de dados 'runcash'
     collection = db.collection(COLLECTION_NAME);
     isConnected = true;
     
     // Log database info
-    const dbName = db.databaseName;
+    console.log(`Database name: ${db.databaseName}`);
     const collections = await db.listCollections().toArray();
-    console.log(`Database name: ${dbName}`);
     console.log('Available collections:', collections.map(c => c.name).join(', '));
     
     // Iniciar o polling para verificar novos dados
@@ -203,9 +176,6 @@ async function connectToMongoDB() {
     
     // Broadcast dos estados de estratégia atualizados
     setTimeout(broadcastAllStrategies, 2000);
-    
-    // Conectar ao MongoDB e inicializar modelos
-    await initializeModels();
     
     return true;
   } catch (error) {
