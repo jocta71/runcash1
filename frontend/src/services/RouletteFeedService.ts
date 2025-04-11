@@ -537,7 +537,7 @@ export default class RouletteFeedService {
     try {
       // Realizar a requisição HTTP com recuperação automática
       const result = await this.fetchWithRecovery(
-        `${this.baseUrl}/api/ROULETTES?limit=1000`,
+        `${this.baseUrl}/api/ROULETTES?limit=100`,
         requestId
       );
       
@@ -661,7 +661,7 @@ export default class RouletteFeedService {
       
       window._pendingRequests[requestId] = {
         timestamp: Date.now(),
-        url: '/api/ROULETTES?limit=1000',
+        url: '/api/ROULETTES?limit=100',
         service: 'RouletteFeed'
       };
       
@@ -676,7 +676,7 @@ export default class RouletteFeedService {
     
     logger.debug(`📡 Buscando dados mais recentes (ID: ${requestId})`);
     
-    return this.fetchWithRecovery('/api/ROULETTES?limit=1000', requestId)
+    return this.fetchWithRecovery('/api/ROULETTES?limit=100', requestId)
       .then(data => {
         // Atualizar estatísticas e estado
         this.requestStats.total++;
