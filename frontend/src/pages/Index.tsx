@@ -474,15 +474,8 @@ const Index = () => {
   return (
     <Layout preloadData={true}>
       <div className="container mx-auto px-4 pt-4 md:pt-8">
-        {/* Cabeçalho */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold mb-2 text-white">Roletas Disponíveis</h1>
-            <p className="text-sm text-gray-400 mb-4 md:mb-0">
-              Escolha uma roleta para começar a jogar
-            </p>
-          </div>
-          
+        {/* Cabeçalho simplificado */}
+        <div className="flex flex-col md:flex-row justify-end items-start md:items-center mb-6">
           <div className="w-full md:w-auto flex flex-col md:flex-row gap-3">
             <div className="relative">
               <input
