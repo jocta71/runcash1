@@ -13,8 +13,6 @@ import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import { fetchWithCorsSupport } from '@/utils/api-helpers';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
-import { createPortal } from 'react-dom';
-import * as React from 'react';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -126,7 +124,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
   const [estrategiaSelecionada, setEstrategiaSelecionada] = useState<string>('martingale'); // Martingale selecionado por padrão
   const [showEstrategiaDropdown, setShowEstrategiaDropdown] = useState(false);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -430,35 +427,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
   };
 
-  // Função para alternar o dropdown de estratégia
+  // Função simplificada para alternar o dropdown de estratégia
   const toggleEstrategiaDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    if (!showEstrategiaDropdown && estrategiaButtonRef.current) {
-      const rect = estrategiaButtonRef.current.getBoundingClientRect();
-      
-      // Verificar se o dropdown vai ficar fora da tela na parte inferior
-      const windowHeight = window.innerHeight;
-      const spaceBelow = windowHeight - rect.bottom;
-      const dropdownHeight = Math.min(250, ESTRATEGIAS_ROLETA.length * 70); // altura estimada do dropdown
-      
-      // Se não houver espaço suficiente abaixo, posicionar acima do botão
-      const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight - 10 : rect.bottom;
-      
-      // Verificar se o dropdown vai ficar fora da tela na direita
-      const windowWidth = window.innerWidth;
-      const dropdownWidth = Math.max(rect.width, 200);
-      const left = rect.left + dropdownWidth > windowWidth 
-        ? windowWidth - dropdownWidth - 10 
-        : rect.left;
-      
-      setDropdownPosition({
-        top: top + window.scrollY,
-        left: left + window.scrollX,
-        width: rect.width
-      });
-    }
-    
     setShowEstrategiaDropdown(!showEstrategiaDropdown);
   };
   
@@ -466,9 +437,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   useEffect(() => {
     if (showEstrategiaDropdown) {
       const handleClickOutside = (e: MouseEvent) => {
-        const dropdown = document.getElementById(`dropdown-${safeData.id}`);
-        if (dropdown && !dropdown.contains(e.target as Node) && 
-            estrategiaButtonRef.current && !estrategiaButtonRef.current.contains(e.target as Node)) {
+        if (estrategiaButtonRef.current && !estrategiaButtonRef.current.contains(e.target as Node)) {
           setShowEstrategiaDropdown(false);
         }
       };
@@ -478,56 +447,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [showEstrategiaDropdown, safeData.id]);
-
-  // Efeito para reposicionar o dropdown quando a janela for redimensionada
-  useEffect(() => {
-    if (showEstrategiaDropdown) {
-      const handleResize = () => {
-        if (estrategiaButtonRef.current) {
-          const rect = estrategiaButtonRef.current.getBoundingClientRect();
-          
-          // Verificar se o dropdown vai ficar fora da tela na parte inferior
-          const windowHeight = window.innerHeight;
-          const spaceBelow = windowHeight - rect.bottom;
-          const dropdownHeight = Math.min(250, ESTRATEGIAS_ROLETA.length * 70);
-          
-          // Se não houver espaço suficiente abaixo, posicionar acima do botão
-          const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight - 10 : rect.bottom;
-          
-          // Verificar se o dropdown vai ficar fora da tela na direita
-          const windowWidth = window.innerWidth;
-          const dropdownWidth = Math.max(rect.width, 200);
-          const left = rect.left + dropdownWidth > windowWidth 
-            ? windowWidth - dropdownWidth - 10 
-            : rect.left;
-          
-          setDropdownPosition({
-            top: top + window.scrollY,
-            left: left + window.scrollX,
-            width: rect.width
-          });
-        }
-      };
-      
-      window.addEventListener('resize', handleResize);
-      return () => {
-        window.removeEventListener('resize', handleResize);
-      };
-    }
-  }, [showEstrategiaDropdown, ESTRATEGIAS_ROLETA.length]);
-
-  // Efeito para adicionar/remover a classe 'has-dropdown-open' ao body
-  useEffect(() => {
-    if (showEstrategiaDropdown) {
-      document.body.classList.add('has-dropdown-open');
-    } else {
-      document.body.classList.remove('has-dropdown-open');
-    }
-    
-    return () => {
-      document.body.classList.remove('has-dropdown-open');
-    };
   }, [showEstrategiaDropdown]);
 
   return (
@@ -537,7 +456,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         "relative overflow-visible transition-all duration-300 hover:shadow-md", 
         isNewNumber ? "border-green-500 shadow-green-200 animate-pulse" : "",
         isDetailView ? "w-full" : "w-full",
-        showEstrategiaDropdown ? "dropdown-open" : ""
+        showEstrategiaDropdown ? "dropdown-open z-10" : ""
       )}
       onClick={handleCardClick}
     >
@@ -611,7 +530,34 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
               <ChevronDown className="h-3 w-3" />
             </button>
             
-            {/* O dropdown agora é renderizado via portal no final do componente */}
+            {/* Dropdown simples inline */}
+            {showEstrategiaDropdown && (
+              <div 
+                className="absolute top-full left-0 right-0 mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-md shadow-xl p-2 text-sm"
+                onClick={(e) => e.stopPropagation()}
+                style={{ 
+                  maxHeight: '250px', 
+                  overflowY: 'auto',
+                  boxShadow: '0 10px 25px rgba(0, 0, 0, 0.3)'
+                }}
+              >
+                {ESTRATEGIAS_ROLETA.map((estrategia) => (
+                  <div
+                    key={estrategia.id}
+                    className={`px-3 py-2 mb-1 rounded-sm hover:bg-zinc-700 cursor-pointer transition-colors ${
+                      estrategiaSelecionada === estrategia.id ? "bg-zinc-700" : ""
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selecionarEstrategia(estrategia.id);
+                    }}
+                  >
+                    <div className="font-medium text-white">{estrategia.nome}</div>
+                    <div className="text-xs text-zinc-400">{estrategia.descricao}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         
@@ -735,42 +681,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-50 animate-fade-in">
           {toastMessage}
         </div>
-      )}
-      
-      {/* Portal para o dropdown de estratégias */}
-      {showEstrategiaDropdown && createPortal(
-        <div 
-          className="fixed z-[9999] bg-zinc-800 border border-zinc-700 rounded-md shadow-xl p-2 text-sm dropdown-portal"
-          onClick={(e) => e.stopPropagation()}
-          style={{ 
-            maxHeight: '250px', 
-            overflowY: 'auto',
-            top: `${dropdownPosition.top + 5}px`,
-            left: `${dropdownPosition.left}px`,
-            width: `${Math.max(dropdownPosition.width, 200)}px`,
-            transform: 'none',
-            opacity: 1,
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)'
-          }}
-          id={`dropdown-${safeData.id}`}
-        >
-          {ESTRATEGIAS_ROLETA.map((estrategia) => (
-            <div
-              key={estrategia.id}
-              className={`px-3 py-2 mb-1 rounded-sm hover:bg-zinc-700 cursor-pointer transition-colors ${
-                estrategiaSelecionada === estrategia.id ? "bg-zinc-700" : ""
-              }`}
-              onClick={(e) => {
-                e.stopPropagation();
-                selecionarEstrategia(estrategia.id);
-              }}
-            >
-              <div className="font-medium text-white">{estrategia.nome}</div>
-              <div className="text-xs text-zinc-400">{estrategia.descricao}</div>
-            </div>
-          ))}
-        </div>,
-        document.body
       )}
     </Card>
   );
