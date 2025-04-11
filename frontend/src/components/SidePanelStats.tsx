@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { RouletteRacetrack } from './roulette/RouletteRacetrack';
 
 interface SidePanelStatsProps {
@@ -7,6 +7,20 @@ interface SidePanelStatsProps {
 }
 
 const SidePanelStats: React.FC<SidePanelStatsProps> = ({ isOpen, onClose }) => {
+  // Dados de frequência simulados para demonstração
+  const [demoFrequencyData, setDemoFrequencyData] = useState<{ number: number, frequency: number }[]>([]);
+  
+  // Gerar dados de frequência simulados para demonstração
+  useEffect(() => {
+    // Gerar dados de frequência para todos os números da roleta (0-36)
+    const simulatedData = Array.from({ length: 37 }, (_, i) => ({
+      number: i,
+      frequency: Math.floor(Math.random() * 20) + 1, // Frequência entre 1 e 20
+    }));
+    
+    setDemoFrequencyData(simulatedData);
+  }, []);
+
   if (!isOpen) return null;
   
   return (
@@ -23,8 +37,8 @@ const SidePanelStats: React.FC<SidePanelStatsProps> = ({ isOpen, onClose }) => {
         </div>
 
         <div className="space-y-6">
-          {/* Componente RouletteRacetrack */}
-          <RouletteRacetrack />
+          {/* Componente RouletteRacetrack com dados simulados */}
+          <RouletteRacetrack frequencyData={demoFrequencyData} />
           
           {/* Espaço para mais estatísticas */}
           <div className="rounded-lg border border-[#00ff00]/20 bg-vegas-black-light p-4">
