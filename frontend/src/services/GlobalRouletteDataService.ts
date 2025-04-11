@@ -1,6 +1,9 @@
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
 
+// URL do serviço de API externa
+const WEBSOCKET_SERVICE_URL = "https://backend-production-2f96.up.railway.app";
+
 // Intervalo de polling padrão em milissegundos (8 segundos)
 const POLLING_INTERVAL = 8000;
 
@@ -15,9 +18,6 @@ const DEFAULT_LIMIT = 100;
 
 // Limite para requisições detalhadas (1000 itens)
 const DETAILED_LIMIT = 1000;
-
-// URL do serviço WebSocket onde a API de números está disponível
-const WS_URL = 'https://backendscraper-production.up.railway.app';
 
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
@@ -110,7 +110,7 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados atualizados da API (usando a nova API /api/ROULETTES)
+   * Busca dados atualizados da API (usando a rota otimizada /API/NUMBERS)
    */
   private async fetchRouletteData(): Promise<void> {
     // Evitar requisições simultâneas
@@ -129,18 +129,19 @@ class GlobalRouletteDataService {
         return;
       }
       
-      console.log('[GlobalRouletteService] Buscando dados atualizados da API /api/ROULETTES');
+      console.log('[GlobalRouletteService] Buscando dados atualizados da API (números recentes)');
       
-      // Usar URL direta para o backend sem usar variáveis de ambiente
-      const result = await fetchWithCorsSupport<any>('/api/ROULETTES');
+      // Usar a função utilitária com suporte a CORS - com a nova URL para números recentes
+      const response = await fetchWithCorsSupport<any>(`${WEBSOCKET_SERVICE_URL}/API/NUMBERS`);
       
       // Verificar se os dados são válidos
-      if (result && result.data && Array.isArray(result.data)) {
-        console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${result.data.length} entradas`);
+      if (response && response.data && Array.isArray(response.data)) {
+        console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${response.data.length} números recentes`);
         
-        // Transformar os dados para o formato esperado
-        const formattedData = this.transformNumbersToRouletteFormat(result.data);
-        this.rouletteData = formattedData;
+        // Processar os dados para o formato esperado pelo resto da aplicação
+        const processedData = this.processNumbersToRouletteFormat(response.data);
+        
+        this.rouletteData = processedData;
         this.lastFetchTime = now;
         
         // Notificar todos os assinantes sobre a atualização
@@ -149,10 +150,10 @@ class GlobalRouletteDataService {
         // Emitir evento global para outros componentes que possam estar ouvindo
         EventService.emit('roulette:data-updated', {
           timestamp: new Date().toISOString(),
-          count: formattedData.length
+          count: processedData.length
         });
       } else {
-        console.error('[GlobalRouletteService] Resposta inválida da API');
+        console.error('[GlobalRouletteService] Resposta inválida da API de números recentes');
       }
     } catch (error) {
       console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
@@ -162,11 +163,42 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Transforma os dados da API /api/ROULETTES para o formato esperado pelo restante da aplicação
+   * Processa dados da API de números para o formato de roletas esperado pela aplicação
    */
-  private transformNumbersToRouletteFormat(numbersData: any[]): any[] {
-    // Para a API /api/ROULETTES, os dados já vêm no formato esperado
-    return numbersData;
+  private processNumbersToRouletteFormat(numbersData: any[]): any[] {
+    // Agrupar números por roleta_id
+    const rouletteMap = new Map<string, any>();
+    
+    // Para cada número recebido
+    numbersData.forEach(numberEntry => {
+      const { roleta_id, roleta_nome, numero, cor, timestamp } = numberEntry;
+      
+      // Se essa roleta ainda não está no mapa, criá-la
+      if (!rouletteMap.has(roleta_id)) {
+        rouletteMap.set(roleta_id, {
+          id: roleta_id,
+          nome: roleta_nome,
+          ativa: true,
+          numero: [],
+          estado_estrategia: "NEUTRAL"
+        });
+      }
+      
+      // Obter a roleta atual
+      const roulette = rouletteMap.get(roleta_id);
+      
+      // Adicionar o número à lista de números da roleta
+      roulette.numero.push({
+        numero: numero,
+        roleta_id: roleta_id,
+        roleta_nome: roleta_nome,
+        cor: cor,
+        timestamp: timestamp
+      });
+    });
+    
+    // Converter o mapa para array
+    return Array.from(rouletteMap.values());
   }
   
   /**
@@ -190,18 +222,19 @@ class GlobalRouletteDataService {
         return this.detailedRouletteData;
       }
       
-      console.log('[GlobalRouletteService] Buscando dados detalhados da API /api/ROULETTES');
+      console.log('[GlobalRouletteService] Buscando dados detalhados da API externa');
       
-      // Usar URL direta para o backend sem usar variáveis de ambiente
-      const result = await fetchWithCorsSupport<any>('/api/ROULETTES');
+      // Usar a função utilitária com suporte a CORS, usando a URL do serviço WebSocket
+      const response = await fetchWithCorsSupport<any>(`${WEBSOCKET_SERVICE_URL}/API/NUMBERS?limit=${DETAILED_LIMIT}`);
       
       // Verificar se os dados são válidos
-      if (result && result.data && Array.isArray(result.data)) {
-        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${result.data.length} entradas`);
+      if (response && response.data && Array.isArray(response.data)) {
+        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${response.data.length} números`);
         
-        // Transformar os dados para o formato esperado
-        const formattedData = this.transformNumbersToRouletteFormat(result.data);
-        this.detailedRouletteData = formattedData;
+        // Processar os dados detalhados
+        const processedData = this.processNumbersToRouletteFormat(response.data);
+        
+        this.detailedRouletteData = processedData;
         this.lastDetailedFetchTime = now;
         
         // Notificar assinantes de dados detalhados
