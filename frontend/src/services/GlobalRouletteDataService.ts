@@ -107,7 +107,7 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados atualizados da API (usando limit=100 para polling regular)
+   * Busca dados atualizados da API (usando a nova API /API/NUMBERS)
    */
   private async fetchRouletteData(): Promise<void> {
     // Evitar requisições simultâneas
@@ -126,15 +126,19 @@ class GlobalRouletteDataService {
         return;
       }
       
-      console.log('[GlobalRouletteService] Buscando dados atualizados da API (limit=100)');
+      console.log('[GlobalRouletteService] Buscando dados atualizados da API /API/NUMBERS');
       
-      // Usar a função utilitária com suporte a CORS - com limit=100 para polling regular
-      const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+      // Usar a nova URL que retorna os números mais recentes
+      const WEBSOCKET_SERVICE_URL = process.env.REACT_APP_WEBSOCKET_SERVICE_URL || 'https://backend-production-2f96.up.railway.app';
+      const result = await fetchWithCorsSupport<any>(`${WEBSOCKET_SERVICE_URL}/API/NUMBERS`);
       
       // Verificar se os dados são válidos
-      if (data && Array.isArray(data)) {
-        console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas`);
-        this.rouletteData = data;
+      if (result && result.data && Array.isArray(result.data)) {
+        console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${result.data.length} entradas`);
+        
+        // Transformar os dados para o formato esperado
+        const formattedData = this.transformNumbersToRouletteFormat(result.data);
+        this.rouletteData = formattedData;
         this.lastFetchTime = now;
         
         // Notificar todos os assinantes sobre a atualização
@@ -143,7 +147,7 @@ class GlobalRouletteDataService {
         // Emitir evento global para outros componentes que possam estar ouvindo
         EventService.emit('roulette:data-updated', {
           timestamp: new Date().toISOString(),
-          count: data.length
+          count: formattedData.length
         });
       } else {
         console.error('[GlobalRouletteService] Resposta inválida da API');
@@ -153,6 +157,41 @@ class GlobalRouletteDataService {
     } finally {
       this.isFetching = false;
     }
+  }
+  
+  /**
+   * Transforma os dados da API /API/NUMBERS para o formato esperado pelo restante da aplicação
+   */
+  private transformNumbersToRouletteFormat(numbersData: any[]): any[] {
+    // Agrupar os números por roleta_id
+    const roletaMap = new Map();
+    
+    // Processar cada entrada da API
+    numbersData.forEach(item => {
+      const roletaId = item.roleta_id;
+      
+      // Se esta roleta ainda não está no mapa, criar entrada
+      if (!roletaMap.has(roletaId)) {
+        roletaMap.set(roletaId, {
+          id: roletaId,
+          nome: item.roleta_nome,
+          ativa: true,
+          numero: [],
+          estado_estrategia: "NEUTRAL"
+        });
+      }
+      
+      // Adicionar o número à lista de números da roleta
+      const roleta = roletaMap.get(roletaId);
+      roleta.numero.push({
+        numero: item.numero,
+        cor: item.cor,
+        timestamp: item.timestamp
+      });
+    });
+    
+    // Converter o mapa em array
+    return Array.from(roletaMap.values());
   }
   
   /**
