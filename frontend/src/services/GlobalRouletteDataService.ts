@@ -134,12 +134,40 @@ class GlobalRouletteDataService {
       // Usar a função utilitária com suporte a CORS - com a nova URL para números recentes
       const response = await fetchWithCorsSupport<any>(`${WEBSOCKET_SERVICE_URL}/API/NUMBERS`);
       
-      // Verificar se os dados são válidos
-      if (response && response.data && Array.isArray(response.data)) {
-        console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${response.data.length} números recentes`);
+      // Determinar o formato da resposta e extrair os dados
+      let numbersData: any[] = [];
+      
+      if (response) {
+        // Caso 1: A resposta é um objeto com propriedade 'data' que contém a array
+        if (response.data && Array.isArray(response.data)) {
+          console.log(`[GlobalRouletteService] Resposta no formato objeto.data: ${response.data.length} itens`);
+          numbersData = response.data;
+        } 
+        // Caso 2: A resposta é uma array diretamente
+        else if (Array.isArray(response)) {
+          console.log(`[GlobalRouletteService] Resposta no formato array direta: ${response.length} itens`);
+          numbersData = response;
+        }
+        // Caso 3: A resposta tem um formato diferente, mas contém números na propriedade 'data'
+        else if (typeof response === 'object' && response !== null) {
+          for (const key in response) {
+            if (Array.isArray(response[key])) {
+              console.log(`[GlobalRouletteService] Dados encontrados na propriedade '${key}': ${response[key].length} itens`);
+              numbersData = response[key];
+              break;
+            }
+          }
+        }
+      }
+      
+      if (numbersData.length > 0) {
+        console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${numbersData.length} números recentes`);
+        
+        // Log para debug dos primeiros itens
+        console.log('Amostra dos dados:', numbersData.slice(0, 2));
         
         // Processar os dados para o formato esperado pelo resto da aplicação
-        const processedData = this.processNumbersToRouletteFormat(response.data);
+        const processedData = this.processNumbersToRouletteFormat(numbersData);
         
         this.rouletteData = processedData;
         this.lastFetchTime = now;
@@ -153,7 +181,7 @@ class GlobalRouletteDataService {
           count: processedData.length
         });
       } else {
-        console.error('[GlobalRouletteService] Resposta inválida da API de números recentes');
+        console.error('[GlobalRouletteService] Resposta inválida da API de números recentes', response);
       }
     } catch (error) {
       console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
@@ -202,7 +230,7 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados detalhados (usando limit=1000) - apenas para visualizações detalhadas
+   * Busca dados detalhados - apenas para visualizações detalhadas
    * Esta função deve ser chamada somente quando precisamos de dados detalhados para estatísticas
    */
   public async fetchDetailedRouletteData(): Promise<any[]> {
@@ -227,12 +255,37 @@ class GlobalRouletteDataService {
       // Usar a função utilitária com suporte a CORS, usando a URL do serviço WebSocket
       const response = await fetchWithCorsSupport<any>(`${WEBSOCKET_SERVICE_URL}/API/NUMBERS?limit=${DETAILED_LIMIT}`);
       
-      // Verificar se os dados são válidos
-      if (response && response.data && Array.isArray(response.data)) {
-        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${response.data.length} números`);
+      // Determinar o formato da resposta e extrair os dados
+      let numbersData: any[] = [];
+      
+      if (response) {
+        // Caso 1: A resposta é um objeto com propriedade 'data' que contém a array
+        if (response.data && Array.isArray(response.data)) {
+          console.log(`[GlobalRouletteService] Resposta detalhada no formato objeto.data: ${response.data.length} itens`);
+          numbersData = response.data;
+        } 
+        // Caso 2: A resposta é uma array diretamente
+        else if (Array.isArray(response)) {
+          console.log(`[GlobalRouletteService] Resposta detalhada no formato array direta: ${response.length} itens`);
+          numbersData = response;
+        }
+        // Caso 3: A resposta tem um formato diferente, mas contém números em alguma propriedade
+        else if (typeof response === 'object' && response !== null) {
+          for (const key in response) {
+            if (Array.isArray(response[key])) {
+              console.log(`[GlobalRouletteService] Dados detalhados encontrados na propriedade '${key}': ${response[key].length} itens`);
+              numbersData = response[key];
+              break;
+            }
+          }
+        }
+      }
+      
+      if (numbersData.length > 0) {
+        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${numbersData.length} números`);
         
         // Processar os dados detalhados
-        const processedData = this.processNumbersToRouletteFormat(response.data);
+        const processedData = this.processNumbersToRouletteFormat(numbersData);
         
         this.detailedRouletteData = processedData;
         this.lastDetailedFetchTime = now;
@@ -240,7 +293,7 @@ class GlobalRouletteDataService {
         // Notificar assinantes de dados detalhados
         this.notifyDetailedSubscribers();
       } else {
-        console.error('[GlobalRouletteService] Resposta inválida da API detalhada');
+        console.error('[GlobalRouletteService] Resposta inválida da API detalhada', response);
       }
       
       return this.detailedRouletteData;
