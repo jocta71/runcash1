@@ -474,27 +474,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           </div>
         </div>
         
-        {/* Último número (grande) */}
-        {lastNumber !== null ? (
-          <div className="flex justify-center my-4">
-            <div 
-              className={`w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-bold
-                ${getNumberColor(lastNumber) === 'vermelho' ? 'bg-red-600' : 
-                  getNumberColor(lastNumber) === 'preto' ? 'bg-black' : 'bg-green-600'}`}
-            >
-              {lastNumber}
-            </div>
-          </div>
-        ) : (
-          <div className="flex justify-center my-4">
-            <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center text-gray-500 text-xl">
-              {loading ? "..." : "?"}
-            </div>
-          </div>
-        )}
-        
         {/* Números recentes */}
-        <div className="flex flex-wrap gap-1 justify-center my-3">
+        <div className="flex flex-wrap gap-1 justify-center my-5">
           {recentNumbers.length > 0 ? (
             recentNumbers.slice(0, 20).map((num, idx) => (
             <NumberDisplay 
