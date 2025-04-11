@@ -15,7 +15,7 @@ console.log("==== Script de verificação e configuração do MongoDB ====");
 console.log(`Ambiente: ${isRailway ? 'Railway' : 'Local'}`);
 
 // Verificar variáveis de ambiente
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash';
 const MONGODB_ENABLED = process.env.MONGODB_ENABLED || 'true';
 const RAILWAY_URL = process.env.RAILWAY_URL || 'https://runcash1-production.up.railway.app';
 
@@ -27,7 +27,7 @@ console.log(`RAILWAY_URL: ${RAILWAY_URL ? '✅ definida' : '❌ não definida'}`
 if (isRailway && (!MONGODB_URI || !MONGODB_ENABLED || MONGODB_ENABLED.toLowerCase() !== 'true')) {
   console.log("\n⚠️ Variáveis de ambiente para MongoDB não estão configuradas corretamente no Railway!");
   console.log("\nSolução: Você precisa definir as seguintes variáveis de ambiente no Railway:");
-  console.log("1. MONGODB_URI = mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash");
+  console.log("1. MONGODB_URI = mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash");
   console.log("2. MONGODB_ENABLED = true");
   console.log("3. MONGODB_DB_NAME = runcash");
   
@@ -39,7 +39,7 @@ if (isRailway && (!MONGODB_URI || !MONGODB_ENABLED || MONGODB_ENABLED.toLowerCas
 } else if (!isRailway) {
   console.log("\nDica para ambiente local:");
   console.log("Crie um arquivo .env na raiz do projeto com as seguintes variáveis:");
-  console.log("MONGODB_URI=mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash");
+  console.log("MONGODB_URI=mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash");
   console.log("MONGODB_ENABLED=true");
   console.log("MONGODB_DB_NAME=runcash");
   console.log("RAILWAY_URL=https://runcash1-production.up.railway.app");

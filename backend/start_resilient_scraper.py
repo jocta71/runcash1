@@ -31,7 +31,7 @@ current_process = None
 forced_exit = False
 
 # Verificar configuração do MongoDB
-mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash')
+mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash')
 mongodb_enabled = os.environ.get('MONGODB_ENABLED', 'true').lower() in ('true', '1', 't')
 railway_url = os.environ.get('RAILWAY_URL', 'https://runcash1-production.up.railway.app')
 
