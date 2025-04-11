@@ -110,7 +110,7 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados atualizados da API (usando a nova API /API/NUMBERS)
+   * Busca dados atualizados da API (usando a nova API /api/numbers)
    */
   private async fetchRouletteData(): Promise<void> {
     // Evitar requisições simultâneas
@@ -129,10 +129,10 @@ class GlobalRouletteDataService {
         return;
       }
       
-      console.log('[GlobalRouletteService] Buscando dados atualizados da API /API/NUMBERS');
+      console.log('[GlobalRouletteService] Buscando dados atualizados da API /api/numbers');
       
       // Usar URL direta para o backend sem usar variáveis de ambiente
-      const result = await fetchWithCorsSupport<any>('/API/NUMBERS');
+      const result = await fetchWithCorsSupport<any>('/api/numbers');
       
       // Verificar se os dados são válidos
       if (result && result.data && Array.isArray(result.data)) {
@@ -162,7 +162,7 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Transforma os dados da API /API/NUMBERS para o formato esperado pelo restante da aplicação
+   * Transforma os dados da API /api/numbers para o formato esperado pelo restante da aplicação
    */
   private transformNumbersToRouletteFormat(numbersData: any[]): any[] {
     // Agrupar os números por roleta_id
@@ -217,10 +217,10 @@ class GlobalRouletteDataService {
         return this.detailedRouletteData;
       }
       
-      console.log('[GlobalRouletteService] Buscando dados detalhados da API /API/NUMBERS');
+      console.log('[GlobalRouletteService] Buscando dados detalhados da API /api/numbers');
       
       // Usar URL direta para o backend sem usar variáveis de ambiente
-      const result = await fetchWithCorsSupport<any>('/API/NUMBERS');
+      const result = await fetchWithCorsSupport<any>('/api/numbers');
       
       // Verificar se os dados são válidos
       if (result && result.data && Array.isArray(result.data)) {
