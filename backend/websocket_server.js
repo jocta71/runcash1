@@ -531,8 +531,6 @@ app.get('/api/ROULETTES', async (req, res) => {
 app.get('/api/ROULETTES', async (req, res) => {
   console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
   console.log('[API] Query params:', req.query);
-  console.log('[API] Headers:', req.headers);
-  console.log('[API] Origin:', req.headers.origin);
   
   // Aplicar cabeçalhos CORS explicitamente para esta rota
   res.header('Access-Control-Allow-Origin', '*');
@@ -546,32 +544,18 @@ app.get('/api/ROULETTES', async (req, res) => {
     }
     
     // Parâmetros de paginação
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = parseInt(req.query.limit) || 200;  // Aumentado para sempre retornar o histórico
     console.log(`[API] Usando limit: ${limit}`);
     
-    // Se um limite maior for solicitado, estamos buscando o histórico de números
-    if (limit > 100) {
-      console.log(`[API] Solicitação de histórico com ${limit} registros`);
-      
-      // Buscar histórico de números ordenados por timestamp
-      const numeros = await collection
-        .find({})
-        .sort({ timestamp: -1 })
-        .limit(limit)
-        .toArray();
-      
-      console.log(`[API] Retornando ${numeros.length} números do histórico`);
-      return res.json(numeros);
-    }
+    // Buscar histórico de números ordenados por timestamp
+    const numeros = await collection
+      .find({})
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .toArray();
     
-    // Caso contrário, retorna a lista de roletas únicas (comportamento original)
-    const roulettes = await collection.aggregate([
-      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-      { $project: { _id: 0, id: 1, nome: "$_id" } }
-    ]).toArray();
-    
-    console.log(`[API] Processadas ${roulettes.length} roletas`);
-    res.json(roulettes);
+    console.log(`[API] Retornando ${numeros.length} números do histórico`);
+    return res.json(numeros);
   } catch (error) {
     console.error('[API] Erro ao listar roletas ou histórico:', error);
     res.status(500).json({ error: 'Erro interno ao buscar dados' });
@@ -763,7 +747,7 @@ app.get('/api/numbers', async (req, res) => {
     }
     
     // Parâmetros opcionais de paginação
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = parseInt(req.query.limit) || 100;  // Aumentado para retornar mais registros
     const skip = parseInt(req.query.skip) || 0;
     
     // Filtros opcionais
@@ -821,7 +805,7 @@ app.get('/api/historico', async (req, res) => {
     }
     
     // Parâmetros de consulta
-    const limit = parseInt(req.query.limit) || 1000;
+    const limit = parseInt(req.query.limit) || 2000;  // Aumentado para retornar mais registros
     const skip = parseInt(req.query.skip) || 0;
     
     // Filtros opcionais
@@ -875,7 +859,7 @@ app.get('/api/ROULETTES/historico', async (req, res) => {
     const historico = await collection
       .find({})
       .sort({ timestamp: -1 })
-      .limit(1000)
+      .limit(2000)  // Aumentado para retornar mais registros
       .toArray();
     
     if (historico.length > 0) {
