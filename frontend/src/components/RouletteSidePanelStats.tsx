@@ -1,15 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { BarChart, ChartBar, ArrowUp, ArrowDown, Percent as PercentIcon } from 'lucide-react';
-import { 
-  PieChart, Pie, Cell, Tooltip, Legend, 
-  BarChart as RechartsBarChart, 
-  CartesianGrid, XAxis, YAxis, Bar,
-  ResponsiveContainer 
-} from 'recharts';
-import { getLogger } from '../services/utils/logger';
+import { ChartBar, BarChart, ArrowDown, ArrowUp, PercentIcon } from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart as RechartsBarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
+import { useState, useEffect, useRef } from 'react';
 import globalRouletteDataService from '../services/GlobalRouletteDataService';
-import { RouletteRacetrack } from './roulette/RouletteRacetrack';
 import rouletteHistoryService from '../services/RouletteHistoryService';
+import { getLogger } from '../services/utils/logger';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -308,11 +314,6 @@ const RouletteSidePanelStats = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-          {/* Racetrack da Roleta - Ocupa a largura total */}
-          <div className="md:col-span-2">
-            <RouletteRacetrack frequencyData={frequencyData} />
-          </div>
-          
           {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
           <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light md:col-span-2">
             <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
