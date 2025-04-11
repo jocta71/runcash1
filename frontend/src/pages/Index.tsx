@@ -175,6 +175,27 @@ const Index = () => {
     return result;
   }, []);
   
+  // Efeito para atualizar selectedRoulette quando roulettes for carregado ou alterado
+  useEffect(() => {
+    // Se já temos roletas carregadas e nenhuma roleta está selecionada, selecione a primeira
+    if (roulettes.length > 0 && !selectedRoulette && !isLoading) {
+      console.log('[Index] Selecionando uma roleta automaticamente');
+      
+      // Tentar encontrar uma roleta que tenha números/dados
+      const roletaComDados = roulettes.find(roleta => {
+        const temNumeros = (
+          (Array.isArray(roleta.numero) && roleta.numero.length > 0) || 
+          (Array.isArray(roleta.lastNumbers) && roleta.lastNumbers.length > 0) ||
+          (Array.isArray(roleta.numeros) && roleta.numeros.length > 0)
+        );
+        return temNumeros;
+      });
+      
+      // Se encontrou uma roleta com dados, selecione-a, caso contrário use a primeira
+      setSelectedRoulette(roletaComDados || roulettes[0]);
+    }
+  }, [roulettes, selectedRoulette, isLoading]);
+  
   // Função para carregar dados da API de forma centralizada
   const loadRouletteData = useCallback(async () => {
     if (!isMounted.current) return;
