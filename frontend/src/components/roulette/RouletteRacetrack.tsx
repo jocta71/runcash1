@@ -49,107 +49,145 @@ export const RouletteRacetrack: React.FC<RouletteRacetrackProps> = ({ frequencyD
       </h3>
       <div className="p-2">
         {/* Container principal com fundo preto */}
-        <div className="relative bg-black rounded-lg overflow-hidden" style={{ height: '200px' }}>
+        <div className="relative bg-black rounded-lg overflow-hidden" style={{ height: '220px' }}>
           {/* Container interno oval/arredondado */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="relative w-full h-[90%] mx-2 rounded-[60px] bg-black border border-gray-800 overflow-hidden">
+          <div 
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ padding: '0.25rem' }}
+          >
+            {/* Fundo da pista (oval) - definido com border-radius específico para criar o efeito oval */}
+            <div 
+              className="relative w-full h-full bg-black border border-gray-800 overflow-hidden"
+              style={{ 
+                borderRadius: '50%/35%',
+                boxShadow: 'inset 0 0 25px rgba(0,0,0,0.8)'
+              }}
+            >
               
               {/* Seções internas */}
-              <div className="absolute inset-0 flex">
+              <div className="absolute inset-[9%] flex rounded-[50%/35%] overflow-hidden">
                 <div className="grid grid-cols-4 w-full h-full">
-                  <div className="bg-[#111] border-r border-gray-800 flex items-center justify-center">
+                  <div className="bg-[#111] border-r border-gray-800 flex items-center justify-center shadow-inner">
                     <span className="text-white text-sm">Tier</span>
                   </div>
-                  <div className="bg-[#111] border-r border-gray-800 flex items-center justify-center">
+                  <div className="bg-[#111] border-r border-gray-800 flex items-center justify-center shadow-inner">
                     <span className="text-white text-sm">Orphelins</span>
                   </div>
-                  <div className="bg-[#111] border-r border-gray-800 flex items-center justify-center">
+                  <div className="bg-[#111] border-r border-gray-800 flex items-center justify-center shadow-inner">
                     <span className="text-white text-sm">Voisins</span>
                   </div>
-                  <div className="bg-[#111] flex items-center justify-center">
+                  <div className="bg-[#111] flex items-center justify-center shadow-inner">
                     <span className="text-white text-sm">Zero</span>
                   </div>
                 </div>
               </div>
 
-              {/* Linha superior */}
-              <div className="absolute top-0 w-full flex justify-center space-x-0.5">
-                {topRow.map((num) => (
-                  <div 
-                    key={`top-${num}`}
-                    style={{
-                      width: '26px', 
-                      height: '26px', 
-                      borderRadius: '50%',
-                      boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none'
-                    }} 
-                    className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
-                    title={`Frequência: ${getFrequency(num)}`}
-                  >
-                    {num}
-                    {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
-                  </div>
-                ))}
+              {/* Linha superior - usando posicionamento com calc e transformações para seguir a curva */}
+              <div className="absolute top-0 inset-x-0 flex justify-center items-start">
+                <div className="flex items-start justify-center" style={{ width: '90%', height: '28px', marginTop: '1px', transform: 'perspective(200px) rotateX(5deg)' }}>
+                  {topRow.map((num, index) => {
+                    // Calcula a posição em uma curva
+                    const middleIndex = Math.floor(topRow.length / 2);
+                    const distanceFromMiddle = index - middleIndex;
+                    const yOffset = Math.abs(distanceFromMiddle) * 0.5; // Valores maiores para curvar mais
+                    
+                    return (
+                      <div 
+                        key={`top-${num}`}
+                        style={{
+                          width: '26px', 
+                          height: '26px', 
+                          borderRadius: '50%',
+                          boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none',
+                          marginTop: `${yOffset}px`,
+                          marginLeft: '1px',
+                          marginRight: '1px'
+                        }} 
+                        className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
+                        title={`Frequência: ${getFrequency(num)}`}
+                      >
+                        {num}
+                        {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Lado esquerdo */}
-              <div className="absolute left-0 top-6 h-[calc(100%-12px)] flex flex-col justify-between py-1">
-                {leftSide.map((num) => (
-                  <div 
-                    key={`left-${num}`}
-                    style={{
-                      width: '26px', 
-                      height: '26px', 
-                      borderRadius: '50%',
-                      boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none'
-                    }} 
-                    className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
-                    title={`Frequência: ${getFrequency(num)}`}
-                  >
-                    {num}
-                    {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
-                  </div>
-                ))}
+              {/* Lado esquerdo - usando transformações para seguir a curva */}
+              <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-center items-start pl-1">
+                <div className="flex flex-col justify-between items-center h-[75%]" style={{ transform: 'perspective(400px) rotateY(-15deg)' }}>
+                  {leftSide.map((num) => (
+                    <div 
+                      key={`left-${num}`}
+                      style={{
+                        width: '26px', 
+                        height: '26px', 
+                        borderRadius: '50%',
+                        boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none'
+                      }} 
+                      className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
+                      title={`Frequência: ${getFrequency(num)}`}
+                    >
+                      {num}
+                      {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Lado direito */}
-              <div className="absolute right-0 top-6 h-[calc(100%-12px)] flex flex-col justify-between py-1">
-                {rightSide.map((num) => (
-                  <div 
-                    key={`right-${num}`}
-                    style={{
-                      width: '26px', 
-                      height: '26px', 
-                      borderRadius: '50%',
-                      boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none'
-                    }} 
-                    className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
-                    title={`Frequência: ${getFrequency(num)}`}
-                  >
-                    {num}
-                    {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
-                  </div>
-                ))}
+              {/* Lado direito - usando transformações para seguir a curva */}
+              <div className="absolute right-0 top-0 bottom-0 flex flex-col justify-center items-end pr-1">
+                <div className="flex flex-col justify-between items-center h-[75%]" style={{ transform: 'perspective(400px) rotateY(15deg)' }}>
+                  {rightSide.map((num) => (
+                    <div 
+                      key={`right-${num}`}
+                      style={{
+                        width: '26px', 
+                        height: '26px', 
+                        borderRadius: '50%',
+                        boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none'
+                      }} 
+                      className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
+                      title={`Frequência: ${getFrequency(num)}`}
+                    >
+                      {num}
+                      {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Linha inferior */}
-              <div className="absolute bottom-0 w-full flex justify-center space-x-0.5">
-                {bottomRow.map((num) => (
-                  <div 
-                    key={`bottom-${num}`}
-                    style={{
-                      width: '26px', 
-                      height: '26px', 
-                      borderRadius: '50%',
-                      boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none'
-                    }}
-                    className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
-                    title={`Frequência: ${getFrequency(num)}`}
-                  >
-                    {num}
-                    {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
-                  </div>
-                ))}
+              {/* Linha inferior - usando posicionamento com calc e transformações para seguir a curva */}
+              <div className="absolute bottom-0 inset-x-0 flex justify-center items-end">
+                <div className="flex items-end justify-center" style={{ width: '80%', height: '28px', marginBottom: '1px', transform: 'perspective(200px) rotateX(-5deg)' }}>
+                  {bottomRow.map((num, index) => {
+                    // Calcula a posição em uma curva
+                    const middleIndex = Math.floor(bottomRow.length / 2);
+                    const distanceFromMiddle = index - middleIndex;
+                    const yOffset = Math.abs(distanceFromMiddle) * 0.5; // Valores maiores para curvar mais
+                    
+                    return (
+                      <div 
+                        key={`bottom-${num}`}
+                        style={{
+                          width: '26px', 
+                          height: '26px', 
+                          borderRadius: '50%',
+                          boxShadow: isHotNumber(num) ? '0 0 5px #ffcc00' : 'none',
+                          marginBottom: `${yOffset}px`,
+                          marginLeft: '1px',
+                          marginRight: '1px'
+                        }}
+                        className={`${getNumberColor(num)} text-white flex items-center justify-center text-xs font-bold cursor-pointer relative`}
+                        title={`Frequência: ${getFrequency(num)}`}
+                      >
+                        {num}
+                        {isHotNumber(num) && <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
