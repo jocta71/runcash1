@@ -30,6 +30,9 @@ console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 // Inicializar Express
 const app = express();
 
+// Configurar Express para rotas case-insensitive
+app.set('case sensitive routing', false);
+
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
   // Sempre permitir todas as origens para simplificar
@@ -787,7 +790,7 @@ app.get('/disable-cors-check', (req, res) => {
 });
 
 // Endpoint para listar todas as roletas
-app.get('/api/ROULETTES', async (req, res) => {
+app.get('/api/roulettes', async (req, res) => {
   console.log('[API] Requisição recebida para /api/ROULETTES');
   try {
     if (!isConnected) {
