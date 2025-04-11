@@ -13,6 +13,8 @@ import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import { fetchWithCorsSupport } from '@/utils/api-helpers';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
+import { createPortal } from 'react-dom';
+import * as React from 'react';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -124,12 +126,14 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
   const [estrategiaSelecionada, setEstrategiaSelecionada] = useState<string>('martingale'); // Martingale selecionado por padrão
   const [showEstrategiaDropdown, setShowEstrategiaDropdown] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const estrategiaButtonRef = useRef<HTMLButtonElement | null>(null);
   
   // Hooks
   const navigate = useNavigate();
@@ -426,13 +430,48 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
   };
 
+  // Função para alternar o dropdown de estratégia
+  const toggleEstrategiaDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!showEstrategiaDropdown && estrategiaButtonRef.current) {
+      const rect = estrategiaButtonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      });
+    }
+    
+    setShowEstrategiaDropdown(!showEstrategiaDropdown);
+  };
+  
+  // Efeito para fechar o dropdown quando clicar fora
+  useEffect(() => {
+    if (showEstrategiaDropdown) {
+      const handleClickOutside = (e: MouseEvent) => {
+        const dropdown = document.getElementById(`dropdown-${safeData.id}`);
+        if (dropdown && !dropdown.contains(e.target as Node) && 
+            estrategiaButtonRef.current && !estrategiaButtonRef.current.contains(e.target as Node)) {
+          setShowEstrategiaDropdown(false);
+        }
+      };
+      
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showEstrategiaDropdown, safeData.id]);
+
   return (
     <Card 
       ref={cardRef}
       className={cn(
-        "relative overflow-hidden transition-all duration-300 hover:shadow-md", 
+        "relative overflow-visible transition-all duration-300 hover:shadow-md", 
         isNewNumber ? "border-green-500 shadow-green-200 animate-pulse" : "",
-        isDetailView ? "w-full" : "w-full"
+        isDetailView ? "w-full" : "w-full",
+        showEstrategiaDropdown ? "dropdown-open" : ""
       )}
       onClick={handleCardClick}
     >
@@ -491,10 +530,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         <div className="mt-3 mb-2">
           <div className="relative">
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowEstrategiaDropdown(!showEstrategiaDropdown);
-              }}
+              ref={estrategiaButtonRef}
+              onClick={toggleEstrategiaDropdown}
               className="w-full flex items-center justify-between bg-black hover:bg-gray-900 text-white rounded px-3 py-2 text-sm transition-colors"
             >
               <div className="flex items-center">
@@ -508,29 +545,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
               <ChevronDown className="h-3 w-3" />
             </button>
             
-            {showEstrategiaDropdown && (
-              <div 
-                className="absolute z-[100] mt-1 w-full bg-white rounded-md shadow-lg border border-gray-200 py-1 text-sm"
-                onClick={(e) => e.stopPropagation()}
-                style={{ maxHeight: '200px', overflowY: 'auto' }}
-              >
-                {ESTRATEGIAS_ROLETA.map((estrategia) => (
-                  <div
-                    key={estrategia.id}
-                    className={`px-3 py-2 hover:bg-gray-100 cursor-pointer ${
-                      estrategiaSelecionada === estrategia.id ? "bg-gray-100" : ""
-                    }`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      selecionarEstrategia(estrategia.id);
-                    }}
-                  >
-                    <div className="font-medium">{estrategia.nome}</div>
-                    <div className="text-xs text-gray-500">{estrategia.descricao}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* O dropdown agora é renderizado via portal no final do componente */}
           </div>
         </div>
         
@@ -654,6 +669,40 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-50 animate-fade-in">
           {toastMessage}
         </div>
+      )}
+      
+      {/* Portal para o dropdown de estratégias */}
+      {showEstrategiaDropdown && createPortal(
+        <div 
+          className="fixed z-[9999] bg-white rounded-md shadow-lg border border-gray-200 py-1 text-sm dropdown-portal"
+          onClick={(e) => e.stopPropagation()}
+          style={{ 
+            maxHeight: '200px', 
+            overflowY: 'auto',
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            width: `${dropdownPosition.width}px`,
+            transform: 'translateZ(0)'
+          }}
+          id={`dropdown-${safeData.id}`}
+        >
+          {ESTRATEGIAS_ROLETA.map((estrategia) => (
+            <div
+              key={estrategia.id}
+              className={`px-3 py-2 hover:bg-gray-100 cursor-pointer ${
+                estrategiaSelecionada === estrategia.id ? "bg-gray-100" : ""
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                selecionarEstrategia(estrategia.id);
+              }}
+            >
+              <div className="font-medium">{estrategia.nome}</div>
+              <div className="text-xs text-gray-500">{estrategia.descricao}</div>
+            </div>
+          ))}
+        </div>,
+        document.body
       )}
     </Card>
   );

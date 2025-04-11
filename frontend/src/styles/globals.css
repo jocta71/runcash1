@@ -24,8 +24,28 @@
 [data-radix-popper-content-wrapper],
 .select__menu-portal,
 .dropdown-content,
-.select-content {
+.select-content,
+.dropdown-portal {
   z-index: 9999 !important;
+  position: fixed !important;
+}
+
+/* Estilo especial para o portal de dropdown */
+.dropdown-portal {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+  animation: dropdown-appear 0.2s ease-out forwards;
+  transform-origin: top;
+}
+
+@keyframes dropdown-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .card-container {
@@ -36,4 +56,12 @@
 [class*="card"],
 [class*="Card"] {
   overflow: visible !important;
+  position: relative;
+  z-index: 1;
+}
+
+/* Quando um card tem um dropdown aberto, aumentar seu z-index */
+[class*="card"].dropdown-open,
+[class*="Card"].dropdown-open {
+  z-index: 10;
 } 
