@@ -1,9 +1,6 @@
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
 
-// URL do serviço de API externa
-const WEBSOCKET_SERVICE_URL = "https://backend-production-2f96.up.railway.app";
-
 // Intervalo de polling padrão em milissegundos (8 segundos)
 const POLLING_INTERVAL = 8000;
 
@@ -131,8 +128,8 @@ class GlobalRouletteDataService {
       
       console.log('[GlobalRouletteService] Buscando dados atualizados da API (números recentes)');
       
-      // Usar a função utilitária com suporte a CORS - com a nova URL para números recentes
-      const response = await fetchWithCorsSupport<any>(`${WEBSOCKET_SERVICE_URL}/API/NUMBERS`);
+      // Usar a função utilitária com suporte a CORS - usando caminho relativo
+      const response = await fetchWithCorsSupport<any>('/API/NUMBERS');
       
       // Determinar o formato da resposta e extrair os dados
       let numbersData: any[] = [];
@@ -252,8 +249,8 @@ class GlobalRouletteDataService {
       
       console.log('[GlobalRouletteService] Buscando dados detalhados da API externa');
       
-      // Usar a função utilitária com suporte a CORS, usando a URL do serviço WebSocket
-      const response = await fetchWithCorsSupport<any>(`${WEBSOCKET_SERVICE_URL}/API/NUMBERS?limit=${DETAILED_LIMIT}`);
+      // Usar a função utilitária com suporte a CORS, usando caminho relativo
+      const response = await fetchWithCorsSupport<any>(`/API/NUMBERS?limit=${DETAILED_LIMIT}`);
       
       // Determinar o formato da resposta e extrair os dados
       let numbersData: any[] = [];
