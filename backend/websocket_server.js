@@ -786,6 +786,56 @@ app.get('/disable-cors-check', (req, res) => {
   });
 });
 
+// Endpoint para listar todas as roletas
+app.get('/api/ROULETTES', async (req, res) => {
+  console.log('[API] Requisição recebida para /api/ROULETTES');
+  try {
+    if (!isConnected) {
+      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
+    }
+
+    // Parâmetros opcionais
+    const limit = parseInt(req.query.limit) || 20;
+    console.log('[API] Parâmetro limit:', limit);
+
+    // Buscar todas as roletas distintas
+    const roletas = await collection.aggregate([
+      // Agrupar por roleta_id e pegar os últimos números
+      {
+        $group: {
+          _id: "$roleta_id",
+          roleta_nome: { $first: "$roleta_nome" },
+          ultimos_numeros: { 
+            $push: {
+              numero: "$numero",
+              cor: "$cor",
+              timestamp: "$timestamp"
+            }
+          },
+          total_numeros: { $sum: 1 }
+        }
+      },
+      // Ordenar os números por timestamp e pegar apenas os últimos 5
+      {
+        $project: {
+          _id: 1,
+          roleta_nome: 1,
+          total_numeros: 1,
+          ultimos_numeros: { $slice: ["$ultimos_numeros", -5] }
+        }
+      },
+      // Limitar o número de roletas retornadas
+      { $limit: limit }
+    ]).toArray();
+
+    console.log(`[API] Encontradas ${roletas.length} roletas`);
+    res.json(roletas);
+  } catch (error) {
+    console.error('Erro ao listar roletas:', error);
+    res.status(500).json({ error: 'Erro interno ao listar roletas' });
+  }
+});
+
 // Endpoint específico para buscar histórico completo
 app.get('/api/historico', async (req, res) => {
   console.log('[API] Requisição recebida para /api/historico');
