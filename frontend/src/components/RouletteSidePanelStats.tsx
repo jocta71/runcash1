@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { useState, useEffect, useRef } from 'react';
 import { getLogger } from '../services/utils/logger';
+import { fetchWithCorsSupport } from '../utils/api-helpers';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -157,22 +158,34 @@ const RouletteSidePanelStats = ({
       logger.info(`Buscando histórico para ${roletaNome}...`);
       
       // Fazer a chamada à API com limit=1000
-      const response = await fetch(`/api/ROULETTES?limit=1000`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await fetchWithCorsSupport(`/api/ROULETTES?limit=1000`) as Response;
       
       if (!response.ok) {
+        logger.error(`Erro na resposta da API: ${response.status} - ${response.statusText}`);
         throw new Error(`Erro ao buscar histórico: ${response.status}`);
       }
       
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        logger.error('Erro ao fazer parse da resposta:', parseError);
+        throw new Error('Erro ao processar resposta da API');
+      }
+      
+      if (!data) {
+        logger.warn('API retornou dados vazios');
+        return setHistoricalNumbers(lastNumbers || []);
+      }
       
       // Extrair os números do histórico da resposta
-      const apiNumbers = Array.isArray(data) ? data.map(item => item.numero || item) : [];
+      const apiNumbers = Array.isArray(data) ? data.map(item => {
+        if (typeof item === 'number') return item;
+        if (item && typeof item.numero === 'number') return item.numero;
+        return null;
+      }).filter(num => num !== null) : [];
+      
+      logger.info(`Recebidos ${apiNumbers.length} números da API`);
       
       // Se houver lastNumbers nas props, garantir que eles estão incluídos
       if (lastNumbers && lastNumbers.length > 0) {
