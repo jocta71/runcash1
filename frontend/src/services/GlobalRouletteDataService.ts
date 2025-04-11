@@ -132,7 +132,7 @@ class GlobalRouletteDataService {
       console.log('[GlobalRouletteService] Buscando dados atualizados da API /API/NUMBERS');
       
       // Usar URL direta para o backend sem usar variáveis de ambiente
-      const result = await fetchWithCorsSupport<any>('https://backendscraper-production.up.railway.app/API/NUMBERS');
+      const result = await fetchWithCorsSupport<any>('/API/NUMBERS');
       
       // Verificar se os dados são válidos
       if (result && result.data && Array.isArray(result.data)) {
