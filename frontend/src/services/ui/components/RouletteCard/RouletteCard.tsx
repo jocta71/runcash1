@@ -3,6 +3,22 @@ import axios from 'axios';
 import NumberHistory from '../NumberHistory';
 import './RouletteCard.css';
 
+// Adiciona regra global para corrigir posicionamento de dropdowns
+const addDropdownStyles = () => {
+  // Adicionar estilo global para garantir que dropdowns não sejam cortados
+  const styleTag = document.createElement('style');
+  styleTag.innerHTML = `
+    .roulette-card {
+      overflow: visible !important;
+    }
+    .roulette-card .dropdown-content {
+      z-index: 1000;
+      position: absolute;
+    }
+  `;
+  document.head.appendChild(styleTag);
+};
+
 // Interface para as props do componente
 interface RouletteCardProps {
   rouletteId: string;
@@ -86,6 +102,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
   
   // Efeito para carregar dados e configurar atualização periódica
   useEffect(() => {
+    // Aplicar estilos para corrigir dropdowns
+    addDropdownStyles();
+    
     // Buscar dados iniciais
     fetchRouletteData();
     

@@ -18,4 +18,22 @@
   .xl\:grid-cols-4 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+
+/* Correções para dropdowns e elementos de interface */
+[data-radix-popper-content-wrapper],
+.select__menu-portal,
+.dropdown-content,
+.select-content {
+  z-index: 9999 !important;
+}
+
+.card-container {
+  overflow: visible !important;
+}
+
+/* Garantir que os cards não cortem elementos de UI dropdown */
+[class*="card"],
+[class*="Card"] {
+  overflow: visible !important;
 } 

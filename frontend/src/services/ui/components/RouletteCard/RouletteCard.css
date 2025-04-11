@@ -8,6 +8,8 @@
   transition: transform 0.2s, box-shadow 0.2s;
   max-width: 400px;
   width: 100%;
+  position: relative;
+  overflow: visible !important;
 }
 
 .roulette-card:hover {
@@ -214,4 +216,29 @@
 
 .stat.losses .value {
   color: #e74c3c;
+}
+
+/* Estilos para os dropdowns */
+.dropdown-content,
+.select-content,
+[data-radix-popper-content-wrapper] {
+  z-index: 1000 !important;
+  position: relative;
+}
+
+/* Quando um dropdown está aberto, aumentar o z-index do card */
+.roulette-card:has(.dropdown-open) {
+  z-index: 100;
+}
+
+/* Estilo para o dropdown de estratégias */
+.strategy-dropdown {
+  position: absolute;
+  z-index: 1000;
+  width: 100%;
+  background: #fff;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  max-height: 200px;
+  overflow-y: auto;
 } 

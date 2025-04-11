@@ -105,7 +105,7 @@ const StrategySelector: React.FC<StrategySelectProps> = ({
           <SelectTrigger className="w-full bg-black text-white border-gray-800 hover:bg-gray-900 focus:ring-0 focus:ring-offset-0">
             <SelectValue placeholder={loading ? 'Carregando estratégias...' : 'Selecione uma estratégia'} />
           </SelectTrigger>
-          <SelectContent className="bg-black text-white border-gray-800">
+          <SelectContent className="bg-black text-white border-gray-800 z-[1000]" position="popper" sideOffset={5}>
             {strategies.map((strategy) => (
               <SelectItem key={strategy._id} value={strategy._id} className="hover:bg-gray-800 focus:bg-gray-800">
                 <div className="flex items-center">

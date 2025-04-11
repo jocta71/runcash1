@@ -510,8 +510,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             
             {showEstrategiaDropdown && (
               <div 
-                className="absolute z-50 mt-1 w-full bg-white rounded-md shadow-lg border border-gray-200 py-1 text-sm"
+                className="absolute z-[100] mt-1 w-full bg-white rounded-md shadow-lg border border-gray-200 py-1 text-sm"
                 onClick={(e) => e.stopPropagation()}
+                style={{ maxHeight: '200px', overflowY: 'auto' }}
               >
                 {ESTRATEGIAS_ROLETA.map((estrategia) => (
                   <div
