@@ -49,7 +49,7 @@ SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
 SUPABASE_ENABLED = os.environ.get('SUPABASE_ENABLED', '').lower() in ('true', '1', 't')
 
 # MongoDB
-MONGODB_URI = os.environ.get('MONGODB_URI')
+MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash')
 MONGODB_DB_NAME = os.environ.get('MONGODB_DB_NAME', 'runcash')
 MONGODB_ENABLED = os.environ.get('MONGODB_ENABLED', 'true').lower() in ('true', '1', 't')
 

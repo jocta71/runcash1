@@ -9,14 +9,7 @@ dotenv.config();
 
 // Configuração
 const PORT = process.env.PORT || 5000;
-
-// Verificar se a URI do MongoDB está definida
-if (!process.env.MONGODB_URI) {
-  console.error('Erro: MONGODB_URI não está definida nas variáveis de ambiente!');
-  process.exit(1);
-}
-
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash';
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
 
@@ -29,9 +22,6 @@ console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 
 // Inicializar Express
 const app = express();
-
-// Configurar Express para rotas case-insensitive
-app.set('case sensitive routing', false);
 
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
@@ -155,23 +145,50 @@ let lastProcessedIds = new Set();
 // Conectar ao MongoDB
 let db, collection;
 let isConnected = false;
-let client = null;
+
+// Importar serviços necessários
+const mongodb = require('./api/libs/mongodb');
+const RouletteHistory = require('./api/models/RouletteHistory');
+
+// Inicializar o modelo de histórico quando MongoDB estiver conectado
+let historyModel = null;
+
+// Conectar ao MongoDB e inicializar modelos
+async function initializeModels() {
+  try {
+    if (!mongodb.isConnected()) {
+      await mongodb.connect();
+    }
+    
+    if (!historyModel && mongodb.getDb()) {
+      historyModel = new RouletteHistory(mongodb.getDb());
+      console.log('Modelo de histórico inicializado com sucesso');
+    }
+  } catch (error) {
+    console.error('Erro ao inicializar modelos:', error);
+  }
+}
 
 async function connectToMongoDB() {
   try {
     console.log('Attempting to connect to MongoDB at:', MONGODB_URI);
     
-    client = new MongoClient(MONGODB_URI);
+    const client = new MongoClient(MONGODB_URI, { 
+      useNewUrlParser: true, 
+      useUnifiedTopology: true 
+    });
+    
     await client.connect();
     console.log('Connected to MongoDB successfully');
     
-    db = client.db('runcash'); // Especificando o banco de dados 'runcash'
+    db = client.db();
     collection = db.collection(COLLECTION_NAME);
     isConnected = true;
     
     // Log database info
-    console.log(`Database name: ${db.databaseName}`);
+    const dbName = db.databaseName;
     const collections = await db.listCollections().toArray();
+    console.log(`Database name: ${dbName}`);
     console.log('Available collections:', collections.map(c => c.name).join(', '));
     
     // Iniciar o polling para verificar novos dados
@@ -179,6 +196,9 @@ async function connectToMongoDB() {
     
     // Broadcast dos estados de estratégia atualizados
     setTimeout(broadcastAllStrategies, 2000);
+    
+    // Conectar ao MongoDB e inicializar modelos
+    await initializeModels();
     
     return true;
   } catch (error) {
@@ -775,35 +795,6 @@ app.get('/api/numbers', async (req, res) => {
   }
 });
 
-// Endpoint de diagnóstico
-app.get('/api/diagnostico', (req, res) => {
-  console.log('==== Diagnóstico da API ====');
-  console.log('Headers:', req.headers);
-  console.log('MongoDB Status:', isConnected ? 'Conectado' : 'Desconectado');
-
-  // Configurar CORS
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', '*');
-  res.header('Access-Control-Allow-Headers', '*');
-
-  res.json({
-    status: 'online',
-    mongodb: {
-      connected: isConnected,
-      collection: COLLECTION_NAME
-    },
-    server: {
-      port: PORT,
-      timestamp: new Date().toISOString()
-    },
-    request: {
-      origin: req.headers.origin || 'unknown',
-      ip: req.ip,
-      path: req.path
-    }
-  });
-});
-
 // Endpoint para forçar retorno com cabeçalho CORS para qualquer origem
 app.get('/disable-cors-check', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -816,83 +807,6 @@ app.get('/disable-cors-check', (req, res) => {
     cors: 'disabled',
     origin: req.headers.origin || 'unknown'
   });
-});
-
-// Endpoint para listar todas as roletas
-app.get('/api/roulettes', async (req, res) => {
-  console.log('==== Requisição /api/roulettes ====');
-  console.log('Headers:', req.headers);
-  console.log('Query:', req.query);
-  console.log('Origin:', req.headers.origin);
-
-  // Configurar CORS para esta rota específica
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-
-  try {
-    if (!isConnected) {
-      console.log('[API] MongoDB não conectado');
-      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
-    }
-
-    // Parâmetros opcionais
-    const limit = parseInt(req.query.limit) || 20;
-    console.log('[API] Parâmetro limit:', limit);
-
-    // Verificar todas as coleções
-    const collections = await db.listCollections().toArray();
-    console.log('[API] Coleções disponíveis:', collections.map(c => c.name));
-
-    // Primeiro, vamos verificar a coleção roletas
-    const roletasCollection = db.collection('roletas');
-    const roletasCount = await roletasCollection.countDocuments();
-    console.log('[API] Total de documentos na coleção roletas:', roletasCount);
-
-    // Verificar a coleção roleta_numeros
-    const numerosCount = await collection.countDocuments();
-    console.log('[API] Total de documentos na coleção roleta_numeros:', numerosCount);
-
-    // Buscar uma amostra de cada coleção
-    const amostraRoletas = await roletasCollection.find().limit(1).toArray();
-    console.log('[API] Amostra da coleção roletas:', JSON.stringify(amostraRoletas, null, 2));
-
-    const amostraNumeros = await collection.find().limit(1).toArray();
-    console.log('[API] Amostra da coleção roleta_numeros:', JSON.stringify(amostraNumeros, null, 2));
-
-    // Buscar todas as roletas da coleção principal
-    const todasRoletas = await roletasCollection.find().toArray();
-
-    // Para cada roleta, buscar seus últimos números
-    const roletasComNumeros = await Promise.all(todasRoletas.map(async (roleta) => {
-      const ultimosNumeros = await collection
-        .find({ roleta_id: roleta.id })
-        .sort({ timestamp: -1 })
-        .limit(5)
-        .toArray();
-
-      return {
-        _id: roleta.id,
-        roleta_nome: roleta.nome,
-        ultimos_numeros: ultimosNumeros.map(n => ({
-          numero: n.numero,
-          cor: n.cor,
-          timestamp: n.timestamp
-        })),
-        total_numeros: await collection.countDocuments({ roleta_id: roleta.id })
-      };
-    }));
-
-    // Limitar o número de roletas retornadas
-    const roletas = roletasComNumeros.slice(0, limit);
-
-    console.log(`[API] Encontradas ${roletas.length} roletas`);
-    console.log('[API] Dados das roletas:', JSON.stringify(roletas, null, 2));
-    res.json(roletas);
-  } catch (error) {
-    console.error('Erro ao listar roletas:', error);
-    res.status(500).json({ error: 'Erro interno ao listar roletas' });
-  }
 });
 
 // Endpoint específico para buscar histórico completo
