@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import ChatUI from './ChatUI';
-import { Search, Wallet, Loader2 } from 'lucide-react';
+import { Wallet, Loader2 } from 'lucide-react';
 import ProfileDropdown from './ProfileDropdown';
 import { Link } from 'react-router-dom';
 import { RouletteRepository } from '../services/data/rouletteRepository';
@@ -12,7 +12,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
-  const [searchQuery, setSearchQuery] = useState('');
+  // Estado da busca removido
   const [isLoading, setIsLoading] = useState(preloadData);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,20 +82,6 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
           <Link to="/" className="flex items-center">
             <span className="font-bold text-xl text-green-500">RunCash</span>
           </Link>
-
-          {/* Barra de pesquisa central */}
-          <div className="hidden md:block flex-1 max-w-md mx-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Buscar..."
-                className="bg-[#1e1e24] border border-[#2a2a2e] rounded-full px-4 py-2 pl-10 w-full text-sm text-white"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-            </div>
-          </div>
 
           {/* Itens da direita */}
           <div className="flex items-center space-x-4">
