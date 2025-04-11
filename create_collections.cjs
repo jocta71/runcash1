@@ -47,7 +47,7 @@ async function criarColecoes() {
     await client.connect();
     
     console.log('Conexão estabelecida com sucesso!');
-    const db = client.db();
+    const db = client.db('runcash');
     
     // Verificar se as coleções existem
     const colecoes = await db.listCollections().toArray();
@@ -60,6 +60,23 @@ async function criarColecoes() {
       console.log('Criando coleção roletas...');
       await db.createCollection('roletas');
       console.log('Coleção roletas criada!');
+      
+      // Inserir roletas apenas se a coleção foi criada agora
+      console.log('Inserindo roletas...');
+      await db.collection('roletas').insertMany(ROLETAS);
+    } else {
+      console.log('Coleção roletas já existe, verificando se todas as roletas estão presentes...');
+      const roletasExistentes = await db.collection('roletas').find({}).toArray();
+      const idsExistentes = roletasExistentes.map(r => r.id);
+      
+      // Adicionar apenas roletas que não existem
+      const roletasNovas = ROLETAS.filter(r => !idsExistentes.includes(r.id));
+      if (roletasNovas.length > 0) {
+        console.log(`Adicionando ${roletasNovas.length} novas roletas...`);
+        await db.collection('roletas').insertMany(roletasNovas);
+      } else {
+        console.log('Todas as roletas já estão cadastradas.');
+      }
     }
     
     // Criar coleção roleta_numeros se não existir
@@ -67,27 +84,8 @@ async function criarColecoes() {
       console.log('Criando coleção roleta_numeros...');
       await db.createCollection('roleta_numeros');
       console.log('Coleção roleta_numeros criada!');
-    }
-    
-    // Inserir dados nas coleções
-    const roletasCollection = db.collection('roletas');
-    const numerosCollection = db.collection('roleta_numeros');
-    
-    // Limpar dados existentes
-    console.log('Limpando dados existentes...');
-    await roletasCollection.deleteMany({});
-    await numerosCollection.deleteMany({});
-    
-    // Inserir roletas
-    console.log('Inserindo roletas...');
-    await roletasCollection.insertMany(ROLETAS);
-    
-    // Inserir números para cada roleta
-    console.log('Inserindo números para cada roleta...');
-    for (const roleta of ROLETAS) {
-      const numeros = gerarNumerosRoleta(roleta.id, roleta.nome, 50);
-      await numerosCollection.insertMany(numeros);
-      console.log(`Inseridos ${numeros.length} números para ${roleta.nome}`);
+    } else {
+      console.log('Coleção roleta_numeros já existe, mantendo dados existentes.');
     }
     
     console.log('Operação concluída com sucesso!');

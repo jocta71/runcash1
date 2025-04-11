@@ -494,39 +494,6 @@ app.get('/api/roulettes', async (req, res) => {
   }
 });
 
-// Rota específica para /api/ROULETTES
-app.get('/api/ROULETTES', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/ROULETTES');
-  
-  // Configurar CORS explicitamente para esta rota
-  configureCors(req, res);
-  
-  // Responder com os dados da roleta
-  try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json([]);
-    }
-    
-    // Obter roletas únicas da coleção
-    const roulettes = await collection.aggregate([
-      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-      { $project: { _id: 0, id: 1, nome: "$_id" } }
-    ]).toArray();
-    
-    if (roulettes.length > 0) {
-      console.log(`[API] Retornando ${roulettes.length} roletas`);
-      res.json(roulettes);
-    } else {
-      console.log('[API] Nenhuma roleta disponível');
-      res.status(404).json({ error: 'Nenhuma roleta disponível' });
-    }
-  } catch (error) {
-    console.error('[API] Erro ao buscar roletas:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-});
-
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
 app.get('/api/ROULETTES', async (req, res) => {
   console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
