@@ -35,16 +35,35 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
   animation: dropdown-appear 0.2s ease-out forwards;
   transform-origin: top;
+  contain: layout;
+  isolation: isolate;
+  will-change: transform, opacity;
+  pointer-events: auto !important;
+  z-index: 10000 !important;
+}
+
+body > .dropdown-portal {
+  position: fixed !important;
+  margin: 0 !important;
+}
+
+/* Impedir que o scroll da página afete o posicionamento do dropdown */
+html.has-dropdown-open,
+body.has-dropdown-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
 }
 
 @keyframes dropdown-appear {
   from {
     opacity: 0;
-    transform: translateY(-10px) scale(0.95);
+    transform: translateY(-5px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 

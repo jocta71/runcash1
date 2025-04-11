@@ -436,9 +436,25 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     
     if (!showEstrategiaDropdown && estrategiaButtonRef.current) {
       const rect = estrategiaButtonRef.current.getBoundingClientRect();
+      
+      // Verificar se o dropdown vai ficar fora da tela na parte inferior
+      const windowHeight = window.innerHeight;
+      const spaceBelow = windowHeight - rect.bottom;
+      const dropdownHeight = Math.min(250, ESTRATEGIAS_ROLETA.length * 70); // altura estimada do dropdown
+      
+      // Se não houver espaço suficiente abaixo, posicionar acima do botão
+      const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight - 10 : rect.bottom;
+      
+      // Verificar se o dropdown vai ficar fora da tela na direita
+      const windowWidth = window.innerWidth;
+      const dropdownWidth = Math.max(rect.width, 200);
+      const left = rect.left + dropdownWidth > windowWidth 
+        ? windowWidth - dropdownWidth - 10 
+        : rect.left;
+      
       setDropdownPosition({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
+        top: top + window.scrollY,
+        left: left + window.scrollX,
         width: rect.width
       });
     }
@@ -463,6 +479,56 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       };
     }
   }, [showEstrategiaDropdown, safeData.id]);
+
+  // Efeito para reposicionar o dropdown quando a janela for redimensionada
+  useEffect(() => {
+    if (showEstrategiaDropdown) {
+      const handleResize = () => {
+        if (estrategiaButtonRef.current) {
+          const rect = estrategiaButtonRef.current.getBoundingClientRect();
+          
+          // Verificar se o dropdown vai ficar fora da tela na parte inferior
+          const windowHeight = window.innerHeight;
+          const spaceBelow = windowHeight - rect.bottom;
+          const dropdownHeight = Math.min(250, ESTRATEGIAS_ROLETA.length * 70);
+          
+          // Se não houver espaço suficiente abaixo, posicionar acima do botão
+          const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight - 10 : rect.bottom;
+          
+          // Verificar se o dropdown vai ficar fora da tela na direita
+          const windowWidth = window.innerWidth;
+          const dropdownWidth = Math.max(rect.width, 200);
+          const left = rect.left + dropdownWidth > windowWidth 
+            ? windowWidth - dropdownWidth - 10 
+            : rect.left;
+          
+          setDropdownPosition({
+            top: top + window.scrollY,
+            left: left + window.scrollX,
+            width: rect.width
+          });
+        }
+      };
+      
+      window.addEventListener('resize', handleResize);
+      return () => {
+        window.removeEventListener('resize', handleResize);
+      };
+    }
+  }, [showEstrategiaDropdown, ESTRATEGIAS_ROLETA.length]);
+
+  // Efeito para adicionar/remover a classe 'has-dropdown-open' ao body
+  useEffect(() => {
+    if (showEstrategiaDropdown) {
+      document.body.classList.add('has-dropdown-open');
+    } else {
+      document.body.classList.remove('has-dropdown-open');
+    }
+    
+    return () => {
+      document.body.classList.remove('has-dropdown-open');
+    };
+  }, [showEstrategiaDropdown]);
 
   return (
     <Card 
@@ -674,31 +740,33 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       {/* Portal para o dropdown de estratégias */}
       {showEstrategiaDropdown && createPortal(
         <div 
-          className="fixed z-[9999] bg-white rounded-md shadow-lg border border-gray-200 py-1 text-sm dropdown-portal"
+          className="fixed z-[9999] bg-zinc-800 border border-zinc-700 rounded-md shadow-xl p-2 text-sm dropdown-portal"
           onClick={(e) => e.stopPropagation()}
           style={{ 
-            maxHeight: '200px', 
+            maxHeight: '250px', 
             overflowY: 'auto',
-            top: `${dropdownPosition.top}px`,
+            top: `${dropdownPosition.top + 5}px`,
             left: `${dropdownPosition.left}px`,
-            width: `${dropdownPosition.width}px`,
-            transform: 'translateZ(0)'
+            width: `${Math.max(dropdownPosition.width, 200)}px`,
+            transform: 'none',
+            opacity: 1,
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)'
           }}
           id={`dropdown-${safeData.id}`}
         >
           {ESTRATEGIAS_ROLETA.map((estrategia) => (
             <div
               key={estrategia.id}
-              className={`px-3 py-2 hover:bg-gray-100 cursor-pointer ${
-                estrategiaSelecionada === estrategia.id ? "bg-gray-100" : ""
+              className={`px-3 py-2 mb-1 rounded-sm hover:bg-zinc-700 cursor-pointer transition-colors ${
+                estrategiaSelecionada === estrategia.id ? "bg-zinc-700" : ""
               }`}
               onClick={(e) => {
                 e.stopPropagation();
                 selecionarEstrategia(estrategia.id);
               }}
             >
-              <div className="font-medium">{estrategia.nome}</div>
-              <div className="text-xs text-gray-500">{estrategia.descricao}</div>
+              <div className="font-medium text-white">{estrategia.nome}</div>
+              <div className="text-xs text-zinc-400">{estrategia.descricao}</div>
             </div>
           ))}
         </div>,
