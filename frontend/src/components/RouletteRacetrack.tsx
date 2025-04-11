@@ -47,87 +47,80 @@ const RouletteRacetrack: React.FC<RouletteRacetrackProps> = ({
   
   // Determinar tamanho baseado no prop size
   const sizeClasses = {
-    small: 'h-12',
+    small: 'h-14',
     medium: 'h-24', 
     large: 'h-32'
   };
   
   // Determinar o tamanho dos círculos dos números
   const numberSize = {
-    small: 'w-2.5 h-2.5 text-[6px]',
-    medium: 'w-4 h-4 text-[8px]',
+    small: 'w-3.5 h-3.5 text-[8px]',
+    medium: 'w-5 h-5 text-[9px]',
     large: 'w-6 h-6 text-xs'
   };
   
   return (
-    <div className={`relative w-full ${sizeClasses[size]} ${className} rounded-full border border-gray-700 bg-gray-800 overflow-hidden`}>
-      {/* Fundo do racetrack com gradiente */}
-      <div className="absolute inset-0 bg-gradient-to-b from-gray-800 to-gray-900"></div>
+    <div className={`relative w-full ${sizeClasses[size]} ${className} rounded-3xl overflow-hidden bg-[#141923] border border-[#2a2a31]`}>
+      {/* Fundo do racetrack escuro com gradiente */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#191c27] to-[#111318]"></div>
       
-      <div className="absolute inset-1 rounded-full border border-gray-600 bg-transparent flex items-center justify-center">
-        {/* Anel principal (track) */}
-        <div className="absolute inset-[10%] border-2 border-gray-700 rounded-full"></div>
+      <div className="absolute inset-0 flex items-center justify-center">
+        {/* Anel principal (track) - forma oval mais pronunciada */}
+        <div className="absolute w-[96%] h-[85%] border border-[#2a2a31] rounded-full"></div>
         
         {/* Números no racetrack */}
-        <div className="absolute inset-0">
+        <div className="absolute w-full h-full">
           {sequence.map((number, index) => {
             // Calcular a posição em um círculo
             const angle = (index / sequence.length) * 2 * Math.PI;
             const isLastNumber = lastNumber !== null && number.toString() === lastNumber.toString();
             
-            // Calcular x e y - ajustar para forma oval
-            const radius = { x: 46, y: 41 }; // Porcentagem do container (oval)
+            // Calcular x e y - ajustar para forma oval mais pronunciada
+            const radius = { x: 48, y: 40 }; // Porcentagem do container (oval mais achatada)
             const x = 50 + radius.x * Math.cos(angle - Math.PI/2); // -90 graus para começar do topo
             const y = 50 + radius.y * Math.sin(angle - Math.PI/2);
+            
+            // Determinar a cor do número
+            let bgColorClass = 'bg-black';
+            let textColorClass = 'text-white';
+            if (number === 0) {
+              bgColorClass = 'bg-green-600';
+            } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(Number(number))) {
+              bgColorClass = 'bg-red-600';
+            }
             
             return (
               <div 
                 key={`${number}-${index}`}
                 className={`absolute rounded-full flex items-center justify-center
-                  ${numberSize[size]} ${getNumberColor(number)}
-                  ${isLastNumber ? 'ring-2 ring-yellow-400 z-10 animate-pulse' : ''}
-                  transform -translate-x-1/2 -translate-y-1/2 text-white font-bold shadow-md`}
+                  ${numberSize[size]} ${bgColorClass} ${textColorClass}
+                  ${isLastNumber ? 'ring-1 ring-yellow-400 z-10' : ''}
+                  transform -translate-x-1/2 -translate-y-1/2 font-bold shadow-[0_0_2px_rgba(0,0,0,0.8)]`}
                 style={{ 
                   left: `${x}%`, 
                   top: `${y}%`,
                 }}
               >
-                {size !== 'small' && number}
+                {number}
               </div>
             );
           })}
         </div>
         
-        {/* Setores especiais (apenas no modo médio ou grande) */}
-        {showSectors && size !== 'small' && (
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute inset-[20%] flex flex-col items-center justify-center gap-1 text-[7px] md:text-[8px]">
-              {SPECIAL_SECTORS.map((sector, idx) => (
-                <div 
-                  key={sector.id}
-                  className="bg-gray-700/50 text-white px-1 rounded-sm hover:bg-gray-600/70 cursor-pointer transition-colors whitespace-nowrap overflow-hidden text-ellipsis max-w-full"
-                >
-                  {sector.name}
-                </div>
-              ))}
-            </div>
+        {/* Setores especiais (posicionados no centro) */}
+        {showSectors && (
+          <div className="absolute w-[70%] top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center gap-0.5">
+            {SPECIAL_SECTORS.map((sector, idx) => (
+              <div 
+                key={sector.id}
+                className="w-full bg-opacity-60 bg-[#272c39] text-white text-[7px] tracking-tight rounded-sm px-1 py-0.5 text-center"
+              >
+                {sector.name}
+              </div>
+            ))}
           </div>
         )}
-        
-        {/* Indicador central */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-[10%] h-[10%] rounded-full bg-gray-600"></div>
-        </div>
       </div>
-      
-      {/* Counter (apenas no modo médio ou grande) */}
-      {size !== 'small' && (
-        <div className="absolute right-1 top-1/2 -translate-y-1/2 bg-gray-800 border border-gray-700 rounded px-1 text-xs text-white flex flex-col items-center">
-          <button className="text-gray-400 hover:text-white">▲</button>
-          <span className="text-[10px]">2</span>
-          <button className="text-gray-400 hover:text-white">▼</button>
-        </div>
-      )}
     </div>
   );
 };
