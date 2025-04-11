@@ -13,6 +13,7 @@ import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import { fetchWithCorsSupport } from '@/utils/api-helpers';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
+import RouletteRacetrack from './RouletteRacetrack';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -472,6 +473,16 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
               {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}
             </Badge>
           </div>
+        </div>
+        
+        {/* Racetrack da roleta */}
+        <div className="my-3">
+          <RouletteRacetrack 
+            type="european"
+            lastNumber={lastNumber} 
+            size="small"
+            className="mx-auto w-4/5"
+          />
         </div>
         
         {/* Números recentes */}
