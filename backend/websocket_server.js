@@ -798,51 +798,51 @@ app.get('/api/ROULETTES', async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     console.log('[API] Parâmetro limit:', limit);
 
-    // Verificar se há dados na coleção
-    const totalDocs = await collection.countDocuments();
-    console.log(`[API] Total de documentos na coleção ${COLLECTION_NAME}:`, totalDocs);
-
-    // Listar todas as coleções disponíveis
+    // Verificar todas as coleções
     const collections = await db.listCollections().toArray();
     console.log('[API] Coleções disponíveis:', collections.map(c => c.name));
 
-    // Buscar alguns documentos para debug
-    const amostra = await collection.find().limit(1).toArray();
-    console.log('[API] Amostra de documento:', JSON.stringify(amostra, null, 2));
+    // Primeiro, vamos verificar a coleção roletas
+    const roletasCollection = db.collection('roletas');
+    const roletasCount = await roletasCollection.countDocuments();
+    console.log('[API] Total de documentos na coleção roletas:', roletasCount);
 
-    // Buscar todas as roletas distintas
-    const roletas = await collection.aggregate([
-      // Verificar se há documentos
-      { $match: { roleta_id: { $exists: true }, roleta_nome: { $exists: true } } },
-      // Ordenar por timestamp decrescente para pegar os mais recentes primeiro
-      { $sort: { timestamp: -1 } },
-      // Agrupar por roleta_id e pegar os últimos números
-      {
-        $group: {
-          _id: "$roleta_id",
-          roleta_nome: { $first: "$roleta_nome" },
-          ultimos_numeros: { 
-            $push: {
-              numero: "$numero",
-              cor: "$cor",
-              timestamp: "$timestamp"
-            }
-          },
-          total_numeros: { $sum: 1 }
-        }
-      },
-      // Ordenar os números por timestamp e pegar apenas os últimos 5
-      {
-        $project: {
-          _id: 1,
-          roleta_nome: 1,
-          total_numeros: 1,
-          ultimos_numeros: { $slice: ["$ultimos_numeros", -5] }
-        }
-      },
-      // Limitar o número de roletas retornadas
-      { $limit: limit }
-    ]).toArray();
+    // Verificar a coleção roleta_numeros
+    const numerosCount = await collection.countDocuments();
+    console.log('[API] Total de documentos na coleção roleta_numeros:', numerosCount);
+
+    // Buscar uma amostra de cada coleção
+    const amostraRoletas = await roletasCollection.find().limit(1).toArray();
+    console.log('[API] Amostra da coleção roletas:', JSON.stringify(amostraRoletas, null, 2));
+
+    const amostraNumeros = await collection.find().limit(1).toArray();
+    console.log('[API] Amostra da coleção roleta_numeros:', JSON.stringify(amostraNumeros, null, 2));
+
+    // Buscar todas as roletas da coleção principal
+    const todasRoletas = await roletasCollection.find().toArray();
+
+    // Para cada roleta, buscar seus últimos números
+    const roletasComNumeros = await Promise.all(todasRoletas.map(async (roleta) => {
+      const ultimosNumeros = await collection
+        .find({ roleta_id: roleta.id })
+        .sort({ timestamp: -1 })
+        .limit(5)
+        .toArray();
+
+      return {
+        _id: roleta.id,
+        roleta_nome: roleta.nome,
+        ultimos_numeros: ultimosNumeros.map(n => ({
+          numero: n.numero,
+          cor: n.cor,
+          timestamp: n.timestamp
+        })),
+        total_numeros: await collection.countDocuments({ roleta_id: roleta.id })
+      };
+    }));
+
+    // Limitar o número de roletas retornadas
+    const roletas = roletasComNumeros.slice(0, limit);
 
     console.log(`[API] Encontradas ${roletas.length} roletas`);
     console.log('[API] Dados das roletas:', JSON.stringify(roletas, null, 2));
