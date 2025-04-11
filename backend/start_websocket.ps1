@@ -24,9 +24,9 @@ if (-not (Test-Path -Path "node_modules")) {
 }
 
 # Definir variáveis de ambiente para o MongoDB
-$env:MONGODB_URI = $env:MONGODB_URI
+$env:MONGODB_URI = "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash"
 $env:PORT = "5000"
 
 # Iniciar o servidor WebSocket
 Write-Host "Iniciando servidor na porta 5000..." -ForegroundColor Cyan
-node ./websocket_server.js 
+node ./backend/websocket_server.js 

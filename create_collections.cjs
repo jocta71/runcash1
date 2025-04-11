@@ -1,7 +1,7 @@
 const { MongoClient } = require('mongodb');
 
 // Configuração MongoDB
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 
 // Definição das roletas
 const ROLETAS = [

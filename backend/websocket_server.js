@@ -9,7 +9,7 @@ dotenv.config();
 
 // Configuração
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
 
@@ -181,7 +181,7 @@ async function connectToMongoDB() {
     await client.connect();
     console.log('Connected to MongoDB successfully');
     
-    db = client.db();
+    db = client.db('runcash');
     collection = db.collection(COLLECTION_NAME);
     isConnected = true;
     

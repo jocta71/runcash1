@@ -9,8 +9,8 @@ const dotenv = require('dotenv');
 // Carregar variáveis de ambiente
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/runcash';
-const DB_NAME = process.env.MONGODB_DB_NAME || 'runcash';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/runcash';
+const DB_NAME = process.env.DB_NAME || 'runcash';
 
 let client = null;
 let db = null;
@@ -28,7 +28,7 @@ async function connect() {
     }
     
     console.log('Conectando ao MongoDB...');
-    client = new MongoClient(MONGODB_URI, {
+    client = new MongoClient(MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true
     });
@@ -36,7 +36,7 @@ async function connect() {
     await client.connect();
     db = client.db(DB_NAME);
     
-    console.log(`Conectado com sucesso ao MongoDB (${MONGODB_URI}) e banco ${DB_NAME}`);
+    console.log(`Conectado com sucesso ao MongoDB (${MONGO_URI}) e banco ${DB_NAME}`);
     return { client, db };
   } catch (error) {
     console.error('Erro ao conectar ao MongoDB:', error);
