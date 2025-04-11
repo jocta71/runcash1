@@ -156,14 +156,23 @@ const RouletteSidePanelStats = ({
     try {
       logger.info(`Buscando histórico para ${roletaNome}...`);
       
-      // Fazer a chamada direta à API com limit=1000
-      const response = await fetch(`/api/ROULETTES?limit=1000`);
+      // Fazer a chamada à API com limit=1000 e nome da roleta
+      const response = await fetch(`/api/ROULETTES/historico?limit=1000&nome=${encodeURIComponent(roletaNome)}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
       
       if (!response.ok) {
         throw new Error(`Erro ao buscar histórico: ${response.status}`);
       }
       
-      const apiNumbers = await response.json();
+      const data = await response.json();
+      
+      // Extrair os números do histórico da resposta
+      const apiNumbers = Array.isArray(data) ? data.map(item => item.numero || item) : [];
       
       // Se houver lastNumbers nas props, garantir que eles estão incluídos
       if (lastNumbers && lastNumbers.length > 0) {
