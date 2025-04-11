@@ -447,16 +447,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             <Badge variant={hasRealData ? "success" : "secondary"} className="text-xs">
               {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}
             </Badge>
-            
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleStats}
-              className="h-7 w-7" 
-              title="Ver estatísticas"
-            >
-              <BarChart3 className="h-4 w-4" />
-            </Button>
           </div>
         </div>
         
@@ -505,7 +495,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
                 e.stopPropagation();
                 setShowEstrategiaDropdown(!showEstrategiaDropdown);
               }}
-              className="w-full flex items-center justify-between bg-gray-100 hover:bg-gray-200 text-gray-800 rounded px-3 py-2 text-sm transition-colors"
+              className="w-full flex items-center justify-between bg-black hover:bg-gray-900 text-white rounded px-3 py-2 text-sm transition-colors"
             >
               <div className="flex items-center">
                 <Target className="h-3 w-3 mr-2" />
@@ -546,30 +536,12 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         {/* Rodapé */}
         <div className="mt-2 flex items-center justify-between text-xs">
           <div className="flex items-center space-x-2">
-            <Button
-              variant="outline" 
-              size="sm"
-              className="h-7 py-0 px-2"
-              onClick={toggleStats}
-            >
-              <BarChart3 className="h-3 w-3 mr-1" />
-              <span className="text-xs">Estatísticas</span>
-            </Button>
+            {/* Espaço vazio onde estava o botão de estatísticas */}
           </div>
           
           <div className="flex items-center text-xs text-gray-400">
-            <Timer className="h-3 w-3 mr-1" />
-            <span>
-              {hasRealData 
-                ? `Atualizado ${getTimeAgo()}` 
-                : (loading ? "Carregando..." : "Aguardando dados")}
-            </span>
+            {loading ? "Carregando..." : (hasRealData ? "" : "Aguardando dados")}
           </div>
-        </div>
-        
-        {/* Indicador de sincronização */}
-        <div className="mt-2 text-xs text-center text-gray-500 border-t border-gray-100 pt-1">
-          Sincroniza automaticamente a cada 8s ({updateCount} atualizações)
         </div>
       </CardContent>
 

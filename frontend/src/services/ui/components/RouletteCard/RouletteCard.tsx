@@ -172,7 +172,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
           </div>
           <div className="timestamp">
             {formatTimestamp(latestNumber.timestamp)}
-            <span className="update-time">Atualizado {getTimeElapsed()}</span>
           </div>
         </div>
       )}
@@ -197,10 +196,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
       <NumberHistory numbers={numbers} maxItems={10} />
       
       <div className="card-footer">
-        <div className="sync-info">
-          <span className="sync-icon"></span>
-          <span className="sync-text">Sincroniza a cada 8s</span>
-        </div>
+        {/* Rodapé sem informação de sincronização */}
       </div>
     </div>
   );

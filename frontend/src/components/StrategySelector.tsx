@@ -102,12 +102,12 @@ const StrategySelector: React.FC<StrategySelectProps> = ({
           onValueChange={handleStrategyChange}
           disabled={loading || saving}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full bg-black text-white border-gray-800 hover:bg-gray-900 focus:ring-0 focus:ring-offset-0">
             <SelectValue placeholder={loading ? 'Carregando estratégias...' : 'Selecione uma estratégia'} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-black text-white border-gray-800">
             {strategies.map((strategy) => (
-              <SelectItem key={strategy._id} value={strategy._id}>
+              <SelectItem key={strategy._id} value={strategy._id} className="hover:bg-gray-800 focus:bg-gray-800">
                 <div className="flex items-center">
                   {strategy.name}
                   {strategy.isSystem && <span className="ml-2 text-xs text-blue-500">(Sistema)</span>}
@@ -122,7 +122,7 @@ const StrategySelector: React.FC<StrategySelectProps> = ({
           <Button 
             variant="outline" 
             size="icon" 
-            className="shrink-0 text-green-500" 
+            className="shrink-0 text-green-500 bg-black border-gray-800" 
             disabled={true}
           >
             <Check className="h-4 w-4" />
@@ -131,7 +131,7 @@ const StrategySelector: React.FC<StrategySelectProps> = ({
           <Button 
             variant="outline" 
             size="icon" 
-            className="shrink-0" 
+            className="shrink-0 bg-black text-white border-gray-800 hover:bg-gray-900" 
             onClick={handleSaveStrategy}
             disabled={loading || saving || !selectedStrategyId}
           >
