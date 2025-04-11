@@ -7,8 +7,8 @@ const { MongoClient } = require('mongodb');
 require('dotenv').config();
 
 // Configuração MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
-const DB_NAME = 'runcash';
+const MONGODB_URI = process.env.MONGODB_URI;
+const DB_NAME = process.env.MONGODB_DB_NAME;
 
 async function testarConexao() {
   let client;

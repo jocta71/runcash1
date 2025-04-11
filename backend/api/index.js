@@ -7,8 +7,8 @@ require('dotenv').config();
 const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
 
 // Configuração MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
-const DB_NAME = 'runcash';
+const MONGODB_URI = process.env.MONGODB_URI;
+const DB_NAME = process.env.MONGODB_DB_NAME;
 let db = null;
 
 // Conectar ao MongoDB
