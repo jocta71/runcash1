@@ -129,8 +129,8 @@ class GlobalRouletteDataService {
       console.log('[GlobalRouletteService] Buscando dados atualizados da API /API/NUMBERS');
       
       // Usar a nova URL que retorna os números mais recentes
-      const WEBSOCKET_SERVICE_URL = process.env.REACT_APP_WEBSOCKET_SERVICE_URL || 'https://backend-production-2f96.up.railway.app';
-      const result = await fetchWithCorsSupport<any>(`${WEBSOCKET_SERVICE_URL}/API/NUMBERS`);
+      const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_SERVICE_URL || 'https://backend-production-2f96.up.railway.app';
+      const result = await fetchWithCorsSupport<any>(`${WEBSOCKET_URL}/API/NUMBERS`);
       
       // Verificar se os dados são válidos
       if (result && result.data && Array.isArray(result.data)) {
@@ -215,15 +215,19 @@ class GlobalRouletteDataService {
         return this.detailedRouletteData;
       }
       
-      console.log('[GlobalRouletteService] Buscando dados detalhados (limit=1000)');
+      console.log('[GlobalRouletteService] Buscando dados detalhados da API /API/NUMBERS');
       
-      // Usar a função utilitária com suporte a CORS - com limit=1000 para dados detalhados
-      const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DETAILED_LIMIT}`);
+      // Usar a nova URL para dados detalhados também
+      const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_SERVICE_URL || 'https://backend-production-2f96.up.railway.app';
+      const result = await fetchWithCorsSupport<any>(`${WEBSOCKET_URL}/API/NUMBERS`);
       
       // Verificar se os dados são válidos
-      if (data && Array.isArray(data)) {
-        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${data.length} roletas`);
-        this.detailedRouletteData = data;
+      if (result && result.data && Array.isArray(result.data)) {
+        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${result.data.length} entradas`);
+        
+        // Transformar os dados para o formato esperado
+        const formattedData = this.transformNumbersToRouletteFormat(result.data);
+        this.detailedRouletteData = formattedData;
         this.lastDetailedFetchTime = now;
         
         // Notificar assinantes de dados detalhados
