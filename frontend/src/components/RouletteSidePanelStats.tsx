@@ -156,8 +156,8 @@ const RouletteSidePanelStats = ({
     try {
       logger.info(`Buscando histórico para ${roletaNome}...`);
       
-      // Fazer a chamada à API com limit=1000 e nome da roleta
-      const response = await fetch(`/api/ROULETTES/historico?limit=1000&nome=${encodeURIComponent(roletaNome)}`, {
+      // Fazer a chamada à API com limit=1000
+      const response = await fetch(`/api/ROULETTES?limit=1000`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
