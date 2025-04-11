@@ -184,6 +184,120 @@ export const getRouletteNumberColor = (num: number) => {
   }
 };
 
+// Componente do Racetrack da Roleta Europeia
+const RouletteRacetrack = () => {
+  // Função para determinar a cor do número na roleta
+  const getNumberColor = (num: number): string => {
+    if (num === 0) return "bg-green-500";
+    
+    // Números vermelhos na roleta europeia
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    return redNumbers.includes(num) ? "bg-red-600" : "bg-black";
+  };
+
+  return (
+    <div className="w-full overflow-hidden rounded-lg border border-[#00ff00]/20 bg-vegas-black-light p-4">
+      <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
+        Racetrack da Roleta Europeia
+      </h3>
+      
+      <div className="flex flex-col">
+        {/* Exibição visual de racetrack (como na imagem) */}
+        <div className="bg-black rounded-lg p-3 border border-gray-800">
+          {/* Layout da pista de corrida em forma oval */}
+          <div className="relative w-full h-[160px] rounded-[100px] border border-gray-700 overflow-hidden bg-[#111]">
+            {/* Divisões internas */}
+            <div className="absolute inset-0 flex flex-col">
+              {/* Metade superior */}
+              <div className="flex-1 flex border-b border-gray-700">
+                <div className="w-1/3 border-r border-gray-700 flex items-center justify-center">
+                  <span className="text-white text-xs font-semibold">Tier</span>
+                </div>
+                <div className="w-2/3 flex items-center justify-center">
+                  <span className="text-white text-xs font-semibold">Orphelins</span>
+                </div>
+              </div>
+              {/* Metade inferior */}
+              <div className="flex-1 flex">
+                <div className="w-2/3 border-r border-gray-700 flex items-center justify-center">
+                  <span className="text-white text-xs font-semibold">Voisins</span>
+                </div>
+                <div className="w-1/3 flex items-center justify-center">
+                  <span className="text-white text-xs font-semibold">Zero</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Grade de números da roleta exatamente como na imagem */}
+          <div className="mt-4">
+            {/* Linha superior de números */}
+            <div className="flex justify-center mb-1">
+              <div className="flex space-x-1">
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">24</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">16</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">33</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">1</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">20</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">14</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">31</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">9</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">22</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">18</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">29</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">7</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">28</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">12</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">35</div>
+              </div>
+            </div>
+            
+            {/* Seção extra à direita - superior */}
+            <div className="flex justify-end mr-2 mb-1">
+              <div className="flex space-x-1">
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">3</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">26</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-green-500 text-white flex items-center justify-center text-xs font-bold">0</div>
+              </div>
+            </div>
+            
+            {/* Linha inferior de números */}
+            <div className="flex justify-center">
+              <div className="flex space-x-1">
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">5</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">10</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">23</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">8</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">30</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">11</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">36</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">13</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">27</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">6</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">34</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">17</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">25</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">2</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">21</div>
+              </div>
+            </div>
+            
+            {/* Seção extra à direita - inferior */}
+            <div className="flex justify-end mr-2 mt-1">
+              <div className="flex space-x-1">
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">4</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">19</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-black text-white flex items-center justify-center text-xs font-bold">15</div>
+                <div style={{width: '30px', height: '30px', borderRadius: '50%'}} className="bg-red-600 text-white flex items-center justify-center text-xs font-bold">32</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const RouletteSidePanelStats = ({ 
   roletaNome, 
   lastNumbers, 
@@ -314,6 +428,11 @@ const RouletteSidePanelStats = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+          {/* Racetrack da Roleta - Ocupa a largura total */}
+          <div className="md:col-span-2">
+            <RouletteRacetrack />
+          </div>
+          
           {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
           <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light md:col-span-2">
             <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
