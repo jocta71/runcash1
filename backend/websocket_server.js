@@ -798,8 +798,24 @@ app.get('/api/ROULETTES', async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     console.log('[API] Parâmetro limit:', limit);
 
+    // Verificar se há dados na coleção
+    const totalDocs = await collection.countDocuments();
+    console.log(`[API] Total de documentos na coleção ${COLLECTION_NAME}:`, totalDocs);
+
+    // Listar todas as coleções disponíveis
+    const collections = await db.listCollections().toArray();
+    console.log('[API] Coleções disponíveis:', collections.map(c => c.name));
+
+    // Buscar alguns documentos para debug
+    const amostra = await collection.find().limit(1).toArray();
+    console.log('[API] Amostra de documento:', JSON.stringify(amostra, null, 2));
+
     // Buscar todas as roletas distintas
     const roletas = await collection.aggregate([
+      // Verificar se há documentos
+      { $match: { roleta_id: { $exists: true }, roleta_nome: { $exists: true } } },
+      // Ordenar por timestamp decrescente para pegar os mais recentes primeiro
+      { $sort: { timestamp: -1 } },
       // Agrupar por roleta_id e pegar os últimos números
       {
         $group: {
@@ -829,6 +845,7 @@ app.get('/api/ROULETTES', async (req, res) => {
     ]).toArray();
 
     console.log(`[API] Encontradas ${roletas.length} roletas`);
+    console.log('[API] Dados das roletas:', JSON.stringify(roletas, null, 2));
     res.json(roletas);
   } catch (error) {
     console.error('Erro ao listar roletas:', error);
