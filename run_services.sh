@@ -10,7 +10,7 @@ echo "Configurando ambiente e iniciando serviços..."
 RUNCASH_DIR=/root/runcash1
 
 # Configurar variáveis de ambiente MongoDB
-export MONGODB_URI="mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash"
+# A variável MONGODB_URI deve ser configurada no Railway
 export MONGODB_DB_NAME="runcash"
 export MONGODB_ENABLED=true
 
@@ -25,7 +25,7 @@ cat > $RUNCASH_DIR/backend/.env << EOL
 PORT=5000
 
 # Configuração do MongoDB
-MONGODB_URI=mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash
+MONGODB_URI=$MONGODB_URI
 MONGODB_DB_NAME=runcash
 MONGODB_ENABLED=true
 
@@ -39,7 +39,7 @@ EOL
 # Configurar .env para o scraper
 cat > $RUNCASH_DIR/backend/scraper/.env << EOL
 # Configurações do MongoDB
-MONGODB_URI=mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash
+MONGODB_URI=$MONGODB_URI
 MONGODB_DB_NAME=runcash
 MONGODB_ENABLED=true
 

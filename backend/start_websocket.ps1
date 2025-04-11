@@ -24,7 +24,7 @@ if (-not (Test-Path -Path "node_modules")) {
 }
 
 # Definir variáveis de ambiente para o MongoDB
-$env:MONGODB_URI = "mongodb+srv://runcash:8867Jpp@runcash.g2ixx79.mongodb.net/runcash?retryWrites=true&w=majority&appName=runcash"
+# A variável MONGODB_URI deve ser configurada no Railway
 $env:PORT = "5000"
 
 # Iniciar o servidor WebSocket
