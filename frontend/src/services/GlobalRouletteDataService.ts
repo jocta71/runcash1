@@ -17,7 +17,7 @@ const DEFAULT_LIMIT = 100;
 const DETAILED_LIMIT = 1000;
 
 // URL do serviço WebSocket onde a API de números está disponível
-const WS_URL = import.meta.env.VITE_WS_URL || 'https://backend-production-2f96.up.railway.app';
+const WS_URL = 'https://backend-production-2f96.up.railway.app';
 
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
@@ -131,8 +131,8 @@ class GlobalRouletteDataService {
       
       console.log('[GlobalRouletteService] Buscando dados atualizados da API /API/NUMBERS');
       
-      // Usar a URL completa do serviço WebSocket
-      const result = await fetchWithCorsSupport<any>(`${WS_URL}/API/NUMBERS`);
+      // Usar URL direta para o backend sem usar variáveis de ambiente
+      const result = await fetchWithCorsSupport<any>('https://backend-production-2f96.up.railway.app/API/NUMBERS');
       
       // Verificar se os dados são válidos
       if (result && result.data && Array.isArray(result.data)) {
@@ -219,8 +219,8 @@ class GlobalRouletteDataService {
       
       console.log('[GlobalRouletteService] Buscando dados detalhados da API /API/NUMBERS');
       
-      // Usar a URL completa do serviço WebSocket
-      const result = await fetchWithCorsSupport<any>(`${WS_URL}/API/NUMBERS`);
+      // Usar URL direta para o backend sem usar variáveis de ambiente
+      const result = await fetchWithCorsSupport<any>('https://backend-production-2f96.up.railway.app/API/NUMBERS');
       
       // Verificar se os dados são válidos
       if (result && result.data && Array.isArray(result.data)) {
