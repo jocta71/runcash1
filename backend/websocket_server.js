@@ -9,6 +9,13 @@ dotenv.config();
 
 // Configuração
 const PORT = process.env.PORT || 5000;
+
+// Verificar se a URI do MongoDB está definida
+if (!process.env.MONGODB_URI) {
+  console.error('Erro: MONGODB_URI não está definida nas variáveis de ambiente!');
+  process.exit(1);
+}
+
 const MONGODB_URI = process.env.MONGODB_URI;
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
