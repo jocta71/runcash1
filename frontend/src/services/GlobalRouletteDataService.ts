@@ -110,7 +110,7 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados atualizados da API (usando a nova API /api/numbers)
+   * Busca dados atualizados da API (usando a nova API /api/ROULETTES)
    */
   private async fetchRouletteData(): Promise<void> {
     // Evitar requisições simultâneas
@@ -129,10 +129,10 @@ class GlobalRouletteDataService {
         return;
       }
       
-      console.log('[GlobalRouletteService] Buscando dados atualizados da API /api/numbers');
+      console.log('[GlobalRouletteService] Buscando dados atualizados da API /api/ROULETTES');
       
       // Usar URL direta para o backend sem usar variáveis de ambiente
-      const result = await fetchWithCorsSupport<any>('/api/numbers');
+      const result = await fetchWithCorsSupport<any>('/api/ROULETTES');
       
       // Verificar se os dados são válidos
       if (result && result.data && Array.isArray(result.data)) {
@@ -162,38 +162,11 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Transforma os dados da API /api/numbers para o formato esperado pelo restante da aplicação
+   * Transforma os dados da API /api/ROULETTES para o formato esperado pelo restante da aplicação
    */
   private transformNumbersToRouletteFormat(numbersData: any[]): any[] {
-    // Agrupar os números por roleta_id
-    const roletaMap = new Map();
-    
-    // Processar cada entrada da API
-    numbersData.forEach(item => {
-      const roletaId = item.roleta_id;
-      
-      // Se esta roleta ainda não está no mapa, criar entrada
-      if (!roletaMap.has(roletaId)) {
-        roletaMap.set(roletaId, {
-          id: roletaId,
-          nome: item.roleta_nome,
-          ativa: true,
-          numero: [],
-          estado_estrategia: "NEUTRAL"
-        });
-      }
-      
-      // Adicionar o número à lista de números da roleta
-      const roleta = roletaMap.get(roletaId);
-      roleta.numero.push({
-        numero: item.numero,
-        cor: item.cor,
-        timestamp: item.timestamp
-      });
-    });
-    
-    // Converter o mapa em array
-    return Array.from(roletaMap.values());
+    // Para a API /api/ROULETTES, os dados já vêm no formato esperado
+    return numbersData;
   }
   
   /**
@@ -217,10 +190,10 @@ class GlobalRouletteDataService {
         return this.detailedRouletteData;
       }
       
-      console.log('[GlobalRouletteService] Buscando dados detalhados da API /api/numbers');
+      console.log('[GlobalRouletteService] Buscando dados detalhados da API /api/ROULETTES');
       
       // Usar URL direta para o backend sem usar variáveis de ambiente
-      const result = await fetchWithCorsSupport<any>('/api/numbers');
+      const result = await fetchWithCorsSupport<any>('/api/ROULETTES');
       
       // Verificar se os dados são válidos
       if (result && result.data && Array.isArray(result.data)) {
