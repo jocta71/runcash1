@@ -7,8 +7,8 @@ const POLLING_INTERVAL = 8000;
 // Tempo de vida do cache em milissegundos (15 segundos)
 // const CACHE_TTL = 15000;
 
-// Intervalo mínimo entre requisições forçadas (2 segundos)
-const MIN_FORCE_INTERVAL = 2000;
+// Intervalo mínimo entre requisições forçadas (8 segundos)
+const MIN_FORCE_INTERVAL = 8000;
 
 // Limite padrão para requisições normais (100 itens)
 const DEFAULT_LIMIT = 100;
@@ -124,8 +124,14 @@ class GlobalRouletteDataService {
       return this.rouletteData;
     }
     
+    // Verificar se já fizemos uma requisição recentemente
+    const now = Date.now();
+    if (now - this.lastFetchTime < MIN_FORCE_INTERVAL) {
+      console.log(`[GlobalRouletteService] Última requisição foi feita há ${Math.round((now - this.lastFetchTime)/1000)}s. Aguardando intervalo mínimo de ${MIN_FORCE_INTERVAL/1000}s.`);
+      return this.rouletteData;
+    }
+    
     try {
-      const now = Date.now();
       this.isFetching = true;
       
       // Removendo a verificação de cache para sempre buscar dados frescos
@@ -186,8 +192,14 @@ class GlobalRouletteDataService {
       return this.detailedRouletteData;
     }
     
+    // Verificar se já fizemos uma requisição detalhada recentemente
+    const now = Date.now();
+    if (now - this.lastDetailedFetchTime < MIN_FORCE_INTERVAL) {
+      console.log(`[GlobalRouletteService] Última requisição detalhada foi feita há ${Math.round((now - this.lastDetailedFetchTime)/1000)}s. Aguardando intervalo mínimo de ${MIN_FORCE_INTERVAL/1000}s.`);
+      return this.detailedRouletteData;
+    }
+    
     try {
-      const now = Date.now();
       this.isFetchingDetailed = true;
       
       // Removendo a verificação de cache para sempre buscar dados frescos

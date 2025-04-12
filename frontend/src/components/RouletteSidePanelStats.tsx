@@ -405,7 +405,7 @@ const RouletteSidePanelStats = ({
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
   
-  // Modificar a função loadHistoricalData para forçar busca de dados frescos
+  // Modificar a função loadHistoricalData para respeitar o intervalo entre requisições
   const loadHistoricalData = async () => {
     try {
       logger.info(`Buscando histórico para ${roletaNome}...`);
@@ -414,83 +414,166 @@ const RouletteSidePanelStats = ({
       setIsLoading(true);
       
       // Buscar dados detalhados diretamente da API
-      await globalRouletteDataService.fetchDetailedRouletteData().catch(err => {
+      // A função fetchDetailedRouletteData já vai verificar o intervalo mínimo
+      // entre requisições e não fará uma nova chamada se for muito cedo
+      await globalRouletteDataService.fetchDetailedRouletteData().then((detailedData) => {
+        logger.info(`Dados detalhados obtidos: ${detailedData.length} roletas`);
+        
+        // Com os dados detalhados, podemos processá-los diretamente
+        // sem precisar fazer uma segunda chamada para dados normais
+        const detailedRoulette = detailedData.find((r: any) => {
+          const name = r.nome || r.name || '';
+          return name.toLowerCase() === roletaNome.toLowerCase();
+        });
+        
+        if (detailedRoulette) {
+          logger.info(`Processando dados detalhados frescos para ${roletaNome}`);
+          
+          // Extrair números da resposta da API diretamente
+          let extractedNumbers = extractNumbers(detailedRoulette);
+          logger.info(`Extraídos ${extractedNumbers.length} números para ${roletaNome}`);
+          
+          // Converter para o formato RouletteNumber com timestamp
+          const numbersWithTimestamp = extractedNumbers.map((num, index) => {
+            // Tentar obter timestamp da API
+            let timeString = "00:00";
+            if (detailedRoulette.numero && Array.isArray(detailedRoulette.numero) && 
+                detailedRoulette.numero.length > index && detailedRoulette.numero[index].timestamp) {
+              try {
+                const date = new Date(detailedRoulette.numero[index].timestamp);
+                timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                          date.getMinutes().toString().padStart(2, '0');
+              } catch (e) {
+                logger.error("Erro ao converter timestamp:", e);
+              }
+            }
+            
+            return {
+              numero: num,
+              timestamp: timeString
+            };
+          });
+          
+          // Certificar que os últimos números (lastNumbers) estão incluídos
+          if (lastNumbers && lastNumbers.length > 0) {
+            // Tentar obter os timestamps dos últimos números do objeto detailedRoulette
+            const lastNumbersWithTime = lastNumbers.map(num => {
+              // Tentar encontrar este número nos dados da API para obter o timestamp correto
+              const matchingNum = detailedRoulette.numero.find((n: any) => Number(n.numero) === num);
+              if (matchingNum && matchingNum.timestamp) {
+                try {
+                  const date = new Date(matchingNum.timestamp);
+                  const timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                                date.getMinutes().toString().padStart(2, '0');
+                  return { numero: num, timestamp: timeString };
+                } catch (e) {
+                  logger.error("Erro ao processar timestamp:", e);
+                }
+              }
+              
+              // Se não encontrou o timestamp na API, usar hora atual
+              const now = new Date();
+              const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                             now.getMinutes().toString().padStart(2, '0');
+              return { numero: num, timestamp: timeString };
+            });
+            
+            // Combinar, garantindo que não exceda 1000 números
+            const combinedNumbers = [...lastNumbersWithTime, ...numbersWithTimestamp];
+            setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+            logger.info(`Histórico atualizado: ${combinedNumbers.length} números no total (limitado a 1000)`);
+          } else {
+            // Se não tem lastNumbers, usar apenas os dados da API
+            setHistoricalNumbers(numbersWithTimestamp.slice(0, 1000));
+            logger.info(`Histórico atualizado: ${numbersWithTimestamp.length} números da API (limitado a 1000)`);
+          }
+          
+          isInitialRequestDone.current = true;
+          setIsLoading(false);
+          return;
+        }
+      }).catch(err => {
         logger.error(`Erro ao buscar dados detalhados: ${err.message}`);
       });
       
-      // Buscar dados normais para garantir consistência
-      await globalRouletteDataService.fetchRouletteData().catch(err => {
-        logger.error(`Erro ao buscar dados normais: ${err.message}`);
-      });
-      
-      // Obter os dados mais recentes do serviço global
-      const allRoulettes = globalRouletteDataService.getAllRoulettes();
-      const currentRoulette = allRoulettes.find((r: any) => {
-        const name = r.nome || r.name || '';
-        return name.toLowerCase() === roletaNome.toLowerCase();
-      });
-      
-      // Buscar os dados detalhados do serviço global
-      const detailedRoulettes = globalRouletteDataService.getAllDetailedRoulettes();
-      const detailedRoulette = detailedRoulettes.find((r: any) => {
-        const name = r.nome || r.name || '';
-        return name.toLowerCase() === roletaNome.toLowerCase();
-      });
-      
-      // Usar preferencialmente os dados detalhados, se disponíveis
-      const rouletteData = detailedRoulette || currentRoulette;
-      
-      if (rouletteData) {
-        logger.info(`Processando dados frescos para ${roletaNome}`);
+      // Se chegamos aqui, é porque não conseguimos processar usando dados detalhados
+      // Vamos tentar com dados normais como fallback
+      await globalRouletteDataService.fetchRouletteData().then((normalData) => {
+        logger.info(`Dados normais obtidos como fallback: ${normalData.length} roletas`);
         
-        // Extrair números da resposta da API diretamente
-        // Não usar processApiData para evitar problemas com comparação de dados existentes
-        let extractedNumbers = extractNumbers(rouletteData);
-        logger.info(`Extraídos ${extractedNumbers.length} números para ${roletaNome}`);
-        
-        // Converter para o formato RouletteNumber com timestamp
-        const numbersWithTimestamp = extractedNumbers.map((num, index) => {
-          // Tentar obter timestamp da API
-          let timeString = "00:00";
-          if (rouletteData.numero && Array.isArray(rouletteData.numero) && 
-              rouletteData.numero.length > index && rouletteData.numero[index].timestamp) {
-            try {
-              const date = new Date(rouletteData.numero[index].timestamp);
-              timeString = date.getHours().toString().padStart(2, '0') + ':' + 
-                        date.getMinutes().toString().padStart(2, '0');
-            } catch (e) {
-              logger.error("Erro ao converter timestamp:", e);
-            }
-          }
-          
-          return {
-            numero: num,
-            timestamp: timeString
-          };
+        // Procurar a roleta nos dados normais
+        const currentRoulette = normalData.find((r: any) => {
+          const name = r.nome || r.name || '';
+          return name.toLowerCase() === roletaNome.toLowerCase();
         });
         
-        // Certificar que os últimos números (lastNumbers) estão incluídos
-        if (lastNumbers && lastNumbers.length > 0) {
-          const lastNumbersWithTime = lastNumbers.map(num => {
-            const now = new Date();
-            const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                           now.getMinutes().toString().padStart(2, '0');
-            return { numero: num, timestamp: timeString };
+        if (currentRoulette) {
+          logger.info(`Processando dados normais para ${roletaNome}`);
+          
+          // Extrair números da resposta da API
+          let extractedNumbers = extractNumbers(currentRoulette);
+          logger.info(`Extraídos ${extractedNumbers.length} números para ${roletaNome}`);
+          
+          // Converter para o formato RouletteNumber com timestamp
+          const numbersWithTimestamp = extractedNumbers.map((num, index) => {
+            // Tentar obter timestamp da API
+            let timeString = "00:00";
+            if (currentRoulette.numero && Array.isArray(currentRoulette.numero) && 
+                currentRoulette.numero.length > index && currentRoulette.numero[index].timestamp) {
+              try {
+                const date = new Date(currentRoulette.numero[index].timestamp);
+                timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                          date.getMinutes().toString().padStart(2, '0');
+              } catch (e) {
+                logger.error("Erro ao converter timestamp:", e);
+              }
+            }
+            
+            return {
+              numero: num,
+              timestamp: timeString
+            };
           });
           
-          // Combinar, garantindo que não exceda 1000 números
-          const combinedNumbers = [...lastNumbersWithTime, ...numbersWithTimestamp];
-          setHistoricalNumbers(combinedNumbers.slice(0, 1000));
-          logger.info(`Histórico atualizado: ${combinedNumbers.length} números no total (limitado a 1000)`);
+          // Combinar com lastNumbers se disponíveis
+          if (lastNumbers && lastNumbers.length > 0) {
+            const lastNumbersWithTime = lastNumbers.map(num => {
+              const now = new Date();
+              const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                             now.getMinutes().toString().padStart(2, '0');
+              return { numero: num, timestamp: timeString };
+            });
+            
+            const combinedNumbers = [...lastNumbersWithTime, ...numbersWithTimestamp];
+            setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+            logger.info(`Histórico atualizado com dados normais: ${combinedNumbers.length} números no total`);
+          } else {
+            setHistoricalNumbers(numbersWithTimestamp.slice(0, 1000));
+            logger.info(`Histórico atualizado com dados normais: ${numbersWithTimestamp.length} números`);
+          }
         } else {
-          // Se não tem lastNumbers, usar apenas os dados da API
-          setHistoricalNumbers(numbersWithTimestamp.slice(0, 1000));
-          logger.info(`Histórico atualizado: ${numbersWithTimestamp.length} números da API (limitado a 1000)`);
+          logger.warn(`Roleta "${roletaNome}" não encontrada nos dados disponíveis`);
+          
+          // Se não encontramos a roleta em nenhum lugar, usar apenas lastNumbers
+          if (lastNumbers && lastNumbers.length > 0) {
+            const lastNumbersWithTime = lastNumbers.map(num => {
+              const now = new Date();
+              const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                            now.getMinutes().toString().padStart(2, '0');
+              return { numero: num, timestamp: timeString };
+            });
+            
+            setHistoricalNumbers(lastNumbersWithTime);
+            logger.info(`Usando apenas números recentes: ${lastNumbers.length}`);
+          } else {
+            setHistoricalNumbers([]);
+            logger.info(`Sem dados históricos disponíveis`);
+          }
         }
-      } else {
-        logger.warn(`Roleta "${roletaNome}" não encontrada nos dados disponíveis`);
+      }).catch(err => {
+        logger.error(`Erro ao buscar dados normais: ${err.message}`);
         
-        // Se não temos dados da API, usar somente os números recentes (se disponíveis)
+        // Se nem os dados normais conseguimos, usar apenas lastNumbers
         if (lastNumbers && lastNumbers.length > 0) {
           const lastNumbersWithTime = lastNumbers.map(num => {
             const now = new Date();
@@ -500,12 +583,10 @@ const RouletteSidePanelStats = ({
           });
           
           setHistoricalNumbers(lastNumbersWithTime);
-          logger.info(`Usando apenas números recentes: ${lastNumbers.length}`);
         } else {
           setHistoricalNumbers([]);
-          logger.info(`Sem dados históricos disponíveis`);
         }
-      }
+      });
       
       isInitialRequestDone.current = true;
       setIsLoading(false);
