@@ -606,7 +606,7 @@ const RouletteSidePanelStats = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
           {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
-          <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light md:col-span-2">
+          <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-black md:col-span-2">
             <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
               <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {historicalNumbers.length})
             </h3>
