@@ -418,6 +418,9 @@ const RouletteSidePanelStats = ({
   const [loadingMessage, setLoadingMessage] = useState<string>("Carregando dados históricos...");
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
+  // Flag para controlar quando os dados foram carregados manualmente
+  const [manuallyLoaded, setManuallyLoaded] = useState(false);
+  const lastManualLoadTime = useRef<number>(0);
   
   // Função para forçar uma atualização manual dos dados históricos
   const forceHistoricalDataReload = async () => {
@@ -472,6 +475,40 @@ const RouletteSidePanelStats = ({
         
         logger.info(`Processados ${processedNumbers.length} números`);
         setHistoricalNumbers(processedNumbers);
+        
+        // Marcar que dados foram carregados manualmente para evitar sobrescrever
+        setManuallyLoaded(true);
+        lastManualLoadTime.current = Date.now();
+        
+        // Cancelar assinaturas temporariamente para evitar sobrescrever os dados forçados
+        globalRouletteDataService.unsubscribe(subscriberId.current);
+        globalRouletteDataService.unsubscribe(`${subscriberId.current}-detailed`);
+        
+        // Re-registrar após 1 minuto para voltar a receber atualizações futuras
+        setTimeout(() => {
+          logger.info("Reativando assinaturas de atualização automática após carregamento manual");
+          // Registrar no serviço global para receber atualizações de dados normais
+          globalRouletteDataService.subscribe(subscriberId.current, () => {
+            if (Date.now() - lastManualLoadTime.current > 60000) { // 1 minuto
+              logger.info(`Voltando a receber atualizações normais após forçar dados`);
+              setManuallyLoaded(false);
+              loadHistoricalData();
+            } else {
+              logger.info("Ignorando atualização automática logo após carregamento manual");
+            }
+          });
+          
+          // Registrar especificamente para receber atualizações de dados detalhados
+          globalRouletteDataService.subscribeToDetailedData(`${subscriberId.current}-detailed`, () => {
+            if (Date.now() - lastManualLoadTime.current > 60000) { // 1 minuto
+              logger.info(`Voltando a receber atualizações detalhadas após forçar dados`);
+              setManuallyLoaded(false);
+              loadHistoricalData();
+            } else {
+              logger.info("Ignorando atualização detalhada logo após carregamento manual");
+            }
+          });
+        }, 60000); // 1 minuto
       } else {
         logger.error(`Roleta ${roletaNome} não encontrada nos dados da API ou sem números`);
       }
@@ -485,6 +522,12 @@ const RouletteSidePanelStats = ({
   
   // Função para carregar dados históricos - preservar timestamp da API
   const loadHistoricalData = async () => {
+    // Se já carregou dados manualmente, não sobrescrever
+    if (manuallyLoaded && Date.now() - lastManualLoadTime.current < 60000) { // 1 minuto
+      logger.info("Ignorando carregamento automático porque dados foram carregados manualmente");
+      return;
+    }
+    
     try {
       logger.info(`Buscando histórico para ${roletaNome}...`);
       
@@ -551,20 +594,32 @@ const RouletteSidePanelStats = ({
     // Resetar o estado de inicialização se a roleta mudar
     isInitialRequestDone.current = false;
     setIsLoading(true);
+    setManuallyLoaded(false);
+    lastManualLoadTime.current = 0;
     
     // ID único para assinatura de dados detalhados
     const detailedSubscriberId = `${subscriberId.current}-detailed`;
     
     // Registrar no serviço global para receber atualizações de dados normais
     globalRouletteDataService.subscribe(subscriberId.current, () => {
-      logger.info(`Recebendo atualização de dados normais para ${roletaNome}`);
-      loadHistoricalData();
+      // Não processar atualizações automáticas se dados foram carregados manualmente recentemente
+      if (!manuallyLoaded || Date.now() - lastManualLoadTime.current > 60000) {
+        logger.info(`Recebendo atualização de dados normais para ${roletaNome}`);
+        loadHistoricalData();
+      } else {
+        logger.info("Ignorando atualização automática porque dados foram carregados manualmente");
+      }
     });
     
     // Registrar especificamente para receber atualizações de dados detalhados
     globalRouletteDataService.subscribeToDetailedData(detailedSubscriberId, () => {
-      logger.info(`Recebendo atualização de dados DETALHADOS para ${roletaNome}`);
-      loadHistoricalData();
+      // Não processar atualizações automáticas se dados foram carregados manualmente recentemente
+      if (!manuallyLoaded || Date.now() - lastManualLoadTime.current > 60000) {
+        logger.info(`Recebendo atualização de dados DETALHADOS para ${roletaNome}`);
+        loadHistoricalData();
+      } else {
+        logger.info("Ignorando atualização detalhada porque dados foram carregados manualmente");
+      }
     });
     
     // Carregar dados imediatamente
@@ -582,6 +637,12 @@ const RouletteSidePanelStats = ({
 
   // Atualizar números quando lastNumbers mudar, usando timestamp da API e processApiData
   useEffect(() => {
+    // Não processar novos números se dados foram carregados manualmente recentemente
+    if (manuallyLoaded && Date.now() - lastManualLoadTime.current < 60000) {
+      logger.info("Ignorando novos números porque dados foram carregados manualmente");
+      return;
+    }
+    
     if (isInitialRequestDone.current && lastNumbers && lastNumbers.length > 0) {
       logger.info(`Atualizando com ${lastNumbers.length} novos números recentes`);
       
@@ -614,7 +675,7 @@ const RouletteSidePanelStats = ({
         setHistoricalNumbers(combinedNumbers.slice(0, 1000));
       }
     }
-  }, [lastNumbers]);
+  }, [lastNumbers, manuallyLoaded]);
   
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
