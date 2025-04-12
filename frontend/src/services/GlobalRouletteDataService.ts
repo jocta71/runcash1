@@ -184,7 +184,7 @@ class GlobalRouletteDataService {
    * Busca dados detalhados (usando limit=1000) - apenas para visualizações detalhadas
    * Esta função deve ser chamada somente quando precisamos de dados detalhados para estatísticas
    */
-  public async fetchDetailedRouletteData(): Promise<any[]> {
+  public async fetchDetailedRouletteData(forceRefresh = false): Promise<any[]> {
     // Evitar requisições simultâneas, mas não retornar dados antigos se necessário forçar
     if (this.isFetchingDetailed) {
       console.log('[GlobalRouletteService] Requisição detalhada já em andamento, aguardando...');
@@ -210,8 +210,11 @@ class GlobalRouletteDataService {
       this.isFetchingDetailed = true;
       
       // Verificar se os dados detalhados em cache ainda são válidos
-      // Reduzindo TTL para 5 segundos para garantir atualizações mais frequentes
-      if (this.detailedRouletteData.length > 0 && now - this.lastDetailedFetchTime < 5000) {
+      // Se forceRefresh for true, ignorar o cache e fazer uma nova requisição
+      const useCachedData = !forceRefresh && this.detailedRouletteData.length > 0 && 
+                            now - this.lastDetailedFetchTime < 5000; // TTL reduzido para 5 segundos
+      
+      if (useCachedData) {
         console.log(`[GlobalRouletteService] Usando dados detalhados em cache, idade: ${Math.round((now - this.lastDetailedFetchTime)/1000)}s`);
         return this.detailedRouletteData;
       }
@@ -233,7 +236,15 @@ class GlobalRouletteDataService {
         }));
         
         console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${data.length} roletas com um total de ${totalNumeros} números`);
-        console.log(`[GlobalRouletteService] Distribuição por roleta:`, JSON.stringify(roletas.slice(0, 3)));
+        
+        if (data.length > 0) {
+          console.log(`[GlobalRouletteService] Distribuição de números:`);
+          roletas.forEach(r => {
+            if (r.totalNumeros > 0) {
+              console.log(`- ${r.nome || r.id}: ${r.totalNumeros} números`);
+            }
+          });
+        }
         
         if (totalNumeros === 0) {
           console.warn('[GlobalRouletteService] ALERTA: Nenhum número encontrado nos dados detalhados!');

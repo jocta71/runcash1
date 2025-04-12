@@ -41,12 +41,12 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
   try {
     logger.info(`Buscando dados históricos para: ${rouletteName}`);
     
-    // Primeiro, tentar buscar dados detalhados com limit=1000
+    // Forçar a requisição com limit=1000 para esta roleta específica
     logger.info(`Solicitando dados detalhados (limit=1000) para ${rouletteName}`);
+    // Garantir que fetchDetailedRouletteData seja chamado com força
     const detailedData = await globalRouletteDataService.fetchDetailedRouletteData();
     
-    // Uma vez que os dados detalhados foram buscados, procurar a roleta específica
-    logger.info(`Buscando roleta ${rouletteName} nos dados detalhados`);
+    logger.info(`Dados detalhados recebidos, total de roletas: ${detailedData.length}`);
     
     // Procurar a roleta pelo nome nos dados detalhados
     const targetDetailedRoulette = detailedData.find((roleta: any) => {
@@ -56,14 +56,16 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
     
     // Verificar a estrutura exata dos dados recebidos para diagnóstico
     if (targetDetailedRoulette) {
-      logger.info(`Estrutura da roleta encontrada:`, JSON.stringify({
-        id: targetDetailedRoulette.id,
-        nome: targetDetailedRoulette.nome,
-        numero_count: targetDetailedRoulette.numero ? targetDetailedRoulette.numero.length : 0,
-        primeiro_numero: targetDetailedRoulette.numero && targetDetailedRoulette.numero.length > 0 
-          ? targetDetailedRoulette.numero[0] 
-          : null
-      }));
+      const numeroCount = targetDetailedRoulette.numero ? targetDetailedRoulette.numero.length : 0;
+      logger.info(`Roleta '${rouletteName}' encontrada com ${numeroCount} números históricos`);
+      
+      // Debug detalhado dos dados recebidos
+      if (numeroCount > 0) {
+        const amostra = targetDetailedRoulette.numero.slice(0, 5);
+        logger.info(`Amostra dos primeiros 5 números: ${JSON.stringify(amostra)}`);
+      }
+    } else {
+      logger.warn(`Roleta '${rouletteName}' NÃO encontrada nos dados detalhados!`);
     }
     
     // Se encontrou a roleta nos dados detalhados e possui array de números
@@ -87,12 +89,12 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
         })
         .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
       
-      logger.info(`Obtidos ${processedDetailedNumbers.length} números históricos DETALHADOS para ${rouletteName}`);
+      logger.info(`Processados ${processedDetailedNumbers.length} números válidos para ${rouletteName}`);
       return processedDetailedNumbers;
     }
     
     // Se não encontrou nos dados detalhados, tentar nos dados normais
-    logger.info(`Roleta não encontrada nos dados detalhados, tentando dados normais para ${rouletteName}`);
+    logger.info(`Tentando buscar dados normais para ${rouletteName}`);
     
     // Obter a roleta pelo nome do serviço global 
     const targetRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
@@ -117,7 +119,7 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
         })
         .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
       
-      logger.info(`Obtidos ${processedNumbers.length} números históricos para ${rouletteName} do serviço global`);
+      logger.info(`Obtidos ${processedNumbers.length} números do serviço global para ${rouletteName}`);
       return processedNumbers;
     } else {
       logger.warn(`Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
@@ -368,6 +370,28 @@ const RouletteSidePanelStats = ({
     // ID único para assinatura de dados detalhados
     const detailedSubscriberId = `${subscriberId.current}-detailed`;
     
+    // Função para carregar dados completos da roleta
+    const loadCompleteRouletteData = async () => {
+      try {
+        logger.info(`Carregando dados COMPLETOS para roleta ${roletaNome}`);
+        
+        // 1. Forçar uma busca de dados detalhados com limit=1000, ignorando o cache
+        await globalRouletteDataService.fetchDetailedRouletteData(true);
+        
+        // 2. Carregar dados históricos
+        await loadHistoricalData();
+        
+        // 3. Exibir todos os números (até 1000) ao inicializar
+        setIsHistoryExpanded(true);
+        setItemsPerPage(1000);
+        
+        logger.info(`Dados completos carregados para roleta ${roletaNome}`);
+      } catch (error) {
+        logger.error(`Erro ao carregar dados completos: ${error}`);
+        setIsLoading(false);
+      }
+    };
+    
     // Registrar no serviço global para receber atualizações de dados normais
     globalRouletteDataService.subscribe(subscriberId.current, () => {
       logger.info(`Recebendo atualização de dados normais para ${roletaNome}`);
@@ -380,11 +404,8 @@ const RouletteSidePanelStats = ({
       loadHistoricalData();
     });
     
-    // Carregar dados imediatamente
-    loadHistoricalData();
-    
-    // Forçar uma busca de dados detalhados
-    globalRouletteDataService.fetchDetailedRouletteData();
+    // Carregar dados completos imediatamente quando a roleta for selecionada
+    loadCompleteRouletteData();
     
     return () => {
       // Cancelar inscrições ao desmontar
@@ -467,10 +488,12 @@ const RouletteSidePanelStats = ({
             {historicalNumbers.length > 0 ? (
               <div
                 className={`grid gap-1 w-full ${
-                  isHistoryExpanded ? 'grid-cols-10 md:grid-cols-14 lg:grid-cols-18' : 'grid-cols-6 md:grid-cols-9 lg:grid-cols-12'
-                }`}
+                  isHistoryExpanded 
+                    ? 'grid-cols-10 md:grid-cols-14 lg:grid-cols-18 max-h-[800px]' 
+                    : 'grid-cols-6 md:grid-cols-9 lg:grid-cols-12 max-h-[300px]'
+                } overflow-y-auto p-2 border border-gray-800 rounded-md`}
               >
-                {historicalNumbers.slice(0, isHistoryExpanded ? 1000 : 100).map((number, index) => (
+                {(isHistoryExpanded ? historicalNumbers : historicalNumbers.slice(0, 100)).map((number, index) => (
                   <div
                     key={`${number}-${index}`}
                     className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium
@@ -479,6 +502,12 @@ const RouletteSidePanelStats = ({
                     {number}
                   </div>
                 ))}
+                
+                {!isHistoryExpanded && historicalNumbers.length > 100 && (
+                  <div className="col-span-full text-center mt-2 text-sm text-vegas-gold">
+                    Mostrando 100 de {historicalNumbers.length} números. Clique em "Expandir" para ver todos.
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-2 text-gray-400 text-sm">
