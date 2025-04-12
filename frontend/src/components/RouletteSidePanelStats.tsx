@@ -616,7 +616,7 @@ const RouletteSidePanelStats = ({
                   key={idx} 
                   className="flex flex-col items-center mb-2 w-10"
                 >
-                  <div className={`w-8 h-8 flex items-center justify-center text-sm font-medium ${getRouletteNumberColor(n.numero)}`}>
+                  <div className={`w-8 h-8 flex items-center justify-center text-sm font-medium rounded-full border border-gray-700 ${getRouletteNumberColor(n.numero)}`}>
                     {n.numero}
                   </div>
                   <div className="text-[9px] text-gray-400 mt-1">
