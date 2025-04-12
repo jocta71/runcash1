@@ -424,6 +424,36 @@ const RouletteSidePanelStats = ({
     }
   }, [lastNumbers]);
   
+  // Adicionar um useEffect para se inscrever diretamente nos eventos de novos números
+  useEffect(() => {
+    // ID único para assinatura de novos números
+    const newNumbersSubscriberId = `${subscriberId.current}-new-numbers`;
+    
+    // Registrar no serviço global para receber diretamente novos números
+    globalRouletteDataService.subscribeToNewRouletteNumbers(newNumbersSubscriberId, (rouletteName, newNumber) => {
+      // Verificar se o novo número é da roleta que estamos monitorando
+      if (rouletteName.toLowerCase() === roletaNome.toLowerCase() && newNumber !== undefined) {
+        logger.info(`RouletteSidePanelStats recebeu novo número ${newNumber} diretamente do serviço global`);
+        
+        // Obter o timestamp do número recém-adicionado
+        const now = new Date();
+        const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                        now.getMinutes().toString().padStart(2, '0');
+        
+        // Criar objeto com o novo número
+        const newNumberWithTimestamp = { numero: newNumber, timestamp: timeString };
+        
+        // Adicionar ao início do histórico e limitar a 1000
+        setHistoricalNumbers(prevNumbers => [newNumberWithTimestamp, ...prevNumbers].slice(0, 1000));
+      }
+    });
+    
+    return () => {
+      // Cancelar inscrição ao desmontar
+      globalRouletteDataService.unsubscribe(newNumbersSubscriberId);
+    };
+  }, [roletaNome]);
+  
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
   const pieData = generateGroupDistribution(historicalNumbers.map(n => n.numero));
