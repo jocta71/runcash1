@@ -13,7 +13,6 @@ import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import { fetchWithCorsSupport } from '@/utils/api-helpers';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
-import EventService from '@/services/EventService';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -234,31 +233,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       setRecentNumbers(apiNumbers.slice(0, 20));
       setLastNumber(apiNumbers[0]);
       setHasRealData(true);
-      
-      // Emitir evento para o primeiro número (mesmo na inicialização)
-      if (apiNumbers.length > 0) {
-        const firstNumber = apiNumbers[0];
-        
-        // Obter timestamp se disponível na API
-        let timestamp = null;
-        if (apiRoulette.numero && apiRoulette.numero.length > 0 && apiRoulette.numero[0]?.timestamp) {
-          try {
-            const date = new Date(apiRoulette.numero[0].timestamp);
-            timestamp = date.getHours().toString().padStart(2, '0') + ':' + 
-                     date.getMinutes().toString().padStart(2, '0');
-          } catch (e) {
-            console.error("Erro ao converter timestamp para primeiro número:", e);
-          }
-        }
-        
-        EventService.emit('roulette:new-number', {
-          roletaNome: safeData.name,
-          numero: firstNumber,
-          timestamp: timestamp,
-          source: 'RouletteCard-init'
-        });
-      }
-      
       return true;
     }
     
@@ -283,26 +257,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       // Adicionar o número novo à nossa lista temporária
       newNumbers.push(apiNum);
-      
-      // Emitir evento para cada novo número
-      // Obter timestamp se disponível na API
-      let timestamp = null;
-      if (apiRoulette.numero && apiRoulette.numero.length > i && apiRoulette.numero[i]?.timestamp) {
-        try {
-          const date = new Date(apiRoulette.numero[i].timestamp);
-          timestamp = date.getHours().toString().padStart(2, '0') + ':' + 
-                     date.getMinutes().toString().padStart(2, '0');
-        } catch (e) {
-          console.error(`Erro ao converter timestamp para número ${apiNum}:`, e);
-        }
-      }
-      
-      EventService.emit('roulette:new-number', {
-        roletaNome: safeData.name,
-        numero: apiNum,
-        timestamp: timestamp,
-        source: 'RouletteCard-update'
-      });
     }
     
     // Se encontramos números novos, atualizamos o estado

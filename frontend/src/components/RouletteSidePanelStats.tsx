@@ -97,7 +97,7 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
     // Se não encontrou nos dados detalhados, tentar nos dados normais
     logger.info(`Roleta não encontrada nos dados detalhados, tentando dados normais para ${rouletteName}`);
     
-    // Obter a roleta pelo nome do serviço global 
+    // Obter a roleta pelo nome do serviço global
     const targetRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
     
     if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
@@ -456,7 +456,7 @@ const RouletteSidePanelStats = ({
           });
           
           // Certificar que os últimos números (lastNumbers) estão incluídos
-          if (lastNumbers && lastNumbers.length > 0) {
+      if (lastNumbers && lastNumbers.length > 0) {
             // Tentar obter os timestamps dos últimos números do objeto detailedRoulette
             const lastNumbersWithTime = lastNumbers.map(num => {
               // Tentar encontrar este número nos dados da API para obter o timestamp correto
@@ -546,7 +546,7 @@ const RouletteSidePanelStats = ({
             });
             
             const combinedNumbers = [...lastNumbersWithTime, ...numbersWithTimestamp];
-            setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+        setHistoricalNumbers(combinedNumbers.slice(0, 1000));
             logger.info(`Histórico atualizado com dados normais: ${combinedNumbers.length} números no total`);
           } else {
             setHistoricalNumbers(numbersWithTimestamp.slice(0, 1000));
@@ -668,52 +668,56 @@ const RouletteSidePanelStats = ({
         
         // Apenas concatenar os números no início para preservar todas as ocorrências
         const combinedNumbers = [...lastNumbersWithTime, ...historicalNumbers];
-        
-        // Limitando a 1000 números no máximo
-        setHistoricalNumbers(combinedNumbers.slice(0, 1000));
-      }
+      
+      // Limitando a 1000 números no máximo
+      setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+    }
     }
   }, [lastNumbers, roletaNome, historicalNumbers]);
   
-  // Adicionar um novo useEffect para assinar eventos do EventService como o RouletteCard faz
+  // Adicionar useEffect para escutar eventos de novos números do RouletteCard
   useEffect(() => {
-    // Registrar um ouvinte de eventos para receber atualizações diretas do RouletteCard
-    // Este mecanismo garante que quando um novo número é detectado no RouletteCard,
-    // o sidepanel também será atualizado
-    const handleNewNumberEvent = (event: any) => {
-      if (event && event.roletaNome && event.roletaNome.toLowerCase() === roletaNome.toLowerCase()) {
-        logger.info(`[EventListener] Novo número recebido do RouletteCard para ${roletaNome}: ${event.numero}`);
+    // ID único para este listener
+    const newNumberListenerId = `sidepanel-new-number-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`;
+    
+    logger.info(`Registrando listener para novos números: ${newNumberListenerId}`);
+    
+    // Registrar listener para o evento 'roulette:new-number'
+    const unsubscribe = EventService.on('roulette:new-number', (data) => {
+      // Verificar se o evento é para esta roleta específica
+      if (data && typeof data === 'object' && data.roletaNome === roletaNome && data.numero !== undefined) {
+        logger.info(`Recebido novo número do RouletteCard: ${data.numero} para ${roletaNome}`);
         
-        // Adicionar o novo número ao início do histórico com o timestamp atual
+        // Criar objeto RouletteNumber com timestamp atual
         const now = new Date();
         const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                         now.getMinutes().toString().padStart(2, '0');
-                         
-        const newNumber: RouletteNumber = {
-          numero: event.numero,
-          timestamp: event.timestamp || timeString // Usar o timestamp do evento se disponível
+                       now.getMinutes().toString().padStart(2, '0');
+        const newNumber = {
+          numero: data.numero,
+          timestamp: data.timestamp || timeString // Usar timestamp do evento se disponível
         };
         
-        // Adicionar o novo número ao início do histórico e manter o limite de 1000
+        // Adicionar o novo número no início do histórico
         setHistoricalNumbers(prev => {
-          const updated = [newNumber, ...prev];
-          return updated.slice(0, 1000);
+          // Verificar se este número já está no topo da lista
+          if (prev.length > 0 && prev[0].numero === newNumber.numero) {
+            return prev; // Evitar duplicação se for o mesmo número
+          }
+          
+          // Adicionar no início e manter o limite de 1000
+          const updatedNumbers = [newNumber, ...prev];
+          return updatedNumbers.slice(0, 1000);
         });
-        
-        // Registrar a atualização
-        logger.info(`Histórico atualizado com novo número: ${event.numero}`);
       }
-    };
+    });
     
-    // Registrar no EventService para receber notificações de novos números
-    EventService.on('roulette:new-number', handleNewNumberEvent);
-    
-    // Limpar o listener quando o componente for desmontado
+    // Limpar listener ao desmontar
     return () => {
-      EventService.off('roulette:new-number', handleNewNumberEvent);
+      logger.info(`Removendo listener para novos números: ${newNumberListenerId}`);
+      unsubscribe();
     };
-  }, [roletaNome]);
-  
+  }, [roletaNome]); // Dependência apenas no nome da roleta
+
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
   const pieData = generateGroupDistribution(historicalNumbers.map(n => n.numero));
