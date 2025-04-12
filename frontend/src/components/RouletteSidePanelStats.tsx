@@ -30,14 +30,20 @@ interface RouletteSidePanelStatsProps {
   losses: number;
 }
 
+// Modificar a interface para incluir timestamp
+interface RouletteNumber {
+  numero: number;
+  timestamp: string;
+}
+
 // Função para gerar números aleatórios para testes (apenas como último recurso)
 const generateFallbackNumbers = (count: number = 20): number[] => {
   logger.warn(`Não serão gerados números aleatórios`);
   return []; // Retornar array vazio em vez de números aleatórios
 };
 
-// Buscar histórico de números da roleta do serviço centralizado
-export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<number[]> => {
+// Atualizar a função fetchRouletteHistoricalNumbers para retornar número e timestamp
+export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<RouletteNumber[]> => {
   try {
     logger.info(`Buscando dados históricos para: ${rouletteName}`);
     
@@ -59,10 +65,27 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
     
     // Se encontrou a roleta nos dados detalhados
     if (targetDetailedRoulette && targetDetailedRoulette.numero && Array.isArray(targetDetailedRoulette.numero)) {
-      // Extrair apenas os números da roleta encontrada
+      // Extrair números e timestamps
       const processedDetailedNumbers = targetDetailedRoulette.numero
-        .map((n: any) => Number(n.numero))
-        .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+        .map((n: any) => {
+          // Converter timestamp para formato de hora (HH:MM)
+          let timeString = "00:00";
+          if (n.timestamp) {
+            try {
+              const date = new Date(n.timestamp);
+              timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                         date.getMinutes().toString().padStart(2, '0');
+            } catch (e) {
+              logger.error("Erro ao converter timestamp:", e);
+            }
+          }
+          
+          return { 
+            numero: Number(n.numero), 
+            timestamp: timeString
+          };
+        })
+        .filter((n: any) => !isNaN(n.numero) && n.numero >= 0 && n.numero <= 36);
       
       logger.info(`Obtidos ${processedDetailedNumbers.length} números históricos DETALHADOS para ${rouletteName}`);
       return processedDetailedNumbers;
@@ -75,10 +98,27 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
     const targetRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
     
     if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-      // Extrair apenas os números da roleta encontrada
+      // Extrair números e timestamps
       const processedNumbers = targetRoulette.numero
-        .map((n: any) => Number(n.numero))
-        .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+        .map((n: any) => {
+          // Converter timestamp para formato de hora (HH:MM)
+          let timeString = "00:00";
+          if (n.timestamp) {
+            try {
+              const date = new Date(n.timestamp);
+              timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                         date.getMinutes().toString().padStart(2, '0');
+            } catch (e) {
+              logger.error("Erro ao converter timestamp:", e);
+            }
+          }
+          
+          return { 
+            numero: Number(n.numero), 
+            timestamp: timeString
+          };
+        })
+        .filter((n: any) => !isNaN(n.numero) && n.numero >= 0 && n.numero <= 36);
       
       logger.info(`Obtidos ${processedNumbers.length} números históricos para ${rouletteName} do serviço global`);
       return processedNumbers;
@@ -209,7 +249,7 @@ const RouletteSidePanelStats = ({
   wins, 
   losses 
 }: RouletteSidePanelStatsProps) => {
-  const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
+  const [historicalNumbers, setHistoricalNumbers] = useState<RouletteNumber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
@@ -238,9 +278,16 @@ const RouletteSidePanelStats = ({
       if (lastNumbers && lastNumbers.length > 0) {
         logger.info(`Combinando ${lastNumbers.length} números recentes com ${apiNumbers.length} números históricos`);
         
+        // Converter lastNumbers para objetos RouletteNumber
+        const lastNumbersWithTime = lastNumbers.map(num => {
+          const now = new Date();
+          const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                          now.getMinutes().toString().padStart(2, '0');
+          return { numero: num, timestamp: timeString };
+        });
+        
         // NÃO remover duplicatas - Preservar todos os números, pois duplicatas são normais em roletas
-        // Um mesmo número (ex: 5) pode sair várias vezes e isso é informação histórica importante
-        const combinedNumbers = [...lastNumbers, ...apiNumbers];
+        const combinedNumbers = [...lastNumbersWithTime, ...apiNumbers];
         
         logger.info(`Total após combinação: ${combinedNumbers.length} números (incluindo repetições)`);
         
@@ -256,14 +303,33 @@ const RouletteSidePanelStats = ({
       else {
         // Se não temos nenhum dado, usar apenas os números recentes (ou array vazio)
         logger.info(`Sem dados históricos, usando apenas números recentes: ${(lastNumbers || []).length}`);
-        setHistoricalNumbers(lastNumbers || []);
+        
+        // Converter lastNumbers para objetos RouletteNumber
+        const lastNumbersWithTime = (lastNumbers || []).map(num => {
+          const now = new Date();
+          const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                          now.getMinutes().toString().padStart(2, '0');
+          return { numero: num, timestamp: timeString };
+        });
+        
+        setHistoricalNumbers(lastNumbersWithTime);
       }
       
       isInitialRequestDone.current = true;
     } catch (error) {
       logger.error('Erro ao carregar dados históricos:', error);
-      // Em caso de erro, usar apenas os números recentes em vez de gerar aleatórios
-      setHistoricalNumbers(lastNumbers || []);
+      // Em caso de erro, usar apenas os números recentes com timestamp atual
+      if (lastNumbers && lastNumbers.length > 0) {
+        const lastNumbersWithTime = lastNumbers.map(num => {
+          const now = new Date();
+          const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                          now.getMinutes().toString().padStart(2, '0');
+          return { numero: num, timestamp: timeString };
+        });
+        setHistoricalNumbers(lastNumbersWithTime);
+      } else {
+        setHistoricalNumbers([]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -310,19 +376,27 @@ const RouletteSidePanelStats = ({
     if (isInitialRequestDone.current && lastNumbers && lastNumbers.length > 0) {
       logger.info(`Atualizando com ${lastNumbers.length} novos números recentes`);
       
+      // Converter lastNumbers para objetos RouletteNumber com horário atual
+      const lastNumbersWithTime = lastNumbers.map(num => {
+        const now = new Date();
+        const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                        now.getMinutes().toString().padStart(2, '0');
+        return { numero: num, timestamp: timeString };
+      });
+      
       // Apenas concatenar os números no início para preservar todas as ocorrências
       // incluindo repetições que são importantes no histórico de uma roleta
-      const combinedNumbers = [...lastNumbers, ...historicalNumbers];
+      const combinedNumbers = [...lastNumbersWithTime, ...historicalNumbers];
       
       // Limitando a 1000 números no máximo
       setHistoricalNumbers(combinedNumbers.slice(0, 1000));
     }
   }, [lastNumbers]);
   
-  const frequencyData = generateFrequencyData(historicalNumbers);
+  const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
-  const pieData = generateGroupDistribution(historicalNumbers);
-  const colorHourlyStats = generateColorHourlyStats(historicalNumbers);
+  const pieData = generateGroupDistribution(historicalNumbers.map(n => n.numero));
+  const colorHourlyStats = generateColorHourlyStats(historicalNumbers.map(n => n.numero));
   
   const winRate = (wins / (wins + losses)) * 100;
 
@@ -353,12 +427,17 @@ const RouletteSidePanelStats = ({
               <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {historicalNumbers.length})
             </h3>
             <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-15 lg:grid-cols-20 gap-1 max-h-[200px] overflow-y-auto p-3">
-              {historicalNumbers.map((num, idx) => (
+              {historicalNumbers.map((n, idx) => (
                 <div 
                   key={idx} 
-                  className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
+                  className="flex flex-col items-center mb-2"
                 >
-                  {num}
+                  <div className={`w-8 h-8 flex items-center justify-center text-sm font-medium ${getRouletteNumberColor(n.numero)}`}>
+                    {n.numero}
+                  </div>
+                  <div className="text-[9px] text-gray-400 mt-1">
+                    {n.timestamp}
+                  </div>
                 </div>
               ))}
             </div>
