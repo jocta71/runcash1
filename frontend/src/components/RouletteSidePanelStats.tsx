@@ -248,6 +248,9 @@ const RouletteSidePanelStats = ({
 }: RouletteSidePanelStatsProps) => {
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const numbersPerPage = 200; // Quantidade de números por página
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
   
@@ -367,6 +370,28 @@ const RouletteSidePanelStats = ({
   const colorHourlyStats = generateColorHourlyStats(historicalNumbers);
   
   const winRate = (wins / (wins + losses)) * 100;
+  
+  // Calcular o total de páginas disponíveis
+  const totalPages = Math.ceil(historicalNumbers.length / numbersPerPage);
+  
+  // Obter os números para a página atual
+  const displayedNumbers = isExpanded 
+    ? historicalNumbers.slice(currentPage * numbersPerPage, (currentPage + 1) * numbersPerPage)
+    : historicalNumbers;
+    
+  // Função para avançar para a próxima página
+  const nextPage = () => {
+    if (currentPage < totalPages - 1) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+  
+  // Função para voltar para a página anterior
+  const prevPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
 
   return (
     <div className="w-full bg-gray-900 rounded-lg overflow-y-auto max-h-screen">
@@ -393,17 +418,57 @@ const RouletteSidePanelStats = ({
           <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light md:col-span-2">
             <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
               <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {historicalNumbers.length})
+              <button 
+                onClick={() => setIsExpanded(!isExpanded)} 
+                className="ml-auto text-xs bg-vegas-green/20 hover:bg-vegas-green/30 text-[#00ff00] px-2 py-1 rounded"
+              >
+                {isExpanded ? "Recolher" : "Mostrar Todos"}
+              </button>
             </h3>
-            <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-15 lg:grid-cols-20 gap-1 max-h-[200px] overflow-y-auto p-3">
-              {historicalNumbers.map((num, idx) => (
+            <div 
+              className={`grid grid-cols-8 sm:grid-cols-12 md:grid-cols-20 lg:grid-cols-25 gap-1 ${
+                isExpanded ? 'max-h-[800px]' : 'max-h-[300px]'
+              } overflow-y-auto p-3 transition-all duration-300`}
+            >
+              {displayedNumbers.map((num, idx) => (
                 <div 
                   key={idx} 
-                  className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
+                  className={`w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
                 >
                   {num}
                 </div>
               ))}
             </div>
+            
+            {isExpanded && (
+              <div className="mt-4 border-t border-vegas-green/20 pt-4">
+                <h4 className="text-xs font-medium text-vegas-green mb-2">Resumo de Dados</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-vegas-black-light rounded p-2">
+                    <div className="text-xs text-gray-400">Total de Números</div>
+                    <div className="text-lg font-bold text-vegas-gold">{historicalNumbers.length}</div>
+                  </div>
+                  <div className="bg-vegas-black-light rounded p-2">
+                    <div className="text-xs text-gray-400">Vermelhos</div>
+                    <div className="text-lg font-bold text-red-500">
+                      {pieData[0].value} <span className="text-xs text-gray-400">({(pieData[0].value/historicalNumbers.length*100).toFixed(1)}%)</span>
+                    </div>
+                  </div>
+                  <div className="bg-vegas-black-light rounded p-2">
+                    <div className="text-xs text-gray-400">Pretos</div>
+                    <div className="text-lg font-bold text-white">
+                      {pieData[1].value} <span className="text-xs text-gray-400">({(pieData[1].value/historicalNumbers.length*100).toFixed(1)}%)</span>
+                    </div>
+                  </div>
+                  <div className="bg-vegas-black-light rounded p-2">
+                    <div className="text-xs text-gray-400">Zeros</div>
+                    <div className="text-lg font-bold text-vegas-green">
+                      {pieData[2].value} <span className="text-xs text-gray-400">({(pieData[2].value/historicalNumbers.length*100).toFixed(1)}%)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Distribution Pie Chart */}
