@@ -36,10 +36,10 @@ interface RouletteNumber {
   timestamp: string;
 }
 
-// Função para gerar números aleatórios para testes (apenas como último recurso)
+// Função para gerar números aleatórios para testes (agora desativada)
 const generateFallbackNumbers = (count: number = 20): number[] => {
-  logger.warn(`Não serão gerados números aleatórios`);
-  return []; // Retornar array vazio em vez de números aleatórios
+  logger.warn(`Não serão gerados números aleatórios - esta função está desativada`);
+  return []; // Retornar array vazio - não há mais geração de dados simulados
 };
 
 // Modificar a função fetchRouletteHistoricalNumbers para forçar o limite de 1000
