@@ -70,57 +70,21 @@ export class RouletteHistoryService {
   }
 
   private async doFetchHistoricalNumbers(rouletteName: string): Promise<number[]> {
-    try {
-      this.logger.info(`Buscando histórico real da roleta ${rouletteName}`);
-      
-      // Fazer uma requisição real à API para obter os dados
-      const apiUrl = `/api/ROULETTES?limit=1000`;
-      this.logger.info(`Requisição para: ${apiUrl}`);
-      
-      const data = await fetchWithCorsSupport<any[]>(apiUrl);
-      
-      if (!Array.isArray(data)) {
-        this.logger.error(`Resposta inválida da API: ${JSON.stringify(data)}`);
-        return [];
-      }
-      
-      this.logger.info(`Recebidos dados de ${data.length} roletas`);
-      
-      // Procurar a roleta específica nos dados recebidos
-      const targetRoulette = data.find((roleta: any) => {
-        const roletaName = roleta.nome || roleta.name || '';
-        return roletaName.toLowerCase() === rouletteName.toLowerCase();
-      });
-      
-      if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-        // Extrair apenas os números da roleta encontrada
-        const processedNumbers = targetRoulette.numero
-          .map((n: any) => {
-            // Cada item deve ter uma propriedade 'numero'
-            if (n && typeof n === 'object' && 'numero' in n) {
-              return typeof n.numero === 'number' ? n.numero : parseInt(n.numero);
-            }
-            return null;
-          })
-          .filter((n: any) => n !== null && !isNaN(n) && n >= 0 && n <= 36);
-        
-        this.logger.info(`Processados ${processedNumbers.length} números históricos para ${rouletteName}`);
-        
-        // Atualizar o cache com os números reais
-        this.cache[rouletteName] = {
-          data: processedNumbers,
-          timestamp: Date.now()
-        };
-        
-        return processedNumbers;
-      } else {
-        this.logger.warn(`Roleta "${rouletteName}" não encontrada nos dados recebidos`);
-        return [];
-      }
-    } catch (error) {
-      this.logger.error(`Erro ao buscar histórico real da roleta ${rouletteName}:`, error);
-      return [];
-    }
+    console.log(`[RouletteHistoryService] Requisição desativada para histórico da roleta ${rouletteName}`);
+    
+    // Retornar um array vazio em vez de gerar números aleatórios
+    const emptyNumbers: number[] = [];
+    
+    // Simulando um atraso para evitar loop infinito
+    await new Promise(resolve => setTimeout(resolve, 200));
+  
+    // Atualiza o cache com array vazio
+    this.cache[rouletteName] = {
+      data: emptyNumbers,
+      timestamp: Date.now()
+    };
+    
+    return emptyNumbers;
   }
 
   /**
