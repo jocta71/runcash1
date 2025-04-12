@@ -16,6 +16,7 @@ import { useState, useEffect, useRef } from 'react';
 import globalRouletteDataService from '../services/GlobalRouletteDataService';
 import rouletteHistoryService from '../services/RouletteHistoryService';
 import { getLogger } from '../services/utils/logger';
+import EventService from '../services/EventService';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -673,6 +674,45 @@ const RouletteSidePanelStats = ({
       }
     }
   }, [lastNumbers, roletaNome, historicalNumbers]);
+  
+  // Adicionar um novo useEffect para assinar eventos do EventService como o RouletteCard faz
+  useEffect(() => {
+    // Registrar um ouvinte de eventos para receber atualizações diretas do RouletteCard
+    // Este mecanismo garante que quando um novo número é detectado no RouletteCard,
+    // o sidepanel também será atualizado
+    const handleNewNumberEvent = (event: any) => {
+      if (event && event.roletaNome && event.roletaNome.toLowerCase() === roletaNome.toLowerCase()) {
+        logger.info(`[EventListener] Novo número recebido do RouletteCard para ${roletaNome}: ${event.numero}`);
+        
+        // Adicionar o novo número ao início do histórico com o timestamp atual
+        const now = new Date();
+        const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                         now.getMinutes().toString().padStart(2, '0');
+                         
+        const newNumber: RouletteNumber = {
+          numero: event.numero,
+          timestamp: event.timestamp || timeString // Usar o timestamp do evento se disponível
+        };
+        
+        // Adicionar o novo número ao início do histórico e manter o limite de 1000
+        setHistoricalNumbers(prev => {
+          const updated = [newNumber, ...prev];
+          return updated.slice(0, 1000);
+        });
+        
+        // Registrar a atualização
+        logger.info(`Histórico atualizado com novo número: ${event.numero}`);
+      }
+    };
+    
+    // Registrar no EventService para receber notificações de novos números
+    EventService.on('roulette:new-number', handleNewNumberEvent);
+    
+    // Limpar o listener quando o componente for desmontado
+    return () => {
+      EventService.off('roulette:new-number', handleNewNumberEvent);
+    };
+  }, [roletaNome]);
   
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
