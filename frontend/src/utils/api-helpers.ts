@@ -10,15 +10,7 @@
 export async function fetchWithCorsSupport<T>(endpoint: string, options?: RequestInit): Promise<T> {
   // Log detalhado para rastrear todas as chamadas
   const caller = new Error().stack?.split('\n')?.[2]?.trim() || 'unknown';
-  
-  // Log especial para requisições detalhadas
-  const isDetailedRequest = endpoint.includes('limit=1000');
-  if (isDetailedRequest) {
-    console.log(`🔍🔍 [API DETALHADA] Requisição para dados detalhados: ${endpoint}`);
-    console.log(`📊 Chamado por: ${caller}`);
-  } else {
-    console.log(`🔍 [API TRACKER] Requisição para: ${endpoint} | Chamado por: ${caller}`);
-  }
+  console.log(`🔍 [API TRACKER] Requisição para: ${endpoint} | Chamado por: ${caller}`);
   
   // Log para debugging
   console.log(`[API] Iniciando requisição para: ${endpoint}`);
