@@ -14,8 +14,8 @@ const getColorClass = (number: number | null): string => {
   // Números vermelhos na roleta europeia
   const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
   return numerosVermelhos.includes(number) 
-    ? 'bg-red-600 text-white' 
-    : 'bg-black text-white';
+    ? 'bg-[#FF1D46] text-white' 
+    : 'bg-[#292524] text-white';
 };
 
 const NumberDisplay: React.FC<NumberDisplayProps> = ({ 
