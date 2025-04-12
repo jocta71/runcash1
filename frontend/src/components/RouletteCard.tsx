@@ -13,7 +13,6 @@ import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
 import { fetchWithCorsSupport } from '@/utils/api-helpers';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
-import EventService from '@/services/EventService';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -234,16 +233,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       setRecentNumbers(apiNumbers.slice(0, 20));
       setLastNumber(apiNumbers[0]);
       setHasRealData(true);
-      
-      // Emitir evento para o número mais recente
-      const numTimestamp = getTimestampForNumber(apiRoulette, apiNumbers[0], 0);
-      EventService.emit('roulette:new-number', {
-        roletaNome: safeData.name,
-        numero: apiNumbers[0],
-        timestamp: numTimestamp,
-        source: 'RouletteCard-init'
-      });
-      
       return true;
     }
     
@@ -268,15 +257,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       // Adicionar o número novo à nossa lista temporária
       newNumbers.push(apiNum);
-      
-      // Emitir evento para cada novo número encontrado
-      const numTimestamp = getTimestampForNumber(apiRoulette, apiNum, i);
-      EventService.emit('roulette:new-number', {
-        roletaNome: safeData.name,
-        numero: apiNum,
-        timestamp: numTimestamp,
-        source: 'RouletteCard-update'
-      });
     }
     
     // Se encontramos números novos, atualizamos o estado
@@ -305,27 +285,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
     
     return false;
-  };
-
-  // Função auxiliar para obter o timestamp de um número específico
-  const getTimestampForNumber = (apiData: any, numero: number, index: number): string => {
-    if (apiData && apiData.numero && Array.isArray(apiData.numero) && apiData.numero.length > index) {
-      const rouletteData = apiData.numero[index];
-      if (rouletteData && rouletteData.timestamp) {
-        try {
-          const date = new Date(rouletteData.timestamp);
-          return date.getHours().toString().padStart(2, '0') + ':' + 
-                 date.getMinutes().toString().padStart(2, '0');
-        } catch (e) {
-          console.error("Erro ao processar timestamp:", e);
-        }
-      }
-    }
-    
-    // Se não conseguir obter o timestamp da API, usar hora atual
-    const now = new Date();
-    return now.getHours().toString().padStart(2, '0') + ':' + 
-           now.getMinutes().toString().padStart(2, '0');
   };
 
   // Função para extrair números da resposta da API
