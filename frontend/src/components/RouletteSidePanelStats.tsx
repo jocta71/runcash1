@@ -379,50 +379,53 @@ const RouletteSidePanelStats = ({
     };
   }, [roletaNome]); // Dependência apenas na roleta
 
-  // Atualizar números quando lastNumbers mudar, usando timestamp da API
+  // Adicionar um efeito para garantir que os números recentes sejam sempre processados
   useEffect(() => {
     if (lastNumbers && lastNumbers.length > 0) {
-      logger.info(`[SIDEPANEL] Atualizando com ${lastNumbers.length} novos números recentes para ${roletaNome}`);
-      console.log(`[DEBUG HISTÓRICO] SidePanelStats recebeu novos números para roleta ${roletaNome}:`, lastNumbers);
+      console.log(`[FORÇAR ATUALIZAÇÃO] SidePanelStats para ${roletaNome} recebeu ${lastNumbers.length} números recentes`);
+      console.table(lastNumbers);
       
-      // Obter os dados mais recentes do serviço global para garantir timestamps corretos
+      // Obter os dados mais recentes do serviço global
       const allRoulettes = globalRouletteDataService.getAllRoulettes();
       const currentRoulette = allRoulettes.find((r: any) => {
         const name = r.nome || r.name || '';
         return name.toLowerCase() === roletaNome.toLowerCase();
       });
       
-      // Converter lastNumbers para objetos RouletteNumber usando timestamp da API quando disponível
-      const lastNumbersWithTime = lastNumbers.map((num, index) => {
-        // Tentar obter o timestamp correto do serviço global
-        if (currentRoulette && currentRoulette.numero && Array.isArray(currentRoulette.numero) && 
-            currentRoulette.numero.length > index) {
-          const rouletteData = currentRoulette.numero[index];
-          if (rouletteData && rouletteData.timestamp) {
+      // Converter números para o formato com timestamp
+      const numbersWithTimestamp = lastNumbers.map((num, index) => {
+        // Tentar obter timestamp da API primeiro
+        if (currentRoulette && currentRoulette.numero && Array.isArray(currentRoulette.numero)) {
+          const matchingApiNumber = currentRoulette.numero.find(
+            (n: any) => n.numero === num || Number(n.numero) === num
+          );
+          
+          if (matchingApiNumber && matchingApiNumber.timestamp) {
             try {
-              const date = new Date(rouletteData.timestamp);
+              const date = new Date(matchingApiNumber.timestamp);
               const timeString = date.getHours().toString().padStart(2, '0') + ':' + 
-                            date.getMinutes().toString().padStart(2, '0');
+                             date.getMinutes().toString().padStart(2, '0');
               return { numero: num, timestamp: timeString };
             } catch (e) {
-              logger.error("Erro ao processar timestamp:", e);
+              console.error("Erro ao processar timestamp da API:", e);
             }
           }
         }
         
-        // Fallback: usar hora atual se não conseguir obter da API
+        // Usar hora atual como fallback
         const now = new Date();
         const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
                         now.getMinutes().toString().padStart(2, '0');
         return { numero: num, timestamp: timeString };
       });
       
-      // Apenas concatenar os números no início para preservar todas as ocorrências
-      const combinedNumbers = [...lastNumbersWithTime, ...historicalNumbers];
-      console.log(`[DEBUG HISTÓRICO] Combinando ${lastNumbersWithTime.length} novos números com ${historicalNumbers.length} existentes`);
-      
-      // Limitando a 1000 números no máximo
-      setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+      // Criar nova lista combinando números recentes com histórico existente
+      // Importante: NÃO remover duplicatas! São normais em roletas.
+      setHistoricalNumbers(prevNumbers => {
+        const newCombined = [...numbersWithTimestamp, ...prevNumbers];
+        console.log(`[FORÇAR ATUALIZAÇÃO] Combinados ${numbersWithTimestamp.length} números recentes com ${prevNumbers.length} existentes`);
+        return newCombined.slice(0, 1000); // Limitar a 1000 números
+      });
     }
   }, [lastNumbers, roletaNome]);
   

@@ -124,6 +124,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
   const [estrategiaSelecionada, setEstrategiaSelecionada] = useState<string>('martingale'); // Martingale selecionado por padrão
   const [showEstrategiaDropdown, setShowEstrategiaDropdown] = useState(false);
+  const [statsModalNumbers, setStatsModalNumbers] = useState<number[]>([]);
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -454,14 +455,22 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     if (isNewNumber && lastNumber !== null) {
       console.log(`[DEBUG NÚMEROS] Novo número detectado no RouletteCard: ${lastNumber}`);
       
-      // Se o modal de estatísticas estiver aberto, forçar re-render do SidePanelStats
+      // Se o modal de estatísticas estiver aberto, atualizar os números
       if (isStatsModalOpen) {
-        console.log(`[DEBUG NÚMEROS] Modal aberto, forçando atualização do SidePanelStats`);
-        // A chave do RouletteSidePanelStats é atualizada no render,
-        // forçando ele a receber os novos números
+        console.log(`[DEBUG NÚMEROS] Modal aberto, atualizando números para SidePanelStats`);
+        setStatsModalNumbers([...recentNumbers]);
       }
     }
-  }, [isNewNumber, lastNumber, isStatsModalOpen]);
+  }, [isNewNumber, lastNumber, isStatsModalOpen, recentNumbers]);
+
+  // Modificar a função que abre o modal para garantir que os números estejam atualizados
+  const openStatsModal = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Garantir que o modal receba os números mais recentes
+    setStatsModalNumbers([...recentNumbers]);
+    console.log("[DEBUG MODAL] Abrindo modal com números:", recentNumbers);
+    setIsStatsModalOpen(true);
+  };
 
   return (
     <Card 
@@ -621,10 +630,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           
           {/* Link para estatísticas completas */}
           <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsStatsModalOpen(true);
-              }}
+              onClick={openStatsModal}
               className="mt-3 text-xs text-blue-600 hover:text-blue-800 flex items-center"
           >
             <PieChart className="h-3 w-3 mr-1" />
@@ -664,9 +670,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             {/* Adicionar logs para debug */}
             {console.log("[DEBUG ROULETTECARD] Enviando números para SidePanelStats:", recentNumbers)}
             <RouletteSidePanelStats
-              key={`sidepanel-${safeData.name}-${recentNumbers.length}`}
+              key={`sidepanel-${safeData.name}-${statsModalNumbers.length}-${Date.now()}`}
               roletaNome={safeData.name}
-              lastNumbers={recentNumbers}
+              lastNumbers={statsModalNumbers}
               wins={0}
               losses={0}
             />
