@@ -610,7 +610,7 @@ const RouletteSidePanelStats = ({
             <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
               <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {historicalNumbers.length})
             </h3>
-            <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-15 lg:grid-cols-25 gap-1 max-h-[200px] overflow-y-auto p-3">
+            <div className="grid grid-cols-25 gap-1 max-h-[200px] overflow-y-auto p-3">
               {historicalNumbers.map((n, idx) => (
                 <div 
                   key={idx} 
