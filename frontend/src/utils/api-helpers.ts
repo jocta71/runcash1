@@ -8,6 +8,10 @@
  * @param options Opções para fetch (opcional)
  */
 export async function fetchWithCorsSupport<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  // Log detalhado para rastrear todas as chamadas
+  const caller = new Error().stack?.split('\n')?.[2]?.trim() || 'unknown';
+  console.log(`🔍 [API TRACKER] Requisição para: ${endpoint} | Chamado por: ${caller}`);
+  
   // Log para debugging
   console.log(`[API] Iniciando requisição para: ${endpoint}`);
   

@@ -95,8 +95,8 @@ class RESTSocketService {
   // Manipular alterações de visibilidade da página
   private handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
-      console.log('[RESTSocketService] Página voltou a ficar visível, atualizando dados');
-      this.fetchDataFromREST();
+      console.log('[RESTSocketService] Página voltou a ficar visível, solicitando atualização via serviço global');
+      globalRouletteDataService.forceUpdate();
     }
   }
 
@@ -110,59 +110,48 @@ class RESTSocketService {
 
     this.connectionActive = true;
     
-    // Executar imediatamente a primeira vez
-    this.fetchDataFromREST().catch(err => 
-      console.error('[RESTSocketService] Erro na primeira chamada:', err)
-    );
+    console.log('[RESTSocketService] Não criando timer próprio - usando serviço global centralizado');
     
-    // Criar um novo timer com intervalo FIXO de 8 segundos
-    // Este será o ÚNICO timer no sistema que consulta a API
-    this.timerId = window.setInterval(() => {
-      console.log('[RESTSocketService] Executando polling em intervalo FIXO de 8 segundos');
-      this.fetchDataFromREST().catch(err => 
-        console.error('[RESTSocketService] Erro na chamada programada:', err)
-      );
-    }, 8000) as unknown as number;
+    // Registrar para receber atualizações do serviço global
+    globalRouletteDataService.subscribe('RESTSocketService-main', () => {
+      console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
+      // Reprocessar dados do serviço global quando houver atualização
+      const data = globalRouletteDataService.getAllRoulettes();
+      if (data && Array.isArray(data)) {
+        this.processDataAsEvents(data);
+      }
+    });
     
-    console.log(`[RESTSocketService] Polling com intervalo FIXO de 8000ms iniciado`);
+    // Processar dados iniciais se disponíveis
+    const initialData = globalRouletteDataService.getAllRoulettes();
+    if (initialData && initialData.length > 0) {
+      console.log('[RESTSocketService] Processando dados iniciais do serviço global');
+      this.processDataAsEvents(initialData);
+    }
   }
   
   // Buscar dados da API REST
   private async fetchDataFromREST() {
     try {
       const startTime = Date.now();
-      console.log('[RESTSocketService] Iniciando chamada à API REST: ' + startTime);
+      console.log('[RESTSocketService] Obtendo dados através do serviço global centralizado');
       
-      const apiBaseUrl = this.getApiBaseUrl();
+      // Usar o serviço global centralizado em vez de fazer chamada direta à API
+      const data = await globalRouletteDataService.fetchRouletteData();
       
-      // IMPORTANTE: Esta é a ÚNICA chamada para a API em todo o sistema!
-      // Usar sempre o mesmo endpoint com mesmos parâmetros para consistência
-      const url = `${apiBaseUrl}/ROULETTES?limit=100`;
-      
-      console.log(`[RESTSocketService] Chamando: ${url}`);
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar dados: ${response.status} ${response.statusText}`);
+      if (!data || !Array.isArray(data)) {
+        throw new Error('Dados recebidos do serviço global não são válidos');
       }
       
-      const data = await response.json();
       const endTime = Date.now();
-      console.log(`[RESTSocketService] Chamada concluída em ${endTime - startTime}ms`);
-      
-      // Salvar no cache
-      localStorage.setItem('roulettes_data_cache', JSON.stringify({
-        timestamp: Date.now(),
-        data: data
-      }));
+      console.log(`[RESTSocketService] Dados obtidos do serviço global em ${endTime - startTime}ms`);
       
       // Processar os dados como eventos
       this.processDataAsEvents(data);
       
       return true;
     } catch (error) {
-      console.error('[RESTSocketService] Erro ao buscar dados da API REST:', error);
+      console.error('[RESTSocketService] Erro ao obter dados do serviço global:', error);
       return false;
     }
   }
@@ -399,7 +388,21 @@ class RESTSocketService {
   }
 
   public async requestRecentNumbers(): Promise<boolean> {
-    return this.fetchDataFromREST();
+    try {
+      console.log('[RESTSocketService] Forçando atualização de dados via serviço global');
+      await globalRouletteDataService.forceUpdate();
+      
+      // Processar os dados atualizados
+      const data = globalRouletteDataService.getAllRoulettes();
+      if (data && Array.isArray(data)) {
+        this.processDataAsEvents(data);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('[RESTSocketService] Erro ao atualizar dados:', error);
+      return false;
+    }
   }
 
   public getRouletteHistory(roletaId: string): number[] {
@@ -411,7 +414,29 @@ class RESTSocketService {
   }
 
   public async requestRouletteNumbers(roletaId: string): Promise<boolean> {
-    return this.fetchDataFromREST();
+    try {
+      console.log(`[RESTSocketService] Buscando números para roleta ${roletaId} via serviço global`);
+      await globalRouletteDataService.forceUpdate();
+      
+      // Processar os dados atualizados
+      const data = globalRouletteDataService.getAllRoulettes();
+      if (data && Array.isArray(data)) {
+        const roleta = data.find(r => r.id === roletaId);
+        if (roleta && roleta.numero && Array.isArray(roleta.numero)) {
+          // Extrair apenas os números
+          const numeros = roleta.numero.map((n: any) => n.numero || n.number || 0);
+          
+          // Atualizar o histórico
+          this.setRouletteHistory(roletaId, numeros);
+          console.log(`[RESTSocketService] Atualizados ${numeros.length} números para roleta ${roletaId}`);
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`[RESTSocketService] Erro ao buscar números para roleta ${roletaId}:`, error);
+      return false;
+    }
   }
 
   public isConnected(): boolean {
@@ -424,15 +449,8 @@ class RESTSocketService {
     try {
       this._isLoadingHistoricalData = true;
       
-      // Buscar todas as roletas com dados históricos
-      const apiBaseUrl = this.getApiBaseUrl();
-      const response = await fetch(`${apiBaseUrl}/ROULETTES?limit=1000`);
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar dados históricos: ${response.status}`);
-      }
-      
-      const data = await response.json();
+      // Buscar dados detalhados pelo serviço global
+      const data = await globalRouletteDataService.fetchDetailedRouletteData();
       
       if (Array.isArray(data)) {
         // Processar os dados recebidos
