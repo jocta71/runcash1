@@ -202,29 +202,44 @@ class GlobalRouletteDataService {
       }
       
       console.log('[GlobalRouletteService] Buscando dados detalhados (limit=1000)');
+      console.log(`[GlobalRouletteService] URL completa: /api/ROULETTES?limit=${DETAILED_LIMIT}`);
       
       // Usar a função utilitária com suporte a CORS - com limit=1000 para dados detalhados
       const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DETAILED_LIMIT}`);
       
       // Verificar se os dados são válidos
       if (data && Array.isArray(data)) {
-        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${data.length} roletas`);
+        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
         this.detailedRouletteData = data;
         this.lastDetailedFetchTime = now;
         
         // Notificar assinantes de dados detalhados
         this.notifyDetailedSubscribers();
+        
+        return this.detailedRouletteData;
       } else {
         console.error('[GlobalRouletteService] Resposta inválida da API detalhada');
+        return this.detailedRouletteData;
       }
-      
-      return this.detailedRouletteData;
     } catch (error) {
       console.error('[GlobalRouletteService] Erro ao buscar dados detalhados:', error);
       return this.detailedRouletteData;
     } finally {
       this.isFetchingDetailed = false;
     }
+  }
+  
+  /**
+   * Conta o número total de números em todas as roletas
+   */
+  private contarNumerosTotais(roletas: any[]): number {
+    let total = 0;
+    roletas.forEach(roleta => {
+      if (roleta.numero && Array.isArray(roleta.numero)) {
+        total += roleta.numero.length;
+      }
+    });
+    return total;
   }
   
   /**

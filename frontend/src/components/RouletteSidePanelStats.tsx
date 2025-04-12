@@ -41,18 +41,37 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
   try {
     logger.info(`Buscando dados históricos para: ${rouletteName}`);
     
-    // Usar o serviço centralizado para buscar os dados históricos
-    const numbers = await rouletteHistoryService.fetchRouletteHistoricalNumbers(rouletteName);
+    // Primeiro, tentar buscar dados detalhados com limit=1000
+    logger.info(`Solicitando dados detalhados (limit=1000) para ${rouletteName}`);
+    await globalRouletteDataService.fetchDetailedRouletteData();
     
-    if (numbers && numbers.length > 0) {
-      logger.info(`Obtidos ${numbers.length} números históricos para ${rouletteName}`);
-      return numbers;
+    // Uma vez que os dados detalhados foram buscados, procurar a roleta específica
+    logger.info(`Buscando roleta ${rouletteName} nos dados detalhados`);
+    
+    // Obter todos os dados detalhados
+    const detailedRoulettes = globalRouletteDataService.getAllDetailedRoulettes();
+    
+    // Procurar a roleta pelo nome nos dados detalhados
+    const targetDetailedRoulette = detailedRoulettes.find((roleta: any) => {
+      const roletaName = roleta.nome || roleta.name || '';
+      return roletaName.toLowerCase() === rouletteName.toLowerCase();
+    });
+    
+    // Se encontrou a roleta nos dados detalhados
+    if (targetDetailedRoulette && targetDetailedRoulette.numero && Array.isArray(targetDetailedRoulette.numero)) {
+      // Extrair apenas os números da roleta encontrada
+      const processedDetailedNumbers = targetDetailedRoulette.numero
+        .map((n: any) => Number(n.numero))
+        .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+      
+      logger.info(`Obtidos ${processedDetailedNumbers.length} números históricos DETALHADOS para ${rouletteName}`);
+      return processedDetailedNumbers;
     }
     
-    // Se não encontrou dados no serviço, tenta buscar do serviço global
-    logger.info(`Sem dados no serviço de histórico, tentando serviço global para ${rouletteName}`);
+    // Se não encontrou nos dados detalhados, tentar nos dados normais
+    logger.info(`Roleta não encontrada nos dados detalhados, tentando dados normais para ${rouletteName}`);
     
-    // Obter a roleta pelo nome do serviço global
+    // Obter a roleta pelo nome do serviço global 
     const targetRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
     
     if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
@@ -199,8 +218,16 @@ const RouletteSidePanelStats = ({
   const loadHistoricalData = async () => {
     try {
       logger.info(`Buscando histórico para ${roletaNome}...`);
+      
+      // Solicitar atualização de dados detalhados antes de buscar os números
+      await globalRouletteDataService.fetchDetailedRouletteData().catch(err => {
+        logger.error(`Erro ao buscar dados detalhados: ${err.message}`);
+      });
+      
       // Buscar dados históricos usando a função atualizada
       let apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
+      
+      logger.info(`Resultados da busca: ${apiNumbers.length} números obtidos`);
       
       if (apiNumbers.length === 0 && isInitialRequestDone.current) {
         logger.info(`Sem novos dados disponíveis, mantendo estado atual`);
@@ -210,15 +237,13 @@ const RouletteSidePanelStats = ({
       // Se houver lastNumbers nas props, garantir que eles estão incluídos
       if (lastNumbers && lastNumbers.length > 0) {
         logger.info(`Combinando ${lastNumbers.length} números recentes com ${apiNumbers.length} números históricos`);
-        // Combinar lastNumbers com os números históricos, removendo duplicatas
-        const combinedNumbers = [...lastNumbers];
-        apiNumbers.forEach(num => {
-          if (!combinedNumbers.includes(num)) {
-            combinedNumbers.push(num);
-          }
-        });
         
-        logger.info(`Total após combinação: ${combinedNumbers.length} números`);
+        // Filtrar duplicatas - vamos criar um Set para garantir valores únicos
+        const uniqueNumbersSet = new Set([...lastNumbers, ...apiNumbers]);
+        const combinedNumbers = Array.from(uniqueNumbersSet);
+        
+        logger.info(`Total após combinação e remoção de duplicatas: ${combinedNumbers.length} números únicos`);
+        
         // Limitando a 1000 números no máximo
         setHistoricalNumbers(combinedNumbers.slice(0, 1000));
       } 
@@ -252,18 +277,31 @@ const RouletteSidePanelStats = ({
     isInitialRequestDone.current = false;
     setIsLoading(true);
     
-    // Registrar no serviço global para receber atualizações
+    // ID único para assinatura de dados detalhados
+    const detailedSubscriberId = `${subscriberId.current}-detailed`;
+    
+    // Registrar no serviço global para receber atualizações de dados normais
     globalRouletteDataService.subscribe(subscriberId.current, () => {
-      logger.info(`Recebendo atualização de dados para ${roletaNome}`);
+      logger.info(`Recebendo atualização de dados normais para ${roletaNome}`);
+      loadHistoricalData();
+    });
+    
+    // Registrar especificamente para receber atualizações de dados detalhados
+    globalRouletteDataService.subscribeToDetailedData(detailedSubscriberId, () => {
+      logger.info(`Recebendo atualização de dados DETALHADOS para ${roletaNome}`);
       loadHistoricalData();
     });
     
     // Carregar dados imediatamente
     loadHistoricalData();
     
+    // Forçar uma busca de dados detalhados
+    globalRouletteDataService.fetchDetailedRouletteData();
+    
     return () => {
-      // Cancelar inscrição ao desmontar
+      // Cancelar inscrições ao desmontar
       globalRouletteDataService.unsubscribe(subscriberId.current);
+      globalRouletteDataService.unsubscribe(detailedSubscriberId);
     };
   }, [roletaNome]); // Dependência apenas na roleta
 
