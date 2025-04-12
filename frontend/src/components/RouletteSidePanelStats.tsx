@@ -42,20 +42,25 @@ const generateFallbackNumbers = (count: number = 20): number[] => {
   return []; // Retornar array vazio em vez de números aleatórios
 };
 
-// Atualizar a função fetchRouletteHistoricalNumbers para retornar número e timestamp
+// Modificar a função fetchRouletteHistoricalNumbers para forçar o limite de 1000
 export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<RouletteNumber[]> => {
   try {
     logger.info(`Buscando dados históricos para: ${rouletteName}`);
     
-    // Primeiro, tentar buscar dados detalhados com limit=1000
+    // Primeiro, tentar buscar dados detalhados com limit=1000 explicitamente
     logger.info(`Solicitando dados detalhados (limit=1000) para ${rouletteName}`);
     await globalRouletteDataService.fetchDetailedRouletteData();
     
-    // Uma vez que os dados detalhados foram buscados, procurar a roleta específica
-    logger.info(`Buscando roleta ${rouletteName} nos dados detalhados`);
-    
-    // Obter todos os dados detalhados
+    // Verificar se há problemas com os dados detalhados
     const detailedRoulettes = globalRouletteDataService.getAllDetailedRoulettes();
+    logger.info(`Dados detalhados recebidos: ${detailedRoulettes.length} roletas`);
+    
+    // Verificar números em cada roleta para debug
+    detailedRoulettes.forEach((roleta: any) => {
+      const roletaName = roleta.nome || roleta.name || '';
+      const numeroCount = roleta.numero && Array.isArray(roleta.numero) ? roleta.numero.length : 0;
+      logger.info(`Roleta ${roletaName}: ${numeroCount} números`);
+    });
     
     // Procurar a roleta pelo nome nos dados detalhados
     const targetDetailedRoulette = detailedRoulettes.find((roleta: any) => {
@@ -76,7 +81,6 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
               const date = new Date(n.timestamp);
               timeString = date.getHours().toString().padStart(2, '0') + ':' + 
                          date.getMinutes().toString().padStart(2, '0');
-              logger.info(`Timestamp API: ${n.timestamp} convertido para ${timeString}`);
             } catch (e) {
               logger.error("Erro ao converter timestamp:", e);
             }
@@ -93,13 +97,23 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
       return processedDetailedNumbers;
     }
     
-    // Se não encontrou nos dados detalhados, tentar nos dados normais
-    logger.info(`Roleta não encontrada nos dados detalhados, tentando dados normais para ${rouletteName}`);
+    // Se não encontrou nos dados detalhados, forçar nova requisição com limit=1000
+    logger.info(`Roleta não encontrada nos dados detalhados ou sem números suficientes, realizando nova requisição`);
     
-    // Obter a roleta pelo nome do serviço global 
-    const targetRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
+    // Tentar forçar uma nova requisição explícita
+    logger.info(`Forçando uma nova requisição com limit=1000 para garantir`);
+    await globalRouletteDataService.fetchDetailedRouletteData();
+    
+    // Obter a roleta pelo nome do serviço global após a nova requisição 
+    const allRoulettesAgain = globalRouletteDataService.getAllDetailedRoulettes();
+    const targetRoulette = allRoulettesAgain.find((roleta: any) => {
+      const roletaName = roleta.nome || roleta.name || '';
+      return roletaName.toLowerCase() === rouletteName.toLowerCase();
+    });
     
     if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+      logger.info(`Tamanho do array numero da roleta ${rouletteName}: ${targetRoulette.numero.length}`);
+      
       // Extrair números e timestamps
       const processedNumbers = targetRoulette.numero
         .map((n: any) => {
@@ -111,7 +125,6 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
               const date = new Date(n.timestamp);
               timeString = date.getHours().toString().padStart(2, '0') + ':' + 
                          date.getMinutes().toString().padStart(2, '0');
-              logger.info(`Timestamp API: ${n.timestamp} convertido para ${timeString}`);
             } catch (e) {
               logger.error("Erro ao converter timestamp:", e);
             }
@@ -124,10 +137,10 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
         })
         .filter((n: any) => !isNaN(n.numero) && n.numero >= 0 && n.numero <= 36);
       
-      logger.info(`Obtidos ${processedNumbers.length} números históricos para ${rouletteName} do serviço global`);
+      logger.info(`Obtidos ${processedNumbers.length} números históricos para ${rouletteName} da requisição forçada`);
       return processedNumbers;
     } else {
-      logger.warn(`Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
+      logger.warn(`Roleta "${rouletteName}" não encontrada ou sem histórico de números após múltiplas tentativas`);
       // Se não encontrou a roleta, forçar uma atualização dos dados
       globalRouletteDataService.forceUpdate();
       return [];
@@ -402,8 +415,73 @@ const RouletteSidePanelStats = ({
 }: RouletteSidePanelStatsProps) => {
   const [historicalNumbers, setHistoricalNumbers] = useState<RouletteNumber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState<string>("Carregando dados históricos...");
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
+  
+  // Função para forçar uma atualização manual dos dados históricos
+  const forceHistoricalDataReload = async () => {
+    try {
+      setIsLoading(true);
+      setLoadingMessage("Forçando carregamento de 1000 números...");
+      
+      // Desabilitar o cache temporariamente e forçar uma nova requisição
+      logger.info("Forçando busca manual de 1000 números");
+      
+      // Tentar buscar dados diretamente da API com limit=1000
+      const apiUrl = `/api/ROULETTES?limit=1000`;
+      logger.info(`Fazendo requisição direta para ${apiUrl}`);
+      
+      const response = await fetch(apiUrl);
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      logger.info(`Dados recebidos diretamente da API: ${data.length} roletas`);
+      
+      // Procurar a roleta desejada nos dados
+      const targetRoulette = data.find((roleta: any) => {
+        const roletaName = roleta.nome || roleta.name || '';
+        return roletaName.toLowerCase() === roletaNome.toLowerCase();
+      });
+      
+      if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+        logger.info(`Roleta ${roletaNome} encontrada com ${targetRoulette.numero.length} números`);
+        
+        // Processar os números usando nossa função normal
+        const processedNumbers = targetRoulette.numero
+          .map((n: any) => {
+            let timeString = "00:00";
+            if (n.timestamp) {
+              try {
+                const date = new Date(n.timestamp);
+                timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                            date.getMinutes().toString().padStart(2, '0');
+              } catch (e) {
+                logger.error("Erro ao converter timestamp:", e);
+              }
+            }
+            
+            return { 
+              numero: Number(n.numero), 
+              timestamp: timeString
+            };
+          })
+          .filter((n: any) => !isNaN(n.numero) && n.numero >= 0 && n.numero <= 36);
+        
+        logger.info(`Processados ${processedNumbers.length} números`);
+        setHistoricalNumbers(processedNumbers);
+      } else {
+        logger.error(`Roleta ${roletaNome} não encontrada nos dados da API ou sem números`);
+      }
+    } catch (error) {
+      logger.error("Erro ao forçar carregamento de dados históricos:", error);
+    } finally {
+      setIsLoading(false);
+      setLoadingMessage("Carregando dados históricos...");
+    }
+  };
   
   // Função para carregar dados históricos - preservar timestamp da API
   const loadHistoricalData = async () => {
@@ -551,13 +629,29 @@ const RouletteSidePanelStats = ({
         <h2 className="text-[#00ff00] flex items-center text-xl font-bold mb-2">
           <BarChart className="mr-3" /> Estatísticas da {roletaNome}
         </h2>
-        <p className="text-sm text-gray-400 mb-4">
+        <p className="text-sm text-gray-400 mb-1">
           {isLoading ? (
-            "Carregando dados históricos..."
+            loadingMessage
           ) : (
             `Análise detalhada dos últimos ${historicalNumbers.length} números e tendências`
           )}
         </p>
+        
+        {/* Adicionar seção de debug para verificar problemas com o total de números */}
+        <div className="mt-1 mb-3 text-xs text-yellow-500 bg-gray-800 p-2 rounded-md">
+          <p>Debug: Números carregados: {historicalNumbers.length} / 1000 (esperado)</p>
+          <p>Timestamp último número: {historicalNumbers.length > 0 ? historicalNumbers[0].timestamp : 'N/A'}</p>
+          <p>Timestamp mais antigo: {historicalNumbers.length > 0 ? historicalNumbers[historicalNumbers.length-1].timestamp : 'N/A'}</p>
+          
+          {/* Botão para forçar atualização */}
+          <button 
+            onClick={forceHistoricalDataReload}
+            className="mt-2 px-3 py-1 bg-yellow-600 text-black rounded hover:bg-yellow-500 text-xs"
+            disabled={isLoading}
+          >
+            {isLoading ? "Carregando..." : "Forçar busca de 1000 números"}
+          </button>
+        </div>
       </div>
       
       {isLoading ? (

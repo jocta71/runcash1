@@ -195,13 +195,9 @@ class GlobalRouletteDataService {
       const now = Date.now();
       this.isFetchingDetailed = true;
       
-      // Verificar se os dados detalhados em cache ainda são válidos
-      if (this.detailedRouletteData.length > 0 && now - this.lastDetailedFetchTime < CACHE_TTL) {
-        console.log(`[GlobalRouletteService] Usando dados detalhados em cache, idade: ${Math.round((now - this.lastDetailedFetchTime)/1000)}s`);
-        return this.detailedRouletteData;
-      }
-      
-      console.log('[GlobalRouletteService] Buscando dados detalhados (limit=1000)');
+      // Sempre buscar dados detalhados quando solicitado explicitamente, ignorando o cache
+      // Isso garantirá que sempre tenhamos os 1000 números mais recentes
+      console.log('[GlobalRouletteService] Buscando dados detalhados (limit=1000) - ignorando cache');
       console.log(`[GlobalRouletteService] URL completa: /api/ROULETTES?limit=${DETAILED_LIMIT}`);
       
       // Usar a função utilitária com suporte a CORS - com limit=1000 para dados detalhados
@@ -209,7 +205,20 @@ class GlobalRouletteDataService {
       
       // Verificar se os dados são válidos
       if (data && Array.isArray(data)) {
-        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
+        // Verificar quantos números foram retornados para cada roleta
+        data.forEach((roleta: any) => {
+          const roletaName = roleta.nome || roleta.name || '';
+          const totalNumeros = roleta.numero && Array.isArray(roleta.numero) ? roleta.numero.length : 0;
+          console.log(`[GlobalRouletteService] Roleta ${roletaName}: ${totalNumeros} números recebidos`);
+        });
+        
+        const totalNumeros = this.contarNumerosTotais(data);
+        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${data.length} roletas com um total de ${totalNumeros} números`);
+        
+        if (totalNumeros < 1000) {
+          console.warn(`[GlobalRouletteService] ALERTA: Foram recebidos menos de 1000 números no total (${totalNumeros})`);
+        }
+        
         this.detailedRouletteData = data;
         this.lastDetailedFetchTime = now;
         
