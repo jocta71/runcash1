@@ -682,8 +682,8 @@ const RouletteSidePanelStats = ({
     
     logger.info(`Registrando listener para novos números: ${newNumberListenerId}`);
     
-    // Registrar listener para o evento 'roulette:new-number'
-    const unsubscribe = EventService.on('roulette:new-number', (data) => {
+    // Definir o handler para o evento
+    const handler = (data: any) => {
       // Verificar se o evento é para esta roleta específica
       if (data && typeof data === 'object' && data.roletaNome === roletaNome && data.numero !== undefined) {
         logger.info(`Recebido novo número do RouletteCard: ${data.numero} para ${roletaNome}`);
@@ -709,7 +709,10 @@ const RouletteSidePanelStats = ({
           return updatedNumbers.slice(0, 1000);
         });
       }
-    });
+    };
+    
+    // Registrar listener usando a função EventService.on
+    const unsubscribe = EventService.on('roulette:new-number', handler);
     
     // Limpar listener ao desmontar
     return () => {
