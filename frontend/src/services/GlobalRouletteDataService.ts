@@ -19,9 +19,6 @@ const DETAILED_LIMIT = 1000;
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
 
-// Tipo para callbacks de novos números
-type NewNumberCallback = (rouletteName: string, newNumber: number) => void;
-
 /**
  * Serviço Global para centralizar requisições de dados das roletas
  * Este serviço implementa o padrão Singleton para garantir apenas uma instância
@@ -40,9 +37,7 @@ class GlobalRouletteDataService {
   private pollingTimer: number | null = null;
   private subscribers: Map<string, SubscriberCallback> = new Map();
   private detailedSubscribers: Map<string, SubscriberCallback> = new Map();
-  private newNumberSubscribers: Map<string, NewNumberCallback> = new Map();
   private _currentFetchPromise: Promise<any[]> | null = null;
-  private previousRouletteData: any[] = [];
   
   // Construtor privado para garantir Singleton
   private constructor() {
@@ -143,19 +138,12 @@ class GlobalRouletteDataService {
       
       // Criar e armazenar a promessa atual
       this._currentFetchPromise = (async () => {
-        // Salvar estado anterior para comparação
-        this.previousRouletteData = [...this.rouletteData];
-        
         // Usar a função utilitária com suporte a CORS - com limit=100 para polling regular
         const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
         
         // Verificar se os dados são válidos
         if (data && Array.isArray(data)) {
           console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas`);
-          
-          // Detectar novos números e notificar assinantes
-          this.detectNewNumbersAndNotify(this.previousRouletteData, data);
-          
           this.rouletteData = data;
           this.lastFetchTime = now;
           
@@ -330,127 +318,12 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Inscreve um componente para receber notificações quando novos números são adicionados
+   * Cancela a inscrição de um componente
    */
-  public subscribeToNewRouletteNumbers(id: string, callback: NewNumberCallback): void {
-    console.log(`[GlobalRouletteService] Novo assinante para novos números: ${id}`);
-    this.newNumberSubscribers.set(id, callback);
-  }
-  
-  /**
-   * Detecta novos números comparando dados anteriores e atuais, e notifica assinantes
-   */
-  private detectNewNumbersAndNotify(oldData: any[], newData: any[]): void {
-    if (!oldData.length || !newData.length) {
-      console.log('[GlobalRouletteService] Sem dados suficientes para comparar (dados iniciais)');
-      return;
-    }
-    
-    console.log('[GlobalRouletteService] Detectando novos números...');
-    
-    newData.forEach(newRoulette => {
-      // Identificar a roleta pelo nome
-      const rouletteName = newRoulette.nome || newRoulette.name || '';
-      if (!rouletteName) {
-        console.warn('[GlobalRouletteService] Roleta sem nome detectada, ignorando');
-        return;
-      }
-      
-      // Encontrar a roleta correspondente nos dados antigos
-      const oldRoulette = oldData.find(r => {
-        const oldName = r.nome || r.name || '';
-        return oldName.toLowerCase() === rouletteName.toLowerCase();
-      });
-      
-      // Se a roleta não existia antes, todos os números são novos
-      if (!oldRoulette) {
-        console.log(`[GlobalRouletteService] Nova roleta detectada: ${rouletteName}`);
-        
-        // Verificar se há números na nova roleta
-        if (newRoulette.numero && Array.isArray(newRoulette.numero) && newRoulette.numero.length > 0) {
-          // Notificar sobre o número mais recente
-          const latestNumber = newRoulette.numero[0];
-          const numberValue = typeof latestNumber === 'object' && latestNumber !== null ? 
-            Number(latestNumber.numero) : Number(latestNumber);
-          
-          if (!isNaN(numberValue)) {
-            console.log(`[GlobalRouletteService] Novo número detectado em nova roleta ${rouletteName}: ${numberValue}`);
-            this.notifyNewNumberSubscribers(rouletteName, numberValue);
-          }
-        }
-        return;
-      }
-      
-      // Verificar se ambas as roletas têm números
-      if (newRoulette.numero && oldRoulette.numero && 
-          Array.isArray(newRoulette.numero) && Array.isArray(oldRoulette.numero)) {
-        
-        // Verificar se há mais números na nova roleta do que na antiga
-        if (newRoulette.numero.length > oldRoulette.numero.length) {
-          console.log(`[GlobalRouletteService] Novos números detectados para ${rouletteName}: ${oldRoulette.numero.length} -> ${newRoulette.numero.length}`);
-          
-          // Calcular quantos novos números existem
-          const newNumbersCount = newRoulette.numero.length - oldRoulette.numero.length;
-          
-          // Notificar sobre cada número novo
-          for (let i = 0; i < newNumbersCount; i++) {
-            const newNumberEntry = newRoulette.numero[i];
-            const numberValue = typeof newNumberEntry === 'object' && newNumberEntry !== null ? 
-              Number(newNumberEntry.numero) : Number(newNumberEntry);
-            
-            if (!isNaN(numberValue)) {
-              console.log(`[GlobalRouletteService] Novo número #${i+1} detectado para ${rouletteName}: ${numberValue}`);
-              this.notifyNewNumberSubscribers(rouletteName, numberValue);
-            }
-          }
-        } else if (newRoulette.numero.length > 0 && oldRoulette.numero.length > 0) {
-          // Verificar se o primeiro número mudou mesmo que o tamanho seja o mesmo
-          const newLatestEntry = newRoulette.numero[0];
-          const oldLatestEntry = oldRoulette.numero[0];
-          
-          const newLatestValue = typeof newLatestEntry === 'object' && newLatestEntry !== null ? 
-            (newLatestEntry.numero !== undefined ? Number(newLatestEntry.numero) : null) : 
-            Number(newLatestEntry);
-            
-          const oldLatestValue = typeof oldLatestEntry === 'object' && oldLatestEntry !== null ? 
-            (oldLatestEntry.numero !== undefined ? Number(oldLatestEntry.numero) : null) : 
-            Number(oldLatestEntry);
-            
-          // Verificar também timestamp para evitar falsos positivos
-          const newLatestTimestamp = typeof newLatestEntry === 'object' && newLatestEntry !== null ? 
-            newLatestEntry.timestamp : null;
-            
-          const oldLatestTimestamp = typeof oldLatestEntry === 'object' && oldLatestEntry !== null ? 
-            oldLatestEntry.timestamp : null;
-            
-          // Se o valor ou timestamp mudou, notificar
-          if ((newLatestValue !== null && oldLatestValue !== null && newLatestValue !== oldLatestValue) ||
-              (newLatestTimestamp !== null && oldLatestTimestamp !== null && newLatestTimestamp !== oldLatestTimestamp)) {
-            
-            console.log(`[GlobalRouletteService] Novo número principal detectado para ${rouletteName}: ${newLatestValue} (timestamp mudou: ${newLatestTimestamp !== oldLatestTimestamp})`);
-            
-            if (newLatestValue !== null && !isNaN(newLatestValue)) {
-              this.notifyNewNumberSubscribers(rouletteName, newLatestValue);
-            }
-          }
-        }
-      }
-    });
-  }
-  
-  /**
-   * Notifica os assinantes sobre um novo número
-   */
-  private notifyNewNumberSubscribers(rouletteName: string, newNumber: number): void {
-    console.log(`[GlobalRouletteService] Notificando ${this.newNumberSubscribers.size} assinantes sobre novo número ${newNumber} para ${rouletteName}`);
-    
-    this.newNumberSubscribers.forEach((callback, id) => {
-      try {
-        setTimeout(() => callback(rouletteName, newNumber), 0);
-      } catch (error) {
-        console.error(`[GlobalRouletteService] Erro ao notificar assinante ${id} sobre novo número:`, error);
-      }
-    });
+  public unsubscribe(id: string): void {
+    console.log(`[GlobalRouletteService] Assinante removido: ${id}`);
+    this.subscribers.delete(id);
+    this.detailedSubscribers.delete(id);
   }
   
   /**
@@ -483,16 +356,6 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Cancela a inscrição de um componente
-   */
-  public unsubscribe(id: string): void {
-    console.log(`[GlobalRouletteService] Assinante removido: ${id}`);
-    this.subscribers.delete(id);
-    this.detailedSubscribers.delete(id);
-    this.newNumberSubscribers.delete(id);
-  }
-  
-  /**
    * Limpa todos os recursos ao desmontar
    */
   public dispose(): void {
@@ -507,7 +370,6 @@ class GlobalRouletteDataService {
     
     this.subscribers.clear();
     this.detailedSubscribers.clear();
-    this.newNumberSubscribers.clear();
     console.log('[GlobalRouletteService] Serviço encerrado e recursos liberados');
   }
 }

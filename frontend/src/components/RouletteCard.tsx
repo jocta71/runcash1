@@ -220,71 +220,75 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   
   // Função para verificar e processar números novos da API
   const processApiData = (apiRoulette: any) => {
-    if (!apiRoulette) return false;
-    
-    // Extrair números da API
-    const apiNumbers = extractNumbers(apiRoulette);
-    if (apiNumbers.length === 0) return false;
-    
-    // Caso 1: Não temos números ainda - inicializar com os da API
-    if (allNumbers.length === 0) {
-      console.log(`[${Date.now()}] Inicializando números para ${safeData.name} (${apiNumbers.length} números)`);
-      setAllNumbers(apiNumbers);
-      setRecentNumbers(apiNumbers.slice(0, 20));
-      setLastNumber(apiNumbers[0]);
-      setHasRealData(true);
-      return true;
-    }
-    
-    // Caso 2: Verificar se o último número da API é diferente do nosso
-    if (apiNumbers[0] === allNumbers[0]) {
-      // Nenhum número novo
-      return false;
-    }
-    
-    // Caso 3: Temos números novos na API
-    // Procurar por números novos que ainda não estão na nossa lista
-    const newNumbers = [];
-    
-    // Percorrer a lista da API até encontrar um número que já temos
-    for (let i = 0; i < apiNumbers.length; i++) {
-      const apiNum = apiNumbers[i];
-      
-      // Se encontramos um número que já está na nossa lista, paramos
-      if (allNumbers.includes(apiNum)) {
-        break;
+    try {
+      if (!apiRoulette) {
+        console.error(`[${componentId}] Dados inválidos recebidos para processamento`);
+        return false;
       }
       
-      // Adicionar o número novo à nossa lista temporária
-      newNumbers.push(apiNum);
+      console.log(`[${componentId}] Processando dados para ${safeData.name}`, apiRoulette);
+      
+      // Extrair números da resposta
+      const apiNumbers = extractNumbers(apiRoulette);
+      
+      // Se não temos números da API, não prosseguir
+      if (!apiNumbers || apiNumbers.length === 0) {
+        console.warn(`[${componentId}] Nenhum número encontrado para ${safeData.name}`);
+        return false;
+      }
+      
+      // Atualizar o registro dos dados brutos
+      setRawRouletteData(apiRoulette);
+      
+      // Verificar se temos números novos comparando com nossa lista atual
+      const newNumbers: number[] = [];
+      
+      for (let i = 0; i < apiNumbers.length; i++) {
+        const apiNum = apiNumbers[i];
+        
+        // Se encontramos um número que já está na nossa lista, paramos
+        if (allNumbers.includes(apiNum)) {
+          break;
+        }
+        
+        // Adicionar o número novo à nossa lista temporária
+        newNumbers.push(apiNum);
+      }
+      
+      // Se encontramos números novos, atualizamos o estado
+      if (newNumbers.length > 0) {
+        console.log(`[${Date.now()}] ${newNumbers.length} novos números para ${safeData.name}: ${newNumbers.join(', ')}`);
+        
+        // Adicionar os novos números no início da nossa lista
+        const updatedAllNumbers = [...newNumbers, ...allNumbers];
+        
+        // Atualizar estados
+        setAllNumbers(updatedAllNumbers);
+        setRecentNumbers(updatedAllNumbers.slice(0, 20));
+        setLastNumber(newNumbers[0]);
+        setHasRealData(true);
+        setIsNewNumber(true);
+        
+        // Mostrar notificação para o primeiro novo número
+        showNumberNotification(newNumbers[0]);
+        
+        // ADICIONAR AQUI: Forçar atualização no serviço global para refletir no histórico
+        // Isso garantirá que o RouletteSidePanelStats receba o novo número
+        globalRouletteDataService.forceUpdate();
+        
+        // Resetar a animação após 2 segundos
+        setTimeout(() => {
+          setIsNewNumber(false);
+        }, 2000);
+        
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error(`[${componentId}] Erro ao processar dados:`, error);
+      return false;
     }
-    
-    // Se encontramos números novos, atualizamos o estado
-    if (newNumbers.length > 0) {
-      console.log(`[${Date.now()}] ${newNumbers.length} novos números para ${safeData.name}: ${newNumbers.join(', ')}`);
-      
-      // Adicionar os novos números no início da nossa lista
-      const updatedAllNumbers = [...newNumbers, ...allNumbers];
-      
-      // Atualizar estados
-      setAllNumbers(updatedAllNumbers);
-      setRecentNumbers(updatedAllNumbers.slice(0, 20));
-      setLastNumber(newNumbers[0]);
-      setHasRealData(true);
-      setIsNewNumber(true);
-      
-      // Mostrar notificação para o primeiro novo número
-      showNumberNotification(newNumbers[0]);
-      
-      // Resetar a animação após 2 segundos
-      setTimeout(() => {
-        setIsNewNumber(false);
-      }, 2000);
-      
-      return true;
-    }
-    
-    return false;
   };
 
   // Função para extrair números da resposta da API
