@@ -514,6 +514,17 @@ const RouletteSidePanelStats = ({
     setIsLoading(true);
     setHistoricalNumbers([]);
     
+    // Primeiro, solicitar dados detalhados com limit=1000
+    globalRouletteDataService.fetchDetailedRouletteData()
+      .then(() => {
+        logger.info(`Dados detalhados solicitados com limit=1000 para ${roletaNome}`);
+        // Processar dados após a requisição
+        handleApiData();
+      })
+      .catch(error => {
+        logger.error(`Erro ao solicitar dados detalhados: ${error}`);
+      });
+    
     // Registrar no serviço global com verificação de throttling
     let lastUpdateTime = 0;
     const THROTTLE_TIME = 8000; // 8 segundos
@@ -526,9 +537,6 @@ const RouletteSidePanelStats = ({
       lastUpdateTime = now;
       handleApiData();
     });
-    
-    // Carregar dados iniciais imediatamente
-    handleApiData();
     
     // Limpar inscrição ao desmontar
     return () => {
