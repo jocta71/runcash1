@@ -33,7 +33,7 @@ const NumberDisplay: React.FC<NumberDisplayProps> = ({
   return (
     <div 
       className={cn(
-        "rounded-sm flex items-center justify-center transition-all border border-gray-700",
+        "rounded-none flex items-center justify-center transition-all border border-gray-700",
         sizeClasses[size],
         getColorClass(number),
         highlight && "ring-2 ring-offset-2 ring-yellow-400 animate-pulse"
