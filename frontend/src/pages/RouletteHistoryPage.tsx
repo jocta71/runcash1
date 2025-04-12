@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { mapToCanonicalRouletteId, ROLETAS_CANONICAS } from '../integrations/api/rouletteService';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 const RouletteHistoryPage: React.FC = () => {
   const { roletaId } = useParams<{ roletaId: string }>();
@@ -16,6 +17,12 @@ const RouletteHistoryPage: React.FC = () => {
   const [historyData, setHistoryData] = useState<number[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'stats'>('grid');
   const [loadError, setLoadError] = useState<string | null>(null);
+  
+  // Adicionar estados para controle de paginação a nível da página
+  const [currentPage, setCurrentPage] = useState(1);
+  const [limit, setLimit] = useState(200);
+  const [totalItems, setTotalItems] = useState(0);
+  const itemsPerPage = 200;
   
   useEffect(() => {
     if (!roletaId) {
@@ -43,12 +50,13 @@ const RouletteHistoryPage: React.FC = () => {
     
     if (existingHistory.length > 0) {
       setHistoryData(existingHistory);
+      setTotalItems(existingHistory.length);
       setLoading(false);
       setLoadError(null);
     } else {
       // Se não temos, buscar via API
       console.log(`[HistoryPage] Buscando dados via API para ${canonicalId}`);
-      fetchHistoryData(canonicalId);
+      fetchHistoryData(canonicalId, currentPage, limit);
     }
     
     // Inicializar o serviço de feed de roletas
@@ -58,19 +66,30 @@ const RouletteHistoryPage: React.FC = () => {
     return () => {
       // Não é necessário parar o serviço aqui, pois ele é gerenciado globalmente
     };
-  }, [roletaId, navigate]);
+  }, [roletaId, navigate, currentPage, limit]);
   
-  // Função para buscar dados do histórico
-  const fetchHistoryData = async (canonicalId: string) => {
+  // Função para buscar dados do histórico com paginação
+  const fetchHistoryData = async (canonicalId: string, page: number = 1, itemsPerPage: number = 200) => {
     setLoading(true);
     setLoadError(null);
     
     try {
       const socketService = SocketService.getInstance();
-      console.log(`[HistoryPage] Iniciando busca de dados para ${canonicalId}`);
+      console.log(`[HistoryPage] Iniciando busca de dados para ${canonicalId} (página ${page}, limit ${itemsPerPage})`);
       
-      // Solicitar 200 números para a página de histórico
-      const success = await socketService.fetchRouletteNumbersREST(canonicalId, 200);
+      // Calcular offset baseado na página e limite por página
+      const offset = (page - 1) * itemsPerPage;
+      
+      // Solicitar números com paginação
+      const success = await socketService.fetchRouletteNumbersREST(
+        canonicalId, 
+        itemsPerPage, 
+        offset,
+        (total) => {
+          // Callback para receber o total de itens disponíveis
+          setTotalItems(total);
+        }
+      );
       
       if (success) {
         const updatedHistory = socketService.getRouletteHistory(canonicalId);
@@ -93,13 +112,108 @@ const RouletteHistoryPage: React.FC = () => {
   const handleRefresh = () => {
     if (roletaId) {
       const canonicalId = mapToCanonicalRouletteId(roletaId);
-      fetchHistoryData(canonicalId);
+      fetchHistoryData(canonicalId, currentPage, limit);
+    }
+  };
+  
+  // Manipular mudança de página
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    // Ao mudar de página, também atualizamos os dados
+    if (roletaId) {
+      const canonicalId = mapToCanonicalRouletteId(roletaId);
+      fetchHistoryData(canonicalId, page, limit);
     }
   };
   
   // Manipular retorno à página anterior
   const handleBack = () => {
     navigate(-1);
+  };
+  
+  // Renderizar controles de paginação
+  const renderPagination = () => {
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    
+    // Não mostrar paginação se tiver apenas uma página
+    if (totalPages <= 1) return null;
+    
+    // Calcular quais páginas mostrar
+    let pagesToShow = [];
+    const maxPageButtons = 5;
+    
+    if (totalPages <= maxPageButtons) {
+      // Mostrar todas as páginas se for menor que o máximo
+      pagesToShow = Array.from({ length: totalPages }, (_, i) => i + 1);
+    } else {
+      // Mostrar páginas ao redor da atual
+      pagesToShow = [1]; // Sempre mostrar primeira página
+      
+      const middleStart = Math.max(2, currentPage - 1);
+      const middleEnd = Math.min(totalPages - 1, currentPage + 1);
+      
+      // Adicionar elipse se necessário
+      if (middleStart > 2) {
+        pagesToShow.push(-1); // -1 representa elipse
+      }
+      
+      // Adicionar páginas ao redor da atual
+      for (let i = middleStart; i <= middleEnd; i++) {
+        pagesToShow.push(i);
+      }
+      
+      // Adicionar elipse se necessário
+      if (middleEnd < totalPages - 1) {
+        pagesToShow.push(-2); // -2 representa elipse no final
+      }
+      
+      // Sempre mostrar última página
+      pagesToShow.push(totalPages);
+    }
+    
+    return (
+      <Pagination className="mt-4">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious 
+              onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
+              className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+            />
+          </PaginationItem>
+          
+          {pagesToShow.map((page, index) => {
+            // Renderizar elipses
+            if (page < 0) {
+              return (
+                <PaginationItem key={`ellipsis-${index}`}>
+                  <span className="mx-1">...</span>
+                </PaginationItem>
+              );
+            }
+            
+            // Renderizar links para páginas
+            return (
+              <PaginationItem key={page}>
+                <PaginationLink
+                  isActive={currentPage === page}
+                  onClick={() => handlePageChange(page)}
+                  className="cursor-pointer"
+                >
+                  {page}
+                </PaginationLink>
+              </PaginationItem>
+            );
+          })}
+          
+          <PaginationItem>
+            <PaginationNext 
+              onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
+              className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    );
   };
   
   return (
@@ -140,11 +254,22 @@ const RouletteHistoryPage: React.FC = () => {
           </Button>
         </div>
       ) : (
-        <RouletteHistory 
-          roletaId={roletaId || ''} 
-          roletaNome={roletaNome} 
-          initialNumbers={historyData} 
-        />
+        <>
+          <RouletteHistory 
+            roletaId={roletaId || ''} 
+            roletaNome={roletaNome} 
+            initialNumbers={historyData} 
+          />
+          
+          {/* Informações de paginação */}
+          <div className="mt-4 flex flex-col items-center space-y-2">
+            <div className="text-sm text-gray-500">
+              Mostrando {Math.min(itemsPerPage, historyData.length)} de {totalItems} números
+            </div>
+            
+            {renderPagination()}
+          </div>
+        </>
       )}
     </div>
   );

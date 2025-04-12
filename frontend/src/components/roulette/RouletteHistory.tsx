@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import EventService from '@/services/EventService';
 import { RouletteNumberEvent } from '@/types';
 import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 interface RouletteHistoryProps {
   roletaId: string;
@@ -23,6 +24,10 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(isOpen);
   const [socketConnected, setSocketConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  // Adicionar estados para paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const numbersPerPage = 100;
+  const totalPages = Math.ceil(historyNumbers.length / numbersPerPage);
 
   // Sincronizar o estado do modal com o prop isOpen
   useEffect(() => {
@@ -132,6 +137,101 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
       }
     };
   }, [roletaId, roletaNome, initialNumbers]);
+
+  // Função para obter os números da página atual
+  const getCurrentPageNumbers = () => {
+    const startIndex = (currentPage - 1) * numbersPerPage;
+    const endIndex = Math.min(startIndex + numbersPerPage, historyNumbers.length);
+    return historyNumbers.slice(startIndex, endIndex);
+  };
+
+  // Manipulador para mudar de página
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // Renderiza os controles de paginação
+  const renderPagination = () => {
+    // Não mostrar paginação se tiver apenas uma página
+    if (totalPages <= 1) return null;
+    
+    // Calcular quais páginas mostrar
+    let pagesToShow = [];
+    const maxPageButtons = 5;
+    
+    if (totalPages <= maxPageButtons) {
+      // Mostrar todas as páginas se for menor que o máximo
+      pagesToShow = Array.from({ length: totalPages }, (_, i) => i + 1);
+    } else {
+      // Mostrar páginas ao redor da atual
+      pagesToShow = [1]; // Sempre mostrar primeira página
+      
+      const middleStart = Math.max(2, currentPage - 1);
+      const middleEnd = Math.min(totalPages - 1, currentPage + 1);
+      
+      // Adicionar elipse se necessário
+      if (middleStart > 2) {
+        pagesToShow.push(-1); // -1 representa elipse
+      }
+      
+      // Adicionar páginas ao redor da atual
+      for (let i = middleStart; i <= middleEnd; i++) {
+        pagesToShow.push(i);
+      }
+      
+      // Adicionar elipse se necessário
+      if (middleEnd < totalPages - 1) {
+        pagesToShow.push(-2); // -2 representa elipse no final
+      }
+      
+      // Sempre mostrar última página
+      pagesToShow.push(totalPages);
+    }
+    
+    return (
+      <Pagination className="mt-4">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious 
+              onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
+              className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+            />
+          </PaginationItem>
+          
+          {pagesToShow.map((page, index) => {
+            // Renderizar elipses
+            if (page < 0) {
+              return (
+                <PaginationItem key={`ellipsis-${index}`}>
+                  <span className="mx-1">...</span>
+                </PaginationItem>
+              );
+            }
+            
+            // Renderizar links para páginas
+            return (
+              <PaginationItem key={page}>
+                <PaginationLink
+                  isActive={currentPage === page}
+                  onClick={() => handlePageChange(page)}
+                  className="cursor-pointer"
+                >
+                  {page}
+                </PaginationLink>
+              </PaginationItem>
+            );
+          })}
+          
+          <PaginationItem>
+            <PaginationNext 
+              onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
+              className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    );
+  };
   
   // Componente retorna um modal customizado com RouletteSidePanelStats
   return (
@@ -163,10 +263,24 @@ const RouletteHistory: React.FC<RouletteHistoryProps> = ({
         <div className="p-4">
           <RouletteSidePanelStats
             roletaNome={roletaNome}
-            lastNumbers={historyNumbers}
+            lastNumbers={getCurrentPageNumbers()}
             wins={0}
             losses={0}
+            historicalNumbers={historyNumbers}
+            latestNumber={historyNumbers.length > 0 ? historyNumbers[0] : 0}
+            highlightItems={[]}
+            isOpen={isStatsModalOpen}
           />
+          
+          {/* Renderizar componente de paginação */}
+          <div className="mt-4 flex justify-center">
+            {renderPagination()}
+          </div>
+          
+          {/* Exibir informação sobre quantos números estão sendo exibidos */}
+          <div className="mt-2 text-center text-sm text-gray-400">
+            Mostrando {Math.min(numbersPerPage, historyNumbers.length)} de {historyNumbers.length} números (Página {currentPage} de {totalPages})
+          </div>
         </div>
       </div>
     </div>

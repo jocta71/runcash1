@@ -359,19 +359,32 @@ export default class RouletteFeedService {
    * Inicia o polling
    */
   public startPolling(): void {
-    // Iniciar o polling se não estiver já ativo
-    if (!this.pollingTimer && !this.isPaused) {
-      logger.info('▶️ Iniciando polling de dados de roletas a cada 10 segundos');
-      this.pollingTimer = window.setInterval(() => {
-        this.fetchLatestData();
-      }, 10000);
-      
-      // Atualizar flags
-      this.isPollingActive = true;
-      window._roulettePollingActive = true;
-    } else {
-      logger.info('ℹ️ Polling já está ativo ou sistema está em pausa');
+    if (this.isPollingActive) {
+      logger.info('ℹ️ Polling já está ativo, nada a fazer');
+      return;
     }
+    
+    logger.info('▶️ Iniciando polling ativo a cada 10 segundos');
+    
+    // Redefinir flags
+    this.isPollingActive = true;
+    this.isPaused = false;
+    
+    // Buscar dados imediatamente
+    this.fetchLatestData();
+    
+    // Iniciar polling em intervalos regulares
+    this.pollingTimer = window.setInterval(() => {
+      this.fetchLatestData();
+    }, 10000); // Forçar sempre a 10 segundos
+  }
+
+  /**
+   * Método de compatibilidade que chama startPolling()
+   */
+  public start(): void {
+    logger.info('start() chamado - redirecionando para startPolling()');
+    this.startPolling();
   }
 
   /**

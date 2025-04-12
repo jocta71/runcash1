@@ -652,6 +652,65 @@ class RESTSocketService {
     
     return mergedNumbers;
   }
+
+  // Adicionar método para buscar histórico com paginação
+  public async fetchRouletteNumbersREST(
+    roletaId: string, 
+    limit: number = 200, 
+    offset: number = 0,
+    onTotalItems?: (total: number) => void
+  ): Promise<boolean> {
+    try {
+      console.log(`[RESTSocketService] Buscando ${limit} números para roleta ${roletaId} com offset ${offset}`);
+      
+      // Construir a URL com parâmetros de paginação
+      const baseUrl = this.getApiBaseUrl();
+      const url = `${baseUrl}/api/roulette-history?roleta_id=${roletaId}&limit=${limit}&offset=${offset}`;
+      
+      // Fazer a requisição
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Erro na requisição: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data || !data.data || !Array.isArray(data.data)) {
+        throw new Error('Dados inválidos recebidos da API');
+      }
+      
+      console.log(`[RESTSocketService] Recebidos ${data.data.length} números para roleta ${roletaId}`);
+      
+      // Extrair apenas os números
+      const numbers = data.data
+        .map((item: any) => Number(item.numero))
+        .filter((n: number) => !isNaN(n));
+      
+      // Se offset for 0, substituir o histórico
+      if (offset === 0) {
+        this.setRouletteHistory(roletaId, numbers);
+      } else {
+        // Caso contrário, mesclar com o histórico existente
+        const existingHistory = this.rouletteHistory.get(roletaId) || [];
+        const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
+        this.setRouletteHistory(roletaId, mergedNumbers);
+      }
+      
+      // Chamar o callback com o total de itens se fornecido e se a API retornou essa informação
+      if (onTotalItems && data.totalRegistros) {
+        onTotalItems(data.totalRegistros);
+      } else if (onTotalItems) {
+        // Se não houver total na resposta, estimar com base no que temos
+        onTotalItems(Math.max(offset + numbers.length, this.getRouletteHistory(roletaId).length));
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`[RESTSocketService] Erro ao buscar números para roleta ${roletaId}:`, error);
+      return false;
+    }
+  }
 }
 
 export default RESTSocketService; 
