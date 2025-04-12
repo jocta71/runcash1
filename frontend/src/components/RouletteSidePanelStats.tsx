@@ -20,8 +20,8 @@ import { getLogger } from '../services/utils/logger';
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
 
-// Compartilhar a mesma constante de intervalo de polling usada no RouletteFeedService
-const POLLING_INTERVAL = 10000; // 10 segundos
+// Atualizar o POLLING_INTERVAL para 8 segundos
+const POLLING_INTERVAL = 8000; // 8 segundos (mesmo intervalo do RouletteCard)
 
 interface RouletteSidePanelStatsProps {
   roletaNome: string;
@@ -524,6 +524,7 @@ const RouletteSidePanelStats = ({
     setHistoricalNumbers([]);
     
     // Registrar diretamente no serviço global para receber as MESMAS atualizações que o RouletteCard
+    // Isso garante que usamos a mesma fonte de dados, sem fazer novas requisições
     globalRouletteDataService.subscribe(subscriberId.current, () => {
       logger.info(`Recebendo atualização do globalRouletteDataService para ${roletaNome}`);
       // Esta callback é chamada quando o RouletteCard obtem novos dados (a cada 8s)
