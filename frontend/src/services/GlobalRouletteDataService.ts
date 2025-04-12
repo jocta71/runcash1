@@ -403,13 +403,25 @@ class GlobalRouletteDataService {
       const timestamp = new Date().toISOString();
       const newNumberObj = { numero: newNumber, timestamp };
       
+      // LOG para debug
+      console.log(`[GlobalRouletteService] Criado objeto para novo número: `, newNumberObj);
+      
       // Adicionar aos arrays de números, verificando qual estrutura existe
       if (Array.isArray(targetRoulette.numero)) {
+        // Verificar se o número já existe no início do array para evitar duplicatas imediatas
+        if (targetRoulette.numero.length > 0 && 
+            targetRoulette.numero[0].numero === newNumber) {
+          console.log(`[GlobalRouletteService] Número ${newNumber} já é o mais recente na roleta ${rouletteName}, ignorando`);
+          return;
+        }
+        
         // Adicionar no início do array numero
         targetRoulette.numero.unshift(newNumberObj);
+        console.log(`[GlobalRouletteService] Número adicionado à lista normal, agora com ${targetRoulette.numero.length} números`);
       } else {
         // Criar array se não existir
         targetRoulette.numero = [newNumberObj];
+        console.log(`[GlobalRouletteService] Criada nova lista de números para a roleta`);
       }
       
       // Fazer o mesmo para os dados detalhados se eles existirem
@@ -423,20 +435,44 @@ class GlobalRouletteDataService {
           const detailedRoulette = this.detailedRouletteData[detailedRouletteIndex];
           
           if (Array.isArray(detailedRoulette.numero)) {
-            detailedRoulette.numero.unshift(newNumberObj);
+            // Verificar se o número já existe no início do array para evitar duplicatas
+            if (detailedRoulette.numero.length > 0 && 
+                detailedRoulette.numero[0].numero === newNumber) {
+              console.log(`[GlobalRouletteService] Número ${newNumber} já é o mais recente nos dados detalhados, ignorando`);
+              // Mesmo assim continuar o processo para notificar os assinantes
+            } else {
+              detailedRoulette.numero.unshift(newNumberObj);
+              console.log(`[GlobalRouletteService] Número adicionado à lista detalhada, agora com ${detailedRoulette.numero.length} números`);
+            }
           } else {
             detailedRoulette.numero = [newNumberObj];
+            console.log(`[GlobalRouletteService] Criada nova lista detalhada para a roleta`);
           }
+        } else {
+          console.log(`[GlobalRouletteService] Roleta ${rouletteName} não encontrada nos dados detalhados`);
         }
       }
       
       // Atualizar timestamp da última atualização
       this.lastFetchTime = Date.now();
+      this.lastDetailedFetchTime = Date.now(); // Atualizar também o timestamp dos dados detalhados
+      
+      // Emitir evento global para outros componentes que possam estar ouvindo
+      EventService.emit('roulette:number-added', {
+        roleta: rouletteName,
+        numero: newNumber,
+        timestamp: timestamp
+      });
       
       // Notificar todos os assinantes sobre a atualização
       console.log(`[GlobalRouletteService] Notificando assinantes sobre novo número ${newNumber} para ${rouletteName}`);
-      this.notifySubscribers();
-      this.notifyDetailedSubscribers();
+      
+      // Usar setTimeout para garantir que a notificação ocorra após as mudanças de estado
+      setTimeout(() => {
+        this.notifySubscribers();
+        this.notifyDetailedSubscribers();
+      }, 10);
+      
     } catch (error) {
       console.error(`[GlobalRouletteService] Erro ao adicionar número ${newNumber} à roleta ${rouletteName}:`, error);
     }

@@ -273,6 +273,14 @@ const RouletteSidePanelStats = ({
       
       logger.info(`Resultados da busca: ${apiNumbers.length} números obtidos`);
       
+      // LOG DETALHADO para debug - examinar primeiros 10 números
+      if (apiNumbers.length > 0) {
+        logger.info(`PRIMEIROS 10 NÚMEROS OBTIDOS:`);
+        apiNumbers.slice(0, 10).forEach((n, idx) => {
+          logger.info(`#${idx}: Número ${n.numero}, timestamp: ${n.timestamp}`);
+        });
+      }
+      
       if (apiNumbers.length === 0 && isInitialRequestDone.current) {
         logger.info(`Sem novos dados disponíveis, mantendo estado atual`);
         return;
@@ -288,6 +296,7 @@ const RouletteSidePanelStats = ({
         });
         
         logger.info(`Combinando ${lastNumbers.length} números recentes com ${apiNumbers.length} números históricos`);
+        logger.info(`RECENTES: ${lastNumbers.join(', ')}`);
         
         // Converter lastNumbers para objetos RouletteNumber usando timestamp da API quando disponível
         const lastNumbersWithTime = lastNumbers.map((num, index) => {
@@ -300,6 +309,7 @@ const RouletteSidePanelStats = ({
                 const date = new Date(rouletteData.timestamp);
                 const timeString = date.getHours().toString().padStart(2, '0') + ':' + 
                                date.getMinutes().toString().padStart(2, '0');
+                logger.info(`Usando timestamp da API para número ${num}: ${timeString} (de ${rouletteData.timestamp})`);
                 return { numero: num, timestamp: timeString };
               } catch (e) {
                 logger.error("Erro ao processar timestamp:", e);
@@ -311,6 +321,7 @@ const RouletteSidePanelStats = ({
           const now = new Date();
           const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
                         now.getMinutes().toString().padStart(2, '0');
+          logger.info(`Usando timestamp atual para número ${num}: ${timeString}`);
           return { numero: num, timestamp: timeString };
         });
         
