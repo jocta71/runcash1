@@ -8,7 +8,7 @@ import { getLogger } from './services/utils/logger'
 import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
-import GlobalRouletteDataService from './services/GlobalRouletteDataService'
+import globalRouletteDataService, { GlobalRouletteDataService } from './services/GlobalRouletteDataService'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -37,7 +37,6 @@ function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
   // Inicializar os serviços em ordem
-  const globalRouletteDataService = GlobalRouletteDataService.getInstance();
   const socketService = SocketService.getInstance();
   const eventService = EventService.getInstance();
   const rouletteFeedService = RouletteFeedService.getInstance();
@@ -48,7 +47,7 @@ function initializeRoulettesSystem() {
   // Inicializar o serviço global e buscar dados iniciais uma única vez
   logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
   
-  // Primeiro, inicializar o serviço global para buscar dados
+  // Usar a instância importada diretamente
   globalRouletteDataService.fetchRouletteData().then(data => {
     logger.info(`Dados iniciais obtidos pelo serviço global: ${data.length} roletas`);
     

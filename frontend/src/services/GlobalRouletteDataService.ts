@@ -361,4 +361,6 @@ class GlobalRouletteDataService {
 
 // Exportar a instância única do serviço
 const globalRouletteDataService = GlobalRouletteDataService.getInstance();
-export default globalRouletteDataService; 
+export default globalRouletteDataService;
+// Também exportar a classe para permitir o uso de getInstance() diretamente
+export { GlobalRouletteDataService }; 
