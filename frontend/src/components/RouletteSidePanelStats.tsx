@@ -16,7 +16,6 @@ import { useState, useEffect, useRef } from 'react';
 import globalRouletteDataService from '../services/GlobalRouletteDataService';
 import rouletteHistoryService from '../services/RouletteHistoryService';
 import { getLogger } from '../services/utils/logger';
-import { useTranslation } from 'react-i18next';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -254,8 +253,7 @@ const RouletteSidePanelStats = ({
   const [itemsPerPage, setItemsPerPage] = useState(100); // Exibir 100 números por página
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
-  const { t } = useTranslation();
-  
+
   // Calcular o número total de páginas
   const totalPages = Math.ceil(historicalNumbers.length / itemsPerPage);
   
@@ -455,21 +453,14 @@ const RouletteSidePanelStats = ({
           {/* Histórico de Números section */}
           <div className="w-full mb-2 px-1">
             <div className="flex flex-row justify-between items-center mb-2">
-              <div className="text-sm text-white">{t('Number History')}</div>
+              <div className="text-sm text-white">Histórico de Números</div>
               <button
                 onClick={toggleHistoryExpanded}
                 className={`text-xs px-2 py-1 rounded-md flex items-center gap-1 transition-colors
                           ${isHistoryExpanded ? 'bg-vegas-red/90 hover:bg-vegas-red' : 'bg-vegas-red hover:bg-vegas-red/90'}`}
               >
-                {isHistoryExpanded ? (
-                  <>
-                    {t('Collapse')} <ChevronUp size={14} />
-                  </>
-                ) : (
-                  <>
-                    {t('Expand')} <ChevronDown size={14} />
-                  </>
-                )}
+                {isHistoryExpanded ? "Recolher" : "Expandir"}
+                {isHistoryExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
             </div>
 
@@ -491,7 +482,7 @@ const RouletteSidePanelStats = ({
               </div>
             ) : (
               <div className="text-center py-2 text-gray-400 text-sm">
-                {t('No number history available')}
+                Nenhum histórico de números disponível
               </div>
             )}
           </div>
