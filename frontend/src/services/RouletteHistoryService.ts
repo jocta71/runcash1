@@ -148,22 +148,28 @@ export class RouletteHistoryService {
       // Terceira estratégia: obter dados básicos
       this.logger.info(`[HISTÓRICO-SERVICE] Usando dados básicos como último recurso`);
       try {
-        const basicData = globalRouletteDataService.getRouletteByName(rouletteName);
+        const basicData = await globalRouletteDataService.fetchRouletteData();
         
-        if (basicData && basicData.numero && Array.isArray(basicData.numero)) {
-          const basicNumbers = basicData.numero
-            .map((n: any) => Number(n.numero || n.number))
-            .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+        if (basicData && Array.isArray(basicData)) {
+          const targetRoulette = basicData.find(r => 
+            (r.nome || r.casaId || '').toLowerCase() === rouletteName.toLowerCase()
+          );
           
-          this.logger.info(`[HISTÓRICO-SERVICE] Obtidos ${basicNumbers.length} números dos dados básicos`);
-          
-          // Atualiza o cache
-          this.cache[rouletteName] = {
-            data: basicNumbers,
-            timestamp: Date.now()
-          };
-          
-          return basicNumbers;
+          if (targetRoulette && targetRoulette.numbers && Array.isArray(targetRoulette.numbers)) {
+            const basicNumbers = targetRoulette.numbers
+              .filter((n: any) => n !== null && n !== undefined && !isNaN(Number(n)))
+              .map((n: any) => Number(n));
+            
+            this.logger.info(`[HISTÓRICO-SERVICE] Obtidos ${basicNumbers.length} números dos dados básicos`);
+            
+            // Atualiza o cache
+            this.cache[rouletteName] = {
+              data: basicNumbers,
+              timestamp: Date.now()
+            };
+            
+            return basicNumbers;
+          }
         }
       } catch (error) {
         this.logger.warn(`[HISTÓRICO-SERVICE] Erro ao usar dados básicos:`, error);
