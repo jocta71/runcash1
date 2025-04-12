@@ -317,22 +317,22 @@ const RouletteSidePanelStats = ({
       // Buscar dados históricos usando a função atualizada
       let apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
       
-      logger.info(`Resultados da busca: ${apiNumbers.length} números obtidos`);
+      logger.info(`Resultados da busca: ${apiNumbers.length} números obtidos da API`);
       
       if (apiNumbers.length === 0 && isInitialRequestDone.current) {
         logger.info(`Sem novos dados disponíveis, mantendo estado atual`);
         return;
       }
       
-      // Se houver lastNumbers nas props, garantir que eles estão incluídos
+      // Se houver lastNumbers nas props, garantir que eles estão incluídos no início
       if (lastNumbers && lastNumbers.length > 0) {
         logger.info(`Combinando ${lastNumbers.length} números recentes com ${apiNumbers.length} números históricos`);
         
-        // Filtrar duplicatas - vamos criar um Set para garantir valores únicos
-        const uniqueNumbersSet = new Set([...lastNumbers, ...apiNumbers]);
-        const combinedNumbers = Array.from(uniqueNumbersSet);
+        // IMPORTANTE: Não remover duplicatas para manter a sequência histórica intacta
+        // Apenas garantir que os números recentes estejam no início
+        const combinedNumbers = [...lastNumbers, ...apiNumbers];
         
-        logger.info(`Total após combinação e remoção de duplicatas: ${combinedNumbers.length} números únicos`);
+        logger.info(`Total após combinação sem remover duplicatas: ${combinedNumbers.length} números`);
         
         // Limitando a 1000 números no máximo
         setHistoricalNumbers(combinedNumbers.slice(0, 1000));
@@ -419,14 +419,11 @@ const RouletteSidePanelStats = ({
     if (isInitialRequestDone.current && lastNumbers && lastNumbers.length > 0) {
       logger.info(`Atualizando com ${lastNumbers.length} novos números recentes`);
       
-      // Combinar com os números históricos existentes
-      const combinedNumbers = [...lastNumbers];
+      // IMPORTANTE: Manter duplicatas para preservar a sequência histórica
+      // Apenas garantir que números recentes venham primeiro
+      const combinedNumbers = [...lastNumbers, ...historicalNumbers];
       
-      historicalNumbers.forEach(num => {
-        if (!combinedNumbers.includes(num)) {
-          combinedNumbers.push(num);
-        }
-      });
+      logger.info(`Total após atualização com novos números: ${combinedNumbers.length}`);
       
       // Limitando a 1000 números no máximo
       setHistoricalNumbers(combinedNumbers.slice(0, 1000));
