@@ -20,8 +20,8 @@ import { getLogger } from '../services/utils/logger';
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
 
-// Atualizar o POLLING_INTERVAL para 8 segundos
-const POLLING_INTERVAL = 8000; // 8 segundos (mesmo intervalo do RouletteCard)
+// Atualizar o POLLING_INTERVAL para 4 segundos
+const POLLING_INTERVAL = 4000; // 4 segundos (mesmo intervalo do RouletteCard)
 
 interface RouletteSidePanelStatsProps {
   roletaNome: string;
@@ -527,11 +527,11 @@ const RouletteSidePanelStats = ({
     
     // Registrar no serviço global com verificação de throttling
     let lastUpdateTime = 0;
-    const THROTTLE_TIME = 8000; // 8 segundos
+    const THROTTLE_TIME = 4000; // 4 segundos
     
     globalRouletteDataService.subscribe(subscriberId.current, () => {
       const now = Date.now();
-      // Verificação de throttling para garantir 8s de intervalo entre atualizações
+      // Verificação de throttling para garantir 4s de intervalo entre atualizações
       if (now - lastUpdateTime < THROTTLE_TIME) return;
       
       lastUpdateTime = now;

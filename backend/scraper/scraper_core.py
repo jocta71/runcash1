@@ -167,7 +167,7 @@ def extrair_numeros_js(driver: webdriver.Chrome, elemento_roleta) -> List[str]:
                 }
             });
             
-            // 8 segundos de timeout - tempo suficiente para a atualização, sem ser muito longo
+            // 4 segundos de timeout - tempo suficiente para a atualização, sem ser muito longo
             setTimeout(() => {
                 observer.disconnect();
                 // Verificar uma última vez antes de desistir
@@ -177,7 +177,7 @@ def extrair_numeros_js(driver: webdriver.Chrome, elemento_roleta) -> List[str]:
                 } else {
                     resolve([]);
                 }
-            }, 8000);
+            }, 4000);
             
             // Iniciar observação com configuração ampla para capturar todas as mudanças
             observer.observe(targetNode, { 

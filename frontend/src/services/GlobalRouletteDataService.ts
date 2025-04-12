@@ -1,14 +1,14 @@
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
 
-// Intervalo de polling padrão em milissegundos (8 segundos)
-const POLLING_INTERVAL = 8000;
+// Intervalo de polling padrão em milissegundos (4 segundos)
+const POLLING_INTERVAL = 4000;
 
 // Tempo de vida do cache em milissegundos (15 segundos)
 // const CACHE_TTL = 15000;
 
-// Intervalo mínimo entre requisições forçadas (8 segundos)
-const MIN_FORCE_INTERVAL = 8000;
+// Intervalo mínimo entre requisições forçadas (4 segundos)
+const MIN_FORCE_INTERVAL = 4000;
 
 // Limite padrão para requisições normais (1000 itens)
 const DEFAULT_LIMIT = 1000;

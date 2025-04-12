@@ -329,7 +329,7 @@ class SocketService {
     const timeoutPromise = new Promise<void>((_, reject) => {
       setTimeout(() => {
         reject(new Error('Timeout ao solicitar dados recentes'));
-      }, 8000); // 8s timeout
+      }, 4000); // 4s timeout
     });
     
     // Função para emitir o evento com Promise
