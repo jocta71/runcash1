@@ -12,12 +12,10 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import globalRouletteDataService from '../services/GlobalRouletteDataService';
 import rouletteHistoryService from '../services/RouletteHistoryService';
 import { getLogger } from '../services/utils/logger';
-import EventService from '../services/EventService';
-import { RouletteNumberEvent } from '../services/EventService';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -249,49 +247,6 @@ export const getRouletteNumberColor = (num: number) => {
   }
 };
 
-// Adicionar função processRouletteNumbers similar à do RouletteCard
-const processRouletteNumbers = (roletaNome: string, novosNumeros: number[]): RouletteNumber[] => {
-  if (!novosNumeros || novosNumeros.length === 0) return [];
-  
-  logger.info(`Processando ${novosNumeros.length} novos números para ${roletaNome}`);
-  
-  // Obter os dados mais recentes do serviço global para timestamps
-  const allRoulettes = globalRouletteDataService.getAllRoulettes();
-  const currentRoulette = allRoulettes.find((r: any) => {
-    const name = r.nome || r.name || '';
-    return name.toLowerCase() === roletaNome.toLowerCase();
-  });
-  
-  // Converter para objetos RouletteNumber com timestamp real da API
-  const processedNumbers = novosNumeros.map((num, index) => {
-    // Tentar obter o timestamp correto do serviço global
-    if (currentRoulette && currentRoulette.numero && Array.isArray(currentRoulette.numero) && 
-        currentRoulette.numero.length > index) {
-      const rouletteData = currentRoulette.numero[index];
-      if (rouletteData && rouletteData.timestamp) {
-        try {
-          // Usar diretamente o timestamp da API
-          const date = new Date(rouletteData.timestamp);
-          const timeString = date.getHours().toString().padStart(2, '0') + ':' + 
-                        date.getMinutes().toString().padStart(2, '0');
-          return { numero: num, timestamp: timeString };
-        } catch (e) {
-          logger.error("Erro ao processar timestamp:", e);
-        }
-      }
-    }
-    
-    // Fallback: usar hora atual se não conseguir obter da API
-    const now = new Date();
-    const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                    now.getMinutes().toString().padStart(2, '0');
-    return { numero: num, timestamp: timeString };
-  });
-  
-  return processedNumbers;
-};
-
-// Modificar o componente principal para incluir uma função pública para adicionar números
 const RouletteSidePanelStats = ({ 
   roletaNome, 
   lastNumbers, 
@@ -300,76 +255,8 @@ const RouletteSidePanelStats = ({
 }: RouletteSidePanelStatsProps) => {
   const [historicalNumbers, setHistoricalNumbers] = useState<RouletteNumber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`).current;
+  const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
-  
-  // Função para adicionar novos números ao histórico
-  const addNewNumbers = useCallback((newNumbers: number[]) => {
-    if (!newNumbers || newNumbers.length === 0) return;
-    
-    logger.info(`Adicionando ${newNumbers.length} novos números ao histórico de ${roletaNome}`);
-    
-    // Processar os novos números para obter timestamps
-    const processedNewNumbers = processRouletteNumbers(roletaNome, newNumbers);
-    
-    // Atualizar o histórico adicionando os novos números no início
-    setHistoricalNumbers(prevNumbers => {
-      const combinedNumbers = [...processedNewNumbers, ...prevNumbers];
-      // Limitar a 1000 números no máximo
-      return combinedNumbers.slice(0, 1000);
-    });
-  }, [roletaNome]);
-  
-  // Expor a função addNewNumbers globalmente para que possa ser chamada de fora
-  useEffect(() => {
-    // Registrar a função no objeto window
-    (window as any).addNumberToRouletteHistory = (roletaNome: string, newNumber: number) => {
-      if (roletaNome.toLowerCase() === roletaNome.toLowerCase()) {
-        logger.info(`Número ${newNumber} adicionado ao histórico de ${roletaNome} via API global`);
-        addNewNumbers([newNumber]);
-        return true;
-      }
-      return false;
-    };
-    
-    // Limpar ao desmontar
-    return () => {
-      delete (window as any).addNumberToRouletteHistory;
-    };
-  }, [roletaNome, addNewNumbers]);
-  
-  // Adicionar uma subscrição específica para novos números
-  useEffect(() => {
-    const newNumberSubscriberId = `${subscriberId}-new-numbers`;
-    
-    // Registrar para eventos de novos números
-    const handleNewNumber = (event: RouletteNumberEvent) => {
-      if (!event) return;
-      
-      // Verificar se o evento é para esta roleta
-      const eventRouletteId = event.roleta_id;
-      const eventRoletteName = event.roleta_nome;
-      
-      const matchesId = eventRouletteId && eventRouletteId.toString() === roletaNome;
-      const matchesName = eventRoletteName && eventRoletteName.toLowerCase() === roletaNome.toLowerCase();
-      
-      if (matchesId || matchesName) {
-        const newNumber = event.numero;
-        if (typeof newNumber === 'number' || typeof newNumber === 'string') {
-          logger.info(`Novo número ${newNumber} detectado para ${roletaNome}`);
-          addNewNumbers([parseInt(newNumber.toString())]);
-        }
-      }
-    };
-    
-    // Registrar diretamente no EventService 
-    EventService.on('roulette:new-number', handleNewNumber);
-    
-    return () => {
-      // Cancelar assinatura
-      EventService.off('roulette:new-number', handleNewNumber);
-    };
-  }, [roletaNome, addNewNumbers, subscriberId]);
   
   // Função para carregar dados históricos - preservar timestamp da API
   const loadHistoricalData = async () => {
@@ -465,10 +352,10 @@ const RouletteSidePanelStats = ({
     setIsLoading(true);
     
     // ID único para assinatura de dados detalhados
-    const detailedSubscriberId = `${subscriberId}-detailed`;
+    const detailedSubscriberId = `${subscriberId.current}-detailed`;
     
     // Registrar no serviço global para receber atualizações de dados normais
-    globalRouletteDataService.subscribe(subscriberId, () => {
+    globalRouletteDataService.subscribe(subscriberId.current, () => {
       logger.info(`Recebendo atualização de dados normais para ${roletaNome}`);
       loadHistoricalData();
     });
@@ -487,7 +374,7 @@ const RouletteSidePanelStats = ({
     
     return () => {
       // Cancelar inscrições ao desmontar
-      globalRouletteDataService.unsubscribe(subscriberId);
+      globalRouletteDataService.unsubscribe(subscriberId.current);
       globalRouletteDataService.unsubscribe(detailedSubscriberId);
     };
   }, [roletaNome]); // Dependência apenas na roleta
