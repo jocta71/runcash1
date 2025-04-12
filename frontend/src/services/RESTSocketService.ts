@@ -663,51 +663,130 @@ class RESTSocketService {
     try {
       console.log(`[RESTSocketService] Buscando ${limit} números para roleta ${roletaId} com offset ${offset}`);
       
+      // Validar parâmetros
+      if (!roletaId) {
+        console.error(`[RESTSocketService] ID da roleta inválido`);
+        return false;
+      }
+      
+      if (limit <= 0 || offset < 0) {
+        console.error(`[RESTSocketService] Parâmetros de paginação inválidos: limit=${limit}, offset=${offset}`);
+        return false;
+      }
+      
       // Construir a URL com parâmetros de paginação
       const baseUrl = this.getApiBaseUrl();
       const url = `${baseUrl}/api/roulette-history?roleta_id=${roletaId}&limit=${limit}&offset=${offset}`;
       
-      // Fazer a requisição
-      const response = await fetch(url);
+      // Fazer a requisição com timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos de timeout
       
-      if (!response.ok) {
-        throw new Error(`Erro na requisição: ${response.status}`);
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
+        }
+        
+        let data;
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          console.error(`[RESTSocketService] Erro ao analisar resposta JSON:`, parseError);
+          throw new Error('Resposta inválida do servidor');
+        }
+        
+        if (!data) {
+          throw new Error('Resposta vazia do servidor');
+        }
+        
+        // Validar estrutura de dados
+        if (!data.data || !Array.isArray(data.data)) {
+          console.warn(`[RESTSocketService] Estrutura de dados inválida recebida:`, data);
+          throw new Error('Estrutura de dados inválida recebida do servidor');
+        }
+        
+        console.log(`[RESTSocketService] Recebidos ${data.data.length} números para roleta ${roletaId}`);
+        
+        // Extrair apenas os números com validação
+        const numbers = data.data
+          .map((item: any) => {
+            if (!item) return NaN;
+            
+            // Obter o número do item, considerando diferentes formatos
+            const numeroValue = item.numero !== undefined 
+              ? item.numero 
+              : (item.number !== undefined ? item.number : null);
+            
+            // Converter para número e validar
+            const num = Number(numeroValue);
+            if (isNaN(num)) {
+              console.warn(`[RESTSocketService] Valor inválido encontrado:`, item);
+            }
+            return num;
+          })
+          .filter((n: number) => !isNaN(n));
+        
+        if (numbers.length === 0 && data.data.length > 0) {
+          console.warn(`[RESTSocketService] Nenhum número válido encontrado na resposta`);
+        }
+        
+        // Se offset for 0, substituir o histórico
+        if (offset === 0) {
+          this.setRouletteHistory(roletaId, numbers);
+        } else {
+          // Caso contrário, mesclar com o histórico existente
+          const existingHistory = this.rouletteHistory.get(roletaId) || [];
+          const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
+          this.setRouletteHistory(roletaId, mergedNumbers);
+        }
+        
+        // Chamar o callback com o total de itens se fornecido e se a API retornou essa informação
+        if (onTotalItems) {
+          if (data.totalRegistros !== undefined) {
+            onTotalItems(Number(data.totalRegistros));
+          } else if (data.total !== undefined) {
+            onTotalItems(Number(data.total));
+          } else {
+            // Se não houver total na resposta, estimar com base no que temos
+            const estimatedTotal = Math.max(offset + numbers.length, this.getRouletteHistory(roletaId).length);
+            console.log(`[RESTSocketService] Total de registros não fornecido, estimando ${estimatedTotal}`);
+            onTotalItems(estimatedTotal);
+          }
+        }
+        
+        return true;
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError.name === 'AbortError') {
+          console.error(`[RESTSocketService] Requisição cancelada por timeout`);
+          throw new Error('Tempo limite da requisição excedido');
+        }
+        
+        throw fetchError;
       }
-      
-      const data = await response.json();
-      
-      if (!data || !data.data || !Array.isArray(data.data)) {
-        throw new Error('Dados inválidos recebidos da API');
-      }
-      
-      console.log(`[RESTSocketService] Recebidos ${data.data.length} números para roleta ${roletaId}`);
-      
-      // Extrair apenas os números
-      const numbers = data.data
-        .map((item: any) => Number(item.numero))
-        .filter((n: number) => !isNaN(n));
-      
-      // Se offset for 0, substituir o histórico
-      if (offset === 0) {
-        this.setRouletteHistory(roletaId, numbers);
-      } else {
-        // Caso contrário, mesclar com o histórico existente
-        const existingHistory = this.rouletteHistory.get(roletaId) || [];
-        const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
-        this.setRouletteHistory(roletaId, mergedNumbers);
-      }
-      
-      // Chamar o callback com o total de itens se fornecido e se a API retornou essa informação
-      if (onTotalItems && data.totalRegistros) {
-        onTotalItems(data.totalRegistros);
-      } else if (onTotalItems) {
-        // Se não houver total na resposta, estimar com base no que temos
-        onTotalItems(Math.max(offset + numbers.length, this.getRouletteHistory(roletaId).length));
-      }
-      
-      return true;
     } catch (error) {
       console.error(`[RESTSocketService] Erro ao buscar números para roleta ${roletaId}:`, error);
+      
+      // Tentar usar dados existentes em cache
+      if (onTotalItems) {
+        const existingHistory = this.getRouletteHistory(roletaId);
+        if (existingHistory.length > 0) {
+          console.log(`[RESTSocketService] Usando ${existingHistory.length} números do cache após erro`);
+          onTotalItems(existingHistory.length);
+        }
+      }
+      
       return false;
     }
   }
