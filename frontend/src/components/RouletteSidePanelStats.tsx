@@ -43,25 +43,48 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
     
     // Primeiro, tentar buscar dados detalhados com limit=1000
     logger.info(`Solicitando dados detalhados (limit=1000) para ${rouletteName}`);
-    await globalRouletteDataService.fetchDetailedRouletteData();
+    const detailedData = await globalRouletteDataService.fetchDetailedRouletteData();
     
     // Uma vez que os dados detalhados foram buscados, procurar a roleta específica
     logger.info(`Buscando roleta ${rouletteName} nos dados detalhados`);
     
-    // Obter todos os dados detalhados
-    const detailedRoulettes = globalRouletteDataService.getAllDetailedRoulettes();
-    
     // Procurar a roleta pelo nome nos dados detalhados
-    const targetDetailedRoulette = detailedRoulettes.find((roleta: any) => {
+    const targetDetailedRoulette = detailedData.find((roleta: any) => {
       const roletaName = roleta.nome || roleta.name || '';
       return roletaName.toLowerCase() === rouletteName.toLowerCase();
     });
     
-    // Se encontrou a roleta nos dados detalhados
+    // Verificar a estrutura exata dos dados recebidos para diagnóstico
+    if (targetDetailedRoulette) {
+      logger.info(`Estrutura da roleta encontrada:`, JSON.stringify({
+        id: targetDetailedRoulette.id,
+        nome: targetDetailedRoulette.nome,
+        numero_count: targetDetailedRoulette.numero ? targetDetailedRoulette.numero.length : 0,
+        primeiro_numero: targetDetailedRoulette.numero && targetDetailedRoulette.numero.length > 0 
+          ? targetDetailedRoulette.numero[0] 
+          : null
+      }));
+    }
+    
+    // Se encontrou a roleta nos dados detalhados e possui array de números
     if (targetDetailedRoulette && targetDetailedRoulette.numero && Array.isArray(targetDetailedRoulette.numero)) {
-      // Extrair apenas os números da roleta encontrada
+      // Extrair os números considerando todas as possíveis estruturas
       const processedDetailedNumbers = targetDetailedRoulette.numero
-        .map((n: any) => Number(n.numero))
+        .map((n: any) => {
+          // Se for um objeto com propriedade numero
+          if (typeof n === 'object' && n !== null) {
+            return Number(n.numero || n.number);
+          }
+          // Se for um número diretamente
+          else if (typeof n === 'number') {
+            return n;
+          }
+          // Se for uma string que pode ser convertida para número
+          else if (typeof n === 'string' && !isNaN(Number(n))) {
+            return Number(n);
+          }
+          return NaN;
+        })
         .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
       
       logger.info(`Obtidos ${processedDetailedNumbers.length} números históricos DETALHADOS para ${rouletteName}`);
@@ -75,9 +98,23 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
     const targetRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
     
     if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-      // Extrair apenas os números da roleta encontrada
+      // Extrair os números considerando todas as possíveis estruturas
       const processedNumbers = targetRoulette.numero
-        .map((n: any) => Number(n.numero))
+        .map((n: any) => {
+          // Se for um objeto com propriedade numero
+          if (typeof n === 'object' && n !== null) {
+            return Number(n.numero || n.number);
+          }
+          // Se for um número diretamente
+          else if (typeof n === 'number') {
+            return n;
+          }
+          // Se for uma string que pode ser convertida para número
+          else if (typeof n === 'string' && !isNaN(Number(n))) {
+            return Number(n);
+          }
+          return NaN;
+        })
         .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
       
       logger.info(`Obtidos ${processedNumbers.length} números históricos para ${rouletteName} do serviço global`);

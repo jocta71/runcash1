@@ -185,10 +185,24 @@ class GlobalRouletteDataService {
    * Esta função deve ser chamada somente quando precisamos de dados detalhados para estatísticas
    */
   public async fetchDetailedRouletteData(): Promise<any[]> {
-    // Evitar requisições simultâneas
+    // Evitar requisições simultâneas, mas não retornar dados antigos se necessário forçar
     if (this.isFetchingDetailed) {
-      console.log('[GlobalRouletteService] Requisição detalhada já em andamento, ignorando');
-      return this.detailedRouletteData;
+      console.log('[GlobalRouletteService] Requisição detalhada já em andamento, aguardando...');
+      // Criar nova promessa para aguardar a conclusão da requisição em andamento
+      return new Promise<any[]>((resolve, reject) => {
+        const checkInterval = setInterval(() => {
+          if (!this.isFetchingDetailed) {
+            clearInterval(checkInterval);
+            resolve(this.detailedRouletteData);
+          }
+        }, 100);
+        
+        // Definir timeout para evitar espera infinita
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          resolve(this.detailedRouletteData);
+        }, 5000);
+      });
     }
     
     try {
@@ -196,7 +210,8 @@ class GlobalRouletteDataService {
       this.isFetchingDetailed = true;
       
       // Verificar se os dados detalhados em cache ainda são válidos
-      if (this.detailedRouletteData.length > 0 && now - this.lastDetailedFetchTime < CACHE_TTL) {
+      // Reduzindo TTL para 5 segundos para garantir atualizações mais frequentes
+      if (this.detailedRouletteData.length > 0 && now - this.lastDetailedFetchTime < 5000) {
         console.log(`[GlobalRouletteService] Usando dados detalhados em cache, idade: ${Math.round((now - this.lastDetailedFetchTime)/1000)}s`);
         return this.detailedRouletteData;
       }
@@ -209,7 +224,21 @@ class GlobalRouletteDataService {
       
       // Verificar se os dados são válidos
       if (data && Array.isArray(data)) {
-        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
+        // Analisar a estrutura dos dados para diagnóstico
+        const totalNumeros = this.contarNumerosTotais(data);
+        const roletas = data.map(roleta => ({
+          id: roleta.id,
+          nome: roleta.nome || roleta.name,
+          totalNumeros: roleta.numero ? roleta.numero.length : 0
+        }));
+        
+        console.log(`[GlobalRouletteService] Dados detalhados recebidos: ${data.length} roletas com um total de ${totalNumeros} números`);
+        console.log(`[GlobalRouletteService] Distribuição por roleta:`, JSON.stringify(roletas.slice(0, 3)));
+        
+        if (totalNumeros === 0) {
+          console.warn('[GlobalRouletteService] ALERTA: Nenhum número encontrado nos dados detalhados!');
+        }
+        
         this.detailedRouletteData = data;
         this.lastDetailedFetchTime = now;
         
