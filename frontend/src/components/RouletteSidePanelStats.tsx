@@ -241,9 +241,9 @@ export const getRouletteNumberColor = (num: number) => {
   const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
   
   if (redNumbers.includes(num)) {
-    return "bg-red-600 text-white";
+    return "text-white bg-[#FF1D46]";
   } else {
-    return "bg-black text-white";
+    return "text-white bg-[#292524]";
   }
 };
 
