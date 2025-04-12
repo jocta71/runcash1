@@ -70,21 +70,86 @@ export class RouletteHistoryService {
   }
 
   private async doFetchHistoricalNumbers(rouletteName: string): Promise<number[]> {
-    console.log(`[RouletteHistoryService] Requisição desativada para histórico da roleta ${rouletteName}`);
-    
-    // Retornar um array vazio em vez de gerar números aleatórios
-    const emptyNumbers: number[] = [];
-    
-    // Simulando um atraso para evitar loop infinito
-    await new Promise(resolve => setTimeout(resolve, 200));
-  
-    // Atualiza o cache com array vazio
-    this.cache[rouletteName] = {
-      data: emptyNumbers,
-      timestamp: Date.now()
-    };
-    
-    return emptyNumbers;
+    try {
+      this.logger.info(`Buscando histórico para roleta ${rouletteName} da API`);
+      
+      // Tentar primeira abordagem: endpoint específico para histórico por nome
+      try {
+        const historyEndpoint = `/api/roulettes/history/${encodeURIComponent(rouletteName)}`;
+        this.logger.debug(`Tentando endpoint ${historyEndpoint}`);
+        
+        const historyData = await fetchWithCorsSupport<any>(historyEndpoint);
+        
+        if (historyData && historyData.numeros && Array.isArray(historyData.numeros)) {
+          // Processar os números retornados
+          const numbers = historyData.numeros
+            .map((n: any) => (typeof n === 'object' ? n.numero : n))
+            .filter((n: any) => !isNaN(Number(n)) && Number(n) >= 0 && Number(n) <= 36)
+            .map((n: any) => Number(n));
+          
+          this.logger.info(`Obtidos ${numbers.length} números históricos para ${rouletteName}`);
+          
+          // Atualiza o cache
+          this.cache[rouletteName] = {
+            data: numbers,
+            timestamp: Date.now()
+          };
+          
+          return numbers;
+        }
+      } catch (error) {
+        this.logger.warn(`Primeira abordagem falhou para ${rouletteName}:`, error);
+        // Continue para próxima abordagem...
+      }
+      
+      // Segunda abordagem: buscar todos os dados e filtrar
+      try {
+        // Obter dados detalhados do serviço global (que já tem dados históricos)
+        const detailedData = await globalRouletteDataService.fetchDetailedRouletteData();
+        
+        // Encontrar a roleta específica por nome
+        const targetRoulette = detailedData.find(r => 
+          (r.nome && r.nome.toLowerCase() === rouletteName.toLowerCase()) || 
+          (r.name && r.name.toLowerCase() === rouletteName.toLowerCase())
+        );
+        
+        if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+          // Extrair apenas os números
+          const numbers = targetRoulette.numero
+            .map((n: any) => Number(n.numero || n.number))
+            .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+          
+          this.logger.info(`Obtidos ${numbers.length} números históricos para ${rouletteName} do serviço global`);
+          
+          // Atualiza o cache
+          this.cache[rouletteName] = {
+            data: numbers,
+            timestamp: Date.now()
+          };
+          
+          return numbers;
+        }
+      } catch (error) {
+        this.logger.warn(`Segunda abordagem falhou para ${rouletteName}:`, error);
+        // Continue para próxima abordagem...
+      }
+      
+      // Se todas as abordagens falharam, retornar array vazio
+      this.logger.warn(`Todas as abordagens falharam para obter histórico de ${rouletteName}`);
+      
+      const emptyNumbers: number[] = [];
+      
+      // Atualiza o cache com array vazio
+      this.cache[rouletteName] = {
+        data: emptyNumbers,
+        timestamp: Date.now()
+      };
+      
+      return emptyNumbers;
+    } catch (error) {
+      this.logger.error(`Erro ao buscar histórico para ${rouletteName}:`, error);
+      return [];
+    }
   }
 
   /**
