@@ -474,7 +474,12 @@ const RouletteSidePanelStats = ({
     isInitialRequestDone.current = false;
     setIsLoading(true);
     
+    // Limpar o histórico ao mudar de roleta para evitar exibir dados da roleta anterior
+    setHistoricalNumbers([]);
+    
     // ID único para assinatura de dados detalhados
+    // Regenerar subscriberId para garantir que seja único para cada roleta
+    subscriberId.current = `sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`;
     const detailedSubscriberId = `${subscriberId.current}-detailed`;
     
     // Registrar no serviço global para receber atualizações de dados normais
@@ -505,7 +510,7 @@ const RouletteSidePanelStats = ({
   // Atualizar números quando lastNumbers mudar, usando timestamp da API e processApiData
   useEffect(() => {
     if (isInitialRequestDone.current && lastNumbers && lastNumbers.length > 0) {
-      logger.info(`Atualizando com ${lastNumbers.length} novos números recentes`);
+      logger.info(`Atualizando números recentes para roleta ${roletaNome}: ${lastNumbers.length} números`);
       
       // Obter os dados mais recentes do serviço global para garantir timestamps corretos
       const allRoulettes = globalRouletteDataService.getAllRoulettes();
@@ -536,7 +541,7 @@ const RouletteSidePanelStats = ({
         setHistoricalNumbers(combinedNumbers.slice(0, 1000));
       }
     }
-  }, [lastNumbers]);
+  }, [lastNumbers, roletaNome, historicalNumbers]);
   
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
