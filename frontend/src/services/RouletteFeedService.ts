@@ -412,40 +412,40 @@ export default class RouletteFeedService {
       // Usar exclusivamente o serviço global para buscar dados
       const globalRoulettes = await globalRouletteDataService.fetchRouletteData();
       
-      if (globalRoulettes && globalRoulettes.length > 0) {
+    if (globalRoulettes && globalRoulettes.length > 0) {
         logger.info(`📋 Recebidos ${globalRoulettes.length} roletas do serviço global centralizado`);
-        
-        // Transformar dados para o formato esperado
-        const liveTables: { [key: string]: any } = {};
-        globalRoulettes.forEach(roleta => {
-          if (roleta && roleta.id) {
-            // Certifique-se de que estamos lidando corretamente com o campo numero
-            // Na API, o 'numero' é um array de objetos com propriedade 'numero'
-            const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-            
-            liveTables[roleta.id] = {
-              GameID: roleta.id,
-              Name: roleta.name || roleta.nome,
-              ativa: roleta.ativa,
-              // Manter a estrutura do campo numero exatamente como está na API
-              numero: numeroArray,
-              // Incluir outras propriedades da roleta
-              ...roleta
-            };
-          }
-        });
-        
-        // Armazenar os dados
-        this.lastUpdateTime = Date.now();
-        this.hasCachedData = true;
-        this.roulettes = liveTables;
-        
-        // Sinalizar que dados iniciais foram carregados globalmente
-        RouletteFeedService.INITIAL_DATA_FETCHED = true;
-        
-        // Notificar que temos novos dados
-        this.notifySubscribers(liveTables);
-        
+      
+      // Transformar dados para o formato esperado
+      const liveTables: { [key: string]: any } = {};
+      globalRoulettes.forEach(roleta => {
+        if (roleta && roleta.id) {
+          // Certifique-se de que estamos lidando corretamente com o campo numero
+          // Na API, o 'numero' é um array de objetos com propriedade 'numero'
+          const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+          
+          liveTables[roleta.id] = {
+            GameID: roleta.id,
+            Name: roleta.name || roleta.nome,
+            ativa: roleta.ativa,
+            // Manter a estrutura do campo numero exatamente como está na API
+            numero: numeroArray,
+            // Incluir outras propriedades da roleta
+            ...roleta
+          };
+        }
+      });
+      
+      // Armazenar os dados
+      this.lastUpdateTime = Date.now();
+      this.hasCachedData = true;
+      this.roulettes = liveTables;
+      
+      // Sinalizar que dados iniciais foram carregados globalmente
+      RouletteFeedService.INITIAL_DATA_FETCHED = true;
+      
+      // Notificar que temos novos dados
+      this.notifySubscribers(liveTables);
+      
         // Ajustar intervalo de polling baseado no sucesso
         this.adjustPollingInterval(false);
         
@@ -563,12 +563,12 @@ export default class RouletteFeedService {
           this.notifySubscribers(liveTables);
           
           // Notificar outros serviços
-          this.notifyDataUpdate();
-          
+        this.notifyDataUpdate();
+        
           return liveTables;
         } else {
           logger.warn('⚠️ Resposta inválida do serviço global');
-          return this.roulettes;
+        return this.roulettes;
         }
       })
       .catch(error => {
