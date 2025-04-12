@@ -614,7 +614,7 @@ const RouletteSidePanelStats = ({
               {historicalNumbers.map((n, idx) => (
                 <div 
                   key={idx} 
-                  className="flex flex-col items-center mb-2 w-[calc(4%-2px)]"
+                  className="flex flex-col items-center mb-2 w-10"
                 >
                   <div className={`w-8 h-8 flex items-center justify-center text-sm font-medium ${getRouletteNumberColor(n.numero)}`}>
                     {n.numero}
