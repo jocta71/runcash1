@@ -71,41 +71,14 @@ export class RouletteHistoryService {
 
   private async doFetchHistoricalNumbers(rouletteName: string): Promise<number[]> {
     try {
-      this.logger.info(`Buscando histórico para roleta ${rouletteName} da API`);
+      this.logger.info(`[HISTÓRICO-SERVICE] Buscando histórico para roleta ${rouletteName}`);
       
-      // Tentar primeira abordagem: endpoint específico para histórico por nome
+      // Primeira e principal estratégia: usar o serviço global detalhado
+      this.logger.info(`[HISTÓRICO-SERVICE] Usando serviço global detalhado (até 1000 números)`);
       try {
-        const historyEndpoint = `/api/roulettes/history/${encodeURIComponent(rouletteName)}`;
-        this.logger.debug(`Tentando endpoint ${historyEndpoint}`);
-        
-        const historyData = await fetchWithCorsSupport<any>(historyEndpoint);
-        
-        if (historyData && historyData.numeros && Array.isArray(historyData.numeros)) {
-          // Processar os números retornados
-          const numbers = historyData.numeros
-            .map((n: any) => (typeof n === 'object' ? n.numero : n))
-            .filter((n: any) => !isNaN(Number(n)) && Number(n) >= 0 && Number(n) <= 36)
-            .map((n: any) => Number(n));
-          
-          this.logger.info(`Obtidos ${numbers.length} números históricos para ${rouletteName}`);
-          
-          // Atualiza o cache
-          this.cache[rouletteName] = {
-            data: numbers,
-            timestamp: Date.now()
-          };
-          
-          return numbers;
-        }
-      } catch (error) {
-        this.logger.warn(`Primeira abordagem falhou para ${rouletteName}:`, error);
-        // Continue para próxima abordagem...
-      }
-      
-      // Segunda abordagem: buscar todos os dados e filtrar
-      try {
-        // Obter dados detalhados do serviço global (que já tem dados históricos)
+        // Obter dados detalhados do serviço global (até 1000 números por roleta)
         const detailedData = await globalRouletteDataService.fetchDetailedRouletteData();
+        this.logger.info(`[HISTÓRICO-SERVICE] Recebidas ${detailedData.length} roletas com dados detalhados`);
         
         // Encontrar a roleta específica por nome
         const targetRoulette = detailedData.find(r => 
@@ -113,13 +86,52 @@ export class RouletteHistoryService {
           (r.name && r.name.toLowerCase() === rouletteName.toLowerCase())
         );
         
-        if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-          // Extrair apenas os números
-          const numbers = targetRoulette.numero
-            .map((n: any) => Number(n.numero || n.number))
-            .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+        if (targetRoulette) {
+          this.logger.info(`[HISTÓRICO-SERVICE] Roleta encontrada: ${targetRoulette.nome || targetRoulette.name}`);
           
-          this.logger.info(`Obtidos ${numbers.length} números históricos para ${rouletteName} do serviço global`);
+          if (targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+            // Extrair apenas os números
+            const numbers = targetRoulette.numero
+              .map((n: any) => Number(n.numero || n.number))
+              .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+            
+            this.logger.info(`[HISTÓRICO-SERVICE] Processados ${numbers.length} números históricos válidos`);
+            
+            if (numbers.length > 0) {
+              // Atualiza o cache
+              this.cache[rouletteName] = {
+                data: numbers,
+                timestamp: Date.now()
+              };
+              
+              return numbers;
+            } else {
+              this.logger.warn(`[HISTÓRICO-SERVICE] Array vazio após processamento`);
+            }
+          } else {
+            this.logger.warn(`[HISTÓRICO-SERVICE] Roleta sem array de números válido`);
+          }
+        } else {
+          this.logger.warn(`[HISTÓRICO-SERVICE] Roleta '${rouletteName}' não encontrada nos dados detalhados`);
+        }
+      } catch (error) {
+        this.logger.warn(`[HISTÓRICO-SERVICE] Erro ao usar serviço global:`, error);
+      }
+      
+      // Segunda estratégia (fallback): usar o endpoint específico de histórico
+      // Mantido como plano B, mesmo sabendo que está falhando atualmente
+      this.logger.info(`[HISTÓRICO-SERVICE] Tentando endpoint específico como fallback`);
+      try {
+        const historyEndpoint = `/api/roulettes/history/${encodeURIComponent(rouletteName)}`;
+        const historyData = await fetchWithCorsSupport<any>(historyEndpoint);
+        
+        if (historyData && historyData.numeros && Array.isArray(historyData.numeros)) {
+          const numbers = historyData.numeros
+            .map((n: any) => (typeof n === 'object' ? n.numero : n))
+            .filter((n: any) => !isNaN(Number(n)) && Number(n) >= 0 && Number(n) <= 36)
+            .map((n: any) => Number(n));
+          
+          this.logger.info(`[HISTÓRICO-SERVICE] Obtidos ${numbers.length} números do endpoint específico`);
           
           // Atualiza o cache
           this.cache[rouletteName] = {
@@ -130,24 +142,48 @@ export class RouletteHistoryService {
           return numbers;
         }
       } catch (error) {
-        this.logger.warn(`Segunda abordagem falhou para ${rouletteName}:`, error);
-        // Continue para próxima abordagem...
+        this.logger.warn(`[HISTÓRICO-SERVICE] Endpoint específico falhou:`, error);
+      }
+      
+      // Terceira estratégia: obter dados básicos
+      this.logger.info(`[HISTÓRICO-SERVICE] Usando dados básicos como último recurso`);
+      try {
+        const basicData = globalRouletteDataService.getRouletteByName(rouletteName);
+        
+        if (basicData && basicData.numero && Array.isArray(basicData.numero)) {
+          const basicNumbers = basicData.numero
+            .map((n: any) => Number(n.numero || n.number))
+            .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+          
+          this.logger.info(`[HISTÓRICO-SERVICE] Obtidos ${basicNumbers.length} números dos dados básicos`);
+          
+          // Atualiza o cache
+          this.cache[rouletteName] = {
+            data: basicNumbers,
+            timestamp: Date.now()
+          };
+          
+          return basicNumbers;
+        }
+      } catch (error) {
+        this.logger.warn(`[HISTÓRICO-SERVICE] Erro ao usar dados básicos:`, error);
       }
       
       // Se todas as abordagens falharam, retornar array vazio
-      this.logger.warn(`Todas as abordagens falharam para obter histórico de ${rouletteName}`);
+      this.logger.warn(`[HISTÓRICO-SERVICE] Todas as abordagens falharam para ${rouletteName}`);
+      this.logger.warn(`[HISTÓRICO-SERVICE] Provável indisponibilidade do banco de dados`);
       
       const emptyNumbers: number[] = [];
       
-      // Atualiza o cache com array vazio
+      // Atualiza o cache com array vazio, mas com TTL reduzido para tentar novamente em breve
       this.cache[rouletteName] = {
         data: emptyNumbers,
-        timestamp: Date.now()
+        timestamp: Date.now() - (this.CACHE_TTL / 2) // Reduzir o tempo de vida do cache
       };
       
       return emptyNumbers;
     } catch (error) {
-      this.logger.error(`Erro ao buscar histórico para ${rouletteName}:`, error);
+      this.logger.error(`[HISTÓRICO-SERVICE] Erro crítico ao buscar histórico:`, error);
       return [];
     }
   }

@@ -39,13 +39,12 @@ const generateFallbackNumbers = (count: number = 20): number[] => {
 // Buscar histórico de números da roleta do serviço centralizado
 export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<number[]> => {
   try {
-    logger.info(`Buscando dados históricos para: ${rouletteName}`);
+    logger.info(`[HISTÓRICO] Buscando dados históricos para roleta: ${rouletteName}`);
     
-    // Forçar uma atualização no serviço global para garantir dados frescos
-    await globalRouletteDataService.forceUpdate();
-    
-    // Tentar obter dados detalhados primeiro (mais números)
+    // Primeira estratégia: Obter dados detalhados do serviço global (até 1000 números)
+    logger.info(`[HISTÓRICO] Estratégia 1: Buscando dados detalhados do serviço global`);
     const detailedData = await globalRouletteDataService.fetchDetailedRouletteData();
+    logger.info(`[HISTÓRICO] Recebidos ${detailedData.length} roletas com dados detalhados`);
     
     // Buscar a roleta específica nos dados detalhados
     const targetRoulette = detailedData.find(r => 
@@ -53,49 +52,61 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
       (r.name && r.name.toLowerCase() === rouletteName.toLowerCase())
     );
     
-    if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-      // Extrair apenas os números da roleta encontrada
-      const processedNumbers = targetRoulette.numero
-        .map((n: any) => Number(n.numero || n.number))
-        .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+    if (targetRoulette) {
+      logger.info(`[HISTÓRICO] Roleta encontrada nos dados detalhados: ${targetRoulette.nome || targetRoulette.name}`);
       
-      logger.info(`Obtidos ${processedNumbers.length} números históricos para ${rouletteName} dos dados detalhados`);
-      
-      if (processedNumbers.length > 0) {
-        return processedNumbers;
+      if (targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+        // Extrair apenas os números da roleta encontrada
+        const processedNumbers = targetRoulette.numero
+          .map((n: any) => Number(n.numero || n.number))
+          .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+        
+        logger.info(`[HISTÓRICO] Processados ${processedNumbers.length} números válidos para ${rouletteName}`);
+        
+        if (processedNumbers.length > 0) {
+          return processedNumbers;
+        } else {
+          logger.warn(`[HISTÓRICO] Array de números está vazio após processamento`);
+        }
+      } else {
+        logger.warn(`[HISTÓRICO] Roleta encontrada, mas sem array de números válido`);
       }
+    } else {
+      logger.warn(`[HISTÓRICO] Roleta '${rouletteName}' não encontrada nos dados detalhados`);
     }
     
-    // Se não encontrou nos dados detalhados, usar o serviço de histórico
-    logger.info(`Tentando usar serviço de histórico para ${rouletteName}`);
-    const historyNumbers = await rouletteHistoryService.fetchRouletteHistoricalNumbers(rouletteName);
-    
-    if (historyNumbers && historyNumbers.length > 0) {
-      logger.info(`Obtidos ${historyNumbers.length} números do serviço de histórico para ${rouletteName}`);
-      return historyNumbers;
-    }
-    
-    // Se ainda não temos dados, tentar dados básicos do serviço global
+    // Segunda estratégia: Tentar dados básicos do serviço global (poucos números)
+    logger.info(`[HISTÓRICO] Estratégia 2: Verificando dados básicos do serviço global`);
     const basicRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
     
-    if (basicRoulette && basicRoulette.numero && Array.isArray(basicRoulette.numero)) {
-      // Extrair apenas os números da roleta encontrada
-      const basicNumbers = basicRoulette.numero
-        .map((n: any) => Number(n.numero || n.number))
-        .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+    if (basicRoulette) {
+      logger.info(`[HISTÓRICO] Roleta encontrada nos dados básicos`);
       
-      logger.info(`Obtidos ${basicNumbers.length} números dos dados básicos para ${rouletteName}`);
-      return basicNumbers;
+      if (basicRoulette.numero && Array.isArray(basicRoulette.numero)) {
+        // Extrair apenas os números da roleta encontrada
+        const basicNumbers = basicRoulette.numero
+          .map((n: any) => Number(n.numero || n.number))
+          .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36);
+        
+        logger.info(`[HISTÓRICO] Obtidos ${basicNumbers.length} números dos dados básicos para ${rouletteName}`);
+        return basicNumbers;
+      } else {
+        logger.warn(`[HISTÓRICO] Roleta básica encontrada, mas sem array de números válido`);
+      }
+    } else {
+      logger.warn(`[HISTÓRICO] Roleta '${rouletteName}' não encontrada nos dados básicos`);
     }
     
-    // Se ainda não conseguiu nada, tentar uma requisição direta para os números desta roleta
-    logger.warn(`Nenhum dado encontrado para ${rouletteName}, forçando outra atualização`);
+    // Terceira estratégia: Forçar uma nova atualização e tentar novamente
+    logger.info(`[HISTÓRICO] Estratégia 3: Forçando nova atualização para ${rouletteName}`);
+    globalRouletteDataService.forceUpdate();
     
-    // Se nada funcionou, retornar array vazio
-    logger.warn(`Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
+    // Se todas as estratégias falharam, retornar array vazio
+    logger.warn(`[HISTÓRICO] ATENÇÃO: Todas as estratégias falharam para "${rouletteName}"`);
+    logger.warn(`[HISTÓRICO] O banco de dados pode estar indisponível ou a API com problemas`);
     return [];
   } catch (error) {
-    logger.error(`Erro ao buscar números históricos:`, error);
+    logger.error(`[HISTÓRICO] Erro crítico ao buscar dados históricos:`, error);
     return []; // Retorna array vazio em caso de erro
   }
 };
@@ -223,47 +234,70 @@ const RouletteSidePanelStats = ({
   // Função para carregar dados históricos
   const loadHistoricalData = async () => {
     try {
-      logger.info(`Buscando histórico para ${roletaNome}...`);
-      // Buscar dados históricos usando a função atualizada
-      let apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
+      logger.info(`[HISTÓRICO-UI] Buscando histórico para ${roletaNome}...`);
+      setIsLoading(true);
       
-      if (apiNumbers.length === 0 && isInitialRequestDone.current) {
-        logger.info(`Sem novos dados disponíveis, mantendo estado atual`);
+      // Buscar dados históricos da API através da função otimizada
+      let apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
+      logger.info(`[HISTÓRICO-UI] Obtidos ${apiNumbers.length} números da API`);
+      
+      // Se não conseguimos nada da API mas já temos dados, manter os atuais
+      if (apiNumbers.length === 0 && historicalNumbers.length > 0 && isInitialRequestDone.current) {
+        logger.info(`[HISTÓRICO-UI] API sem dados, mantendo histórico atual de ${historicalNumbers.length} números`);
+        setIsLoading(false);
         return;
       }
       
-      // Se houver lastNumbers nas props, garantir que eles estão incluídos
+      // Combinar números recentes com históricos (priorizar números recentes para exibição)
+      let combinedNumbers: number[] = [];
+      
+      // Se temos números recentes, começar com eles
       if (lastNumbers && lastNumbers.length > 0) {
-        logger.info(`Combinando ${lastNumbers.length} números recentes com ${apiNumbers.length} números históricos`);
-        // Combinar lastNumbers com os números históricos, removendo duplicatas
-        const combinedNumbers = [...lastNumbers];
+        logger.info(`[HISTÓRICO-UI] Iniciando com ${lastNumbers.length} números recentes`);
+        combinedNumbers = [...lastNumbers];
+      }
+      
+      // Adicionar números da API sem duplicatas
+      if (apiNumbers.length > 0) {
+        logger.info(`[HISTÓRICO-UI] Adicionando ${apiNumbers.length} números históricos da API`);
+        
+        let countAdded = 0;
         apiNumbers.forEach(num => {
           if (!combinedNumbers.includes(num)) {
             combinedNumbers.push(num);
+            countAdded++;
           }
         });
         
-        logger.info(`Total após combinação: ${combinedNumbers.length} números`);
-        // Limitando a 1000 números no máximo
+        logger.info(`[HISTÓRICO-UI] Adicionados ${countAdded} números únicos da API`);
+      }
+      
+      // Se, mesmo assim, não temos dados, verificar se já temos algo no estado atual
+      if (combinedNumbers.length === 0 && historicalNumbers.length > 0) {
+        logger.info(`[HISTÓRICO-UI] Sem novos dados, mantendo ${historicalNumbers.length} números existentes`);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Se temos números combinados, usar eles (limitados a 1000)
+      if (combinedNumbers.length > 0) {
+        logger.info(`[HISTÓRICO-UI] Atualizando estado com ${combinedNumbers.length} números combinados`);
         setHistoricalNumbers(combinedNumbers.slice(0, 1000));
-      } 
-      else if (apiNumbers.length > 0) {
-        // Se não temos lastNumbers mas temos dados da API
-        logger.info(`Usando apenas números da API: ${apiNumbers.length}`);
-        // Limitando a 1000 números no máximo
-        setHistoricalNumbers(apiNumbers.slice(0, 1000));
-      } 
-      else {
-        // Se não temos nenhum dado, usar apenas os números recentes (ou array vazio)
-        logger.info(`Sem dados históricos, usando apenas números recentes: ${(lastNumbers || []).length}`);
-        setHistoricalNumbers(lastNumbers || []);
+      } else {
+        // Último recurso: se ainda não temos nada, usar um array vazio
+        logger.warn(`[HISTÓRICO-UI] Sem dados disponíveis para ${roletaNome}`);
+        setHistoricalNumbers([]);
       }
       
       isInitialRequestDone.current = true;
     } catch (error) {
-      logger.error('Erro ao carregar dados históricos:', error);
-      // Em caso de erro, usar apenas os números recentes em vez de gerar aleatórios
-      setHistoricalNumbers(lastNumbers || []);
+      logger.error('[HISTÓRICO-UI] Erro ao carregar dados históricos:', error);
+      
+      // Em caso de erro, manter os dados atuais se existirem
+      if (historicalNumbers.length === 0 && lastNumbers && lastNumbers.length > 0) {
+        logger.info(`[HISTÓRICO-UI] Usando ${lastNumbers.length} números recentes devido a erro`);
+        setHistoricalNumbers(lastNumbers);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -345,18 +379,24 @@ const RouletteSidePanelStats = ({
               <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {historicalNumbers.length})
             </h3>
             <div className="grid grid-cols-8 sm:grid-cols-12 md:grid-cols-16 lg:grid-cols-25 gap-1 max-h-[250px] overflow-y-auto p-2">
-              {historicalNumbers.map((num, idx) => (
-                <div 
-                  key={idx} 
-                  className={`w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
-                  title={`Número ${num} - Posição ${idx+1}`}
-                >
-                  {num}
-                </div>
-              ))}
-              {historicalNumbers.length === 0 && (
-                <div className="col-span-full text-center text-gray-400 py-4">
-                  Nenhum número histórico disponível para esta roleta
+              {historicalNumbers.length > 0 ? (
+                historicalNumbers.map((num, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
+                    title={`Número ${num} - Posição ${idx+1}`}
+                  >
+                    {num}
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full text-center py-4">
+                  <p className="text-gray-400 mb-2">
+                    Nenhum número histórico disponível para esta roleta
+                  </p>
+                  <p className="text-yellow-500 text-sm">
+                    O banco de dados de histórico pode estar temporariamente indisponível
+                  </p>
                 </div>
               )}
             </div>

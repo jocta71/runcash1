@@ -13,8 +13,8 @@ const MIN_FORCE_INTERVAL = 5000;
 // Limite padrão para requisições normais (100 itens)
 const DEFAULT_LIMIT = 100;
 
-// Limite para requisições detalhadas (500 itens)
-const DETAILED_LIMIT = 500;
+// Limite para requisições detalhadas (1000 itens)
+const DETAILED_LIMIT = 1000;
 
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
