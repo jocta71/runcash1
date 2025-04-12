@@ -263,11 +263,43 @@ class GlobalRouletteDataService {
    */
   private contarNumerosTotais(roletas: any[]): number {
     let total = 0;
-    roletas.forEach(roleta => {
+    
+    console.log('[GlobalRouletteService] Analisando estrutura dos números recebidos:');
+    
+    roletas.forEach((roleta, index) => {
       if (roleta.numero && Array.isArray(roleta.numero)) {
         total += roleta.numero.length;
+        
+        // Para as primeiras 3 roletas, vamos analisar detalhadamente
+        if (index < 3 && roleta.numero.length > 0) {
+          console.log(`[GlobalRouletteService] Roleta ${roleta.nome || roleta.name || roleta.id}:`);
+          console.log(`  - Total de números: ${roleta.numero.length}`);
+          console.log(`  - Tipo do primeiro item: ${typeof roleta.numero[0]}`);
+          
+          if (typeof roleta.numero[0] === 'object') {
+            console.log(`  - Estrutura do primeiro item: ${JSON.stringify(roleta.numero[0])}`);
+          } else {
+            console.log(`  - Valor do primeiro item: ${roleta.numero[0]}`);
+          }
+          
+          // Vamos também mostrar os primeiros 10 números para verificar a estrutura
+          const primeiros10 = roleta.numero.slice(0, 10).map((n: any) => {
+            if (typeof n === 'object' && n !== null) {
+              return n.numero || n.number;
+            }
+            return n;
+          });
+          
+          console.log(`  - Primeiros 10 números: ${JSON.stringify(primeiros10)}`);
+        }
+      } else {
+        console.log(`[GlobalRouletteService] Roleta ${roleta.nome || roleta.name || roleta.id} não tem array 'numero' válido`);
+        if (roleta.numero) {
+          console.log(`  - Tipo de 'numero': ${typeof roleta.numero}`);
+        }
       }
     });
+    
     return total;
   }
   

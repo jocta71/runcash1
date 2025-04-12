@@ -249,12 +249,39 @@ const RouletteSidePanelStats = ({
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(100); // Exibir 100 números por página
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
+  
+  // Calcular o número total de páginas
+  const totalPages = Math.ceil(historicalNumbers.length / itemsPerPage);
+  
+  // Calcular índices de início e fim para a paginação
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, historicalNumbers.length);
+  
+  // Obter os números da página atual
+  const currentNumbers = historicalNumbers.slice(startIndex, endIndex);
+  
+  // Navegação entre páginas
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+  
+  const goToPrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
   
   // Toggle função para expandir/recolher o histórico
   const toggleHistoryExpanded = () => {
     setIsHistoryExpanded(!isHistoryExpanded);
+    // Se expandir, mostrar mais números por página
+    setItemsPerPage(isHistoryExpanded ? 100 : 500);
   };
   
   // Função para carregar dados históricos
@@ -374,6 +401,16 @@ const RouletteSidePanelStats = ({
   
   const winRate = (wins / (wins + losses)) * 100;
 
+  // Atualizar o número de itens por página
+  const handleItemsPerPageChange = (newValue: number) => {
+    setItemsPerPage(newValue);
+    // Ajustar a página atual para que o usuário não perca a posição
+    const newTotalPages = Math.ceil(historicalNumbers.length / newValue);
+    if (currentPage > newTotalPages) {
+      setCurrentPage(newTotalPages);
+    }
+  };
+
   return (
     <div className="w-full bg-gray-900 rounded-lg overflow-y-auto max-h-screen">
       <div className="p-4">
@@ -397,19 +434,75 @@ const RouletteSidePanelStats = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
           {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
           <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light md:col-span-2">
-            <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
-              <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Total: {historicalNumbers.length})
-            </h3>
-            <div className="grid grid-cols-10 sm:grid-cols-15 md:grid-cols-20 lg:grid-cols-25 gap-1 max-h-[400px] overflow-y-auto p-3">
-              {historicalNumbers.map((num, idx) => (
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-[#00ff00] flex items-center text-base font-bold">
+                <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Total: {historicalNumbers.length})
+              </h3>
+              <div className="flex space-x-2">
+                {/* Controles de paginação */}
+                {totalPages > 1 && (
+                  <div className="flex items-center space-x-1 text-vegas-gold text-xs">
+                    <button 
+                      onClick={goToPrevPage} 
+                      disabled={currentPage === 1}
+                      className={`px-2 py-1 rounded ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-vegas-darkgray'}`}
+                    >
+                      ◀
+                    </button>
+                    <span className="px-2">
+                      Página {currentPage}/{totalPages}
+                    </span>
+                    <button 
+                      onClick={goToNextPage} 
+                      disabled={currentPage === totalPages}
+                      className={`px-2 py-1 rounded ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-vegas-darkgray'}`}
+                    >
+                      ▶
+                    </button>
+                  </div>
+                )}
+                
+                {/* Botão para expandir/recolher */}
+                <button 
+                  onClick={toggleHistoryExpanded}
+                  className="text-sm text-vegas-gold bg-vegas-darkgray/50 hover:bg-vegas-darkgray px-2 py-1 rounded"
+                >
+                  {isHistoryExpanded ? 'Recolher' : 'Expandir'}
+                </button>
+              </div>
+            </div>
+            <div className={`grid grid-cols-10 sm:grid-cols-15 md:grid-cols-20 lg:grid-cols-25 gap-1 ${isHistoryExpanded ? 'max-h-[800px]' : 'max-h-[400px]'} overflow-y-auto p-3`}>
+              {currentNumbers.map((num, idx) => (
                 <div 
-                  key={idx} 
+                  key={`${startIndex+idx}-${num}`} 
                   className={`w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
                 >
                   {num}
                 </div>
               ))}
             </div>
+            {/* Informações da paginação */}
+            {totalPages > 1 && (
+              <div className="mt-2 text-vegas-gold text-xs flex justify-between items-center">
+                <div>
+                  Mostrando números {startIndex+1}-{endIndex} de {historicalNumbers.length}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span>Itens por página:</span>
+                  <select 
+                    className="bg-vegas-darkgray text-vegas-gold rounded px-1 py-0.5 text-xs"
+                    value={itemsPerPage}
+                    onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                  >
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                    <option value="500">500</option>
+                    <option value="1000">1000</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Distribution Pie Chart */}
