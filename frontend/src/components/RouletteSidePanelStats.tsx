@@ -585,7 +585,7 @@ const RouletteSidePanelStats = ({
   const winRate = (wins / (wins + losses)) * 100;
 
   return (
-    <div className="w-full bg-black rounded-lg overflow-y-auto max-h-screen">
+    <div className="w-full bg-[#14161F] rounded-lg overflow-y-auto max-h-screen">
       <div className="p-4">
         <h2 className="text-[#00ff00] flex items-center text-xl font-bold mb-2">
           <BarChart className="mr-3" /> Estatísticas da {roletaNome}
@@ -606,7 +606,7 @@ const RouletteSidePanelStats = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
           {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
-          <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-black md:col-span-2">
+          <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-[#14161F] md:col-span-2">
             <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
               <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {historicalNumbers.length})
             </h3>
@@ -628,7 +628,7 @@ const RouletteSidePanelStats = ({
           </div>
 
           {/* Distribution Pie Chart */}
-          <div className="p-4 space-y-3 bg-black border border-gray-800">
+          <div className="p-4 space-y-3 bg-[#14161F] border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
               <ChartBar size={20} className="text-[#00ff00] mr-2" /> Distribuição por Cor
             </h3>
@@ -656,7 +656,7 @@ const RouletteSidePanelStats = ({
           </div>
           
           {/* Win Rate Chart */}
-          <div className="p-4 space-y-3 bg-black border border-gray-800">
+          <div className="p-4 space-y-3 bg-[#14161F] border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
               <PercentIcon size={20} className="text-[#00ff00] mr-2" /> Taxa de Vitória
             </h3>
@@ -688,10 +688,10 @@ const RouletteSidePanelStats = ({
           </div>
           
           {/* Hot & Cold Numbers */}
-          <div className="p-4 space-y-3 md:col-span-2 bg-black border border-gray-800">
+          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3">Números Quentes & Frios</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="p-2 bg-black rounded-lg border border-gray-800">
+              <div className="p-2 bg-[#14161F] rounded-lg border border-gray-800">
                 <h4 className="text-xs font-medium text-red-500 mb-2 flex items-center">
                   <ArrowUp size={18} className="mr-2" /> Números Quentes
                 </h4>
@@ -707,7 +707,7 @@ const RouletteSidePanelStats = ({
                 </div>
               </div>
               
-              <div className="p-2 bg-black rounded-lg border border-gray-800">
+              <div className="p-2 bg-[#14161F] rounded-lg border border-gray-800">
                 <h4 className="text-xs font-medium text-blue-500 mb-2 flex items-center">
                   <ArrowDown size={18} className="mr-2" /> Números Frios
                 </h4>
@@ -726,7 +726,7 @@ const RouletteSidePanelStats = ({
           </div>
           
           {/* Frequency Chart */}
-          <div className="p-4 space-y-3 md:col-span-2 bg-black border border-gray-800">
+          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
               <ChartBar size={20} className="text-[#00ff00] mr-2" /> Frequência de Números
             </h3>
@@ -747,11 +747,11 @@ const RouletteSidePanelStats = ({
           </div>
           
           {/* Média de cores por hora */}
-          <div className="p-4 space-y-3 md:col-span-2 bg-black border border-gray-800">
+          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3">Média de cores por hora</h3>
             <div className="grid grid-cols-3 gap-3">
               {colorHourlyStats.map((stat, index) => (
-                <div key={`color-stat-${index}`} className="bg-black border border-gray-800 rounded-md p-3">
+                <div key={`color-stat-${index}`} className="bg-[#14161F] border border-gray-800 rounded-md p-3">
                   <div className="flex items-center">
                     <div 
                       className="w-8 h-8 rounded-md mr-3 flex items-center justify-center" 
