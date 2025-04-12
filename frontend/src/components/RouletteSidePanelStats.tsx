@@ -12,7 +12,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import globalRouletteDataService from '../services/GlobalRouletteDataService';
 import rouletteHistoryService from '../services/RouletteHistoryService';
 import { getLogger } from '../services/utils/logger';
@@ -394,6 +394,72 @@ export const processApiData = (apiRoulette: any, currentNumbers: RouletteNumber[
   return currentNumbers;
 };
 
+// Implementar o mesmo método do RouletteCard para gerenciar dados
+// Adicionando a classe GlobalRouletteDataManager que o RouletteCard usa
+class GlobalRouletteDataManager {
+  private static instance: GlobalRouletteDataManager | null = null;
+  private updateCallbacks: Map<string, (data: any) => void> = new Map();
+  private initialDataLoaded: boolean = false;
+  
+  private constructor() {
+    logger.info('[RouletteSidePanelStats] Inicializando gerenciador de dados para histórico');
+  }
+  
+  public static getInstance(): GlobalRouletteDataManager {
+    if (!GlobalRouletteDataManager.instance) {
+      GlobalRouletteDataManager.instance = new GlobalRouletteDataManager();
+    }
+    return GlobalRouletteDataManager.instance;
+  }
+  
+  public subscribe(id: string, callback: (data: any) => void): () => void {
+    logger.info(`[RouletteSidePanelStats] Novo assinante de histórico registrado: ${id}`);
+    this.updateCallbacks.set(id, callback);
+    
+    // Usar o globalRouletteDataService para obter dados
+    const currentData = globalRouletteDataService.getAllRoulettes();
+    
+    // Se já temos dados, notificar imediatamente
+    if (currentData && currentData.length > 0) {
+      callback(currentData);
+      this.initialDataLoaded = true;
+    } else {
+      // Forçar uma atualização usando o serviço global
+      globalRouletteDataService.forceUpdate();
+    }
+    
+    // Registrar callback no serviço global para receber atualizações
+    globalRouletteDataService.subscribe(id, () => {
+      const rouletteData = globalRouletteDataService.getAllRoulettes();
+      if (rouletteData && rouletteData.length > 0) {
+        callback(rouletteData);
+      }
+    });
+    
+    // Retornar função para cancelar inscrição
+    return () => {
+      this.updateCallbacks.delete(id);
+      globalRouletteDataService.unsubscribe(id);
+      logger.info(`[RouletteSidePanelStats] Assinante de histórico removido: ${id}`);
+    };
+  }
+
+  // Obter dados mais recentes (sem garantia de atualização)
+  public getData(): any[] {
+    return globalRouletteDataService.getAllRoulettes();
+  }
+  
+  // Obter timestamp da última atualização
+  public getLastUpdateTime(): number {
+    return Date.now(); // Usar o timestamp atual como fallback
+  }
+
+  // Verificar se os dados iniciais foram carregados
+  public isInitialized(): boolean {
+    return this.initialDataLoaded;
+  }
+}
+
 // Modificando o componente para integrar lastNumbers aos dados históricos
 const RouletteSidePanelStats = ({ 
   roletaNome, 
@@ -406,7 +472,132 @@ const RouletteSidePanelStats = ({
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
   
-  // Efeito para processar lastNumbers quando eles mudam
+  // Referência ao gerenciador de dados (mesmo usado pelo RouletteCard)
+  const dataManager = useMemo(() => GlobalRouletteDataManager.getInstance(), []);
+  
+  // Função para processar os dados da roleta (mesma do RouletteCard)
+  const handleApiData = useCallback((allRoulettes: any[]) => {
+    if (!allRoulettes || !Array.isArray(allRoulettes) || allRoulettes.length === 0) return;
+    
+    // Encontrar a roleta específica pelo nome
+    const myRoulette = allRoulettes.find((roulette: any) => 
+      roulette.nome === roletaNome || 
+      roulette.name === roletaNome
+    );
+    
+    if (!myRoulette) {
+      logger.warn(`Roleta com nome ${roletaNome} não encontrada na resposta`);
+      return;
+    }
+    
+    // Extrair números
+    const apiNumbers = extractNumbers(myRoulette);
+    logger.info(`Obtidos ${apiNumbers.length} números de ${roletaNome} via gerenciador global`);
+    
+    // Verificar se é a primeira carga ou se temos números novos
+    if (historicalNumbers.length === 0) {
+      // Primeira carga de dados
+      const numbersWithTimestamp = apiNumbers.map((num, index) => {
+        // Tentar obter timestamp da API
+        let timeString = "00:00";
+        if (myRoulette.numero && Array.isArray(myRoulette.numero) && 
+            myRoulette.numero.length > index && myRoulette.numero[index].timestamp) {
+          try {
+            const date = new Date(myRoulette.numero[index].timestamp);
+            timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                        date.getMinutes().toString().padStart(2, '0');
+          } catch (e) {
+            logger.error("Erro ao converter timestamp:", e);
+          }
+        }
+        
+        return {
+          numero: num,
+          timestamp: timeString
+        };
+      });
+      
+      setHistoricalNumbers(numbersWithTimestamp);
+      logger.info(`Histórico inicial carregado: ${numbersWithTimestamp.length} números`);
+    } else {
+      // Temos dados, verificar se há números novos
+      // Verificar se o primeiro número da API é diferente do nosso
+      if (apiNumbers[0] === historicalNumbers[0]?.numero) {
+        logger.info(`Sem novos números para processar`);
+        return;
+      }
+      
+      // Procurar por números novos (mesmo método do RouletteCard)
+      const newNumbers: RouletteNumber[] = [];
+      const currentNumeros = historicalNumbers.map(item => item.numero);
+      
+      // Percorrer a lista da API até encontrar um número que já temos
+      for (let i = 0; i < apiNumbers.length; i++) {
+        const apiNum = apiNumbers[i];
+        
+        // Se encontramos um número que já está na nossa lista, paramos
+        if (currentNumeros.includes(apiNum)) {
+          break;
+        }
+        
+        // Obter timestamp da API para este número
+        let timeString = "00:00";
+        if (myRoulette.numero && Array.isArray(myRoulette.numero) && 
+            myRoulette.numero.length > i && myRoulette.numero[i].timestamp) {
+          try {
+            const date = new Date(myRoulette.numero[i].timestamp);
+            timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                       date.getMinutes().toString().padStart(2, '0');
+          } catch (e) {
+            logger.error("Erro ao converter timestamp:", e);
+          }
+        }
+        
+        // Adicionar o número novo à nossa lista temporária
+        newNumbers.push({
+          numero: apiNum,
+          timestamp: timeString
+        });
+      }
+      
+      // Se encontramos números novos, atualizamos o estado
+      if (newNumbers.length > 0) {
+        logger.info(`Adicionando ${newNumbers.length} novos números via gerenciador global: ${newNumbers.map(n => n.numero).join(', ')}`);
+        
+        // Adicionar os novos números no início da nossa lista
+        setHistoricalNumbers(prev => {
+          const combined = [...newNumbers, ...prev];
+          // Limitar a 1000 números no máximo
+          return combined.slice(0, 1000);
+        });
+      }
+    }
+    
+    setIsLoading(false);
+    isInitialRequestDone.current = true;
+  }, [roletaNome, historicalNumbers]);
+  
+  // Efeito para usar o GlobalRouletteDataManager (como o RouletteCard faz)
+  useEffect(() => {
+    logger.info(`Inicializando historico para ${roletaNome} usando GlobalRouletteDataManager`);
+    
+    // Resetar o estado de inicialização se a roleta mudar
+    isInitialRequestDone.current = false;
+    setIsLoading(true);
+    
+    // Limpar o histórico ao mudar de roleta para evitar exibir dados da roleta anterior
+    setHistoricalNumbers([]);
+    
+    // Assinar atualizações do gerenciador global
+    const unsubscribe = dataManager.subscribe(subscriberId.current, handleApiData);
+    
+    // Limpar inscrição ao desmontar o componente
+    return () => {
+      unsubscribe();
+    };
+  }, [roletaNome, dataManager, handleApiData, subscriberId]);
+  
+  // Manter o useEffect para processar lastNumbers quando eles mudam
   useEffect(() => {
     // Se lastNumbers está vazio, não fazer nada
     if (!lastNumbers || lastNumbers.length === 0 || !isInitialRequestDone.current) {
@@ -459,123 +650,6 @@ const RouletteSidePanelStats = ({
       });
     }
   }, [lastNumbers, roletaNome]);
-  
-  // Usar o serviço global para obter atualizações - solução radical para evitar duplicações
-  useEffect(() => {
-    logger.info(`Inicializando para roleta ${roletaNome}`);
-    
-    // Resetar o estado de inicialização se a roleta mudar
-    isInitialRequestDone.current = false;
-    setIsLoading(true);
-    
-    // Limpar o histórico ao mudar de roleta para evitar exibir dados da roleta anterior
-    setHistoricalNumbers([]);
-    
-    // Criar uma flag para controlar loading
-    let isLoadingData = true;
-    
-    // Função simplificada para carregar dados de uma fonte única
-    const loadFreshData = async () => {
-      if (!isLoadingData) {
-        logger.info(`Ignorando solicitação de carregamento - já está em andamento`);
-        return;
-      }
-      
-      try {
-        // Marcar que estamos carregando
-        isLoadingData = true;
-        
-        // Buscar sempre somente dados detalhados - fonte única de dados
-        const detailedData = await globalRouletteDataService.fetchDetailedRouletteData();
-        logger.info(`Dados detalhados obtidos: ${detailedData.length} roletas`);
-        
-        // Se não estamos mais montados ou a roleta mudou, abortar
-        if (!isLoadingData) {
-          logger.info(`Abortando processamento - componente foi desmontado`);
-          return;
-        }
-        
-        // Com os dados detalhados, podemos processá-los diretamente
-        const detailedRoulette = detailedData.find((r: any) => {
-          const name = r.nome || r.name || '';
-          return name.toLowerCase() === roletaNome.toLowerCase();
-        });
-        
-        if (detailedRoulette) {
-          logger.info(`Processando dados para ${roletaNome}`);
-          
-          // Extrair números da resposta da API diretamente
-          let extractedNumbers = extractNumbers(detailedRoulette);
-          logger.info(`Extraídos ${extractedNumbers.length} números para ${roletaNome}`);
-          
-          // Converter para o formato RouletteNumber com timestamp
-          const numbersWithTimestamp = extractedNumbers.map((num, index) => {
-            // Tentar obter timestamp da API
-            let timeString = "00:00";
-            if (detailedRoulette.numero && Array.isArray(detailedRoulette.numero) && 
-                detailedRoulette.numero.length > index && detailedRoulette.numero[index].timestamp) {
-              try {
-                const date = new Date(detailedRoulette.numero[index].timestamp);
-                timeString = date.getHours().toString().padStart(2, '0') + ':' + 
-                          date.getMinutes().toString().padStart(2, '0');
-              } catch (e) {
-                logger.error("Erro ao converter timestamp:", e);
-              }
-            }
-            
-            return {
-              numero: num,
-              timestamp: timeString
-            };
-          });
-          
-          // Se não estamos mais montados ou a roleta mudou, abortar
-          if (!isLoadingData) {
-            logger.info(`Abortando atualização - componente foi desmontado`);
-            return;
-          }
-          
-          // Atualizar o estado com os números processados - SEMPRE OVERWRITE
-          setHistoricalNumbers(numbersWithTimestamp.slice(0, 1000));
-          logger.info(`Histórico definido com ${numbersWithTimestamp.length} números (limitado a 1000)`);
-          
-          // Marcar que inicializamos
-          isInitialRequestDone.current = true;
-        } else {
-          // Se não encontramos a roleta, limpar histórico
-          setHistoricalNumbers([]);
-          logger.info(`Roleta não encontrada, histórico limpo`);
-        }
-        
-        // Finalizar estado de loading
-        setIsLoading(false);
-      } catch (error) {
-        logger.error(`Erro ao buscar dados: ${error}`);
-        // Em caso de erro, limpar histórico
-        setHistoricalNumbers([]);
-        setIsLoading(false);
-      } finally {
-        isLoadingData = false;
-      }
-    };
-    
-    // Carregar dados imediatamente - ÚNICA FONTE DE DADOS
-    loadFreshData();
-    
-    // Configurar um intervalo para recarregar dados a cada 15 segundos
-    // Em vez de usar assinaturas, usar um timer controlado
-    const intervalId = setInterval(() => {
-      logger.info(`Recarregando dados pelo intervalo (15s) para ${roletaNome}`);
-      loadFreshData();
-    }, 15000);
-    
-    // Cleanup function
-    return () => {
-      logger.info(`Desmontando componente para ${roletaNome}`);
-      isLoadingData = false; // Marcar para cancelar qualquer processamento pendente
-      clearInterval(intervalId); // Limpar o intervalo
-    };
-  }, [roletaNome]); // Dependência APENAS na roleta
 
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
