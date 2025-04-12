@@ -248,8 +248,14 @@ const RouletteSidePanelStats = ({
 }: RouletteSidePanelStatsProps) => {
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
+  
+  // Toggle função para expandir/recolher o histórico
+  const toggleHistoryExpanded = () => {
+    setIsHistoryExpanded(!isHistoryExpanded);
+  };
   
   // Função para carregar dados históricos
   const loadHistoricalData = async () => {
@@ -392,13 +398,13 @@ const RouletteSidePanelStats = ({
           {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
           <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-vegas-black-light md:col-span-2">
             <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
-              <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {historicalNumbers.length})
+              <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Total: {historicalNumbers.length})
             </h3>
-            <div className="grid grid-cols-5 sm:grid-cols-10 md:grid-cols-15 lg:grid-cols-20 gap-1 max-h-[200px] overflow-y-auto p-3">
+            <div className="grid grid-cols-10 sm:grid-cols-15 md:grid-cols-20 lg:grid-cols-25 gap-1 max-h-[400px] overflow-y-auto p-3">
               {historicalNumbers.map((num, idx) => (
                 <div 
                   key={idx} 
-                  className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
+                  className={`w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(num)}`}
                 >
                   {num}
                 </div>
