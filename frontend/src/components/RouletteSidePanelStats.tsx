@@ -628,7 +628,7 @@ const RouletteSidePanelStats = ({
           </div>
 
           {/* Distribution Pie Chart */}
-          <div className="glass-card p-4 space-y-3">
+          <div className="p-4 space-y-3 bg-black border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
               <ChartBar size={20} className="text-[#00ff00] mr-2" /> Distribuição por Cor
             </h3>
@@ -656,7 +656,7 @@ const RouletteSidePanelStats = ({
           </div>
           
           {/* Win Rate Chart */}
-          <div className="glass-card p-4 space-y-3">
+          <div className="p-4 space-y-3 bg-black border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
               <PercentIcon size={20} className="text-[#00ff00] mr-2" /> Taxa de Vitória
             </h3>
@@ -688,17 +688,17 @@ const RouletteSidePanelStats = ({
           </div>
           
           {/* Hot & Cold Numbers */}
-          <div className="glass-card p-4 space-y-3 md:col-span-2">
+          <div className="p-4 space-y-3 md:col-span-2 bg-black border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3">Números Quentes & Frios</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="p-2 bg-vegas-darkgray rounded-lg">
+              <div className="p-2 bg-black rounded-lg border border-gray-800">
                 <h4 className="text-xs font-medium text-red-500 mb-2 flex items-center">
                   <ArrowUp size={18} className="mr-2" /> Números Quentes
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {hot.map((item, i) => (
                     <div key={i} className="flex items-center space-x-2">
-                      <div className={`w-7 h-7 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium`}>
+                      <div className={`w-7 h-7 rounded-[4px] ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-gray-700`}>
                         {item.number}
                       </div>
                       <span className="text-vegas-gold text-xs">({item.frequency}x)</span>
@@ -707,14 +707,14 @@ const RouletteSidePanelStats = ({
                 </div>
               </div>
               
-              <div className="p-2 bg-vegas-darkgray rounded-lg">
+              <div className="p-2 bg-black rounded-lg border border-gray-800">
                 <h4 className="text-xs font-medium text-blue-500 mb-2 flex items-center">
                   <ArrowDown size={18} className="mr-2" /> Números Frios
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {cold.map((item, i) => (
                     <div key={i} className="flex items-center space-x-2">
-                      <div className={`w-7 h-7 rounded-full ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium`}>
+                      <div className={`w-7 h-7 rounded-[4px] ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-gray-700`}>
                         {item.number}
                       </div>
                       <span className="text-vegas-gold text-xs">({item.frequency}x)</span>
@@ -726,7 +726,7 @@ const RouletteSidePanelStats = ({
           </div>
           
           {/* Frequency Chart */}
-          <div className="glass-card p-4 space-y-3 md:col-span-2">
+          <div className="p-4 space-y-3 md:col-span-2 bg-black border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
               <ChartBar size={20} className="text-[#00ff00] mr-2" /> Frequência de Números
             </h3>
@@ -747,11 +747,11 @@ const RouletteSidePanelStats = ({
           </div>
           
           {/* Média de cores por hora */}
-          <div className="glass-card p-4 space-y-3 md:col-span-2">
+          <div className="p-4 space-y-3 md:col-span-2 bg-black border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3">Média de cores por hora</h3>
             <div className="grid grid-cols-3 gap-3">
               {colorHourlyStats.map((stat, index) => (
-                <div key={`color-stat-${index}`} className="bg-gray-100/10 rounded-md p-3">
+                <div key={`color-stat-${index}`} className="bg-black border border-gray-800 rounded-md p-3">
                   <div className="flex items-center">
                     <div 
                       className="w-8 h-8 rounded-md mr-3 flex items-center justify-center" 
