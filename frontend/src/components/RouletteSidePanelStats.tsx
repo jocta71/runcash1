@@ -638,58 +638,41 @@ const RouletteSidePanelStats = ({
     };
   }, [roletaNome]); // Dependência apenas na roleta
 
-  // Atualizar números quando lastNumbers mudar, sem depender do intervalo entre requisições à API
+  // Atualizar números quando lastNumbers mudar, usando timestamp da API e processApiData
   useEffect(() => {
-    if (lastNumbers && lastNumbers.length > 0) {
+    if (isInitialRequestDone.current && lastNumbers && lastNumbers.length > 0) {
       logger.info(`Atualizando números recentes para roleta ${roletaNome}: ${lastNumbers.length} números`);
       
-      // Obter os dados mais recentes do serviço global apenas para obter os timestamps
+      // Obter os dados mais recentes do serviço global para garantir timestamps corretos
       const allRoulettes = globalRouletteDataService.getAllRoulettes();
       const currentRoulette = allRoulettes.find((r: any) => {
         const name = r.nome || r.name || '';
         return name.toLowerCase() === roletaNome.toLowerCase();
       });
       
-      // Transformar os lastNumbers em RouletteNumber com timestamp
-      const lastNumbersWithTime = lastNumbers.map((num, index) => {
-        // Tentar encontrar o número nos dados da API para obter um timestamp real
-        if (currentRoulette && currentRoulette.numero && Array.isArray(currentRoulette.numero)) {
-          const matchingNum = currentRoulette.numero.find((n: any) => Number(n.numero) === num);
-          if (matchingNum && matchingNum.timestamp) {
-            try {
-              const date = new Date(matchingNum.timestamp);
-              const timeString = date.getHours().toString().padStart(2, '0') + ':' + 
-                           date.getMinutes().toString().padStart(2, '0');
-              return { numero: num, timestamp: timeString };
-            } catch (e) {
-              logger.error("Erro ao processar timestamp:", e);
-            }
-          }
-        }
-        
-        // Se não conseguiu obter o timestamp da API, usar o timestamp atual
-        const now = new Date();
-        const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                       now.getMinutes().toString().padStart(2, '0');
-        return { numero: num, timestamp: timeString };
-      });
-      
-      // Verificar se o primeiro número já está no histórico
-      const alreadyHasFirstNumber = historicalNumbers.some(hn => hn.numero === lastNumbers[0]);
-      
-      if (!alreadyHasFirstNumber) {
-        logger.info(`Adicionando novos números ao histórico: ${lastNumbers.join(', ')}`);
-        
-        // Concatenar os números, mantendo todas as ocorrências
-        const combinedNumbers = [...lastNumbersWithTime, ...historicalNumbers];
-        
-        // Limitando a 1000 números no máximo
-        setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+      if (currentRoulette) {
+        // Usar a função processApiData para tratar os novos números adequadamente
+        // Isso garantirá que os números recentes sejam adicionados da mesma forma que o RouletteCard
+        const updatedNumbers = processApiData(currentRoulette, historicalNumbers);
+        setHistoricalNumbers(updatedNumbers);
       } else {
-        logger.info(`Números já presentes no histórico, não é necessário atualizar`);
-      }
+        // Fallback para o caso de não encontrarmos a roleta no serviço global
+        // Converter lastNumbers para objetos RouletteNumber usando timestamp atual
+        const lastNumbersWithTime = lastNumbers.map((num) => {
+          const now = new Date();
+          const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                         now.getMinutes().toString().padStart(2, '0');
+          return { numero: num, timestamp: timeString };
+        });
+        
+        // Apenas concatenar os números no início para preservar todas as ocorrências
+        const combinedNumbers = [...lastNumbersWithTime, ...historicalNumbers];
+      
+      // Limitando a 1000 números no máximo
+      setHistoricalNumbers(combinedNumbers.slice(0, 1000));
     }
-  }, [lastNumbers, roletaNome]);
+    }
+  }, [lastNumbers, roletaNome, historicalNumbers]);
   
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
