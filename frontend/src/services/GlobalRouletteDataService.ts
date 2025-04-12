@@ -38,6 +38,7 @@ class GlobalRouletteDataService {
   private subscribers: Map<string, SubscriberCallback> = new Map();
   private detailedSubscribers: Map<string, SubscriberCallback> = new Map();
   private _currentFetchPromise: Promise<any[]> | null = null;
+  private newNumberSubscribers: Map<string, (event: any) => void> = new Map();
   
   // Construtor privado para garantir Singleton
   private constructor() {
@@ -318,12 +319,36 @@ class GlobalRouletteDataService {
   }
   
   /**
+   * Inscreve um componente para receber notificações de novos números
+   */
+  public subscribeToNewNumbers(id: string, callback: (event: any) => void): void {
+    console.log(`[GlobalRouletteService] Novo assinante para eventos de números: ${id}`);
+    
+    // Inscreve o callback para o evento roulette:new-number no EventService
+    EventService.on('roulette:new-number', callback);
+    
+    // Armazenar o callback para poder removê-lo posteriormente
+    this.newNumberSubscribers.set(id, callback);
+  }
+  
+  /**
    * Cancela a inscrição de um componente
    */
   public unsubscribe(id: string): void {
     console.log(`[GlobalRouletteService] Assinante removido: ${id}`);
+    
+    // Remover das listas de assinantes
     this.subscribers.delete(id);
     this.detailedSubscribers.delete(id);
+    
+    // Se era um assinante de novos números, remover o ouvinte do EventService
+    if (this.newNumberSubscribers.has(id)) {
+      const callback = this.newNumberSubscribers.get(id);
+      if (callback) {
+        EventService.off('roulette:new-number', callback);
+      }
+      this.newNumberSubscribers.delete(id);
+    }
   }
   
   /**
@@ -370,6 +395,7 @@ class GlobalRouletteDataService {
     
     this.subscribers.clear();
     this.detailedSubscribers.clear();
+    this.newNumberSubscribers.clear();
     console.log('[GlobalRouletteService] Serviço encerrado e recursos liberados');
   }
 }
