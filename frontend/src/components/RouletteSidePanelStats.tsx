@@ -638,10 +638,19 @@ const RouletteSidePanelStats = ({
     };
   }, [roletaNome]); // Dependência apenas na roleta
 
-  // Atualizar números quando lastNumbers mudar, usando timestamp da API e processApiData
+  // Atualizar números quando lastNumbers mudar, usando timestamp da API
+  // Sem adicionar duplicações
   useEffect(() => {
     if (isInitialRequestDone.current && lastNumbers && lastNumbers.length > 0) {
       logger.info(`Atualizando números recentes para roleta ${roletaNome}: ${lastNumbers.length} números`);
+      
+      // Evitar duplicações: verificar se o último número já está no histórico
+      // Se o primeiro número de lastNumbers for igual ao primeiro número do histórico,
+      // assumimos que já temos os dados atualizados e não precisamos fazer nada
+      if (historicalNumbers.length > 0 && lastNumbers[0] === historicalNumbers[0].numero) {
+        logger.info(`Números já atualizados, ignorando atualização para evitar duplicações`);
+        return;
+      }
       
       // Obter os dados mais recentes do serviço global para garantir timestamps corretos
       const allRoulettes = globalRouletteDataService.getAllRoulettes();
@@ -654,9 +663,25 @@ const RouletteSidePanelStats = ({
         // Usar a função processApiData para tratar os novos números adequadamente
         // Isso garantirá que os números recentes sejam adicionados da mesma forma que o RouletteCard
         const updatedNumbers = processApiData(currentRoulette, historicalNumbers);
+        
+        // Verificação adicional para evitar atualizações desnecessárias
+        if (updatedNumbers.length === historicalNumbers.length &&
+            updatedNumbers[0].numero === historicalNumbers[0].numero) {
+          logger.info(`Nenhuma mudança detectada nos números, ignorando atualização`);
+          return;
+        }
+        
+        logger.info(`Atualizando histórico com ${updatedNumbers.length} números processados`);
         setHistoricalNumbers(updatedNumbers);
       } else {
         // Fallback para o caso de não encontrarmos a roleta no serviço global
+        
+        // Evitar duplicações: verificar se o último número já está no histórico
+        if (historicalNumbers.length > 0 && lastNumbers[0] === historicalNumbers[0].numero) {
+          logger.info(`Números já atualizados (fallback), ignorando atualização`);
+          return;
+        }
+        
         // Converter lastNumbers para objetos RouletteNumber usando timestamp atual
         const lastNumbersWithTime = lastNumbers.map((num) => {
           const now = new Date();
@@ -666,13 +691,23 @@ const RouletteSidePanelStats = ({
         });
         
         // Apenas concatenar os números no início para preservar todas as ocorrências
-        const combinedNumbers = [...lastNumbersWithTime, ...historicalNumbers];
-      
-      // Limitando a 1000 números no máximo
-      setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+        // Mas antes, remover qualquer número que já exista no início do histórico para evitar duplicações
+        const existingNumbers = new Set(historicalNumbers.slice(0, lastNumbers.length).map(n => n.numero));
+        const filteredLastNumbers = lastNumbersWithTime.filter(n => !existingNumbers.has(n.numero));
+        
+        if (filteredLastNumbers.length === 0) {
+          logger.info(`Todos os números já existem no histórico, ignorando atualização`);
+          return;
+        }
+        
+        const combinedNumbers = [...filteredLastNumbers, ...historicalNumbers];
+        
+        // Limitando a 1000 números no máximo
+        logger.info(`Atualizando histórico com ${filteredLastNumbers.length} novos números`);
+        setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+      }
     }
-    }
-  }, [lastNumbers, roletaNome, historicalNumbers]);
+  }, [lastNumbers, roletaNome]);
   
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
