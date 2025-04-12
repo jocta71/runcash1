@@ -585,7 +585,7 @@ const RouletteSidePanelStats = ({
   const winRate = (wins / (wins + losses)) * 100;
 
   return (
-    <div className="w-full bg-gray-900 rounded-lg overflow-y-auto max-h-screen">
+    <div className="w-full bg-black rounded-lg overflow-y-auto max-h-screen">
       <div className="p-4">
         <h2 className="text-[#00ff00] flex items-center text-xl font-bold mb-2">
           <BarChart className="mr-3" /> Estatísticas da {roletaNome}
