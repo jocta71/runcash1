@@ -276,40 +276,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Mostrar notificação para o primeiro novo número
       showNumberNotification(newNumbers[0]);
       
-      // Obter timestamp atual para cada número novo
-      const numbersWithTimestamp = newNumbers.map(num => {
-        // Criar um objeto com número e timestamp para cada número novo
-        return {
-          numero: num,
-          timestamp: new Date().toISOString() // Adicionar timestamp no formato ISO
-        };
-      });
-      
-      // Atualizar os dados da roleta no serviço global com o timestamp incluído
-      if (apiRoulette && apiRoulette.numero && Array.isArray(apiRoulette.numero)) {
-        // Adicionar timestamp aos novos números na API
-        newNumbers.forEach((num, index) => {
-          // Verificar se o número já existe na lista da API
-          const existingIndex = apiRoulette.numero.findIndex((n: any) => 
-            (typeof n.numero === 'number' ? n.numero : parseInt(n.numero)) === num
-          );
-          
-          if (existingIndex >= 0) {
-            // Atualizar o timestamp do número existente
-            apiRoulette.numero[existingIndex].timestamp = numbersWithTimestamp[index].timestamp;
-          } else {
-            // Adicionar novo número com timestamp no início da lista
-            apiRoulette.numero.unshift({
-              numero: num,
-              timestamp: numbersWithTimestamp[index].timestamp
-            });
-          }
-        });
-        
-        // Forçar atualização do serviço global com os novos dados
-        globalRouletteDataService.updateRoulette(apiRoulette);
-      }
-      
       // Resetar a animação após 2 segundos
       setTimeout(() => {
         setIsNewNumber(false);
