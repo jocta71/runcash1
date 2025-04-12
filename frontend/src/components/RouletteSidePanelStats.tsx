@@ -587,7 +587,7 @@ const RouletteSidePanelStats = ({
   return (
     <div className="w-full bg-[#14161F] rounded-lg overflow-y-auto max-h-screen">
       <div className="p-4">
-        <h2 className="text-[#00ff00] flex items-center text-xl font-bold mb-2">
+        <h2 className="text-white flex items-center text-xl font-bold mb-2">
           <BarChart className="mr-3" /> Estatísticas da {roletaNome}
         </h2>
         <p className="text-sm text-gray-400 mb-4">
@@ -601,13 +601,13 @@ const RouletteSidePanelStats = ({
       
       {isLoading ? (
         <div className="flex items-center justify-center p-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00ff00]"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
           {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
-          <div className="p-4 rounded-lg border border-[#00ff00]/20 bg-[#14161F] md:col-span-2">
-            <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
+          <div className="p-4 rounded-lg border border-gray-600 bg-[#14161F] md:col-span-2">
+            <h3 className="text-white flex items-center text-base font-bold mb-3">
               <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {historicalNumbers.length})
             </h3>
             <div className="flex flex-wrap gap-1 max-h-[200px] overflow-y-auto p-3">
@@ -630,7 +630,7 @@ const RouletteSidePanelStats = ({
           {/* Distribution Pie Chart */}
           <div className="p-4 space-y-3 bg-[#14161F] border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <ChartBar size={20} className="text-[#00ff00] mr-2" /> Distribuição por Cor
+              <ChartBar size={20} className="text-white mr-2" /> Distribuição por Cor
             </h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -640,7 +640,7 @@ const RouletteSidePanelStats = ({
                     cx="50%"
                     cy="50%"
                     outerRadius={60}
-                    fill="#00ff00"
+                    fill="white"
                     dataKey="value"
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   >
@@ -658,7 +658,7 @@ const RouletteSidePanelStats = ({
           {/* Win Rate Chart */}
           <div className="p-4 space-y-3 bg-[#14161F] border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <PercentIcon size={20} className="text-[#00ff00] mr-2" /> Taxa de Vitória
+              <PercentIcon size={20} className="text-white mr-2" /> Taxa de Vitória
             </h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -672,7 +672,7 @@ const RouletteSidePanelStats = ({
                     cy="50%"
                     innerRadius={40}
                     outerRadius={60}
-                    fill="#00ff00"
+                    fill="white"
                     paddingAngle={5}
                     dataKey="value"
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
@@ -728,7 +728,7 @@ const RouletteSidePanelStats = ({
           {/* Frequency Chart */}
           <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-800">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <ChartBar size={20} className="text-[#00ff00] mr-2" /> Frequência de Números
+              <ChartBar size={20} className="text-white mr-2" /> Frequência de Números
             </h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -737,10 +737,10 @@ const RouletteSidePanelStats = ({
                   <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 12}} />
                   <YAxis stroke="#ccc" tick={{fontSize: 12}} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#222', borderColor: '#00ff00' }} 
-                    labelStyle={{ color: '#00ff00' }}
+                    contentStyle={{ backgroundColor: '#222', borderColor: 'white' }} 
+                    labelStyle={{ color: 'white' }}
                   />
-                  <Bar dataKey="frequency" fill="#00ff00" />
+                  <Bar dataKey="frequency" fill="white" />
                 </RechartsBarChart>
               </ResponsiveContainer>
             </div>

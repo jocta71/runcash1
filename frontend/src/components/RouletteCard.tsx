@@ -498,7 +498,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             <button
               ref={estrategiaButtonRef}
               onClick={toggleEstrategiaDropdown}
-              className="w-full flex items-center justify-between bg-black hover:bg-gray-900 text-white rounded px-3 py-2 text-sm transition-colors"
+              className="w-full flex items-center justify-between bg-transparent text-white border border-gray-700 rounded px-3 py-2 text-sm transition-colors hover:border-white"
             >
               <div className="flex items-center">
                 <Target className="h-3 w-3 mr-2" />
