@@ -358,49 +358,8 @@ const RouletteSidePanelStats = ({
     globalRouletteDataService.subscribe(subscriberId.current, () => {
       logger.info(`Recebendo atualização de dados normais para ${roletaNome}`);
       
-      // Buscar roleta pelos dados atualizados do serviço global
-      const allRoulettes = globalRouletteDataService.getAllRoulettes();
-      const updatedRoulette = allRoulettes.find((r: any) => {
-        const name = r.nome || r.name || '';
-        return name.toLowerCase() === roletaNome.toLowerCase();
-      });
-      
-      if (updatedRoulette && updatedRoulette.numero && Array.isArray(updatedRoulette.numero)) {
-        // Verificar se há números novos
-        // Extrair os números e timestamps
-        const newNumbers = updatedRoulette.numero.map((n: any) => {
-          let timeString = "00:00";
-          if (n.timestamp) {
-            try {
-              const date = new Date(n.timestamp);
-              timeString = date.getHours().toString().padStart(2, '0') + ':' + 
-                        date.getMinutes().toString().padStart(2, '0');
-            } catch (e) {
-              logger.error("Erro ao converter timestamp:", e);
-            }
-          }
-          
-          return { 
-            numero: Number(n.numero), 
-            timestamp: timeString
-          };
-        }).filter((n: any) => !isNaN(n.numero) && n.numero >= 0 && n.numero <= 36);
-        
-        if (newNumbers.length > 0) {
-          // Adicionar apenas números novos (sem fazer nova requisição)
-          logger.info(`Encontrados ${newNumbers.length} números atualizados para ${roletaNome}`);
-          
-          setHistoricalNumbers(prevNumbers => {
-            // Adicionar os novos números
-            const combinedNumbers = [...newNumbers, ...prevNumbers];
-            
-            // Limitar a 1000 números
-            return combinedNumbers.slice(0, 1000);
-          });
-        }
-      }
-      
-      // Ainda chamar loadHistoricalData para manter compatibilidade
+      // Buscar dados atualizados imediatamente quando o serviço notificar mudanças
+      // Isso vai garantir que novos números adicionados no RouletteCard sejam refletidos aqui
       loadHistoricalData();
     });
     

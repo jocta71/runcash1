@@ -276,6 +276,21 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Mostrar notificação para o primeiro novo número
       showNumberNotification(newNumbers[0]);
       
+      // Adicionar os novos números ao serviço global para garantir que o histórico
+      // seja atualizado em tempo real
+      try {
+        // Adicionar cada novo número individualmente ao serviço global
+        // Começamos pelo mais antigo para manter a ordem cronológica correta
+        newNumbers.reverse().forEach(num => {
+          console.log(`[${Date.now()}] Adicionando número ${num} ao serviço global para ${safeData.name}`);
+          globalRouletteDataService.addNewNumberToRoulette(safeData.name, num);
+        });
+      } catch (err) {
+        console.error(`[${Date.now()}] Erro ao adicionar números ao serviço global:`, err);
+        // Fallback: forçar atualização geral
+        globalRouletteDataService.forceUpdate();
+      }
+      
       // Resetar a animação após 2 segundos
       setTimeout(() => {
         setIsNewNumber(false);

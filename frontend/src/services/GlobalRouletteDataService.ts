@@ -372,6 +372,75 @@ class GlobalRouletteDataService {
     this.detailedSubscribers.clear();
     console.log('[GlobalRouletteService] Serviço encerrado e recursos liberados');
   }
+
+  // Método para adicionar um novo número a uma roleta específica
+  public addNewNumberToRoulette(rouletteName: string, newNumber: number): void {
+    // Verificar se temos dados
+    if (!this.rouletteData || this.rouletteData.length === 0) {
+      console.log(`[GlobalRouletteService] Tentativa de adicionar número ${newNumber} a ${rouletteName}, mas não há dados carregados`);
+      return;
+    }
+    
+    console.log(`[GlobalRouletteService] Adicionando número ${newNumber} à roleta ${rouletteName}`);
+    
+    try {
+      // Encontrar a roleta específica
+      const targetRouletteIndex = this.rouletteData.findIndex((roleta: any) => {
+        const name = roleta.nome || roleta.name || '';
+        return name.toLowerCase() === rouletteName.toLowerCase();
+      });
+      
+      // Se não encontrar a roleta, não podemos adicionar o número
+      if (targetRouletteIndex === -1) {
+        console.log(`[GlobalRouletteService] Roleta ${rouletteName} não encontrada para adicionar número ${newNumber}`);
+        return;
+      }
+      
+      // Adicionar o número à roleta encontrada
+      const targetRoulette = this.rouletteData[targetRouletteIndex];
+      
+      // Criar objeto com timestamp para o novo número
+      const timestamp = new Date().toISOString();
+      const newNumberObj = { numero: newNumber, timestamp };
+      
+      // Adicionar aos arrays de números, verificando qual estrutura existe
+      if (Array.isArray(targetRoulette.numero)) {
+        // Adicionar no início do array numero
+        targetRoulette.numero.unshift(newNumberObj);
+      } else {
+        // Criar array se não existir
+        targetRoulette.numero = [newNumberObj];
+      }
+      
+      // Fazer o mesmo para os dados detalhados se eles existirem
+      if (this.detailedRouletteData && this.detailedRouletteData.length > 0) {
+        const detailedRouletteIndex = this.detailedRouletteData.findIndex((roleta: any) => {
+          const name = roleta.nome || roleta.name || '';
+          return name.toLowerCase() === rouletteName.toLowerCase();
+        });
+        
+        if (detailedRouletteIndex !== -1) {
+          const detailedRoulette = this.detailedRouletteData[detailedRouletteIndex];
+          
+          if (Array.isArray(detailedRoulette.numero)) {
+            detailedRoulette.numero.unshift(newNumberObj);
+          } else {
+            detailedRoulette.numero = [newNumberObj];
+          }
+        }
+      }
+      
+      // Atualizar timestamp da última atualização
+      this.lastFetchTime = Date.now();
+      
+      // Notificar todos os assinantes sobre a atualização
+      console.log(`[GlobalRouletteService] Notificando assinantes sobre novo número ${newNumber} para ${rouletteName}`);
+      this.notifySubscribers();
+      this.notifyDetailedSubscribers();
+    } catch (error) {
+      console.error(`[GlobalRouletteService] Erro ao adicionar número ${newNumber} à roleta ${rouletteName}:`, error);
+    }
+  }
 }
 
 // Exportar a instância única do serviço
