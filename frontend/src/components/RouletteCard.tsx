@@ -124,7 +124,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
   const [estrategiaSelecionada, setEstrategiaSelecionada] = useState<string>('martingale'); // Martingale selecionado por padrão
   const [showEstrategiaDropdown, setShowEstrategiaDropdown] = useState(false);
-  const [statsModalNumbers, setStatsModalNumbers] = useState<number[]>([...recentNumbers]);
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -450,48 +449,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
   }, [showEstrategiaDropdown]);
 
-  // Efeito para detectar novos números e forçar atualização no SidePanelStats
-  useEffect(() => {
-    if (isNewNumber && lastNumber !== null) {
-      console.log(`[DEBUG NÚMEROS] Novo número detectado no RouletteCard: ${lastNumber}`);
-      
-      // Se o modal de estatísticas estiver aberto, atualizar os números
-      if (isStatsModalOpen) {
-        console.log(`[DEBUG NÚMEROS] Modal aberto, atualizando números para SidePanelStats`);
-        setStatsModalNumbers([...recentNumbers]);
-      }
-    }
-  }, [isNewNumber, lastNumber, isStatsModalOpen, recentNumbers]);
-
-  // Atualizar statsModalNumbers quando recentNumbers mudar
-  useEffect(() => {
-    // Toda vez que recentNumbers for atualizado, também atualizar statsModalNumbers
-    setStatsModalNumbers([...recentNumbers]);
-    console.log("[DEBUG] recentNumbers atualizados:", recentNumbers);
-  }, [recentNumbers]);
-
-  // Modificar a função openStatsModal para garantir que ela use os números mais recentes
-  const openStatsModal = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    // Garantir que o modal use os números mais recentes
-    setStatsModalNumbers([...recentNumbers]);
-    console.log("[DEBUG MODAL] Abrindo modal com números:", recentNumbers);
-    console.log("[DEBUG MODAL] statsModalNumbers:", statsModalNumbers);
-    setIsStatsModalOpen(true);
-  };
-
-  // Adicionar uma função para forçar a atualização do histórico
-  const forceRefreshHistory = () => {
-    console.log("[FORCE REFRESH] Forçando atualização de números no modal");
-    // Forçar atualização dos dados detalhados
-    globalRouletteDataService.fetchDetailedRouletteData()
-      .then(() => {
-        // Atualizar statsModalNumbers com os números recentes após o fetch
-        setStatsModalNumbers([...recentNumbers]);
-        console.log("[FORCE REFRESH] Dados atualizados, statsModalNumbers:", recentNumbers);
-      });
-  };
-
   return (
     <Card 
       ref={cardRef}
@@ -650,7 +607,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           
           {/* Link para estatísticas completas */}
           <button 
-              onClick={openStatsModal}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsStatsModalOpen(true);
+              }}
               className="mt-3 text-xs text-blue-600 hover:text-blue-800 flex items-center"
           >
             <PieChart className="h-3 w-3 mr-1" />
@@ -667,15 +627,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             <h2 className="text-xl font-bold">Estatísticas da {safeData.name}</h2>
             <div className="flex items-center space-x-2">
               <button 
-                onClick={forceRefreshHistory}
-                className="text-gray-500 hover:text-gray-700 bg-gray-100 p-1 rounded-md"
-                title="Atualizar dados"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
-              <button 
                 onClick={() => setIsStatsModalOpen(false)}
                 className="text-gray-500 hover:text-gray-700 bg-gray-100 p-1 rounded-md"
                 title="Minimizar"
@@ -684,24 +635,21 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              <button 
-                onClick={() => setIsStatsModalOpen(false)}
+            <button 
+              onClick={() => setIsStatsModalOpen(false)}
                 className="text-gray-500 hover:text-gray-700"
                 title="Fechar"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
             </div>
           </div>
           <div className="p-4">
-            {/* Adicionar logs para debug e forçar array novo a cada renderização */}
-            {console.log("[DEBUG MODAL] Enviando números para SidePanelStats:", statsModalNumbers)}
             <RouletteSidePanelStats
-              key={`sidepanel-${safeData.name}-${Date.now()}`}
               roletaNome={safeData.name}
-              lastNumbers={[...statsModalNumbers]} // Forçar novo array como referência
+              lastNumbers={recentNumbers}
               wins={0}
               losses={0}
             />
