@@ -72,9 +72,11 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
           let timeString = "00:00";
           if (n.timestamp) {
             try {
+              // Usar diretamente o timestamp da API
               const date = new Date(n.timestamp);
               timeString = date.getHours().toString().padStart(2, '0') + ':' + 
                          date.getMinutes().toString().padStart(2, '0');
+              logger.info(`Timestamp API: ${n.timestamp} convertido para ${timeString}`);
             } catch (e) {
               logger.error("Erro ao converter timestamp:", e);
             }
@@ -105,9 +107,11 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
           let timeString = "00:00";
           if (n.timestamp) {
             try {
+              // Usar diretamente o timestamp da API
               const date = new Date(n.timestamp);
               timeString = date.getHours().toString().padStart(2, '0') + ':' + 
                          date.getMinutes().toString().padStart(2, '0');
+              logger.info(`Timestamp API: ${n.timestamp} convertido para ${timeString}`);
             } catch (e) {
               logger.error("Erro ao converter timestamp:", e);
             }
@@ -254,7 +258,7 @@ const RouletteSidePanelStats = ({
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
   
-  // Função para carregar dados históricos
+  // Função para carregar dados históricos - preservar timestamp da API
   const loadHistoricalData = async () => {
     try {
       logger.info(`Buscando histórico para ${roletaNome}...`);
@@ -264,7 +268,7 @@ const RouletteSidePanelStats = ({
         logger.error(`Erro ao buscar dados detalhados: ${err.message}`);
       });
       
-      // Buscar dados históricos usando a função atualizada
+      // Buscar dados históricos usando a função atualizada - que já tem timestamp da API
       let apiNumbers = await fetchRouletteHistoricalNumbers(roletaNome);
       
       logger.info(`Resultados da busca: ${apiNumbers.length} números obtidos`);
@@ -276,13 +280,37 @@ const RouletteSidePanelStats = ({
       
       // Se houver lastNumbers nas props, garantir que eles estão incluídos
       if (lastNumbers && lastNumbers.length > 0) {
+        // Obter os dados mais recentes do serviço global para garantir timestamps corretos
+        const allRoulettes = globalRouletteDataService.getAllRoulettes();
+        const currentRoulette = allRoulettes.find((r: any) => {
+          const name = r.nome || r.name || '';
+          return name.toLowerCase() === roletaNome.toLowerCase();
+        });
+        
         logger.info(`Combinando ${lastNumbers.length} números recentes com ${apiNumbers.length} números históricos`);
         
-        // Converter lastNumbers para objetos RouletteNumber
-        const lastNumbersWithTime = lastNumbers.map(num => {
+        // Converter lastNumbers para objetos RouletteNumber usando timestamp da API quando disponível
+        const lastNumbersWithTime = lastNumbers.map((num, index) => {
+          // Tentar obter o timestamp correto do serviço global
+          if (currentRoulette && currentRoulette.numero && Array.isArray(currentRoulette.numero) && 
+              currentRoulette.numero.length > index) {
+            const rouletteData = currentRoulette.numero[index];
+            if (rouletteData && rouletteData.timestamp) {
+              try {
+                const date = new Date(rouletteData.timestamp);
+                const timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                               date.getMinutes().toString().padStart(2, '0');
+                return { numero: num, timestamp: timeString };
+              } catch (e) {
+                logger.error("Erro ao processar timestamp:", e);
+              }
+            }
+          }
+          
+          // Fallback: usar hora atual se não conseguir obter da API
           const now = new Date();
           const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                          now.getMinutes().toString().padStart(2, '0');
+                        now.getMinutes().toString().padStart(2, '0');
           return { numero: num, timestamp: timeString };
         });
         
@@ -301,35 +329,15 @@ const RouletteSidePanelStats = ({
         setHistoricalNumbers(apiNumbers.slice(0, 1000));
       } 
       else {
-        // Se não temos nenhum dado, usar apenas os números recentes (ou array vazio)
-        logger.info(`Sem dados históricos, usando apenas números recentes: ${(lastNumbers || []).length}`);
-        
-        // Converter lastNumbers para objetos RouletteNumber
-        const lastNumbersWithTime = (lastNumbers || []).map(num => {
-          const now = new Date();
-          const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                          now.getMinutes().toString().padStart(2, '0');
-          return { numero: num, timestamp: timeString };
-        });
-        
-        setHistoricalNumbers(lastNumbersWithTime);
+        // Se não temos nenhum dado, deixar vazio
+        logger.info(`Sem dados históricos disponíveis`);
+        setHistoricalNumbers([]);
       }
       
       isInitialRequestDone.current = true;
     } catch (error) {
       logger.error('Erro ao carregar dados históricos:', error);
-      // Em caso de erro, usar apenas os números recentes com timestamp atual
-      if (lastNumbers && lastNumbers.length > 0) {
-        const lastNumbersWithTime = lastNumbers.map(num => {
-          const now = new Date();
-          const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                          now.getMinutes().toString().padStart(2, '0');
-          return { numero: num, timestamp: timeString };
-        });
-        setHistoricalNumbers(lastNumbersWithTime);
-      } else {
-        setHistoricalNumbers([]);
-      }
+      setHistoricalNumbers([]);
     } finally {
       setIsLoading(false);
     }
@@ -371,21 +379,44 @@ const RouletteSidePanelStats = ({
     };
   }, [roletaNome]); // Dependência apenas na roleta
 
-  // Atualizar números quando lastNumbers mudar, sem fazer nova requisição à API
+  // Atualizar números quando lastNumbers mudar, usando timestamp da API
   useEffect(() => {
     if (isInitialRequestDone.current && lastNumbers && lastNumbers.length > 0) {
       logger.info(`Atualizando com ${lastNumbers.length} novos números recentes`);
       
-      // Converter lastNumbers para objetos RouletteNumber com horário atual
-      const lastNumbersWithTime = lastNumbers.map(num => {
+      // Obter os dados mais recentes do serviço global para garantir timestamps corretos
+      const allRoulettes = globalRouletteDataService.getAllRoulettes();
+      const currentRoulette = allRoulettes.find((r: any) => {
+        const name = r.nome || r.name || '';
+        return name.toLowerCase() === roletaNome.toLowerCase();
+      });
+      
+      // Converter lastNumbers para objetos RouletteNumber usando timestamp da API quando disponível
+      const lastNumbersWithTime = lastNumbers.map((num, index) => {
+        // Tentar obter o timestamp correto do serviço global
+        if (currentRoulette && currentRoulette.numero && Array.isArray(currentRoulette.numero) && 
+            currentRoulette.numero.length > index) {
+          const rouletteData = currentRoulette.numero[index];
+          if (rouletteData && rouletteData.timestamp) {
+            try {
+              const date = new Date(rouletteData.timestamp);
+              const timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                            date.getMinutes().toString().padStart(2, '0');
+              return { numero: num, timestamp: timeString };
+            } catch (e) {
+              logger.error("Erro ao processar timestamp:", e);
+            }
+          }
+        }
+        
+        // Fallback: usar hora atual se não conseguir obter da API
         const now = new Date();
         const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                        now.getMinutes().toString().padStart(2, '0');
+                          now.getMinutes().toString().padStart(2, '0');
         return { numero: num, timestamp: timeString };
       });
       
       // Apenas concatenar os números no início para preservar todas as ocorrências
-      // incluindo repetições que são importantes no histórico de uma roleta
       const combinedNumbers = [...lastNumbersWithTime, ...historicalNumbers];
       
       // Limitando a 1000 números no máximo
