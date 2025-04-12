@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import NumberHistory from '../NumberHistory';
+import NumberHistory from './NumberHistory';
+import globalRouletteDataService from '../../../../services/GlobalRouletteDataService';
 import './RouletteCard.css';
 
 // Adiciona regra global para corrigir posicionamento de dropdowns
@@ -30,46 +31,62 @@ interface RouletteCardProps {
  * Implementa sincronização automática a cada 8 segundos
  */
 const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
-  // Estados do componente
+  // Estados
+  const [rouletteData, setRouletteData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [rouletteData, setRouletteData] = useState<any>(null);
-  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
   const [isNewNumber, setIsNewNumber] = useState(false);
   
   // Referências
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const lastNumberRef = useRef<number | null>(null);
   const fetchCountRef = useRef(0);
+  const subscriberId = useRef(`roulette-card-${rouletteId}-${Date.now()}`);
   
-  // Função para buscar dados da API
-  const fetchRouletteData = async () => {
+  // Função para processar dados da roleta do serviço centralizado
+  const processRouletteData = () => {
     try {
       fetchCountRef.current += 1;
       const fetchCount = fetchCountRef.current;
       
-      console.log(`[RouletteCard] Buscando dados da roleta (ID: ${rouletteId}) - Tentativa #${fetchCount}`);
-      setLoading(true);
+      console.log(`[RouletteCard] Processando dados da roleta (ID: ${rouletteId}) - Atualização #${fetchCount}`);
       
-      // URL da API
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api';
-      const url = `${apiBaseUrl}/roulette/${rouletteId}`;
+      // Obter todos os dados das roletas do serviço global
+      const allRoulettes = globalRouletteDataService.getAllRoulettes();
       
-      // Fazer a requisição
-      const response = await axios.get(url);
+      // Encontrar a roleta específica pelo ID
+      const apiData = allRoulettes.find((roulette: any) => {
+        const rouletteIdentifier = roulette.id || roulette.name || '';
+        return rouletteIdentifier.toLowerCase() === rouletteId.toLowerCase();
+      });
       
-      // Validar resposta
-      if (!response.data) {
-        throw new Error('Resposta vazia da API');
+      // Verificar se encontramos a roleta
+      if (!apiData) {
+        console.warn(`[RouletteCard] Roleta com ID ${rouletteId} não encontrada nos dados globais`);
+        return;
       }
       
-      // Processar dados
-      const apiData = response.data;
-      console.log(`[RouletteCard] Dados recebidos para roleta ${rouletteId} [${fetchCount}]`, apiData);
+      console.log(`[RouletteCard] Dados recebidos para roleta ${rouletteId} [${fetchCount}]`);
+      
+      // Adaptar formato de dados do serviço global para o formato esperado pelo componente
+      const processedData = {
+        name: apiData.nome || apiData.name || rouletteId,
+        numbers: Array.isArray(apiData.numero) 
+          ? apiData.numero.map((n: any) => ({
+              value: n.numero,
+              color: getNumberColor(n.numero),
+              timestamp: n.timestamp || new Date().toISOString()
+            }))
+          : [],
+        active: true,
+        strategyState: apiData.strategyState || 'Neutro',
+        wins: apiData.wins || 0,
+        losses: apiData.losses || 0
+      };
       
       // Verificar se há um novo número
-      if (apiData.numbers && apiData.numbers.length > 0) {
-        const latestNumber = apiData.numbers[0].value;
+      if (processedData.numbers && processedData.numbers.length > 0) {
+        const latestNumber = processedData.numbers[0].value;
         
         // Se é um novo número, mostrar efeito visual
         if (lastNumberRef.current !== latestNumber) {
@@ -83,42 +100,47 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
       }
       
       // Atualizar estados
-      setRouletteData(apiData);
+      setRouletteData(processedData);
       setLastUpdateTime(Date.now());
       setError(null);
+      setLoading(false);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
-      console.error('[RouletteCard] Erro ao buscar dados:', err);
+      console.error('[RouletteCard] Erro ao processar dados:', err);
       
       // Só definir erro se ainda não tivermos dados
       if (!rouletteData) {
         setError(errorMsg);
         if (onError) onError(errorMsg);
       }
-    } finally {
-      setLoading(false);
     }
   };
   
-  // Efeito para carregar dados e configurar atualização periódica
+  // Função auxiliar para determinar a cor de um número
+  const getNumberColor = (numero: number): string => {
+    if (numero === 0) return 'green';
+    return [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(numero) ? 'red' : 'black';
+  };
+  
+  // Efeito para se inscrever no serviço global de dados
   useEffect(() => {
     // Aplicar estilos para corrigir dropdowns
     addDropdownStyles();
     
-    // Buscar dados iniciais
-    fetchRouletteData();
+    console.log(`[RouletteCard] Inscrevendo-se no serviço global para roleta ${rouletteId}`);
+    setLoading(true);
     
-    // Configurar atualização a cada 8 segundos
-    timerRef.current = setInterval(() => {
-      fetchRouletteData();
-    }, 8000); // 8 segundos
+    // Registrar no serviço global para receber atualizações
+    globalRouletteDataService.subscribe(subscriberId.current, processRouletteData);
     
-    // Limpar intervalo ao desmontar
+    // Forçar uma atualização inicial imediata
+    // Isso também vai disparar uma requisição limit=1000 se ainda não foi feita
+    globalRouletteDataService.forceUpdate();
+    
+    // Limpar inscrição ao desmontar
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
+      console.log(`[RouletteCard] Cancelando inscrição para roleta ${rouletteId}`);
+      globalRouletteDataService.unsubscribe(subscriberId.current);
     };
   }, [rouletteId]); // Recriar efeito se o ID da roleta mudar
   
