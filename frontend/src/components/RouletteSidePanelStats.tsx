@@ -429,27 +429,65 @@ const RouletteSidePanelStats = ({
     // ID único para assinatura de novos números
     const newNumbersSubscriberId = `${subscriberId.current}-new-numbers`;
     
-    // Registrar no serviço global para receber diretamente novos números
-    globalRouletteDataService.subscribeToNewRouletteNumbers(newNumbersSubscriberId, (rouletteName, newNumber) => {
+    // Função para processar um novo número
+    const handleNewNumber = (rouletteName: string, newNumber: number) => {
       // Verificar se o novo número é da roleta que estamos monitorando
       if (rouletteName.toLowerCase() === roletaNome.toLowerCase() && newNumber !== undefined) {
-        logger.info(`RouletteSidePanelStats recebeu novo número ${newNumber} diretamente do serviço global`);
+        logger.info(`RouletteSidePanelStats recebeu novo número ${newNumber} diretamente do serviço global para ${rouletteName}`);
         
-        // Obter o timestamp do número recém-adicionado
-        const now = new Date();
-        const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                        now.getMinutes().toString().padStart(2, '0');
+        // Obter dados da roleta para pegar o timestamp correto
+        const currentRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
+        
+        // Obter o timestamp do número recém-adicionado da API
+        let timeString = "00:00";
+        if (currentRoulette && currentRoulette.numero && Array.isArray(currentRoulette.numero) && 
+            currentRoulette.numero.length > 0) {
+          
+          // O número mais recente é o primeiro do array
+          const latestEntry = currentRoulette.numero[0];
+          if (latestEntry && latestEntry.timestamp) {
+            try {
+              const date = new Date(latestEntry.timestamp);
+              timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                         date.getMinutes().toString().padStart(2, '0');
+              logger.info(`Usando timestamp da API: ${latestEntry.timestamp} -> ${timeString}`);
+            } catch (e) {
+              logger.error("Erro ao converter timestamp para novo número:", e);
+            }
+          }
+        } else {
+          // Fallback para hora atual se não conseguir obter da API
+          const now = new Date();
+          timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                     now.getMinutes().toString().padStart(2, '0');
+          logger.warn(`Usando hora atual (${timeString}) porque não foi possível obter timestamp da API`);
+        }
         
         // Criar objeto com o novo número
         const newNumberWithTimestamp = { numero: newNumber, timestamp: timeString };
         
+        // DEBUG - Verificar se estamos adicionando corretamente
+        logger.info(`ADICIONANDO novo número ${newNumber} com timestamp ${timeString} ao histórico`);
+        
         // Adicionar ao início do histórico e limitar a 1000
-        setHistoricalNumbers(prevNumbers => [newNumberWithTimestamp, ...prevNumbers].slice(0, 1000));
+        setHistoricalNumbers(prevNumbers => {
+          const newHistory = [newNumberWithTimestamp, ...prevNumbers].slice(0, 1000);
+          logger.info(`Novo histórico tem ${newHistory.length} números após adicionar ${newNumber}`);
+          return newHistory;
+        });
       }
-    });
+    };
+    
+    // Registrar no serviço global para receber diretamente novos números
+    logger.info(`Registrando assinante de novos números: ${newNumbersSubscriberId}`);
+    globalRouletteDataService.subscribeToNewRouletteNumbers(newNumbersSubscriberId, handleNewNumber);
+    
+    // Forçar uma atualização imediata para detectar novos números
+    globalRouletteDataService.forceUpdate();
     
     return () => {
       // Cancelar inscrição ao desmontar
+      logger.info(`Removendo assinante de novos números: ${newNumbersSubscriberId}`);
       globalRouletteDataService.unsubscribe(newNumbersSubscriberId);
     };
   }, [roletaNome]);

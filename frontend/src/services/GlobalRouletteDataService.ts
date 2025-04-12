@@ -341,35 +341,96 @@ class GlobalRouletteDataService {
    * Detecta novos números comparando dados anteriores e atuais, e notifica assinantes
    */
   private detectNewNumbersAndNotify(oldData: any[], newData: any[]): void {
-    if (!oldData.length || !newData.length) return;
+    if (!oldData.length || !newData.length) {
+      console.log('[GlobalRouletteService] Sem dados suficientes para comparar (dados iniciais)');
+      return;
+    }
+    
+    console.log('[GlobalRouletteService] Detectando novos números...');
     
     newData.forEach(newRoulette => {
+      // Identificar a roleta pelo nome
+      const rouletteName = newRoulette.nome || newRoulette.name || '';
+      if (!rouletteName) {
+        console.warn('[GlobalRouletteService] Roleta sem nome detectada, ignorando');
+        return;
+      }
+      
       // Encontrar a roleta correspondente nos dados antigos
       const oldRoulette = oldData.find(r => {
         const oldName = r.nome || r.name || '';
-        const newName = newRoulette.nome || newRoulette.name || '';
-        return oldName.toLowerCase() === newName.toLowerCase();
+        return oldName.toLowerCase() === rouletteName.toLowerCase();
       });
       
-      if (oldRoulette && newRoulette.numero && oldRoulette.numero) {
+      // Se a roleta não existia antes, todos os números são novos
+      if (!oldRoulette) {
+        console.log(`[GlobalRouletteService] Nova roleta detectada: ${rouletteName}`);
+        
+        // Verificar se há números na nova roleta
+        if (newRoulette.numero && Array.isArray(newRoulette.numero) && newRoulette.numero.length > 0) {
+          // Notificar sobre o número mais recente
+          const latestNumber = newRoulette.numero[0];
+          const numberValue = typeof latestNumber === 'object' && latestNumber !== null ? 
+            Number(latestNumber.numero) : Number(latestNumber);
+          
+          if (!isNaN(numberValue)) {
+            console.log(`[GlobalRouletteService] Novo número detectado em nova roleta ${rouletteName}: ${numberValue}`);
+            this.notifyNewNumberSubscribers(rouletteName, numberValue);
+          }
+        }
+        return;
+      }
+      
+      // Verificar se ambas as roletas têm números
+      if (newRoulette.numero && oldRoulette.numero && 
+          Array.isArray(newRoulette.numero) && Array.isArray(oldRoulette.numero)) {
+        
         // Verificar se há mais números na nova roleta do que na antiga
         if (newRoulette.numero.length > oldRoulette.numero.length) {
-          const rouletteName = newRoulette.nome || newRoulette.name || '';
+          console.log(`[GlobalRouletteService] Novos números detectados para ${rouletteName}: ${oldRoulette.numero.length} -> ${newRoulette.numero.length}`);
           
-          // Verificar se os dados são arrays
-          if (Array.isArray(newRoulette.numero) && Array.isArray(oldRoulette.numero)) {
-            // Pegar o número mais recente (primeiro do array)
-            if (newRoulette.numero.length > 0) {
-              const latestNumber = newRoulette.numero[0];
-              const numberValue = typeof latestNumber === 'object' && latestNumber !== null ? 
-                Number(latestNumber.numero) : Number(latestNumber);
-              
-              if (!isNaN(numberValue)) {
-                console.log(`[GlobalRouletteService] Novo número detectado para ${rouletteName}: ${numberValue}`);
-                
-                // Notificar assinantes sobre o novo número
-                this.notifyNewNumberSubscribers(rouletteName, numberValue);
-              }
+          // Calcular quantos novos números existem
+          const newNumbersCount = newRoulette.numero.length - oldRoulette.numero.length;
+          
+          // Notificar sobre cada número novo
+          for (let i = 0; i < newNumbersCount; i++) {
+            const newNumberEntry = newRoulette.numero[i];
+            const numberValue = typeof newNumberEntry === 'object' && newNumberEntry !== null ? 
+              Number(newNumberEntry.numero) : Number(newNumberEntry);
+            
+            if (!isNaN(numberValue)) {
+              console.log(`[GlobalRouletteService] Novo número #${i+1} detectado para ${rouletteName}: ${numberValue}`);
+              this.notifyNewNumberSubscribers(rouletteName, numberValue);
+            }
+          }
+        } else if (newRoulette.numero.length > 0 && oldRoulette.numero.length > 0) {
+          // Verificar se o primeiro número mudou mesmo que o tamanho seja o mesmo
+          const newLatestEntry = newRoulette.numero[0];
+          const oldLatestEntry = oldRoulette.numero[0];
+          
+          const newLatestValue = typeof newLatestEntry === 'object' && newLatestEntry !== null ? 
+            (newLatestEntry.numero !== undefined ? Number(newLatestEntry.numero) : null) : 
+            Number(newLatestEntry);
+            
+          const oldLatestValue = typeof oldLatestEntry === 'object' && oldLatestEntry !== null ? 
+            (oldLatestEntry.numero !== undefined ? Number(oldLatestEntry.numero) : null) : 
+            Number(oldLatestEntry);
+            
+          // Verificar também timestamp para evitar falsos positivos
+          const newLatestTimestamp = typeof newLatestEntry === 'object' && newLatestEntry !== null ? 
+            newLatestEntry.timestamp : null;
+            
+          const oldLatestTimestamp = typeof oldLatestEntry === 'object' && oldLatestEntry !== null ? 
+            oldLatestEntry.timestamp : null;
+            
+          // Se o valor ou timestamp mudou, notificar
+          if ((newLatestValue !== null && oldLatestValue !== null && newLatestValue !== oldLatestValue) ||
+              (newLatestTimestamp !== null && oldLatestTimestamp !== null && newLatestTimestamp !== oldLatestTimestamp)) {
+            
+            console.log(`[GlobalRouletteService] Novo número principal detectado para ${rouletteName}: ${newLatestValue} (timestamp mudou: ${newLatestTimestamp !== oldLatestTimestamp})`);
+            
+            if (newLatestValue !== null && !isNaN(newLatestValue)) {
+              this.notifyNewNumberSubscribers(rouletteName, newLatestValue);
             }
           }
         }
