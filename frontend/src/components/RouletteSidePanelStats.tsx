@@ -610,11 +610,11 @@ const RouletteSidePanelStats = ({
             <h3 className="text-[#00ff00] flex items-center text-base font-bold mb-3">
               <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {historicalNumbers.length})
             </h3>
-            <div className="grid grid-cols-25 gap-1 max-h-[200px] overflow-y-auto p-3">
+            <div className="flex flex-wrap gap-1 max-h-[200px] overflow-y-auto p-3">
               {historicalNumbers.map((n, idx) => (
                 <div 
                   key={idx} 
-                  className="flex flex-col items-center mb-2"
+                  className="flex flex-col items-center mb-2 w-[calc(4%-2px)]"
                 >
                   <div className={`w-8 h-8 flex items-center justify-center text-sm font-medium ${getRouletteNumberColor(n.numero)}`}>
                     {n.numero}
