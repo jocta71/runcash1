@@ -405,14 +405,22 @@ const RouletteSidePanelStats = ({
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
   
-  // Função para carregar dados históricos - preservar timestamp da API
+  // Modificar a função loadHistoricalData para forçar busca de dados frescos
   const loadHistoricalData = async () => {
     try {
       logger.info(`Buscando histórico para ${roletaNome}...`);
       
-      // Solicitar atualização de dados detalhados antes de buscar os números
+      // Forçar busca de novos dados a cada vez, não usar cache
+      setIsLoading(true);
+      
+      // Buscar dados detalhados diretamente da API
       await globalRouletteDataService.fetchDetailedRouletteData().catch(err => {
         logger.error(`Erro ao buscar dados detalhados: ${err.message}`);
+      });
+      
+      // Buscar dados normais para garantir consistência
+      await globalRouletteDataService.fetchRouletteData().catch(err => {
+        logger.error(`Erro ao buscar dados normais: ${err.message}`);
       });
       
       // Obter os dados mais recentes do serviço global
@@ -433,14 +441,52 @@ const RouletteSidePanelStats = ({
       const rouletteData = detailedRoulette || currentRoulette;
       
       if (rouletteData) {
-        // Usar a função processApiData para processar os dados recebidos
-        // Isso garantirá que os números recentes sejam adicionados da mesma forma que o RouletteCard
-        const updatedNumbers = processApiData(rouletteData, historicalNumbers);
+        logger.info(`Processando dados frescos para ${roletaNome}`);
         
-        logger.info(`Processados ${updatedNumbers.length} números para ${roletaNome}`);
+        // Extrair números da resposta da API diretamente
+        // Não usar processApiData para evitar problemas com comparação de dados existentes
+        let extractedNumbers = extractNumbers(rouletteData);
+        logger.info(`Extraídos ${extractedNumbers.length} números para ${roletaNome}`);
         
-        // Atualizar os números históricos
-        setHistoricalNumbers(updatedNumbers);
+        // Converter para o formato RouletteNumber com timestamp
+        const numbersWithTimestamp = extractedNumbers.map((num, index) => {
+          // Tentar obter timestamp da API
+          let timeString = "00:00";
+          if (rouletteData.numero && Array.isArray(rouletteData.numero) && 
+              rouletteData.numero.length > index && rouletteData.numero[index].timestamp) {
+            try {
+              const date = new Date(rouletteData.numero[index].timestamp);
+              timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                        date.getMinutes().toString().padStart(2, '0');
+            } catch (e) {
+              logger.error("Erro ao converter timestamp:", e);
+            }
+          }
+          
+          return {
+            numero: num,
+            timestamp: timeString
+          };
+        });
+        
+        // Certificar que os últimos números (lastNumbers) estão incluídos
+        if (lastNumbers && lastNumbers.length > 0) {
+          const lastNumbersWithTime = lastNumbers.map(num => {
+            const now = new Date();
+            const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                           now.getMinutes().toString().padStart(2, '0');
+            return { numero: num, timestamp: timeString };
+          });
+          
+          // Combinar, garantindo que não exceda 1000 números
+          const combinedNumbers = [...lastNumbersWithTime, ...numbersWithTimestamp];
+          setHistoricalNumbers(combinedNumbers.slice(0, 1000));
+          logger.info(`Histórico atualizado: ${combinedNumbers.length} números no total (limitado a 1000)`);
+        } else {
+          // Se não tem lastNumbers, usar apenas os dados da API
+          setHistoricalNumbers(numbersWithTimestamp.slice(0, 1000));
+          logger.info(`Histórico atualizado: ${numbersWithTimestamp.length} números da API (limitado a 1000)`);
+        }
       } else {
         logger.warn(`Roleta "${roletaNome}" não encontrada nos dados disponíveis`);
         
@@ -454,6 +500,10 @@ const RouletteSidePanelStats = ({
           });
           
           setHistoricalNumbers(lastNumbersWithTime);
+          logger.info(`Usando apenas números recentes: ${lastNumbers.length}`);
+        } else {
+          setHistoricalNumbers([]);
+          logger.info(`Sem dados históricos disponíveis`);
         }
       }
       

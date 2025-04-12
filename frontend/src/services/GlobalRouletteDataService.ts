@@ -5,7 +5,7 @@ import EventService from './EventService';
 const POLLING_INTERVAL = 8000;
 
 // Tempo de vida do cache em milissegundos (15 segundos)
-const CACHE_TTL = 15000;
+// const CACHE_TTL = 15000;
 
 // Intervalo mínimo entre requisições forçadas (2 segundos)
 const MIN_FORCE_INTERVAL = 2000;
@@ -128,12 +128,7 @@ class GlobalRouletteDataService {
       const now = Date.now();
       this.isFetching = true;
       
-      // Verificar se os dados em cache ainda são válidos
-      if (this.rouletteData.length > 0 && now - this.lastFetchTime < CACHE_TTL) {
-        console.log(`[GlobalRouletteService] Usando dados em cache, idade: ${Math.round((now - this.lastFetchTime)/1000)}s`);
-        return this.rouletteData;
-      }
-      
+      // Removendo a verificação de cache para sempre buscar dados frescos
       console.log('[GlobalRouletteService] Buscando dados atualizados da API (limit=100)');
       
       // Criar e armazenar a promessa atual
@@ -147,11 +142,11 @@ class GlobalRouletteDataService {
           this.rouletteData = data;
           this.lastFetchTime = now;
           
-          // Armazenar no localStorage para compartilhamento
-          localStorage.setItem('global_roulette_data', JSON.stringify({
-            timestamp: now,
-            data: data
-          }));
+          // Remover armazenamento no localStorage
+          // localStorage.setItem('global_roulette_data', JSON.stringify({
+          //   timestamp: now,
+          //   data: data
+          // }));
           
           // Notificar todos os assinantes sobre a atualização
           this.notifySubscribers();
@@ -195,12 +190,7 @@ class GlobalRouletteDataService {
       const now = Date.now();
       this.isFetchingDetailed = true;
       
-      // Verificar se os dados detalhados em cache ainda são válidos
-      if (this.detailedRouletteData.length > 0 && now - this.lastDetailedFetchTime < CACHE_TTL) {
-        console.log(`[GlobalRouletteService] Usando dados detalhados em cache, idade: ${Math.round((now - this.lastDetailedFetchTime)/1000)}s`);
-        return this.detailedRouletteData;
-      }
-      
+      // Removendo a verificação de cache para sempre buscar dados frescos
       console.log('[GlobalRouletteService] Buscando dados detalhados (limit=1000)');
       console.log(`[GlobalRouletteService] URL completa: /api/ROULETTES?limit=${DETAILED_LIMIT}`);
       
