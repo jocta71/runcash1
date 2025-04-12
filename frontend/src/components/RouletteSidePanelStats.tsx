@@ -405,27 +405,49 @@ const RouletteSidePanelStats = ({
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
   
-  // Modificar a função loadHistoricalData para ser a única fonte de atualização
-  const loadHistoricalData = async () => {
-    try {
-      logger.info(`Buscando histórico para ${roletaNome}...`);
+  // Usar o serviço global para obter atualizações - solução radical para evitar duplicações
+  useEffect(() => {
+    logger.info(`Inicializando para roleta ${roletaNome}`);
+    
+    // Resetar o estado de inicialização se a roleta mudar
+    isInitialRequestDone.current = false;
+    setIsLoading(true);
+    
+    // Limpar o histórico ao mudar de roleta para evitar exibir dados da roleta anterior
+    setHistoricalNumbers([]);
+    
+    // Criar uma flag para controlar loading
+    let isLoadingData = true;
+    
+    // Função simplificada para carregar dados de uma fonte única
+    const loadFreshData = async () => {
+      if (!isLoadingData) {
+        logger.info(`Ignorando solicitação de carregamento - já está em andamento`);
+        return;
+      }
       
-      // Forçar busca de novos dados a cada vez, não usar cache
-      setIsLoading(true);
-      
-      // Buscar dados detalhados diretamente da API
-      await globalRouletteDataService.fetchDetailedRouletteData().then((detailedData) => {
+      try {
+        // Marcar que estamos carregando
+        isLoadingData = true;
+        
+        // Buscar sempre somente dados detalhados - fonte única de dados
+        const detailedData = await globalRouletteDataService.fetchDetailedRouletteData();
         logger.info(`Dados detalhados obtidos: ${detailedData.length} roletas`);
         
+        // Se não estamos mais montados ou a roleta mudou, abortar
+        if (!isLoadingData) {
+          logger.info(`Abortando processamento - componente foi desmontado`);
+          return;
+        }
+        
         // Com os dados detalhados, podemos processá-los diretamente
-        // sem precisar fazer uma segunda chamada para dados normais
         const detailedRoulette = detailedData.find((r: any) => {
           const name = r.nome || r.name || '';
           return name.toLowerCase() === roletaNome.toLowerCase();
         });
         
         if (detailedRoulette) {
-          logger.info(`Processando dados detalhados frescos para ${roletaNome}`);
+          logger.info(`Processando dados para ${roletaNome}`);
           
           // Extrair números da resposta da API diretamente
           let extractedNumbers = extractNumbers(detailedRoulette);
@@ -452,147 +474,51 @@ const RouletteSidePanelStats = ({
             };
           });
           
-          // Definir histórico somente com dados da API, sem combinar com lastNumbers
-          // Isso eliminará completamente a duplicação
-          setHistoricalNumbers(numbersWithTimestamp.slice(0, 1000));
-          logger.info(`Histórico atualizado: ${numbersWithTimestamp.length} números da API (limitado a 1000)`);
-          
-          isInitialRequestDone.current = true;
-          setIsLoading(false);
-          return;
-        }
-      }).catch(err => {
-        logger.error(`Erro ao buscar dados detalhados: ${err.message}`);
-      });
-      
-      // Se chegamos aqui, é porque não conseguimos processar usando dados detalhados
-      // Vamos tentar com dados normais como fallback
-      await globalRouletteDataService.fetchRouletteData().then((normalData) => {
-        logger.info(`Dados normais obtidos como fallback: ${normalData.length} roletas`);
-        
-        // Procurar a roleta nos dados normais
-        const currentRoulette = normalData.find((r: any) => {
-          const name = r.nome || r.name || '';
-          return name.toLowerCase() === roletaNome.toLowerCase();
-        });
-        
-        if (currentRoulette) {
-          logger.info(`Processando dados normais para ${roletaNome}`);
-          
-          // Extrair números da resposta da API
-          let extractedNumbers = extractNumbers(currentRoulette);
-          logger.info(`Extraídos ${extractedNumbers.length} números para ${roletaNome}`);
-          
-          // Converter para o formato RouletteNumber com timestamp
-          const numbersWithTimestamp = extractedNumbers.map((num, index) => {
-            // Tentar obter timestamp da API
-            let timeString = "00:00";
-            if (currentRoulette.numero && Array.isArray(currentRoulette.numero) && 
-                currentRoulette.numero.length > index && currentRoulette.numero[index].timestamp) {
-              try {
-                const date = new Date(currentRoulette.numero[index].timestamp);
-                timeString = date.getHours().toString().padStart(2, '0') + ':' + 
-                          date.getMinutes().toString().padStart(2, '0');
-              } catch (e) {
-                logger.error("Erro ao converter timestamp:", e);
-              }
-            }
-            
-            return {
-              numero: num,
-              timestamp: timeString
-            };
-          });
-          
-          // Usar somente dados da API, sem combinar com lastNumbers
-          setHistoricalNumbers(numbersWithTimestamp.slice(0, 1000));
-          logger.info(`Histórico atualizado com dados normais: ${numbersWithTimestamp.length} números`);
-        } else {
-          logger.warn(`Roleta "${roletaNome}" não encontrada nos dados disponíveis`);
-          
-          // Se não encontramos a roleta em nenhum lugar, usar apenas lastNumbers
-          if (lastNumbers && lastNumbers.length > 0) {
-            const lastNumbersWithTime = lastNumbers.map(num => {
-              const now = new Date();
-              const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                            now.getMinutes().toString().padStart(2, '0');
-              return { numero: num, timestamp: timeString };
-            });
-            
-            setHistoricalNumbers(lastNumbersWithTime);
-            logger.info(`Usando apenas números recentes: ${lastNumbers.length}`);
-          } else {
-            setHistoricalNumbers([]);
-            logger.info(`Sem dados históricos disponíveis`);
+          // Se não estamos mais montados ou a roleta mudou, abortar
+          if (!isLoadingData) {
+            logger.info(`Abortando atualização - componente foi desmontado`);
+            return;
           }
-        }
-      }).catch(err => {
-        logger.error(`Erro ao buscar dados normais: ${err.message}`);
-        
-        // Se nem os dados normais conseguimos, usar apenas lastNumbers
-        if (lastNumbers && lastNumbers.length > 0) {
-          const lastNumbersWithTime = lastNumbers.map(num => {
-            const now = new Date();
-            const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                          now.getMinutes().toString().padStart(2, '0');
-            return { numero: num, timestamp: timeString };
-          });
           
-          setHistoricalNumbers(lastNumbersWithTime);
+          // Atualizar o estado com os números processados - SEMPRE OVERWRITE
+          setHistoricalNumbers(numbersWithTimestamp.slice(0, 1000));
+          logger.info(`Histórico definido com ${numbersWithTimestamp.length} números (limitado a 1000)`);
         } else {
+          // Se não encontramos a roleta, limpar histórico
           setHistoricalNumbers([]);
+          logger.info(`Roleta não encontrada, histórico limpo`);
         }
-      });
-      
-      isInitialRequestDone.current = true;
-      setIsLoading(false);
-    } catch (error) {
-      logger.error('Erro ao carregar dados históricos:', error);
-      setHistoricalNumbers([]);
-      setIsLoading(false);
-    }
-  };
-  
-  // Usar o serviço global para obter atualizações
-  useEffect(() => {
-    logger.info(`Inicializando para roleta ${roletaNome}`);
-    
-    // Resetar o estado de inicialização se a roleta mudar
-    isInitialRequestDone.current = false;
-    setIsLoading(true);
-    
-    // Limpar o histórico ao mudar de roleta para evitar exibir dados da roleta anterior
-    setHistoricalNumbers([]);
-    
-    // ID único para assinatura de dados detalhados
-    // Regenerar subscriberId para garantir que seja único para cada roleta
-    subscriberId.current = `sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`;
-    const detailedSubscriberId = `${subscriberId.current}-detailed`;
-    
-    // Registrar no serviço global para receber atualizações de dados normais
-    globalRouletteDataService.subscribe(subscriberId.current, () => {
-      logger.info(`Recebendo atualização de dados normais para ${roletaNome}`);
-      loadHistoricalData();
-    });
-    
-    // Registrar especificamente para receber atualizações de dados detalhados
-    globalRouletteDataService.subscribeToDetailedData(detailedSubscriberId, () => {
-      logger.info(`Recebendo atualização de dados DETALHADOS para ${roletaNome}`);
-      loadHistoricalData();
-    });
-    
-    // Carregar dados imediatamente
-    loadHistoricalData();
-    
-    // Forçar uma busca de dados detalhados
-    globalRouletteDataService.fetchDetailedRouletteData();
-    
-    return () => {
-      // Cancelar inscrições ao desmontar
-      globalRouletteDataService.unsubscribe(subscriberId.current);
-      globalRouletteDataService.unsubscribe(detailedSubscriberId);
+        
+        // Finalizar estado de loading
+        isInitialRequestDone.current = true;
+        setIsLoading(false);
+      } catch (error) {
+        logger.error(`Erro ao buscar dados: ${error}`);
+        // Em caso de erro, limpar histórico
+        setHistoricalNumbers([]);
+        setIsLoading(false);
+      } finally {
+        isLoadingData = false;
+      }
     };
-  }, [roletaNome, lastNumbers]); // Adicionar lastNumbers como dependência para atualizar quando novos números chegarem
+    
+    // Carregar dados imediatamente - ÚNICA FONTE DE DADOS
+    loadFreshData();
+    
+    // Configurar um intervalo para recarregar dados a cada 15 segundos
+    // Em vez de usar assinaturas, usar um timer controlado
+    const intervalId = setInterval(() => {
+      logger.info(`Recarregando dados pelo intervalo (15s) para ${roletaNome}`);
+      loadFreshData();
+    }, 15000);
+    
+    // Cleanup function
+    return () => {
+      logger.info(`Desmontando componente para ${roletaNome}`);
+      isLoadingData = false; // Marcar para cancelar qualquer processamento pendente
+      clearInterval(intervalId); // Limpar o intervalo
+    };
+  }, [roletaNome]); // Dependência APENAS na roleta, não em lastNumbers
 
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
