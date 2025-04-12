@@ -394,72 +394,6 @@ export const processApiData = (apiRoulette: any, currentNumbers: RouletteNumber[
   return currentNumbers;
 };
 
-// Implementar o mesmo método do RouletteCard para gerenciar dados
-// Adicionando a classe GlobalRouletteDataManager que o RouletteCard usa
-class GlobalRouletteDataManager {
-  private static instance: GlobalRouletteDataManager | null = null;
-  private updateCallbacks: Map<string, (data: any) => void> = new Map();
-  private initialDataLoaded: boolean = false;
-  
-  private constructor() {
-    logger.info('[RouletteSidePanelStats] Inicializando gerenciador de dados para histórico');
-  }
-  
-  public static getInstance(): GlobalRouletteDataManager {
-    if (!GlobalRouletteDataManager.instance) {
-      GlobalRouletteDataManager.instance = new GlobalRouletteDataManager();
-    }
-    return GlobalRouletteDataManager.instance;
-  }
-  
-  public subscribe(id: string, callback: (data: any) => void): () => void {
-    logger.info(`[RouletteSidePanelStats] Novo assinante de histórico registrado: ${id}`);
-    this.updateCallbacks.set(id, callback);
-    
-    // Usar o globalRouletteDataService para obter dados
-    const currentData = globalRouletteDataService.getAllRoulettes();
-    
-    // Se já temos dados, notificar imediatamente
-    if (currentData && currentData.length > 0) {
-      callback(currentData);
-      this.initialDataLoaded = true;
-    } else {
-      // Forçar uma atualização usando o serviço global
-      globalRouletteDataService.forceUpdate();
-    }
-    
-    // Registrar callback no serviço global para receber atualizações
-    globalRouletteDataService.subscribe(id, () => {
-      const rouletteData = globalRouletteDataService.getAllRoulettes();
-      if (rouletteData && rouletteData.length > 0) {
-        callback(rouletteData);
-      }
-    });
-    
-    // Retornar função para cancelar inscrição
-    return () => {
-      this.updateCallbacks.delete(id);
-      globalRouletteDataService.unsubscribe(id);
-      logger.info(`[RouletteSidePanelStats] Assinante de histórico removido: ${id}`);
-    };
-  }
-
-  // Obter dados mais recentes (sem garantia de atualização)
-  public getData(): any[] {
-    return globalRouletteDataService.getAllRoulettes();
-  }
-  
-  // Obter timestamp da última atualização
-  public getLastUpdateTime(): number {
-    return Date.now(); // Usar o timestamp atual como fallback
-  }
-
-  // Verificar se os dados iniciais foram carregados
-  public isInitialized(): boolean {
-    return this.initialDataLoaded;
-  }
-}
-
 // Modificando o componente para integrar lastNumbers aos dados históricos
 const RouletteSidePanelStats = ({ 
   roletaNome, 
@@ -472,18 +406,19 @@ const RouletteSidePanelStats = ({
   const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialRequestDone = useRef<boolean>(false);
   
-  // Referência ao gerenciador de dados (mesmo usado pelo RouletteCard)
-  const dataManager = useMemo(() => GlobalRouletteDataManager.getInstance(), []);
-  
-  // Função para processar os dados da roleta (mesma do RouletteCard)
-  const handleApiData = useCallback((allRoulettes: any[]) => {
+  // Função para processar os dados da roleta
+  const handleApiData = useCallback(() => {
+    // Obter os dados do serviço global - estes são os MESMOS dados que o RouletteCard usa
+    // Não fazemos uma nova requisição, apenas consumimos os dados já buscados
+    const allRoulettes = globalRouletteDataService.getAllRoulettes();
+    
     if (!allRoulettes || !Array.isArray(allRoulettes) || allRoulettes.length === 0) return;
     
     // Encontrar a roleta específica pelo nome
-    const myRoulette = allRoulettes.find((roulette: any) => 
-      roulette.nome === roletaNome || 
-      roulette.name === roletaNome
-    );
+    const myRoulette = allRoulettes.find((roulette: any) => {
+      const name = roulette.nome || roulette.name || '';
+      return name.toLowerCase() === roletaNome.toLowerCase();
+    });
     
     if (!myRoulette) {
       logger.warn(`Roleta com nome ${roletaNome} não encontrada na resposta`);
@@ -492,7 +427,7 @@ const RouletteSidePanelStats = ({
     
     // Extrair números
     const apiNumbers = extractNumbers(myRoulette);
-    logger.info(`Obtidos ${apiNumbers.length} números de ${roletaNome} via gerenciador global`);
+    logger.info(`Consumindo ${apiNumbers.length} números de ${roletaNome} (mesma requisição do RouletteCard)`);
     
     // Verificar se é a primeira carga ou se temos números novos
     if (historicalNumbers.length === 0) {
@@ -527,7 +462,7 @@ const RouletteSidePanelStats = ({
         return;
       }
       
-      // Procurar por números novos (mesmo método do RouletteCard)
+      // Procurar por números novos
       const newNumbers: RouletteNumber[] = [];
       const currentNumeros = historicalNumbers.map(item => item.numero);
       
@@ -562,7 +497,7 @@ const RouletteSidePanelStats = ({
       
       // Se encontramos números novos, atualizamos o estado
       if (newNumbers.length > 0) {
-        logger.info(`Adicionando ${newNumbers.length} novos números via gerenciador global: ${newNumbers.map(n => n.numero).join(', ')}`);
+        logger.info(`Adicionando ${newNumbers.length} novos números: ${newNumbers.map(n => n.numero).join(', ')}`);
         
         // Adicionar os novos números no início da nossa lista
         setHistoricalNumbers(prev => {
@@ -577,9 +512,9 @@ const RouletteSidePanelStats = ({
     isInitialRequestDone.current = true;
   }, [roletaNome, historicalNumbers]);
   
-  // Efeito para usar o GlobalRouletteDataManager (como o RouletteCard faz)
+  // Efeito para assinar diretamente o globalRouletteDataService, sem gerenciador intermediário
   useEffect(() => {
-    logger.info(`Inicializando historico para ${roletaNome} usando GlobalRouletteDataManager`);
+    logger.info(`Inicializando histórico para ${roletaNome} usando o mesmo serviço que o RouletteCard`);
     
     // Resetar o estado de inicialização se a roleta mudar
     isInitialRequestDone.current = false;
@@ -588,14 +523,23 @@ const RouletteSidePanelStats = ({
     // Limpar o histórico ao mudar de roleta para evitar exibir dados da roleta anterior
     setHistoricalNumbers([]);
     
-    // Assinar atualizações do gerenciador global
-    const unsubscribe = dataManager.subscribe(subscriberId.current, handleApiData);
+    // Registrar diretamente no serviço global para receber as MESMAS atualizações que o RouletteCard
+    globalRouletteDataService.subscribe(subscriberId.current, () => {
+      logger.info(`Recebendo atualização do globalRouletteDataService para ${roletaNome}`);
+      // Esta callback é chamada quando o RouletteCard obtem novos dados (a cada 8s)
+      handleApiData();
+    });
+    
+    // Também tentar carregar dados iniciais imediatamente
+    // Usar dados que já estão em cache do RouletteCard, sem forçar nova requisição
+    handleApiData();
     
     // Limpar inscrição ao desmontar o componente
     return () => {
-      unsubscribe();
+      globalRouletteDataService.unsubscribe(subscriberId.current);
+      logger.info(`Cancelando assinatura para ${roletaNome}`);
     };
-  }, [roletaNome, dataManager, handleApiData, subscriberId]);
+  }, [roletaNome, handleApiData, subscriberId]);
   
   // Manter o useEffect para processar lastNumbers quando eles mudam
   useEffect(() => {
@@ -621,7 +565,7 @@ const RouletteSidePanelStats = ({
       return;
     }
     
-    // Identificar apenas os números realmente novos (mesmo método do RouletteCard)
+    // Identificar apenas os números realmente novos
     const newNumbers: RouletteNumber[] = [];
     const currentNumeros = historicalNumbers.map(item => item.numero);
     
