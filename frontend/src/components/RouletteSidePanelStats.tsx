@@ -419,6 +419,106 @@ const RouletteSidePanelStats = ({
     // Criar uma flag para controlar loading
     let isLoadingData = true;
     
+    // Função para processar novos números, similar ao RouletteCard
+    const processNewNumbers = (apiRoulette: any) => {
+      // Verificar se existem dados e números na roleta
+      if (!apiRoulette || !apiRoulette.numero || !Array.isArray(apiRoulette.numero)) {
+        logger.warn(`Dados inválidos para processamento, ignorando`);
+        return false;
+      }
+      
+      // Extrair números da API
+      const apiNumbers = extractNumbers(apiRoulette);
+      if (apiNumbers.length === 0) {
+        logger.warn(`Nenhum número extraído, ignorando`);
+        return false;
+      }
+      
+      // Caso 1: Não temos números ainda - inicializar com os da API
+      if (historicalNumbers.length === 0) {
+        logger.info(`Inicializando números para ${roletaNome} (${apiNumbers.length} números)`);
+        
+        // Converter para o formato RouletteNumber com timestamp
+        const numbersWithTimestamp = apiNumbers.map((num, index) => {
+          // Tentar obter timestamp da API
+          let timeString = "00:00";
+          if (apiRoulette.numero && Array.isArray(apiRoulette.numero) && 
+              apiRoulette.numero.length > index && apiRoulette.numero[index].timestamp) {
+            try {
+              const date = new Date(apiRoulette.numero[index].timestamp);
+              timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                        date.getMinutes().toString().padStart(2, '0');
+            } catch (e) {
+              logger.error("Erro ao converter timestamp:", e);
+            }
+          }
+          
+          return {
+            numero: num,
+            timestamp: timeString
+          };
+        });
+        
+        // Atualizar o estado
+        setHistoricalNumbers(numbersWithTimestamp.slice(0, 1000));
+        return true;
+      }
+      
+      // Caso 2: Verificar se o último número da API é diferente do nosso
+      if (apiNumbers[0] === historicalNumbers[0]?.numero) {
+        logger.info(`Nenhum número novo detectado, ignorando`);
+        return false;
+      }
+      
+      // Caso 3: Temos números novos na API
+      // Procurar por números novos que ainda não estão na nossa lista
+      const newNumbers: RouletteNumber[] = [];
+      const currentNumeros = historicalNumbers.map(item => item.numero);
+      
+      // Percorrer a lista da API até encontrar um número que já temos
+      for (let i = 0; i < apiNumbers.length; i++) {
+        const apiNum = apiNumbers[i];
+        
+        // Se encontramos um número que já está na nossa lista, paramos
+        if (currentNumeros.includes(apiNum)) {
+          break;
+        }
+        
+        // Obter timestamp da API para este número
+        let timeString = "00:00";
+        if (apiRoulette.numero && Array.isArray(apiRoulette.numero) && 
+            apiRoulette.numero.length > i && apiRoulette.numero[i].timestamp) {
+          try {
+            const date = new Date(apiRoulette.numero[i].timestamp);
+            timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                        date.getMinutes().toString().padStart(2, '0');
+          } catch (e) {
+            logger.error("Erro ao converter timestamp:", e);
+          }
+        }
+        
+        // Adicionar o número novo à nossa lista temporária
+        newNumbers.push({
+          numero: apiNum,
+          timestamp: timeString
+        });
+      }
+      
+      // Se encontramos números novos, atualizamos o estado
+      if (newNumbers.length > 0) {
+        logger.info(`${newNumbers.length} novos números encontrados: ${newNumbers.map(n => n.numero).join(', ')}`);
+        
+        // Adicionar os novos números no início da nossa lista
+        const updatedNumbers = [...newNumbers, ...historicalNumbers];
+        
+        // Limitar a 1000 números no máximo
+        setHistoricalNumbers(updatedNumbers.slice(0, 1000));
+        return true;
+      }
+      
+      return false;
+    };
+    
     // Função simplificada para carregar dados de uma fonte única
     const loadFreshData = async () => {
       if (!isLoadingData) {
@@ -447,42 +547,9 @@ const RouletteSidePanelStats = ({
         });
         
         if (detailedRoulette) {
-          logger.info(`Processando dados para ${roletaNome}`);
-          
-          // Extrair números da resposta da API diretamente
-          let extractedNumbers = extractNumbers(detailedRoulette);
-          logger.info(`Extraídos ${extractedNumbers.length} números para ${roletaNome}`);
-          
-          // Converter para o formato RouletteNumber com timestamp
-          const numbersWithTimestamp = extractedNumbers.map((num, index) => {
-            // Tentar obter timestamp da API
-            let timeString = "00:00";
-            if (detailedRoulette.numero && Array.isArray(detailedRoulette.numero) && 
-                detailedRoulette.numero.length > index && detailedRoulette.numero[index].timestamp) {
-              try {
-                const date = new Date(detailedRoulette.numero[index].timestamp);
-                timeString = date.getHours().toString().padStart(2, '0') + ':' + 
-                          date.getMinutes().toString().padStart(2, '0');
-              } catch (e) {
-                logger.error("Erro ao converter timestamp:", e);
-              }
-            }
-            
-            return {
-              numero: num,
-              timestamp: timeString
-            };
-          });
-          
-          // Se não estamos mais montados ou a roleta mudou, abortar
-          if (!isLoadingData) {
-            logger.info(`Abortando atualização - componente foi desmontado`);
-            return;
-          }
-          
-          // Atualizar o estado com os números processados - SEMPRE OVERWRITE
-          setHistoricalNumbers(numbersWithTimestamp.slice(0, 1000));
-          logger.info(`Histórico definido com ${numbersWithTimestamp.length} números (limitado a 1000)`);
+          // Usar a função processNewNumbers para detectar e adicionar novos números
+          // Esta é a mesma lógica usada no RouletteCard
+          processNewNumbers(detailedRoulette);
         } else {
           // Se não encontramos a roleta, limpar histórico
           setHistoricalNumbers([]);
@@ -505,12 +572,12 @@ const RouletteSidePanelStats = ({
     // Carregar dados imediatamente - ÚNICA FONTE DE DADOS
     loadFreshData();
     
-    // Configurar um intervalo para recarregar dados a cada 15 segundos
+    // Configurar um intervalo mais curto (8 segundos) para corresponder ao polling do RouletteCard
     // Em vez de usar assinaturas, usar um timer controlado
     const intervalId = setInterval(() => {
-      logger.info(`Recarregando dados pelo intervalo (15s) para ${roletaNome}`);
+      logger.info(`Recarregando dados pelo intervalo (8s) para ${roletaNome}`);
       loadFreshData();
-    }, 15000);
+    }, 8000); // 8 segundos para ser consistente com o polling do RouletteCard
     
     // Cleanup function
     return () => {
@@ -518,7 +585,7 @@ const RouletteSidePanelStats = ({
       isLoadingData = false; // Marcar para cancelar qualquer processamento pendente
       clearInterval(intervalId); // Limpar o intervalo
     };
-  }, [roletaNome]); // Dependência APENAS na roleta, não em lastNumbers
+  }, [roletaNome, historicalNumbers]); // Incluir historicalNumbers como dependência para garantir que temos a versão mais recente
 
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
