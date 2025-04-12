@@ -40,6 +40,7 @@ class RESTSocketService {
   private listeners: Map<string, Set<any>> = new Map();
   private connectionActive: boolean = false;
   private timerId: number | null = null;
+  private _lastCreatedTimerId: number | null = null; // Adicionar para controle interno
   private pollingInterval: number = 8000; // Intervalo de 8 segundos para polling
   private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
   
@@ -128,6 +129,12 @@ class RESTSocketService {
       console.log('[RESTSocketService] Processando dados iniciais do serviço global');
       this.processDataAsEvents(initialData);
     }
+    
+    // Criar um timer de verificação para garantir que o serviço global está funcionando
+    this.timerId = window.setInterval(() => {
+      // Verificação simples para manter o timer ativo
+      this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
+    }, this.pollingInterval);
   }
   
   // Buscar dados da API REST
@@ -368,6 +375,14 @@ class RESTSocketService {
     // Reiniciar polling com certeza de intervalo fixo de 8s
     setTimeout(() => {
       this.startPolling();
+      
+      // Verificar se o timer foi realmente criado
+      if (!this.timerId) {
+        console.warn('[RESTSocketService] Timer não foi criado na reconexão. Criando manualmente...');
+        this.timerId = window.setInterval(() => {
+          this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
+        }, this.pollingInterval);
+      }
     }, 100); // Pequeno atraso para garantir que o timer anterior foi limpo
   }
 
@@ -500,7 +515,20 @@ class RESTSocketService {
     
     if (this.connectionActive && !this.timerId) {
       console.warn('[RESTSocketService] Timer ativo mas variável timerId nula. Corrigindo...');
-      this.reconnect();
+      
+      // Primeiro limpar qualquer timer que possa existir mas não está referenciado
+      try {
+        if (this._lastCreatedTimerId) {
+          window.clearInterval(this._lastCreatedTimerId);
+        }
+      } catch (e) {}
+      
+      // Criar um novo timer
+      this.timerId = window.setInterval(() => {
+        this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
+      }, this.pollingInterval);
+      
+      // Não chamar reconnect() para evitar loop
       return;
     }
     
