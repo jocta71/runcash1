@@ -3,6 +3,7 @@ import config from '@/config/env';
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import { mapToCanonicalRouletteId, ROLETAS_CANONICAS } from '../integrations/api/rouletteService';
 import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
+import globalRouletteDataService from '@/services/GlobalRouletteDataService';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -501,129 +502,116 @@ class RESTSocketService {
 
   // Método para iniciar o polling do segundo endpoint (/api/ROULETTES sem parâmetro)
   private startSecondEndpointPolling() {
-    console.log('[RESTSocketService] Iniciando polling do segundo endpoint sem parâmetro');
+    console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
+    
+    // Usar o GlobalRouletteDataService para obter dados
+    globalRouletteDataService.subscribe('RESTSocketService', () => {
+      console.log('[RESTSocketService] Recebendo dados do serviço centralizado');
+      this.processDataFromCentralService();
+    });
     
     // Executar imediatamente a primeira vez
-    this.fetchSecondEndpointData().catch(err => 
-      console.error('[RESTSocketService] Erro na primeira chamada ao segundo endpoint:', err)
-    );
-    
-    // Criar um timer com intervalo FIXO de 8 segundos para o segundo endpoint
-    setInterval(() => {
-      console.log('[RESTSocketService] Executando polling do segundo endpoint em intervalo FIXO de 8 segundos');
-      this.fetchSecondEndpointData().catch(err => 
-        console.error('[RESTSocketService] Erro na chamada ao segundo endpoint:', err)
-      );
-    }, 8000);
+    this.processDataFromCentralService();
   }
   
-  // Método para buscar dados do segundo endpoint (/api/ROULETTES sem parâmetro)
-  private async fetchSecondEndpointData() {
+  // Método para processar dados do serviço centralizado
+  private async processDataFromCentralService() {
     try {
       const startTime = Date.now();
-      console.log('[RESTSocketService] Iniciando chamada ao segundo endpoint: ' + startTime);
+      console.log('[RESTSocketService] Processando dados do serviço centralizado: ' + startTime);
       
-      const apiBaseUrl = this.getApiBaseUrl();
+      // Obter dados do serviço global
+      const data = globalRouletteDataService.getAllRoulettes();
       
-      // Endpoint sem parâmetro
-      const url = `${apiBaseUrl}/ROULETTES`;
-      
-      console.log(`[RESTSocketService] Chamando segundo endpoint: ${url}`);
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar dados do segundo endpoint: ${response.status} ${response.statusText}`);
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        console.log('[RESTSocketService] Sem dados disponíveis no serviço centralizado, aguardando...');
+        return;
       }
       
-      const data = await response.json();
-      const endTime = Date.now();
-      console.log(`[RESTSocketService] Chamada ao segundo endpoint concluída em ${endTime - startTime}ms`);
+      console.log(`[RESTSocketService] Processando ${data.length} roletas do serviço centralizado`);
       
-      // Processar os dados recebidos
-      if (Array.isArray(data)) {
-        console.log(`[RESTSocketService] Processando ${data.length} roletas do endpoint sem parâmetro`);
+      // Registrar esta chamada como bem-sucedida
+      const now = Date.now();
+      this.lastReceivedData.set('endpoint-base', { timestamp: now, data: { count: data.length } });
+      
+      // Salvar no cache com uma chave diferente para não conflitar
+      localStorage.setItem('roulettes_data_cache_base', JSON.stringify({
+        timestamp: Date.now(),
+        data: data
+      }));
+      
+      // Para cada roleta, processar os dados
+      data.forEach(roulette => {
+        if (!roulette || !roulette.id) return;
         
-        // Registrar esta chamada como bem-sucedida
-        const now = Date.now();
-        this.lastReceivedData.set('endpoint-base', { timestamp: now, data: { count: data.length } });
+        // Registrar timestamp para cada roleta
+        this.lastReceivedData.set(`base-${roulette.id}`, { timestamp: now, data: roulette });
         
-        // Salvar no cache com uma chave diferente para não conflitar
-        localStorage.setItem('roulettes_data_cache_base', JSON.stringify({
-          timestamp: Date.now(),
-          data: data
-        }));
-        
-        // Para cada roleta, processar os dados
-        data.forEach(roulette => {
-          if (!roulette || !roulette.id) return;
+        // Atualizar o histórico da roleta se houver números
+        if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
+          // Mapear apenas os números para um array simples
+          const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
           
-          // Registrar timestamp para cada roleta
-          this.lastReceivedData.set(`base-${roulette.id}`, { timestamp: now, data: roulette });
+          // Obter histórico existente 
+          const existingHistory = this.rouletteHistory.get(roulette.id) || [];
           
-          // Atualizar o histórico da roleta se houver números
-          if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
-            // Mapear apenas os números para um array simples
-            const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
-            
-            // Obter histórico existente 
-            const existingHistory = this.rouletteHistory.get(roulette.id) || [];
-            
-            // Verificar se já existe o primeiro número na lista para evitar duplicação
-            const isNewData = existingHistory.length === 0 || 
+          // Verificar se já existe o primeiro número na lista para evitar duplicação
+          const isNewData = existingHistory.length === 0 || 
                             existingHistory[0] !== numbers[0] ||
                             !existingHistory.includes(numbers[0]);
-            
-            if (isNewData) {
-              console.log(`[RESTSocketService] Novos números detectados para roleta ${roulette.nome || roulette.id} (endpoint-base)`);
-              
-              // Mesclar, evitando duplicações e preservando ordem
-              const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
-              
-              // Atualizar o histórico com mesclagem para preservar números antigos
-              this.setRouletteHistory(roulette.id, mergedNumbers);
-              
-              // Emitir evento com o número mais recente
-              const lastNumber = roulette.numero[0];
-              
-              const event: any = {
-                type: 'new_number',
-                roleta_id: roulette.id,
-                roleta_nome: roulette.nome,
-                numero: lastNumber.numero || lastNumber.number || 0,
-                cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
-                timestamp: lastNumber.timestamp || new Date().toISOString(),
-                source: 'base-endpoint' // Marcar a origem para depuração
-              };
-              
-              // Notificar os listeners sobre o novo número
-              this.notifyListeners(event);
-            }
-          }
           
-          // Emitir evento de estratégia se houver
-          if (roulette.estado_estrategia) {
-            const strategyEvent: any = {
-              type: 'strategy_update',
+          if (isNewData) {
+            console.log(`[RESTSocketService] Novos números detectados para roleta ${roulette.nome || roulette.id} (central-service)`);
+            
+            // Mesclar, evitando duplicações e preservando ordem
+            const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
+            
+            // Atualizar o histórico com mesclagem para preservar números antigos
+            this.setRouletteHistory(roulette.id, mergedNumbers);
+            
+            // Emitir evento com o número mais recente
+            const lastNumber = roulette.numero[0];
+            
+            const event: any = {
+              type: 'new_number',
               roleta_id: roulette.id,
               roleta_nome: roulette.nome,
-              estado: roulette.estado_estrategia,
-              numero_gatilho: roulette.numero_gatilho || 0,
-              vitorias: roulette.vitorias || 0,
-              derrotas: roulette.derrotas || 0,
-              terminais_gatilho: roulette.terminais_gatilho || [],
-              source: 'base-endpoint' // Marcar a origem para depuração
+              numero: lastNumber.numero || lastNumber.number || 0,
+              cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
+              timestamp: lastNumber.timestamp || new Date().toISOString(),
+              source: 'central-service' // Marcar a origem para depuração
             };
             
-            // Notificar os listeners sobre a atualização de estratégia
-            this.notifyListeners(strategyEvent);
+            // Notificar os listeners sobre o novo número
+            this.notifyListeners(event);
           }
-        });
-      }
+        }
+        
+        // Emitir evento de estratégia se houver
+        if (roulette.estado_estrategia) {
+          const strategyEvent: any = {
+            type: 'strategy_update',
+            roleta_id: roulette.id,
+            roleta_nome: roulette.nome,
+            estado: roulette.estado_estrategia,
+            numero_gatilho: roulette.numero_gatilho || 0,
+            vitorias: roulette.vitorias || 0,
+            derrotas: roulette.derrotas || 0,
+            terminais_gatilho: roulette.terminais_gatilho || [],
+            source: 'central-service' // Marcar a origem para depuração
+          };
+          
+          // Notificar os listeners sobre a atualização de estratégia
+          this.notifyListeners(strategyEvent);
+        }
+      });
+      
+      const endTime = Date.now();
+      console.log(`[RESTSocketService] Processamento concluído em ${endTime - startTime}ms`);
       
       return true;
     } catch (error) {
-      console.error('[RESTSocketService] Erro ao buscar dados do segundo endpoint:', error);
+      console.error('[RESTSocketService] Erro ao processar dados do serviço centralizado:', error);
       return false;
     }
   }

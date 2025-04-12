@@ -37,6 +37,7 @@ class GlobalRouletteDataService {
   private pollingTimer: number | null = null;
   private subscribers: Map<string, SubscriberCallback> = new Map();
   private detailedSubscribers: Map<string, SubscriberCallback> = new Map();
+  private _currentFetchPromise: Promise<any[]> | null = null;
   
   // Construtor privado para garantir Singleton
   private constructor() {
@@ -107,13 +108,20 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados atualizados da API (usando limit=100 para polling regular)
+   * Busca dados das roletas da API (usando limit=100) - método principal
+   * @returns Promise com dados das roletas
    */
-  private async fetchRouletteData(): Promise<void> {
+  public async fetchRouletteData(): Promise<any[]> {
     // Evitar requisições simultâneas
     if (this.isFetching) {
-      console.log('[GlobalRouletteService] Requisição já em andamento, ignorando');
-      return;
+      console.log('[GlobalRouletteService] Requisição já em andamento, aguardando...');
+      
+      // Aguardar a conclusão da requisição atual
+      if (this._currentFetchPromise) {
+        return this._currentFetchPromise;
+      }
+      
+      return this.rouletteData;
     }
     
     try {
@@ -123,35 +131,52 @@ class GlobalRouletteDataService {
       // Verificar se os dados em cache ainda são válidos
       if (this.rouletteData.length > 0 && now - this.lastFetchTime < CACHE_TTL) {
         console.log(`[GlobalRouletteService] Usando dados em cache, idade: ${Math.round((now - this.lastFetchTime)/1000)}s`);
-        return;
+        return this.rouletteData;
       }
       
       console.log('[GlobalRouletteService] Buscando dados atualizados da API (limit=100)');
       
-      // Usar a função utilitária com suporte a CORS - com limit=100 para polling regular
-      const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+      // Criar e armazenar a promessa atual
+      this._currentFetchPromise = (async () => {
+        // Usar a função utilitária com suporte a CORS - com limit=100 para polling regular
+        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+        
+        // Verificar se os dados são válidos
+        if (data && Array.isArray(data)) {
+          console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas`);
+          this.rouletteData = data;
+          this.lastFetchTime = now;
+          
+          // Armazenar no localStorage para compartilhamento
+          localStorage.setItem('global_roulette_data', JSON.stringify({
+            timestamp: now,
+            data: data
+          }));
+          
+          // Notificar todos os assinantes sobre a atualização
+          this.notifySubscribers();
+          
+          // Emitir evento global para outros componentes que possam estar ouvindo
+          EventService.emit('roulette:data-updated', {
+            timestamp: new Date().toISOString(),
+            count: data.length,
+            source: 'central-service'
+          });
+          
+          return data;
+        } else {
+          console.error('[GlobalRouletteService] Resposta inválida da API');
+          return this.rouletteData;
+        }
+      })();
       
-      // Verificar se os dados são válidos
-      if (data && Array.isArray(data)) {
-        console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas`);
-        this.rouletteData = data;
-        this.lastFetchTime = now;
-        
-        // Notificar todos os assinantes sobre a atualização
-        this.notifySubscribers();
-        
-        // Emitir evento global para outros componentes que possam estar ouvindo
-        EventService.emit('roulette:data-updated', {
-          timestamp: new Date().toISOString(),
-          count: data.length
-        });
-      } else {
-        console.error('[GlobalRouletteService] Resposta inválida da API');
-      }
+      return await this._currentFetchPromise;
     } catch (error) {
       console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
+      return this.rouletteData;
     } finally {
       this.isFetching = false;
+      this._currentFetchPromise = null;
     }
   }
   

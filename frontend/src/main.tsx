@@ -1,12 +1,14 @@
 import { createRoot } from 'react-dom/client'
-import App from './App.tsx'
+import React from 'react'
+import App from './App'
 import './index.css'
-import SocketService from './services/SocketAdapter';
-import { initializeLogging } from './services/utils/initLogger';
-import { getLogger } from './services/utils/logger';
-import { setupGlobalErrorHandlers } from './utils/error-handlers';
-import RouletteFeedService from './services/RouletteFeedService';
-import EventService from './services/EventService';
+import SocketService from './services/SocketService'
+import { initializeLogging } from './services/utils/initLogger'
+import { getLogger } from './services/utils/logger'
+import { setupGlobalErrorHandlers } from './utils/error-handlers'
+import RouletteFeedService from './services/RouletteFeedService'
+import EventService from './services/EventService'
+import GlobalRouletteDataService from './services/GlobalRouletteDataService'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -30,16 +32,12 @@ logger.info('Manipuladores globais de erro configurados');
 // Flag global para controlar a inicialização do sistema de roletas
 window.ROULETTE_SYSTEM_INITIALIZED = false;
 
-// Função para inicializar o sistema de roletas de forma centralizada
+// Inicializar o sistema de roletas como parte do carregamento da aplicação
 function initializeRoulettesSystem() {
-  if (window.ROULETTE_SYSTEM_INITIALIZED) {
-    logger.info('Sistema de roletas já inicializado, ignorando');
-    return;
-  }
-  
   logger.info('Inicializando sistema centralizado de roletas');
   
   // Inicializar os serviços em ordem
+  const globalRouletteDataService = GlobalRouletteDataService.getInstance();
   const socketService = SocketService.getInstance();
   const eventService = EventService.getInstance();
   const rouletteFeedService = RouletteFeedService.getInstance();
@@ -47,24 +45,34 @@ function initializeRoulettesSystem() {
   // Registrar o SocketService no RouletteFeedService
   rouletteFeedService.registerSocketService(socketService);
   
-  // Buscar dados iniciais uma única vez
-  logger.info('Realizando busca inicial única de dados de roletas...');
-  rouletteFeedService.fetchInitialData().then(data => {
-    logger.info(`Dados iniciais obtidos: ${data.length} roletas`);
-    // Disparar evento para notificar componentes
-    eventService.dispatchEvent({
-      type: 'roulette:data-updated',
-      data: {
-        source: 'initial-load',
-        timestamp: new Date().toISOString()
-      }
-    });
+  // Inicializar o serviço global e buscar dados iniciais uma única vez
+  logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
+  
+  // Primeiro, inicializar o serviço global para buscar dados
+  globalRouletteDataService.fetchRouletteData().then(data => {
+    logger.info(`Dados iniciais obtidos pelo serviço global: ${data.length} roletas`);
     
-    // Iniciar polling com intervalo de 10 segundos
-    rouletteFeedService.startPolling();
-    logger.info('Polling de roletas iniciado (intervalo de 10s)');
+    // Em seguida, inicializar o RouletteFeedService que usará os dados do serviço global
+    rouletteFeedService.initialize().then(() => {
+      logger.info('RouletteFeedService inicializado usando dados do serviço global');
+      
+      // Disparar evento para notificar componentes
+      eventService.dispatchEvent({
+        type: 'roulette:data-updated',
+        data: {
+          source: 'initial-load',
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+      // Iniciar polling com intervalo de 10 segundos
+      rouletteFeedService.startPolling();
+      logger.info('Polling de roletas iniciado (intervalo de 10s)');
+    }).catch(error => {
+      logger.error('Erro ao inicializar RouletteFeedService:', error);
+    });
   }).catch(error => {
-    logger.error('Erro ao carregar dados iniciais:', error);
+    logger.error('Erro ao buscar dados iniciais pelo serviço global:', error);
   });
   
   // Marcar como inicializado
@@ -80,7 +88,8 @@ function initializeRoulettesSystem() {
   return {
     socketService,
     rouletteFeedService,
-    eventService
+    eventService,
+    globalRouletteDataService
   };
 }
 

@@ -406,148 +406,18 @@ export default class RouletteFeedService {
       return this.roulettes;
     }
     
-    // Verificar se o serviço global já tem dados das roletas
-    const globalRoulettes = globalRouletteDataService.getAllRoulettes();
-    if (globalRoulettes && globalRoulettes.length > 0) {
-      logger.info(`📋 Usando ${globalRoulettes.length} roletas do serviço global`);
-      
-      // Transformar dados para o formato esperado
-      const liveTables: { [key: string]: any } = {};
-      globalRoulettes.forEach(roleta => {
-        if (roleta && roleta.id) {
-          // Certifique-se de que estamos lidando corretamente com o campo numero
-          // Na API, o 'numero' é um array de objetos com propriedade 'numero'
-          const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-          
-          liveTables[roleta.id] = {
-            GameID: roleta.id,
-            Name: roleta.name || roleta.nome,
-            ativa: roleta.ativa,
-            // Manter a estrutura do campo numero exatamente como está na API
-            numero: numeroArray,
-            // Incluir outras propriedades da roleta
-            ...roleta
-          };
-        }
-      });
-      
-      // Armazenar os dados
-      this.lastUpdateTime = Date.now();
-      this.hasCachedData = true;
-      this.roulettes = liveTables;
-      
-      // Sinalizar que dados iniciais foram carregados globalmente
-      RouletteFeedService.INITIAL_DATA_FETCHED = true;
-      
-      // Notificar que temos novos dados
-      this.notifySubscribers(liveTables);
-      
-      return this.roulettes;
-    }
-    
-    // Verificar se já temos dados em cache e se são válidos
-    if (this.hasCachedData && this.lastUpdateTime > 0) {
-      const cacheAge = Date.now() - this.lastUpdateTime;
-      
-      // Se o cache é recente (menos de 2 minutos), usar dados em cache
-      if (cacheAge < 120000) {
-        logger.info(`📦 Usando dados em cache (${Math.round(cacheAge / 1000)}s)`);
-        return this.roulettes;
-      }
-    }
-    
-    // Usar localStorage para sincronização entre instâncias
-    const initialFetchKey = 'roulette_initial_fetch_in_progress';
-    const initialFetchTimestamp = localStorage.getItem(initialFetchKey);
-    
-    // Se outra instância está buscando dados nos últimos 10 segundos, aguardar
-    if (initialFetchTimestamp && (Date.now() - parseInt(initialFetchTimestamp, 10)) < 10000) {
-      logger.warn('🔄 Outra instância já está buscando dados iniciais, aguardando...');
-      
-      // Aguardar até 5 segundos para obter os dados
-      let waitCount = 0;
-      while (waitCount < 10) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        waitCount++;
-        
-        // Verificar se o flag de inicialização global foi setado
-        if (RouletteFeedService.INITIAL_DATA_FETCHED) {
-          logger.info('✅ Dados iniciais foram carregados por outra instância');
-          return this.roulettes;
-        }
-        
-        // Verificar se a outra instância liberou o bloqueio
-        if (!localStorage.getItem(initialFetchKey)) {
-          break;
-        }
-      }
-      
-      // Se após a espera tivermos dados, retornar
-      if (this.hasCachedData) {
-        return this.roulettes;
-      }
-    }
-    
-    // Se alguém já está buscando dados, não fazer outra requisição
-    if (GLOBAL_IS_FETCHING) {
-      logger.warn('🔒 Outra instância já está buscando dados, aguardando...');
-      
-      // Aguardar até que o bloqueio global seja liberado
-      await new Promise<void>(resolve => {
-        const checkInterval = setInterval(() => {
-          if (!GLOBAL_IS_FETCHING) {
-            clearInterval(checkInterval);
-            resolve();
-          }
-        }, 100);
-      });
-      
-      // Se já temos dados após a espera, retornar
-      if (this.hasCachedData) {
-        return this.roulettes;
-      }
-    }
-    
-    // Se ainda estamos processando uma requisição, não iniciar outra
-    if (this.isFetching) {
-      logger.warn('⌛ Já existe uma requisição em andamento, usando cache temporário');
-      return this.roulettes || {};
-    }
-    
-    // Verificar o intervalo mínimo entre requisições
-    const timeSinceLastFetch = Date.now() - this.lastFetchTime;
-    if (timeSinceLastFetch < this.minInterval) {
-      const waitTime = this.minInterval - timeSinceLastFetch;
-      logger.warn(`⏱️ Respeitando intervalo mínimo, aguardando ${waitTime}ms`);
-      
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-    
-    // Marcar no localStorage que estamos buscando dados iniciais
-    localStorage.setItem(initialFetchKey, Date.now().toString());
-    
-    // Definir bloqueio global para evitar requisições simultâneas
-    GLOBAL_IS_FETCHING = true;
-    
-    // Gerar ID único para esta requisição
-    const requestId = `initial_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    
-    logger.info(`🚀 Buscando dados iniciais (ID: ${requestId})`);
+    logger.info('🔄 Buscando dados iniciais através do serviço global centralizado');
     
     try {
-      // Realizar a requisição HTTP com recuperação automática
-      const result = await this.fetchWithRecovery(
-        `${this.baseUrl}/api/ROULETTES?limit=100`,
-        requestId
-      );
+      // Usar exclusivamente o serviço global para buscar dados
+      const globalRoulettes = await globalRouletteDataService.fetchRouletteData();
       
-      // Processar os resultados - agora esperamos um array diretamente da API
-      if (result && Array.isArray(result)) {
-        logger.success(`✅ Dados iniciais recebidos: ${result.length} roletas`);
+      if (globalRoulettes && globalRoulettes.length > 0) {
+        logger.info(`📋 Recebidos ${globalRoulettes.length} roletas do serviço global centralizado`);
         
         // Transformar dados para o formato esperado
         const liveTables: { [key: string]: any } = {};
-        result.forEach(roleta => {
+        globalRoulettes.forEach(roleta => {
           if (roleta && roleta.id) {
             // Certifique-se de que estamos lidando corretamente com o campo numero
             // Na API, o 'numero' é um array de objetos com propriedade 'numero'
@@ -573,16 +443,23 @@ export default class RouletteFeedService {
         // Sinalizar que dados iniciais foram carregados globalmente
         RouletteFeedService.INITIAL_DATA_FETCHED = true;
         
+        // Notificar que temos novos dados
+        this.notifySubscribers(liveTables);
+        
         // Ajustar intervalo de polling baseado no sucesso
         this.adjustPollingInterval(false);
         
-        // Notificar que temos novos dados
-        this.notifySubscribers(liveTables);
-      } else {
-        logger.error('❌ Resposta inválida recebida');
+        return this.roulettes;
       }
       
-      return this.roulettes;
+      // Se não conseguiu dados do serviço global, tentar usar cache existente
+      if (this.hasCachedData) {
+        logger.info('⚠️ Não foi possível obter dados do serviço global, usando cache local');
+        return this.roulettes;
+      }
+      
+      logger.warn('⚠️ Não foi possível obter dados iniciais');
+      return {};
     } catch (error) {
       logger.error(`❌ Erro ao buscar dados iniciais: ${error.message || 'Desconhecido'}`);
       
@@ -591,12 +468,6 @@ export default class RouletteFeedService {
       
       // Retornar dados em cache se existirem, ou objeto vazio
       return this.roulettes || {};
-    } finally {
-      // Liberar o bloqueio global
-      GLOBAL_IS_FETCHING = false;
-      
-      // Remover marca no localStorage
-      localStorage.removeItem(initialFetchKey);
     }
   }
 
@@ -604,54 +475,18 @@ export default class RouletteFeedService {
    * Busca os dados mais recentes das roletas
    */
   public fetchLatestData(): Promise<any> {
-    // Verificar se podemos usar dados do serviço global
-    const globalRoulettes = globalRouletteDataService.getAllRoulettes();
-    if (globalRoulettes && globalRoulettes.length > 0) {
-      logger.debug(`📡 Usando ${globalRoulettes.length} roletas do serviço global`);
-      
-      // Transformar dados para o formato esperado
-      const liveTables: { [key: string]: any } = {};
-      globalRoulettes.forEach(roleta => {
-        if (roleta && roleta.id) {
-          // Certifique-se de que estamos lidando corretamente com o campo numero
-          // Na API, o 'numero' é um array de objetos com propriedade 'numero'
-          const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-          
-          liveTables[roleta.id] = {
-            GameID: roleta.id,
-            Name: roleta.name || roleta.nome,
-            ativa: roleta.ativa,
-            // Manter a estrutura do campo numero exatamente como está na API
-            numero: numeroArray,
-            // Incluir outras propriedades da roleta
-            ...roleta
-          };
-        }
-      });
-      
-      // Atualizar cache
-      this.roulettes = liveTables;
-      this.lastUpdateTime = Date.now();
-      this.hasCachedData = true;
-      
-      // Notificar que temos novos dados
-      this.notifySubscribers(liveTables);
-      
-      return Promise.resolve(this.roulettes);
-    }
-    
     // Verificar se podemos fazer a requisição
     if (!this.canMakeRequest()) {
       logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
       return Promise.resolve(this.roulettes);
     }
     
-    // Criar ID único para esta requisição
-    const requestId = this.generateRequestId();
-    
     // Atualizar estado
     this.IS_FETCHING_DATA = true;
     window._requestInProgress = true;
+    
+    // Criar ID único para esta requisição
+    const requestId = this.generateRequestId();
     
     // Registrar requisição pendente para monitoramento
     if (typeof window !== 'undefined') {
@@ -661,22 +496,15 @@ export default class RouletteFeedService {
       
       window._pendingRequests[requestId] = {
         timestamp: Date.now(),
-        url: '/api/ROULETTES?limit=100',
+        url: '/api/ROULETTES-via-centralService',
         service: 'RouletteFeed'
       };
-      
-      // Definir timeout para liberar a trava global se a requisição não completar
-      setTimeout(() => {
-        if (window._requestInProgress) {
-          logger.warn('⚠️ Liberando trava global de requisição após timeout');
-          window._requestInProgress = false;
-        }
-      }, GLOBAL_REQUEST_LOCK_TIME);
     }
     
-    logger.debug(`📡 Buscando dados mais recentes (ID: ${requestId})`);
+    logger.debug(`📡 Buscando dados mais recentes através do serviço centralizado (ID: ${requestId})`);
     
-    return this.fetchWithRecovery('/api/ROULETTES?limit=100', requestId)
+    // Usar o serviço global para obter os dados
+    return globalRouletteDataService.fetchRouletteData()
       .then(data => {
         // Atualizar estatísticas e estado
         this.requestStats.total++;
@@ -698,7 +526,7 @@ export default class RouletteFeedService {
         // Liberar a trava global
         window._requestInProgress = false;
         
-        // Processar os dados recebidos - agora esperamos um array diretamente da API
+        // Processar os dados recebidos
         if (data && Array.isArray(data)) {
           // Transformar dados para o formato esperado
           const liveTables: { [key: string]: any } = {};
@@ -720,17 +548,28 @@ export default class RouletteFeedService {
             }
           });
           
+          // Atualizar cache
+          this.lastUpdateTime = Date.now();
+          this.hasCachedData = true;
           this.roulettes = liveTables;
+          
+          // Sinalizar melhora na saúde do sistema
+          GLOBAL_SYSTEM_HEALTH = true;
+          this.consecutiveSuccesses++;
+          this.consecutiveErrors = 0;
+          this.lastSuccessTimestamp = Date.now();
+          
+          // Notificar que temos novos dados
           this.notifySubscribers(liveTables);
+          
+          // Notificar outros serviços
+          this.notifyDataUpdate();
+          
+          return liveTables;
+        } else {
+          logger.warn('⚠️ Resposta inválida do serviço global');
+          return this.roulettes;
         }
-        
-        // Ajustar o intervalo de polling (sem erro)
-        this.adjustPollingInterval(false);
-        
-        // Notificar outras instâncias
-        this.notifyDataUpdate();
-        
-        return this.roulettes;
       })
       .catch(error => {
         // Atualizar estatísticas e estado
@@ -746,28 +585,19 @@ export default class RouletteFeedService {
         // Liberar a trava global
         window._requestInProgress = false;
         
-        // Identificar o tipo de erro
-        let errorType = 'unknown';
-        if (error.status === 429) {
-          errorType = 'rate_limit';
-        } else if (error.message && error.message.includes('network')) {
-          errorType = 'network';
-        } else if (error.name === 'AbortError') {
-          errorType = 'abort';
+        // Registrar erro
+        logger.error(`❌ Erro ao buscar dados mais recentes: ${error.message || 'Desconhecido'}`);
+        
+        // Atualizar contadores de erro
+        this.consecutiveErrors++;
+        this.consecutiveSuccesses = 0;
+        
+        // Se houver um erro grave de conectividade, atualizar saúde do sistema
+        if (this.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          GLOBAL_SYSTEM_HEALTH = false;
         }
         
-        this.lastErrorType = errorType;
-        logger.error(`❌ Erro ao buscar dados (${errorType}):`, error);
-        
-        // Ajustar o intervalo de polling (com erro)
-        this.adjustPollingInterval(true);
-        
-        // Se for um erro de limite de taxa, tentar novamente com backoff exponencial
-        if (errorType === 'rate_limit') {
-          const backoffTime = Math.min(5000 * Math.pow(1.5, this.consecutiveErrors), 30000);
-          logger.warn(`⏱️ Backoff de ${Math.round(backoffTime / 1000)}s após erro 429`);
-        }
-        
+        // Retornar dados em cache se existirem
         return this.roulettes;
       });
   }
