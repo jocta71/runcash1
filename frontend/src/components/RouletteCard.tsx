@@ -276,35 +276,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       // Mostrar notificação para o primeiro novo número
       showNumberNotification(newNumbers[0]);
       
-      // Adicionar os novos números ao serviço global com delay sequencial
-      // para garantir que todos sejam processados corretamente
-      try {
-        console.log(`[${Date.now()}] Adicionando ${newNumbers.length} novos números ao serviço global para ${safeData.name}`);
-        
-        // Processar os números em ordem inversa (do mais antigo para o mais recente)
-        // com pequenos atrasos entre eles para garantir processamento correto
-        newNumbers.reverse().forEach((num, index) => {
-          setTimeout(() => {
-            console.log(`[${Date.now()}] Adicionando número ${num} ao serviço global para ${safeData.name} (${index + 1}/${newNumbers.length})`);
-            
-            // Adicionar número ao serviço global
-            globalRouletteDataService.addNewNumberToRoulette(safeData.name, num);
-            
-            // Se for o último número, forçar uma atualização geral após adicionar todos
-            if (index === newNumbers.length - 1) {
-              setTimeout(() => {
-                console.log(`[${Date.now()}] Forçando atualização final após adicionar todos os números`);
-                globalRouletteDataService.forceUpdate();
-              }, 100);
-            }
-          }, index * 50); // 50ms de atraso entre cada número
-        });
-      } catch (err) {
-        console.error(`[${Date.now()}] Erro ao adicionar números ao serviço global:`, err);
-        // Fallback: forçar atualização geral
-        globalRouletteDataService.forceUpdate();
-      }
-      
       // Resetar a animação após 2 segundos
       setTimeout(() => {
         setIsNewNumber(false);
@@ -419,13 +390,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
     
     setShowStats(!showStats);
-    
-    // Se já estamos mostrando estatísticas, forçar uma atualização
-    if (showStats && isStatsModalOpen) {
-      // Forçar atualização global para garantir que os dados mais recentes 
-      // cheguem ao componente de estatísticas
-      globalRouletteDataService.forceUpdate();
-    }
   };
   
   // Função para abrir detalhes da roleta
@@ -485,18 +449,19 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
   }, [showEstrategiaDropdown]);
 
-  // Alterar isStatsModalOpen para forçar atualização quando abrir o modal
-  const openStatsModal = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsStatsModalOpen(true);
-    
-    // Forçar carregamento de dados detalhados para garantir que 
-    // o histórico tenha todos os números
-    globalRouletteDataService.fetchDetailedRouletteData().then(() => {
-      // Garantir que assinantes são notificados
-      globalRouletteDataService.forceUpdate();
-    });
-  };
+  // Efeito para detectar novos números e forçar atualização no SidePanelStats
+  useEffect(() => {
+    if (isNewNumber && lastNumber !== null) {
+      console.log(`[DEBUG NÚMEROS] Novo número detectado no RouletteCard: ${lastNumber}`);
+      
+      // Se o modal de estatísticas estiver aberto, forçar re-render do SidePanelStats
+      if (isStatsModalOpen) {
+        console.log(`[DEBUG NÚMEROS] Modal aberto, forçando atualização do SidePanelStats`);
+        // A chave do RouletteSidePanelStats é atualizada no render,
+        // forçando ele a receber os novos números
+      }
+    }
+  }, [isNewNumber, lastNumber, isStatsModalOpen]);
 
   return (
     <Card 
@@ -656,7 +621,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           
           {/* Link para estatísticas completas */}
           <button 
-              onClick={openStatsModal}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsStatsModalOpen(true);
+              }}
               className="mt-3 text-xs text-blue-600 hover:text-blue-800 flex items-center"
           >
             <PieChart className="h-3 w-3 mr-1" />
@@ -681,19 +649,22 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-            <button 
-              onClick={() => setIsStatsModalOpen(false)}
+              <button 
+                onClick={() => setIsStatsModalOpen(false)}
                 className="text-gray-500 hover:text-gray-700"
                 title="Fechar"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           </div>
           <div className="p-4">
+            {/* Adicionar logs para debug */}
+            {console.log("[DEBUG ROULETTECARD] Enviando números para SidePanelStats:", recentNumbers)}
             <RouletteSidePanelStats
+              key={`sidepanel-${safeData.name}-${recentNumbers.length}`}
               roletaNome={safeData.name}
               lastNumbers={recentNumbers}
               wins={0}
