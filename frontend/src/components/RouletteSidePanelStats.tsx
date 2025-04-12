@@ -379,53 +379,95 @@ const RouletteSidePanelStats = ({
     };
   }, [roletaNome]); // Dependência apenas na roleta
 
-  // Adicionar um efeito para garantir que os números recentes sejam sempre processados
+  // Modificar o efeito que processa os números recentes
   useEffect(() => {
     if (lastNumbers && lastNumbers.length > 0) {
-      console.log(`[FORÇAR ATUALIZAÇÃO] SidePanelStats para ${roletaNome} recebeu ${lastNumbers.length} números recentes`);
-      console.table(lastNumbers);
+      console.warn(`[IMPORTANTE] SidePanelStats para ${roletaNome} recebeu ${lastNumbers.length} números: ${JSON.stringify(lastNumbers)}`);
       
-      // Obter os dados mais recentes do serviço global
-      const allRoulettes = globalRouletteDataService.getAllRoulettes();
-      const currentRoulette = allRoulettes.find((r: any) => {
-        const name = r.nome || r.name || '';
-        return name.toLowerCase() === roletaNome.toLowerCase();
-      });
-      
-      // Converter números para o formato com timestamp
-      const numbersWithTimestamp = lastNumbers.map((num, index) => {
-        // Tentar obter timestamp da API primeiro
-        if (currentRoulette && currentRoulette.numero && Array.isArray(currentRoulette.numero)) {
-          const matchingApiNumber = currentRoulette.numero.find(
-            (n: any) => n.numero === num || Number(n.numero) === num
-          );
+      // Forçar uma atualização dos dados detalhados
+      globalRouletteDataService.fetchDetailedRouletteData()
+        .then(() => {
+          // Obter os dados mais recentes do serviço global
+          const allRoulettes = globalRouletteDataService.getAllRoulettes();
+          console.log(`[DEBUG] Todas as roletas:`, allRoulettes.map(r => r.name || r.nome));
           
-          if (matchingApiNumber && matchingApiNumber.timestamp) {
-            try {
-              const date = new Date(matchingApiNumber.timestamp);
-              const timeString = date.getHours().toString().padStart(2, '0') + ':' + 
-                             date.getMinutes().toString().padStart(2, '0');
-              return { numero: num, timestamp: timeString };
-            } catch (e) {
-              console.error("Erro ao processar timestamp da API:", e);
-            }
+          const currentRoulette = allRoulettes.find((r: any) => {
+            const name = r.nome || r.name || '';
+            return name.toLowerCase() === roletaNome.toLowerCase();
+          });
+          
+          console.log(`[DEBUG] Roleta atual encontrada:`, !!currentRoulette, currentRoulette?.nome || currentRoulette?.name);
+          
+          if (currentRoulette && currentRoulette.numero) {
+            console.log(`[DEBUG] Dados da roleta:`, currentRoulette.numero.length, "números", 
+              "Primeiros 5:", currentRoulette.numero.slice(0, 5).map((n: any) => ({
+                numero: n.numero,
+                timestamp: n.timestamp
+              }))
+            );
           }
-        }
-        
-        // Usar hora atual como fallback
-        const now = new Date();
-        const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                        now.getMinutes().toString().padStart(2, '0');
-        return { numero: num, timestamp: timeString };
-      });
-      
-      // Criar nova lista combinando números recentes com histórico existente
-      // Importante: NÃO remover duplicatas! São normais em roletas.
-      setHistoricalNumbers(prevNumbers => {
-        const newCombined = [...numbersWithTimestamp, ...prevNumbers];
-        console.log(`[FORÇAR ATUALIZAÇÃO] Combinados ${numbersWithTimestamp.length} números recentes com ${prevNumbers.length} existentes`);
-        return newCombined.slice(0, 1000); // Limitar a 1000 números
-      });
+          
+          // Converter números para o formato com timestamp
+          const numbersWithTimestamp = lastNumbers.map((num, index) => {
+            // Tentar obter timestamp da API primeiro
+            if (currentRoulette && currentRoulette.numero && Array.isArray(currentRoulette.numero)) {
+              const matchingApiNumber = currentRoulette.numero.find(
+                (n: any) => n.numero === num || Number(n.numero) === num
+              );
+              
+              if (matchingApiNumber && matchingApiNumber.timestamp) {
+                console.log(`[DEBUG] Encontrado timestamp para número ${num}:`, matchingApiNumber.timestamp);
+                try {
+                  const date = new Date(matchingApiNumber.timestamp);
+                  const timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                                date.getMinutes().toString().padStart(2, '0');
+                  return { numero: num, timestamp: timeString };
+                } catch (e) {
+                  console.error("Erro ao processar timestamp da API:", e);
+                }
+              } else {
+                console.log(`[DEBUG] Não encontrou timestamp para número ${num} na API`);
+              }
+            }
+            
+            // Usar hora atual como fallback
+            const now = new Date();
+            const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                          now.getMinutes().toString().padStart(2, '0');
+            return { numero: num, timestamp: timeString };
+          });
+          
+          // Verificar se já temos esses números no histórico (para evitar duplicatas)
+          console.log(`[DEBUG] Números convertidos com timestamp:`, numbersWithTimestamp);
+          
+          // Criar nova lista combinando números recentes com histórico existente
+          // Importante: NÃO remover duplicatas! São normais em roletas.
+          setHistoricalNumbers(prevNumbers => {
+            console.log(`[DEBUG] Estado anterior tinha ${prevNumbers.length} números`);
+            
+            // Adicionar números no início do array
+            const newCombined = [...numbersWithTimestamp, ...prevNumbers];
+            console.log(`[DEBUG] Novos números combinados: total de ${newCombined.length}`);
+            
+            return newCombined.slice(0, 1000); // Limitar a 1000 números
+          });
+        })
+        .catch(err => {
+          console.error("[ERRO] Falha ao obter dados detalhados:", err);
+          
+          // Mesmo em caso de erro, ainda adicionar os números com timestamp atual
+          const numbersWithFallbackTime = lastNumbers.map(num => {
+            const now = new Date();
+            const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                          now.getMinutes().toString().padStart(2, '0');
+            return { numero: num, timestamp: timeString };
+          });
+          
+          setHistoricalNumbers(prevNumbers => {
+            const newCombined = [...numbersWithFallbackTime, ...prevNumbers];
+            return newCombined.slice(0, 1000);
+          });
+        });
     }
   }, [lastNumbers, roletaNome]);
   
