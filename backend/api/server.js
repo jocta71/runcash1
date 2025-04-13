@@ -10,6 +10,8 @@ const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 const path = require('path');
 const mongodb = require('./libs/mongodb');
+const passport = require('./config/passport');
+const cookieParser = require('cookie-parser');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -27,10 +29,17 @@ const app = express();
 const PORT = process.env.API_PORT || 3001;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*',
+  credentials: true
+}));
 app.use(morgan('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// Inicializar Passport
+app.use(passport.initialize());
 
 // Middleware para disponibilizar o banco de dados para todas as requisições
 app.use(async (req, res, next) => {

@@ -20,8 +20,18 @@ const UserSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Senha é obrigatória'],
+    required: function() {
+      return !this.googleId; // Senha é obrigatória apenas se não tiver googleId
+    },
     minlength: [6, 'Senha deve ter no mínimo 6 caracteres']
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  profilePicture: {
+    type: String
   },
   isAdmin: {
     type: Boolean,
@@ -45,7 +55,7 @@ UserSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   
   // Apenas criptografa a senha se ela foi modificada ou é nova
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next();
   
   // Criptografa a senha
   bcrypt.hash(this.password, 10, (err, hash) => {
@@ -57,6 +67,8 @@ UserSchema.pre('save', function(next) {
 
 // Método para comparar senha
 UserSchema.methods.comparePassword = function(candidatePassword) {
+  if (!this.password) return Promise.resolve(false);
+  
   return new Promise((resolve, reject) => {
     bcrypt.compare(candidatePassword, this.password, (err, isMatch) => {
       if (err) return reject(err);

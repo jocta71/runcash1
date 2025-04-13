@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
+const passport = require('../config/passport');
 
 // @desc    Registrar novo usuário
 // @route   POST /api/auth/register
@@ -86,6 +87,23 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// @desc    Iniciar autenticação com Google
+// @route   GET /api/auth/google
+// @access  Público
+router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+// @desc    Callback para autenticação Google
+// @route   GET /api/auth/google/callback
+// @access  Público
+router.get(
+  '/google/callback',
+  passport.authenticate('google', { session: false, failureRedirect: '/login' }),
+  (req, res) => {
+    // Gerar token JWT após autenticação bem-sucedida
+    sendTokenResponse(req.user, 200, res);
+  }
+);
+
 // @desc    Obter usuário atual
 // @route   GET /api/auth/me
 // @access  Privado
@@ -156,7 +174,8 @@ const sendTokenResponse = (user, statusCode, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        isAdmin: user.isAdmin
+        isAdmin: user.isAdmin,
+        profilePicture: user.profilePicture
       }
     });
 };
