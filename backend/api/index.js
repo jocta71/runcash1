@@ -54,7 +54,7 @@ app.use(cors({
     'http://localhost:3000', 
     'http://localhost:5173', 
     'https://runcashh1.vercel.app', 
-    'https://runcashh1-peach.vercel.app',
+  
     'https://runcashh1-git-main-brunobrandao.vercel.app',
     'https://backendapi-production-36b5.up.railway.app'
   ],
