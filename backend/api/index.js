@@ -48,7 +48,15 @@ const PORT = process.env.PORT || 3002;
 
 // Configuração CORS básica
 app.use(cors({
-  origin: ['https://runcash5.vercel.app', 'http://localhost:3000', 'http://localhost:5173'],
+  origin: [
+    'https://runcash5.vercel.app', 
+    'http://localhost:3000', 
+    'http://localhost:5173', 
+    'https://runcashh1.vercel.app', 
+    'https://runcashh1-peach.vercel.app',
+    'https://runcashh1-git-main-brunobrandao.vercel.app',
+    'https://backendapi-production-36b5.up.railway.app'
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 
                  'ngrok-skip-browser-warning', 'bypass-tunnel-reminder', 'cache-control', 'pragma'],
