@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Search, Wallet, Menu, MessageSquare } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { Search, Wallet, Menu, MessageSquare, AlertCircle, BarChart3, ArrowUp, ArrowDown, X, ChartBar, BarChart, Percent, CircleX, Share, Home, Sparkles, RefreshCw, MonitorSmartphone, ExternalLink, ChevronRight } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import RouletteCard from '@/components/RouletteCard';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,30 @@ import ChatUI from '@/components/ChatUI';
 import { Button } from '@/components/ui/button';
 import AnimatedInsights from '@/components/AnimatedInsights';
 import ProfileDropdown from '@/components/ProfileDropdown';
+import Layout from '@/components/Layout';
+import { RouletteRepository } from '../services/data/rouletteRepository';
+import { RouletteData } from '@/types';
+import EventService from '@/services/EventService';
+import { RequestThrottler } from '@/services/utils/requestThrottler';
+import { 
+  ResponsiveContainer, 
+  BarChart as RechartsBarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
+import { fetchRouletteHistoricalNumbers, generateFrequencyData, getHotColdNumbers, generateGroupDistribution, generateColorHourlyStats, getRouletteNumberColor } from '@/components/RouletteSidePanelStats';
+import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
+import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
+import RouletteMiniStats from '@/components/RouletteMiniStats';
 
 interface ChatMessage {
   id: string;
@@ -21,313 +45,456 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-const mockRoulettes = [{
-  name: "Roleta Brasileira",
-  lastNumbers: [7, 11, 23, 5, 18],
-  wins: 150,
-  losses: 50,
-  trend: Array.from({
-    length: 20
-  }, () => ({
-    value: Math.random() * 100
-  }))
-}, {
-  name: "Roleta Europeia",
-  lastNumbers: [32, 15, 3, 26, 8],
-  wins: 180,
-  losses: 70,
-  trend: Array.from({
-    length: 20
-  }, () => ({
-    value: Math.random() * 100
-  }))
-}, {
-  name: "Roleta Americana",
-  lastNumbers: [0, 12, 28, 35, 14],
-  wins: 200,
-  losses: 90,
-  trend: Array.from({
-    length: 20
-  }, () => ({
-    value: Math.random() * 100
-  }))
-}, {
-  name: "Roleta Platinum VIP",
-  lastNumbers: [17, 22, 9, 31, 4],
-  wins: 220,
-  losses: 65,
-  trend: Array.from({
-    length: 20
-  }, () => ({
-    value: Math.random() * 100
-  }))
-}, {
-  name: "Roleta Diamond",
-  lastNumbers: [19, 6, 27, 13, 36],
-  wins: 190,
-  losses: 55,
-  trend: Array.from({
-    length: 20
-  }, () => ({
-    value: Math.random() * 100
-  }))
-}, {
-  name: "Roleta Gold",
-  lastNumbers: [2, 10, 20, 33, 16],
-  wins: 170,
-  losses: 60,
-  trend: Array.from({
-    length: 20
-  }, () => ({
-    value: Math.random() * 100
-  }))
-}, {
-  name: "Roleta Lightning",
-  lastNumbers: [29, 24, 1, 30, 21],
-  wins: 210,
-  losses: 75,
-  trend: Array.from({
-    length: 20
-  }, () => ({
-    value: Math.random() * 100
-  }))
-}, {
-  name: "Roleta Premium",
-  lastNumbers: [5, 18, 34, 11, 25],
-  wins: 230,
-  losses: 85,
-  trend: Array.from({
-    length: 20
-  }, () => ({
-    value: Math.random() * 100
-  }))
-}, {
-  name: "Roleta Turbo",
-  lastNumbers: [8, 17, 29, 2, 19],
-  wins: 185,
-  losses: 65,
-  trend: Array.from({
-    length: 20
-  }, () => ({
-    value: Math.random() * 100
-  }))
-}];
 
-const mockChatMessages: ChatMessage[] = [{
-  id: '1',
-  user: {
-    name: 'Wade Warren',
-    avatar: ''
-  },
-  message: 'when will it be ready?',
-  timestamp: new Date()
-}, {
-  id: '2',
-  user: {
-    name: 'Leslie Alexander',
-    avatar: ''
-  },
-  message: 'when will it be ready?',
-  timestamp: new Date()
-}, {
-  id: '3',
-  user: {
-    name: 'Moderator',
-    avatar: '',
-    isModerator: true
-  },
-  message: 'when will it be ready?',
-  timestamp: new Date()
-}, {
-  id: '4',
-  user: {
-    name: 'Eleanor Pena',
-    avatar: ''
-  },
-  message: 'when will it be ready?',
-  timestamp: new Date()
-}, {
-  id: '5',
-  user: {
-    name: 'Cody Fisher',
-    avatar: ''
-  },
-  message: 'received?',
-  timestamp: new Date()
-}, {
-  id: '6',
-  user: {
-    name: 'Anonymous Admin',
-    avatar: '',
-    isAdmin: true
-  },
-  message: 'Have you spoken to the delivery man? He is more than an hour late',
-  timestamp: new Date()
-}, {
-  id: '7',
-  user: {
-    name: 'Robert Fox',
-    avatar: ''
-  },
-  message: 'Great service.',
-  timestamp: new Date()
-}, {
-  id: '8',
-  user: {
-    name: 'Savannah Nguyen',
-    avatar: ''
-  },
-  message: 'tastes amazing!',
-  timestamp: new Date()
-}, {
-  id: '9',
-  user: {
-    name: 'Arlene McCoy',
-    avatar: ''
-  },
-  message: 'Ok',
-  timestamp: new Date()
-}, {
-  id: '10',
-  user: {
-    name: 'Mummyland',
-    avatar: ''
-  },
-  message: 'when will it be ready?',
-  timestamp: new Date()
-}, {
-  id: '11',
-  user: {
-    name: 'You',
-    avatar: ''
-  },
-  message: 'Hi guys! What are you doing?',
-  timestamp: new Date()
-}];
+// Adicionar área do código para persistência de roletas
+interface KnownRoulette {
+  id: string;
+  nome: string;
+  ultima_atualizacao: string;
+}
 
 const Index = () => {
-  const [search, setSearch] = useState("");
+  // Remover o estado de busca
+  // const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [knownRoulettes, setKnownRoulettes] = useState<RouletteData[]>([]);
+  const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(false);
+  const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
+  const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 24;
   
-  const filteredRoulettes = mockRoulettes.filter(roulette => roulette.name.toLowerCase().includes(search.toLowerCase()));
+  // Referência para controlar se o componente está montado
+  const isMounted = useRef(true);
+
+  // Referência para timeout de atualização
+  const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Escutar eventos de roletas existentes para persistência
+  useEffect(() => {
+    const handleRouletteExists = (data: any) => {
+      if (!data || !data.id) {
+        console.log('[Index] Evento roleta_exists recebido sem ID válido:', data);
+        return;
+      }
+      
+      console.log(`[Index] Evento roleta_exists recebido para: ${data.nome} (ID: ${data.id})`);
+      
+      setKnownRoulettes(prev => {
+        const updated = [...prev, data];
+        console.log(`[Index] Atualizado registro de roletas conhecidas. Total: ${updated.length}`);
+        return updated;
+      });
+    };
+    
+    // Registrar o listener de evento diretamente (sem usar addGlobalListener que pode não estar registrado corretamente)
+    EventService.getInstance().subscribe('roleta_exists', handleRouletteExists);
+    
+    console.log('[Index] Listener para evento roleta_exists registrado');
+    
+    return () => {
+      // Remover o listener ao desmontar o componente
+      EventService.getInstance().unsubscribe('roleta_exists', handleRouletteExists);
+      console.log('[Index] Listener para evento roleta_exists removido');
+    };
+  }, []);
+  
+  // Escutar eventos de carregamento de dados históricos
+  useEffect(() => {
+    // Handler para evento de dados históricos carregados
+    const handleHistoricalDataLoaded = (data: any) => {
+      console.log('[Index] Evento historical_data_loaded recebido:', data);
+      if (data && data.success) {
+        console.log(`[Index] Dados históricos carregados com sucesso para ${data.count || 0} roletas`);
+        setDataFullyLoaded(true);
+      }
+    };
+    
+    // Handler para evento de dados reais carregados
+    const handleRealDataLoaded = () => {
+      console.log('[Index] Evento Dados reais carregados recebido');
+      setDataFullyLoaded(true);
+      setIsLoading(false);
+    };
+    
+    // Registrar listeners
+    EventService.getInstance().subscribe('historical_data_loaded', handleHistoricalDataLoaded);
+    EventService.getInstance().subscribe('roulettes_loaded', handleRealDataLoaded);
+    
+    console.log('[Index] Listeners para eventos de carregamento registrados');
+    
+    return () => {
+      // Remover listeners ao desmontar
+      EventService.getInstance().unsubscribe('historical_data_loaded', handleHistoricalDataLoaded);
+      EventService.getInstance().unsubscribe('roulettes_loaded', handleRealDataLoaded);
+      console.log('[Index] Listeners para eventos de carregamento removidos');
+    };
+  }, []);
+  
+  // Função para mesclar roletas da API com roletas conhecidas
+  const mergeRoulettes = useCallback((apiRoulettes: RouletteData[], knownRoulettes: RouletteData[]): RouletteData[] => {
+    const merged: Record<string, RouletteData> = {};
+    
+    // Primeiro, adicionar todas as roletas da API
+    apiRoulettes.forEach(roulette => {
+      merged[roulette.id] = roulette;
+    });
+    
+    // Depois, adicionar ou atualizar com roletas conhecidas
+    knownRoulettes.forEach(known => {
+      // Se a roleta já existe na lista da API, não precisamos fazer nada
+      if (merged[known.id]) {
+        console.log(`[Index] Roleta já existe na API: ${known.nome} (ID: ${known.id})`);
+        return;
+      }
+      
+      console.log(`[Index] Adicionando roleta conhecida ausente na API: ${known.nome} (ID: ${known.id})`);
+      
+      // Criar uma roleta a partir da roleta conhecida
+      merged[known.id] = {
+        id: known.id,
+        nome: known.name,
+        name: known.name,
+        numeros: [],
+        lastNumbers: [],
+        estado_estrategia: '',
+        vitorias: 0,
+        derrotas: 0
+      };
+    });
+    
+    const result = Object.values(merged);
+    console.log(`[Index] Total após mesclagem: ${result.length} roletas (API: ${apiRoulettes.length}, Conhecidas: ${knownRoulettes.length})`);
+    
+    return result;
+  }, []);
+  
+  // Efeito para atualizar selectedRoulette quando roulettes for carregado ou alterado
+  useEffect(() => {
+    // Se já temos roletas carregadas e nenhuma roleta está selecionada, selecione a primeira
+    if (roulettes.length > 0 && !selectedRoulette && !isLoading) {
+      console.log('[Index] Selecionando uma roleta automaticamente');
+      
+      // Tentar encontrar uma roleta que tenha números/dados
+      const roletaComDados = roulettes.find(roleta => {
+        const temNumeros = (
+          (Array.isArray(roleta.numero) && roleta.numero.length > 0) || 
+          (Array.isArray(roleta.lastNumbers) && roleta.lastNumbers.length > 0) ||
+          (Array.isArray(roleta.numeros) && roleta.numeros.length > 0)
+        );
+        return temNumeros;
+      });
+      
+      // Se encontrou uma roleta com dados, selecione-a, caso contrário use a primeira
+      setSelectedRoulette(roletaComDados || roulettes[0]);
+    }
+  }, [roulettes, selectedRoulette, isLoading]);
+  
+  // Função para carregar dados da API de forma centralizada
+  const loadRouletteData = useCallback(async () => {
+    if (!isMounted.current) return;
+    
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Usar o throttler para evitar múltiplas chamadas simultâneas
+      const result = await RequestThrottler.scheduleRequest(
+        'index_roulettes',
+        async () => {
+          console.log('📊 Buscando roletas disponíveis...');
+          const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
+          console.log(`✅ ${response.length} roletas encontradas`);
+          return response;
+        }
+      );
+      
+      if (result && Array.isArray(result)) {
+        // Mesclar com roletas conhecidas
+        const merged = mergeRoulettes(result, knownRoulettes);
+        setRoulettes(merged);
+        
+        // Atualizar roletas conhecidas se tivermos novos dados
+        if (result.length > 0) {
+          setKnownRoulettes(prev => mergeRoulettes(prev, result));
+        }
+        
+        // Definir que os dados foram totalmente carregados
+        setDataFullyLoaded(true);
+      } else {
+        // Se falhar, usar roletas conhecidas
+        if (knownRoulettes.length > 0) {
+          console.log('⚠️ Usando roletas conhecidas como fallback');
+          setRoulettes(knownRoulettes);
+          setDataFullyLoaded(true);
+        } else {
+          setError('Não foi possível carregar as roletas disponíveis.');
+        }
+      }
+    } catch (err: any) {
+      console.error('❌ Erro ao buscar roletas:', err);
+      setError(`Erro ao buscar roletas: ${err.message}`);
+      
+      // Fallback para roletas conhecidas
+      if (knownRoulettes.length > 0) {
+        setRoulettes(knownRoulettes);
+        setDataFullyLoaded(true);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [knownRoulettes]);
+
+  // Efeito para inicialização e atualização periódica
+  useEffect(() => {
+    // Inicialização
+    loadRouletteData();
+    
+    // Timeout de segurança para garantir que a tela será liberada
+    const safetyTimeout = setTimeout(() => {
+      if (!dataFullyLoaded && isMounted.current) {
+        console.log('[Index] 🔄 Liberando tela após timeout de segurança');
+        setDataFullyLoaded(true);
+        setIsLoading(false);
+      }
+    }, 10000); // 10 segundos
+    
+    // Configurar atualização periódica usando o throttler
+    const unsubscribe = RequestThrottler.subscribeToUpdates(
+      'index_roulettes', 
+      (data) => {
+        if (data && Array.isArray(data) && isMounted.current) {
+          console.log(`📊 Atualização periódica: ${data.length} roletas`);
+          
+          // Mesclar com roletas conhecidas e atualizar estado
+          const merged = mergeRoulettes(data, knownRoulettes);
+          setRoulettes(merged);
+          
+          // Atualizar roletas conhecidas
+          setKnownRoulettes(prev => mergeRoulettes(prev, data));
+          
+          // Garantir que os dados são considerados carregados
+          setDataFullyLoaded(true);
+        }
+      }
+    );
+    
+    // Agendar atualizações periódicas
+    const scheduleUpdate = () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+      
+      updateTimeoutRef.current = setTimeout(() => {
+        // Agendar próxima atualização usando o throttler (sem forçar execução imediata)
+        RequestThrottler.scheduleRequest(
+          'index_roulettes',
+          async () => {
+            console.log('🔄 Atualizando roletas periodicamente...');
+            const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
+            console.log(`✅ ${response.length} roletas atualizadas`);
+            return response;
+          },
+          false // Não forçar execução, respeitar o intervalo mínimo
+        );
+        
+        // Agendar próxima verificação
+        if (isMounted.current) {
+          scheduleUpdate();
+        }
+      }, 60000); // Verificar a cada 60 segundos
+    };
+    
+    // Iniciar agendamento
+    scheduleUpdate();
+    
+    // Cleanup
+    return () => {
+      isMounted.current = false;
+      unsubscribe();
+      
+      clearTimeout(safetyTimeout);
+      
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+    };
+  }, [loadRouletteData, knownRoulettes]);
+  
+  // Simplificar para usar diretamente as roletas
+  const filteredRoulettes = roulettes;
+  
   const topRoulettes = useMemo(() => {
-    return [...mockRoulettes].sort((a, b) => {
-      const aWinRate = a.wins / (a.wins + a.losses) * 100;
-      const bWinRate = b.wins / (b.wins + b.losses) * 100;
+    return [...roulettes].sort((a, b) => {
+      const aWinRate = a.vitorias / (a.vitorias + a.derrotas) * 100 || 0;
+      const bWinRate = b.vitorias / (b.vitorias + b.derrotas) * 100 || 0;
       return bWinRate - aWinRate;
     }).slice(0, 3);
-  }, []);
+  }, [roulettes]);
+
+  // Função para renderizar os cards de roleta
+  const renderRouletteCards = () => {
+    if (!Array.isArray(roulettes) || roulettes.length === 0) {
+      return (
+        <div className="col-span-full text-center py-8">
+          <p className="text-muted-foreground">Nenhuma roleta disponível no momento.</p>
+        </div>
+      );
+    }
+
+    // Log para depuração
+    console.log(`[Index] Renderizando ${roulettes.length} roletas disponíveis`);
+
+    // Usar diretamente todas as roletas, sem filtro
+    let filteredRoulettes = roulettes;
+    
+    // Mais logs para depuração - mostrar o total de roletas
+    console.log(`[Index] Exibindo todas as ${filteredRoulettes.length} roletas disponíveis`);
+    
+    // MODIFICAÇÃO CRÍTICA: Mostrar todas as roletas sem paginação
+    const allRoulettes = filteredRoulettes;
+    
+    console.log(`[Index] Exibindo todas as ${allRoulettes.length} roletas disponíveis`);
+
+    return allRoulettes.map(roulette => {
+      // Garantir que temos números válidos
+      const safeNumbers = Array.isArray(roulette.numero) 
+        ? roulette.numero
+            .filter(n => n !== null && n !== undefined) // Filtrar nulos e undefined primeiro
+            .map(n => {
+              if (n && typeof n === 'object' && n !== null && 'numero' in n) {
+                return n.numero;
+              }
+              return n;
+            })
+        : Array.isArray(roulette.lastNumbers)
+          ? roulette.lastNumbers
+          : Array.isArray(roulette.numeros)
+            ? roulette.numeros
+            : [];
+      
+      return (
+        <div 
+          key={roulette.id} 
+          className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === roulette.id ? 'p-0.5 bg-green-500 shadow-lg shadow-green-500/20' : 'p-0.5'}`}
+          onClick={() => setSelectedRoulette(roulette)}
+        >
+          <RouletteCard
+            data={{
+              id: roulette.id || '',
+              _id: roulette._id || roulette.id || '',
+              name: roulette.name || roulette.nome || 'Roleta sem nome',
+              nome: roulette.nome || roulette.name || 'Roleta sem nome',
+              lastNumbers: safeNumbers,
+              numeros: safeNumbers,
+              vitorias: typeof roulette.vitorias === 'number' ? roulette.vitorias : 0,
+              derrotas: typeof roulette.derrotas === 'number' ? roulette.derrotas : 0,
+              estado_estrategia: roulette.estado_estrategia || ''
+            }}
+          />
+        </div>
+      );
+    });
+  };
+  
+  // Função para renderizar a paginação
+  const renderPagination = () => {
+    if (!Array.isArray(roulettes) || roulettes.length === 0) {
+      return null;
+    }
+    
+    // Usar todas as roletas diretamente, sem filtro
+    let filteredRoulettes = roulettes;
+    
+    const totalPages = Math.ceil(filteredRoulettes.length / itemsPerPage);
+    
+    // Sempre mostrar a paginação se houver roletas
+    // Removida a condição que ocultava a paginação quando havia apenas uma página
+    
+    return (
+      <div className="flex justify-center mt-8 gap-2 mb-8 bg-gray-800 p-3 rounded-lg shadow-lg">
+        <button 
+          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          disabled={currentPage === 1}
+          className={`px-4 py-2 rounded-md ${currentPage === 1 ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
+        >
+          Anterior
+        </button>
+        
+        <div className="flex items-center bg-gray-700 rounded-md px-4">
+          <span className="text-white font-bold">Página {currentPage} de {totalPages || 1}</span>
+        </div>
+        
+        <button 
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages || 1))}
+          disabled={currentPage === totalPages}
+          className={`px-4 py-2 rounded-md ${currentPage === totalPages ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
+        >
+          Próxima
+        </button>
+      </div>
+    );
+  };
 
   return (
-    <div className="min-h-screen flex bg-vegas-black">
-      {/* Desktop Sidebar */}
-      <Sidebar />
-      
-      {/* Mobile Sidebar (drawer) */}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isMobile={true} />
-      
-      <div className="flex-1 relative">
-        {/* Mobile Header */}
-        <div className="mobile-header">
-          <button 
-            className="p-2"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu size={24} className="text-[#00ff00]" />
-          </button>
-          
-          <span className="text-white text-xl font-bold">RunCash</span>
-          
-          <button 
-            className="p-2"
-            onClick={() => setChatOpen(true)}
-          >
-            <MessageSquare size={24} className="text-[#00ff00]" />
-          </button>
-        </div>
+    <Layout preloadData={true}>
+      <div className="container mx-auto px-4 pt-4 md:pt-8">
+        {/* Cabeçalho removido completamente */}
         
-        {/* Desktop Header */}
-        <div className="hidden md:flex fixed top-0 left-0 right-0 md:left-64 md:right-80 z-40 h-[70px] items-center justify-between px-4 border-b border-[#33333359] bg-[#100f13]">
-          <div className="flex items-center gap-2">
-            <span className="text-white text-2xl font-bold">RunCash</span>
-            <div className="relative flex items-center ml-4 max-w-[180px]">
-              <Search size={14} className="absolute left-2 text-gray-400" />
-              <Input 
-                type="text" 
-                placeholder="Pesquisar roleta..." 
-                className="h-8 pl-7 py-1 pr-2 text-xs bg-[#1A191F] border-none rounded-full text-white focus-visible:ring-0 focus-visible:ring-offset-0" 
-                value={search} 
-                onChange={e => setSearch(e.target.value)} 
-              />
-            </div>
+        {/* Mensagem de erro */}
+        {error && (
+          <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center">
+            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+            <p className="text-red-100">{error}</p>
           </div>
-          
-          <AnimatedInsights />
-          
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-[#1A191F] rounded-full py-1 px-3">
-              <span className="h-5 w-5 bg-vegas-blue rounded-full flex items-center justify-center">
-                <span className="text-[10px] text-white">R$</span>
-              </span>
-              <span className="text-white text-xs">1.346,34</span>
-              <Wallet size={14} className="text-gray-400" />
+        )}
+        
+        {/* Estado de carregamento */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[...Array(12)].map((_, i) => (
+              <div key={i} className="bg-[#1e1e24] animate-pulse rounded-xl h-64"></div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Cards de roleta à esquerda */}
+            <div className="w-full lg:w-1/2">
+              <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+                {renderRouletteCards()}
+              </div>
             </div>
             
-            <Button variant="default" size="sm" className="h-8 text-black font-medium bg-gradient-to-b from-[#00ff00] to-[#00ff00] hover:from-[#00ff00]/90 hover:to-[#00ff00]/90">
-              <Wallet size={14} className="mr-1" /> Saldo
-            </Button>
-            
-            <ProfileDropdown />
+            {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
+            <div className="w-full lg:w-1/2">
+              {selectedRoulette ? (
+                <RouletteSidePanelStats
+                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
+                  lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
+                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
+                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                />
+              ) : (
+                <div className="w-full bg-gray-900 rounded-lg p-6 text-center">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-[#00ff00] opacity-50" />
+                  <h3 className="text-lg font-medium text-white mb-2">Estatísticas da Roleta</h3>
+                  <p className="text-sm text-gray-400">
+                    Selecione uma roleta para ver estatísticas detalhadas
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-        
-        {/* Mobile Search Bar */}
-        <div className="md:hidden px-4 pt-20 pb-2">
-          <div className="relative flex items-center w-full">
-            <Search size={16} className="absolute left-3 text-gray-400" />
-            <Input 
-              type="text" 
-              placeholder="Pesquisar roleta..." 
-              className="w-full pl-9 py-2 pr-3 text-sm bg-[#1A191F] border-none rounded-full text-white focus-visible:ring-0 focus-visible:ring-offset-0" 
-              value={search} 
-              onChange={e => setSearch(e.target.value)} 
-            />
-          </div>
-        </div>
-        
-        {/* Mobile User Info */}
-        <div className="md:hidden flex justify-between items-center px-4 py-3">
-          <ProfileDropdown />
-          
-          <Button variant="default" size="sm" className="h-8 text-black font-medium bg-gradient-to-b from-[#00ff00] to-[#00ff00] hover:from-[#00ff00]/90 hover:to-[#00ff00]/90">
-            <Wallet size={14} className="mr-1" /> Saldo
-          </Button>
-        </div>
-        
-        {/* Mobile Insights */}
-        <div className="md:hidden px-4 py-2">
-          <div className="bg-[#1A191F]/50 rounded-lg p-3">
-            <AnimatedInsights />
-          </div>
-        </div>
-        
-        <main className="pt-4 md:pt-[70px] pb-8 px-4 md:px-6 md:pl-[280px] md:pr-[340px] w-full min-h-screen bg-[#100f13]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mt-2 md:mt-6">
-            {filteredRoulettes.map((roulette, index) => <RouletteCard key={index} {...roulette} />)}
-          </div>
-          
-          {/* Mobile Footer Space (to avoid content being hidden behind fixed elements) */}
-          <div className="h-16 md:h-0"></div>
-        </main>
+        )}
       </div>
-      
-      {/* Desktop Chat */}
-      <ChatUI />
-      
-      {/* Mobile Chat (drawer) */}
-      <ChatUI isOpen={chatOpen} onClose={() => setChatOpen(false)} isMobile={true} />
-    </div>
+    </Layout>
   );
 };
 
