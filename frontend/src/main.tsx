@@ -152,6 +152,20 @@ if (rootElement) {
   // Aguardar um pequeno intervalo para dar tempo à conexão de ser estabelecida
   setTimeout(() => {
     createRoot(rootElement).render(<App />);
+    
+    // Verificar autenticação novamente após carregar a aplicação completa
+    setTimeout(() => {
+      if (window.authContextInstance?.checkAuth) {
+        console.log('Verificando autenticação após inicialização completa da aplicação');
+        window.authContextInstance.checkAuth()
+          .then(result => {
+            console.log('Verificação de autenticação pós-inicialização:', result ? 'autenticado' : 'não autenticado');
+          })
+          .catch(err => {
+            console.error('Erro na verificação de autenticação pós-inicialização:', err);
+          });
+      }
+    }, 1000);
   }, 1500);
 } else {
   logger.error('Elemento root não encontrado!');

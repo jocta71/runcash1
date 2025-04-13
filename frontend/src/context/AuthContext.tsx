@@ -2,6 +2,15 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
+// Definir o tipo global para a janela
+declare global {
+  interface Window {
+    authContextInstance?: {
+      checkAuth: () => Promise<boolean>;
+    };
+  }
+}
+
 interface User {
   id: string;
   username: string;
@@ -28,6 +37,7 @@ const COOKIE_OPTIONS = {
   sameSite: 'none' as const, // Necessário para cookies cross-domain 
   path: '/',         // Disponível em todo o site
   expires: 30,       // Expiração em 30 dias
+  domain: window.location.hostname.includes('localhost') ? 'localhost' : undefined, // Especificar domínio correto
 };
 
 // Nome do cookie - deve corresponder ao nome esperado pelo backend
@@ -103,9 +113,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       // Verificação normal de autenticação
-      const authResult = await checkAuth();
-      console.log('Resultado da verificação de autenticação:', authResult ? 'autenticado' : 'não autenticado');
-      setLoading(false);
+      const storedToken = Cookies.get(TOKEN_COOKIE_NAME);
+      
+      if (storedToken) {
+        try {
+          console.log('Token encontrado, verificando autenticação...');
+          const response = await axios.get(`${API_URL}/auth/me`, {
+            headers: {
+              Authorization: `Bearer ${storedToken}`
+            }
+          });
+          
+          if (response.data.success) {
+            setUser(response.data.data);
+            setToken(storedToken);
+            console.log('Autenticação verificada com sucesso na inicialização');
+            setLoading(false);
+            return true;
+          } else {
+            console.log('Token inválido retornado pela API');
+            // Não remover o token aqui para tentar uma vez mais
+            setLoading(false);
+            return false;
+          }
+        } catch (error) {
+          console.error('Erro ao verificar autenticação na inicialização:', error);
+          setLoading(false);
+          return false;
+        }
+      } else {
+        console.log('Nenhum token encontrado no cookie');
+        setLoading(false);
+        return false;
+      }
     };
     
     checkAuthOnLoad();
@@ -133,15 +173,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Verificar se o usuário está autenticado
   const checkAuth = async (): Promise<boolean> => {
-    const storedToken = Cookies.get(TOKEN_COOKIE_NAME);
+    // Primeiro tentar com o cookie
+    let storedToken = Cookies.get(TOKEN_COOKIE_NAME);
+    
+    // Se não encontrar no cookie, tentar no localStorage como fallback
+    if (!storedToken) {
+      try {
+        storedToken = localStorage.getItem('auth_token_backup');
+        
+        // Se encontrado no localStorage mas não no cookie, restaurar o cookie
+        if (storedToken) {
+          console.log('Token recuperado do localStorage, restaurando cookie');
+          Cookies.set(TOKEN_COOKIE_NAME, storedToken, COOKIE_OPTIONS);
+        }
+      } catch (error) {
+        console.error('Erro ao acessar localStorage:', error);
+      }
+    }
     
     if (!storedToken) {
-      console.log('Nenhum token encontrado no cookie');
+      console.log('Nenhum token encontrado no cookie ou localStorage');
       return false;
     }
 
     try {
-      console.log('Verificando autenticação com o token do cookie');
+      console.log('Verificando autenticação com o token');
       const response = await axios.get(`${API_URL}/auth/me`, {
         headers: {
           Authorization: `Bearer ${storedToken}`
@@ -156,6 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         console.log('Token inválido retornado pela API');
         Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
+        localStorage.removeItem('auth_token_backup');
         setToken(null);
         setUser(null);
         return false;
@@ -163,6 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Erro ao verificar autenticação:', error);
       Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
+      localStorage.removeItem('auth_token_backup');
       setToken(null);
       setUser(null);
       return false;
@@ -171,8 +229,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Função auxiliar para salvar token
   const saveToken = (newToken: string) => {
+    console.log('Salvando token no cookie:', newToken.substring(0, 10) + '...');
     // Salvar no cookie do lado cliente - não pode ser HttpOnly pelo frontend
     Cookies.set(TOKEN_COOKIE_NAME, newToken, COOKIE_OPTIONS);
+    
+    // Também armazenar no localStorage como fallback
+    try {
+      localStorage.setItem('auth_token_backup', newToken);
+    } catch (error) {
+      console.error('Erro ao salvar token no localStorage:', error);
+    }
+    
     setToken(newToken);
   };
 
@@ -249,7 +316,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Logout
   const signOut = () => {
-    Cookies.remove(TOKEN_COOKIE_NAME);
+    Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
+    localStorage.removeItem('auth_token_backup');
     setToken(null);
     setUser(null);
     
@@ -269,6 +337,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser,
     setToken
   };
+
+  // Expor o contexto globalmente para permitir verificação de autenticação após carregamento
+  useEffect(() => {
+    // Expor a função checkAuth na janela global
+    window.authContextInstance = {
+      checkAuth
+    };
+
+    return () => {
+      // Limpar na desmontagem
+      delete window.authContextInstance;
+    };
+  }, [checkAuth]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
