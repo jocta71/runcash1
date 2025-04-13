@@ -15,7 +15,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
 import { AuthProvider } from "./context/AuthContext";
 import { NotificationsProvider } from "./context/NotificationsContext";
-import { RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 // Importação de componentes principais
 const Index = lazy(() => import("@/pages/Index"));
@@ -41,6 +41,90 @@ const createQueryClient = () => new QueryClient({
     },
   },
 });
+
+// Definição do roteamento
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <Index />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/auth',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <AuthPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/roulettes',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <RoulettesPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/history',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <RouletteHistoryPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/analysis',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <RouletteAnalysisPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/strategies',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <StrategiesPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/strategy/:id',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <StrategyFormPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/profile',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <ProfilePage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/live',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <LiveRoulettePage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '*',
+    element: (
+      <Suspense fallback={<LoadingScreen />}>
+        <NotFound />
+      </Suspense>
+    ),
+  }
+]);
 
 const App = () => {
   // Criar uma única instância do QueryClient com useRef para mantê-la durante re-renders
