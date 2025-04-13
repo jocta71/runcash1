@@ -105,7 +105,11 @@ if (isGoogleAuthEnabled) {
     passport.authenticate('google', { session: false, failureRedirect: '/login' }),
     (req, res) => {
       // Gerar token JWT após autenticação bem-sucedida
-      sendTokenResponse(req.user, 200, res);
+      const token = generateToken(req.user);
+      
+      // Redirecionar para o frontend com o token
+      const frontendUrl = process.env.FRONTEND_URL || 'https://runcashh11.vercel.app';
+      res.redirect(`${frontendUrl}?token=${token}`);
     }
   );
 } else {
@@ -165,10 +169,9 @@ router.get('/google/status', (req, res) => {
   });
 });
 
-// Função auxiliar para criar e enviar token JWT
-const sendTokenResponse = (user, statusCode, res) => {
-  // Criar token
-  const token = jwt.sign(
+// Função auxiliar para gerar token JWT
+const generateToken = (user) => {
+  return jwt.sign(
     { 
       id: user._id,
       email: user.email,
@@ -179,6 +182,12 @@ const sendTokenResponse = (user, statusCode, res) => {
       expiresIn: '30d' 
     }
   );
+};
+
+// Função auxiliar para criar e enviar token JWT
+const sendTokenResponse = (user, statusCode, res) => {
+  // Criar token
+  const token = generateToken(user);
 
   const options = {
     expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),

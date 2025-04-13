@@ -6,6 +6,7 @@ interface User {
   username: string;
   email: string;
   isAdmin: boolean;
+  profilePicture?: string;
 }
 
 interface AuthContextType {
@@ -16,6 +17,8 @@ interface AuthContextType {
   signUp: (username: string, email: string, password: string) => Promise<{ error: any }>;
   signOut: () => void;
   checkAuth: () => Promise<boolean>;
+  setUser: (user: User) => void;
+  setToken: (token: string) => void;
 }
 
 // Criar contexto com valor padrão
@@ -26,7 +29,9 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => ({ error: null }),
   signUp: async () => ({ error: null }),
   signOut: () => {},
-  checkAuth: async () => false
+  checkAuth: async () => false,
+  setUser: () => {},
+  setToken: () => {}
 });
 
 // API base URL - Atualizando para o servidor de produção na Railway
@@ -153,7 +158,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signOut,
-    checkAuth
+    checkAuth,
+    setUser,
+    setToken
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

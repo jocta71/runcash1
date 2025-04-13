@@ -16,6 +16,7 @@ import ErrorPage from './pages/ErrorPage';
 import { AuthProvider } from "./context/AuthContext";
 import { NotificationsProvider } from "./context/NotificationsContext";
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import GoogleAuthHandler from './components/GoogleAuthHandler';
 
 // Importação de componentes principais
 const Index = lazy(() => import("@/pages/Index"));
@@ -126,6 +127,7 @@ const router = createBrowserRouter([
   }
 ]);
 
+// Componente principal da aplicação
 const App = () => {
   // Criar uma única instância do QueryClient com useRef para mantê-la durante re-renders
   const queryClient = useRef(createQueryClient());
@@ -160,22 +162,28 @@ const App = () => {
   }, []);
 
   return (
-    <div className="App">
-      <ErrorBoundary fallback={<ErrorPage />}>
-        <NotificationsProvider>
-          <AuthProvider>
-            <SubscriptionProvider>
-              <ThemeProvider defaultTheme="dark" storageKey="runcash-theme">
-                <Toaster />
-                <div className="min-h-screen bg-background text-foreground">
-                  <RouterProvider router={router} />
-                </div>
-              </ThemeProvider>
-            </SubscriptionProvider>
-          </AuthProvider>
-        </NotificationsProvider>
-      </ErrorBoundary>
-    </div>
+    <ErrorBoundary FallbackComponent={ErrorPage}>
+      <QueryClientProvider client={queryClient.current}>
+        <ThemeProvider defaultTheme="dark" storageKey="runcash-theme">
+          <TooltipProvider>
+            <AuthProvider>
+              <SubscriptionProvider>
+                <NotificationsProvider>
+                  <BrowserRouter>
+                    <GoogleAuthHandler />
+                    <Routes>
+                      <Route path="/login" element={<AuthPage />} />
+                      <Route path="*" element={<RouterProvider router={router} />} />
+                    </Routes>
+                    <Toaster />
+                  </BrowserRouter>
+                </NotificationsProvider>
+              </SubscriptionProvider>
+            </AuthProvider>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 
