@@ -6,7 +6,11 @@
   "framework": "vite",
   "rewrites": [
     { 
-      "source": "/api/(.*)", 
+      "source": "/api/asaas-webhook", 
+      "destination": "/api/asaas-webhook" 
+    },
+    { 
+      "source": "/api/((?!asaas-webhook).*)", 
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1" 
     },
     {
@@ -17,5 +21,13 @@
       "source": "/(.*)", 
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/asaas-webhook.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
