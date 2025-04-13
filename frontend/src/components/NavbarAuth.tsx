@@ -20,22 +20,21 @@ const NavbarAuth = () => {
     return (
       <div className="flex items-center gap-3">
         {/* Saldo */}
-        <div className="flex items-center">
-          <span className="bg-green-500 w-6 h-6 rounded-full flex items-center justify-center mr-1">
-            <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20ZM11.5 7V9H11C10.45 9 10 9.45 10 10C10 10.55 10.45 11 11 11H13V13H10V15H13C13.55 15 14 14.55 14 14V12C14 11.45 13.55 11 13 11H11V9H14V7H11.5Z" fill="currentColor"/>
-            </svg>
-          </span>
-          <span className="text-white text-sm">2.500,00</span>
+        <div className="flex items-center space-x-1">
+          <svg width="20" height="20" viewBox="0 0 20 20" className="text-[#00ff00]" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 0C4.48 0 0 4.48 0 10C0 15.52 4.48 20 10 20C15.52 20 20 15.52 20 10C20 4.48 15.52 0 10 0ZM11 15H9V13H11V15ZM11 11H9V5H11V11Z" />
+          </svg>
+          <span className="text-white text-sm font-medium">R$ 2.500,00</span>
         </div>
         
         {/* Avatar do usuário com Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0 rounded-full bg-transparent">
-              <div className="bg-transparent text-white h-8 w-8 rounded-full flex items-center justify-center">
-                U
-              </div>
+            <Button 
+              variant="ghost" 
+              className="h-8 w-8 rounded-full p-0 bg-[#00ff00] hover:bg-[#00cc00] text-black font-medium"
+            >
+              U
             </Button>
           </DropdownMenuTrigger>
           

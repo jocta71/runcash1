@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import ChatUI from './ChatUI';
-import { Wallet, Loader2 } from 'lucide-react';
+import { Wallet, Loader2, User, Lock, Settings, Download, Upload, LogOut } from 'lucide-react';
 import ProfileDropdown from './ProfileDropdown';
 import { Link } from 'react-router-dom';
 import { RouletteRepository } from '../services/data/rouletteRepository';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { Button } from './ui/button';
+import { useAuth } from '@/context/AuthContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,6 +15,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
+  const { user, signOut } = useAuth();
   // Estado da busca removido
   const [isLoading, setIsLoading] = useState(preloadData);
   const [error, setError] = useState<string | null>(null);
@@ -75,24 +79,84 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
 
   return (
     <div className="min-h-screen bg-[#100f13] text-white">
-      {/* Barra de navegação superior - z-index mais baixo (20) para ficar abaixo dos sidebars */}
-      <nav className="sticky top-0 z-20 w-full bg-[#141318] border-b border-[#2a2a2e] px-4 py-3">
-        <div className="container mx-auto flex items-center justify-between">
+      {/* Barra de navegação superior */}
+      <nav className="sticky top-0 z-20 w-full bg-black border-b border-[#111] px-6 py-2">
+        <div className="flex items-center">
           {/* Logo */}
-          <Link to="/" className="flex items-center">
-            <span className="font-bold text-xl text-green-500">RunCash</span>
-          </Link>
-
+          <div className="flex-shrink-0 flex items-center">
+            <Link to="/" className="text-[#00ff00] font-bold text-xl">
+              RunCash
+            </Link>
+          </div>
+          
+          {/* Menu de navegação (lado esquerdo) */}
+          <div className="ml-4 text-xs text-gray-400">
+            <span>Jogos</span>
+          </div>
+          
+          {/* Espaço flexível */}
+          <div className="flex-grow"></div>
+          
           {/* Itens da direita */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-3">
             {/* Saldo */}
-            <div className="hidden md:flex items-center bg-[#1e1e24] px-3 py-1.5 rounded-lg border border-[#2a2a2e]">
-              <Wallet className="h-4 w-4 text-green-500 mr-2" />
-              <span className="text-sm font-medium">R$ 2.500,00</span>
+            <div className="flex items-center space-x-1">
+              <svg width="20" height="20" viewBox="0 0 20 20" className="text-[#00ff00]" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 0C4.48 0 0 4.48 0 10C0 15.52 4.48 20 10 20C15.52 20 20 15.52 20 10C20 4.48 15.52 0 10 0ZM11 15H9V13H11V15ZM11 11H9V5H11V11Z" />
+              </svg>
+              <span className="text-white text-sm font-medium">R$ 2.500,00</span>
             </div>
             
-            {/* Perfil */}
-            <ProfileDropdown />
+            {/* Avatar do usuário com Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="h-8 w-8 rounded-full p-0 bg-[#00ff00] hover:bg-[#00cc00] text-black font-medium"
+                >
+                  U
+                </Button>
+              </DropdownMenuTrigger>
+              
+              <DropdownMenuContent className="w-56 bg-gray-900 border-gray-800" align="end">
+                <DropdownMenuLabel className="text-white">Minha Conta</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-gray-800" />
+                
+                <DropdownMenuItem className="text-white hover:bg-gray-800">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Editar Perfil</span>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="text-white hover:bg-gray-800">
+                  <Lock className="mr-2 h-4 w-4" />
+                  <span>Alterar Senha</span>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="text-white hover:bg-gray-800">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Configurações</span>
+                </DropdownMenuItem>
+                
+                <DropdownMenuSeparator className="bg-gray-800" />
+                
+                <DropdownMenuItem className="text-white hover:bg-gray-800">
+                  <Download className="mr-2 h-4 w-4" />
+                  <span>Depositar</span>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="text-white hover:bg-gray-800">
+                  <Upload className="mr-2 h-4 w-4" />
+                  <span>Sacar</span>
+                </DropdownMenuItem>
+                
+                <DropdownMenuSeparator className="bg-gray-800" />
+                
+                <DropdownMenuItem onClick={() => signOut()} className="text-white hover:bg-gray-800">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sair</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </nav>
