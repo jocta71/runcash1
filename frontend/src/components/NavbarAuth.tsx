@@ -1,18 +1,32 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { LogIn, Moon, Bell, ChevronDown } from 'lucide-react';
-import { useContext } from 'react';
-import { AuthContext } from '@/context/AuthContext';
+import { LogIn, Moon, Bell, ChevronDown, LogOut, User } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 // Versão melhorada do NavbarAuth que mostra status do plano para usuários logados
 const NavbarAuth = () => {
-  const { user, signOut } = useContext(AuthContext);
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const isLoggedIn = !!user;
+  
+  const handleSignOut = () => {
+    signOut();
+    navigate('/login');
+  };
   
   // Caso esteja logado, mostrar a interface completa
   if (isLoggedIn && user) {
-    // Obter iniciais do nome de usuário para o avatar
-    const initials = user.username ? user.username.substring(0, 2).toLowerCase() : 'u';
+    // Obter iniciais do nome de usuário para o avatar fallback
+    const initials = user.username ? user.username.substring(0, 2).toUpperCase() : 'U';
     
     return (
       <div className="flex items-center space-x-4">
@@ -41,23 +55,38 @@ const NavbarAuth = () => {
           Premium
         </div>
         
-        {/* Perfil do usuário */}
-        <div className="flex items-center space-x-2 cursor-pointer group">
-          <div className="bg-green-600 h-8 w-8 rounded-full flex items-center justify-center text-white">
-            {initials}
-          </div>
-          <div className="flex items-center">
-            <span className="text-white text-sm">{user.username}</span>
-            <ChevronDown className="h-4 w-4 text-gray-400 ml-1" />
-          </div>
-          
-          {/* Menu dropdown (visível apenas no hover) */}
-          <div className="absolute top-16 right-4 bg-background border border-border rounded-md shadow-lg p-2 hidden group-hover:block">
-            <button onClick={signOut} className="text-white hover:text-primary text-sm block w-full text-left px-3 py-2 rounded hover:bg-secondary">
-              Sair
-            </button>
-          </div>
-        </div>
+        {/* Perfil do usuário com dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="flex items-center space-x-2 cursor-pointer hover:opacity-80">
+              <Avatar className="h-8 w-8 border border-green-500">
+                {user.profilePicture ? (
+                  <AvatarImage src={user.profilePicture} alt={user.username} />
+                ) : (
+                  <AvatarFallback className="bg-green-600 text-white">
+                    {initials}
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              <div className="flex items-center">
+                <span className="text-white text-sm font-medium">{user.username}</span>
+                <ChevronDown className="h-4 w-4 text-gray-400 ml-1" />
+              </div>
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate('/profile')}>
+              <User className="mr-2 h-4 w-4" />
+              <span>Perfil</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleSignOut} className="text-red-500">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Sair</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     );
   }
