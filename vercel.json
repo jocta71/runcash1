@@ -14,6 +14,10 @@
       "destination": "/api/hubla-test" 
     },
     { 
+      "source": "/api/hubla-test-all", 
+      "destination": "/api/hubla-test-all" 
+    },
+    { 
       "source": "/api/hubla-create-customer", 
       "destination": "/api/hubla-create-customer" 
     },
@@ -34,7 +38,7 @@
       "destination": "/api/hubla-cancel-subscription" 
     },
     { 
-      "source": "/api/((?!test|hubla-test|hubla-create-customer|hubla-create-subscription|hubla-webhook|hubla-subscription-details|hubla-cancel-subscription).*)", 
+      "source": "/api/((?!test|hubla-test|hubla-test-all|hubla-create-customer|hubla-create-subscription|hubla-webhook|hubla-subscription-details|hubla-cancel-subscription).*)", 
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1" 
     },
     {
