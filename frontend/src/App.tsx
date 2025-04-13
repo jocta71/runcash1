@@ -32,6 +32,7 @@ const PaymentSuccess = lazy(() => import("@/pages/PaymentSuccess"));
 const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
+const BillingPage = lazy(() => import("@/pages/BillingPage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -150,6 +151,14 @@ const App = () => {
                         <ProtectedRoute>
                           <Suspense fallback={<LoadingScreen />}>
                             <ProfilePage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/billing" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <BillingPage />
                           </Suspense>
                         </ProtectedRoute>
                       } />
