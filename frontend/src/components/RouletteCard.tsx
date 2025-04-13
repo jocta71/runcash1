@@ -1,5 +1,5 @@
 import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, BarChart3, ChevronDown } from 'lucide-react';
-import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import RouletteSidePanelStats from './RouletteSidePanelStats';
@@ -427,6 +427,12 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
   };
 
+  // Função para navegar até a página de estratégias
+  const navegarParaEstrategias = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    navigate('/strategies');
+  };
+
   // Função simplificada para alternar o dropdown de estratégia
   const toggleEstrategiaDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -468,7 +474,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-lg font-semibold truncate">{safeData.name}</h3>
           <div className="flex gap-1 items-center">
-            <Badge variant={hasRealData ? "success" : "secondary"} className="text-xs">
+            <Badge variant={hasRealData ? "secondary" : "default"} className="text-xs">
               {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}
             </Badge>
           </div>
@@ -497,48 +503,19 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           <div className="relative">
             <button
               ref={estrategiaButtonRef}
-              onClick={toggleEstrategiaDropdown}
-              className="w-full flex items-center justify-between bg-transparent text-white border border-gray-700 rounded px-3 py-2 text-sm transition-colors hover:border-white"
+              onClick={navegarParaEstrategias}
+              className="w-full flex items-center justify-between bg-transparent border border-gray-700 rounded px-3 py-2 text-sm transition-colors hover:border-white"
             >
               <div className="flex items-center">
                 <Target className="h-3 w-3 mr-2" />
-                <span>
-                  {estrategiaSelecionada 
-                    ? ESTRATEGIAS_ROLETA.find(e => e.id === estrategiaSelecionada)?.nome 
-                    : "Selecionar estratégia"}
-                </span>
+                <span>Estratégia Padrão do Sistema</span>
               </div>
-              <ChevronDown className="h-3 w-3" />
+              <div className="flex items-center">
+                <span className="bg-gray-800 text-xs px-2 py-0.5 rounded mr-1">Sistema</span>
+                <span className="bg-green-800 text-xs px-2 py-0.5 rounded">Pública</span>
+                <ChevronDown className="h-3 w-3 ml-2" />
+              </div>
             </button>
-            
-            {/* Dropdown simples inline */}
-            {showEstrategiaDropdown && (
-              <div 
-                className="absolute top-full left-0 right-0 mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-md shadow-xl p-2 text-sm"
-                onClick={(e) => e.stopPropagation()}
-                style={{ 
-                  maxHeight: '250px', 
-                  overflowY: 'auto',
-                  boxShadow: '0 10px 25px rgba(0, 0, 0, 0.3)'
-                }}
-              >
-                {ESTRATEGIAS_ROLETA.map((estrategia) => (
-                  <div
-                    key={estrategia.id}
-                    className={`px-3 py-2 mb-1 rounded-sm hover:bg-zinc-700 cursor-pointer transition-colors ${
-                      estrategiaSelecionada === estrategia.id ? "bg-zinc-700" : ""
-                    }`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      selecionarEstrategia(estrategia.id);
-                    }}
-                  >
-                    <div className="font-medium text-white">{estrategia.nome}</div>
-                    <div className="text-xs text-zinc-400">{estrategia.descricao}</div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
         
