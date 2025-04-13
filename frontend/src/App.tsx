@@ -15,16 +15,17 @@ import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
 import { AuthProvider } from "./context/AuthContext";
 import { NotificationsProvider } from "./context/NotificationsContext";
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom';
 import GoogleAuthHandler from './components/GoogleAuthHandler';
+import ProtectedRoute from './components/ProtectedRoute';
+import AuthPage from "./pages/AuthPage";
 
-// Importação de componentes principais
+// Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
 const StrategiesPage = lazy(() => import("@/pages/StrategiesPage"));
 const StrategyFormPage = lazy(() => import("@/pages/StrategyFormPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
-const AuthPage = lazy(() => import("@/pages/AuthPage"));
 const SeedPage = lazy(() => import("@/pages/SeedPage"));
 const PlansPage = lazy(() => import("@/pages/PlansPage"));
 const PaymentSuccess = lazy(() => import("@/pages/PaymentSuccess"));
@@ -42,90 +43,6 @@ const createQueryClient = () => new QueryClient({
     },
   },
 });
-
-// Definição do roteamento
-const router = createBrowserRouter([
-  {
-    path: '/',
-    element: (
-      <Suspense fallback={<LoadingScreen />}>
-        <Index />
-      </Suspense>
-    ),
-  },
-  {
-    path: '/auth',
-    element: (
-      <Suspense fallback={<LoadingScreen />}>
-        <AuthPage />
-      </Suspense>
-    ),
-  },
-  {
-    path: '/roulettes',
-    element: (
-      <Suspense fallback={<LoadingScreen />}>
-        <RoulettesPage />
-      </Suspense>
-    ),
-  },
-  {
-    path: '/history',
-    element: (
-      <Suspense fallback={<LoadingScreen />}>
-        <RouletteHistoryPage />
-      </Suspense>
-    ),
-  },
-  {
-    path: '/analysis',
-    element: (
-      <Suspense fallback={<LoadingScreen />}>
-        <RouletteAnalysisPage />
-      </Suspense>
-    ),
-  },
-  {
-    path: '/strategies',
-    element: (
-      <Suspense fallback={<LoadingScreen />}>
-        <StrategiesPage />
-      </Suspense>
-    ),
-  },
-  {
-    path: '/strategy/:id',
-    element: (
-      <Suspense fallback={<LoadingScreen />}>
-        <StrategyFormPage />
-      </Suspense>
-    ),
-  },
-  {
-    path: '/profile',
-    element: (
-      <Suspense fallback={<LoadingScreen />}>
-        <ProfilePage />
-      </Suspense>
-    ),
-  },
-  {
-    path: '/live',
-    element: (
-      <Suspense fallback={<LoadingScreen />}>
-        <LiveRoulettePage />
-      </Suspense>
-    ),
-  },
-  {
-    path: '*',
-    element: (
-      <Suspense fallback={<LoadingScreen />}>
-        <NotFound />
-      </Suspense>
-    ),
-  }
-]);
 
 // Componente principal da aplicação
 const App = () => {
@@ -172,8 +89,82 @@ const App = () => {
                   <BrowserRouter>
                     <GoogleAuthHandler />
                     <Routes>
+                      {/* Rota pública de login */}
                       <Route path="/login" element={<AuthPage />} />
-                      <Route path="*" element={<RouterProvider router={router} />} />
+                      
+                      {/* Todas as outras rotas são protegidas */}
+                      <Route path="/" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <Index />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/roulettes" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <RoulettesPage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/history" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <RouletteHistoryPage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/analysis" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <RouletteAnalysisPage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/strategies" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <StrategiesPage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/strategy/:id" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <StrategyFormPage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/profile" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <ProfilePage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/live" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <LiveRoulettePage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      {/* Rota para página não encontrada */}
+                      <Route path="*" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <NotFound />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
                     </Routes>
                     <Toaster />
                   </BrowserRouter>

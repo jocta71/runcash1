@@ -34,8 +34,8 @@ const AuthContext = createContext<AuthContextType>({
   setToken: () => {}
 });
 
-// API base URL - Atualizando para o servidor de produção na Railway
-const API_URL = 'https://backendapi-production-36b5.up.railway.app/api';
+// API base URL
+const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
 
 /**
  * Provedor de autenticação que se comunica com a API

@@ -1,15 +1,35 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import LoadingScreen from './LoadingScreen';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 /**
- * Componente mock que substitui a versão original de ProtectedRoute
- * Esta versão sempre permite o acesso às rotas protegidas
+ * Componente que protege rotas, verificando se o usuário está autenticado
  */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  // Permitir acesso direto ao conteúdo sem verificação
+  const { user, loading, checkAuth } = useAuth();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Verificar autenticação quando o componente montar
+    checkAuth();
+  }, [checkAuth]);
+
+  // Enquanto verifica autenticação, mostrar tela de carregamento
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  // Se não estiver autenticado, redirecionar para login
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Se estiver autenticado, mostrar o conteúdo da rota
   return <>{children}</>;
 };
 
