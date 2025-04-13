@@ -29,8 +29,8 @@ const AuthContext = createContext<AuthContextType>({
   checkAuth: async () => false
 });
 
-// API base URL
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002/api';
+// API base URL - Atualizando para o servidor de produção na Railway
+const API_URL = 'https://backendapi-production-36b5.up.railway.app/api';
 
 /**
  * Provedor de autenticação que se comunica com a API
