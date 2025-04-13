@@ -30,13 +30,36 @@ const PORT = process.env.API_PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(morgan('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Adicionar headers específicos para cookies em todas as respostas
+app.use((req, res, next) => {
+  // Permitir credenciais (cookies) de qualquer origem
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Origem específica ou dinâmica baseada no request
+  const origin = req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:5173';
+  res.header('Access-Control-Allow-Origin', origin);
+  
+  // Outros headers necessários
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+  
+  // Para requisições OPTIONS (preflight)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
 // Inicializar Passport
 app.use(passport.initialize());

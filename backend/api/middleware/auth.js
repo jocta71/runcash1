@@ -7,28 +7,34 @@ exports.protect = async (req, res, next) => {
   try {
     let token;
 
+    console.log('Headers de auth:', req.headers.authorization);
+    console.log('Cookies disponíveis:', req.cookies);
+    
     // Verificar se o token está presente no header de autorização
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       // Extrair o token do header
       token = req.headers.authorization.split(' ')[1];
-    } else if (req.cookies && req.cookies.token) {
-      // Ou usar o token dos cookies se disponível
+      console.log('Token encontrado no header:', token ? token.substring(0, 15) + '...' : 'nenhum');
+    } 
+    // Ou usar o token dos cookies se disponível
+    else if (req.cookies && req.cookies.token) {
       token = req.cookies.token;
+      console.log('Token encontrado no cookie:', token ? token.substring(0, 15) + '...' : 'nenhum');
     }
 
     // Se o token não estiver presente, retornar erro
     if (!token) {
+      console.log('Nenhum token encontrado, acesso negado');
       return res.status(401).json({
         success: false,
         error: 'Não autorizado para acessar este recurso'
       });
     }
 
-    // Verificar o token (simplificado para teste)
     try {
       // Verificar se o token é válido
-      // Nota: Em produção, usar uma chave secreta e configuração adequada
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'runcash-default-secret');
+      console.log('Token verificado com sucesso, usuário:', decoded.id);
       
       // Adicionar o usuário decodificado ao objeto de requisição
       req.user = {

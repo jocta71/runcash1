@@ -107,9 +107,22 @@ if (isGoogleAuthEnabled) {
       // Gerar token JWT após autenticação bem-sucedida
       const token = generateToken(req.user);
       
-      // Redirecionar para o frontend com o token
-      const frontendUrl = process.env.FRONTEND_URL || 'https://runcashh11.vercel.app';
-      res.redirect(`${frontendUrl}?token=${token}`);
+      // Configurar cookie de autenticação
+      const cookieOptions = {
+        expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+        httpOnly: true,
+        path: '/',
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production'
+      };
+      
+      // Definir o cookie
+      res.cookie('token', token, cookieOptions);
+      
+      // Redirecionar para o frontend
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      console.log('Autenticação Google bem-sucedida. Redirecionando para:', frontendUrl);
+      res.redirect(frontendUrl);
     }
   );
 } else {

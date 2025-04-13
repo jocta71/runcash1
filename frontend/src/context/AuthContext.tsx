@@ -27,7 +27,8 @@ const COOKIE_OPTIONS = {
   secure: window.location.protocol === 'https:', // Só usa secure em HTTPS
   sameSite: 'lax' as const, // Menos restritivo que strict, permitindo navegação
   path: '/',         // Disponível em todo o site
-  expires: 30        // Expiração em 30 dias
+  expires: 30,       // Expiração em 30 dias
+  domain: window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname
 };
 
 // Nome do cookie - deve corresponder ao nome esperado pelo backend
@@ -57,10 +58,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(Cookies.get(TOKEN_COOKIE_NAME) || null);
   const [loading, setLoading] = useState(true);
 
+  // Configuração global do axios para envio de cookies
+  useEffect(() => {
+    // Configurar axios para sempre enviar credenciais (cookies)
+    axios.defaults.withCredentials = true;
+    
+    console.log('Axios configurado para enviar cookies em todas requisições');
+  }, []);
+
   // Verificar autenticação ao carregar
   useEffect(() => {
     const checkAuthOnLoad = async () => {
-      await checkAuth();
+      console.log('Verificando autenticação ao carregar a página');
+      const authResult = await checkAuth();
+      console.log('Resultado da verificação de autenticação:', authResult ? 'autenticado' : 'não autenticado');
       setLoading(false);
     };
     
@@ -69,15 +80,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Configurar interceptor do axios para incluir o token em requisições autenticadas
   useEffect(() => {
-    axios.interceptors.request.use(
+    // Criar uma nova instância do interceptor para evitar duplicação
+    const interceptorId = axios.interceptors.request.use(
       (config) => {
         if (token) {
+          console.log('Adicionando token ao header de autorização:', token.substring(0, 15) + '...');
           config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
       },
       (error) => Promise.reject(error)
     );
+    
+    // Limpar o interceptor na desmontagem do componente
+    return () => {
+      axios.interceptors.request.eject(interceptorId);
+    };
   }, [token]);
 
   // Verificar se o usuário está autenticado
