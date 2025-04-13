@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import NumberHistory from './NumberHistory';
+import NumberHistory from '../NumberHistory';
 import globalRouletteDataService from '../../../../services/GlobalRouletteDataService';
 import './RouletteCard.css';
 
