@@ -1,6 +1,7 @@
+
 import { useState } from 'react';
-import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Lightbulb } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -10,6 +11,22 @@ interface SidebarProps {
 
 const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) => {
   const [otherExpanded, setOtherExpanded] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState('account-information');
+  const navigate = useNavigate();
+  
+  const settingsOptions = [
+    { id: 'account-information', label: 'Account Information', icon: Settings },
+    { id: 'billing', label: 'Billing', icon: CreditCard },
+  ];
+  
+  const handleSettingsItemClick = (id: string) => {
+    setActiveSettingsTab(id);
+    if (id === 'account-information') {
+      navigate('/profile');
+    } else if (id === 'billing') {
+      navigate('/billing');
+    }
+  };
   
   const sidebarClasses = isMobile
     ? "h-full w-full mobile-sidebar-inner animate-slide-right"
@@ -17,15 +34,8 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   
   const content = (
     <div className="p-3 flex flex-col h-full justify-between">
-      <div className="flex justify-center items-center py-4 mb-2">
-        <Link to="/" className="flex items-center justify-center">
-          <span className="font-bold text-xl text-primary">RunCash</span>
-        </Link>
-      </div>
-      
       {isMobile && (
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-white text-xl font-bold">RunCash</span>
+        <div className="flex justify-end mb-4">
           <button onClick={onClose} className="p-1 rounded-md text-gray-400 hover:text-white">
             <X size={24} />
           </button>
@@ -93,17 +103,26 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
         </div>
         
         <div>
+          <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Settings</h3>
+          <div className="space-y-1">
+            {settingsOptions.map((option) => (
+              <div 
+                key={option.id}
+                className={`menu-item ${activeSettingsTab === option.id ? 'active' : ''}`}
+                onClick={() => handleSettingsItemClick(option.id)}
+              >
+                <div className="bg-[#1A191F] p-1.5 rounded-md">
+                  <option.icon size={18} className={activeSettingsTab === option.id ? "text-green-400" : "text-white"} />
+                </div>
+                <span>{option.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div>
           <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Outros</h3>
           <div className="space-y-1">
-            <Link to="/strategies" className="block">
-              <div className="menu-item">
-                <div className="bg-[#1A191F] p-1.5 rounded-md">
-                  <Lightbulb size={18} className="text-yellow-500" />
-                </div>
-                <span>Estratégias</span>
-              </div>
-            </Link>
-            
             <div className="menu-item">
               <div className="bg-[#1A191F] p-1.5 rounded-md">
                 <BarChart3 size={18} className="text-white" />
