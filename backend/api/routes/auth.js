@@ -221,7 +221,12 @@ const sendTokenResponse = (user, statusCode, res, useCookies = true) => {
       username: user.username,
       email: user.email,
       isAdmin: user.isAdmin,
-      profilePicture: user.profilePicture
+      profilePicture: user.profilePicture,
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      googleId: user.googleId,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt
     }
   };
 

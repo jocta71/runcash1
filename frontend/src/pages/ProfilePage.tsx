@@ -18,6 +18,11 @@ interface ExtendedUser {
   googleId?: string;
   createdAt?: string | Date;
   lastLogin?: string | Date;
+  firstName?: string;
+  lastName?: string;
+  displayName?: string; // Nome completo que pode vir do Google
+  givenName?: string;   // Primeiro nome que pode vir do Google
+  familyName?: string;  // Sobrenome que pode vir do Google
 }
 
 const ProfilePage = () => {
@@ -35,17 +40,48 @@ const ProfilePage = () => {
 
   useEffect(() => {
     if (user) {
-      // Não tentamos mais separar o username em nome e sobrenome
-      // O usuário poderá preencher estes campos manualmente
+      // Cast para o tipo estendido para acessar as propriedades adicionais
+      const extUser = user as unknown as ExtendedUser;
       
-      setAvatar(user.profilePicture || null);
+      // Tentar obter nome/sobrenome de várias possíveis propriedades
+      let firstName = '';
+      let lastName = '';
+      
+      // Verificar se temos firstName/lastName diretamente
+      if (extUser.firstName && extUser.lastName) {
+        firstName = extUser.firstName;
+        lastName = extUser.lastName;
+      } 
+      // Verificar se temos givenName/familyName (comum em autenticação Google)
+      else if (extUser.givenName && extUser.familyName) {
+        firstName = extUser.givenName;
+        lastName = extUser.familyName;
+      }
+      // Tentar separar a partir de displayName
+      else if (extUser.displayName) {
+        const nameParts = extUser.displayName.split(' ');
+        firstName = nameParts[0] || '';
+        lastName = nameParts.slice(1).join(' ') || '';
+      }
+      // Último recurso: tentar separar do username
+      else if (extUser.username && extUser.username.includes(' ')) {
+        const nameParts = extUser.username.split(' ');
+        firstName = nameParts[0] || '';
+        lastName = nameParts.slice(1).join(' ') || '';
+      }
+      
+      setAvatar(extUser.profilePicture || null);
       
       setProfileData(prev => ({
         ...prev,
-        email: user.email || '',
-        username: user.username || '',
-        // Mantemos firstName e lastName vazios para o usuário preencher
+        firstName,
+        lastName, 
+        email: extUser.email || '',
+        username: extUser.username || '',
       }));
+      
+      // Logging para debug - verificar o que está vindo do objeto user
+      console.log('Dados do usuário:', extUser);
     }
   }, [user]);
 
@@ -82,10 +118,13 @@ const ProfilePage = () => {
 
   const handleSave = () => {
     toast({
-      title: "Profile updated",
-      description: "Your profile information has been saved successfully.",
+      title: "Perfil atualizado",
+      description: "Suas informações de perfil foram salvas com sucesso.",
       variant: "default"
     });
+    
+    // Aqui você implementaria a lógica para salvar os dados no backend
+    console.log('Dados a serem salvos:', profileData);
   };
 
   // Cast para o tipo estendido para acessar as propriedades adicionais

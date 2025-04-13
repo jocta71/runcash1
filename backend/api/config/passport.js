@@ -36,23 +36,55 @@ if (googleClientID && googleClientSecret) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
+          // Extrair informações do perfil Google
+          const email = profile.emails[0].value;
+          const googleId = profile.id;
+          const profilePicture = profile.photos[0].value;
+          
+          // Extrair nome e sobrenome do perfil
+          let firstName = '';
+          let lastName = '';
+          
+          if (profile.name) {
+            firstName = profile.name.givenName || '';
+            lastName = profile.name.familyName || '';
+          } else {
+            // Fallback: tentar extrair do displayName
+            const nameParts = profile.displayName.split(' ');
+            firstName = nameParts[0] || '';
+            lastName = nameParts.slice(1).join(' ') || '';
+          }
+          
+          console.log('Dados do perfil Google:', {
+            email,
+            googleId,
+            displayName: profile.displayName,
+            firstName,
+            lastName
+          });
+
           // Verificar se o usuário já existe no banco de dados
           let user = await User.findOne({ googleId: profile.id });
 
           if (user) {
             // Atualizar informações do usuário existente
             user.lastLogin = Date.now();
+            user.firstName = firstName || user.firstName;
+            user.lastName = lastName || user.lastName;
+            user.profilePicture = profilePicture;
             await user.save();
             return done(null, user);
           }
 
           // Verificar se já existe um usuário com o mesmo email
-          const existingUser = await User.findOne({ email: profile.emails[0].value });
+          const existingUser = await User.findOne({ email });
           
           if (existingUser) {
             // Conectar conta Google com usuário existente
-            existingUser.googleId = profile.id;
-            existingUser.profilePicture = profile.photos[0].value;
+            existingUser.googleId = googleId;
+            existingUser.profilePicture = profilePicture;
+            existingUser.firstName = firstName || existingUser.firstName;
+            existingUser.lastName = lastName || existingUser.lastName;
             existingUser.lastLogin = Date.now();
             await existingUser.save();
             return done(null, existingUser);
@@ -63,9 +95,11 @@ if (googleClientID && googleClientSecret) {
           
           const newUser = await User.create({
             username: username,
-            email: profile.emails[0].value,
-            googleId: profile.id,
-            profilePicture: profile.photos[0].value,
+            email: email,
+            googleId: googleId,
+            profilePicture: profilePicture,
+            firstName: firstName,
+            lastName: lastName,
             lastLogin: Date.now()
           });
 
