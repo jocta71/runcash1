@@ -10,24 +10,12 @@
     { "source": "/test-cors", "destination": "/api/proxy?path=/test-cors" },
     { "source": "/socket-status", "destination": "/api/proxy?path=/socket-status" },
     { "source": "/historico/:roletaId", "destination": "/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" },
-    { "source": "/api/:path*", "destination": "https://backendapi-production-36b5.up.railway.app/api/:path*" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "env": {
     "VITE_WS_URL": "https://runcash1-production.up.railway.app",
     "VITE_SSE_SERVER_URL": "https://runcash1-production.up.railway.app/api/events",
     "VITE_API_BASE_URL": "https://runcash5.vercel.app/api",
     "BACKEND_URL": "https://runcash1-production.up.railway.app"
-  },
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Credentials", "value": "true" },
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT" },
-        { "key": "Access-Control-Allow-Headers", "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization" }
-      ]
-    }
-  ]
+  }
 }
