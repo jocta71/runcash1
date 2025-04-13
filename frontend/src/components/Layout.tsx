@@ -151,6 +151,15 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
             </Button>
             
             <ProfileDropdown />
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleSignOut}
+              className="h-8 text-red-500 border-red-500 hover:bg-red-500/10"
+            >
+              <LogOut size={14} className="mr-1" /> Sair
+            </Button>
           </div>
         </div>
         
@@ -170,7 +179,18 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         
         {/* Mobile User Info */}
         <div className="md:hidden flex justify-between items-center px-4 py-3">
-          <ProfileDropdown />
+          <div className="flex items-center gap-2">
+            <ProfileDropdown />
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleSignOut}
+              className="h-8 text-red-500 border-red-500 hover:bg-red-500/10"
+            >
+              <LogOut size={14} className="mr-1" /> Sair
+            </Button>
+          </div>
           
           <Button variant="default" size="sm" className="h-8 text-black font-medium bg-gradient-to-b from-[#00ff00] to-[#00ff00] hover:from-[#00ff00]/90 hover:to-[#00ff00]/90">
             <Wallet size={14} className="mr-1" /> Saldo
