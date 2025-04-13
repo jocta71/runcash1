@@ -89,11 +89,15 @@ const App = () => {
                   <BrowserRouter>
                     <GoogleAuthHandler />
                     <Routes>
-                      {/* Rota pública de login */}
-                      <Route path="/login" element={<AuthPage />} />
+                      {/* Rota pública de login - Acessível mesmo sem autenticação */}
+                      <Route path="/login" element={
+                        <Suspense fallback={<LoadingScreen />}>
+                          <AuthPage />
+                        </Suspense>
+                      } />
                       
-                      {/* Todas as outras rotas são protegidas */}
-                      <Route path="/" element={
+                      {/* Redirecionamento para login se acessar diretamente a raiz sem autenticação */}
+                      <Route index element={
                         <ProtectedRoute>
                           <Suspense fallback={<LoadingScreen />}>
                             <Index />
@@ -101,6 +105,7 @@ const App = () => {
                         </ProtectedRoute>
                       } />
                       
+                      {/* Todas as outras rotas são protegidas */}
                       <Route path="/roulettes" element={
                         <ProtectedRoute>
                           <Suspense fallback={<LoadingScreen />}>
