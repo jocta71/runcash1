@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import Cookies from 'js-cookie';
 
 interface User {
   id: string;
@@ -20,6 +21,17 @@ interface AuthContextType {
   setUser: (user: User) => void;
   setToken: (token: string) => void;
 }
+
+// Cookie options
+const COOKIE_OPTIONS = {
+  secure: true,      // Só envia o cookie via HTTPS
+  sameSite: 'strict' as const, // Previne CSRF
+  path: '/',         // Disponível em todo o site
+  expires: 7         // Expiração em 7 dias
+};
+
+// Nome do cookie
+const TOKEN_COOKIE_NAME = 'auth_token';
 
 // Criar contexto com valor padrão
 const AuthContext = createContext<AuthContextType>({
@@ -42,7 +54,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh1-git-main-brun
  */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(Cookies.get(TOKEN_COOKIE_NAME) || null);
   const [loading, setLoading] = useState(true);
 
   // Verificar autenticação ao carregar
@@ -70,7 +82,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Verificar se o usuário está autenticado
   const checkAuth = async (): Promise<boolean> => {
-    if (!token) return false;
+    const storedToken = Cookies.get(TOKEN_COOKIE_NAME);
+    if (!storedToken) return false;
 
     try {
       const response = await axios.get(`${API_URL}/auth/me`);
@@ -78,28 +91,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(response.data.data);
         return true;
       } else {
-        localStorage.removeItem('token');
+        Cookies.remove(TOKEN_COOKIE_NAME);
         setToken(null);
         setUser(null);
         return false;
       }
     } catch (error) {
-      localStorage.removeItem('token');
+      Cookies.remove(TOKEN_COOKIE_NAME);
       setToken(null);
       setUser(null);
       return false;
     }
   };
 
+  // Função auxiliar para salvar token
+  const saveToken = (newToken: string) => {
+    // Salvar no cookie do lado cliente - não pode ser HttpOnly pelo frontend
+    Cookies.set(TOKEN_COOKIE_NAME, newToken, COOKIE_OPTIONS);
+    setToken(newToken);
+  };
+
   // Login
   const signIn = async (email: string, password: string) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, { email, password });
+      const response = await axios.post(
+        `${API_URL}/auth/login`, 
+        { email, password, useCookies: true }  // Indicar para o backend usar cookies HttpOnly se possível
+      );
       
       if (response.data.success) {
         const { token, user } = response.data;
-        localStorage.setItem('token', token);
-        setToken(token);
+        
+        // Se o backend já configurou um cookie HttpOnly, não precisamos configurar 
+        // nosso próprio cookie, apenas atualizar o estado
+        if (!response.headers['x-auth-cookie-set']) {
+          saveToken(token);
+        } else {
+          setToken(token);
+        }
+        
         setUser(user);
         return { error: null };
       } else {
@@ -117,16 +147,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Cadastro
   const signUp = async (username: string, email: string, password: string) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/register`, {
-        username,
-        email,
-        password
-      });
+      const response = await axios.post(
+        `${API_URL}/auth/register`, 
+        {
+          username,
+          email,
+          password,
+          useCookies: true  // Indicar para o backend usar cookies HttpOnly se possível
+        }
+      );
       
       if (response.data.success) {
         const { token, user } = response.data;
-        localStorage.setItem('token', token);
-        setToken(token);
+        
+        // Se o backend já configurou um cookie HttpOnly, não precisamos configurar 
+        // nosso próprio cookie, apenas atualizar o estado
+        if (!response.headers['x-auth-cookie-set']) {
+          saveToken(token);
+        } else {
+          setToken(token);
+        }
+        
         setUser(user);
         return { error: null };
       } else {
@@ -143,10 +184,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Logout
   const signOut = () => {
-    localStorage.removeItem('token');
+    Cookies.remove(TOKEN_COOKIE_NAME);
     setToken(null);
     setUser(null);
-    // Opcional: chamar logout na API
+    
+    // Chamar logout na API para limpar também cookies HttpOnly
     axios.get(`${API_URL}/auth/logout`).catch(() => {});
   };
 

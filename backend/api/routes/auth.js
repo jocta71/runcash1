@@ -13,7 +13,7 @@ const isGoogleAuthEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGL
 // @access  Público
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, useCookies } = req.body;
 
     // Verificar se o usuário já existe
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
@@ -32,7 +32,7 @@ router.post('/register', async (req, res) => {
     });
 
     // Gerar token JWT
-    sendTokenResponse(user, 201, res);
+    sendTokenResponse(user, 201, res, useCookies);
   } catch (error) {
     console.error('Erro ao registrar usuário:', error);
     res.status(500).json({
@@ -47,7 +47,7 @@ router.post('/register', async (req, res) => {
 // @access  Público
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, useCookies } = req.body;
 
     // Validar email e senha
     if (!email || !password) {
@@ -79,8 +79,8 @@ router.post('/login', async (req, res) => {
     user.lastLogin = Date.now();
     await user.save();
 
-    // Gerar token JWT
-    sendTokenResponse(user, 200, res);
+    // Gerar token JWT e retornar resposta
+    sendTokenResponse(user, 200, res, useCookies);
   } catch (error) {
     console.error('Erro ao fazer login:', error);
     res.status(500).json({
@@ -151,7 +151,10 @@ router.get('/me', protect, async (req, res) => {
 router.get('/logout', (req, res) => {
   res.cookie('token', 'none', {
     expires: new Date(Date.now() + 10 * 1000),
-    httpOnly: true
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/'
   });
 
   res.status(200).json({
@@ -185,35 +188,49 @@ const generateToken = (user) => {
 };
 
 // Função auxiliar para criar e enviar token JWT
-const sendTokenResponse = (user, statusCode, res) => {
+const sendTokenResponse = (user, statusCode, res, useCookies = false) => {
   // Criar token
   const token = generateToken(user);
 
-  const options = {
-    expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    httpOnly: true
+  // Preparar a resposta
+  const responseData = {
+    success: true,
+    token,
+    user: {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      isAdmin: user.isAdmin,
+      profilePicture: user.profilePicture
+    }
   };
 
-  // Adicionar secure: true em produção
-  if (process.env.NODE_ENV === 'production') {
-    options.secure = true;
+  // Se o cliente solicitar explicitamente cookies, ou estiver em produção
+  if (useCookies || process.env.USE_HTTPONLY_COOKIES === 'true') {
+    const cookieOptions = {
+      expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+      httpOnly: true,
+      path: '/',
+      sameSite: 'strict'
+    };
+
+    // Adicionar secure: true em produção
+    if (process.env.NODE_ENV === 'production') {
+      cookieOptions.secure = true;
+    }
+
+    // Indicar ao frontend que configuramos um cookie HttpOnly
+    res.setHeader('x-auth-cookie-set', 'true');
+
+    // Enviar resposta com cookie
+    return res
+      .status(statusCode)
+      .cookie('token', token, cookieOptions)
+      .json(responseData);
   }
 
-  // Enviar resposta com cookie
-  res
-    .status(statusCode)
-    .cookie('token', token, options)
-    .json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        isAdmin: user.isAdmin,
-        profilePicture: user.profilePicture
-      }
-    });
+  // Resposta sem cookie (apenas token no corpo da resposta)
+  return res.status(statusCode).json(responseData);
 };
 
 module.exports = router; 
