@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,8 +11,6 @@ import RouletteDetailsPage from "./pages/RouletteDetailsPage";
 import ProfilePage from "./pages/ProfilePage";
 import BillingPage from "./pages/BillingPage";
 import { AuthProvider } from "./context/AuthContext";
-import GoogleAuthHandler from "./components/GoogleAuthHandler";
-import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -22,25 +21,12 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <GoogleAuthHandler />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<AuthPage />} />
-            <Route path="/roulette/:rouletteId" element={
-              <ProtectedRoute>
-                <RouletteDetailsPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            } />
-            <Route path="/billing" element={
-              <ProtectedRoute>
-                <BillingPage />
-              </ProtectedRoute>
-            } />
+            <Route path="/roulette/:rouletteId" element={<RouletteDetailsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/billing" element={<BillingPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

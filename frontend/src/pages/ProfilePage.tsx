@@ -1,166 +1,263 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import axios from 'axios';
 import { Button } from '@/components/ui/button';
+import { Loader2, AlertCircle, User, Check, Calendar, MapPin, Mail, Phone, Pencil, Save } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { CustomSelect } from '@/components/ui/custom-select';
-import { Pencil, X } from 'lucide-react';
-import Sidebar from '@/components/Sidebar';
-import { useToast } from "@/components/ui/use-toast";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+interface ProfileFormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  dateOfBirth: string;
+  country: string;
+}
+
 const ProfilePage = () => {
-  const {
-    toast
-  } = useToast();
-  const [avatar, setAvatar] = useState<string | null>('/lovable-uploads/63c79802-491a-4de2-97c9-26e0ab910245.png');
-  const [profileData, setProfileData] = useState({
-    firstName: 'Washim',
-    lastName: 'Chowdhury',
-    email: 'washim@gmail.com',
-    phone: '+223465467',
-    cityState: 'New York',
-    country: 'USA',
-    postalCode: '10001',
-    taxId: 'US5342345',
-    companyName: 'Flex',
-    language: 'English',
-    bio: 'Washim Chowdhury is a dedicated truck owner with 10 years of experience in transportation and logistics. Specializing in long-haul freight services. John ensures timely, safe, and reliable deliveries across the Midwest and East Coast regions. Known for his strong work ethic and commitment to quality, Washim takes pride in maintaining top-notch vehicles and building lasting client relationships.'
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  // Mock data for the profile
+  const [formData, setFormData] = useState<ProfileFormData>({
+    firstName: 'Jane',
+    lastName: 'Coop',
+    email: 'jane234@example.com',
+    phoneNumber: '(209) 555-0104',
+    dateOfBirth: '17 nov, 1996',
+    country: 'Bangladesh'
   });
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const {
-      name,
-      value
-    } = e.target;
-    setProfileData(prev => ({
+  
+  // Simulate loading user data
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  const handleInputChange = (field: keyof ProfileFormData, value: string) => {
+    setFormData(prev => ({
       ...prev,
-      [name]: value
+      [field]: value
     }));
   };
-  const handleSelectChange = (name: string, value: string) => {
-    setProfileData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  
+  const handleEdit = (field: string) => {
+    setEditingField(field);
   };
-  const handleChangeAvatar = () => {
-    // In a real app, this would open a file picker
-    toast({
-      title: "Feature coming soon",
-      description: "Avatar upload functionality will be available soon."
-    });
-  };
-  const handleRemoveAvatar = () => {
-    setAvatar(null);
-    toast({
-      title: "Avatar removed",
-      description: "Your profile avatar has been removed."
-    });
-  };
-  const handleSave = () => {
-    toast({
-      title: "Profile updated",
-      description: "Your profile information has been saved successfully.",
-      variant: "default"
-    });
-  };
-  return <div className="flex min-h-screen bg-[#0B0A0F]">
-      <div className="w-64 flex-shrink-0">
-        <Sidebar />
-      </div>
+  
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      // Simulate API call to save profile
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      <div className="flex-1 p-6 md:p-10 overflow-auto">
-        <div className="max-w-4xl mx-auto bg-[#1A191F] rounded-xl p-6 text-white shadow-lg">
-          <h1 className="text-2xl font-bold mb-6 text-vegas-gold">My Profile</h1>
-          
-          <div className="mb-8 pb-6 border-b border-[#33333359]">
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                {avatar ? <img src={avatar} alt="Profile" className="w-20 h-20 rounded-full object-cover border-2 border-vegas-gold" /> : <div className="w-20 h-20 rounded-full bg-[#33333359] flex items-center justify-center text-vegas-gold text-2xl">
-                    {profileData.firstName[0]}{profileData.lastName[0]}
-                  </div>}
-              </div>
-              
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={handleChangeAvatar} className="border-vegas-gold text-vegas-gold hover:bg-vegas-gold hover:text-black">
-                  <Pencil size={16} className="mr-2" />
-                  Change avatar
-                </Button>
-                
-                <Button variant="outline" onClick={handleRemoveAvatar} className="border-[#33333359] text-white hover:bg-[#33333359]">
-                  <X size={16} className="mr-2" />
-                  Remove avatar
-                </Button>
-              </div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="firstName" className="text-white mb-2 block">First Name</Label>
-                <Input id="firstName" name="firstName" value={profileData.firstName} onChange={handleInputChange} className="bg-[#111118] border-[#33333359] text-white" />
-              </div>
-              
-              <div>
-                <Label htmlFor="email" className="text-white mb-2 block">Email Address</Label>
-                <Input id="email" name="email" type="email" value={profileData.email} onChange={handleInputChange} className="bg-[#111118] border-[#33333359] text-white" />
-              </div>
-              
-              <div>
-                
-                
-              </div>
-              
-              <div>
-                
-                
-              </div>
-              
-              <div>
-                
-                
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="lastName" className="text-white mb-2 block">Last Name</Label>
-                <Input id="lastName" name="lastName" value={profileData.lastName} onChange={handleInputChange} className="bg-[#111118] border-[#33333359] text-white" />
-              </div>
-              
-              <div>
-                <Label htmlFor="phone" className="text-white mb-2 block">Phone</Label>
-                <Input id="phone" name="phone" value={profileData.phone} onChange={handleInputChange} className="bg-[#111118] border-[#33333359] text-white" />
-              </div>
-              
-              <div>
-                
-                <CustomSelect id="country" options={["USA", "Canada", "UK", "Australia", "Brazil"]} defaultValue={profileData.country} onChange={value => handleSelectChange("country", value)} className="bg-[#111118] border-[#33333359] text-white" />
-              </div>
-              
-              <div>
-                
-                
-              </div>
-              
-              <div>
-                
-                <CustomSelect id="language" options={["English", "Spanish", "Portuguese", "French", "German"]} defaultValue={profileData.language} onChange={value => handleSelectChange("language", value)} className="bg-[#111118] border-[#33333359] text-white" />
-              </div>
-            </div>
-            
-            
-          </div>
-          
-          <div className="mt-8 flex justify-end gap-4">
-            <Button variant="outline" className="border-[#33333359] text-white hover:bg-[#33333359]">
-              Cancel
-            </Button>
-            <Button onClick={handleSave} className="bg-vegas-gold text-black hover:bg-vegas-darkgold">
-              Save
-            </Button>
-          </div>
-        </div>
+      setSuccessMessage('Perfil atualizado com sucesso!');
+      setEditingField(null);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+    } catch (err) {
+      setError('Erro ao salvar alterações. Tente novamente.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  if (loading) {
+    return (
+      <div className="container mx-auto py-12 flex justify-center items-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
-    </div>;
+    );
+  }
+  
+  return (
+    <div className="container mx-auto py-8 px-4 max-w-4xl">
+      <h1 className="text-2xl font-bold mb-6">Informações da Conta</h1>
+      
+      {successMessage && (
+        <Alert className="mb-6 bg-green-500/20 border-green-500 text-white">
+          <Check className="h-4 w-4 text-green-500" />
+          <AlertDescription>{successMessage}</AlertDescription>
+        </Alert>
+      )}
+      
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Erro</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      
+      <Card className="bg-gray-50 border-gray-200">
+        <CardContent className="p-6">
+          {/* Profile Image */}
+          <div className="flex justify-center mb-8">
+            <div className="relative">
+              <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200">
+                <img 
+                  src="https://randomuser.me/api/portraits/women/44.jpg" 
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <button className="absolute bottom-0 right-0 bg-gray-900 text-white p-1 rounded-full">
+                <User size={14} />
+              </button>
+            </div>
+          </div>
+          
+          {/* Form Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* First Name */}
+            <div>
+              <Label htmlFor="firstName" className="text-gray-500 text-sm">First Name</Label>
+              <div className="relative mt-1">
+                <Input
+                  id="firstName"
+                  value={formData.firstName}
+                  onChange={(e) => handleInputChange('firstName', e.target.value)}
+                  disabled={editingField !== 'firstName'}
+                  className="pr-10"
+                />
+                {editingField === 'firstName' ? (
+                  <button
+                    onClick={handleSave}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-600"
+                  >
+                    <Save size={18} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleEdit('firstName')}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400"
+                  >
+                    <Pencil size={18} />
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {/* Last Name */}
+            <div>
+              <Label htmlFor="lastName" className="text-gray-500 text-sm">Last Name</Label>
+              <div className="relative mt-1">
+                <Input
+                  id="lastName"
+                  value={formData.lastName}
+                  onChange={(e) => handleInputChange('lastName', e.target.value)}
+                  disabled={editingField !== 'lastName'}
+                  className="pr-10"
+                />
+                {editingField === 'lastName' ? (
+                  <button
+                    onClick={handleSave}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-600"
+                  >
+                    <Save size={18} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleEdit('lastName')}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400"
+                  >
+                    <Pencil size={18} />
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {/* Email */}
+            <div>
+              <Label htmlFor="email" className="text-gray-500 text-sm flex items-center">
+                Email
+                <span className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full flex items-center">
+                  <Check size={12} className="mr-1" /> Verified
+                </span>
+              </Label>
+              <div className="relative mt-1">
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  disabled={editingField !== 'email'}
+                  className="pr-10"
+                />
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              </div>
+            </div>
+            
+            {/* Phone Number */}
+            <div>
+              <Label htmlFor="phoneNumber" className="text-gray-500 text-sm flex items-center">
+                Phone Number
+                <span className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full flex items-center">
+                  <Check size={12} className="mr-1" /> Verified
+                </span>
+              </Label>
+              <div className="relative mt-1">
+                <Input
+                  id="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+                  disabled={editingField !== 'phoneNumber'}
+                  className="pr-10"
+                />
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              </div>
+            </div>
+            
+            {/* Date of Birth */}
+            <div>
+              <Label htmlFor="dateOfBirth" className="text-gray-500 text-sm">Date of Birth</Label>
+              <div className="relative mt-1">
+                <Input
+                  id="dateOfBirth"
+                  value={formData.dateOfBirth}
+                  onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                  disabled={editingField !== 'dateOfBirth'}
+                  className="pr-10"
+                />
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              </div>
+            </div>
+            
+            {/* Country */}
+            <div>
+              <Label htmlFor="country" className="text-gray-500 text-sm">Country</Label>
+              <div className="relative mt-1">
+                <Input
+                  id="country"
+                  value={formData.country}
+                  onChange={(e) => handleInputChange('country', e.target.value)}
+                  disabled={editingField !== 'country'}
+                  className="pr-10"
+                />
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 9L12 15L18 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 };
-export default ProfilePage;
+
+export default ProfilePage; 
