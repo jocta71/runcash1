@@ -433,6 +433,41 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     navigate('/strategies');
   };
 
+  // Função para adicionar o script do Plausible.io
+  useEffect(() => {
+    // Verificar se o script já foi adicionado
+    if (document.querySelector('script[src*="plausible.io/js/script"]')) {
+      return;
+    }
+
+    // Criar o elemento script do Plausible
+    const script = document.createElement('script');
+    script.defer = true;
+    script.setAttribute('data-domain', 'runcashh1-peach.vercel.app');
+    script.src = 'https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js';
+    
+    // Adicionar ao final do body
+    document.body.appendChild(script);
+    
+    // Adicionar o script para a função global plausible
+    const plausibleFunctionScript = document.createElement('script');
+    plausibleFunctionScript.textContent = "window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }";
+    document.body.appendChild(plausibleFunctionScript);
+    
+    // Limpar quando o componente for desmontado
+    return () => {
+      const scriptElement = document.querySelector('script[src*="plausible.io/js/script"]');
+      if (scriptElement && scriptElement.parentNode) {
+        scriptElement.parentNode.removeChild(scriptElement);
+      }
+      
+      const functionScriptElement = document.querySelector('script:not([src])');
+      if (functionScriptElement && functionScriptElement.parentNode) {
+        functionScriptElement.parentNode.removeChild(functionScriptElement);
+      }
+    };
+  }, []); // Executar apenas uma vez na montagem inicial
+
   // Função simplificada para alternar o dropdown de estratégia
   const toggleEstrategiaDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
