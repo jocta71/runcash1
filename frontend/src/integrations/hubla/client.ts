@@ -1,20 +1,34 @@
 import axios from 'axios';
 
-interface Customer {
+// Tipos para a integração com Hubla
+export interface HublaCustomerData {
   name: string;
   email: string;
   cpfCnpj: string;
   mobilePhone?: string;
+  address?: {
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  };
+  additionalEmails?: string[];
+  externalReference?: string;
 }
 
-interface SubscriptionData {
-  planId: string;
+export interface HublaSubscriptionData {
   customerId: string;
+  planId: string;
   value: number;
-  cycle: string; // MONTHLY, QUARTERLY, SEMIANNUALLY, YEARLY
+  cycle: 'MONTHLY' | 'QUARTERLY' | 'SEMI_ANNUAL' | 'ANNUAL';
+  nextDueDate: string;
   description?: string;
-  nextDueDate: string; // yyyy-MM-dd
   externalReference?: string;
+  callbackUrl?: string;
 }
 
 /**
@@ -22,32 +36,27 @@ interface SubscriptionData {
  * @param userData Dados do usuário necessários para criar um cliente
  * @returns O ID do cliente na Hubla
  */
-export async function createHublaCustomer(userData: Customer): Promise<string> {
+export async function createHublaCustomer(userData: HublaCustomerData): Promise<string> {
   try {
-    console.log('Criando cliente na Hubla:', userData.name);
+    console.log('Iniciando criação de cliente no Hubla:', userData.name);
+
     const response = await axios.post('/api/hubla-create-customer', userData);
-    
-    if (response.status === 200 && response.data.customerId) {
-      console.log('Cliente criado/recuperado na Hubla com sucesso:', response.data.customerId);
+
+    if (response.status === 200 || response.status === 201) {
+      console.log('Cliente criado/recuperado com sucesso no Hubla:', response.data.customerId);
       return response.data.customerId;
     } else {
-      console.error('Resposta inesperada ao criar cliente na Hubla:', response.data);
-      throw new Error('Falha ao criar cliente na Hubla: resposta inesperada');
+      throw new Error(`Erro ao criar cliente: ${response.status}`);
     }
-  } catch (error: any) {
-    console.error('Erro ao criar cliente na Hubla:', error.message);
+  } catch (error) {
+    console.error('Erro ao criar cliente no Hubla:', error);
     
-    if (error.response) {
-      // Erro da API
-      const errorMessage = error.response.data?.error || 'Erro desconhecido da API';
-      throw new Error(`Erro na criação de cliente: ${errorMessage}`);
-    } else if (error.request) {
-      // Sem resposta
-      throw new Error('Não foi possível conectar ao servidor para criar o cliente');
-    } else {
-      // Erro geral
-      throw error;
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('Detalhes do erro:', error.response.data);
+      throw new Error(error.response.data.error || 'Falha na criação do cliente Hubla');
     }
+    
+    throw new Error('Erro ao conectar-se com o servidor para criar cliente Hubla');
   }
 }
 
@@ -56,43 +65,42 @@ export async function createHublaCustomer(userData: Customer): Promise<string> {
  * @param subscriptionData Dados da assinatura a ser criada
  * @returns Objeto contendo ID da assinatura e URL para pagamento
  */
-export async function createHublaSubscription(subscriptionData: SubscriptionData): Promise<{
-  subscriptionId: string;
-  redirectUrl: string;
-}> {
+export async function createHublaSubscription(
+  subscriptionData: HublaSubscriptionData
+): Promise<{ subscriptionId: string; redirectUrl: string }> {
   try {
-    console.log('Criando assinatura na Hubla:', {
+    console.log('Iniciando criação de assinatura no Hubla:', {
       customerId: subscriptionData.customerId,
       planId: subscriptionData.planId,
-      value: subscriptionData.value
+      value: subscriptionData.value,
+      cycle: subscriptionData.cycle
     });
-    
+
     const response = await axios.post('/api/hubla-create-subscription', subscriptionData);
-    
-    if (response.status === 200 && response.data.subscriptionId && response.data.redirectUrl) {
-      console.log('Assinatura criada na Hubla com sucesso:', response.data.subscriptionId);
+
+    if (response.status === 200 || response.status === 201) {
+      console.log('Assinatura criada com sucesso no Hubla:', response.data);
+      
+      if (!response.data.redirectUrl) {
+        throw new Error('URL de pagamento não encontrada na resposta');
+      }
+
       return {
         subscriptionId: response.data.subscriptionId,
         redirectUrl: response.data.redirectUrl
       };
     } else {
-      console.error('Resposta inesperada ao criar assinatura na Hubla:', response.data);
-      throw new Error('Falha ao criar assinatura: resposta inesperada');
+      throw new Error(`Erro ao criar assinatura: ${response.status}`);
     }
-  } catch (error: any) {
-    console.error('Erro ao criar assinatura na Hubla:', error.message);
+  } catch (error) {
+    console.error('Erro ao criar assinatura no Hubla:', error);
     
-    if (error.response) {
-      // Erro da API
-      const errorMessage = error.response.data?.error || 'Erro desconhecido da API';
-      throw new Error(`Erro na criação da assinatura: ${errorMessage}`);
-    } else if (error.request) {
-      // Sem resposta
-      throw new Error('Não foi possível conectar ao servidor para criar a assinatura');
-    } else {
-      // Erro geral
-      throw error;
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('Detalhes do erro:', error.response.data);
+      throw new Error(error.response.data.error || 'Falha na criação da assinatura Hubla');
     }
+    
+    throw new Error('Erro ao conectar-se com o servidor para criar assinatura Hubla');
   }
 }
 
