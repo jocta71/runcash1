@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import ChatUI from './ChatUI';
-import { Loader2 } from 'lucide-react';
+import { Loader2, LogOut } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { RouletteRepository } from '../services/data/rouletteRepository';
-import Navbar from './Navbar';
 import { useAuth } from '@/context/AuthContext';
+import { Button } from './ui/button';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,7 +14,6 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   const { user, signOut } = useAuth();
-  // Estado da busca removido
   const [isLoading, setIsLoading] = useState(preloadData);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,24 +74,73 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
     );
   }
 
+  const handleSignOut = async () => {
+    if (signOut) {
+      await signOut();
+      window.location.href = '/';
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#100f13] text-white">
-      {/* Usando o componente Navbar */}
-      <Navbar />
+    <div className="min-h-screen bg-[#100f13] text-white flex flex-col">
+      {/* Barra de navegação integrada */}
+      <nav className="bg-[#0B0A0F] border-b border-[#33333359] sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex justify-between h-16 items-center">
+            <div className="flex-shrink-0">
+              <Link to="/" className="flex items-center">
+                <span className="font-bold text-xl text-[#00ff00]">RunCash</span>
+              </Link>
+            </div>
+
+            {/* Autenticação do usuário */}
+            <div>
+              {user ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm hidden md:inline-block">
+                    {user.email?.split('@')[0]}
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleSignOut}
+                    className="text-xs sm:text-sm"
+                  >
+                    <LogOut className="h-4 w-4 mr-1" />
+                    <span className="hidden sm:inline">Sair</span>
+                  </Button>
+                </div>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  asChild
+                  className="text-xs sm:text-sm"
+                >
+                  <Link to="/auth">
+                    <span>Login</span>
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </nav>
       
-      <div className="flex relative">
-        {/* Sidebar esquerdo fixo com z-index alto (30) */}
-        <div className="hidden md:block w-64 min-h-screen fixed left-0 top-0 z-30">
+      {/* Conteúdo principal */}
+      <div className="flex flex-1 relative">
+        {/* Sidebar esquerdo */}
+        <div className="hidden md:block w-64 fixed left-0 top-16 bottom-0 z-30 overflow-y-auto">
           <Sidebar />
         </div>
         
-        {/* Área do conteúdo principal com padding à esquerda para compensar o sidebar fixo */}
-        <main className="flex-1 p-0 md:ml-64 relative">
+        {/* Área do conteúdo principal */}
+        <main className="flex-1 p-0 md:ml-64 relative min-h-[calc(100vh-4rem)]">
           {children}
         </main>
         
         {/* Chat fixo na parte inferior */}
-        <div className="fixed bottom-0 right-0 w-[400px] h-[600px] z-50">
+        <div className="fixed bottom-0 right-0 w-[400px] h-[600px] z-40">
           <ChatUI isOpen={true} />
         </div>
       </div>
