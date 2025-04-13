@@ -14,6 +14,13 @@ const NavbarAuth = () => {
     // Obter iniciais do nome de usuário para o avatar
     const initials = user.username ? user.username.substring(0, 2).toLowerCase() : 'u';
     
+    // Formatar nome de exibição (remover números e formatação específica)
+    const displayName = user.username 
+      ? user.username
+          .replace(/\d+$/, '') // Remove números ao final do username
+          .replace(/^(\w)/, m => m.toUpperCase()) // Capitaliza a primeira letra
+      : 'Usuário';
+    
     return (
       <div className="flex items-center space-x-4">
         {/* Alternador de tema */}
@@ -38,21 +45,29 @@ const NavbarAuth = () => {
         
         {/* Perfil do usuário */}
         <div className="flex items-center space-x-2 cursor-pointer group">
-          {/* Avatar com iniciais */}
-          <div className="bg-green-600 h-8 w-8 rounded-full flex items-center justify-center text-white">
-            {initials}
-          </div>
+          {/* Avatar com foto de perfil ou iniciais */}
+          {user.profilePicture ? (
+            <img 
+              src={user.profilePicture} 
+              alt={displayName}
+              className="h-8 w-8 rounded-full object-cover border border-green-500" 
+            />
+          ) : (
+            <div className="bg-green-600 h-8 w-8 rounded-full flex items-center justify-center text-white">
+              {initials}
+            </div>
+          )}
           
           {/* Nome do usuário */}
           <div className="flex items-center">
-            <span className="text-white font-medium text-sm">{user.username}</span>
+            <span className="text-white font-medium text-sm">{displayName}</span>
             <ChevronDown className="h-4 w-4 text-gray-400 ml-1" />
           </div>
           
           {/* Menu dropdown (visível apenas no hover) */}
           <div className="absolute top-16 right-4 bg-background border border-border rounded-md shadow-lg p-2 hidden group-hover:block z-50">
             <div className="px-3 py-2 border-b border-gray-700 mb-2">
-              <div className="font-medium text-white">{user.username}</div>
+              <div className="font-medium text-white">{displayName}</div>
               <div className="text-xs text-gray-400">{user.email}</div>
             </div>
             <Link to="/profile" className="text-white hover:text-primary text-sm block w-full text-left px-3 py-2 rounded hover:bg-secondary">
