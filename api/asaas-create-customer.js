@@ -1,22 +1,23 @@
 const axios = require('axios');
-const cors = require('cors');
-const express = require('express');
 
-// Configuração do app
-const app = express();
+// API handler para o Vercel Serverless
+module.exports = async (req, res) => {
+  // Configurar CORS
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-// Configuração de CORS
-app.use(cors({
-  origin: '*', // Permitir de qualquer origem no ambiente de desenvolvimento
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  // Lidar com requisições OPTIONS (preflight CORS)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
-// Middleware para processar JSON
-app.use(express.json());
+  // Apenas aceitar POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Método não permitido' });
+  }
 
-// Rota para criar cliente no Asaas
-app.post('/', async (req, res) => {
   try {
     // Validar dados do corpo da requisição
     const { name, email, cpfCnpj, mobilePhone } = req.body;
@@ -82,18 +83,4 @@ app.post('/', async (req, res) => {
       error: error.response?.data?.errors?.[0]?.description || 'Erro ao criar cliente no Asaas'
     });
   }
-});
-
-// Handler para o Vercel
-module.exports = (req, res) => {
-  // Para requisições OPTIONS (preflight CORS)
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    return res.status(200).end();
-  }
-  
-  // Encaminhar para o Express
-  return app(req, res);
 }; 

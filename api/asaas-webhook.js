@@ -5,35 +5,32 @@
  * da conexão com MongoDB, para diagnosticar e resolver problemas.
  */
 
-// Importar body-parser para processar o corpo da requisição
-const bodyParser = require('body-parser');
-const express = require('express');
-
-// Criar app Express
-const app = express();
-
-// Configurar CORS e middleware
-app.use((req, res, next) => {
+// API handler para o Vercel Serverless
+module.exports = async (req, res) => {
+  // Configurar CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', '*');
-  next();
-});
 
-// Middleware para processar JSON
-app.use(express.json());
+  // Lidar com requisições OPTIONS (preflight CORS)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
-// Rota para verificação do webhook (GET)
-app.get('/', (req, res) => {
-  return res.status(200).json({ 
-    status: 'Webhook endpoint ativo. Use POST para eventos do Asaas.',
-    timestamp: new Date().toISOString() 
-  });
-});
+  // Para requisições GET (verificação do webhook)
+  if (req.method === 'GET') {
+    return res.status(200).json({ 
+      status: 'Webhook endpoint ativo. Use POST para eventos do Asaas.',
+      timestamp: new Date().toISOString() 
+    });
+  }
 
-// Rota para receber eventos (POST)
-app.post('/', async (req, res) => {
+  // Apenas aceitar POST para eventos
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Método não permitido' });
+  }
+
   try {
     // Log dos headers para debug
     console.log('Headers recebidos:', JSON.stringify(req.headers));
@@ -76,18 +73,4 @@ app.post('/', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
-});
-
-// Handler para o Vercel
-module.exports = (req, res) => {
-  // Para requisições OPTIONS (preflight CORS)
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    return res.status(200).end();
-  }
-  
-  // Encaminhar para o Express
-  return app(req, res);
 }; 

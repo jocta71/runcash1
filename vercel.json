@@ -4,38 +4,34 @@
   "outputDirectory": "frontend/dist",
   "installCommand": "cd frontend && npm install",
   "framework": "vite",
-  "routes": [
+  "rewrites": [
     { 
-      "src": "/sounds/(.*)", 
-      "dest": "/sounds/$1" 
+      "source": "/api/test", 
+      "destination": "/api/test" 
     },
     { 
-      "src": "/api/asaas-webhook", 
-      "dest": "/api/asaas-webhook.js" 
+      "source": "/api/asaas-webhook", 
+      "destination": "/api/asaas-webhook" 
     },
     { 
-      "src": "/api/asaas-create-customer", 
-      "dest": "/api/asaas-create-customer.js" 
+      "source": "/api/asaas-create-customer", 
+      "destination": "/api/asaas-create-customer" 
     },
     { 
-      "src": "/api/asaas-create-subscription", 
-      "dest": "/api/asaas-create-subscription.js" 
+      "source": "/api/asaas-create-subscription", 
+      "destination": "/api/asaas-create-subscription" 
+    },
+    { 
+      "source": "/api/((?!test|asaas-webhook|asaas-create-customer|asaas-create-subscription).*)", 
+      "destination": "https://backendapi-production-36b5.up.railway.app/api/$1" 
     },
     {
-      "src": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription).*)",
-      "dest": "https://backendapi-production-36b5.up.railway.app/api/$1"
-    },
-    {
-      "src": "/historico/(.*)",
-      "dest": "/index.html"
-    },
-    {
-      "src": "/(.*\\.(js|css|png|jpg|ico|json|svg|mp3))",
-      "dest": "/$1"
+      "source": "/historico/(.*)",
+      "destination": "/index.html"
     },
     { 
-      "src": "/(.*)", 
-      "dest": "/index.html" 
+      "source": "/(.*)", 
+      "destination": "/index.html" 
     }
   ],
   "env": {
