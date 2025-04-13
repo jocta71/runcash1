@@ -24,11 +24,10 @@ interface AuthContextType {
 
 // Cookie options
 const COOKIE_OPTIONS = {
-  secure: window.location.protocol === 'https:', // Só usa secure em HTTPS
-  sameSite: 'lax' as const, // Menos restritivo que strict, permitindo navegação
+  secure: true, // Sempre usar HTTPS em produção
+  sameSite: 'none' as const, // Necessário para cookies cross-domain 
   path: '/',         // Disponível em todo o site
   expires: 30,       // Expiração em 30 dias
-  domain: window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname
 };
 
 // Nome do cookie - deve corresponder ao nome esperado pelo backend

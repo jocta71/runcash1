@@ -112,8 +112,8 @@ if (isGoogleAuthEnabled) {
         expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
         httpOnly: true,
         path: '/',
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production'
+        sameSite: 'none',
+        secure: true
       };
       
       // Definir o cookie
@@ -165,8 +165,8 @@ router.get('/logout', (req, res) => {
   res.cookie('token', 'none', {
     expires: new Date(Date.now() + 10 * 1000),
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: true,
+    sameSite: 'none',
     path: '/'
   });
 
@@ -224,16 +224,9 @@ const sendTokenResponse = (user, statusCode, res, useCookies = true) => {
       expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
       httpOnly: true,
       path: '/',
-      sameSite: 'lax'
+      sameSite: 'none', // Permitir cookies em requisições cross-origin
+      secure: true // Necessário quando sameSite é 'none'
     };
-
-    // Adicionar secure: true em produção
-    if (process.env.NODE_ENV === 'production') {
-      cookieOptions.secure = true;
-    }
-
-    // Indicar ao frontend que configuramos um cookie HttpOnly
-    res.setHeader('x-auth-cookie-set', 'true');
 
     // Log para depuração
     console.log('Configurando cookie de autenticação:', {
@@ -243,6 +236,9 @@ const sendTokenResponse = (user, statusCode, res, useCookies = true) => {
         expires: cookieOptions.expires.toISOString()
       }
     });
+
+    // Indicar ao frontend que configuramos um cookie HttpOnly
+    res.setHeader('x-auth-cookie-set', 'true');
 
     // Enviar resposta com cookie
     return res
