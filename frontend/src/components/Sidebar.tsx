@@ -14,8 +14,8 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   const navigate = useNavigate();
   
   const settingsOptions = [
-    { id: 'account-information', label: 'Account Information', icon: Settings },
-    { id: 'billing', label: 'Billing', icon: CreditCard },
+    { id: 'account-information', label: 'Informações da Conta', icon: Settings },
+    { id: 'billing', label: 'Pagamentos', icon: CreditCard },
   ];
   
   const handleSettingsItemClick = (id: string) => {
@@ -52,24 +52,24 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
           <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Jogos</h3>
           <div className="space-y-1">
             <div className="menu-item active">
-              <div className="bg-[#1A191F] p-1.5 rounded-md">
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <Gamepad2 size={18} className="text-white" />
               </div>
-              <span>Slots</span>
+              <span className="truncate">Slots</span>
             </div>
             
             <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md">
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <Flame size={18} className="text-white" />
               </div>
-              <span>Cassino Ao Vivo</span>
+              <span className="truncate">Cassino Ao Vivo</span>
             </div>
             
             <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md">
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <Heart size={18} className="text-white" />
               </div>
-              <span>Favoritos</span>
+              <span className="truncate">Favoritos</span>
             </div>
           </div>
         </div>
@@ -78,37 +78,37 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
           <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Bônus</h3>
           <div className="space-y-1">
             <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md">
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <Gift size={18} className="text-green-500" />
               </div>
-              <span>Código Promocional</span>
+              <span className="truncate">Código Promocional</span>
             </div>
             
             <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md">
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <Trophy size={18} className="text-white" />
               </div>
-              <span>Programa de Fidelidade</span>
+              <span className="truncate">Programa de Fidelidade</span>
             </div>
             
             <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md">
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <Users size={18} className="text-white" />
               </div>
-              <span>Programa de Indicação</span>
+              <span className="truncate">Programa de Indicação</span>
             </div>
             
             <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md">
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <CircleDollarSign size={18} className="text-white" />
               </div>
-              <span>Loteria</span>
+              <span className="truncate">Loteria</span>
             </div>
           </div>
         </div>
         
         <div>
-          <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Settings</h3>
+          <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Configurações</h3>
           <div className="space-y-1">
             {settingsOptions.map((option) => (
               <div 
@@ -116,10 +116,10 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
                 className={`menu-item ${activeSettingsTab === option.id ? 'active' : ''}`}
                 onClick={() => handleSettingsItemClick(option.id)}
               >
-                <div className="bg-[#1A191F] p-1.5 rounded-md">
+                <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                   <option.icon size={18} className={activeSettingsTab === option.id ? "text-green-400" : "text-white"} />
                 </div>
-                <span>{option.label}</span>
+                <span className="truncate">{option.label}</span>
               </div>
             ))}
           </div>
@@ -129,24 +129,24 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
           <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Outros</h3>
           <div className="space-y-1">
             <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md">
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <BarChart3 size={18} className="text-white" />
               </div>
-              <span>Estatísticas</span>
+              <span className="truncate">Estatísticas</span>
             </div>
             
             <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md">
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <Scale size={18} className="text-white" />
               </div>
-              <span>Jogo Justo</span>
+              <span className="truncate">Jogo Justo</span>
             </div>
             
             <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md">
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <LifeBuoy size={18} className="text-white" />
               </div>
-              <span>Suporte</span>
+              <span className="truncate">Suporte</span>
             </div>
           </div>
         </div>
@@ -154,18 +154,18 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
       
       <div className="space-y-2 mt-auto">
         <div className="bg-[#22202a] rounded-md p-2 flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity">
-          <div className="bg-[#1A191F] p-1 rounded-md">
+          <div className="bg-[#1A191F] p-1 rounded-md flex-shrink-0">
             <Send size={18} className="text-gray-400" />
           </div>
-          <span className="text-gray-300">Telegram</span>
+          <span className="text-gray-300 truncate">Telegram</span>
         </div>
         
         <div className="bg-[#22202a] rounded-md p-2 flex items-center justify-between cursor-pointer hover:opacity-90 transition-opacity">
           <div className="flex items-center gap-2">
-            <div className="bg-[#1A191F] p-1 rounded-md">
+            <div className="bg-[#1A191F] p-1 rounded-md flex-shrink-0">
               <Globe size={18} className="text-gray-400" />
             </div>
-            <span className="text-gray-300">Português</span>
+            <span className="text-gray-300 truncate">Português</span>
           </div>
           <ChevronDown size={14} className="text-gray-400" />
         </div>
