@@ -49,6 +49,7 @@ const PORT = process.env.PORT || 3002;
 // Configuração CORS básica
 app.use(cors({
   origin: [
+    'https://runcashh11.vercel.app',
     'https://runcash5.vercel.app', 
     'http://localhost:3000', 
     'http://localhost:5173', 
