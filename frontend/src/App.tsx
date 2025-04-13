@@ -76,14 +76,6 @@ const App = () => {
     // Também executar quando a janela é redimensionada, o que pode ajudar a "descongelar"
     window.addEventListener('resize', handleFreeze);
     
-    // Garantir que a verificação de autenticação seja executada quando a página for recarregada
-    window.addEventListener('focus', () => {
-      if (window.authContextInstance?.checkAuth) {
-        console.log('Verificando autenticação ao receber foco');
-        window.authContextInstance.checkAuth();
-      }
-    });
-    
     return () => {
       window.removeEventListener('resize', handleFreeze);
     };
