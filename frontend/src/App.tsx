@@ -13,9 +13,9 @@ import RouletteHistoryPage from './pages/RouletteHistoryPage';
 import { ThemeProvider } from './components/theme-provider';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
-import { AuthProvider } from './contexts/AuthContext';
-import { NotificationsProvider } from './contexts/NotificationsContext';
-import { RouterProvider } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { NotificationsProvider } from './components/NotificationsProvider';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 // Importação de componentes principais
 const Index = lazy(() => import("@/pages/Index"));
@@ -41,6 +41,86 @@ const createQueryClient = () => new QueryClient({
     },
   },
 });
+
+// Definir as rotas
+const router = createBrowserRouter([
+  {
+    path: "/auth",
+    element: <Suspense fallback={<LoadingScreen />}><AuthPage /></Suspense>
+  },
+  {
+    path: "/",
+    element: <Suspense fallback={<LoadingScreen />}><Index /></Suspense>
+  },
+  {
+    path: "/live-roulettes",
+    element: <Suspense fallback={<LoadingScreen />}><LiveRoulettePage /></Suspense>
+  },
+  {
+    path: "/test",
+    element: <Suspense fallback={<LoadingScreen />}><TestPage /></Suspense>
+  },
+  {
+    path: "/planos",
+    element: <Suspense fallback={<LoadingScreen />}><PlansPage /></Suspense>
+  },
+  {
+    path: "/payment-success",
+    element: <Suspense fallback={<LoadingScreen />}><PaymentSuccess /></Suspense>
+  },
+  {
+    path: "/payment-canceled",
+    element: <Suspense fallback={<LoadingScreen />}><PaymentCanceled /></Suspense>
+  },
+  {
+    path: "/profile",
+    element: <Suspense fallback={<LoadingScreen />}><ProfilePage /></Suspense>
+  },
+  {
+    path: "*",
+    element: <Suspense fallback={<LoadingScreen />}><NotFound /></Suspense>
+  },
+  {
+    path: "/analise",
+    element: <Suspense fallback={<LoadingScreen />}><RouletteAnalysisPage /></Suspense>
+  },
+  {
+    path: "/strategies",
+    element: <Suspense fallback={<LoadingScreen />}><StrategiesPage /></Suspense>
+  },
+  {
+    path: "/strategies/create",
+    element: <Suspense fallback={<LoadingScreen />}><StrategyFormPage /></Suspense>
+  },
+  {
+    path: "/strategies/edit/:id",
+    element: <Suspense fallback={<LoadingScreen />}><StrategyFormPage /></Suspense>
+  },
+  {
+    path: "/strategies/view/:id",
+    element: <Suspense fallback={<LoadingScreen />}><StrategiesPage /></Suspense>
+  },
+  {
+    path: "/realtime",
+    element: <Navigate to="/" />
+  },
+  {
+    path: "/roulettes",
+    element: <Suspense fallback={<LoadingScreen />}><LiveRoulettePage /></Suspense>
+  },
+  {
+    path: "/historico",
+    element: <Suspense fallback={<LoadingScreen />}><LiveRoulettePage /></Suspense>
+  },
+  {
+    path: "/historico/:roletaId",
+    element: <Suspense fallback={<LoadingScreen />}><RouletteHistoryPage /></Suspense>
+  },
+  {
+    path: "/seed-numbers",
+    element: <Suspense fallback={<LoadingScreen />}><SeedPage /></Suspense>
+  }
+]);
 
 const App = () => {
   // Criar uma única instância do QueryClient com useRef para mantê-la durante re-renders
@@ -78,18 +158,20 @@ const App = () => {
   return (
     <div className="App">
       <ErrorBoundary fallback={<ErrorPage />}>
-        <NotificationsProvider>
-          <AuthProvider>
-            <SubscriptionProvider>
-              <ThemeProvider defaultTheme="dark" storageKey="runcash-theme">
-                <Toaster />
-                <div className="min-h-screen bg-background text-foreground">
-                  <RouterProvider router={router} />
-                </div>
-              </ThemeProvider>
-            </SubscriptionProvider>
-          </AuthProvider>
-        </NotificationsProvider>
+        <QueryClientProvider client={queryClient.current}>
+          <NotificationsProvider>
+            <AuthProvider>
+              <SubscriptionProvider>
+                <ThemeProvider defaultTheme="dark" storageKey="runcash-theme">
+                  <Toaster />
+                  <div className="min-h-screen bg-background text-foreground">
+                    <RouterProvider router={router} />
+                  </div>
+                </ThemeProvider>
+              </SubscriptionProvider>
+            </AuthProvider>
+          </NotificationsProvider>
+        </QueryClientProvider>
       </ErrorBoundary>
     </div>
   );
