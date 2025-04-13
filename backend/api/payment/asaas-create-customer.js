@@ -1,8 +1,13 @@
 // Versão de teste para depuração
 const axios = require('axios');
 
-// URL de teste do Asaas - usando ambiente de homologação
-const API_BASE_URL = 'https://sandbox.asaas.com/api/v3';
+// Configurações da API Asaas
+const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
+const API_BASE_URL = ASAAS_ENVIRONMENT === 'production' 
+  ? 'https://www.asaas.com/api/v3'
+  : 'https://sandbox.asaas.com/api/v3';
+
+console.log(`[ASAAS] Usando Asaas em ambiente: ${ASAAS_ENVIRONMENT}`);
 
 /**
  * Handler da função serverless para criar clientes no Asaas

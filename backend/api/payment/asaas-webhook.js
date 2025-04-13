@@ -2,7 +2,12 @@ const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
 
 // Configurações da API Asaas
-const API_BASE_URL = 'https://sandbox.asaas.com/api/v3';
+const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
+const API_BASE_URL = ASAAS_ENVIRONMENT === 'production' 
+  ? 'https://www.asaas.com/api/v3'
+  : 'https://sandbox.asaas.com/api/v3';
+
+console.log(`[WEBHOOK] Usando Asaas em ambiente: ${ASAAS_ENVIRONMENT}`);
 
 module.exports = async (req, res) => {
   // Configurar CORS para aceitar qualquer origem
