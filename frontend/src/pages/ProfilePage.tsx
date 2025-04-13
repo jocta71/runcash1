@@ -2,13 +2,23 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { Pencil, X } from 'lucide-react';
-import Sidebar from '@/components/Sidebar';
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/Layout';
+
+// Estendendo o tipo User para evitar erros de lint
+interface ExtendedUser {
+  id: string;
+  username: string;
+  email: string;
+  isAdmin: boolean;
+  profilePicture?: string;
+  googleId?: string;
+  createdAt?: string | Date;
+  lastLogin?: string | Date;
+}
 
 const ProfilePage = () => {
   const { toast } = useToast();
@@ -19,14 +29,8 @@ const ProfilePage = () => {
     lastName: '',
     email: '',
     username: '',
-    phone: '',
-    cityState: '',
     country: 'Brasil',
-    postalCode: '',
-    taxId: '',
-    companyName: '',
     language: 'Português',
-    bio: ''
   });
 
   useEffect(() => {
@@ -86,6 +90,9 @@ const ProfilePage = () => {
     });
   };
 
+  // Cast para o tipo estendido para acessar as propriedades adicionais
+  const extendedUser = user as unknown as ExtendedUser;
+
   return (
     <Layout>
       <div className="max-w-4xl mx-auto bg-[#1A191F] rounded-xl p-6 text-white shadow-lg">
@@ -141,16 +148,6 @@ const ProfilePage = () => {
               <Input id="email" name="email" type="email" value={profileData.email} onChange={handleInputChange} readOnly className="bg-[#111118] border-[#33333359] text-white opacity-70" />
               <p className="text-xs text-gray-400 mt-1">O email não pode ser alterado</p>
             </div>
-            
-            <div>
-              <Label htmlFor="cityState" className="text-white mb-2 block">Cidade/Estado</Label>
-              <Input id="cityState" name="cityState" value={profileData.cityState} onChange={handleInputChange} className="bg-[#111118] border-[#33333359] text-white" />
-            </div>
-            
-            <div>
-              <Label htmlFor="postalCode" className="text-white mb-2 block">CEP</Label>
-              <Input id="postalCode" name="postalCode" value={profileData.postalCode} onChange={handleInputChange} className="bg-[#111118] border-[#33333359] text-white" />
-            </div>
           </div>
           
           <div className="space-y-4">
@@ -160,18 +157,8 @@ const ProfilePage = () => {
             </div>
             
             <div>
-              <Label htmlFor="phone" className="text-white mb-2 block">Telefone</Label>
-              <Input id="phone" name="phone" value={profileData.phone} onChange={handleInputChange} className="bg-[#111118] border-[#33333359] text-white" />
-            </div>
-            
-            <div>
               <Label htmlFor="country" className="text-white mb-2 block">País</Label>
               <CustomSelect id="country" options={["Brasil", "EUA", "Canadá", "Reino Unido", "Austrália"]} defaultValue={profileData.country} onChange={value => handleSelectChange("country", value)} className="bg-[#111118] border-[#33333359] text-white" />
-            </div>
-            
-            <div>
-              <Label htmlFor="taxId" className="text-white mb-2 block">CPF/CNPJ</Label>
-              <Input id="taxId" name="taxId" value={profileData.taxId} onChange={handleInputChange} className="bg-[#111118] border-[#33333359] text-white" />
             </div>
             
             <div>
@@ -179,18 +166,6 @@ const ProfilePage = () => {
               <CustomSelect id="language" options={["Português", "Inglês", "Espanhol", "Francês", "Alemão"]} defaultValue={profileData.language} onChange={value => handleSelectChange("language", value)} className="bg-[#111118] border-[#33333359] text-white" />
             </div>
           </div>
-        </div>
-        
-        <div className="mt-6">
-          <Label htmlFor="bio" className="text-white mb-2 block">Bio</Label>
-          <Textarea 
-            id="bio" 
-            name="bio" 
-            value={profileData.bio} 
-            onChange={handleInputChange} 
-            rows={4}
-            className="bg-[#111118] border-[#33333359] text-white w-full resize-none"
-          />
         </div>
         
         <div className="mt-8 flex justify-end gap-4">
@@ -207,19 +182,19 @@ const ProfilePage = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-[#111118] p-4 rounded-lg">
               <p className="text-gray-400 text-sm">ID da conta</p>
-              <p className="text-white font-mono">{user?.id || 'N/A'}</p>
+              <p className="text-white font-mono">{extendedUser?.id || 'N/A'}</p>
             </div>
             <div className="bg-[#111118] p-4 rounded-lg">
               <p className="text-gray-400 text-sm">Google ID</p>
-              <p className="text-white font-mono">{user?.googleId || 'N/A'}</p>
+              <p className="text-white font-mono">{extendedUser?.googleId || 'N/A'}</p>
             </div>
             <div className="bg-[#111118] p-4 rounded-lg">
               <p className="text-gray-400 text-sm">Conta criada em</p>
-              <p className="text-white">{user?.createdAt ? new Date(user.createdAt).toLocaleDateString('pt-BR') : 'N/A'}</p>
+              <p className="text-white">{extendedUser?.createdAt ? new Date(extendedUser.createdAt).toLocaleDateString('pt-BR') : 'N/A'}</p>
             </div>
             <div className="bg-[#111118] p-4 rounded-lg">
               <p className="text-gray-400 text-sm">Último acesso</p>
-              <p className="text-white">{user?.lastLogin ? new Date(user.lastLogin).toLocaleDateString('pt-BR') : 'N/A'}</p>
+              <p className="text-white">{extendedUser?.lastLogin ? new Date(extendedUser.lastLogin).toLocaleDateString('pt-BR') : 'N/A'}</p>
             </div>
           </div>
         </div>
