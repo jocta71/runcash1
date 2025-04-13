@@ -100,7 +100,7 @@ const ProfilePage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <p className="text-gray-400 mb-1">Nome</p>
-            <p className="text-lg">{user?.user_metadata?.name || 'Nome não informado'}</p>
+            <p className="text-lg">{user?.username || 'Nome não informado'}</p>
           </div>
           <div>
             <p className="text-gray-400 mb-1">E-mail</p>
@@ -113,7 +113,7 @@ const ProfilePage = () => {
           <div>
             <p className="text-gray-400 mb-1">Conta criada em</p>
             <p className="text-sm text-gray-400">
-              {user?.created_at ? new Date(user.created_at).toLocaleDateString('pt-BR') : 'Data não disponível'}
+              Data não disponível
             </p>
           </div>
         </div>
