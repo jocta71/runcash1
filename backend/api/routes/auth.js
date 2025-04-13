@@ -5,6 +5,9 @@ const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 const passport = require('../config/passport');
 
+// Verificar se as credenciais do Google estão disponíveis
+const isGoogleAuthEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+
 // @desc    Registrar novo usuário
 // @route   POST /api/auth/register
 // @access  Público
@@ -87,22 +90,37 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// @desc    Iniciar autenticação com Google
-// @route   GET /api/auth/google
-// @access  Público
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+// Rotas de autenticação Google
+if (isGoogleAuthEnabled) {
+  // @desc    Iniciar autenticação com Google
+  // @route   GET /api/auth/google
+  // @access  Público
+  router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
-// @desc    Callback para autenticação Google
-// @route   GET /api/auth/google/callback
-// @access  Público
-router.get(
-  '/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/login' }),
-  (req, res) => {
-    // Gerar token JWT após autenticação bem-sucedida
-    sendTokenResponse(req.user, 200, res);
-  }
-);
+  // @desc    Callback para autenticação Google
+  // @route   GET /api/auth/google/callback
+  // @access  Público
+  router.get(
+    '/google/callback',
+    passport.authenticate('google', { session: false, failureRedirect: '/login' }),
+    (req, res) => {
+      // Gerar token JWT após autenticação bem-sucedida
+      sendTokenResponse(req.user, 200, res);
+    }
+  );
+} else {
+  // Rota alternativa quando Google Auth não está configurado
+  router.get('/google', (req, res) => {
+    res.status(501).json({
+      success: false,
+      error: 'Autenticação Google não está configurada neste servidor'
+    });
+  });
+  
+  router.get('/google/callback', (req, res) => {
+    res.redirect('/login?error=google_auth_disabled');
+  });
+}
 
 // @desc    Obter usuário atual
 // @route   GET /api/auth/me
@@ -135,6 +153,15 @@ router.get('/logout', (req, res) => {
   res.status(200).json({
     success: true,
     data: {}
+  });
+});
+
+// @desc    Verificar status da autenticação Google
+// @route   GET /api/auth/google/status
+// @access  Público
+router.get('/google/status', (req, res) => {
+  res.json({
+    enabled: isGoogleAuthEnabled
   });
 });
 
