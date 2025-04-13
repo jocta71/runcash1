@@ -29,8 +29,8 @@ const AuthContext = createContext<AuthContextType>({
   checkAuth: async () => false
 });
 
-// API base URL - Atualizando para o servidor de produção na Railway
-const API_URL = 'https://backendapi-production-36b5.up.railway.app/api';
+// API base URL - Usando o proxy do Vercel
+const API_URL = '/api';
 
 /**
  * Provedor de autenticação que se comunica com a API
