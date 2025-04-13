@@ -7,61 +7,36 @@
 
 // Importar body-parser para processar o corpo da requisição
 const bodyParser = require('body-parser');
+const express = require('express');
 
-// Criar middleware para parsear JSON
-const jsonParser = bodyParser.json();
+// Criar app Express
+const app = express();
 
-// Função para processar o corpo da requisição com promessas
-const parseBody = (req, res) => {
-  return new Promise((resolve, reject) => {
-    jsonParser(req, res, (error) => {
-      if (error) {
-        console.error('Erro ao processar corpo da requisição:', error);
-        return reject(error);
-      }
-      resolve();
-    });
-  });
-};
-
-// Handler principal do webhook
-module.exports = async (req, res) => {
-  // Configurar CORS para aceitar qualquer origem
+// Configurar CORS e middleware
+app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', '*');
+  next();
+});
 
-  // Responder a requisições preflight OPTIONS imediatamente
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+// Middleware para processar JSON
+app.use(express.json());
 
-  // Para requisições GET (verificação do webhook)
-  if (req.method === 'GET') {
-    return res.status(200).json({ 
-      status: 'Webhook endpoint ativo. Use POST para eventos do Asaas.',
-      timestamp: new Date().toISOString() 
-    });
-  }
+// Rota para verificação do webhook (GET)
+app.get('/', (req, res) => {
+  return res.status(200).json({ 
+    status: 'Webhook endpoint ativo. Use POST para eventos do Asaas.',
+    timestamp: new Date().toISOString() 
+  });
+});
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed', method: req.method });
-  }
-
+// Rota para receber eventos (POST)
+app.post('/', async (req, res) => {
   try {
     // Log dos headers para debug
     console.log('Headers recebidos:', JSON.stringify(req.headers));
-    
-    // Processar corpo da requisição se necessário
-    if (!req.body || typeof req.body === 'string') {
-      try {
-        await parseBody(req, res);
-        console.log('Corpo da requisição processado pelo body-parser');
-      } catch (parseError) {
-        console.error('Falha ao processar corpo com body-parser:', parseError.message);
-      }
-    }
     
     // Obter dados do webhook
     let webhookData = req.body;
@@ -101,4 +76,18 @@ module.exports = async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
+});
+
+// Handler para o Vercel
+module.exports = (req, res) => {
+  // Para requisições OPTIONS (preflight CORS)
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.status(200).end();
+  }
+  
+  // Encaminhar para o Express
+  return app(req, res);
 }; 

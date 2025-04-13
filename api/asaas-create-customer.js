@@ -84,5 +84,16 @@ app.post('/', async (req, res) => {
   }
 });
 
-// Exportar manipulador para Vercel
-module.exports = app; 
+// Handler para o Vercel
+module.exports = (req, res) => {
+  // Para requisições OPTIONS (preflight CORS)
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.status(200).end();
+  }
+  
+  // Encaminhar para o Express
+  return app(req, res);
+}; 
