@@ -189,11 +189,7 @@ const AuthPage = () => {
                   variant="outline" 
                   className="w-full"
                   onClick={() => {
-                    toast({
-                      title: "Login com Google desativado",
-                      description: "Esta funcionalidade não está disponível no momento.",
-                      variant: "destructive"
-                    });
+                    window.location.href = `${import.meta.env.VITE_API_URL || 'https://runcashh1-peach.vercel.app/api'}/auth/google`;
                   }}
                 >
                   <svg
