@@ -12,53 +12,40 @@ const NavbarAuth = () => {
   // Caso esteja logado, mostrar a interface completa
   if (isLoggedIn && user) {
     // Obter iniciais do nome de usuário para o avatar
-    const initials = user.username ? user.username.substring(0, 2).toUpperCase() : 'U';
+    const initials = user.username ? user.username.substring(0, 2).toLowerCase() : 'u';
     
     return (
       <div className="flex items-center space-x-4">
-        {/* Saldo */}
-        <div className="flex items-center mr-2 bg-gray-800 rounded-md px-3 py-1">
-          <span className="text-gray-200 text-xs mr-1">R$</span>
-          <span className="text-white font-medium">1.346,34</span>
-        </div>
-        
-        {/* Botão de Saldo */}
-        <Button 
-          variant="default" 
-          size="sm" 
-          className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white"
-        >
-          Saldo
-        </Button>
+        {/* Alternador de tema */}
+        <button className="text-gray-300 hover:text-white">
+          <Moon className="h-5 w-5" />
+        </button>
         
         {/* Notificações */}
         <div className="relative">
           <button className="text-gray-300 hover:text-white">
             <Bell className="h-5 w-5" />
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-              3
+              2
             </span>
           </button>
         </div>
         
+        {/* Bandeira do país */}
+        <div className="flex items-center">
+          <img src="/img/br-flag.svg" alt="Brasil" className="h-5 w-5 rounded-full" />
+        </div>
+        
         {/* Perfil do usuário */}
         <div className="flex items-center space-x-2 cursor-pointer group">
-          {/* Avatar com iniciais ou imagem de perfil */}
-          {user.profilePicture ? (
-            <img 
-              src={user.profilePicture} 
-              alt={user.username} 
-              className="h-8 w-8 rounded-full object-cover border-2 border-green-500"
-            />
-          ) : (
-            <div className="bg-gradient-to-r from-green-600 to-green-700 h-8 w-8 rounded-full flex items-center justify-center text-white shadow-md">
-              {initials}
-            </div>
-          )}
+          {/* Avatar com iniciais */}
+          <div className="bg-green-600 h-8 w-8 rounded-full flex items-center justify-center text-white">
+            {initials}
+          </div>
           
           {/* Nome do usuário */}
           <div className="flex items-center">
-            <span className="text-white font-medium text-sm hidden md:inline-block">{user.username}</span>
+            <span className="text-white font-medium text-sm">{user.username}</span>
             <ChevronDown className="h-4 w-4 text-gray-400 ml-1" />
           </div>
           
