@@ -40,8 +40,8 @@ const productionConfig: EnvConfig = {
 
 // Configuração para ambiente de desenvolvimento
 const developmentConfig: EnvConfig = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002',
-  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:3000',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'wss://backend-production-2f96.up.railway.app',
   debugMode: true,
   env: 'development',
   optimizePollingForVisibility: false
