@@ -24,7 +24,15 @@
       "destination": "/api/asaas-webhook" 
     },
     { 
-      "source": "/api/((?!asaas-webhook).*)", 
+      "source": "/api/asaas-create-customer", 
+      "destination": "/api/asaas-create-customer" 
+    },
+    { 
+      "source": "/api/asaas-create-subscription", 
+      "destination": "/api/asaas-create-subscription" 
+    },
+    { 
+      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription).*)", 
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1" 
     },
     {
@@ -38,6 +46,7 @@
   ],
   "cleanUrls": true,
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "ASAAS_API_KEY": "@asaas_api_key"
   }
 }
