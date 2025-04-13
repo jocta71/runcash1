@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { LogOut, Moon, Bell, User, Lock, Settings, Download, Upload, CreditCard } from 'lucide-react';
+import { LogOut, User, Lock, Settings, Download, Upload } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import {
   DropdownMenu,
@@ -11,66 +11,50 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// Versão melhorada do NavbarAuth que mostra status do plano para usuários logados
 const NavbarAuth = () => {
   const { user, signOut } = useAuth();
   const isLoggedIn = !!user;
   
-  // Caso esteja logado, mostrar a interface completa
+  // Caso esteja logado, mostrar apenas o saldo e o avatar
   if (isLoggedIn && user) {
     // Obter iniciais do nome de usuário para o avatar
-    const initials = user.username ? user.username.substring(0, 2).toLowerCase() : 'u';
-    
-    // Formatar nome de exibição (remover números e formatação específica)
-    const displayName = user.username 
-      ? user.username
-          .replace(/\d+$/, '') // Remove números ao final do username
-          .replace(/^(\w)/, m => m.toUpperCase()) // Capitaliza a primeira letra
-      : 'Usuário';
+    const initials = user.username ? user.username.substring(0, 1).toUpperCase() : 'U';
     
     // Formatar o valor do saldo
     const formatCurrency = (value) => {
       return new Intl.NumberFormat('pt-BR', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+        style: 'currency',
+        currency: 'BRL',
       }).format(value || 0);
     };
 
     return (
       <div className="flex items-center space-x-4">
         {/* Saldo */}
-        <div className="flex items-center text-white bg-blue-600 rounded-full px-3 py-1">
-          <span className="text-sm font-medium">{formatCurrency(1346.34)}</span>
+        <div className="flex items-center">
+          <Button variant="ghost" className="text-white bg-transparent hover:bg-transparent">
+            <span className="text-sm font-medium">{formatCurrency(2500)}</span>
+          </Button>
         </div>
         
-        {/* Botão de Saldo */}
-        <Button 
-          variant="default" 
-          className="bg-green-600 hover:bg-green-700 text-white"
-        >
-          <CreditCard className="h-4 w-4 mr-2" />
-          <span>Saldo</span>
-        </Button>
-
         {/* Perfil do usuário com Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 rounded-full flex items-center space-x-2 p-1">
+            <Button 
+              variant="ghost" 
+              className="h-8 w-8 rounded-full p-0 bg-transparent hover:bg-transparent"
+            >
               {user.profilePicture ? (
                 <img 
                   src={user.profilePicture} 
-                  alt={displayName}
-                  className="h-8 w-8 rounded-full object-cover border border-green-500" 
+                  alt="Avatar" 
+                  className="h-8 w-8 rounded-full object-cover" 
                 />
               ) : (
-                <div className="bg-green-600 h-8 w-8 rounded-full flex items-center justify-center text-white">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-transparent text-white">
                   {initials}
                 </div>
               )}
-              <span className="text-white font-medium text-sm">{displayName}</span>
-              <span className="bg-green-600 h-6 w-6 rounded-full flex items-center justify-center text-white ml-1">
-                3
-              </span>
             </Button>
           </DropdownMenuTrigger>
           
@@ -117,29 +101,17 @@ const NavbarAuth = () => {
     );
   }
   
-  // Caso não esteja logado, mostrar apenas o botão de entrar
+  // Caso não esteja logado, mostrar apenas um link para login
   return (
-    <div className="flex items-center space-x-4">
-      {/* Modo escuro */}
-      <button className="text-gray-300 hover:text-white">
-        <Moon className="h-5 w-5" />
-      </button>
-      
-      {/* Bandeira do país */}
-      <div className="flex items-center">
-        <img src="/img/br-flag.svg" alt="Brasil" className="h-5 w-5 rounded-full" />
-      </div>
-      
-      {/* Botão de login */}
+    <div className="flex items-center">
       <Button 
-        variant="default" 
+        variant="ghost" 
         size="sm" 
         asChild
-        className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white"
+        className="text-sm bg-transparent hover:bg-transparent text-white"
       >
         <Link to="/login">
-          <LogOut className="h-4 w-4 mr-1" />
-          <span>Entrar</span>
+          Entrar
         </Link>
       </Button>
     </div>
