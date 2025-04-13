@@ -2,260 +2,299 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
-import { Loader2, AlertCircle, User, Check, Calendar, MapPin, Mail, Phone, Pencil, Save } from 'lucide-react';
+import { Loader2, AlertCircle, CreditCard, Calendar, CheckCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-interface ProfileFormData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phoneNumber: string;
-  dateOfBirth: string;
-  country: string;
+// Interface para os dados da assinatura
+interface Subscription {
+  id: string;
+  plan_id: string;
+  plan_type: string;
+  status: string;
+  start_date: string;
+  next_billing_date: string;
+  payment_provider: string;
+  payment_id: string;
+  start_date_formatted: string;
+  next_billing_date_formatted: string;
 }
 
 const ProfilePage = () => {
   const { user } = useAuth();
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
-  // Mock data for the profile
-  const [formData, setFormData] = useState<ProfileFormData>({
-    firstName: 'Jane',
-    lastName: 'Coop',
-    email: 'jane234@example.com',
-    phoneNumber: '(209) 555-0104',
-    dateOfBirth: '17 nov, 1996',
-    country: 'Bangladesh'
-  });
-  
-  // Simulate loading user data
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, []);
-  
-  const handleInputChange = (field: keyof ProfileFormData, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    const fetchSubscription = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await axios.get(`/api/get-subscription?userId=${user.id}`);
+        setSubscription(response.data);
+      } catch (err: any) {
+        console.error('Erro ao carregar assinatura:', err);
+        
+        // Ignorar erro 404 (sem assinatura) para não mostrar como erro
+        if (err.response?.status !== 404) {
+          setError(err.response?.data?.message || 'Erro ao carregar dados da assinatura');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSubscription();
+  }, [user]);
+
+  // Função para obter o nome amigável do plano
+  const getPlanName = (planId: string) => {
+    const plans = {
+      'free': 'Gratuito',
+      'basic': 'Básico',
+      'pro': 'Profissional',
+      'premium': 'Premium'
+    };
+    return plans[planId as keyof typeof plans] || planId;
   };
-  
-  const handleEdit = (field: string) => {
-    setEditingField(field);
+
+  // Função para obter a cor do status
+  const getStatusColor = (status: string) => {
+    const colors = {
+      'active': 'text-green-500',
+      'pending': 'text-yellow-500',
+      'canceled': 'text-red-500',
+      'expired': 'text-gray-500'
+    };
+    return colors[status as keyof typeof colors] || 'text-gray-400';
   };
-  
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      // Simulate API call to save profile
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setSuccessMessage('Perfil atualizado com sucesso!');
-      setEditingField(null);
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setSuccessMessage(null);
-      }, 3000);
-    } catch (err) {
-      setError('Erro ao salvar alterações. Tente novamente.');
-    } finally {
-      setSaving(false);
-    }
+
+  // Função para obter o nome do provedor de pagamento
+  const getPaymentProviderName = (provider: string) => {
+    const providers = {
+      'asaas': 'Asaas (PIX)',
+      'stripe': 'Stripe',
+      'manual': 'Manual',
+      'free': 'Gratuito'
+    };
+    return providers[provider as keyof typeof providers] || provider;
   };
-  
-  if (loading) {
-    return (
-      <div className="container mx-auto py-12 flex justify-center items-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-  
+
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
-      <h1 className="text-2xl font-bold mb-6">Informações da Conta</h1>
+    <div className="container mx-auto py-8 px-4">
+      <h1 className="text-3xl font-bold mb-8">Meu Perfil</h1>
       
-      {successMessage && (
-        <Alert className="mb-6 bg-green-500/20 border-green-500 text-white">
-          <Check className="h-4 w-4 text-green-500" />
-          <AlertDescription>{successMessage}</AlertDescription>
-        </Alert>
-      )}
-      
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Erro</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      
-      <Card className="bg-gray-50 border-gray-200">
-        <CardContent className="p-6">
-          {/* Profile Image */}
-          <div className="flex justify-center mb-8">
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200">
-                <img 
-                  src="https://randomuser.me/api/portraits/women/44.jpg" 
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <button className="absolute bottom-0 right-0 bg-gray-900 text-white p-1 rounded-full">
-                <User size={14} />
-              </button>
-            </div>
+      {/* Informações do usuário */}
+      <div className="bg-gray-800 rounded-lg p-6 mb-8">
+        <h2 className="text-xl font-bold mb-6 flex items-center">
+          <CheckCircle className="mr-2 h-5 w-5 text-vegas-gold" /> 
+          Informações Pessoais
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <p className="text-gray-400 mb-1">Nome</p>
+            <p className="text-lg">{user?.username || 'Nome não informado'}</p>
           </div>
-          
-          {/* Form Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* First Name */}
+          <div>
+            <p className="text-gray-400 mb-1">E-mail</p>
+            <p className="text-lg">{user?.email || 'Email não informado'}</p>
+          </div>
+          <div>
+            <p className="text-gray-400 mb-1">ID do usuário</p>
+            <p className="text-sm text-gray-400">{user?.id || 'ID não disponível'}</p>
+          </div>
+          <div>
+            <p className="text-gray-400 mb-1">Conta criada em</p>
+            <p className="text-sm text-gray-400">
+              Data não disponível
+            </p>
+          </div>
+        </div>
+      </div>
+      
+      {/* Card da Assinatura */}
+      <div className="bg-gray-800 rounded-lg p-6">
+        <h2 className="text-xl font-bold mb-6 flex items-center">
+          <CreditCard className="mr-2 h-5 w-5 text-vegas-gold" /> 
+          Minha Assinatura
+        </h2>
+        
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-vegas-gold mb-4" />
+            <p className="text-center text-gray-400">Carregando dados da assinatura...</p>
+          </div>
+        ) : error ? (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Erro</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : subscription ? (
+          <div className="space-y-8">
+            {/* Status da assinatura */}
+            <div className="bg-gray-700/50 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <p className="text-gray-400 mb-1">Plano atual</p>
+                  <h3 className="text-2xl text-vegas-gold font-bold">{getPlanName(subscription.plan_id)}</h3>
+                </div>
+                <div className="text-right">
+                  <p className="text-gray-400 mb-1">Status</p>
+                  <p className={`text-lg font-bold capitalize ${getStatusColor(subscription.status)}`}>
+                    {subscription.status === 'active' ? 'Ativo' : 
+                     subscription.status === 'pending' ? 'Pendente' : 
+                     subscription.status === 'canceled' ? 'Cancelado' : 
+                     subscription.status}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-gray-400 text-sm mb-1">Data de início</p>
+                  <div className="flex items-center">
+                    <Calendar className="h-4 w-4 text-gray-400 mr-1" />
+                    <p>{subscription.start_date_formatted || 'Não disponível'}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm mb-1">Próxima cobrança</p>
+                  <div className="flex items-center">
+                    <Calendar className="h-4 w-4 text-gray-400 mr-1" />
+                    <p>{subscription.next_billing_date_formatted || 'Não disponível'}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm mb-1">Forma de pagamento</p>
+                  <p>{getPaymentProviderName(subscription.payment_provider)}</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Benefícios do plano */}
             <div>
-              <Label htmlFor="firstName" className="text-gray-500 text-sm">First Name</Label>
-              <div className="relative mt-1">
-                <Input
-                  id="firstName"
-                  value={formData.firstName}
-                  onChange={(e) => handleInputChange('firstName', e.target.value)}
-                  disabled={editingField !== 'firstName'}
-                  className="pr-10"
-                />
-                {editingField === 'firstName' ? (
-                  <button
-                    onClick={handleSave}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-600"
-                  >
-                    <Save size={18} />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleEdit('firstName')}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400"
-                  >
-                    <Pencil size={18} />
-                  </button>
+              <h3 className="text-lg font-bold mb-3">Benefícios do seu plano</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {subscription.plan_id === 'free' && (
+                  <>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Acesso a 10 estatísticas básicas</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Histórico de 7 dias</p>
+                    </div>
+                  </>
+                )}
+                
+                {subscription.plan_id === 'basic' && (
+                  <>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Acesso a 20 estatísticas</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Histórico de 30 dias</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Alertas personalizados</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Suporte por email</p>
+                    </div>
+                  </>
+                )}
+                
+                {subscription.plan_id === 'pro' && (
+                  <>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Acesso a todas estatísticas</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Histórico de 90 dias</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Alertas personalizados avançados</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Suporte prioritário</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Análises preditivas</p>
+                    </div>
+                  </>
+                )}
+                
+                {subscription.plan_id === 'premium' && (
+                  <>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Acesso a todas estatísticas</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Histórico ilimitado</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Alertas premium</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Suporte VIP 24/7</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>Análises avançadas e IA</p>
+                    </div>
+                    <div className="flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                      <p>API de acesso aos dados</p>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
             
-            {/* Last Name */}
-            <div>
-              <Label htmlFor="lastName" className="text-gray-500 text-sm">Last Name</Label>
-              <div className="relative mt-1">
-                <Input
-                  id="lastName"
-                  value={formData.lastName}
-                  onChange={(e) => handleInputChange('lastName', e.target.value)}
-                  disabled={editingField !== 'lastName'}
-                  className="pr-10"
-                />
-                {editingField === 'lastName' ? (
-                  <button
-                    onClick={handleSave}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-600"
-                  >
-                    <Save size={18} />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleEdit('lastName')}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400"
-                  >
-                    <Pencil size={18} />
-                  </button>
-                )}
-              </div>
-            </div>
-            
-            {/* Email */}
-            <div>
-              <Label htmlFor="email" className="text-gray-500 text-sm flex items-center">
-                Email
-                <span className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full flex items-center">
-                  <Check size={12} className="mr-1" /> Verified
-                </span>
-              </Label>
-              <div className="relative mt-1">
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  disabled={editingField !== 'email'}
-                  className="pr-10"
-                />
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-              </div>
-            </div>
-            
-            {/* Phone Number */}
-            <div>
-              <Label htmlFor="phoneNumber" className="text-gray-500 text-sm flex items-center">
-                Phone Number
-                <span className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full flex items-center">
-                  <Check size={12} className="mr-1" /> Verified
-                </span>
-              </Label>
-              <div className="relative mt-1">
-                <Input
-                  id="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                  disabled={editingField !== 'phoneNumber'}
-                  className="pr-10"
-                />
-                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-              </div>
-            </div>
-            
-            {/* Date of Birth */}
-            <div>
-              <Label htmlFor="dateOfBirth" className="text-gray-500 text-sm">Date of Birth</Label>
-              <div className="relative mt-1">
-                <Input
-                  id="dateOfBirth"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                  disabled={editingField !== 'dateOfBirth'}
-                  className="pr-10"
-                />
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-              </div>
-            </div>
-            
-            {/* Country */}
-            <div>
-              <Label htmlFor="country" className="text-gray-500 text-sm">Country</Label>
-              <div className="relative mt-1">
-                <Input
-                  id="country"
-                  value={formData.country}
-                  onChange={(e) => handleInputChange('country', e.target.value)}
-                  disabled={editingField !== 'country'}
-                  className="pr-10"
-                />
-                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M6 9L12 15L18 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
+            {/* Botão de gerenciamento */}
+            <div className="flex justify-center mt-8">
+              <Button 
+                className="bg-vegas-gold hover:bg-yellow-600 text-black py-2 px-6 rounded font-medium"
+                onClick={() => window.location.href = '/plans'}
+              >
+                {subscription.status === 'active' ? 'Alterar Plano' : 'Ver Planos Disponíveis'}
+              </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        ) : (
+          <div className="text-center py-10">
+            <p className="text-xl mb-6">Você ainda não possui um plano ativo.</p>
+            <Button 
+              className="bg-vegas-gold hover:bg-yellow-600 text-black py-2 px-6 rounded font-medium"
+              onClick={() => window.location.href = '/plans'}
+            >
+              Ver Planos Disponíveis
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

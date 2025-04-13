@@ -122,11 +122,9 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
                 <DropdownMenuLabel className="text-white">Minha Conta</DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-gray-800" />
                 
-                <DropdownMenuItem className="text-white hover:bg-gray-800" asChild>
-                  <Link to="/profile">
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Editar Perfil</span>
-                  </Link>
+                <DropdownMenuItem className="text-white hover:bg-gray-800">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Editar Perfil</span>
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem className="text-white hover:bg-gray-800">
