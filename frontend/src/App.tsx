@@ -28,6 +28,7 @@ const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const SeedPage = lazy(() => import("@/pages/SeedPage"));
 const PlansPage = lazy(() => import("@/pages/PlansPage"));
+const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
 const PaymentSuccess = lazy(() => import("@/pages/PaymentSuccess"));
 const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
@@ -159,6 +160,46 @@ const App = () => {
                         <ProtectedRoute>
                           <Suspense fallback={<LoadingScreen />}>
                             <BillingPage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/planos" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <PlansPage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/pagamento" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <PaymentPage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/pagamento/:planId" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <PaymentPage />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/pagamento/sucesso" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <PaymentSuccess />
+                          </Suspense>
+                        </ProtectedRoute>
+                      } />
+                      
+                      <Route path="/pagamento/cancelado" element={
+                        <ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <PaymentCanceled />
                           </Suspense>
                         </ProtectedRoute>
                       } />

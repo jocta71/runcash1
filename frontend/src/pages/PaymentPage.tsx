@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { PlanType } from '@/types/plans';
-import { Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -12,17 +12,35 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from '@/context/AuthContext';
 import { PaymentForm } from '@/components/PaymentForm';
-import { useNavigate } from 'react-router-dom';
 
-const PlansPage = () => {
+const PaymentPage = () => {
+  const { planId } = useParams();
   const { availablePlans, currentPlan, loading } = useSubscription();
   const { user } = useAuth();
   const [selectedInterval, setSelectedInterval] = useState<'monthly' | 'annual'>('monthly');
   const { toast } = useToast();
   const navigate = useNavigate();
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(planId || null);
   
+  useEffect(() => {
+    // Se um plano foi passado na URL, mostrar o formulário de pagamento imediatamente
+    if (planId && user) {
+      const planExists = availablePlans.some(plan => plan.id === planId);
+      if (planExists) {
+        setSelectedPlanId(planId);
+        setShowPaymentForm(true);
+      } else {
+        toast({
+          title: "Plano não encontrado",
+          description: "O plano selecionado não existe.",
+          variant: "destructive"
+        });
+        navigate('/planos');
+      }
+    }
+  }, [planId, user, availablePlans]);
+
   const handleSelectPlan = (planId: string) => {
     // Se já for o plano atual, apenas mostrar mensagem
     if (currentPlan?.id === planId) {
@@ -43,8 +61,22 @@ const PlansPage = () => {
       return;
     }
     
-    // Redirecionar para a página de pagamento
-    navigate(`/pagamento/${planId}`);
+    // Mostrar formulário de pagamento
+    setSelectedPlanId(planId);
+    setShowPaymentForm(true);
+  };
+
+  const handlePaymentSuccess = () => {
+    toast({
+      title: "Assinatura realizada com sucesso!",
+      description: "Sua assinatura foi processada com sucesso.",
+    });
+    setShowPaymentForm(false);
+    navigate('/dashboard');
+  };
+
+  const handleCancel = () => {
+    setShowPaymentForm(false);
   };
 
   if (loading) {
@@ -56,11 +88,8 @@ const PlansPage = () => {
   }
 
   return (
-    <div className="container mx-auto py-20 px-4 max-w-6xl">
-      <h1 className="text-3xl font-bold text-center mb-2">Escolha o plano ideal para você</h1>
-      <p className="text-gray-400 text-center mb-10">
-        Assine e tenha acesso a todos os recursos da plataforma.
-      </p>
+    <div className="container mx-auto py-10 px-4 max-w-6xl">
+      <h1 className="text-3xl font-bold text-center mb-10">Escolha seu Plano</h1>
       
       <div className="flex justify-center mb-8">
         <div className="flex bg-gray-800 p-1 rounded-lg">
@@ -90,19 +119,9 @@ const PlansPage = () => {
             <div 
               key={plan.id}
               className={`border rounded-lg p-6 flex flex-col ${
-                currentPlan?.id === plan.id 
-                  ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
-                  : plan.id === 'pro' 
-                    ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
-                    : 'border-gray-700 bg-vegas-black/40'
+                currentPlan?.id === plan.id ? 'border-vegas-gold bg-vegas-black/60' : 'border-gray-700 bg-vegas-black/40'
               }`}
             >
-              {plan.id === 'pro' && (
-                <div className="absolute right-0 top-0 bg-vegas-gold text-black text-xs px-4 py-1 transform translate-x-2 translate-y-3 rotate-45">
-                  Popular
-                </div>
-              )}
-              
               <div className="flex justify-between items-center">
                 <h3 className="text-xl font-bold">{plan.name}</h3>
                 {currentPlan?.id === plan.id && (
@@ -141,9 +160,7 @@ const PlansPage = () => {
                     ? "bg-gray-700 hover:bg-gray-600" 
                     : plan.id === 'free' 
                       ? "bg-gray-700 hover:bg-gray-600" 
-                      : plan.id === 'pro'
-                        ? "bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-                        : "bg-vegas-gold/80 hover:bg-vegas-gold text-black"
+                      : "bg-vegas-gold hover:bg-vegas-gold/80 text-black"
                 }
                 disabled={currentPlan?.id === plan.id}
               >
@@ -156,35 +173,23 @@ const PlansPage = () => {
             </div>
           ))}
       </div>
-      
-      <div className="mt-12 bg-vegas-black/30 p-6 rounded-lg border border-gray-800">
-        <h2 className="text-xl font-bold mb-4">Dúvidas Frequentes</h2>
-        
-        <div className="space-y-4">
-          <div>
-            <h3 className="font-semibold mb-2">Como funciona o sistema de assinatura?</h3>
-            <p className="text-sm text-gray-400">
-              Nossas assinaturas são cobradas mensalmente ou anualmente, dependendo do plano escolhido. O pagamento é processado via PIX através da plataforma Asaas.
-            </p>
-          </div>
-          
-          <div>
-            <h3 className="font-semibold mb-2">Posso cancelar a qualquer momento?</h3>
-            <p className="text-sm text-gray-400">
-              Sim, você pode cancelar sua assinatura a qualquer momento. O acesso aos recursos premium permanecerá ativo até o final do período pago.
-            </p>
-          </div>
-          
-          <div>
-            <h3 className="font-semibold mb-2">Como funciona o plano anual?</h3>
-            <p className="text-sm text-gray-400">
-              Os planos anuais são cobrados de uma vez só, mas oferecem o equivalente a 2 meses grátis em comparação com o pagamento mensal.
-            </p>
-          </div>
-        </div>
-      </div>
+
+      {showPaymentForm && selectedPlanId && (
+        <Dialog open={showPaymentForm} onOpenChange={setShowPaymentForm}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Pagamento</DialogTitle>
+            </DialogHeader>
+            <PaymentForm 
+              planId={selectedPlanId}
+              onPaymentSuccess={handlePaymentSuccess}
+              onCancel={handleCancel}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
 
-export default PlansPage; 
+export default PaymentPage; 
