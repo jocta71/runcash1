@@ -30,10 +30,20 @@ module.exports = async (req, res) => {
 
     // Configurar requisição para a API do Asaas
     const asaasApiKey = process.env.ASAAS_API_KEY;
+    console.log("Chave API em uso (primeiros 10 caracteres):", asaasApiKey?.substring(0, 10) + "...");
+    
     if (!asaasApiKey) {
       console.error('ASAAS_API_KEY não configurada no ambiente');
       return res.status(500).json({ error: 'Erro de configuração do servidor' });
     }
+
+    // Configuração do Axios para o Asaas
+    const asaasConfig = {
+      headers: {
+        'Content-Type': 'application/json',
+        'access_token': asaasApiKey
+      }
+    };
 
     // Criar assinatura
     const createSubscriptionResponse = await axios.post(
@@ -63,23 +73,13 @@ module.exports = async (req, res) => {
         },
         remoteIp: req.headers['x-forwarded-for'] || req.connection.remoteAddress
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'access_token': asaasApiKey
-        }
-      }
+      asaasConfig
     );
 
     // Obter link de pagamento
     const paymentLinkResponse = await axios.get(
       `https://api.asaas.com/v3/subscriptions/${createSubscriptionResponse.data.id}/payments`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'access_token': asaasApiKey
-        }
-      }
+      asaasConfig
     );
 
     if (!paymentLinkResponse.data.data || paymentLinkResponse.data.data.length === 0) {
@@ -91,12 +91,7 @@ module.exports = async (req, res) => {
     // Obter URL de pagamento
     const paymentResponse = await axios.get(
       `https://api.asaas.com/v3/payments/${paymentId}/identificationField`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'access_token': asaasApiKey
-        }
-      }
+      asaasConfig
     );
 
     // Retornar dados da assinatura
@@ -106,10 +101,12 @@ module.exports = async (req, res) => {
       message: 'Assinatura criada com sucesso'
     });
   } catch (error) {
-    console.error('Erro ao criar assinatura no Asaas:', error.response?.data || error.message);
+    console.error('Erro ao criar assinatura no Asaas:', error.message);
+    console.error('Detalhes do erro:', error.response?.data);
     
     return res.status(error.response?.status || 500).json({ 
-      error: error.response?.data?.errors?.[0]?.description || 'Erro ao criar assinatura no Asaas'
+      error: error.response?.data?.errors?.[0]?.description || 'Erro ao criar assinatura no Asaas',
+      details: error.response?.data || error.message
     });
   }
 }; 

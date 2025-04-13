@@ -35,7 +35,6 @@
     }
   ],
   "env": {
-    "NODE_ENV": "production",
-    "ASAAS_API_KEY": "@asaas_api_key"
+    "NODE_ENV": "production"
   }
 }
