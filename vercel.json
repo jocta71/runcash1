@@ -22,11 +22,7 @@
       "destination": "/index.html"
     }
   ],
-  "functions": {
-    "api/asaas-webhook.js": {
-      "runtime": "nodejs18.x"
-    }
-  },
+  "cleanUrls": true,
   "env": {
     "NODE_ENV": "production"
   }
