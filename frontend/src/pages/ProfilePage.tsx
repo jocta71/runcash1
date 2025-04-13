@@ -35,18 +35,16 @@ const ProfilePage = () => {
 
   useEffect(() => {
     if (user) {
-      const nameParts = user.username.split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
+      // Não tentamos mais separar o username em nome e sobrenome
+      // O usuário poderá preencher estes campos manualmente
       
       setAvatar(user.profilePicture || null);
       
       setProfileData(prev => ({
         ...prev,
-        firstName,
-        lastName,
         email: user.email || '',
         username: user.username || '',
+        // Mantemos firstName e lastName vazios para o usuário preencher
       }));
     }
   }, [user]);
@@ -104,8 +102,8 @@ const ProfilePage = () => {
               {avatar ? 
                 <img src={avatar} alt="Profile" className="w-20 h-20 rounded-full object-cover border-2 border-[#ffad33]" /> : 
                 <div className="w-20 h-20 rounded-full bg-[#33333359] flex items-center justify-center text-[#ffad33] text-2xl">
-                  {profileData.firstName ? profileData.firstName[0] : ''}
-                  {profileData.lastName ? profileData.lastName[0] : ''}
+                  {profileData.firstName ? profileData.firstName[0] : 
+                   (profileData.username ? profileData.username[0].toUpperCase() : 'U')}
                 </div>
               }
             </div>
@@ -140,7 +138,7 @@ const ProfilePage = () => {
             
             <div>
               <Label htmlFor="firstName" className="text-white mb-2 block">Nome</Label>
-              <Input id="firstName" name="firstName" value={profileData.firstName} onChange={handleInputChange} className="bg-[#111118] border-[#33333359] text-white" />
+              <Input id="firstName" name="firstName" value={profileData.firstName} onChange={handleInputChange} placeholder="Seu nome" className="bg-[#111118] border-[#33333359] text-white" />
             </div>
             
             <div>
@@ -153,7 +151,7 @@ const ProfilePage = () => {
           <div className="space-y-4">
             <div>
               <Label htmlFor="lastName" className="text-white mb-2 block">Sobrenome</Label>
-              <Input id="lastName" name="lastName" value={profileData.lastName} onChange={handleInputChange} className="bg-[#111118] border-[#33333359] text-white" />
+              <Input id="lastName" name="lastName" value={profileData.lastName} onChange={handleInputChange} placeholder="Seu sobrenome" className="bg-[#111118] border-[#33333359] text-white" />
             </div>
             
             <div>
