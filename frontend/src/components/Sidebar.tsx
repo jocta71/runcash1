@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Lightbulb, Settings, User, Lock, Bell, PaintBucket, Shield, CreditCard } from 'lucide-react';
+import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Lightbulb } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface SidebarProps {
@@ -9,7 +9,6 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) => {
-  const [settingsExpanded, setSettingsExpanded] = useState(false);
   const [otherExpanded, setOtherExpanded] = useState(false);
   
   const sidebarClasses = isMobile
@@ -33,7 +32,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
         </div>
       )}
       
-      <div className="space-y-6 overflow-y-auto">
+      <div className="space-y-6">
         <div>
           <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Jogos</h3>
           <div className="space-y-1">
@@ -58,68 +57,6 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
               <span>Favoritos</span>
             </div>
           </div>
-        </div>
-        
-        <div>
-          <div 
-            className="flex items-center justify-between px-4 mb-2 cursor-pointer"
-            onClick={() => setSettingsExpanded(!settingsExpanded)}
-          >
-            <h3 className="text-gray-500 text-xs font-medium">Configurações</h3>
-            <ChevronDown 
-              size={14} 
-              className={`text-gray-500 transition-transform duration-200 ${settingsExpanded ? 'transform rotate-180' : ''}`} 
-            />
-          </div>
-          {settingsExpanded && (
-            <div className="space-y-1">
-              <Link to="/profile" className="block">
-                <div className="menu-item">
-                  <div className="bg-[#1A191F] p-1.5 rounded-md">
-                    <User size={18} className="text-white" />
-                  </div>
-                  <span>Account Information</span>
-                </div>
-              </Link>
-              
-              <div className="menu-item">
-                <div className="bg-[#1A191F] p-1.5 rounded-md">
-                  <Lock size={18} className="text-white" />
-                </div>
-                <span>Change Password</span>
-              </div>
-              
-              <div className="menu-item">
-                <div className="bg-[#1A191F] p-1.5 rounded-md">
-                  <Bell size={18} className="text-white" />
-                </div>
-                <span>Notification</span>
-              </div>
-              
-              <div className="menu-item">
-                <div className="bg-[#1A191F] p-1.5 rounded-md">
-                  <PaintBucket size={18} className="text-white" />
-                </div>
-                <span>Personalization</span>
-              </div>
-              
-              <div className="menu-item">
-                <div className="bg-[#1A191F] p-1.5 rounded-md">
-                  <Shield size={18} className="text-white" />
-                </div>
-                <span>Security & Privacy</span>
-              </div>
-              
-              <Link to="/plans" className="block">
-                <div className="menu-item">
-                  <div className="bg-[#1A191F] p-1.5 rounded-md">
-                    <CreditCard size={18} className="text-green-500" />
-                  </div>
-                  <span>Planos</span>
-                </div>
-              </Link>
-            </div>
-          )}
         </div>
         
         <div>
