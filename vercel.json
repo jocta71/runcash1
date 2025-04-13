@@ -14,18 +14,6 @@
       "destination": "/api/hubla-test" 
     },
     { 
-      "source": "/api/asaas-webhook", 
-      "destination": "/api/asaas-webhook" 
-    },
-    { 
-      "source": "/api/asaas-create-customer", 
-      "destination": "/api/asaas-create-customer" 
-    },
-    { 
-      "source": "/api/asaas-create-subscription", 
-      "destination": "/api/asaas-create-subscription" 
-    },
-    { 
       "source": "/api/hubla-create-customer", 
       "destination": "/api/hubla-create-customer" 
     },
@@ -46,7 +34,7 @@
       "destination": "/api/hubla-cancel-subscription" 
     },
     { 
-      "source": "/api/((?!test|hubla-test|asaas-webhook|asaas-create-customer|asaas-create-subscription|hubla-create-customer|hubla-create-subscription|hubla-webhook|hubla-subscription-details|hubla-cancel-subscription).*)", 
+      "source": "/api/((?!test|hubla-test|hubla-create-customer|hubla-create-subscription|hubla-webhook|hubla-subscription-details|hubla-cancel-subscription).*)", 
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1" 
     },
     {
@@ -60,7 +48,6 @@
   ],
   "env": {
     "NODE_ENV": "production",
-    "ASAAS_API_KEY": "@asaas_api_key",
-    "HUBLA_API_KEY": "@hubla_api_key"
+    "HUBLA_API_KEY": "rEJhmsB0XT50fDtH1Fs1q2r6uIVv83QKAROMqVhjQusXCkAeYybTWfC5H3N7cl3O"
   }
 }
