@@ -69,6 +69,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkAuthOnLoad = async () => {
       console.log('Verificando autenticação ao carregar a página');
+      
+      // Verificar se há um token do Google Auth na URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const googleToken = urlParams.get('google_token');
+      
+      if (googleToken) {
+        console.log('Token do Google encontrado na URL, salvando...');
+        // Salvar o token e limpar a URL
+        saveToken(googleToken);
+        
+        // Carregar os dados do usuário
+        try {
+          const response = await axios.get(`${API_URL}/auth/me`, {
+            headers: {
+              Authorization: `Bearer ${googleToken}`
+            }
+          });
+          
+          if (response.data.success) {
+            setUser(response.data.data);
+            console.log('Dados do usuário carregados após login do Google');
+            
+            // Limpar o token da URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        } catch (error) {
+          console.error('Erro ao carregar usuário após login do Google:', error);
+        }
+        
+        setLoading(false);
+        return true;
+      }
+      
+      // Verificação normal de autenticação
       const authResult = await checkAuth();
       console.log('Resultado da verificação de autenticação:', authResult ? 'autenticado' : 'não autenticado');
       setLoading(false);

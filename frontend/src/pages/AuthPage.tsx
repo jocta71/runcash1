@@ -144,6 +144,15 @@ const AuthPage = () => {
 
   const handleGoogleLogin = () => {
     if (isGoogleAuthEnabled) {
+      console.log('Redirecionando para autenticação Google:', `${API_URL}/auth/google`);
+      
+      // Antes de redirecionar, mostrar loading state
+      setIsLoading(true);
+      
+      // Armazenar a informação que o login via Google foi iniciado
+      localStorage.setItem('googleAuthInProgress', 'true');
+      
+      // Redirecionar para a URL de autenticação Google
       window.location.href = `${API_URL}/auth/google`;
     } else {
       toast({

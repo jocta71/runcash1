@@ -119,10 +119,17 @@ if (isGoogleAuthEnabled) {
       // Definir o cookie
       res.cookie('token', token, cookieOptions);
       
-      // Redirecionar para o frontend
+      // Log para depuração
+      console.log('Autenticação Google bem-sucedida, token gerado:', token.substring(0, 15) + '...');
+      console.log('Definindo cookie com as seguintes opções:', {
+        ...cookieOptions,
+        expires: cookieOptions.expires.toISOString()
+      });
+      
+      // Redirecionar para o frontend com token na URL (para o frontend pegar e armazenar manualmente)
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-      console.log('Autenticação Google bem-sucedida. Redirecionando para:', frontendUrl);
-      res.redirect(frontendUrl);
+      console.log('Redirecionando para:', `${frontendUrl}?google_token=${token}`);
+      res.redirect(`${frontendUrl}?google_token=${token}`);
     }
   );
 } else {
