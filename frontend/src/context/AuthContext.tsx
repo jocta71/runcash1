@@ -1,89 +1,166 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 
 interface User {
   id: string;
+  username: string;
   email: string;
-  user_metadata: {
-    name?: string;
-    avatar_url?: string;
-  };
+  isAdmin: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: () => Promise<{ error: any }>;
-  signUp: () => Promise<{ error: any }>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithGitHub: () => Promise<void>;
-  signOut: () => Promise<void>;
+  token: string | null;
+  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (username: string, email: string, password: string) => Promise<{ error: any }>;
+  signOut: () => void;
+  checkAuth: () => Promise<boolean>;
 }
-
-// Criar usuário mock
-const mockUser: User = {
-  id: 'mock-user-id',
-  email: 'user@example.com',
-  user_metadata: {
-    name: 'Usuário Demo',
-    avatar_url: 'https://ui-avatars.com/api/?name=User&background=random'
-  }
-};
 
 // Criar contexto com valor padrão
 const AuthContext = createContext<AuthContextType>({
-  user: mockUser,
-  loading: false,
+  user: null,
+  loading: true,
+  token: null,
   signIn: async () => ({ error: null }),
   signUp: async () => ({ error: null }),
-  signInWithGoogle: async () => {},
-  signInWithGitHub: async () => {},
-  signOut: async () => {}
+  signOut: () => {},
+  checkAuth: async () => false
 });
 
+// API base URL
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002/api';
+
 /**
- * Provedor de autenticação mock que não depende do Supabase
- * Sempre fornece um usuário autenticado
+ * Provedor de autenticação que se comunica com a API
  */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Implementações mock dos métodos de autenticação
-  const signIn = async () => {
-    console.log('[MOCK] Simulando login com sucesso');
-    return { error: null };
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [loading, setLoading] = useState(true);
+
+  // Verificar autenticação ao carregar
+  useEffect(() => {
+    const checkAuthOnLoad = async () => {
+      await checkAuth();
+      setLoading(false);
+    };
+    
+    checkAuthOnLoad();
+  }, []);
+
+  // Configurar interceptor do axios para incluir o token em requisições autenticadas
+  useEffect(() => {
+    axios.interceptors.request.use(
+      (config) => {
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+  }, [token]);
+
+  // Verificar se o usuário está autenticado
+  const checkAuth = async (): Promise<boolean> => {
+    if (!token) return false;
+
+    try {
+      const response = await axios.get(`${API_URL}/auth/me`);
+      if (response.data.success) {
+        setUser(response.data.data);
+        return true;
+      } else {
+        localStorage.removeItem('token');
+        setToken(null);
+        setUser(null);
+        return false;
+      }
+    } catch (error) {
+      localStorage.removeItem('token');
+      setToken(null);
+      setUser(null);
+      return false;
+    }
   };
 
-  const signUp = async () => {
-    console.log('[MOCK] Simulando cadastro com sucesso');
-    return { error: null };
+  // Login
+  const signIn = async (email: string, password: string) => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/login`, { email, password });
+      
+      if (response.data.success) {
+        const { token, user } = response.data;
+        localStorage.setItem('token', token);
+        setToken(token);
+        setUser(user);
+        return { error: null };
+      } else {
+        return { error: { message: response.data.error || 'Erro ao fazer login' } };
+      }
+    } catch (error: any) {
+      return { 
+        error: { 
+          message: error.response?.data?.error || 'Erro ao conectar ao servidor' 
+        } 
+      };
+    }
   };
 
-  const signInWithGoogle = async () => {
-    console.log('[MOCK] Simulando login com Google');
+  // Cadastro
+  const signUp = async (username: string, email: string, password: string) => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/register`, {
+        username,
+        email,
+        password
+      });
+      
+      if (response.data.success) {
+        const { token, user } = response.data;
+        localStorage.setItem('token', token);
+        setToken(token);
+        setUser(user);
+        return { error: null };
+      } else {
+        return { error: { message: response.data.error || 'Erro ao criar conta' } };
+      }
+    } catch (error: any) {
+      return { 
+        error: { 
+          message: error.response?.data?.error || 'Erro ao conectar ao servidor' 
+        } 
+      };
+    }
   };
 
-  const signInWithGitHub = async () => {
-    console.log('[MOCK] Simulando login com GitHub');
+  // Logout
+  const signOut = () => {
+    localStorage.removeItem('token');
+    setToken(null);
+    setUser(null);
+    // Opcional: chamar logout na API
+    axios.get(`${API_URL}/auth/logout`).catch(() => {});
   };
 
-  const signOut = async () => {
-    console.log('[MOCK] Simulando logout');
-  };
-
-  // Valor do contexto sempre fornece um usuário autenticado
+  // Valor do contexto
   const value = {
-    user: mockUser,
-    loading: false,
+    user,
+    loading,
+    token,
     signIn,
     signUp,
-    signInWithGoogle,
-    signInWithGitHub,
-    signOut
+    signOut,
+    checkAuth
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 /**
- * Hook para usar o contexto de autenticação mock
+ * Hook para usar o contexto de autenticação
  */
 export const useAuth = () => {
   const context = useContext(AuthContext);

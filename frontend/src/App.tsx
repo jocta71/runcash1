@@ -13,6 +13,9 @@ import RouletteHistoryPage from './pages/RouletteHistoryPage';
 import { ThemeProvider } from './components/theme-provider';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
+import { AuthProvider } from './contexts/AuthContext';
+import { NotificationsProvider } from './contexts/NotificationsContext';
+import { RouterProvider } from 'react-router-dom';
 
 // Importação de componentes principais
 const Index = lazy(() => import("@/pages/Index"));
@@ -75,63 +78,18 @@ const App = () => {
   return (
     <div className="App">
       <ErrorBoundary fallback={<ErrorPage />}>
-        <SubscriptionProvider>
-          <TooltipProvider>
-            <Toaster />
-            <ThemeProvider defaultTheme="dark" storageKey="runcash-theme">
-              <BrowserRouter>
-                <Suspense fallback={<LoadingScreen />}>
-                  <Routes>
-                    {/* Rota de autenticação */}
-                    <Route path="/auth" element={<AuthPage />} />
-                    
-                    {/* Página para popular números das roletas */}
-                    <Route path="/seed-numbers" element={<SeedPage />} />
-                    
-                    {/* Rota principal (com dados reais do MongoDB) */}
-                    <Route path="/" element={<Index />} />
-                    
-                    {/* Nova rota para roletas ao vivo */}
-                    <Route path="/live-roulettes" element={<LiveRoulettePage />} />
-                    
-                    {/* Página de teste */}
-                    <Route path="/test" element={<TestPage />} />
-                    
-                    {/* Rotas relacionadas a planos e pagamentos */}
-                    <Route path="/planos" element={<PlansPage />} />
-                    <Route path="/payment-success" element={<PaymentSuccess />} />
-                    <Route path="/payment-canceled" element={<PaymentCanceled />} />
-                    
-                    {/* Rota de perfil do usuário */}
-                    <Route path="/profile" element={<ProfilePage />} />
-                    
-                    {/* Rota para página não encontrada */}
-                    <Route path="*" element={<NotFound />} />
-
-                    {/* Rota para página de análise */}
-                    <Route path="/analise" element={<RouletteAnalysisPage />} />
-                    
-                    {/* Rotas para estratégias */}
-                    <Route path="/strategies" element={<StrategiesPage />} />
-                    <Route path="/strategies/create" element={<StrategyFormPage />} />
-                    <Route path="/strategies/edit/:id" element={<StrategyFormPage />} />
-                    <Route path="/strategies/view/:id" element={<StrategiesPage />} />
-                    
-                    {/* Redirecionamento da antiga rota de tempo real para a página principal */}
-                    <Route path="/realtime" element={<Navigate to="/" />} />
-
-                    {/* Rota para roletas */}
-                    <Route path="/roulettes" element={<LiveRoulettePage />} />
-                    
-                    {/* Rota para histórico de roletas */}
-                    <Route path="/historico" element={<LiveRoulettePage />} />
-                    <Route path="/historico/:roletaId" element={<RouletteHistoryPage />} />
-                  </Routes>
-                </Suspense>
-              </BrowserRouter>
-            </ThemeProvider>
-          </TooltipProvider>
-        </SubscriptionProvider>
+        <NotificationsProvider>
+          <AuthProvider>
+            <SubscriptionProvider>
+              <ThemeProvider defaultTheme="dark" storageKey="runcash-theme">
+                <Toaster />
+                <div className="min-h-screen bg-background text-foreground">
+                  <RouterProvider router={router} />
+                </div>
+              </ThemeProvider>
+            </SubscriptionProvider>
+          </AuthProvider>
+        </NotificationsProvider>
       </ErrorBoundary>
     </div>
   );

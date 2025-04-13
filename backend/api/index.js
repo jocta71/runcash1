@@ -1,15 +1,28 @@
 const express = require('express');
 const cors = require('cors');
 const { MongoClient } = require('mongodb');
+const mongoose = require('mongoose');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 // Importar roteadores
 const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
+const strategiesRouter = require('./routes/strategies');
+const authRouter = require('./routes/auth');
 
 // Configuração MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.MONGODB_DB_NAME;
 let db = null;
+
+// Conectar ao MongoDB com Mongoose para os modelos
+mongoose.connect(MONGODB_URI, {
+  dbName: DB_NAME,
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log('Mongoose conectado ao MongoDB'))
+.catch(err => console.error('Erro ao conectar Mongoose:', err));
 
 // Conectar ao MongoDB
 async function connectToMongoDB() {
@@ -36,7 +49,7 @@ const PORT = process.env.PORT || 3002;
 // Configuração CORS básica
 app.use(cors({
   origin: ['https://runcash5.vercel.app', 'http://localhost:3000', 'http://localhost:5173'],
-  methods: ['GET'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 
                  'ngrok-skip-browser-warning', 'bypass-tunnel-reminder', 'cache-control', 'pragma'],
   credentials: true,
@@ -45,12 +58,15 @@ app.use(cors({
 
 // Middleware
 app.use(express.json());
+app.use(cookieParser());
 
 // Disponibilizar o banco de dados para os roteadores
 app.locals.db = db;
 
 // Configurar rotas
 app.use('/api/roulettes/history', rouletteHistoryRouter);
+app.use('/api/strategies', strategiesRouter);
+app.use('/api/auth', authRouter);
 
 // Adicionar mapeamento de nomes para IDs de roletas conhecidas
 const NOME_PARA_ID = {
