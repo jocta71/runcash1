@@ -153,7 +153,7 @@ router.get('/logout', (req, res) => {
     expires: new Date(Date.now() + 10 * 1000),
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
     path: '/'
   });
 
@@ -188,7 +188,7 @@ const generateToken = (user) => {
 };
 
 // Função auxiliar para criar e enviar token JWT
-const sendTokenResponse = (user, statusCode, res, useCookies = false) => {
+const sendTokenResponse = (user, statusCode, res, useCookies = true) => {
   // Criar token
   const token = generateToken(user);
 
@@ -211,7 +211,7 @@ const sendTokenResponse = (user, statusCode, res, useCookies = false) => {
       expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
       httpOnly: true,
       path: '/',
-      sameSite: 'strict'
+      sameSite: 'lax'
     };
 
     // Adicionar secure: true em produção
@@ -221,6 +221,15 @@ const sendTokenResponse = (user, statusCode, res, useCookies = false) => {
 
     // Indicar ao frontend que configuramos um cookie HttpOnly
     res.setHeader('x-auth-cookie-set', 'true');
+
+    // Log para depuração
+    console.log('Configurando cookie de autenticação:', {
+      token: token.substring(0, 10) + '...',
+      options: {
+        ...cookieOptions,
+        expires: cookieOptions.expires.toISOString()
+      }
+    });
 
     // Enviar resposta com cookie
     return res

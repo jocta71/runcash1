@@ -24,14 +24,14 @@ interface AuthContextType {
 
 // Cookie options
 const COOKIE_OPTIONS = {
-  secure: true,      // Só envia o cookie via HTTPS
-  sameSite: 'strict' as const, // Previne CSRF
+  secure: window.location.protocol === 'https:', // Só usa secure em HTTPS
+  sameSite: 'lax' as const, // Menos restritivo que strict, permitindo navegação
   path: '/',         // Disponível em todo o site
-  expires: 7         // Expiração em 7 dias
+  expires: 30        // Expiração em 30 dias
 };
 
-// Nome do cookie
-const TOKEN_COOKIE_NAME = 'auth_token';
+// Nome do cookie - deve corresponder ao nome esperado pelo backend
+const TOKEN_COOKIE_NAME = 'token';
 
 // Criar contexto com valor padrão
 const AuthContext = createContext<AuthContextType>({
@@ -83,21 +83,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Verificar se o usuário está autenticado
   const checkAuth = async (): Promise<boolean> => {
     const storedToken = Cookies.get(TOKEN_COOKIE_NAME);
-    if (!storedToken) return false;
+    
+    if (!storedToken) {
+      console.log('Nenhum token encontrado no cookie');
+      return false;
+    }
 
     try {
-      const response = await axios.get(`${API_URL}/auth/me`);
+      console.log('Verificando autenticação com o token do cookie');
+      const response = await axios.get(`${API_URL}/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${storedToken}`
+        }
+      });
+      
       if (response.data.success) {
         setUser(response.data.data);
+        setToken(storedToken); // Assegurar que o token está no estado
+        console.log('Autenticação verificada com sucesso');
         return true;
       } else {
-        Cookies.remove(TOKEN_COOKIE_NAME);
+        console.log('Token inválido retornado pela API');
+        Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
         setToken(null);
         setUser(null);
         return false;
       }
     } catch (error) {
-      Cookies.remove(TOKEN_COOKIE_NAME);
+      console.error('Erro ao verificar autenticação:', error);
+      Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
       setToken(null);
       setUser(null);
       return false;
