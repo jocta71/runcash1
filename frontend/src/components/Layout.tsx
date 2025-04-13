@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import ChatUI from './ChatUI';
-import { Loader2, LogOut, Search, Star } from 'lucide-react';
+import { Loader2, LogOut, Search, Wallet, Menu, MessageSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
+import ProfileDropdown from './ProfileDropdown';
+import AnimatedInsights from './AnimatedInsights';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,6 +19,9 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   const { user, signOut } = useAuth();
   const [isLoading, setIsLoading] = useState(preloadData);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Pré-carregar dados das roletas se preloadData for verdadeiro
   useEffect(() => {
@@ -82,86 +88,115 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#100f13] text-white flex flex-col">
-      {/* Barra de navegação integrada */}
-      <nav className="bg-black border-b border-[#33333359] sticky top-0 z-50">
-        <div className="w-full px-4">
-          <div className="flex items-center h-14 justify-between">
-            {/* Lado esquerdo: Logo e busca */}
-            <div className="flex items-center gap-4">
-              {/* Logo */}
-              <Link to="/" className="flex items-center">
-                <span className="font-bold text-2xl text-white">RunCash</span>
-              </Link>
-              
-              {/* Campo de busca */}
-              <div className="relative hidden md:flex items-center">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                  <Search className="h-4 w-4 text-gray-400" />
-                </div>
-                <input 
-                  type="search" 
-                  placeholder="Pesquisar roleta..." 
-                  className="pl-10 pr-4 py-1.5 rounded-md border border-gray-800 bg-[#111111] text-sm text-gray-300 w-60 focus:outline-none focus:ring-1 focus:ring-[#00ff00] focus:border-[#00ff00]"
-                />
-              </div>
-            </div>
-            
-            {/* Centro: Números quentes */}
-            <div className="hidden md:flex items-center justify-center gap-2">
-              <Star className="h-4 w-4 text-[#00ff00]" />
-              <span className="text-gray-400 text-sm">Números quentes:</span>
-              <span className="text-white font-medium">7, 11, 23</span>
-            </div>
-            
-            {/* Lado direito: Saldo, Avatar e Botões */}
-            <div className="flex items-center gap-3">
-              {/* Saldo */}
-              <div className="hidden md:flex items-center gap-2 bg-blue-900/20 px-3 py-1 rounded-full">
-                <div className="h-5 w-5 bg-blue-500 rounded-full flex items-center justify-center text-xs text-white font-bold">R$</div>
-                <span className="text-white">1.346,34</span>
-              </div>
-              
-              {/* Botão de Saldo */}
-              <Button className="hidden md:flex bg-[#00ff00] hover:bg-[#00cc00] text-black font-medium px-4 h-8">
-                Saldo
-              </Button>
-              
-              {/* Avatar e nome do usuário */}
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <div className="h-8 w-8 bg-purple-600 rounded-full flex items-center justify-center text-white">
-                    {user?.email?.charAt(0).toUpperCase() || 'U'}
-                  </div>
-                  <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 rounded-full border-2 border-black"></div>
-                </div>
-                <span className="hidden md:inline-block text-sm font-medium">Usuário</span>
-                <div className="text-gray-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="m6 9 6 6 6-6"/></svg>
-                </div>
-              </div>
+    <div className="min-h-screen flex bg-vegas-black">
+      {/* Desktop Sidebar */}
+      <div className="hidden md:block w-64 min-h-screen fixed left-0 top-0 z-30 overflow-y-auto">
+        <Sidebar />
+      </div>
+      
+      {/* Mobile Sidebar (drawer) */}
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isMobile={true} />
+      
+      <div className="flex-1 relative">
+        {/* Mobile Header */}
+        <div className="md:hidden flex items-center justify-between p-4 border-b border-[#33333359] bg-[#0B0A0F]">
+          <button 
+            className="p-2"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu size={24} className="text-[#00ff00]" />
+          </button>
+          
+          <span className="text-white text-xl font-bold">RunCash</span>
+          
+          <button 
+            className="p-2"
+            onClick={() => setChatOpen(true)}
+          >
+            <MessageSquare size={24} className="text-[#00ff00]" />
+          </button>
+        </div>
+        
+        {/* Desktop Header */}
+        <div className="hidden md:flex fixed top-0 left-0 right-0 md:left-64 z-40 h-[70px] items-center justify-between px-4 border-b border-[#33333359] bg-[#0B0A0F]">
+          <div className="flex items-center gap-2">
+            <Link to="/" className="flex items-center">
+              <span className="text-[#00ff00] text-2xl font-bold">RunCash</span>
+            </Link>
+            <div className="relative flex items-center ml-4 max-w-[180px]">
+              <Search size={14} className="absolute left-2 text-gray-400" />
+              <Input 
+                type="text" 
+                placeholder="Pesquisar roleta..." 
+                className="h-8 pl-7 py-1 pr-2 text-xs bg-[#1A191F] border-none rounded-full text-white focus-visible:ring-0 focus-visible:ring-offset-0" 
+                value={search} 
+                onChange={e => setSearch(e.target.value)} 
+              />
             </div>
           </div>
+          
+          <AnimatedInsights />
+          
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-[#1A191F] rounded-full py-1 px-3">
+              <span className="h-5 w-5 bg-blue-500 rounded-full flex items-center justify-center">
+                <span className="text-[10px] text-white">R$</span>
+              </span>
+              <span className="text-white text-xs">1.346,34</span>
+              <Wallet size={14} className="text-gray-400" />
+            </div>
+            
+            <Button variant="default" size="sm" className="h-8 text-black font-medium bg-gradient-to-b from-[#00ff00] to-[#00ff00] hover:from-[#00ff00]/90 hover:to-[#00ff00]/90">
+              <Wallet size={14} className="mr-1" /> Saldo
+            </Button>
+            
+            <ProfileDropdown />
+          </div>
         </div>
-      </nav>
-      
-      {/* Conteúdo principal */}
-      <div className="flex flex-1 relative">
-        {/* Sidebar esquerdo */}
-        <div className="hidden md:block w-64 fixed left-0 top-14 bottom-0 z-30 overflow-y-auto">
-          <Sidebar />
+        
+        {/* Mobile Search Bar */}
+        <div className="md:hidden px-4 pt-2 pb-2">
+          <div className="relative flex items-center w-full">
+            <Search size={16} className="absolute left-3 text-gray-400" />
+            <Input 
+              type="text" 
+              placeholder="Pesquisar roleta..." 
+              className="w-full pl-9 py-2 pr-3 text-sm bg-[#1A191F] border-none rounded-full text-white focus-visible:ring-0 focus-visible:ring-offset-0" 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+            />
+          </div>
+        </div>
+        
+        {/* Mobile User Info */}
+        <div className="md:hidden flex justify-between items-center px-4 py-3">
+          <ProfileDropdown />
+          
+          <Button variant="default" size="sm" className="h-8 text-black font-medium bg-gradient-to-b from-[#00ff00] to-[#00ff00] hover:from-[#00ff00]/90 hover:to-[#00ff00]/90">
+            <Wallet size={14} className="mr-1" /> Saldo
+          </Button>
+        </div>
+        
+        {/* Mobile Insights */}
+        <div className="md:hidden px-4 py-2">
+          <div className="bg-[#1A191F]/50 rounded-lg p-3">
+            <AnimatedInsights />
+          </div>
         </div>
         
         {/* Área do conteúdo principal */}
-        <main className="flex-1 p-0 md:ml-64 relative min-h-[calc(100vh-3.5rem)]">
+        <main className="pt-4 md:pt-[70px] pb-8 px-4 md:px-6 md:pl-[280px] w-full min-h-screen bg-[#100f13]">
           {children}
         </main>
-        
-        {/* Chat fixo na parte inferior */}
-        <div className="fixed bottom-0 right-0 w-[400px] h-[600px] z-40">
-          <ChatUI isOpen={true} />
-        </div>
       </div>
+      
+      {/* Chat fixo na parte inferior */}
+      <div className="fixed bottom-0 right-0 w-[400px] h-[600px] z-40">
+        <ChatUI isOpen={true} />
+      </div>
+      
+      {/* Mobile Chat (drawer) */}
+      <ChatUI isOpen={chatOpen} onClose={() => setChatOpen(false)} isMobile={true} />
     </div>
   );
 };
