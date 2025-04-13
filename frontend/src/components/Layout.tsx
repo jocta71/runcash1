@@ -10,6 +10,17 @@ import { Input } from './ui/input';
 import ProfileDropdown from './ProfileDropdown';
 import AnimatedInsights from './AnimatedInsights';
 
+// Interface estendida para o usuário com firstName e lastName
+interface ExtendedUser {
+  id: string;
+  username: string;
+  email: string;
+  isAdmin: boolean;
+  profilePicture?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
 interface LayoutProps {
   children: React.ReactNode;
   preloadData?: boolean;
@@ -22,6 +33,17 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+
+  // Cast para o tipo estendido para acessar firstName e lastName
+  const extUser = user as unknown as ExtendedUser;
+  
+  // Função para obter o nome de exibição (nome completo ou username como fallback)
+  const getDisplayName = () => {
+    if (extUser?.firstName || extUser?.lastName) {
+      return `${extUser.firstName || ''} ${extUser.lastName || ''}`.trim();
+    }
+    return extUser?.username || 'Usuário';
+  };
 
   // Pré-carregar dados das roletas se preloadData for verdadeiro
   useEffect(() => {
@@ -153,7 +175,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
             {/* Informações do usuário */}
             {user && (
               <div className="hidden lg:flex items-center bg-[#1A191F]/70 rounded-full px-3 py-1 text-white">
-                <span className="text-xs font-medium">Olá, {user.username}</span>
+                <span className="text-xs font-medium">Olá, {getDisplayName()}</span>
               </div>
             )}
             
@@ -189,7 +211,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
           <div className="flex items-center gap-2">
             {user && (
               <div className="flex items-center bg-[#1A191F]/70 rounded-full px-3 py-1 text-white mr-2">
-                <span className="text-xs font-medium">Olá, {user.username}</span>
+                <span className="text-xs font-medium">Olá, {getDisplayName()}</span>
               </div>
             )}
             <ProfileDropdown />
