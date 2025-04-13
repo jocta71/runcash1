@@ -150,6 +150,13 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
               <Wallet size={14} className="mr-1" /> Saldo
             </Button>
             
+            {/* Informações do usuário */}
+            {user && (
+              <div className="hidden lg:flex items-center bg-[#1A191F]/70 rounded-full px-3 py-1 text-white">
+                <span className="text-xs font-medium">Olá, {user.username}</span>
+              </div>
+            )}
+            
             <ProfileDropdown />
             
             <Button 
@@ -180,6 +187,11 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         {/* Mobile User Info */}
         <div className="md:hidden flex justify-between items-center px-4 py-3">
           <div className="flex items-center gap-2">
+            {user && (
+              <div className="flex items-center bg-[#1A191F]/70 rounded-full px-3 py-1 text-white mr-2">
+                <span className="text-xs font-medium">Olá, {user.username}</span>
+              </div>
+            )}
             <ProfileDropdown />
             
             <Button 
