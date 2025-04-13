@@ -1,281 +1,221 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Session, User } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import Cookies from 'js-cookie';
 
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  isAdmin: boolean;
-  profilePicture?: string;
-}
-
 interface AuthContextType {
+  session: Session | null;
   user: User | null;
   loading: boolean;
   token: string | null;
+  setToken: (token: string | null) => void;
+  setUser: (user: User | null) => void;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (username: string, email: string, password: string) => Promise<{ error: any }>;
-  signOut: () => void;
-  checkAuth: () => Promise<boolean>;
-  setUser: (user: User) => void;
-  setToken: (token: string) => void;
+  signUp: (email: string, password: string) => Promise<{ error: any }>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithGitHub: () => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
-// Cookie options
-const COOKIE_OPTIONS = {
-  secure: true, // Sempre usar HTTPS em produção
-  sameSite: 'none' as const, // Necessário para cookies cross-domain 
-  path: '/',         // Disponível em todo o site
-  expires: 30,       // Expiração em 30 dias
-};
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Nome do cookie - deve corresponder ao nome esperado pelo backend
-const TOKEN_COOKIE_NAME = 'token';
-
-// Criar contexto com valor padrão
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-  token: null,
-  signIn: async () => ({ error: null }),
-  signUp: async () => ({ error: null }),
-  signOut: () => {},
-  checkAuth: async () => false,
-  setUser: () => {},
-  setToken: () => {}
-});
-
-// API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh1-git-main-brunobrandao.vercel.app/api';
-
-/**
- * Provedor de autenticação que se comunica com a API
- */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(Cookies.get(TOKEN_COOKIE_NAME) || null);
+  const [token, setToken] = useState<string | null>(Cookies.get('token') || null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  // Configuração global do axios para envio de cookies
   useEffect(() => {
-    // Configurar axios para sempre enviar credenciais (cookies)
-    axios.defaults.withCredentials = true;
-    
-    console.log('Axios configurado para enviar cookies em todas requisições');
-  }, []);
-
-  // Verificar autenticação ao carregar
-  useEffect(() => {
-    const checkAuthOnLoad = async () => {
-      console.log('Verificando autenticação ao carregar a página');
-      
-      // Verificar se há um token do Google Auth na URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const googleToken = urlParams.get('google_token');
-      
-      if (googleToken) {
-        console.log('Token do Google encontrado na URL, salvando...');
-        // Salvar o token e limpar a URL
-        saveToken(googleToken);
-        
-        // Carregar os dados do usuário
-        try {
-          const response = await axios.get(`${API_URL}/auth/me`, {
-            headers: {
-              Authorization: `Bearer ${googleToken}`
-            }
-          });
-          
-          if (response.data.success) {
-            setUser(response.data.data);
-            console.log('Dados do usuário carregados após login do Google');
-            
-            // Limpar o token da URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
-        } catch (error) {
-          console.error('Erro ao carregar usuário após login do Google:', error);
-        }
-        
-        setLoading(false);
-        return true;
-      }
-      
-      // Verificação normal de autenticação
-      const authResult = await checkAuth();
-      console.log('Resultado da verificação de autenticação:', authResult ? 'autenticado' : 'não autenticado');
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
       setLoading(false);
-    };
-    
-    checkAuthOnLoad();
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Configurar interceptor do axios para incluir o token em requisições autenticadas
+  // Efeito para salvar o token no cookie quando ele muda
   useEffect(() => {
-    // Criar uma nova instância do interceptor para evitar duplicação
-    const interceptorId = axios.interceptors.request.use(
-      (config) => {
-        if (token) {
-          console.log('Adicionando token ao header de autorização:', token.substring(0, 15) + '...');
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-    
-    // Limpar o interceptor na desmontagem do componente
-    return () => {
-      axios.interceptors.request.eject(interceptorId);
-    };
+    if (token) {
+      Cookies.set('token', token, {
+        secure: true,
+        sameSite: 'none',
+        path: '/',
+        expires: 30
+      });
+    } else {
+      Cookies.remove('token');
+    }
   }, [token]);
 
-  // Verificar se o usuário está autenticado
-  const checkAuth = async (): Promise<boolean> => {
-    const storedToken = Cookies.get(TOKEN_COOKIE_NAME);
-    
-    if (!storedToken) {
-      console.log('Nenhum token encontrado no cookie');
-      return false;
-    }
-
+  const signIn = async (email: string, password: string) => {
     try {
-      console.log('Verificando autenticação com o token do cookie');
-      const response = await axios.get(`${API_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${storedToken}`
+      const { error, data } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      
+      // Armazenar o token JWT se disponível
+      if (data?.session?.access_token) {
+        setToken(data.session.access_token);
+      }
+      
+      return { error: null };
+    } catch (error) {
+      console.error('Error signing in:', error);
+      toast({
+        title: "Login falhou",
+        description: error.message || "Não foi possível fazer login. Verifique suas credenciais.",
+        variant: "destructive"
+      });
+      return { error };
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    try {
+      console.log("Iniciando login com Google...");
+      
+      // Marcamos o início do processo de autenticação com Google
+      localStorage.setItem('googleAuthInProgress', 'true');
+      
+      // Certifique-se de que esta URL corresponde exatamente à URL de redirecionamento 
+      // configurada no console do Google Cloud
+      const redirectTo = `${window.location.origin}/auth`;
+      console.log("URL de redirecionamento configurada:", redirectTo);
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectTo,
+          queryParams: {
+            prompt: 'select_account',
+            access_type: 'offline',
+          }
         }
       });
       
-      if (response.data.success) {
-        setUser(response.data.data);
-        setToken(storedToken); // Assegurar que o token está no estado
-        console.log('Autenticação verificada com sucesso');
-        return true;
+      if (error) {
+        console.error("Erro na autenticação com Google:", error);
+        throw error;
+      }
+      
+      if (data?.url) {
+        console.log("Redirecionando para:", data.url);
+        // Opcional: forçar a navegação para a URL de redirecionamento
+        window.location.href = data.url;
       } else {
-        console.log('Token inválido retornado pela API');
-        Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
-        setToken(null);
-        setUser(null);
-        return false;
+        console.warn("URL de redirecionamento não disponível");
       }
     } catch (error) {
-      console.error('Erro ao verificar autenticação:', error);
-      Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
+      console.error('Erro detalhado ao fazer login com Google:', error);
+      toast({
+        title: "Login com Google falhou",
+        description: error.message || "Não foi possível fazer login com Google. Verifique as configurações de OAuth.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const signInWithGitHub = async () => {
+    try {
+      console.log("Iniciando login com GitHub...");
+      
+      const redirectTo = `${window.location.origin}/auth`;
+      console.log("URL de redirecionamento configurada:", redirectTo);
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+          redirectTo: redirectTo
+        }
+      });
+      
+      if (error) {
+        console.error("Erro na autenticação com GitHub:", error);
+        throw error;
+      }
+      
+      if (data?.url) {
+        console.log("Redirecionando para:", data.url);
+        // Opcional: forçar a navegação para a URL de redirecionamento
+        window.location.href = data.url;
+      } else {
+        console.warn("URL de redirecionamento não disponível");
+      }
+    } catch (error) {
+      console.error('Erro detalhado ao fazer login com GitHub:', error);
+      toast({
+        title: "Login com GitHub falhou",
+        description: error.message || "Não foi possível fazer login com GitHub.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const signUp = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      toast({
+        title: "Cadastro realizado",
+        description: "Verifique seu email para confirmar a conta.",
+      });
+      return { error: null };
+    } catch (error) {
+      console.error('Error signing up:', error);
+      toast({
+        title: "Cadastro falhou",
+        description: error.message || "Não foi possível criar a conta.",
+        variant: "destructive"
+      });
+      return { error };
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      // Limpar o token ao fazer logout
       setToken(null);
-      setUser(null);
-      return false;
+      // Limpar qualquer flag de autenticação em progresso
+      localStorage.removeItem('googleAuthInProgress');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast({
+        title: "Erro ao sair",
+        description: "Não foi possível encerrar a sessão.",
+        variant: "destructive"
+      });
     }
   };
 
-  // Função auxiliar para salvar token
-  const saveToken = (newToken: string) => {
-    // Salvar no cookie do lado cliente - não pode ser HttpOnly pelo frontend
-    Cookies.set(TOKEN_COOKIE_NAME, newToken, COOKIE_OPTIONS);
-    setToken(newToken);
-  };
-
-  // Login
-  const signIn = async (email: string, password: string) => {
-    try {
-      const response = await axios.post(
-        `${API_URL}/auth/login`, 
-        { email, password, useCookies: true }  // Indicar para o backend usar cookies HttpOnly se possível
-      );
-      
-      if (response.data.success) {
-        const { token, user } = response.data;
-        
-        // Se o backend já configurou um cookie HttpOnly, não precisamos configurar 
-        // nosso próprio cookie, apenas atualizar o estado
-        if (!response.headers['x-auth-cookie-set']) {
-          saveToken(token);
-        } else {
-          setToken(token);
-        }
-        
-        setUser(user);
-        return { error: null };
-      } else {
-        return { error: { message: response.data.error || 'Erro ao fazer login' } };
-      }
-    } catch (error: any) {
-      return { 
-        error: { 
-          message: error.response?.data?.error || 'Erro ao conectar ao servidor' 
-        } 
-      };
-    }
-  };
-
-  // Cadastro
-  const signUp = async (username: string, email: string, password: string) => {
-    try {
-      const response = await axios.post(
-        `${API_URL}/auth/register`, 
-        {
-          username,
-          email,
-          password,
-          useCookies: true  // Indicar para o backend usar cookies HttpOnly se possível
-        }
-      );
-      
-      if (response.data.success) {
-        const { token, user } = response.data;
-        
-        // Se o backend já configurou um cookie HttpOnly, não precisamos configurar 
-        // nosso próprio cookie, apenas atualizar o estado
-        if (!response.headers['x-auth-cookie-set']) {
-          saveToken(token);
-        } else {
-          setToken(token);
-        }
-        
-        setUser(user);
-        return { error: null };
-      } else {
-        return { error: { message: response.data.error || 'Erro ao criar conta' } };
-      }
-    } catch (error: any) {
-      return { 
-        error: { 
-          message: error.response?.data?.error || 'Erro ao conectar ao servidor' 
-        } 
-      };
-    }
-  };
-
-  // Logout
-  const signOut = () => {
-    Cookies.remove(TOKEN_COOKIE_NAME);
-    setToken(null);
-    setUser(null);
-    
-    // Chamar logout na API para limpar também cookies HttpOnly
-    axios.get(`${API_URL}/auth/logout`).catch(() => {});
-  };
-
-  // Valor do contexto
   const value = {
+    session,
     user,
     loading,
     token,
+    setToken,
+    setUser,
     signIn,
     signUp,
-    signOut,
-    checkAuth,
-    setUser,
-    setToken
+    signInWithGoogle,
+    signInWithGitHub,
+    signOut
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-/**
- * Hook para usar o contexto de autenticação
- */
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

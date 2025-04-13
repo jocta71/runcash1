@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMultipleRoulettes } from '../hooks/useRoulette';
-import RouletteCard from '../services/ui/components/RouletteCard';
+import RouletteCard from '@/components/RouletteCard';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import './Roulettes.css';
 
@@ -36,6 +36,25 @@ const RoulettesPage: React.FC = () => {
   const { roulettes, loading: roulettesLoading, error: roulettesError } = 
     useMultipleRoulettes(allRouletteIds);
   
+  // Converter os dados para o formato esperado pelo componente RouletteCard original
+  const formattedRoulettes = Object.entries(roulettes).map(([id, roulette]) => {
+    // Extrai os números da roleta 
+    // Primeiro tenta o campo 'numbers', depois 'numero', ou usa um array vazio como fallback
+    const recentNumbers = roulette?.numbers 
+      ? roulette.numbers.slice(0, 5).map(n => n.number) 
+      : roulette?.numero 
+        ? roulette.numero.slice(0, 5) 
+        : [0, 0, 0, 0, 0];
+      
+    return {
+      name: roulette?.name || id,
+      lastNumbers: recentNumbers,
+      wins: roulette?.wins || 0,
+      losses: roulette?.losses || 0,
+      trend: Array.from({ length: 20 }, () => ({ value: Math.random() * 100 }))
+    };
+  });
+  
   return (
     <div className="roulettes-page">
       <h1>Roletas Disponíveis</h1>
@@ -59,11 +78,10 @@ const RoulettesPage: React.FC = () => {
       )}
       
       <div className="grid grid-cols-3 gap-6">
-        {Object.entries(roulettes).map(([id, roulette]) => (
+        {formattedRoulettes.map((roulette, index) => (
           <RouletteCard 
-            key={id} 
-            rouletteId={id}
-            onError={(errorMsg) => console.error(`Erro na roleta ${id}:`, errorMsg)}
+            key={index}
+            {...roulette}
           />
         ))}
       </div>
