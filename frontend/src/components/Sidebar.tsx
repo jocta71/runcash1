@@ -14,7 +14,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   const navigate = useNavigate();
   
   const settingsOptions = [
-    { id: 'account-information', label: 'Informações da Conta', icon: Settings },
+    { id: 'account-information', label: 'Conta', icon: Settings },
     { id: 'billing', label: 'Pagamentos', icon: CreditCard },
   ];
   
