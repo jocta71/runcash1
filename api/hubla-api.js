@@ -15,26 +15,31 @@ module.exports = async (req, res) => {
   // Obter o tipo de operação da query
   const { operation } = req.query;
 
-  // Verificar se a operação foi especificada
+  // Se não houver operação especificada, tratar como test-vercel por padrão
   if (!operation) {
-    return res.status(400).json({ error: 'Parâmetro "operation" é obrigatório' });
+    return handleTestVercel(req, res);
   }
 
   // Obter a chave da API da Hubla
   const apiKey = process.env.HUBLA_API_KEY;
   
-  // Verificar se a chave da API está configurada
-  if (!apiKey) {
+  // Verificar se a chave da API está configurada para operações da Hubla
+  if (operation !== 'test-vercel' && !apiKey) {
     console.error('HUBLA_API_KEY não está configurada');
     return res.status(500).json({ error: 'Erro de configuração: HUBLA_API_KEY não encontrada' });
   }
   
-  // Logar os primeiros caracteres da chave (para depuração)
-  console.log(`Usando HUBLA_API_KEY: ${apiKey.substring(0, 5)}...`);
+  // Logar os primeiros caracteres da chave (para depuração) se for uma operação que requer a chave
+  if (operation !== 'test-vercel' && apiKey) {
+    console.log(`Usando HUBLA_API_KEY: ${apiKey.substring(0, 5)}...`);
+  }
 
   try {
     // Rotear a requisição com base na operação
     switch (operation) {
+      case 'test-vercel':
+        return handleTestVercel(req, res);
+        
       case 'test':
         return handleTest(req, res, apiKey);
       
@@ -67,6 +72,36 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+// Função para teste do Vercel (equivalente ao antigo test.js)
+async function handleTestVercel(req, res) {
+  // Obter valor da variável de ambiente
+  const asaasApiKey = process.env.ASAAS_API_KEY;
+  const asaasKeyStatus = asaasApiKey 
+    ? `Configurada (primeiros 10 caracteres: ${asaasApiKey.substring(0, 10)}...)` 
+    : 'Não configurada';
+    
+  const hublaApiKey = process.env.HUBLA_API_KEY;
+  const hublaKeyStatus = hublaApiKey 
+    ? `Configurada (primeiros 5 caracteres: ${hublaApiKey.substring(0, 5)}...)` 
+    : 'Não configurada';
+  
+  return res.status(200).json({
+    status: 'success',
+    message: 'API funcionando corretamente',
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV || 'development',
+    apis: {
+      hubla: hublaKeyStatus,
+      asaas: asaasKeyStatus
+    },
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      HUBLA_API_KEY_CONFIGURED: !!process.env.HUBLA_API_KEY,
+      ASAAS_API_KEY_CONFIGURED: !!process.env.ASAAS_API_KEY
+    }
+  });
+}
 
 // Função para teste simples da API
 async function handleTest(req, res, apiKey) {

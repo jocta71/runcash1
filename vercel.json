@@ -7,7 +7,7 @@
   "rewrites": [
     { 
       "source": "/api/test", 
-      "destination": "/api/test" 
+      "destination": "/api/hubla-api?operation=test-vercel" 
     },
     { 
       "source": "/api/hubla-test", 
@@ -38,7 +38,11 @@
       "destination": "/api/hubla-api?operation=cancel-subscription" 
     },
     { 
-      "source": "/api/((?!test|hubla-api).*)", 
+      "source": "/api/all", 
+      "destination": "/api/hubla-api" 
+    },
+    { 
+      "source": "/api/((?!hubla-api).*)", 
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1" 
     },
     {
