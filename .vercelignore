@@ -26,20 +26,20 @@ examples/
 scraper_*
 *example*
 
-# IMPORTANTE: Primeiro excetuamos o router antes de ignorar os arquivos da API
-!api/router.js
-!api/*/necessary-for-router/*.js
-
-# Agora ignoramos os demais arquivos da API
-api/*.js
-api/**/*.js
-
 # Ignorar arquivos de build e dependências
 node_modules
 .env
 .env.*
 .git
 .github
+
+# Primeiro ignoramos a pasta API
+api/*.js
+api/**/*.js
+
+# Depois excetuamos os arquivos necessários
+!api/router.js
+!api/*/necessary-for-router/*.js
 
 # Não ignorar a pasta frontend
 !frontend/ 

@@ -7,6 +7,22 @@
 const asaasWebhookHandler = require('./asaas-webhook');
 const hublaWebhookHandler = require('./hubla-webhook');
 
+// Importação do proxy para roletas
+let proxyRouletteHandler;
+try {
+  proxyRouletteHandler = require('./proxy-roulette');
+} catch (error) {
+  console.warn('Handler proxy-roulette não disponível:', error.message);
+}
+
+// Importação do proxy genérico
+let proxyHandler;
+try {
+  proxyHandler = require('./proxy');
+} catch (error) {
+  console.warn('Handler proxy genérico não disponível:', error.message);
+}
+
 // Importações dos handlers de pagamento
 let asaasCreateCustomerHandler;
 let asaasCreateSubscriptionHandler;
@@ -67,7 +83,9 @@ try {
 module.exports = async (req, res) => {
   // Configuração CORS global
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Usar a origem específica em vez de wildcard para permitir credenciais
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
   res.setHeader('Access-Control-Allow-Headers', '*');
 
@@ -92,6 +110,27 @@ module.exports = async (req, res) => {
   // Roteamento baseado no endpoint e subpath
   try {
     const fullPath = subpath ? `${endpoint}/${subpath}` : endpoint;
+    
+    // Caso especial para ROULETTES (maiúsculo)
+    if (endpoint === 'ROULETTES' || endpoint === 'roulettes') {
+      return proxyRouletteHandler 
+        ? await proxyRouletteHandler(req, res) 
+        : notImplemented(res, 'proxy-roulette');
+    }
+    
+    // Caso especial para proxy-roulette
+    if (endpoint === 'proxy-roulette') {
+      return proxyRouletteHandler 
+        ? await proxyRouletteHandler(req, res) 
+        : notImplemented(res, 'proxy-roulette');
+    }
+    
+    // Caso especial para proxy genérico
+    if (endpoint === 'proxy') {
+      return proxyHandler 
+        ? await proxyHandler(req, res) 
+        : notImplemented(res, 'proxy');
+    }
     
     switch (fullPath) {
       // Webhooks
