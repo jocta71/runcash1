@@ -1,365 +1,489 @@
-const crypto = require('crypto');
-const axios = require('axios');
+import mongoose from 'mongoose';
+import { connectToDatabase } from '../_db.js';
+import { User } from '../models/User.js';
+import { Subscription } from '../models/Subscription.js';
+import { WebhookLog } from '../models/WebhookLog.js'; 
 
-/**
- * Verifica o token do webhook Hubla
- * @param {string} token - Token recebido no cabeçalho da requisição
- * @param {string} secret - Secret configurado no ambiente
- * @returns {boolean} - Se o token é válido
- */
-const verifyHublaToken = (token, secret) => {
-  if (!token || !secret) return false;
-  return token === secret;
-};
+// Configurações da Hubla
+const HUBLA_TOKEN = process.env.HUBLA_TOKEN || 'rEJhmsBOXTS0fDtH1Fs1q2r6uIVv83QKAR0MqVhjQusXCkAeYybTWfCSH3N7cI3O';
+const DEBUG_MODE = process.env.DEBUG_MODE === 'true';
 
-/**
- * Manipulador de webhook da Hubla
- * Recebe e processa eventos enviados pela plataforma Hubla
- */
-module.exports = async (req, res) => {
-  // Configurar CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-hubla-token, x-hubla-sandbox, x-hubla-idempotency');
-  
-  // Lidar com solicitações OPTIONS (CORS preflight)
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  // Verificar método
+// Função principal para processar a requisição de webhook
+export default async function handler(req, res) {
+  // Verificar se o método é POST
   if (req.method !== 'POST') {
+    console.warn('Método não permitido:', req.method);
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
   try {
-    // Obter informações do cabeçalho para debug
-    const token = req.headers['x-hubla-token'];
-    const isSandbox = req.headers['x-hubla-sandbox'] === 'true';
-    const idempotencyKey = req.headers['x-hubla-idempotency'];
+    // Verificar a autenticação usando o token da Hubla no cabeçalho
+    if (!validateHublaRequest(req)) {
+      console.error('Falha na validação do token da Hubla');
+      return res.status(401).json({ error: 'Não autorizado' });
+    }
+
+    // Obter os dados da requisição
+    const data = req.body;
     
-    // Registrar informações detalhadas do cabeçalho para debug
-    console.log('Cabeçalhos do webhook Hubla:', {
-      token: token ? 'Presente' : 'Ausente',
-      sandbox: isSandbox ? 'Sim' : 'Não',
-      idempotency: idempotencyKey || 'Não presente'
-    });
+    // Registrar o webhook no log para debugging
+    await logWebhook(req);
+
+    // Verificar se os dados são válidos
+    if (!data || !data.type) {
+      console.error('Payload do webhook inválido:', data);
+      return res.status(400).json({ error: 'Payload inválido' });
+    }
+
+    // Determinar a versão do webhook e processar de acordo
+    const webhookVersion = data.version || '1.0.0';
+    console.log(`Processando webhook versão ${webhookVersion}, tipo: ${data.type}`);
+
+    let processResult;
     
-    // Verificar token apenas em ambiente de produção e se não for teste/sandbox
-    if (!isSandbox && process.env.NODE_ENV === 'production') {
-      const webhookSecret = process.env.HUBLA_WEBHOOK_SECRET;
-      const isValidToken = verifyHublaToken(token, webhookSecret);
-      
-      if (!isValidToken) {
-        console.error('Token inválido do webhook Hubla');
-        return res.status(401).json({ error: 'Token inválido' });
-      }
-      
-      console.log('Token de webhook validado com sucesso');
+    if (webhookVersion.startsWith('2.')) {
+      // Processar webhook versão 2.x
+      processResult = await processWebhookV2(data);
     } else {
-      console.log('Verificação de token ignorada: ambiente sandbox ou teste');
+      // Processar webhook versão 1.x (legado)
+      processResult = await processWebhookV1(data);
     }
-    
-    // Processar evento
-    const event = req.body;
-    
-    // Log do evento completo para debugging
-    console.log(`Webhook Hubla recebido (${event.type}):`, JSON.stringify(event));
-    
-    // Verificar se é um evento de teste 
-    const isTestEvent = event.type === 'test' || isSandbox;
-    
-    if (isTestEvent) {
-      console.log('Evento de teste recebido, processando simulação');
-      
-      // Para eventos de teste, enviamos uma resposta de sucesso
-      return res.status(200).json({ 
-        received: true, 
-        message: 'Evento de teste processado com sucesso',
-        environment: process.env.NODE_ENV || 'development',
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    // Processar diferentes tipos de eventos
-    switch (event.type) {
-      case 'checkout.completed':
-      case 'NewSale': {
-        // Checkout concluído com sucesso
-        const { metadata, customer, subscription } = event.data || {};
-        // Para NewSale, a estrutura é diferente
-        const userId = metadata?.userId || event.event?.userId;
-        const planId = metadata?.planId || 'basic'; // Assumir plano básico se não especificado
-        
-        console.log('Checkout completado:', {
-          userId, 
-          planId, 
-          customer: customer?.email || event.event?.userEmail,
-          subscriptionId: subscription?.id || event.event?.transactionId
-        });
-        
-        if (!userId) {
-          console.error('Metadados incompletos no evento:', { 
-            metadata: metadata || event.event, 
-            eventType: event.type,
-            eventId: event.id
-          });
-          return res.status(400).json({ error: 'Metadados incompletos' });
-        }
-        
-        // Atualizar assinatura no banco de dados
-        try {
-          // URL da API para atualizar assinatura do usuário
-          const apiUrl = process.env.API_SERVICE_URL || 'https://backendapi-production-36b5.up.railway.app';
-          
-          // Mapear tipo de plano
-          const planTypeMap = {
-            'basic': 'BASIC',
-            'pro': 'PRO'
-          };
-          
-          // Determinar informações do cliente com base no formato do evento
-          const customerInfo = customer ? {
-            name: customer.name,
-            email: customer.email,
-            taxId: customer.tax_id
-          } : {
-            name: event.event?.userName,
-            email: event.event?.userEmail,
-            taxId: event.event?.userDocument
-          };
-          
-          // Determinar ID de pagamento com base no formato do evento
-          const paymentId = subscription?.id || 
-                          event.event?.transactionId || 
-                          event.event?.id || 
-                          `hubla_${new Date().getTime()}`;
-          
-          // Dados da assinatura
-          const subscriptionData = {
-            userId,
-            planId,
-            planType: planTypeMap[planId] || 'BASIC',
-            paymentProvider: 'hubla',
-            paymentId,
-            status: 'active',
-            customerInfo
-          };
-          
-          console.log('Enviando dados de assinatura para API:', subscriptionData);
-          
-          // Chamar API para atualizar assinatura
-          const response = await axios.post(
-            `${apiUrl}/api/subscriptions/update`,
-            subscriptionData,
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.API_SECRET_KEY}`
-              }
-            }
-          );
-          
-          console.log(`Assinatura atualizada com sucesso para o usuário ${userId}:`, response.data);
-        } catch (dbError) {
-          console.error('Erro ao atualizar assinatura:', dbError.message);
-          if (dbError.response) {
-            console.error('Detalhes da resposta:', {
-              status: dbError.response.status,
-              data: dbError.response.data
-            });
-          }
-          // Continuar processamento mesmo com erro no banco de dados
-        }
-        
-        break;
-      }
-      
-      case 'subscription.cancelled':
-      case 'CanceledSubscription': {
-        // Assinatura cancelada ou expirada
-        const { metadata, subscription } = event.data || {};
-        // Para CanceledSubscription, a estrutura é diferente
-        const userId = metadata?.userId || event.event?.userId;
-        
-        console.log(`Evento de cancelamento de assinatura (${event.type}):`, {
-          userId,
-          subscriptionId: subscription?.id || event.event?.transactionId
-        });
-        
-        if (!userId) {
-          console.error('Metadados incompletos no evento de cancelamento:', { 
-            metadata: metadata || event.event, 
-            eventType: event.type,
-            eventId: event.id
-          });
-          return res.status(400).json({ error: 'Metadados incompletos' });
-        }
-        
-        // Atualizar status da assinatura no banco de dados
-        try {
-          // URL da API para atualizar assinatura do usuário
-          const apiUrl = process.env.API_SERVICE_URL || 'https://backendapi-production-36b5.up.railway.app';
-          
-          // Determinar ID do pagamento com base no formato do evento
-          const paymentId = subscription?.id || 
-                          event.event?.transactionId || 
-                          event.event?.id || 
-                          '';
-          
-          // Dados da assinatura
-          const subscriptionData = {
-            userId,
-            paymentId,
-            status: 'cancelled'
-          };
-          
-          console.log('Enviando atualização de status para API:', subscriptionData);
-          
-          // Chamar API para atualizar assinatura
-          const response = await axios.post(
-            `${apiUrl}/api/subscriptions/update-status`,
-            subscriptionData,
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.API_SECRET_KEY}`
-              }
-            }
-          );
-          
-          console.log(`Assinatura cancelada com sucesso para o usuário ${userId}:`, response.data);
-        } catch (dbError) {
-          console.error('Erro ao cancelar assinatura:', dbError.message);
-          if (dbError.response) {
-            console.error('Detalhes da resposta:', {
-              status: dbError.response.status,
-              data: dbError.response.data
-            });
-          }
-          // Continuar processamento mesmo com erro no banco de dados
-        }
-        
-        break;
-      }
-      
-      // Novo caso para tratar evento de Novo Usuário
-      case 'NewUser': {
-        // Obter dados do usuário do evento
-        const userData = event.event || {};
-        const userId = userData.userId;
-        
-        if (!userId) {
-          console.error('Dados de usuário incompletos no evento:', { 
-            userData, 
-            eventType: event.type
-          });
-          return res.status(400).json({ error: 'Dados de usuário incompletos' });
-        }
-        
-        console.log(`Novo usuário registrado na Hubla:`, {
-          userId,
-          nome: userData.userName,
-          email: userData.userEmail,
-          documento: userData.userDocument,
-          produto: userData.groupName
-        });
-        
-        try {
-          // URL da API para registrar ou atualizar usuário
-          const apiUrl = process.env.API_SERVICE_URL || 'https://backendapi-production-36b5.up.railway.app';
-          
-          // Preparar dados do usuário para sincronização
-          const userDataToSync = {
-            userId,
-            externalId: userId,
-            name: userData.userName,
-            email: userData.userEmail,
-            phoneNumber: userData.userPhone,
-            documentNumber: userData.userDocument,
-            metadata: {
-              hublaGroupId: userData.groupId,
-              hublaGroupName: userData.groupName,
-              hublaSellerId: userData.sellerId,
-              source: 'hubla_webhook'
-            }
-          };
-          
-          console.log('Sincronizando dados de usuário com API:', userDataToSync);
-          
-          // Chamar API para sincronizar usuário
-          // Apenas loga a intenção mas não chama API até implementarmos o endpoint
-          console.log(`Usuário ${userId} seria sincronizado com o sistema`);
-          
-          /* Código comentado - será implementado quando o endpoint existir
-          const response = await axios.post(
-            `${apiUrl}/api/users/sync`,
-            userDataToSync,
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.API_SECRET_KEY}`
-              }
-            }
-          );
-          
-          console.log(`Usuário sincronizado com sucesso: ${userId}`, response.data);
-          */
-        } catch (dbError) {
-          console.error('Erro ao sincronizar usuário:', dbError.message);
-          if (dbError.response) {
-            console.error('Detalhes da resposta:', {
-              status: dbError.response.status,
-              data: dbError.response.data
-            });
-          }
-          // Continuar processamento mesmo com erro no banco de dados
-        }
-        
-        break;
-      }
-      
-      // Tratar outros eventos relacionados a assinaturas
-      case 'subscription.created':
-      case 'subscription.activated': 
-      case 'subscription.renewal_activated':
-      case 'subscription.renewal_deactivated': {
-        const { metadata, subscription } = event.data || {};
-        const userId = metadata?.userId;
-        
-        console.log(`Evento de assinatura (${event.type}):`, {
-          userId,
-          subscriptionId: subscription?.id,
-          metadata: metadata
-        });
-        break;
-      }
-      
-      // Adicionar outros tipos de eventos conforme necessário
-      default:
-        console.log(`Evento não processado: ${event.type}`, {
-          eventId: event.id,
-          timestamp: event.created_at
-        });
-    }
-    
-    // Retornar sucesso
-    return res.status(200).json({ 
+
+    // Retornar a resposta com o resultado do processamento
+    return res.status(200).json({
       received: true,
-      event_type: event.type,
-      timestamp: new Date().toISOString()
+      event_type: data.type,
+      timestamp: new Date().toISOString(),
+      ...processResult
     });
-    
   } catch (error) {
-    console.error('Erro ao processar webhook Hubla:', error.message);
+    // Registrar erro detalhado
+    console.error('Erro ao processar webhook:', error);
     
-    // Detalhes adicionais para ajudar no debugging
-    console.error('Stack trace:', error.stack);
-    
-    return res.status(500).json({ 
-      error: 'Erro interno do servidor',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
+    // Retornar erro 500 com detalhes (apenas em modo de depuração)
+    if (DEBUG_MODE) {
+      return res.status(500).json({ 
+        error: 'Erro interno do servidor', 
+        details: error.message,
+        stack: error.stack
+      });
+    } else {
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
   }
-}; 
+}
+
+// Função para validar a requisição da Hubla usando o token
+function validateHublaRequest(req) {
+  // Verificar o cabeçalho com o token da Hubla
+  const hublaToken = req.headers['x-hubla-token'];
+  
+  // Verificar se o token é válido
+  if (!hublaToken || hublaToken !== HUBLA_TOKEN) {
+    console.warn('Token da Hubla inválido:', hublaToken);
+    return false;
+  }
+  
+  return true;
+}
+
+// Função para registrar o webhook no log
+async function logWebhook(req) {
+  try {
+    // Conectar ao banco de dados
+    await connectToDatabase();
+    
+    // Criar um novo log
+    const webhookLog = new WebhookLog({
+      event_type: req.body.type || 'unknown',
+      headers: req.headers,
+      body: req.body,
+      timestamp: new Date()
+    });
+    
+    // Salvar o log
+    await webhookLog.save();
+    console.log('Webhook registrado no log com sucesso');
+  } catch (error) {
+    console.error('Erro ao registrar webhook no log:', error);
+    // Não lançar exceção para não interromper o processamento principal
+  }
+}
+
+// Processar webhook da versão 2.x
+async function processWebhookV2(data) {
+  // Conectar ao banco de dados
+  await connectToDatabase();
+  
+  // Extrair o evento com base no tipo
+  switch (data.type) {
+    case 'SubscriptionActivated':
+    case 'SubscriptionCreated':
+      return await processSubscriptionEvent(data);
+    
+    case 'SubscriptionExpired':
+    case 'SubscriptionDeactivated':
+      return await processCancellationEvent(data);
+      
+    case 'InvoicePaymentSucceeded':
+    case 'InvoiceCreated':
+      return await processInvoiceEvent(data);
+      
+    default:
+      console.log(`Evento não processado: ${data.type} (v2)`);
+      return { status: 'ignored', reason: 'event_type_not_handled' };
+  }
+}
+
+// Processar webhook da versão 1.x (legado)
+async function processWebhookV1(data) {
+  // Conectar ao banco de dados
+  await connectToDatabase();
+  
+  // Extrair o evento com base no tipo
+  switch (data.type) {
+    case 'NewSale':
+      return await processNewSaleEvent(data.event);
+    
+    case 'CanceledSubscription':
+      return await processCanceledSubscriptionEvent(data.event);
+      
+    default:
+      console.log(`Evento não processado: ${data.type} (v1)`);
+      return { status: 'ignored', reason: 'event_type_not_handled' };
+  }
+}
+
+// Processar eventos de ativação de assinatura (v2)
+async function processSubscriptionEvent(data) {
+  console.log('Processando evento de assinatura:', data.type);
+  
+  try {
+    // Extrair dados da assinatura
+    const subscription = data.data?.subscription;
+    if (!subscription) {
+      throw new Error('Dados da assinatura não encontrados no payload');
+    }
+    
+    // Extrair metadados 
+    const metadata = subscription.metadata || {};
+    
+    // Obter o ID do usuário (priorizar metadados, depois tentar outros campos)
+    let userId = metadata.userId;
+    if (!userId) {
+      userId = subscription.customer?.userId || subscription.customer?.id;
+    }
+    
+    if (!userId) {
+      throw new Error('ID do usuário não encontrado nos dados da assinatura');
+    }
+    
+    console.log('ID do usuário encontrado:', userId);
+    
+    // Tentar encontrar o usuário por ID (qualquer formato possível)
+    const user = await findUserByAnyId(userId);
+    
+    if (!user) {
+      throw new Error(`Usuário não encontrado com ID: ${userId}`);
+    }
+    
+    // Determinar o plano com base no nome ou metadados
+    const planId = metadata.planId || determinePlanFromSubscription(subscription);
+    
+    if (!planId) {
+      throw new Error('Não foi possível determinar o plano da assinatura');
+    }
+    
+    console.log(`Atualizando assinatura para o usuário ${user._id}, plano ${planId}`);
+    
+    // Atualizar ou criar a assinatura no banco de dados
+    await Subscription.findOneAndUpdate(
+      { userId: user._id },
+      {
+        userId: user._id,
+        planId: planId,
+        status: 'active',
+        provider: 'hubla',
+        externalId: subscription.id,
+        startDate: new Date(subscription.startedAt || subscription.createdAt || Date.now()),
+        endDate: subscription.expiresAt ? new Date(subscription.expiresAt) : null,
+        autoRenew: subscription.autoRenew || false,
+        metadata: {
+          subscriptionData: subscription,
+          raw: data
+        },
+        updatedAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+    
+    console.log(`Assinatura atualizada com sucesso para o usuário ${user._id}`);
+    
+    return { 
+      status: 'success', 
+      userId: user._id,
+      planId: planId
+    };
+  } catch (error) {
+    console.error('Erro ao processar evento de assinatura:', error);
+    throw error;
+  }
+}
+
+// Processar eventos de cancelamento de assinatura (v2)
+async function processCancellationEvent(data) {
+  console.log('Processando evento de cancelamento:', data.type);
+  
+  try {
+    // Extrair dados da assinatura
+    const subscription = data.data?.subscription;
+    if (!subscription) {
+      throw new Error('Dados da assinatura não encontrados no payload');
+    }
+    
+    // Extrair metadados 
+    const metadata = subscription.metadata || {};
+    
+    // Obter o ID do usuário (priorizar metadados, depois tentar outros campos)
+    let userId = metadata.userId;
+    if (!userId) {
+      userId = subscription.customer?.userId || subscription.customer?.id;
+    }
+    
+    if (!userId) {
+      throw new Error('ID do usuário não encontrado nos dados da assinatura');
+    }
+    
+    // Tentar encontrar o usuário por ID (qualquer formato possível)
+    const user = await findUserByAnyId(userId);
+    
+    if (!user) {
+      throw new Error(`Usuário não encontrado com ID: ${userId}`);
+    }
+    
+    console.log(`Cancelando assinatura para o usuário ${user._id}`);
+    
+    // Atualizar a assinatura no banco de dados
+    await Subscription.findOneAndUpdate(
+      { userId: user._id },
+      {
+        status: 'canceled',
+        endDate: new Date(),
+        autoRenew: false,
+        metadata: {
+          ...subscription,
+          canceledAt: new Date(),
+          raw: data
+        },
+        updatedAt: new Date()
+      }
+    );
+    
+    console.log(`Assinatura cancelada com sucesso para o usuário ${user._id}`);
+    
+    return { 
+      status: 'success', 
+      userId: user._id
+    };
+  } catch (error) {
+    console.error('Erro ao processar evento de cancelamento:', error);
+    throw error;
+  }
+}
+
+// Processar eventos de fatura (v2)
+async function processInvoiceEvent(data) {
+  console.log('Processando evento de fatura:', data.type);
+  
+  // Implementação a ser adicionada
+  return { status: 'success', message: 'Evento de fatura registrado' };
+}
+
+// Processar evento de nova venda (v1)
+async function processNewSaleEvent(event) {
+  console.log('Processando evento de nova venda (v1):', event);
+  
+  try {
+    // Extrair o ID do usuário do evento
+    const userId = event.userId;
+    
+    if (!userId) {
+      throw new Error('ID do usuário não encontrado no evento');
+    }
+    
+    // Tentar encontrar o usuário por ID (qualquer formato possível)
+    const user = await findUserByAnyId(userId);
+    
+    if (!user) {
+      throw new Error(`Usuário não encontrado com ID: ${userId}`);
+    }
+    
+    // Determinar o plano com base no nome ou outros dados
+    const planId = determinePlanFromV1Event(event);
+    
+    if (!planId) {
+      throw new Error('Não foi possível determinar o plano da assinatura');
+    }
+    
+    console.log(`Atualizando assinatura para o usuário ${user._id}, plano ${planId}`);
+    
+    // Atualizar ou criar a assinatura no banco de dados
+    await Subscription.findOneAndUpdate(
+      { userId: user._id },
+      {
+        userId: user._id,
+        planId: planId,
+        status: 'active',
+        provider: 'hubla',
+        externalId: event.transactionId,
+        startDate: new Date(event.paidAt || event.createdAt || Date.now()),
+        endDate: event.expiresAt ? new Date(event.expiresAt) : null,
+        autoRenew: event.recurring === 'subscription',
+        metadata: {
+          raw: event
+        },
+        updatedAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+    
+    console.log(`Assinatura atualizada com sucesso para o usuário ${user._id}`);
+    
+    return { 
+      status: 'success', 
+      userId: user._id,
+      planId: planId
+    };
+  } catch (error) {
+    console.error('Erro ao processar evento de nova venda:', error);
+    throw error;
+  }
+}
+
+// Processar evento de cancelamento de assinatura (v1)
+async function processCanceledSubscriptionEvent(event) {
+  console.log('Processando evento de cancelamento de assinatura (v1):', event);
+  
+  try {
+    // Extrair o ID do usuário do evento
+    const userId = event.userId;
+    
+    if (!userId) {
+      throw new Error('ID do usuário não encontrado no evento');
+    }
+    
+    // Tentar encontrar o usuário por ID (qualquer formato possível)
+    const user = await findUserByAnyId(userId);
+    
+    if (!user) {
+      throw new Error(`Usuário não encontrado com ID: ${userId}`);
+    }
+    
+    console.log(`Cancelando assinatura para o usuário ${user._id}`);
+    
+    // Atualizar a assinatura no banco de dados
+    await Subscription.findOneAndUpdate(
+      { userId: user._id },
+      {
+        status: 'canceled',
+        endDate: new Date(),
+        autoRenew: false,
+        metadata: {
+          canceledAt: new Date(),
+          raw: event
+        },
+        updatedAt: new Date()
+      }
+    );
+    
+    console.log(`Assinatura cancelada com sucesso para o usuário ${user._id}`);
+    
+    return { 
+      status: 'success', 
+      userId: user._id
+    };
+  } catch (error) {
+    console.error('Erro ao processar evento de cancelamento de assinatura:', error);
+    throw error;
+  }
+}
+
+// Funções auxiliares
+
+// Encontrar usuário por qualquer formato de ID possível
+async function findUserByAnyId(userId) {
+  // Tentar encontrar o usuário com o ID exato
+  let user = await User.findOne({ 
+    $or: [
+      { _id: mongoose.Types.ObjectId.isValid(userId) ? userId : null },
+      { id: userId },
+      { firebaseId: userId }
+    ]
+  });
+  
+  if (user) {
+    return user;
+  }
+  
+  // Tentar encontrar por string de ID em vários campos
+  user = await User.findOne({
+    $or: [
+      { '_id': userId }, 
+      { 'id': userId },
+      { 'firebaseId': userId },
+      { 'authProviderIds.firebase': userId }
+    ]
+  });
+  
+  return user;
+}
+
+// Determinar o plano com base nos dados da assinatura (v2)
+function determinePlanFromSubscription(subscription) {
+  // Priorizar metadados de plano
+  if (subscription.metadata?.planId) {
+    return subscription.metadata.planId;
+  }
+  
+  // Tentar identificar com base no nome ou código do produto
+  const productName = subscription.product?.name?.toLowerCase() || '';
+  const productCode = subscription.product?.code?.toLowerCase() || '';
+  
+  if (productName.includes('basic') || productCode.includes('basic')) {
+    return 'basic';
+  } else if (productName.includes('pro') || productCode.includes('pro')) {
+    return 'pro';
+  } else if (subscription.amount === 3) {
+    // Identificar pelo valor (apenas se não houver outras fontes)
+    return 'basic';
+  } else if (subscription.amount === 30) {
+    return 'pro';
+  }
+  
+  // Padrão para basic
+  console.warn('Não foi possível determinar o plano, usando "basic" como padrão');
+  return 'basic';
+}
+
+// Determinar o plano com base nos dados do evento (v1)
+function determinePlanFromV1Event(event) {
+  // Tentar identificar com base no valor total
+  if (event.totalAmount === 3) {
+    return 'basic';
+  } else if (event.totalAmount === 30) {
+    return 'pro';
+  }
+  
+  // Verificar se há informação de oferta
+  const offer = event.offer?.toLowerCase() || '';
+  
+  if (offer.includes('basic')) {
+    return 'basic';
+  } else if (offer.includes('pro')) {
+    return 'pro';
+  }
+  
+  // Padrão para basic
+  console.warn('Não foi possível determinar o plano, usando "basic" como padrão');
+  return 'basic';
+} 

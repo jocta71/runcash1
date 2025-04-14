@@ -20,6 +20,14 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthPage from "./pages/AuthPage";
 import SoundManager from "./components/SoundManager";
+import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import DashboardPage from './pages/DashboardPage';
+import PlansPage from './pages/PlansPage';
+import NotFoundPage from './pages/NotFoundPage';
+import WebhookTestPage from './pages/WebhookTestPage';
+import SubscriptionManagePage from './pages/SubscriptionManagePage';
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -28,14 +36,12 @@ const StrategyFormPage = lazy(() => import("@/pages/StrategyFormPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const SeedPage = lazy(() => import("@/pages/SeedPage"));
-const PlansPage = lazy(() => import("@/pages/PlansPage"));
 const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
 const PaymentSuccess = lazy(() => import("@/pages/PaymentSuccess"));
 const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
-const WebhookTestPage = lazy(() => import("@/pages/WebhookTestPage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -94,144 +100,32 @@ const App = () => {
                     <BrowserRouter>
                       <GoogleAuthHandler />
                       <Routes>
-                        {/* Rota pública de login - Acessível mesmo sem autenticação */}
-                        <Route path="/login" element={
-                          <Suspense fallback={<LoadingScreen />}>
-                            <AuthPage />
-                          </Suspense>
-                        } />
+                        <Route path="/" element={<HomePage />} />
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/registro" element={<RegisterPage />} />
+                        <Route path="/planos" element={<PlansPage />} />
                         
-                        {/* Redirecionamento para login se acessar diretamente a raiz sem autenticação */}
-                        <Route index element={
+                        <Route path="/dashboard" element={
                           <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <Index />
-                            </Suspense>
+                            <DashboardPage />
                           </ProtectedRoute>
                         } />
                         
-                        {/* Todas as outras rotas são protegidas */}
-                        <Route path="/roulettes" element={
+                        <Route path="/perfil" element={
                           <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <RoulettesPage />
-                            </Suspense>
+                            <ProfilePage />
                           </ProtectedRoute>
                         } />
                         
-                        <Route path="/history" element={
+                        <Route path="/assinatura" element={
                           <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <RouletteHistoryPage />
-                            </Suspense>
+                            <SubscriptionManagePage />
                           </ProtectedRoute>
                         } />
                         
-                        <Route path="/analysis" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <RouletteAnalysisPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
+                        <Route path="/webhook-test" element={<WebhookTestPage />} />
                         
-                        <Route path="/strategies" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <StrategiesPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/strategy/:id" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <StrategyFormPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/profile" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <ProfilePage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/billing" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <BillingPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/planos" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PlansPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/pagamento" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PaymentPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/pagamento/:planId" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PaymentPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/pagamento/sucesso" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PaymentSuccess />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/pagamento/cancelado" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PaymentCanceled />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/live" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <LiveRoulettePage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Rota para teste de webhook */}
-                        <Route path="/webhook-test" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <WebhookTestPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Rota para página não encontrada */}
-                        <Route path="*" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <NotFound />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
+                        <Route path="*" element={<NotFoundPage />} />
                       </Routes>
                       <Toaster />
                     </BrowserRouter>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package } from 'lucide-react';
+import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package, User, LogOut } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
   isOpen?: boolean;
