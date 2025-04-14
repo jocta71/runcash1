@@ -4,22 +4,24 @@
   "outputDirectory": "frontend/dist",
   "installCommand": "cd frontend && npm install",
   "framework": "vite",
-  "rewrites": [
+  "functions": {
+    "api/router.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
+  "routes": [
     { 
-      "source": "/api/router/:path*", 
-      "destination": "/api/router" 
+      "src": "/api/(.*)", 
+      "dest": "/api/router" 
     },
     {
-      "source": "/api/((?!router).*)", 
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/$1" 
-    },
-    {
-      "source": "/historico/(.*)",
-      "destination": "/index.html"
+      "src": "/historico/(.*)",
+      "dest": "/index.html"
     },
     { 
-      "source": "/(.*)", 
-      "destination": "/index.html" 
+      "src": "/(.*)", 
+      "dest": "/index.html" 
     }
   ],
   "env": {

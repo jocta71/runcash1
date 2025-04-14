@@ -56,7 +56,7 @@ export default function WebhookTestPage() {
       
       console.log('Payload:', payload);
       
-      const response = await axios.post('/api/router/simulate-webhook', payload);
+      const response = await axios.post('/api/simulate-webhook', payload);
       
       console.log('Resposta:', response.data);
       

@@ -24,4 +24,20 @@ tests/
 *.zip
 examples/
 scraper_*
-*example* 
+*example*
+
+# Ignorar todos os arquivos da API, exceto o router
+api/*.js
+!api/router.js
+api/**/*.js
+!api/*/necessary-for-router/*.js
+
+# Ignorar arquivos de build e dependências
+node_modules
+.env
+.env.*
+.git
+.github
+
+# Não ignorar a pasta frontend
+!frontend/ 
