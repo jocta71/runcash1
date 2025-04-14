@@ -68,10 +68,13 @@ const PlansPage = () => {
     }
     
     try {
-      console.log('Iniciando checkout com:', { planId, userId: user.id });
+      // Obter o ID do usuário (pode estar em user.id ou user._id)
+      const userId = user.id || user._id;
+      console.log('Dados do usuário completos:', user);
+      console.log('Iniciando checkout com:', { planId, userId });
       
       // Obter a URL do checkout com base no plano
-      const checkoutUrl = redirectToHublaCheckout(planId, user.id);
+      const checkoutUrl = redirectToHublaCheckout(planId, userId);
       
       // Verificar se a URL foi gerada corretamente
       if (!checkoutUrl) {

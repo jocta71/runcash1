@@ -51,8 +51,9 @@ export const verifyCheckoutEligibility = (user: any): { isEligible: boolean; mes
     return { isEligible: false, message: 'Usuário não encontrado. Por favor, faça login.' };
   }
 
-  // Verificar se o ID do usuário está presente
-  if (!user.id) {
+  // Verificar se o ID do usuário está presente (pode estar em user.id ou user._id)
+  const userId = user.id || user._id;
+  if (!userId) {
     console.error('ID do usuário não encontrado:', user);
     return { isEligible: false, message: 'ID do usuário não disponível. Por favor, faça login novamente.' };
   }
