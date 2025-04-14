@@ -24,7 +24,7 @@ const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
-type SidebarUIContext = {
+type SidebarContext = {
   state: "expanded" | "collapsed"
   open: boolean
   setOpen: (open: boolean) => void
@@ -34,18 +34,18 @@ type SidebarUIContext = {
   toggleSidebar: () => void
 }
 
-const SidebarUIContext = React.createContext<SidebarUIContext | null>(null)
+const SidebarContext = React.createContext<SidebarContext | null>(null)
 
-function useSidebarUI() {
-  const context = React.useContext(SidebarUIContext)
+function useSidebar() {
+  const context = React.useContext(SidebarContext)
   if (!context) {
-    throw new Error("useSidebarUI must be used within a SidebarUIProvider.")
+    throw new Error("useSidebar must be used within a SidebarProvider.")
   }
 
   return context
 }
 
-const SidebarUIProvider = React.forwardRef<
+const SidebarProvider = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
     defaultOpen?: boolean
@@ -114,7 +114,7 @@ const SidebarUIProvider = React.forwardRef<
     // This makes it easier to style the sidebar with Tailwind classes.
     const state = open ? "expanded" : "collapsed"
 
-    const contextValue = React.useMemo<SidebarUIContext>(
+    const contextValue = React.useMemo<SidebarContext>(
       () => ({
         state,
         open,
@@ -128,7 +128,7 @@ const SidebarUIProvider = React.forwardRef<
     )
 
     return (
-      <SidebarUIContext.Provider value={contextValue}>
+      <SidebarContext.Provider value={contextValue}>
         <TooltipProvider delayDuration={0}>
           <div
             style={
@@ -148,13 +148,13 @@ const SidebarUIProvider = React.forwardRef<
             {children}
           </div>
         </TooltipProvider>
-      </SidebarUIContext.Provider>
+      </SidebarContext.Provider>
     )
   }
 )
-SidebarUIProvider.displayName = "SidebarUIProvider"
+SidebarProvider.displayName = "SidebarProvider"
 
-const SidebarUI = React.forwardRef<
+const Sidebar = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
     side?: "left" | "right"
@@ -173,7 +173,7 @@ const SidebarUI = React.forwardRef<
     },
     ref
   ) => {
-    const { isMobile, state, openMobile, setOpenMobile } = useSidebarUI()
+    const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 
     if (collapsible === "none") {
       return (
@@ -255,13 +255,13 @@ const SidebarUI = React.forwardRef<
     )
   }
 )
-SidebarUI.displayName = "SidebarUI"
+Sidebar.displayName = "Sidebar"
 
 const SidebarTrigger = React.forwardRef<
   React.ElementRef<typeof Button>,
   React.ComponentProps<typeof Button>
 >(({ className, onClick, ...props }, ref) => {
-  const { toggleSidebar } = useSidebarUI()
+  const { toggleSidebar } = useSidebar()
 
   return (
     <Button
@@ -287,7 +287,7 @@ const SidebarRail = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<"button">
 >(({ className, ...props }, ref) => {
-  const { toggleSidebar } = useSidebarUI()
+  const { toggleSidebar } = useSidebar()
 
   return (
     <button
@@ -552,7 +552,7 @@ const SidebarMenuButton = React.forwardRef<
     ref
   ) => {
     const Comp = asChild ? Slot : "button"
-    const { isMobile, state } = useSidebarUI()
+    const { isMobile, state } = useSidebar()
 
     const button = (
       <Comp
@@ -734,7 +734,7 @@ const SidebarMenuSubButton = React.forwardRef<
 SidebarMenuSubButton.displayName = "SidebarMenuSubButton"
 
 export {
-  SidebarUI,
+  Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
@@ -753,9 +753,9 @@ export {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarUIProvider,
+  SidebarProvider,
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
-  useSidebarUI,
+  useSidebar,
 }

@@ -1,173 +1,159 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useAuth } from './AuthContext';
-import { PlanType } from '@/types/plans';
-import axios from 'axios';
+import React, { createContext, useContext, useState } from 'react';
+import { Plan, PlanType, UserSubscription } from '@/types/plans';
 
-// Tipos para o contexto
-interface SubscriptionContextType {
-  availablePlans: PlanType[];
-  currentPlan: PlanType | null;
-  loading: boolean;
-  error: string | null;
-  refreshSubscription: () => Promise<void>;
-  cancelSubscription: (reason?: string) => Promise<void>;
-}
-
-// Planos disponíveis
-const AVAILABLE_PLANS: PlanType[] = [
+// Lista de planos disponíveis
+export const availablePlans: Plan[] = [
+  {
+    id: 'free',
+    name: 'Free',
+    type: PlanType.FREE,
+    description: 'Acesso básico para experimentar a plataforma',
+    price: 0,
+    interval: 'monthly',
+    features: [
+      'Acesso a estatísticas básicas',
+      'Visualização de até 5 roletas',
+      'Atualizações a cada 10 minutos'
+    ],
+    allowedFeatures: ['view_basic_stats', 'view_limited_roulettes']
+  },
   {
     id: 'basic',
     name: 'Básico',
-    description: 'Para quem está começando a controlar suas finanças',
-    price: 3,
+    type: PlanType.BASIC,
+    description: 'Plano ideal para iniciantes',
+    price: 19.90,
     interval: 'monthly',
     features: [
-      'Controle de despesas e receitas',
-      'Categorização automática',
-      'Relatórios básicos',
-      'Lembretes de contas a pagar'
-    ]
+      'Acesso a estatísticas padrão',
+      'Visualização de até 15 roletas',
+      'Atualizações a cada 5 minutos',
+      'Suporte por email'
+    ],
+    allowedFeatures: ['view_basic_stats', 'view_standard_roulettes', 'email_support']
   },
   {
     id: 'pro',
     name: 'Profissional',
-    description: 'Para quem deseja um controle financeiro avançado',
-    price: 30,
+    type: PlanType.PRO,
+    description: 'Para jogadores que querem levar o jogo a sério',
+    price: 49.90,
     interval: 'monthly',
     features: [
-      'Todas as funcionalidades do plano Básico',
-      'Planejamento financeiro personalizado',
-      'Relatórios avançados e projeções',
-      'Exportação de dados em múltiplos formatos',
+      'Acesso a estatísticas avançadas',
+      'Visualização de roletas ilimitadas',
+      'Atualizações a cada 1 minuto',
       'Suporte prioritário',
-      'Sincronização com instituições financeiras'
+      'Alertas personalizados'
+    ],
+    allowedFeatures: ['view_advanced_stats', 'view_unlimited_roulettes', 'priority_support', 'custom_alerts']
+  },
+  {
+    id: 'premium',
+    name: 'Premium',
+    type: PlanType.PREMIUM,
+    description: 'Experiência completa para profissionais',
+    price: 99.90,
+    interval: 'monthly',
+    features: [
+      'Acesso a estatísticas em tempo real',
+      'Visualização de roletas ilimitadas',
+      'Atualizações em tempo real',
+      'Suporte VIP 24/7',
+      'Alertas avançados personalizados',
+      'Estratégias exclusivas',
+      'Acesso antecipado a novas funcionalidades'
+    ],
+    allowedFeatures: [
+      'view_realtime_stats', 
+      'view_unlimited_roulettes', 
+      'vip_support', 
+      'advanced_alerts', 
+      'exclusive_strategies', 
+      'early_access'
     ]
   }
 ];
 
-// Criar contexto
+interface SubscriptionContextType {
+  currentSubscription: UserSubscription | null;
+  currentPlan: Plan | null;
+  availablePlans: Plan[];
+  loading: boolean;
+  hasFeatureAccess: (featureId: string) => boolean;
+  upgradePlan: (planId: string) => Promise<void>;
+  cancelSubscription: () => Promise<void>;
+  loadUserSubscription: () => Promise<void>;
+}
+
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
-// Provedor do contexto
+// Versão mock do SubscriptionProvider que sempre fornece acesso premium
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isAuthenticated } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currentPlan, setCurrentPlan] = useState<PlanType | null>(null);
+  // Sempre usar o plano premium como padrão
+  const premiumPlan = availablePlans.find(plan => plan.id === 'premium') || availablePlans[3];
   
-  // Função para buscar informações da assinatura
-  const fetchSubscriptionInfo = async () => {
-    if (!isAuthenticated || !user) {
-      setCurrentPlan(null);
-      setLoading(false);
-      return;
-    }
+  // Estado inicial com plano premium
+  const [currentSubscription] = useState<UserSubscription | null>({
+    id: 'mock-subscription',
+    userId: 'mock-user',
+    planId: 'premium',
+    planType: PlanType.PREMIUM,
+    startDate: new Date(),
+    endDate: null,
+    status: 'active',
+    paymentMethod: 'mock',
+    paymentProvider: 'manual',
+    nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  });
+  
+  const [currentPlan] = useState<Plan | null>(premiumPlan);
+  const [loading] = useState(false);
 
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Obter a API base URL do .env
-      const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
-      
-      // Fazer requisição para obter a assinatura atual
-      const response = await axios.get(`${API_URL}/subscriptions/current`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (response.data.success && response.data.subscription) {
-        // Encontrar o plano correspondente nos planos disponíveis
-        const plan = AVAILABLE_PLANS.find(
-          (p) => p.id === response.data.subscription.planId
-        );
-        
-        // Definir o plano atual
-        setCurrentPlan(plan || null);
-      } else {
-        setCurrentPlan(null);
-      }
-    } catch (err) {
-      console.error('Erro ao buscar informações da assinatura:', err);
-      setError('Não foi possível carregar as informações da assinatura.');
-      // Em caso de erro, não definimos o plano atual como null para preservar os dados existentes
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Função para atualizar a assinatura
-  const refreshSubscription = async () => {
-    await fetchSubscriptionInfo();
-  };
-  
-  // Função para cancelar assinatura
-  const cancelSubscription = async (reason?: string) => {
-    if (!isAuthenticated || !user) {
-      throw new Error('Usuário não autenticado');
-    }
-    
-    try {
-      setLoading(true);
-      
-      // Obter a API base URL do .env
-      const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
-      
-      // Enviar solicitação para cancelar a assinatura
-      const response = await axios.post(
-        `${API_URL}/subscriptions/cancel`,
-        { reason: reason || 'Não especificado' },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
-      
-      if (response.data.success) {
-        // Atualizar o estado local após o cancelamento
-        setCurrentPlan(null);
-        return;
-      } else {
-        throw new Error(response.data.message || 'Falha ao cancelar assinatura');
-      }
-    } catch (err: any) {
-      console.error('Erro ao cancelar assinatura:', err);
-      setError('Não foi possível cancelar a assinatura.');
-      throw new Error(err.response?.data?.message || err.message || 'Erro desconhecido');
-    } finally {
-      setLoading(false);
-    }
+  // Função mock para carregar assinatura (não faz nada)
+  const loadUserSubscription = async (): Promise<void> => {
+    // Não faz nada, já que o estado inicial já inclui o plano premium
+    return Promise.resolve();
   };
 
-  // Buscar assinatura ao carregar o componente ou quando o usuário mudar
-  useEffect(() => {
-    fetchSubscriptionInfo();
-  }, [isAuthenticated, user]);
+  // Sempre retorna true para qualquer recurso
+  const hasFeatureAccess = (featureId: string): boolean => {
+    return true;
+  };
 
-  // Valor do contexto
-  const value = {
-    availablePlans: AVAILABLE_PLANS,
-    currentPlan,
-    loading,
-    error,
-    refreshSubscription,
-    cancelSubscription
+  // Funções mock para upgrade e cancelamento (não fazem nada)
+  const upgradePlan = async (planId: string): Promise<void> => {
+    console.log(`Upgrade para o plano ${planId} simulado com sucesso`);
+    return Promise.resolve();
+  };
+
+  const cancelSubscription = async (): Promise<void> => {
+    console.log('Cancelamento de assinatura simulado com sucesso');
+    return Promise.resolve();
   };
 
   return (
-    <SubscriptionContext.Provider value={value}>
+    <SubscriptionContext.Provider
+      value={{
+        currentSubscription,
+        currentPlan,
+        availablePlans,
+        loading,
+        hasFeatureAccess,
+        upgradePlan,
+        cancelSubscription,
+        loadUserSubscription
+      }}
+    >
       {children}
     </SubscriptionContext.Provider>
   );
 };
 
-// Hook para usar o contexto
 export const useSubscription = () => {
   const context = useContext(SubscriptionContext);
   if (context === undefined) {
-    throw new Error('useSubscription deve ser usado dentro de um SubscriptionProvider');
+    throw new Error('useSubscription must be used within a SubscriptionProvider');
   }
   return context;
 }; 
