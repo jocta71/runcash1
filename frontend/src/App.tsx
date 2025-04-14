@@ -22,10 +22,9 @@ initPerformanceOptimizations();
 // Marcar início da renderização do App
 markPerformance('app_component_init');
 
-// Importação de componentes com lazy loading usando os arquivos existentes
+// Importação de componentes com lazy loading e aliases corretos
 const HomePage = lazy(() => import('./pages/Index'));
-const LoginPage = lazy(() => import('./pages/AuthPage'));
-const RegisterPage = lazy(() => import('./pages/AuthPage'));
+const AuthPage = lazy(() => import('./pages/AuthPage'));
 const PlansPage = lazy(() => import('./pages/PlansPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const NotFoundPage = lazy(() => import('./pages/NotFound'));
@@ -84,7 +83,7 @@ const SuspenseWrapper = ({ children, name }: { children: React.ReactNode, name?:
 const App = () => {
   // Criar uma única instância do QueryClient com useRef
   const queryClient = useRef(createQueryClient());
-  const [isRouterReady, setIsRouterReady] = useState(false);
+  const [isRouterReady, setIsRouterReady] = useState(true); // Mudado para true para exibir as rotas imediatamente
 
   // Gerenciador de congelamento para ambientes de desenvolvimento
   const handleFreeze = () => {
@@ -116,12 +115,6 @@ const App = () => {
     // Iniciar otimização de roteamento
     optimizeRouting();
     
-    // Marcar que o roteador está pronto após um breve delay
-    setTimeout(() => {
-      setIsRouterReady(true);
-      markPerformance('router_ready');
-    }, 100);
-    
     return () => {
       window.removeEventListener('resize', handleFreeze);
       markPerformance('app_component_unmount');
@@ -141,66 +134,67 @@ const App = () => {
                   <SoundManager>
                     <BrowserRouter>
                       <GoogleAuthHandler />
-                      {isRouterReady && (
-                        <Routes>
-                          <Route path="/" element={
-                            <SuspenseWrapper name="home">
-                              <HomePage />
+                      <Routes>
+                        <Route path="/" element={
+                          <SuspenseWrapper name="home">
+                            <HomePage />
+                          </SuspenseWrapper>
+                        } />
+                        
+                        <Route path="/login" element={
+                          <SuspenseWrapper name="login">
+                            <AuthPage />
+                          </SuspenseWrapper>
+                        } />
+                        
+                        <Route path="/registro" element={
+                          <SuspenseWrapper name="register">
+                            <AuthPage />
+                          </SuspenseWrapper>
+                        } />
+                        
+                        <Route path="/planos" element={
+                          <SuspenseWrapper name="plans">
+                            <PlansPage />
+                          </SuspenseWrapper>
+                        } />
+                        
+                        <Route path="/dashboard" element={
+                          <ProtectedRoute>
+                            <SuspenseWrapper name="dashboard">
+                              <DashboardPage />
                             </SuspenseWrapper>
-                          } />
-                          <Route path="/login" element={
-                            <SuspenseWrapper name="login">
-                              <LoginPage />
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/perfil" element={
+                          <ProtectedRoute>
+                            <SuspenseWrapper name="profile">
+                              <ProfilePage />
                             </SuspenseWrapper>
-                          } />
-                          <Route path="/registro" element={
-                            <SuspenseWrapper name="register">
-                              <RegisterPage />
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/assinatura" element={
+                          <ProtectedRoute>
+                            <SuspenseWrapper name="subscription">
+                              <SubscriptionManagePage />
                             </SuspenseWrapper>
-                          } />
-                          <Route path="/planos" element={
-                            <SuspenseWrapper name="plans">
-                              <PlansPage />
-                            </SuspenseWrapper>
-                          } />
-                          
-                          <Route path="/dashboard" element={
-                            <ProtectedRoute>
-                              <SuspenseWrapper name="dashboard">
-                                <DashboardPage />
-                              </SuspenseWrapper>
-                            </ProtectedRoute>
-                          } />
-                          
-                          <Route path="/perfil" element={
-                            <ProtectedRoute>
-                              <SuspenseWrapper name="profile">
-                                <ProfilePage />
-                              </SuspenseWrapper>
-                            </ProtectedRoute>
-                          } />
-                          
-                          <Route path="/assinatura" element={
-                            <ProtectedRoute>
-                              <SuspenseWrapper name="subscription">
-                                <SubscriptionManagePage />
-                              </SuspenseWrapper>
-                            </ProtectedRoute>
-                          } />
-                          
-                          <Route path="/webhook-test" element={
-                            <SuspenseWrapper name="webhook">
-                              <WebhookTestPage />
-                            </SuspenseWrapper>
-                          } />
-                          
-                          <Route path="*" element={
-                            <SuspenseWrapper name="not-found">
-                              <NotFoundPage />
-                            </SuspenseWrapper>
-                          } />
-                        </Routes>
-                      )}
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/webhook-test" element={
+                          <SuspenseWrapper name="webhook">
+                            <WebhookTestPage />
+                          </SuspenseWrapper>
+                        } />
+                        
+                        <Route path="*" element={
+                          <SuspenseWrapper name="not-found">
+                            <NotFoundPage />
+                          </SuspenseWrapper>
+                        } />
+                      </Routes>
                       <Toaster />
                     </BrowserRouter>
                   </SoundManager>
