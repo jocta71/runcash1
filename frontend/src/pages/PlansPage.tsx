@@ -24,43 +24,22 @@ const PlansPage = () => {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   
+  // Função auxiliar para obter o ID do usuário de forma segura
+  const getUserId = () => {
+    return user?.id || (user as any)?._id;
+  };
+  
   // Verificar autenticação ao carregar a página
   useEffect(() => {
-    // Verificar se o localStorage tem dados de autenticação
-    const authData = localStorage.getItem('auth');
-    console.log('Dados de autenticação em localStorage:', authData ? 'Presente' : 'Ausente');
-    
-    // Tenta recuperar o ID do usuário de diferentes fontes
-    const userId = user?.id || (user as any)?._id;
-    
-    console.log('Estado de autenticação:', { 
+    // Log para depuração
+    console.log('Verificando estado de autenticação:', { 
       isAuthenticated, 
-      userId, 
-      hasLocalStorage: !!authData 
+      userId: getUserId(),
+      user
     });
     
     // Se o usuário não estiver logado, mostrar alerta
-    if (!isAuthenticated || !userId) {
-      console.log('Usuário não está logado ou ID não disponível:', user);
-      
-      // Verificar se há dados no localStorage mas o contexto não está reconhecendo
-      if (authData) {
-        try {
-          // Tentar recuperar os dados do localStorage
-          const parsedAuthData = JSON.parse(authData);
-          console.log('Dados recuperados do localStorage:', parsedAuthData);
-          
-          // Se houver token mas o contexto não reconhece, pode haver um problema de sincronização
-          if (parsedAuthData?.token) {
-            console.log('Token presente no localStorage, mas contexto não reconhece. Recarregando página...');
-            window.location.reload(); // Tentar recarregar a página para sincronizar o contexto
-            return;
-          }
-        } catch (error) {
-          console.error('Erro ao analisar dados de autenticação:', error);
-        }
-      }
-      
+    if (!isAuthenticated) {
       toast({
         title: "Aviso de autenticação",
         description: "Você precisa estar logado para assinar um plano.",
@@ -72,9 +51,9 @@ const PlansPage = () => {
         navigate('/login', { state: { returnUrl: `/planos` } });
       }, 2000);
     } else {
-      console.log('Usuário autenticado:', userId);
+      console.log('Usuário autenticado:', getUserId());
     }
-  }, [user, isAuthenticated, toast, navigate]);
+  }, [isAuthenticated, user, toast, navigate]);
   
   const handleSelectPlan = (planId: string) => {
     // Se já for o plano atual, apenas mostrar mensagem
@@ -88,7 +67,6 @@ const PlansPage = () => {
     
     // Verificar se o usuário está autenticado antes de prosseguir
     if (!isAuthenticated || !user) {
-      console.log('Usuário não autenticado ao selecionar plano');
       toast({
         title: "Login necessário",
         description: "Você precisa estar logado para assinar um plano.",
@@ -102,7 +80,6 @@ const PlansPage = () => {
     const eligibility = verifyCheckoutEligibility(user);
     
     if (!eligibility.isEligible) {
-      console.log('Usuário não elegível para checkout:', eligibility.message);
       toast({
         title: "Login necessário",
         description: eligibility.message || "Você precisa estar logado para assinar um plano.",
@@ -114,7 +91,7 @@ const PlansPage = () => {
     
     try {
       // Obter o ID do usuário (pode estar em user.id ou user._id)
-      const userId = user.id || (user as any)._id;
+      const userId = getUserId();
       if (!userId) {
         throw new Error("ID do usuário não disponível. Por favor, faça login novamente.");
       }

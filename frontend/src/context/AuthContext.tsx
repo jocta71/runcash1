@@ -23,6 +23,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   token: string | null;
+  isAuthenticated: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (username: string, email: string, password: string) => Promise<{ error: any }>;
   signOut: () => void;
@@ -48,6 +49,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   token: null,
+  isAuthenticated: false,
   signIn: async () => ({ error: null }),
   signUp: async () => ({ error: null }),
   signOut: () => {},
@@ -66,6 +68,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(Cookies.get(TOKEN_COOKIE_NAME) || null);
   const [loading, setLoading] = useState(true);
+  
+  // Criar estado computado para isAuthenticated baseado na existência do user ou token
+  const isAuthenticated = Boolean(user) || Boolean(token);
 
   // Configuração global do axios para envio de cookies
   useEffect(() => {
@@ -330,6 +335,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     loading,
     token,
+    isAuthenticated,
     signIn,
     signUp,
     signOut,
