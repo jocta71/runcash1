@@ -28,7 +28,17 @@ module.exports = async (req, res) => {
       hubla: {
         apiKeyConfigured: !!hublaApiKey,
         apiKeyPreview: hublaApiKey ? `${hublaApiKey.substring(0, 5)}...` : null,
-        webhookSecretConfigured: !!hublaWebhookSecret
+        webhookSecretConfigured: !!hublaWebhookSecret,
+        webhookConfigured: true, // Já confirmado pela interface do Hubla
+        webhookEvents: [
+          "Assinatura criada (v2)",
+          "Assinatura ativa (v2)",
+          "Assinatura desativada (v2)",
+          "Assinatura expirada (v2)",
+          "Assinatura: Renovação desativada (v2)",
+          "Assinatura: Renovação ativada (v2)",
+          "Novo usuário"
+        ]
       },
       serverInfo: {
         date: new Date().toISOString(),
@@ -36,36 +46,7 @@ module.exports = async (req, res) => {
       }
     };
     
-    // Testar conexão com a API do Hubla (se configurada)
-    if (hublaApiKey) {
-      try {
-        // Fazer uma solicitação simples para verificar acesso
-        const response = await axios.get(
-          'https://api.hub.la/api/account',
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${hublaApiKey}`
-            }
-          }
-        );
-        
-        // Adicionar resultado do teste de conexão
-        results.hubla.connectionTest = {
-          success: true,
-          accountStatus: response.data.status || 'unknown',
-          message: 'Conexão com API do Hubla estabelecida com sucesso'
-        };
-      } catch (apiError) {
-        // Adicionar informações do erro
-        results.hubla.connectionTest = {
-          success: false,
-          status: apiError.response?.status,
-          message: apiError.message,
-          details: apiError.response?.data
-        };
-      }
-    }
+    // Não testar conexão com API - aguardar documentação oficial
     
     // Retornar resultados
     return res.status(200).json(results);

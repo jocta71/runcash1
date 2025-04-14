@@ -13,6 +13,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { PaymentForm } from '@/components/PaymentForm';
 import { useNavigate } from 'react-router-dom';
+import { redirectToHublaCheckout } from '@/integrations/hubla/client';
 
 const PlansPage = () => {
   const { availablePlans, currentPlan, loading } = useSubscription();
@@ -39,12 +40,32 @@ const PlansPage = () => {
         description: "Você precisa estar logado para assinar um plano.",
         variant: "destructive"
       });
-      navigate('/login', { state: { returnUrl: `/pagamento/${planId}` } });
+      navigate('/login', { state: { returnUrl: `/planos` } });
       return;
     }
     
-    // Redirecionar para a página de pagamento
-    navigate(`/pagamento/${planId}`);
+    try {
+      // Obter a URL do checkout com base no plano
+      const checkoutUrl = redirectToHublaCheckout(planId);
+      
+      // Mostrar toast informando o redirecionamento
+      toast({
+        title: "Redirecionando para pagamento",
+        description: "Você será redirecionado para a página de pagamento segura da Hubla.",
+      });
+      
+      // Redirecionar para a página de checkout da Hubla
+      window.location.href = checkoutUrl;
+    } catch (error) {
+      console.error('Erro ao redirecionar para checkout:', error);
+      
+      // Exibir mensagem de erro como toast
+      toast({
+        title: "Erro no redirecionamento",
+        description: "Não foi possível redirecionar para a página de pagamento.",
+        variant: "destructive"
+      });
+    }
   };
 
   if (loading) {
