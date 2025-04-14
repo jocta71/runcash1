@@ -1,0 +1,1802 @@
+[
+  {
+    "_id": "67f9543cc844dd1058cd14f8",
+    "roleta_id": "2010108",
+    "roleta_nome": "Dragonara Roulette",
+    "numero": 17,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:16.598Z",
+    "criado_em": "2025-04-11T17:41:16.764Z"
+  },
+  {
+    "_id": "67f9543cc844dd1058cd14f5",
+    "roleta_id": "2380038",
+    "roleta_nome": "Roulette Macao",
+    "numero": 14,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:16.317Z",
+    "criado_em": "2025-04-11T17:41:16.445Z"
+  },
+  {
+    "_id": "67f9543cc844dd1058cd14f2",
+    "roleta_id": "2380117",
+    "roleta_nome": "VIP Roulette",
+    "numero": 28,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:16.057Z",
+    "criado_em": "2025-04-11T17:41:16.182Z"
+  },
+  {
+    "_id": "67f9543bc844dd1058cd14ef",
+    "roleta_id": "2380032",
+    "roleta_nome": "Russian Roulette",
+    "numero": 28,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:15.773Z",
+    "criado_em": "2025-04-11T17:41:15.898Z"
+  },
+  {
+    "_id": "67f9543bc844dd1058cd14ec",
+    "roleta_id": "2380033",
+    "roleta_nome": "German Roulette",
+    "numero": 20,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:15.451Z",
+    "criado_em": "2025-04-11T17:41:15.576Z"
+  },
+  {
+    "_id": "67f9543bc844dd1058cd14e9",
+    "roleta_id": "2380039",
+    "roleta_nome": "Turkish Roulette",
+    "numero": 25,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:15.196Z",
+    "criado_em": "2025-04-11T17:41:15.321Z"
+  },
+  {
+    "_id": "67f9543bc844dd1058cd14e6",
+    "roleta_id": "2380346",
+    "roleta_nome": "VIP Auto Roulette",
+    "numero": 27,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:14.912Z",
+    "criado_em": "2025-04-11T17:41:15.036Z"
+  },
+  {
+    "_id": "67f9543ac844dd1058cd14e3",
+    "roleta_id": "2010170",
+    "roleta_nome": "Lightning Roulette Italia",
+    "numero": 35,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:14.657Z",
+    "criado_em": "2025-04-11T17:41:14.782Z"
+  },
+  {
+    "_id": "67f9543ac844dd1058cd14e0",
+    "roleta_id": "2010106",
+    "roleta_nome": "Türkçe Rulet",
+    "numero": 20,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:14.383Z",
+    "criado_em": "2025-04-11T17:41:14.508Z"
+  },
+  {
+    "_id": "67f9543ac844dd1058cd14dd",
+    "roleta_id": "2010049",
+    "roleta_nome": "Ruletka Live",
+    "numero": 36,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:14.020Z",
+    "criado_em": "2025-04-11T17:41:14.145Z"
+  },
+  {
+    "_id": "67f95439c844dd1058cd14da",
+    "roleta_id": "2010098",
+    "roleta_nome": "Auto-Roulette VIP",
+    "numero": 30,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:13.765Z",
+    "criado_em": "2025-04-11T17:41:13.890Z"
+  },
+  {
+    "_id": "67f95439c844dd1058cd14d7",
+    "roleta_id": "2010012",
+    "roleta_nome": "American Roulette",
+    "numero": 17,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:13.491Z",
+    "criado_em": "2025-04-11T17:41:13.616Z"
+  },
+  {
+    "_id": "67f95439c844dd1058cd14d4",
+    "roleta_id": "2010440",
+    "roleta_nome": "XXXtreme Lightning Roulette",
+    "numero": 11,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:13.232Z",
+    "criado_em": "2025-04-11T17:41:13.357Z"
+  },
+  {
+    "_id": "67f95439c844dd1058cd14d2",
+    "roleta_id": "2010097",
+    "roleta_nome": "VIP Roulette",
+    "numero": 1,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:12.976Z",
+    "criado_em": "2025-04-11T17:41:13.102Z"
+  },
+  {
+    "_id": "67f95438c844dd1058cd14d0",
+    "roleta_id": "2010165",
+    "roleta_nome": "Roulette",
+    "numero": 5,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:12.716Z",
+    "criado_em": "2025-04-11T17:41:12.842Z"
+  },
+  {
+    "_id": "67f95438c844dd1058cd14ce",
+    "roleta_id": "2010016",
+    "roleta_nome": "Immersive Roulette",
+    "numero": 27,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:12.459Z",
+    "criado_em": "2025-04-11T17:41:12.584Z"
+  },
+  {
+    "_id": "67f95438c844dd1058cd14cc",
+    "roleta_id": "2010096",
+    "roleta_nome": "Speed Auto Roulette",
+    "numero": 8,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:12.202Z",
+    "criado_em": "2025-04-11T17:41:12.327Z"
+  },
+  {
+    "_id": "67f95438c844dd1058cd14ca",
+    "roleta_id": "2010143",
+    "roleta_nome": "Ruleta Relámpago en Vivo",
+    "numero": 25,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:11.946Z",
+    "criado_em": "2025-04-11T17:41:12.072Z"
+  },
+  {
+    "_id": "67f95437c844dd1058cd14c8",
+    "roleta_id": "2010045",
+    "roleta_nome": "Ruleta en Vivo",
+    "numero": 22,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:11.691Z",
+    "criado_em": "2025-04-11T17:41:11.816Z"
+  },
+  {
+    "_id": "67f95434c844dd1058cd14bf",
+    "roleta_id": "2380335",
+    "roleta_nome": "Brazilian Mega Roulette",
+    "numero": 20,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:07.882Z",
+    "criado_em": "2025-04-11T17:41:08.045Z"
+  },
+  {
+    "_id": "67f95433c844dd1058cd14bc",
+    "roleta_id": "2010065",
+    "roleta_nome": "Bucharest Auto-Roulette",
+    "numero": 9,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:07.626Z",
+    "criado_em": "2025-04-11T17:41:07.751Z"
+  },
+  {
+    "_id": "67f95433c844dd1058cd14b9",
+    "roleta_id": "2380034",
+    "roleta_nome": "Roulette Italia Tricolore",
+    "numero": 7,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:07.322Z",
+    "criado_em": "2025-04-11T17:41:07.447Z"
+  },
+  {
+    "_id": "67f95433c844dd1058cd14b5",
+    "roleta_id": "2010110",
+    "roleta_nome": "Hippodrome Grand Casino",
+    "numero": 5,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:07.043Z",
+    "criado_em": "2025-04-11T17:41:07.169Z"
+  },
+  {
+    "_id": "67f95432c844dd1058cd14b3",
+    "roleta_id": "2010108",
+    "roleta_nome": "Dragonara Roulette",
+    "numero": 16,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:06.772Z",
+    "criado_em": "2025-04-11T17:41:06.909Z"
+  },
+  {
+    "_id": "67f95432c844dd1058cd14b0",
+    "roleta_id": "2010048",
+    "roleta_nome": "Dansk Roulette",
+    "numero": 5,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:06.478Z",
+    "criado_em": "2025-04-11T17:41:06.616Z"
+  },
+  {
+    "_id": "67f95432c844dd1058cd14ad",
+    "roleta_id": "2010059",
+    "roleta_nome": "Bucharest Roulette",
+    "numero": 11,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:06.203Z",
+    "criado_em": "2025-04-11T17:41:06.329Z"
+  },
+  {
+    "_id": "67f95432c844dd1058cd14aa",
+    "roleta_id": "2380010",
+    "roleta_nome": "Speed Roulette 1",
+    "numero": 34,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:05.902Z",
+    "criado_em": "2025-04-11T17:41:06.028Z"
+  },
+  {
+    "_id": "67f95431c844dd1058cd14a7",
+    "roleta_id": "2380049",
+    "roleta_nome": "Mega Roulette",
+    "numero": 27,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:05.646Z",
+    "criado_em": "2025-04-11T17:41:05.771Z"
+  },
+  {
+    "_id": "67f95431c844dd1058cd14a4",
+    "roleta_id": "2380038",
+    "roleta_nome": "Roulette Macao",
+    "numero": 22,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:05.387Z",
+    "criado_em": "2025-04-11T17:41:05.514Z"
+  },
+  {
+    "_id": "67f95431c844dd1058cd14a1",
+    "roleta_id": "2380159",
+    "roleta_nome": "Romanian Roulette",
+    "numero": 23,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:05.120Z",
+    "criado_em": "2025-04-11T17:41:05.244Z"
+  },
+  {
+    "_id": "67f95430c844dd1058cd149e",
+    "roleta_id": "2380390",
+    "roleta_nome": "Immersive Roulette Deluxe",
+    "numero": 10,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:04.842Z",
+    "criado_em": "2025-04-11T17:41:04.967Z"
+  },
+  {
+    "_id": "67f95430c844dd1058cd149b",
+    "roleta_id": "2380373",
+    "roleta_nome": "Fortune Roulette",
+    "numero": 36,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:04.561Z",
+    "criado_em": "2025-04-11T17:41:04.686Z"
+  },
+  {
+    "_id": "67f95430c844dd1058cd1498",
+    "roleta_id": "2380117",
+    "roleta_nome": "VIP Roulette",
+    "numero": 25,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:04.289Z",
+    "criado_em": "2025-04-11T17:41:04.414Z"
+  },
+  {
+    "_id": "67f95430c844dd1058cd1495",
+    "roleta_id": "2380032",
+    "roleta_nome": "Russian Roulette",
+    "numero": 16,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:04.021Z",
+    "criado_em": "2025-04-11T17:41:04.155Z"
+  },
+  {
+    "_id": "67f9542fc844dd1058cd1492",
+    "roleta_id": "2380033",
+    "roleta_nome": "German Roulette",
+    "numero": 1,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:03.765Z",
+    "criado_em": "2025-04-11T17:41:03.890Z"
+  },
+  {
+    "_id": "67f9542fc844dd1058cd148f",
+    "roleta_id": "2380039",
+    "roleta_nome": "Turkish Roulette",
+    "numero": 35,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:03.457Z",
+    "criado_em": "2025-04-11T17:41:03.593Z"
+  },
+  {
+    "_id": "67f9542fc844dd1058cd148c",
+    "roleta_id": "2380064",
+    "roleta_nome": "Roulette 1",
+    "numero": 10,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:03.198Z",
+    "criado_em": "2025-04-11T17:41:03.325Z"
+  },
+  {
+    "_id": "67f9542ec844dd1058cd148a",
+    "roleta_id": "2380346",
+    "roleta_nome": "VIP Auto Roulette",
+    "numero": 3,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:02.841Z",
+    "criado_em": "2025-04-11T17:41:02.966Z"
+  },
+  {
+    "_id": "67f9542ec844dd1058cd1486",
+    "roleta_id": "2010011",
+    "roleta_nome": "Deutsches Roulette",
+    "numero": 2,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:02.574Z",
+    "criado_em": "2025-04-11T17:41:02.709Z"
+  },
+  {
+    "_id": "67f9542ec844dd1058cd1484",
+    "roleta_id": "2010170",
+    "roleta_nome": "Lightning Roulette Italia",
+    "numero": 6,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:02.238Z",
+    "criado_em": "2025-04-11T17:41:02.363Z"
+  },
+  {
+    "_id": "67f9542ec844dd1058cd1480",
+    "roleta_id": "2010033",
+    "roleta_nome": "Lightning Roulette",
+    "numero": 0,
+    "cor": "verde",
+    "timestamp": "2025-04-11T17:41:01.976Z",
+    "criado_em": "2025-04-11T17:41:02.104Z"
+  },
+  {
+    "_id": "67f9542dc844dd1058cd147e",
+    "roleta_id": "2010100",
+    "roleta_nome": "Venezia Roulette",
+    "numero": 23,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:01.706Z",
+    "criado_em": "2025-04-11T17:41:01.831Z"
+  },
+  {
+    "_id": "67f9542dc844dd1058cd147a",
+    "roleta_id": "2010106",
+    "roleta_nome": "Türkçe Rulet",
+    "numero": 17,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:41:01.064Z",
+    "criado_em": "2025-04-11T17:41:01.575Z"
+  },
+  {
+    "_id": "67f9542cc844dd1058cd1477",
+    "roleta_id": "2010049",
+    "roleta_nome": "Ruletka Live",
+    "numero": 1,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:41:00.700Z",
+    "criado_em": "2025-04-11T17:41:00.850Z"
+  },
+  {
+    "_id": "67f9542cc844dd1058cd1475",
+    "roleta_id": "2010098",
+    "roleta_nome": "Auto-Roulette VIP",
+    "numero": 15,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:59.927Z",
+    "criado_em": "2025-04-11T17:41:00.568Z"
+  },
+  {
+    "_id": "67f9542bc844dd1058cd1471",
+    "roleta_id": "2010012",
+    "roleta_nome": "American Roulette",
+    "numero": 28,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:59.605Z",
+    "criado_em": "2025-04-11T17:40:59.752Z"
+  },
+  {
+    "_id": "67f9542bc844dd1058cd146e",
+    "roleta_id": "2010565",
+    "roleta_nome": "Gold Vault Roulette",
+    "numero": 34,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:59.212Z",
+    "criado_em": "2025-04-11T17:40:59.337Z"
+  },
+  {
+    "_id": "67f9542bc844dd1058cd146b",
+    "roleta_id": "2010099",
+    "roleta_nome": "Football Studio Roulette",
+    "numero": 11,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:58.933Z",
+    "criado_em": "2025-04-11T17:40:59.080Z"
+  },
+  {
+    "_id": "67f9542ac844dd1058cd1468",
+    "roleta_id": "2010440",
+    "roleta_nome": "XXXtreme Lightning Roulette",
+    "numero": 7,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:58.640Z",
+    "criado_em": "2025-04-11T17:40:58.801Z"
+  },
+  {
+    "_id": "67f9542ac844dd1058cd1465",
+    "roleta_id": "2010031",
+    "roleta_nome": "Jawhara Roulette",
+    "numero": 25,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:58.349Z",
+    "criado_em": "2025-04-11T17:40:58.475Z"
+  },
+  {
+    "_id": "67f9542ac844dd1058cd1462",
+    "roleta_id": "2010336",
+    "roleta_nome": "Türkçe Lightning Rulet",
+    "numero": 19,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:58.081Z",
+    "criado_em": "2025-04-11T17:40:58.206Z"
+  },
+  {
+    "_id": "67f95429c844dd1058cd145f",
+    "roleta_id": "2010097",
+    "roleta_nome": "VIP Roulette",
+    "numero": 17,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:57.825Z",
+    "criado_em": "2025-04-11T17:40:57.950Z"
+  },
+  {
+    "_id": "67f95429c844dd1058cd145d",
+    "roleta_id": "2010165",
+    "roleta_nome": "Roulette",
+    "numero": 27,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:57.568Z",
+    "criado_em": "2025-04-11T17:40:57.693Z"
+  },
+  {
+    "_id": "67f95429c844dd1058cd145b",
+    "roleta_id": "2010016",
+    "roleta_nome": "Immersive Roulette",
+    "numero": 5,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:57.294Z",
+    "criado_em": "2025-04-11T17:40:57.419Z"
+  },
+  {
+    "_id": "67f95429c844dd1058cd1459",
+    "roleta_id": "2010096",
+    "roleta_nome": "Speed Auto Roulette",
+    "numero": 10,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:56.999Z",
+    "criado_em": "2025-04-11T17:40:57.124Z"
+  },
+  {
+    "_id": "67f95428c844dd1058cd1457",
+    "roleta_id": "2010143",
+    "roleta_nome": "Ruleta Relámpago en Vivo",
+    "numero": 17,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:56.743Z",
+    "criado_em": "2025-04-11T17:40:56.868Z"
+  },
+  {
+    "_id": "67f95428ecd9628823e576a7",
+    "roleta_id": "2380038",
+    "roleta_nome": "Roulette Macao",
+    "numero": 14,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:56.517Z",
+    "criado_em": "2025-04-11T17:40:56.643Z"
+  },
+  {
+    "_id": "67f95428c844dd1058cd1455",
+    "roleta_id": "2010045",
+    "roleta_nome": "Ruleta en Vivo",
+    "numero": 31,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:56.485Z",
+    "criado_em": "2025-04-11T17:40:56.610Z"
+  },
+  {
+    "_id": "67f95428ecd9628823e576a5",
+    "roleta_id": "2010049",
+    "roleta_nome": "Ruletka Live",
+    "numero": 36,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:56.257Z",
+    "criado_em": "2025-04-11T17:40:56.383Z"
+  },
+  {
+    "_id": "67f95428c844dd1058cd1453",
+    "roleta_id": "2010017",
+    "roleta_nome": "Ruleta Automática",
+    "numero": 7,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:56.226Z",
+    "criado_em": "2025-04-11T17:40:56.351Z"
+  },
+  {
+    "_id": "67f95424ecd9628823e5769c",
+    "roleta_id": "2380390",
+    "roleta_nome": "Immersive Roulette Deluxe",
+    "numero": 10,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:52.502Z",
+    "criado_em": "2025-04-11T17:40:52.629Z"
+  },
+  {
+    "_id": "67f95424ecd9628823e5769a",
+    "roleta_id": "2380373",
+    "roleta_nome": "Fortune Roulette",
+    "numero": 36,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:52.220Z",
+    "criado_em": "2025-04-11T17:40:52.346Z"
+  },
+  {
+    "_id": "67f95424ecd9628823e57698",
+    "roleta_id": "2380064",
+    "roleta_nome": "Roulette 1",
+    "numero": 10,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:51.934Z",
+    "criado_em": "2025-04-11T17:40:52.059Z"
+  },
+  {
+    "_id": "67f95423ecd9628823e57696",
+    "roleta_id": "2010011",
+    "roleta_nome": "Deutsches Roulette",
+    "numero": 2,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:51.673Z",
+    "criado_em": "2025-04-11T17:40:51.801Z"
+  },
+  {
+    "_id": "67f95423ecd9628823e57694",
+    "roleta_id": "2010100",
+    "roleta_nome": "Venezia Roulette",
+    "numero": 23,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:51.412Z",
+    "criado_em": "2025-04-11T17:40:51.538Z"
+  },
+  {
+    "_id": "67f95423ecd9628823e57692",
+    "roleta_id": "2010099",
+    "roleta_nome": "Football Studio Roulette",
+    "numero": 11,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:51.151Z",
+    "criado_em": "2025-04-11T17:40:51.277Z"
+  },
+  {
+    "_id": "67f95423ecd9628823e57690",
+    "roleta_id": "2010017",
+    "roleta_nome": "Ruleta Automática",
+    "numero": 7,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:50.891Z",
+    "criado_em": "2025-04-11T17:40:51.017Z"
+  },
+  {
+    "_id": "67f9541eecd9628823e57689",
+    "roleta_id": "2010065",
+    "roleta_nome": "Bucharest Auto-Roulette",
+    "numero": 9,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:46.482Z",
+    "criado_em": "2025-04-11T17:40:46.609Z"
+  },
+  {
+    "_id": "67f9541eecd9628823e57687",
+    "roleta_id": "2010110",
+    "roleta_nome": "Hippodrome Grand Casino",
+    "numero": 5,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:46.209Z",
+    "criado_em": "2025-04-11T17:40:46.335Z"
+  },
+  {
+    "_id": "67f9541eecd9628823e57685",
+    "roleta_id": "2380010",
+    "roleta_nome": "Speed Roulette 1",
+    "numero": 34,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:45.951Z",
+    "criado_em": "2025-04-11T17:40:46.077Z"
+  },
+  {
+    "_id": "67f9541decd9628823e57683",
+    "roleta_id": "2380159",
+    "roleta_nome": "Romanian Roulette",
+    "numero": 23,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:45.690Z",
+    "criado_em": "2025-04-11T17:40:45.817Z"
+  },
+  {
+    "_id": "67f9541decd9628823e57681",
+    "roleta_id": "2010033",
+    "roleta_nome": "Lightning Roulette",
+    "numero": 0,
+    "cor": "verde",
+    "timestamp": "2025-04-11T17:40:45.427Z",
+    "criado_em": "2025-04-11T17:40:45.555Z"
+  },
+  {
+    "_id": "67f95419ecd9628823e5767c",
+    "roleta_id": "2380335",
+    "roleta_nome": "Brazilian Mega Roulette",
+    "numero": 20,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:41.039Z",
+    "criado_em": "2025-04-11T17:40:41.165Z"
+  },
+  {
+    "_id": "67f95418ecd9628823e5767a",
+    "roleta_id": "2010059",
+    "roleta_nome": "Bucharest Roulette",
+    "numero": 11,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:40.778Z",
+    "criado_em": "2025-04-11T17:40:40.904Z"
+  },
+  {
+    "_id": "67f95418ecd9628823e57678",
+    "roleta_id": "2010336",
+    "roleta_nome": "Türkçe Lightning Rulet",
+    "numero": 19,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:40.516Z",
+    "criado_em": "2025-04-11T17:40:40.642Z"
+  },
+  {
+    "_id": "67f95414ecd9628823e57672",
+    "roleta_id": "2380049",
+    "roleta_nome": "Mega Roulette",
+    "numero": 27,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:35.914Z",
+    "criado_em": "2025-04-11T17:40:36.040Z"
+  },
+  {
+    "_id": "67f95413ecd9628823e57670",
+    "roleta_id": "2010565",
+    "roleta_nome": "Gold Vault Roulette",
+    "numero": 34,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:35.652Z",
+    "criado_em": "2025-04-11T17:40:35.780Z"
+  },
+  {
+    "_id": "67f95413ecd9628823e5766e",
+    "roleta_id": "2010031",
+    "roleta_nome": "Jawhara Roulette",
+    "numero": 25,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:35.394Z",
+    "criado_em": "2025-04-11T17:40:35.520Z"
+  },
+  {
+    "_id": "67f95413ecd9628823e5766c",
+    "roleta_id": "2010045",
+    "roleta_nome": "Ruleta en Vivo",
+    "numero": 31,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:35.135Z",
+    "criado_em": "2025-04-11T17:40:35.261Z"
+  },
+  {
+    "_id": "67f9540fecd9628823e57664",
+    "roleta_id": "2380117",
+    "roleta_nome": "VIP Roulette",
+    "numero": 25,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:31.122Z",
+    "criado_em": "2025-04-11T17:40:31.249Z"
+  },
+  {
+    "_id": "67f9540eecd9628823e57662",
+    "roleta_id": "2380039",
+    "roleta_nome": "Turkish Roulette",
+    "numero": 35,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:30.864Z",
+    "criado_em": "2025-04-11T17:40:30.989Z"
+  },
+  {
+    "_id": "67f9540eecd9628823e57660",
+    "roleta_id": "2010170",
+    "roleta_nome": "Lightning Roulette Italia",
+    "numero": 6,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:30.606Z",
+    "criado_em": "2025-04-11T17:40:30.732Z"
+  },
+  {
+    "_id": "67f9540eecd9628823e5765e",
+    "roleta_id": "2010012",
+    "roleta_nome": "American Roulette",
+    "numero": 28,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:30.338Z",
+    "criado_em": "2025-04-11T17:40:30.465Z"
+  },
+  {
+    "_id": "67f9540eecd9628823e5765c",
+    "roleta_id": "2010165",
+    "roleta_nome": "Roulette",
+    "numero": 27,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:30.079Z",
+    "criado_em": "2025-04-11T17:40:30.205Z"
+  },
+  {
+    "_id": "67f9540decd9628823e5765a",
+    "roleta_id": "2010096",
+    "roleta_nome": "Speed Auto Roulette",
+    "numero": 10,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:29.820Z",
+    "criado_em": "2025-04-11T17:40:29.946Z"
+  },
+  {
+    "_id": "67f9540aecd9628823e57653",
+    "roleta_id": "2380034",
+    "roleta_nome": "Roulette Italia Tricolore",
+    "numero": 19,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:26.057Z",
+    "criado_em": "2025-04-11T17:40:26.183Z"
+  },
+  {
+    "_id": "67f95409ecd9628823e57651",
+    "roleta_id": "2010048",
+    "roleta_nome": "Dansk Roulette",
+    "numero": 5,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:25.788Z",
+    "criado_em": "2025-04-11T17:40:25.914Z"
+  },
+  {
+    "_id": "67f95409ecd9628823e5764f",
+    "roleta_id": "2380346",
+    "roleta_nome": "VIP Auto Roulette",
+    "numero": 3,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:25.527Z",
+    "criado_em": "2025-04-11T17:40:25.653Z"
+  },
+  {
+    "_id": "67f95409ecd9628823e5764d",
+    "roleta_id": "2010097",
+    "roleta_nome": "VIP Roulette",
+    "numero": 17,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:25.268Z",
+    "criado_em": "2025-04-11T17:40:25.394Z"
+  },
+  {
+    "_id": "67f95409ecd9628823e5764b",
+    "roleta_id": "2010143",
+    "roleta_nome": "Ruleta Relámpago en Vivo",
+    "numero": 17,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:25.008Z",
+    "criado_em": "2025-04-11T17:40:25.134Z"
+  },
+  {
+    "_id": "67f95404ecd9628823e57642",
+    "roleta_id": "2380038",
+    "roleta_nome": "Roulette Macao",
+    "numero": 22,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:20.820Z",
+    "criado_em": "2025-04-11T17:40:20.946Z"
+  },
+  {
+    "_id": "67f95404ecd9628823e57640",
+    "roleta_id": "2380032",
+    "roleta_nome": "Russian Roulette",
+    "numero": 16,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:20.561Z",
+    "criado_em": "2025-04-11T17:40:20.687Z"
+  },
+  {
+    "_id": "67f95404ecd9628823e5763e",
+    "roleta_id": "2380033",
+    "roleta_nome": "German Roulette",
+    "numero": 1,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:20.281Z",
+    "criado_em": "2025-04-11T17:40:20.407Z"
+  },
+  {
+    "_id": "67f95404ecd9628823e5763c",
+    "roleta_id": "2380064",
+    "roleta_nome": "Roulette 1",
+    "numero": 26,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:20.019Z",
+    "criado_em": "2025-04-11T17:40:20.146Z"
+  },
+  {
+    "_id": "67f95403ecd9628823e5763a",
+    "roleta_id": "2010106",
+    "roleta_nome": "Türkçe Rulet",
+    "numero": 17,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:19.758Z",
+    "criado_em": "2025-04-11T17:40:19.884Z"
+  },
+  {
+    "_id": "67f95403ecd9628823e57638",
+    "roleta_id": "2010098",
+    "roleta_nome": "Auto-Roulette VIP",
+    "numero": 15,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:19.499Z",
+    "criado_em": "2025-04-11T17:40:19.625Z"
+  },
+  {
+    "_id": "67f95403ecd9628823e57636",
+    "roleta_id": "2010016",
+    "roleta_nome": "Immersive Roulette",
+    "numero": 5,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:19.240Z",
+    "criado_em": "2025-04-11T17:40:19.366Z"
+  },
+  {
+    "_id": "67f953feecd9628823e57632",
+    "roleta_id": "2010099",
+    "roleta_nome": "Football Studio Roulette",
+    "numero": 5,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:14.404Z",
+    "criado_em": "2025-04-11T17:40:14.530Z"
+  },
+  {
+    "_id": "67f953feecd9628823e57630",
+    "roleta_id": "2010440",
+    "roleta_nome": "XXXtreme Lightning Roulette",
+    "numero": 7,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:14.142Z",
+    "criado_em": "2025-04-11T17:40:14.268Z"
+  },
+  {
+    "_id": "67f953f9ecd9628823e5762c",
+    "roleta_id": "2010065",
+    "roleta_nome": "Bucharest Auto-Roulette",
+    "numero": 27,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:09.099Z",
+    "criado_em": "2025-04-11T17:40:09.225Z"
+  },
+  {
+    "_id": "67f953f8ecd9628823e5762a",
+    "roleta_id": "2010017",
+    "roleta_nome": "Ruleta Automática",
+    "numero": 13,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:08.840Z",
+    "criado_em": "2025-04-11T17:40:08.965Z"
+  },
+  {
+    "_id": "67f953f3ecd9628823e57625",
+    "roleta_id": "2380373",
+    "roleta_nome": "Fortune Roulette",
+    "numero": 4,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:03.781Z",
+    "criado_em": "2025-04-11T17:40:03.907Z"
+  },
+  {
+    "_id": "67f953f3ecd9628823e57623",
+    "roleta_id": "2010100",
+    "roleta_nome": "Venezia Roulette",
+    "numero": 8,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:40:03.522Z",
+    "criado_em": "2025-04-11T17:40:03.647Z"
+  },
+  {
+    "_id": "67f953f3ecd9628823e57621",
+    "roleta_id": "2010049",
+    "roleta_nome": "Ruletka Live",
+    "numero": 1,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:40:03.264Z",
+    "criado_em": "2025-04-11T17:40:03.390Z"
+  },
+  {
+    "_id": "67f953efecd9628823e57618",
+    "roleta_id": "2380335",
+    "roleta_nome": "Brazilian Mega Roulette",
+    "numero": 18,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:59.671Z",
+    "criado_em": "2025-04-11T17:39:59.797Z"
+  },
+  {
+    "_id": "67f953efecd9628823e57615",
+    "roleta_id": "2380390",
+    "roleta_nome": "Immersive Roulette Deluxe",
+    "numero": 26,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:59.375Z",
+    "criado_em": "2025-04-11T17:39:59.503Z"
+  },
+  {
+    "_id": "67f953efecd9628823e57613",
+    "roleta_id": "2380117",
+    "roleta_nome": "VIP Roulette",
+    "numero": 18,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:59.116Z",
+    "criado_em": "2025-04-11T17:39:59.242Z"
+  },
+  {
+    "_id": "67f953eeecd9628823e57611",
+    "roleta_id": "2010011",
+    "roleta_nome": "Deutsches Roulette",
+    "numero": 36,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:58.840Z",
+    "criado_em": "2025-04-11T17:39:58.965Z"
+  },
+  {
+    "_id": "67f953eeecd9628823e5760f",
+    "roleta_id": "2010033",
+    "roleta_nome": "Lightning Roulette",
+    "numero": 10,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:58.568Z",
+    "criado_em": "2025-04-11T17:39:58.693Z"
+  },
+  {
+    "_id": "67f953eeecd9628823e5760d",
+    "roleta_id": "2010031",
+    "roleta_nome": "Jawhara Roulette",
+    "numero": 12,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:58.307Z",
+    "criado_em": "2025-04-11T17:39:58.433Z"
+  },
+  {
+    "_id": "67f953eeecd9628823e5760b",
+    "roleta_id": "2010336",
+    "roleta_nome": "Türkçe Lightning Rulet",
+    "numero": 2,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:58.048Z",
+    "criado_em": "2025-04-11T17:39:58.173Z"
+  },
+  {
+    "_id": "67f953edecd9628823e57609",
+    "roleta_id": "2010096",
+    "roleta_nome": "Speed Auto Roulette",
+    "numero": 29,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:57.788Z",
+    "criado_em": "2025-04-11T17:39:57.914Z"
+  },
+  {
+    "_id": "67f953e9ecd9628823e57604",
+    "roleta_id": "2010108",
+    "roleta_nome": "Dragonara Roulette",
+    "numero": 16,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:53.065Z",
+    "criado_em": "2025-04-11T17:39:53.202Z"
+  },
+  {
+    "_id": "67f953e8ecd9628823e57602",
+    "roleta_id": "2010059",
+    "roleta_nome": "Bucharest Roulette",
+    "numero": 2,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:52.804Z",
+    "criado_em": "2025-04-11T17:39:52.930Z"
+  },
+  {
+    "_id": "67f953e8ecd9628823e57600",
+    "roleta_id": "2010045",
+    "roleta_nome": "Ruleta en Vivo",
+    "numero": 23,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:52.538Z",
+    "criado_em": "2025-04-11T17:39:52.669Z"
+  },
+  {
+    "_id": "67f953e4ecd9628823e575f7",
+    "roleta_id": "2380034",
+    "roleta_nome": "Roulette Italia Tricolore",
+    "numero": 20,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:48.487Z",
+    "criado_em": "2025-04-11T17:39:48.618Z"
+  },
+  {
+    "_id": "67f953e4ecd9628823e575f4",
+    "roleta_id": "2380049",
+    "roleta_nome": "Mega Roulette",
+    "numero": 9,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:48.225Z",
+    "criado_em": "2025-04-11T17:39:48.352Z"
+  },
+  {
+    "_id": "67f953e4ecd9628823e575f1",
+    "roleta_id": "2380159",
+    "roleta_nome": "Romanian Roulette",
+    "numero": 29,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:47.960Z",
+    "criado_em": "2025-04-11T17:39:48.086Z"
+  },
+  {
+    "_id": "67f953e3ecd9628823e575ef",
+    "roleta_id": "2380032",
+    "roleta_nome": "Russian Roulette",
+    "numero": 26,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:47.678Z",
+    "criado_em": "2025-04-11T17:39:47.804Z"
+  },
+  {
+    "_id": "67f953e3ecd9628823e575ed",
+    "roleta_id": "2380039",
+    "roleta_nome": "Turkish Roulette",
+    "numero": 22,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:47.417Z",
+    "criado_em": "2025-04-11T17:39:47.543Z"
+  },
+  {
+    "_id": "67f953e3ecd9628823e575eb",
+    "roleta_id": "2380346",
+    "roleta_nome": "VIP Auto Roulette",
+    "numero": 15,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:47.128Z",
+    "criado_em": "2025-04-11T17:39:47.254Z"
+  },
+  {
+    "_id": "67f953e2ecd9628823e575e9",
+    "roleta_id": "2010170",
+    "roleta_nome": "Lightning Roulette Italia",
+    "numero": 5,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:46.869Z",
+    "criado_em": "2025-04-11T17:39:46.995Z"
+  },
+  {
+    "_id": "67f953e2ecd9628823e575e7",
+    "roleta_id": "2010097",
+    "roleta_nome": "VIP Roulette",
+    "numero": 2,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:46.610Z",
+    "criado_em": "2025-04-11T17:39:46.736Z"
+  },
+  {
+    "_id": "67f953e2ecd9628823e575e5",
+    "roleta_id": "2010165",
+    "roleta_nome": "Roulette",
+    "numero": 19,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:46.351Z",
+    "criado_em": "2025-04-11T17:39:46.477Z"
+  },
+  {
+    "_id": "67f953deecd9628823e575dc",
+    "roleta_id": "2010048",
+    "roleta_nome": "Dansk Roulette",
+    "numero": 29,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:42.637Z",
+    "criado_em": "2025-04-11T17:39:42.764Z"
+  },
+  {
+    "_id": "67f953deecd9628823e575d9",
+    "roleta_id": "2380010",
+    "roleta_nome": "Speed Roulette 1",
+    "numero": 3,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:42.359Z",
+    "criado_em": "2025-04-11T17:39:42.485Z"
+  },
+  {
+    "_id": "67f953deecd9628823e575d7",
+    "roleta_id": "2380038",
+    "roleta_nome": "Roulette Macao",
+    "numero": 31,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:42.092Z",
+    "criado_em": "2025-04-11T17:39:42.218Z"
+  },
+  {
+    "_id": "67f953ddecd9628823e575d5",
+    "roleta_id": "2380033",
+    "roleta_nome": "German Roulette",
+    "numero": 12,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:41.807Z",
+    "criado_em": "2025-04-11T17:39:41.933Z"
+  },
+  {
+    "_id": "67f953ddecd9628823e575d3",
+    "roleta_id": "2010106",
+    "roleta_nome": "Türkçe Rulet",
+    "numero": 28,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:41.521Z",
+    "criado_em": "2025-04-11T17:39:41.648Z"
+  },
+  {
+    "_id": "67f953ddecd9628823e575d1",
+    "roleta_id": "2010012",
+    "roleta_nome": "American Roulette",
+    "numero": 0,
+    "cor": "verde",
+    "timestamp": "2025-04-11T17:39:41.260Z",
+    "criado_em": "2025-04-11T17:39:41.386Z"
+  },
+  {
+    "_id": "67f953ddecd9628823e575cf",
+    "roleta_id": "2010565",
+    "roleta_nome": "Gold Vault Roulette",
+    "numero": 28,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:41.001Z",
+    "criado_em": "2025-04-11T17:39:41.127Z"
+  },
+  {
+    "_id": "67f953dcecd9628823e575cd",
+    "roleta_id": "2010143",
+    "roleta_nome": "Ruleta Relámpago en Vivo",
+    "numero": 20,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:40.740Z",
+    "criado_em": "2025-04-11T17:39:40.866Z"
+  },
+  {
+    "_id": "67f953d2ecd9628823e575c5",
+    "roleta_id": "2010065",
+    "roleta_nome": "Bucharest Auto-Roulette",
+    "numero": 19,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:30.385Z",
+    "criado_em": "2025-04-11T17:39:30.511Z"
+  },
+  {
+    "_id": "67f953d2ecd9628823e575c3",
+    "roleta_id": "2380064",
+    "roleta_nome": "Roulette 1",
+    "numero": 12,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:30.126Z",
+    "criado_em": "2025-04-11T17:39:30.252Z"
+  },
+  {
+    "_id": "67f953d1ecd9628823e575c1",
+    "roleta_id": "2010098",
+    "roleta_nome": "Auto-Roulette VIP",
+    "numero": 13,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:29.858Z",
+    "criado_em": "2025-04-11T17:39:29.985Z"
+  },
+  {
+    "_id": "67f953d1ecd9628823e575bf",
+    "roleta_id": "2010099",
+    "roleta_nome": "Football Studio Roulette",
+    "numero": 36,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:29.598Z",
+    "criado_em": "2025-04-11T17:39:29.723Z"
+  },
+  {
+    "_id": "67f953d1ecd9628823e575bd",
+    "roleta_id": "2010096",
+    "roleta_nome": "Speed Auto Roulette",
+    "numero": 25,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:29.338Z",
+    "criado_em": "2025-04-11T17:39:29.464Z"
+  },
+  {
+    "_id": "67f953d1ecd9628823e575bb",
+    "roleta_id": "2010017",
+    "roleta_nome": "Ruleta Automática",
+    "numero": 28,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:29.078Z",
+    "criado_em": "2025-04-11T17:39:29.204Z"
+  },
+  {
+    "_id": "67f953ccecd9628823e575b6",
+    "roleta_id": "2010100",
+    "roleta_nome": "Venezia Roulette",
+    "numero": 12,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:24.566Z",
+    "criado_em": "2025-04-11T17:39:24.692Z"
+  },
+  {
+    "_id": "67f953ccecd9628823e575b4",
+    "roleta_id": "2010049",
+    "roleta_nome": "Ruletka Live",
+    "numero": 21,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:24.302Z",
+    "criado_em": "2025-04-11T17:39:24.432Z"
+  },
+  {
+    "_id": "67f953ccecd9628823e575b2",
+    "roleta_id": "2010016",
+    "roleta_nome": "Immersive Roulette",
+    "numero": 15,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:24.040Z",
+    "criado_em": "2025-04-11T17:39:24.167Z"
+  },
+  {
+    "_id": "67f953c7ecd9628823e575ab",
+    "roleta_id": "2380335",
+    "roleta_nome": "Brazilian Mega Roulette",
+    "numero": 1,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:19.839Z",
+    "criado_em": "2025-04-11T17:39:19.965Z"
+  },
+  {
+    "_id": "67f953c7ecd9628823e575a9",
+    "roleta_id": "2010110",
+    "roleta_nome": "Hippodrome Grand Casino",
+    "numero": 36,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:19.561Z",
+    "criado_em": "2025-04-11T17:39:19.687Z"
+  },
+  {
+    "_id": "67f953c7ecd9628823e575a7",
+    "roleta_id": "2380373",
+    "roleta_nome": "Fortune Roulette",
+    "numero": 17,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:19.301Z",
+    "criado_em": "2025-04-11T17:39:19.427Z"
+  },
+  {
+    "_id": "67f953c7ecd9628823e575a5",
+    "roleta_id": "2010440",
+    "roleta_nome": "XXXtreme Lightning Roulette",
+    "numero": 3,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:19.043Z",
+    "criado_em": "2025-04-11T17:39:19.169Z"
+  },
+  {
+    "_id": "67f953c6ecd9628823e575a3",
+    "roleta_id": "2010336",
+    "roleta_nome": "Türkçe Lightning Rulet",
+    "numero": 15,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:18.782Z",
+    "criado_em": "2025-04-11T17:39:18.908Z"
+  },
+  {
+    "_id": "67f953c2ecd9628823e5759d",
+    "roleta_id": "2380010",
+    "roleta_nome": "Speed Roulette 1",
+    "numero": 30,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:14.508Z",
+    "criado_em": "2025-04-11T17:39:14.634Z"
+  },
+  {
+    "_id": "67f953c2ecd9628823e5759b",
+    "roleta_id": "2010011",
+    "roleta_nome": "Deutsches Roulette",
+    "numero": 28,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:14.249Z",
+    "criado_em": "2025-04-11T17:39:14.376Z"
+  },
+  {
+    "_id": "67f953c2ecd9628823e57599",
+    "roleta_id": "2010033",
+    "roleta_nome": "Lightning Roulette",
+    "numero": 1,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:13.978Z",
+    "criado_em": "2025-04-11T17:39:14.117Z"
+  },
+  {
+    "_id": "67f953c1ecd9628823e57597",
+    "roleta_id": "2010045",
+    "roleta_nome": "Ruleta en Vivo",
+    "numero": 30,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:13.716Z",
+    "criado_em": "2025-04-11T17:39:13.843Z"
+  },
+  {
+    "_id": "67f953bdecd9628823e5758e",
+    "roleta_id": "2380034",
+    "roleta_nome": "Roulette Italia Tricolore",
+    "numero": 2,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:09.765Z",
+    "criado_em": "2025-04-11T17:39:09.926Z"
+  },
+  {
+    "_id": "67f953bdecd9628823e57589",
+    "roleta_id": "2010059",
+    "roleta_nome": "Bucharest Roulette",
+    "numero": 1,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:09.490Z",
+    "criado_em": "2025-04-11T17:39:09.618Z"
+  },
+  {
+    "_id": "67f953bdecd9628823e57586",
+    "roleta_id": "2380038",
+    "roleta_nome": "Roulette Macao",
+    "numero": 9,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:09.227Z",
+    "criado_em": "2025-04-11T17:39:09.353Z"
+  },
+  {
+    "_id": "67f953bdecd9628823e57585",
+    "roleta_id": "2380159",
+    "roleta_nome": "Romanian Roulette",
+    "numero": 19,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:08.955Z",
+    "criado_em": "2025-04-11T17:39:09.081Z"
+  },
+  {
+    "_id": "67f953bcecd9628823e57583",
+    "roleta_id": "2380032",
+    "roleta_nome": "Russian Roulette",
+    "numero": 1,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:08.695Z",
+    "criado_em": "2025-04-11T17:39:08.821Z"
+  },
+  {
+    "_id": "67f953bcecd9628823e57581",
+    "roleta_id": "2380039",
+    "roleta_nome": "Turkish Roulette",
+    "numero": 4,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:08.416Z",
+    "criado_em": "2025-04-11T17:39:08.542Z"
+  },
+  {
+    "_id": "67f953bcecd9628823e5757f",
+    "roleta_id": "2380346",
+    "roleta_nome": "VIP Auto Roulette",
+    "numero": 21,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:08.155Z",
+    "criado_em": "2025-04-11T17:39:08.282Z"
+  },
+  {
+    "_id": "67f953bcecd9628823e5757d",
+    "roleta_id": "2010170",
+    "roleta_nome": "Lightning Roulette Italia",
+    "numero": 27,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:07.894Z",
+    "criado_em": "2025-04-11T17:39:08.021Z"
+  },
+  {
+    "_id": "67f953bbecd9628823e5757b",
+    "roleta_id": "2010031",
+    "roleta_nome": "Jawhara Roulette",
+    "numero": 16,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:07.635Z",
+    "criado_em": "2025-04-11T17:39:07.761Z"
+  },
+  {
+    "_id": "67f953bbecd9628823e57579",
+    "roleta_id": "2010097",
+    "roleta_nome": "VIP Roulette",
+    "numero": 36,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:07.376Z",
+    "criado_em": "2025-04-11T17:39:07.502Z"
+  },
+  {
+    "_id": "67f953b7ecd9628823e57570",
+    "roleta_id": "2010048",
+    "roleta_nome": "Dansk Roulette",
+    "numero": 26,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:03.021Z",
+    "criado_em": "2025-04-11T17:39:03.147Z"
+  },
+  {
+    "_id": "67f953b6ecd9628823e5756e",
+    "roleta_id": "2380049",
+    "roleta_nome": "Mega Roulette",
+    "numero": 36,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:02.748Z",
+    "criado_em": "2025-04-11T17:39:02.874Z"
+  },
+  {
+    "_id": "67f953b6ecd9628823e5756c",
+    "roleta_id": "2380033",
+    "roleta_nome": "German Roulette",
+    "numero": 8,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:02.464Z",
+    "criado_em": "2025-04-11T17:39:02.590Z"
+  },
+  {
+    "_id": "67f953b6ecd9628823e5756a",
+    "roleta_id": "2010106",
+    "roleta_nome": "Türkçe Rulet",
+    "numero": 18,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:02.189Z",
+    "criado_em": "2025-04-11T17:39:02.314Z"
+  },
+  {
+    "_id": "67f953b6ecd9628823e57568",
+    "roleta_id": "2010165",
+    "roleta_nome": "Roulette",
+    "numero": 10,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:01.930Z",
+    "criado_em": "2025-04-11T17:39:02.055Z"
+  },
+  {
+    "_id": "67f953b5ecd9628823e57566",
+    "roleta_id": "2010096",
+    "roleta_nome": "Speed Auto Roulette",
+    "numero": 1,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:39:01.669Z",
+    "criado_em": "2025-04-11T17:39:01.795Z"
+  },
+  {
+    "_id": "67f953b5ecd9628823e57564",
+    "roleta_id": "2010143",
+    "roleta_nome": "Ruleta Relámpago en Vivo",
+    "numero": 24,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:39:01.409Z",
+    "criado_em": "2025-04-11T17:39:01.535Z"
+  },
+  {
+    "_id": "67f953afecd9628823e5755e",
+    "roleta_id": "2010065",
+    "roleta_nome": "Bucharest Auto-Roulette",
+    "numero": 0,
+    "cor": "verde",
+    "timestamp": "2025-04-11T17:38:55.245Z",
+    "criado_em": "2025-04-11T17:38:55.372Z"
+  },
+  {
+    "_id": "67f953afecd9628823e5755c",
+    "roleta_id": "2380390",
+    "roleta_nome": "Immersive Roulette Deluxe",
+    "numero": 24,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:54.986Z",
+    "criado_em": "2025-04-11T17:38:55.112Z"
+  },
+  {
+    "_id": "67f953aeecd9628823e5755a",
+    "roleta_id": "2010012",
+    "roleta_nome": "American Roulette",
+    "numero": 25,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:54.728Z",
+    "criado_em": "2025-04-11T17:38:54.853Z"
+  },
+  {
+    "_id": "67f953aeecd9628823e57558",
+    "roleta_id": "2010565",
+    "roleta_nome": "Gold Vault Roulette",
+    "numero": 18,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:54.468Z",
+    "criado_em": "2025-04-11T17:38:54.594Z"
+  },
+  {
+    "_id": "67f953aaecd9628823e57553",
+    "roleta_id": "2380117",
+    "roleta_nome": "VIP Roulette",
+    "numero": 19,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:50.842Z",
+    "criado_em": "2025-04-11T17:38:50.968Z"
+  },
+  {
+    "_id": "67f953aaecd9628823e57551",
+    "roleta_id": "2380064",
+    "roleta_nome": "Roulette 1",
+    "numero": 16,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:50.584Z",
+    "criado_em": "2025-04-11T17:38:50.710Z"
+  },
+  {
+    "_id": "67f953aaecd9628823e5754f",
+    "roleta_id": "2010017",
+    "roleta_nome": "Ruleta Automática",
+    "numero": 13,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:50.326Z",
+    "criado_em": "2025-04-11T17:38:50.451Z"
+  },
+  {
+    "_id": "67f953a4ecd9628823e5754a",
+    "roleta_id": "2010100",
+    "roleta_nome": "Venezia Roulette",
+    "numero": 10,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:44.202Z",
+    "criado_em": "2025-04-11T17:38:44.328Z"
+  },
+  {
+    "_id": "67f953a4ecd9628823e57548",
+    "roleta_id": "2010098",
+    "roleta_nome": "Auto-Roulette VIP",
+    "numero": 19,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:43.944Z",
+    "criado_em": "2025-04-11T17:38:44.070Z"
+  },
+  {
+    "_id": "67f953a3ecd9628823e57546",
+    "roleta_id": "2010099",
+    "roleta_nome": "Football Studio Roulette",
+    "numero": 1,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:43.685Z",
+    "criado_em": "2025-04-11T17:38:43.810Z"
+  },
+  {
+    "_id": "67f9539fecd9628823e57541",
+    "roleta_id": "2380335",
+    "roleta_nome": "Brazilian Mega Roulette",
+    "numero": 17,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:38.897Z",
+    "criado_em": "2025-04-11T17:38:39.024Z"
+  },
+  {
+    "_id": "67f9539eecd9628823e5753f",
+    "roleta_id": "2380010",
+    "roleta_nome": "Speed Roulette 1",
+    "numero": 24,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:38.639Z",
+    "criado_em": "2025-04-11T17:38:38.765Z"
+  },
+  {
+    "_id": "67f9539eecd9628823e5753d",
+    "roleta_id": "2010049",
+    "roleta_nome": "Ruletka Live",
+    "numero": 27,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:38.378Z",
+    "criado_em": "2025-04-11T17:38:38.504Z"
+  },
+  {
+    "_id": "67f95399ecd9628823e57538",
+    "roleta_id": "2380373",
+    "roleta_nome": "Fortune Roulette",
+    "numero": 32,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:33.454Z",
+    "criado_em": "2025-04-11T17:38:33.580Z"
+  },
+  {
+    "_id": "67f95399ecd9628823e57536",
+    "roleta_id": "2010336",
+    "roleta_nome": "Türkçe Lightning Rulet",
+    "numero": 11,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:33.195Z",
+    "criado_em": "2025-04-11T17:38:33.320Z"
+  },
+  {
+    "_id": "67f95399ecd9628823e57534",
+    "roleta_id": "2010016",
+    "roleta_nome": "Immersive Roulette",
+    "numero": 23,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:32.935Z",
+    "criado_em": "2025-04-11T17:38:33.061Z"
+  },
+  {
+    "_id": "67f95395ecd9628823e5752b",
+    "roleta_id": "2380034",
+    "roleta_nome": "Roulette Italia Tricolore",
+    "numero": 31,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:29.039Z",
+    "criado_em": "2025-04-11T17:38:29.165Z"
+  },
+  {
+    "_id": "67f95394ecd9628823e57528",
+    "roleta_id": "2010108",
+    "roleta_nome": "Dragonara Roulette",
+    "numero": 35,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:28.729Z",
+    "criado_em": "2025-04-11T17:38:28.895Z"
+  },
+  {
+    "_id": "67f95394ecd9628823e57524",
+    "roleta_id": "2380038",
+    "roleta_nome": "Roulette Macao",
+    "numero": 30,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:28.459Z",
+    "criado_em": "2025-04-11T17:38:28.588Z"
+  },
+  {
+    "_id": "67f95394ecd9628823e57522",
+    "roleta_id": "2380159",
+    "roleta_nome": "Romanian Roulette",
+    "numero": 4,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:28.201Z",
+    "criado_em": "2025-04-11T17:38:28.327Z"
+  },
+  {
+    "_id": "67f95394ecd9628823e57520",
+    "roleta_id": "2380032",
+    "roleta_nome": "Russian Roulette",
+    "numero": 25,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:27.893Z",
+    "criado_em": "2025-04-11T17:38:28.018Z"
+  },
+  {
+    "_id": "67f95393ecd9628823e5751e",
+    "roleta_id": "2380039",
+    "roleta_nome": "Turkish Roulette",
+    "numero": 25,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:27.614Z",
+    "criado_em": "2025-04-11T17:38:27.751Z"
+  },
+  {
+    "_id": "67f95393ecd9628823e5751c",
+    "roleta_id": "2380346",
+    "roleta_nome": "VIP Auto Roulette",
+    "numero": 3,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:27.329Z",
+    "criado_em": "2025-04-11T17:38:27.455Z"
+  },
+  {
+    "_id": "67f95393ecd9628823e5751a",
+    "roleta_id": "2010033",
+    "roleta_nome": "Lightning Roulette",
+    "numero": 21,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:27.065Z",
+    "criado_em": "2025-04-11T17:38:27.191Z"
+  },
+  {
+    "_id": "67f95392ecd9628823e57518",
+    "roleta_id": "2010096",
+    "roleta_nome": "Speed Auto Roulette",
+    "numero": 15,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:26.805Z",
+    "criado_em": "2025-04-11T17:38:26.931Z"
+  },
+  {
+    "_id": "67f95392ecd9628823e57516",
+    "roleta_id": "2010045",
+    "roleta_nome": "Ruleta en Vivo",
+    "numero": 31,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:26.545Z",
+    "criado_em": "2025-04-11T17:38:26.671Z"
+  },
+  {
+    "_id": "67f9538eecd9628823e5750d",
+    "roleta_id": "2010065",
+    "roleta_nome": "Bucharest Auto-Roulette",
+    "numero": 28,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:22.433Z",
+    "criado_em": "2025-04-11T17:38:22.572Z"
+  },
+  {
+    "_id": "67f9538eecd9628823e5750a",
+    "roleta_id": "2380033",
+    "roleta_nome": "German Roulette",
+    "numero": 11,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:22.175Z",
+    "criado_em": "2025-04-11T17:38:22.301Z"
+  },
+  {
+    "_id": "67f9538eecd9628823e57507",
+    "roleta_id": "2010170",
+    "roleta_nome": "Lightning Roulette Italia",
+    "numero": 8,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:21.916Z",
+    "criado_em": "2025-04-11T17:38:22.043Z"
+  },
+  {
+    "_id": "67f9538decd9628823e57505",
+    "roleta_id": "2010106",
+    "roleta_nome": "Türkçe Rulet",
+    "numero": 30,
+    "cor": "vermelho",
+    "timestamp": "2025-04-11T17:38:21.627Z",
+    "criado_em": "2025-04-11T17:38:21.752Z"
+  },
+  {
+    "_id": "67f9538decd9628823e57503",
+    "roleta_id": "2010440",
+    "roleta_nome": "XXXtreme Lightning Roulette",
+    "numero": 35,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:21.368Z",
+    "criado_em": "2025-04-11T17:38:21.494Z"
+  },
+  {
+    "_id": "67f9538decd9628823e57501",
+    "roleta_id": "2010031",
+    "roleta_nome": "Jawhara Roulette",
+    "numero": 20,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:21.095Z",
+    "criado_em": "2025-04-11T17:38:21.221Z"
+  },
+  {
+    "_id": "67f9538cecd9628823e574ff",
+    "roleta_id": "2010097",
+    "roleta_nome": "VIP Roulette",
+    "numero": 28,
+    "cor": "preto",
+    "timestamp": "2025-04-11T17:38:20.833Z",
+    "criado_em": "2025-04-11T17:38:20.961Z"
+  }
+]

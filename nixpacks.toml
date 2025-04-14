@@ -1,0 +1,39 @@
+[phases.setup]
+nixPkgs = ["firefox", "nodejs", "python3"]
+aptPkgs = [
+  "libdbus-glib-1-2",
+  "libgtk-3-0", 
+  "libxt6",
+  "xvfb",
+  "wget", 
+  "curl",
+  "python3-pip"
+]
+
+[phases.install]
+cmds = [
+  "npm install --prefix backend",
+  "pip3 install --no-cache-dir requests",
+  "pip3 install --no-cache-dir selenium webdriver-manager",
+  "pip3 install --no-cache-dir pymongo python-dotenv flask flask-cors",
+  "pip3 install -r requirements.txt",
+  "ln -sf /usr/bin/python3 /usr/bin/python"
+]
+
+[phases.build]
+cmds = [
+  "wget https://github.com/mozilla/geckodriver/releases/download/v0.34.0/geckodriver-v0.34.0-linux64.tar.gz",
+  "tar -xvzf geckodriver-v0.34.0-linux64.tar.gz",
+  "chmod +x geckodriver",
+  "mv geckodriver /usr/local/bin/",
+  "chmod +x start.sh"
+]
+
+[start]
+cmd = "sh start.sh"
+
+[phases.build.cache]
+directories = ["node_modules", "backend/node_modules", "venv"]
+
+[env]
+PYTHONUNBUFFERED = "1"  # Ensure Python output is unbuffered for real-time logs
