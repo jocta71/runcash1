@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from '@/context/AuthContext';
 import { PaymentForm } from '@/components/PaymentForm';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { redirectToHublaCheckout, verifyCheckoutEligibility } from '@/integrations/hubla/client';
 import Cookies from 'js-cookie';
 
@@ -22,6 +22,7 @@ const PlansPage = () => {
   const [selectedInterval, setSelectedInterval] = useState<'monthly' | 'annual'>('monthly');
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
@@ -30,6 +31,16 @@ const PlansPage = () => {
   const getUserId = () => {
     return user?.id || (user as any)?._id;
   };
+
+  // Log de depuração inicial ao montar o componente
+  useEffect(() => {
+    console.log('PlansPage montada - Estado inicial:', {
+      isAuthenticated,
+      user,
+      currentPath: location.pathname,
+      currentPlan
+    });
+  }, []);
 
   // Função para verificar autenticação sem depender do localStorage
   const verifyAuthSafely = async () => {
@@ -127,6 +138,8 @@ const PlansPage = () => {
   }, [isAuthenticated, user, toast, navigate]);
   
   const handleSelectPlan = async (planId: string) => {
+    console.log('handleSelectPlan iniciado com plano:', planId);
+    
     // Se já for o plano atual, apenas mostrar mensagem
     if (currentPlan?.id === planId) {
       toast({
@@ -140,8 +153,12 @@ const PlansPage = () => {
       // Mostrar indicador de carregamento
       setIsCheckingAuth(true);
       
+      console.log('Iniciando verificação de autenticação para checkout...');
+      
       // Verifica autenticação de forma segura sem depender do localStorage
       const isAuth = await verifyAuthSafely();
+      console.log('Resultado da verificação de autenticação:', isAuth);
+      
       setIsCheckingAuth(false);
       
       if (!isAuth) {
@@ -158,6 +175,7 @@ const PlansPage = () => {
       // Neste ponto, sabemos que o usuário está autenticado e temos acesso aos dados do usuário
       const userId = getUserId();
       if (!userId) {
+        console.error('ID do usuário não disponível mesmo após verificação de autenticação bem-sucedida');
         throw new Error("ID do usuário não disponível. Por favor, faça login novamente.");
       }
       
@@ -166,8 +184,10 @@ const PlansPage = () => {
       
       // Verificar elegibilidade do usuário para checkout (pode ser redundante, mas mantido por segurança)
       const eligibility = verifyCheckoutEligibility(user!);
+      console.log('Resultado da verificação de elegibilidade:', eligibility);
       
       if (!eligibility.isEligible) {
+        console.log('Usuário não é elegível para checkout:', eligibility.message);
         toast({
           title: "Login necessário",
           description: eligibility.message || "Você precisa estar logado para assinar um plano.",
@@ -178,10 +198,13 @@ const PlansPage = () => {
       }
       
       // Obter a URL do checkout com base no plano
+      console.log('Obtendo URL de checkout para planId:', planId, 'e userId:', userId);
       const checkoutUrl = redirectToHublaCheckout(planId, userId);
+      console.log('URL de checkout gerada:', checkoutUrl);
       
       // Verificar se a URL foi gerada corretamente
       if (!checkoutUrl) {
+        console.error('Falha ao gerar URL de checkout');
         throw new Error("Não foi possível gerar a URL de checkout");
       }
       
@@ -191,8 +214,19 @@ const PlansPage = () => {
         description: "Você será redirecionado para a página de pagamento segura da Hubla.",
       });
       
-      // Redirecionar para a página de checkout da Hubla
-      window.location.href = checkoutUrl;
+      console.log('Redirecionando para URL de checkout:', checkoutUrl);
+      
+      // Tentar redirecionar para a URL de checkout
+      try {
+        // Adicionar um pequeno atraso para garantir que o toast seja exibido
+        setTimeout(() => {
+          // Usar window.location.href para uma navegação completa da página
+          window.location.href = checkoutUrl;
+        }, 500);
+      } catch (redirectError) {
+        console.error('Erro durante o redirecionamento:', redirectError);
+        throw new Error("Falha ao redirecionar para a página de pagamento");
+      }
     } catch (error) {
       console.error('Erro ao redirecionar para checkout:', error);
       setIsCheckingAuth(false);
