@@ -6,43 +6,80 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
+import axios from 'axios';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, signUp, signInWithGoogle, signInWithGitHub, user } = useAuth();
+  const [errorMessage, setErrorMessage] = useState('');
+  const [activeTab, setActiveTab] = useState('login');
+  const [isGoogleAuthEnabled, setIsGoogleAuthEnabled] = useState(false);
+  const [isCheckingGoogleAuth, setIsCheckingGoogleAuth] = useState(true);
+  const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // API URL
+  const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
 
   useEffect(() => {
+    // Verificar se auth Google está disponível
+    const checkGoogleAuthStatus = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/auth/google/status`);
+        setIsGoogleAuthEnabled(response.data.enabled);
+      } catch (error) {
+        console.error('Erro ao verificar status do Google Auth:', error);
+        setIsGoogleAuthEnabled(false);
+      } finally {
+        setIsCheckingGoogleAuth(false);
+      }
+    };
+    
+    checkGoogleAuthStatus();
+    
     // Redirect to home if already logged in
     if (user) {
       navigate('/');
     }
     
-    // Verificar se houve um redirecionamento após login com OAuth
+    // Verificar se há erro no URL (redirecionado do Google Auth)
     const urlParams = new URLSearchParams(window.location.search);
     const error = urlParams.get('error');
-    
-    if (error) {
+    if (error === 'google_auth_disabled') {
       toast({
-        title: 'Erro na autenticação',
-        description: 'Ocorreu um erro durante o processo de login: ' + error,
-        variant: 'destructive'
+        title: "Autenticação Google desativada",
+        description: "Essa funcionalidade não está configurada no servidor.",
+        variant: "destructive"
       });
     }
-  }, [user, navigate, toast]);
+  }, [user, navigate, toast, API_URL]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMessage('');
+    
     try {
       const { error } = await signIn(email, password);
-      if (!error) {
+      if (error) {
+        setErrorMessage(error.message || 'Erro ao fazer login. Tente novamente.');
+      } else {
+        toast({
+          title: "Login bem-sucedido",
+          description: "Bem-vindo de volta!",
+        });
         navigate('/');
       }
+    } catch (err) {
+      setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
+      console.error("Login error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -51,221 +88,265 @@ const AuthPage = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMessage('');
+    
+    // Validar nome de usuário
+    if (username.length < 3) {
+      setErrorMessage('O nome de usuário deve ter pelo menos 3 caracteres.');
+      setIsLoading(false);
+      return;
+    }
+    
+    // Validar email
+    if (!validateEmail(email)) {
+      setErrorMessage('Por favor, forneça um email válido.');
+      setIsLoading(false);
+      return;
+    }
+    
+    // Validar senha
+    if (password.length < 6) {
+      setErrorMessage('A senha deve ter pelo menos 6 caracteres.');
+      setIsLoading(false);
+      return;
+    }
+    
+    // Validar confirmação de senha
+    if (password !== confirmPassword) {
+      setErrorMessage('As senhas não coincidem.');
+      setIsLoading(false);
+      return;
+    }
+    
     try {
-      const { error } = await signUp(email, password);
-      if (!error) {
-        // Stay on page, user needs to verify email
+      const { error } = await signUp(username, email, password);
+      if (error) {
+        setErrorMessage(error.message || 'Erro ao criar conta. Tente novamente.');
+      } else {
+        toast({
+          title: "Conta criada com sucesso",
+          description: "Você já pode usar sua conta para acessar o sistema.",
+        });
+        navigate('/');
       }
+    } catch (err) {
+      setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
+      console.error("Signup error:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    console.log("Iniciando redirecionamento para autenticação Google...");
-    setIsLoading(true);
-    
-    // Marcar que o login com Google foi iniciado
-    localStorage.setItem('googleAuthInProgress', 'true');
-    
-    try {
-      await signInWithGoogle();
-      // O redirecionamento será feito pelo signInWithGoogle
-    } catch (error) {
-      console.error("Erro ao iniciar login com Google:", error);
-      setIsLoading(false);
-      toast({
-        title: "Erro na autenticação",
-        description: "Não foi possível iniciar o login com Google",
-        variant: "destructive"
-      });
-    }
+  // Validar formato de email
+  const validateEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
-  const handleGitHubSignIn = async () => {
-    console.log("Iniciando redirecionamento para autenticação GitHub...");
-    setIsLoading(true);
-    
-    try {
-      await signInWithGitHub();
-      // O redirecionamento será feito pelo signInWithGitHub
-    } catch (error) {
-      console.error("Erro ao iniciar login com GitHub:", error);
-      setIsLoading(false);
+  const handleGoogleLogin = () => {
+    if (isGoogleAuthEnabled) {
+      console.log('Redirecionando para autenticação Google:', `${API_URL}/auth/google`);
+      
+      // Antes de redirecionar, mostrar loading state
+      setIsLoading(true);
+      
+      // Armazenar a informação que o login via Google foi iniciado
+      localStorage.setItem('googleAuthInProgress', 'true');
+      
+      // Redirecionar para a URL de autenticação Google
+      window.location.href = `${API_URL}/auth/google`;
+    } else {
       toast({
-        title: "Erro na autenticação",
-        description: "Não foi possível iniciar o login com GitHub",
+        title: "Login com Google desativado",
+        description: "Esta funcionalidade não está disponível no momento.",
         variant: "destructive"
       });
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Bem-vindo</CardTitle>
+    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
+      <Card className="w-full max-w-md shadow-xl border-gray-800">
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-2xl font-bold">RunCash</CardTitle>
           <CardDescription>
-            Faça login ou crie uma conta para continuar
+            {activeTab === 'login' ? 'Faça login para continuar' : 'Crie sua conta'}
           </CardDescription>
         </CardHeader>
-        <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid grid-cols-2 w-full">
+        
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid grid-cols-2 mb-4 mx-4">
             <TabsTrigger value="login">Login</TabsTrigger>
             <TabsTrigger value="register">Cadastro</TabsTrigger>
           </TabsList>
+          
+          {/* Login Form */}
           <TabsContent value="login">
             <form onSubmit={handleSignIn}>
-              <CardContent className="space-y-4 pt-4">
+              <CardContent className="space-y-4">
+                {errorMessage && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{errorMessage}</AlertDescription>
+                  </Alert>
+                )}
+                
                 <div className="space-y-2">
+                  <label htmlFor="email" className="text-sm font-medium">
+                    Email
+                  </label>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="Email"
+                    placeholder="seu@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                   />
                 </div>
+                
                 <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="password" className="text-sm font-medium">
+                      Senha
+                    </label>
+                  </div>
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Senha"
+                    placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
                 </div>
               </CardContent>
-              <CardFooter className="flex flex-col gap-4">
+              
+              <CardFooter className="flex flex-col space-y-4">
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Entrando..." : "Entrar"}
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
                 </Button>
                 
-                <div className="flex items-center w-full gap-2 my-2">
-                  <Separator className="flex-1" />
-                  <span className="text-xs text-muted-foreground">OU</span>
-                  <Separator className="flex-1" />
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <Separator className="w-full" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-card px-2 text-sm text-muted-foreground">
+                      Ou continue com
+                    </span>
+                  </div>
                 </div>
                 
                 <Button 
                   type="button" 
                   variant="outline" 
-                  className="w-full" 
-                  onClick={handleGoogleSignIn}
-                  disabled={isLoading}
+                  className="w-full"
+                  disabled={isCheckingGoogleAuth}
+                  onClick={handleGoogleLogin}
                 >
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                  Entrar com Google
-                </Button>
-                
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={handleGitHubSignIn}
-                  disabled={isLoading}
-                >
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                  </svg>
-                  Entrar com GitHub
+                  {isCheckingGoogleAuth ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      className="w-5 h-5 mr-2"
+                    >
+                      <path
+                        fill="#EA4335"
+                        d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
+                      />
+                      <path
+                        fill="#4A90E2"
+                        d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
+                      />
+                    </svg>
+                  )}
+                  Google
                 </Button>
               </CardFooter>
             </form>
           </TabsContent>
+          
+          {/* Register Form */}
           <TabsContent value="register">
             <form onSubmit={handleSignUp}>
-              <CardContent className="space-y-4 pt-4">
+              <CardContent className="space-y-4">
+                {errorMessage && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{errorMessage}</AlertDescription>
+                  </Alert>
+                )}
+                
                 <div className="space-y-2">
+                  <label htmlFor="username" className="text-sm font-medium">
+                    Nome de Usuário
+                  </label>
                   <Input
-                    id="email"
+                    id="username"
+                    type="text"
+                    placeholder="seunome"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label htmlFor="register-email" className="text-sm font-medium">
+                    Email
+                  </label>
+                  <Input
+                    id="register-email"
                     type="email"
-                    placeholder="Email"
+                    placeholder="seu@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                   />
                 </div>
+                
                 <div className="space-y-2">
+                  <label htmlFor="register-password" className="text-sm font-medium">
+                    Senha
+                  </label>
                   <Input
-                    id="password"
+                    id="register-password"
                     type="password"
-                    placeholder="Senha"
+                    placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
                 </div>
-              </CardContent>
-              <CardFooter className="flex flex-col gap-4">
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Criando conta..." : "Criar conta"}
-                </Button>
                 
-                <div className="flex items-center w-full gap-2 my-2">
-                  <Separator className="flex-1" />
-                  <span className="text-xs text-muted-foreground">OU</span>
-                  <Separator className="flex-1" />
+                <div className="space-y-2">
+                  <label htmlFor="confirm-password" className="text-sm font-medium">
+                    Confirmar Senha
+                  </label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
                 </div>
-                
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={handleGoogleSignIn}
-                  disabled={isLoading}
-                >
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                  Cadastrar com Google
-                </Button>
-                
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={handleGitHubSignIn}
-                  disabled={isLoading}
-                >
-                  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                  </svg>
-                  Cadastrar com GitHub
+              </CardContent>
+              
+              <CardFooter className="flex flex-col space-y-4">
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Criar Conta'}
                 </Button>
               </CardFooter>
             </form>

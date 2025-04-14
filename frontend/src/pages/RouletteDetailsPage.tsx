@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChartBar, ArrowLeft, TrendingUp, BarChart, ArrowDown, ArrowUp, PercentIcon } from 'lucide-react';
@@ -20,13 +19,9 @@ import {
 } from "recharts";
 import { useAuth } from '@/context/AuthContext';
 
-// Simulate historical data - in a real app this would come from an API
-const generateHistoricalNumbers = () => {
-  const numbers = [];
-  for (let i = 0; i < 120; i++) {
-    numbers.push(Math.floor(Math.random() * 37)); // 0-36 for roulette
-  }
-  return numbers;
+// Função para obter dados históricos - retorna array vazio
+const getHistoricalNumbers = () => {
+  return [];
 };
 
 // Generate frequency data for numbers
@@ -106,7 +101,7 @@ const RouletteDetailsPage = () => {
   const losses = 35;
   const trend = Array.from({ length: 10 }, (_, i) => ({ value: Math.random() * 10 }));
   
-  const historicalNumbers = generateHistoricalNumbers();
+  const historicalNumbers = getHistoricalNumbers();
   const frequencyData = generateFrequencyData(historicalNumbers);
   const { hot, cold } = getHotColdNumbers(frequencyData);
   const pieData = generateGroupDistribution(historicalNumbers);

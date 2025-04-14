@@ -12,17 +12,18 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from '@/context/AuthContext';
 import { PaymentForm } from '@/components/PaymentForm';
+import { useNavigate } from 'react-router-dom';
 
 const PlansPage = () => {
   const { availablePlans, currentPlan, loading } = useSubscription();
   const { user } = useAuth();
   const [selectedInterval, setSelectedInterval] = useState<'monthly' | 'annual'>('monthly');
   const { toast } = useToast();
-  const [processingPlan, setProcessingPlan] = useState<string | null>(null);
+  const navigate = useNavigate();
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   
-  const handleSelectPlan = async (planId: string) => {
+  const handleSelectPlan = (planId: string) => {
     // Se já for o plano atual, apenas mostrar mensagem
     if (currentPlan?.id === planId) {
       toast({
@@ -38,206 +39,150 @@ const PlansPage = () => {
         description: "Você precisa estar logado para assinar um plano.",
         variant: "destructive"
       });
+      navigate('/login', { state: { returnUrl: `/pagamento/${planId}` } });
       return;
     }
     
-    // Mostrar formulário de pagamento
-    setSelectedPlanId(planId);
-    setShowPaymentForm(true);
-  };
-  
-  const handlePaymentSuccess = () => {
-    // Fechar o modal de pagamento
-    setShowPaymentForm(false);
-    setSelectedPlanId(null);
-    
-    // Mostrar mensagem de sucesso
-    toast({
-      title: "Assinatura realizada com sucesso!",
-      description: "Seu plano foi atualizado e você já pode acessar todos os recursos.",
-    });
-    
-    // Redirecionar para a página inicial após alguns segundos
-    setTimeout(() => {
-      window.location.href = '/';
-    }, 2000);
-  };
-  
-  const handlePaymentCancel = () => {
-    // Fechar o modal de pagamento
-    setShowPaymentForm(false);
-    setSelectedPlanId(null);
-  };
-  
-  // Calcular preço anual (com desconto)
-  const getAnnualPrice = (monthlyPrice: number) => {
-    // 20% de desconto no plano anual
-    return (monthlyPrice * 12 * 0.8).toFixed(2);
+    // Redirecionar para a página de pagamento
+    navigate(`/pagamento/${planId}`);
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="container mx-auto py-12 px-4">
-      <div className="text-center mb-12">
-        <h1 className="text-3xl font-bold mb-4">Escolha o plano ideal para você</h1>
-        <p className="text-gray-400 max-w-2xl mx-auto">
-          Desbloqueie recursos avançados e melhore sua experiência de jogo com nossos planos premium.
-          Cancele a qualquer momento.
-        </p>
-        
-        {/* Alternar entre mensal e anual */}
-        <div className="flex items-center justify-center mt-8 space-x-2">
-          <div 
-            className={`px-4 py-2 rounded-l-md cursor-pointer ${
-              selectedInterval === 'monthly' 
-                ? 'bg-vegas-gold text-black font-medium' 
-                : 'bg-vegas-darkgray text-gray-300'
+    <div className="container mx-auto py-20 px-4 max-w-6xl">
+      <h1 className="text-3xl font-bold text-center mb-2">Escolha o plano ideal para você</h1>
+      <p className="text-gray-400 text-center mb-10">
+        Assine e tenha acesso a todos os recursos da plataforma.
+      </p>
+      
+      <div className="flex justify-center mb-8">
+        <div className="flex bg-gray-800 p-1 rounded-lg">
+          <button
+            className={`px-4 py-2 rounded-md transition ${
+              selectedInterval === 'monthly' ? 'bg-vegas-gold text-black' : 'text-white'
             }`}
             onClick={() => setSelectedInterval('monthly')}
           >
             Mensal
-          </div>
-          <div 
-            className={`px-4 py-2 rounded-r-md cursor-pointer ${
-              selectedInterval === 'annual' 
-                ? 'bg-vegas-gold text-black font-medium' 
-                : 'bg-vegas-darkgray text-gray-300'
+          </button>
+          <button
+            className={`px-4 py-2 rounded-md transition ${
+              selectedInterval === 'annual' ? 'bg-vegas-gold text-black' : 'text-white'
             }`}
             onClick={() => setSelectedInterval('annual')}
           >
-            Anual <span className="text-xs">(-20%)</span>
+            Anual <span className="text-xs">(2 meses grátis)</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {availablePlans
+          .filter(plan => plan.interval === selectedInterval)
+          .map(plan => (
+            <div 
+              key={plan.id}
+              className={`border rounded-lg p-6 flex flex-col ${
+                currentPlan?.id === plan.id 
+                  ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
+                  : plan.id === 'pro' 
+                    ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
+                    : 'border-gray-700 bg-vegas-black/40'
+              }`}
+            >
+              {plan.id === 'pro' && (
+                <div className="absolute right-0 top-0 bg-vegas-gold text-black text-xs px-4 py-1 transform translate-x-2 translate-y-3 rotate-45">
+                  Popular
+                </div>
+              )}
+              
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold">{plan.name}</h3>
+                {currentPlan?.id === plan.id && (
+                  <span className="bg-vegas-gold text-black text-xs px-2 py-1 rounded-full">
+                    Plano Atual
+                  </span>
+                )}
+              </div>
+              
+              <div className="mt-4 mb-2">
+                <span className="text-3xl font-bold">
+                  {plan.price === 0 ? 'Grátis' : `R$ ${plan.price.toFixed(2)}`}
+                </span>
+                {plan.price > 0 && (
+                  <span className="text-sm text-gray-400">
+                    /{selectedInterval === 'monthly' ? 'mês' : 'ano'}
+                  </span>
+                )}
+              </div>
+              
+              <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
+              
+              <ul className="space-y-3 mb-6 flex-grow">
+                {plan.features.map((feature, idx) => (
+                  <li key={idx} className="flex items-start">
+                    <Check className="h-5 w-5 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              
+              <Button
+                onClick={() => handleSelectPlan(plan.id)}
+                className={
+                  currentPlan?.id === plan.id 
+                    ? "bg-gray-700 hover:bg-gray-600" 
+                    : plan.id === 'free' 
+                      ? "bg-gray-700 hover:bg-gray-600" 
+                      : plan.id === 'pro'
+                        ? "bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+                        : "bg-vegas-gold/80 hover:bg-vegas-gold text-black"
+                }
+                disabled={currentPlan?.id === plan.id}
+              >
+                {currentPlan?.id === plan.id 
+                  ? "Plano Atual" 
+                  : plan.id === 'free' 
+                    ? "Ativar Plano Gratuito" 
+                    : "Assinar Agora"}
+              </Button>
+            </div>
+          ))}
+      </div>
+      
+      <div className="mt-12 bg-vegas-black/30 p-6 rounded-lg border border-gray-800">
+        <h2 className="text-xl font-bold mb-4">Dúvidas Frequentes</h2>
+        
+        <div className="space-y-4">
+          <div>
+            <h3 className="font-semibold mb-2">Como funciona o sistema de assinatura?</h3>
+            <p className="text-sm text-gray-400">
+              Nossas assinaturas são cobradas mensalmente ou anualmente, dependendo do plano escolhido. O pagamento é processado via PIX através da plataforma Asaas.
+            </p>
+          </div>
+          
+          <div>
+            <h3 className="font-semibold mb-2">Posso cancelar a qualquer momento?</h3>
+            <p className="text-sm text-gray-400">
+              Sim, você pode cancelar sua assinatura a qualquer momento. O acesso aos recursos premium permanecerá ativo até o final do período pago.
+            </p>
+          </div>
+          
+          <div>
+            <h3 className="font-semibold mb-2">Como funciona o plano anual?</h3>
+            <p className="text-sm text-gray-400">
+              Os planos anuais são cobrados de uma vez só, mas oferecem o equivalente a 2 meses grátis em comparação com o pagamento mensal.
+            </p>
           </div>
         </div>
       </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
-        {availablePlans.map((plan) => {
-          const isCurrentPlan = currentPlan?.id === plan.id;
-          const displayPrice = selectedInterval === 'monthly' 
-            ? plan.price 
-            : getAnnualPrice(plan.price);
-          
-          return (
-            <div 
-              key={plan.id}
-              className={`bg-vegas-darkgray rounded-xl overflow-hidden border ${
-                isCurrentPlan 
-                  ? 'border-vegas-gold' 
-                  : 'border-gray-700'
-              }`}
-            >
-              {/* Cabeçalho do plano */}
-              <div className={`p-6 ${
-                plan.type === PlanType.PREMIUM 
-                  ? 'bg-gradient-to-r from-vegas-gold to-yellow-500' 
-                  : 'bg-vegas-black'
-              }`}>
-                <h3 className={`text-xl font-bold ${
-                  plan.type === PlanType.PREMIUM ? 'text-black' : 'text-white'
-                }`}>
-                  {plan.name}
-                </h3>
-                <p className={`text-sm ${
-                  plan.type === PlanType.PREMIUM ? 'text-black/70' : 'text-gray-400'
-                }`}>
-                  {plan.description}
-                </p>
-              </div>
-              
-              {/* Preço */}
-              <div className="p-6 border-b border-gray-700">
-                <div className="flex items-baseline">
-                  {plan.type !== PlanType.FREE && (
-                    <>
-                      <span className="text-3xl font-bold">
-                        R${displayPrice}
-                      </span>
-                      <span className="text-gray-400 ml-1 text-sm">
-                        /{selectedInterval === 'monthly' ? 'mês' : 'ano'}
-                      </span>
-                    </>
-                  )}
-                  {plan.type === PlanType.FREE && (
-                    <span className="text-3xl font-bold">Grátis</span>
-                  )}
-                </div>
-                
-                {/* Botão */}
-                <Button 
-                  className={`w-full mt-4 ${
-                    plan.type === PlanType.PREMIUM 
-                      ? 'bg-vegas-gold hover:bg-vegas-gold/80 text-black' 
-                      : isCurrentPlan 
-                        ? 'bg-green-600 hover:bg-green-700' 
-                        : ''
-                  }`}
-                  onClick={() => handleSelectPlan(plan.id)}
-                  disabled={isCurrentPlan || loading || processingPlan !== null}
-                >
-                  {isCurrentPlan ? (
-                    'Plano Atual'
-                  ) : processingPlan === plan.id ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processando...
-                    </>
-                  ) : (
-                    'Selecionar Plano'
-                  )}
-                </Button>
-              </div>
-              
-              {/* Lista de recursos */}
-              <div className="p-6">
-                <h4 className="font-medium mb-4">Inclui:</h4>
-                <ul className="space-y-3">
-                  {plan.features.map((feature, index) => (
-                    <li key={index} className="flex items-start">
-                      <Check className="h-5 w-5 text-green-500 mr-2 shrink-0" />
-                      <span className="text-sm text-gray-300">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              
-              {/* Badge do plano atual */}
-              {isCurrentPlan && (
-                <div className="bg-green-600 py-2 text-center text-sm font-medium">
-                  Seu plano atual
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      
-      {/* Informação sobre pagamentos */}
-      <div className="max-w-7xl mx-auto mt-12 p-4 bg-vegas-darkgray rounded-lg border border-gray-700">
-        <div className="flex items-center space-x-2 text-sm text-gray-400">
-          <AlertCircle className="h-4 w-4" />
-          <p>
-            Todos os pagamentos são processados de forma segura via Asaas. 
-            Aceitamos pagamentos via PIX.
-            Você pode cancelar sua assinatura a qualquer momento.
-          </p>
-        </div>
-      </div>
-      
-      {/* Modal de pagamento */}
-      <Dialog open={showPaymentForm} onOpenChange={setShowPaymentForm}>
-        <DialogContent className="bg-vegas-black border-gray-700 text-white max-w-md">
-          <DialogHeader>
-            <DialogTitle>Assinar Plano</DialogTitle>
-          </DialogHeader>
-          
-          {selectedPlanId && (
-            <PaymentForm
-              planId={selectedPlanId}
-              onPaymentSuccess={handlePaymentSuccess}
-              onCancel={handlePaymentCancel}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
