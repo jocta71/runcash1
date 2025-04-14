@@ -17,12 +17,13 @@ import { redirectToHublaCheckout, verifyCheckoutEligibility } from '@/integratio
 
 const PlansPage = () => {
   const { availablePlans, currentPlan, loading } = useSubscription();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, checkAuth } = useAuth();
   const [selectedInterval, setSelectedInterval] = useState<'monthly' | 'annual'>('monthly');
   const { toast } = useToast();
   const navigate = useNavigate();
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
   
   // Função auxiliar para obter o ID do usuário de forma segura
   const getUserId = () => {
@@ -31,31 +32,54 @@ const PlansPage = () => {
   
   // Verificar autenticação ao carregar a página
   useEffect(() => {
-    // Log para depuração
-    console.log('Verificando estado de autenticação:', { 
-      isAuthenticated, 
-      userId: getUserId(),
-      user
-    });
-    
-    // Se o usuário não estiver logado, mostrar alerta
-    if (!isAuthenticated) {
-      toast({
-        title: "Aviso de autenticação",
-        description: "Você precisa estar logado para assinar um plano.",
-        variant: "default"
+    const verifyAuthentication = async () => {
+      // Log para depuração
+      console.log('Verificando estado de autenticação:', { 
+        isAuthenticated, 
+        userId: getUserId(),
+        user
       });
       
-      // Redirecionar para login se não estiver autenticado
-      setTimeout(() => {
-        navigate('/login', { state: { returnUrl: `/planos` } });
-      }, 2000);
-    } else {
-      console.log('Usuário autenticado:', getUserId());
-    }
-  }, [isAuthenticated, user, toast, navigate]);
+      // Se o usuário não estiver logado, tentar verificar autenticação novamente
+      if (!isAuthenticated) {
+        setIsCheckingAuth(true);
+        try {
+          // Tentar verificar autenticação novamente
+          const isAuth = await checkAuth();
+          console.log('Resultado da verificação de autenticação:', isAuth);
+          
+          if (!isAuth) {
+            // Se ainda não estiver autenticado, mostrar alerta
+            toast({
+              title: "Aviso de autenticação",
+              description: "Você precisa estar logado para assinar um plano.",
+              variant: "default"
+            });
+            
+            // Redirecionar para login se não estiver autenticado
+            setTimeout(() => {
+              navigate('/login', { state: { returnUrl: `/planos` } });
+            }, 2000);
+          }
+        } catch (error) {
+          console.error('Erro ao verificar autenticação:', error);
+          toast({
+            title: "Erro de autenticação",
+            description: "Ocorreu um erro ao verificar seu login. Por favor, tente novamente.",
+            variant: "destructive"
+          });
+        } finally {
+          setIsCheckingAuth(false);
+        }
+      } else {
+        console.log('Usuário autenticado:', getUserId());
+      }
+    };
+    
+    verifyAuthentication();
+  }, [isAuthenticated, user, toast, navigate, checkAuth]);
   
-  const handleSelectPlan = (planId: string) => {
+  const handleSelectPlan = async (planId: string) => {
     // Se já for o plano atual, apenas mostrar mensagem
     if (currentPlan?.id === planId) {
       toast({
@@ -65,31 +89,35 @@ const PlansPage = () => {
       return;
     }
     
-    // Verificar se o usuário está autenticado antes de prosseguir
-    if (!isAuthenticated || !user) {
-      toast({
-        title: "Login necessário",
-        description: "Você precisa estar logado para assinar um plano.",
-        variant: "destructive"
-      });
-      navigate('/login', { state: { returnUrl: `/planos` } });
-      return;
-    }
-    
-    // Verificar elegibilidade do usuário para checkout
-    const eligibility = verifyCheckoutEligibility(user);
-    
-    if (!eligibility.isEligible) {
-      toast({
-        title: "Login necessário",
-        description: eligibility.message || "Você precisa estar logado para assinar um plano.",
-        variant: "destructive"
-      });
-      navigate('/login', { state: { returnUrl: `/planos` } });
-      return;
-    }
-    
+    // Verificar autenticação antes de prosseguir
     try {
+      // Tentar verificar a autenticação novamente para garantir que temos dados atualizados
+      const isAuth = await checkAuth();
+      
+      if (!isAuth || !user) {
+        console.log('Usuário não está autenticado. Redirecionando para login...');
+        toast({
+          title: "Login necessário",
+          description: "Você precisa estar logado para assinar um plano.",
+          variant: "destructive"
+        });
+        navigate('/login', { state: { returnUrl: `/planos` } });
+        return;
+      }
+      
+      // Verificar elegibilidade do usuário para checkout
+      const eligibility = verifyCheckoutEligibility(user);
+      
+      if (!eligibility.isEligible) {
+        toast({
+          title: "Login necessário",
+          description: eligibility.message || "Você precisa estar logado para assinar um plano.",
+          variant: "destructive"
+        });
+        navigate('/login', { state: { returnUrl: `/planos` } });
+        return;
+      }
+      
       // Obter o ID do usuário (pode estar em user.id ou user._id)
       const userId = getUserId();
       if (!userId) {
@@ -137,10 +165,13 @@ const PlansPage = () => {
     }
   };
 
-  if (loading) {
+  if (loading || isCheckingAuth) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2 text-gray-400">
+          {isCheckingAuth ? "Verificando autenticação..." : "Carregando planos..."}
+        </span>
       </div>
     );
   }
