@@ -8,6 +8,9 @@ export default function WebhookTestPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<any>(null);
+  
+  // URL base da API
+  const apiBaseUrl = 'https://runcashh11.vercel.app';
 
   // Tipos de eventos suportados
   const eventTypes = [
@@ -49,8 +52,10 @@ export default function WebhookTestPage() {
         }
       };
 
-      // Enviar solicitação para o simulador
-      const response = await axios.post('/api/simulate-webhook', payload);
+      console.log(`Enviando requisição para ${apiBaseUrl}/api/simulate-webhook`);
+      
+      // Enviar solicitação para o simulador com URL completa
+      const response = await axios.post(`${apiBaseUrl}/api/simulate-webhook`, payload);
       setResult(response.data);
     } catch (err: any) {
       console.error('Erro ao simular webhook:', err);
