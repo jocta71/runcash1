@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { PlanType } from '@/types/plans';
-import { Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Check, AlertCircle, Loader2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -15,6 +15,7 @@ import { PaymentForm } from '@/components/PaymentForm';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { redirectToHublaCheckout, verifyCheckoutEligibility } from '@/integrations/hubla/client';
 import Cookies from 'js-cookie';
+import { Sidebar } from '@/components/Sidebar';
 
 const PlansPage = () => {
   const { availablePlans, currentPlan, loading } = useSubscription();
@@ -301,6 +302,144 @@ const PlansPage = () => {
     .filter(plan => ['basic', 'pro'].includes(plan.id) && plan.interval === 'monthly');
 
   return (
+    <div className="flex min-h-screen bg-vegas-black">
+      <Sidebar />
+      
+      <div className="flex-1 p-8">
+        <h1 className="text-2xl font-bold text-vegas-gold mb-8">Meu Plano</h1>
+        
+        <div className="bg-vegas-black/60 rounded-lg border border-gray-800 p-6 mb-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold">Plano Atual</h2>
+            
+            {currentPlan ? (
+              <span className="bg-vegas-gold text-black text-xs px-3 py-1 rounded-full">
+                {currentPlan.name}
+              </span>
+            ) : (
+              <span className="bg-gray-700 text-gray-300 text-xs px-3 py-1 rounded-full">
+                Nenhum plano ativo
+              </span>
+            )}
+          </div>
+          
+          {currentPlan ? (
+            <div className="mb-6">
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <p className="text-gray-400 text-sm mb-1">Nome do plano</p>
+                  <p className="text-white font-medium">{currentPlan.name}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm mb-1">Valor</p>
+                  <p className="text-white font-medium">
+                    {currentPlan.price > 0 ? `R$ ${currentPlan.price.toFixed(2)}/mês` : 'Grátis'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm mb-1">Status</p>
+                  <p className="text-white font-medium">Ativo</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm mb-1">ID do plano</p>
+                  <p className="text-white font-medium">{currentPlan.id}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-gray-400 mb-4">Você ainda não possui um plano ativo. Escolha um dos planos abaixo para começar.</p>
+          )}
+        </div>
+        
+        <div className="bg-vegas-black/60 rounded-lg border border-gray-800 p-6">
+          <h2 className="text-xl font-bold mb-6">Escolha seu plano</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {filteredPlans.map(plan => (
+              <div 
+                key={plan.id}
+                className={`border rounded-lg p-5 flex flex-col ${
+                  currentPlan?.id === plan.id 
+                    ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
+                    : plan.id === 'pro' 
+                      ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
+                      : 'border-gray-700 bg-vegas-black/40'
+                }`}
+              >
+                {plan.id === 'pro' && (
+                  <div className="absolute right-0 top-0 bg-vegas-gold text-black text-xs px-4 py-1 transform translate-x-2 translate-y-3 rotate-45">
+                    Popular
+                  </div>
+                )}
+                
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-bold">{plan.name}</h3>
+                  {currentPlan?.id === plan.id && (
+                    <span className="bg-vegas-gold text-black text-xs px-2 py-1 rounded-full">
+                      Plano Atual
+                    </span>
+                  )}
+                </div>
+                
+                <div className="mt-4 mb-2">
+                  <span className="text-2xl font-bold">
+                    {plan.price === 0 ? 'Grátis' : `R$ ${plan.price.toFixed(2)}`}
+                  </span>
+                  {plan.price > 0 && (
+                    <span className="text-sm text-gray-400">
+                      /mês
+                    </span>
+                  )}
+                </div>
+                
+                <p className="text-gray-400 text-sm mb-4">{plan.description}</p>
+                
+                <ul className="space-y-2 mb-6 flex-grow">
+                  {plan.features.map((feature, idx) => (
+                    <li key={idx} className="flex items-start">
+                      <Check className="h-4 w-4 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-sm">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                
+                <Button
+                  onClick={() => handleSelectPlan(plan.id)}
+                  className={
+                    currentPlan?.id === plan.id 
+                      ? "bg-gray-700 hover:bg-gray-600" 
+                      : plan.id === 'pro'
+                        ? "bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+                        : "bg-vegas-gold/80 hover:bg-vegas-gold text-black"
+                  }
+                  disabled={currentPlan?.id === plan.id}
+                >
+                  {currentPlan?.id === plan.id 
+                    ? "Plano Atual" 
+                    : "Assinar Agora"}
+                </Button>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-8 p-4 bg-vegas-black/40 rounded-lg border border-gray-800">
+            <h3 className="font-semibold mb-2">Informações de pagamento</h3>
+            <p className="text-sm text-gray-400 mb-2">
+              • O pagamento é processado de forma segura via PIX através da plataforma Hubla.
+            </p>
+            <p className="text-sm text-gray-400 mb-2">
+              • Você pode cancelar sua assinatura a qualquer momento.
+            </p>
+            <p className="text-sm text-gray-400">
+              • Em caso de dúvidas, entre em contato com nosso suporte.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
     <div className="container mx-auto py-20 px-4 max-w-6xl">
       <h1 className="text-3xl font-bold text-center mb-2">Escolha o plano ideal para você</h1>
       <p className="text-gray-400 text-center mb-10">
