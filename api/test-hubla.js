@@ -1,6 +1,10 @@
 const axios = require('axios');
 
-// Handler para testar integração com Hubla
+/**
+ * Endpoint para testar a configuração da integração com a Hubla
+ * Verifica se as variáveis de ambiente necessárias estão configuradas
+ */
+
 module.exports = async (req, res) => {
   // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -18,43 +22,49 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Verificar configuração de variáveis de ambiente
-    const hublaApiKey = process.env.HUBLA_API_KEY;
-    const hublaWebhookSecret = process.env.HUBLA_WEBHOOK_SECRET;
+    // Verificar API key da Hubla
+    const apiKey = process.env.HUBLA_API_KEY;
+    const webhookSecret = process.env.HUBLA_WEBHOOK_SECRET;
+    
+    // Criar uma versão segura para exibição da API key (se existir)
+    let apiKeyPreview = null;
+    if (apiKey) {
+      // Mostrar apenas os primeiros 4 e últimos 4 caracteres
+      apiKeyPreview = apiKey.length > 8 
+        ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`
+        : "****";
+    }
     
     // Resultados do teste
     const results = {
       environment: process.env.NODE_ENV || 'development',
-      hubla: {
-        apiKeyConfigured: !!hublaApiKey,
-        apiKeyPreview: hublaApiKey ? `${hublaApiKey.substring(0, 5)}...` : null,
-        webhookSecretConfigured: !!hublaWebhookSecret,
-        webhookConfigured: true, // Já confirmado pela interface do Hubla
-        webhookEvents: [
-          "Assinatura criada (v2)",
-          "Assinatura ativa (v2)",
-          "Assinatura desativada (v2)",
-          "Assinatura expirada (v2)",
-          "Assinatura: Renovação desativada (v2)",
-          "Assinatura: Renovação ativada (v2)",
-          "Novo usuário"
-        ]
-      },
+      apiKeyConfigured: !!apiKey,
+      apiKeyPreview,
+      webhookSecretConfigured: !!webhookSecret,
       serverInfo: {
-        date: new Date().toISOString(),
-        nodejs: process.version
+        nodejs: process.version,
+        timestamp: new Date().toISOString()
+      },
+      checkoutUrls: {
+        basic: process.env.HUBLA_CHECKOUT_URL_BASIC || 'Não configurado',
+        pro: process.env.HUBLA_CHECKOUT_URL_PRO || 'Não configurado'
       }
     };
     
-    // Não testar conexão com API - aguardar documentação oficial
+    // Adicionar informações de sandbox se disponíveis
+    if (process.env.HUBLA_SANDBOX_MODE === 'true') {
+      results.sandbox = {
+        enabled: true,
+        basicUrl: process.env.HUBLA_SANDBOX_URL_BASIC || 'Não configurado',
+        proUrl: process.env.HUBLA_SANDBOX_URL_PRO || 'Não configurado'
+      };
+    }
     
-    // Retornar resultados
     return res.status(200).json(results);
-    
   } catch (error) {
-    console.error('Erro ao testar integração com Hubla:', error);
-    return res.status(500).json({
-      error: 'Erro ao testar integração',
+    console.error('Erro ao testar configuração da Hubla:', error);
+    return res.status(500).json({ 
+      error: 'Erro ao testar configuração da Hubla',
       message: error.message
     });
   }
