@@ -87,7 +87,7 @@ module.exports = async (req, res) => {
     
     // Chamada para API do Hubla
     const response = await axios.post(
-      'https://api.hubla.com.br/v1/checkouts',
+      'https://api.hub.la/v1/checkouts',
       checkoutData,
       hublaConfig
     );

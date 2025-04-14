@@ -41,7 +41,7 @@ module.exports = async (req, res) => {
       try {
         // Fazer uma solicitação simples para verificar acesso
         const response = await axios.get(
-          'https://api.hubla.com.br/v1/account',
+          'https://api.hub.la/v1/account',
           {
             headers: {
               'Content-Type': 'application/json',
