@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { PlanType } from '@/types/plans';
-import * as LucideIcons from 'lucide-react';
+import { Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -111,7 +111,7 @@ const PlansPage = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <LucideIcons.Loader2 className="h-8 w-8 animate-spin" />
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
@@ -189,7 +189,7 @@ const PlansPage = () => {
               <ul className="space-y-3 mb-6 flex-grow">
                 {plan.features.map((feature, idx) => (
                   <li key={idx} className="flex items-start">
-                    <LucideIcons.Check className="h-5 w-5 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
+                    <Check className="h-5 w-5 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
                     <span className="text-sm">{feature}</span>
                   </li>
                 ))}
