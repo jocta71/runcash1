@@ -53,7 +53,7 @@ module.exports = async (req, res) => {
     
     // Processar evento
     const event = req.body;
-    console.log(`Webhook Hubla recebido: ${event.type}`);
+    console.log(`Webhook Hubla recebido: ${JSON.stringify(event)}`);
     
     // Processar diferentes tipos de eventos
     switch (event.type) {
@@ -159,8 +159,17 @@ module.exports = async (req, res) => {
         break;
       }
       
-      // Adicionar outros tipos de eventos conforme necessário
+      // Tratar outros eventos relacionados a assinaturas
+      case 'subscription.created':
+      case 'subscription.activated': 
+      case 'subscription.renewal_activated':
+      case 'subscription.renewal_deactivated': {
+        console.log(`Evento de assinatura recebido: ${event.type}`);
+        // Para estes eventos apenas logamos, mas não acionamos nenhuma ação específica
+        break;
+      }
       
+      // Adicionar outros tipos de eventos conforme necessário
       default:
         console.log(`Evento não processado: ${event.type}`);
     }

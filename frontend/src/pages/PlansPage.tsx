@@ -46,7 +46,7 @@ const PlansPage = () => {
     
     try {
       // Obter a URL do checkout com base no plano
-      const checkoutUrl = redirectToHublaCheckout(planId);
+      const checkoutUrl = redirectToHublaCheckout(planId, user.id);
       
       // Mostrar toast informando o redirecionamento
       toast({
