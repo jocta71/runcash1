@@ -42,6 +42,28 @@ const PlansPage = () => {
     });
   }, []);
 
+  // Garantir que os dados de autenticação sejam preservados no localStorage
+  const preserveAuthData = () => {
+    try {
+      // Obter o token do cookie
+      const token = Cookies.get('token');
+      if (token) {
+        console.log('Preservando token no localStorage como backup antes do redirecionamento');
+        localStorage.setItem('auth_token_backup', token);
+        
+        // Reforçar o cookie com prazo de validade estendido
+        Cookies.set('token', token, { 
+          expires: 30, 
+          path: '/',
+          secure: true,
+          sameSite: 'lax'
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao preservar dados de autenticação:', error);
+    }
+  };
+
   // Função para verificar autenticação sem depender do localStorage
   const verifyAuthSafely = async () => {
     // Tenta usar o token do cookie diretamente para verificar autenticação
@@ -197,6 +219,9 @@ const PlansPage = () => {
         return;
       }
       
+      // Preservar dados de autenticação antes do redirecionamento
+      preserveAuthData();
+      
       // Obter a URL do checkout com base no plano
       console.log('Obtendo URL de checkout para planId:', planId, 'e userId:', userId);
       const checkoutUrl = redirectToHublaCheckout(planId, userId);
@@ -216,13 +241,26 @@ const PlansPage = () => {
       
       console.log('Redirecionando para URL de checkout:', checkoutUrl);
       
+      // Armazenar URL de retorno no localStorage
+      try {
+        localStorage.setItem('checkout_return_url', '/planos');
+      } catch (error) {
+        console.warn('Não foi possível salvar URL de retorno:', error);
+      }
+      
       // Tentar redirecionar para a URL de checkout
       try {
         // Adicionar um pequeno atraso para garantir que o toast seja exibido
         setTimeout(() => {
+          // Adicionar evento para detectar quando o usuário retornar do checkout
+          window.addEventListener('beforeunload', () => {
+            // Esta função será executada quando o usuário sair da página
+            preserveAuthData();
+          }, { once: true });
+          
           // Usar window.location.href para uma navegação completa da página
           window.location.href = checkoutUrl;
-        }, 500);
+        }, 1000);
       } catch (redirectError) {
         console.error('Erro durante o redirecionamento:', redirectError);
         throw new Error("Falha ao redirecionar para a página de pagamento");
