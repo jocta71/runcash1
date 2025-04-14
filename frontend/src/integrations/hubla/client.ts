@@ -4,22 +4,19 @@
 
 // Links de pagamento da Hubla (configurados no painel)
 const HUBLA_CHECKOUT_URLS: Record<string, string> = {
-  MENSAL: 'https://pay.hub.la/sD6k3KyqLtK7Kyyyl5YA',
-  ANUAL: 'https://pay.hub.la/5dYVW0YLLn8qC3dPQDFf'
+  basic: 'https://pay.hub.la/sD6k3KyqLtK7Kyyyl5YA',
+  pro: 'https://pay.hub.la/5dYVW0YLLn8qC3dPQDFf'
 };
 
 /**
  * Redireciona para checkout da Hubla
- * @param planId ID do plano a ser assinado (MENSAL ou ANUAL)
+ * @param planId ID do plano a ser assinado ('basic' ou 'pro')
  * @returns URL de redirecionamento para o checkout
  */
 export const redirectToHublaCheckout = (planId: string): string => {
-  // Converter o ID do plano para maiúsculas para garantir compatibilidade
-  const normalizedPlanId = planId.toUpperCase();
-  
   // Verificar se temos um link para este plano
-  if (HUBLA_CHECKOUT_URLS[normalizedPlanId]) {
-    return HUBLA_CHECKOUT_URLS[normalizedPlanId];
+  if (HUBLA_CHECKOUT_URLS[planId]) {
+    return HUBLA_CHECKOUT_URLS[planId];
   }
   
   // Caso o plano não seja encontrado, retornar um erro
