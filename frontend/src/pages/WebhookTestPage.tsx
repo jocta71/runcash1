@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { useAuth } from '@/context/AuthContext';
+import { toast } from '@/components/ui/use-toast';
 
 export default function WebhookTestPage() {
   const { user } = useAuth();
@@ -35,38 +36,50 @@ export default function WebhookTestPage() {
     { id: 'pro', name: 'Plano Profissional' }
   ];
 
-  // Função para simular um evento de webhook
-  const simulateWebhook = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setLoading(true);
     setResult(null);
-    setError(null);
-
+    
     try {
-      // Validar campos obrigatórios
-      if (!userId) {
-        throw new Error('O ID do usuário é obrigatório');
-      }
-
-      // Criar payload para simulação do webhook
+      console.log('Enviando simulação para:', `/api/router/simulate-webhook`);
+      
       const payload = {
         eventType,
         userId,
         planId,
         metadata: {
-          userId, // Garantir que o userId esteja nos metadados
-          planId  // Garantir que o planId esteja nos metadados
+          userId,
+          planId
         }
       };
-
-      console.log('Enviando requisição para /api/simulate-webhook');
       
-      // Enviar solicitação para o simulador usando caminho relativo
-      const response = await axios.post('/api/simulate-webhook', payload);
+      console.log('Payload:', payload);
+      
+      const response = await axios.post('/api/router/simulate-webhook', payload);
+      
+      console.log('Resposta:', response.data);
+      
       setResult(response.data);
-    } catch (err: any) {
-      console.error('Erro ao simular webhook:', err);
-      setError(err.response?.data || { message: err.message });
+      
+      toast({
+        title: "Webhook simulado com sucesso",
+        description: "O evento foi enviado e processado pelo servidor",
+      });
+    } catch (error) {
+      console.error('Erro ao simular webhook:', error);
+      
+      setResult(
+        error instanceof AxiosError 
+          ? error.response?.data || { error: error.message }
+          : { error: 'Erro desconhecido' }
+      );
+      
+      toast({
+        title: "Erro ao simular webhook",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -79,7 +92,7 @@ export default function WebhookTestPage() {
       <div className="bg-gray-800 p-6 rounded-lg mb-8">
         <h2 className="text-xl font-bold mb-4">Simular Evento de Webhook</h2>
         
-        <form onSubmit={simulateWebhook} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Tipo de Evento</label>
             <select
