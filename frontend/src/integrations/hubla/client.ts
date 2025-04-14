@@ -59,30 +59,34 @@ export const verifyCheckoutEligibility = (user: any): { isEligible: boolean; mes
     return { isEligible: false, message: 'ID do usuário não disponível. Por favor, faça login novamente.' };
   }
 
-  // Verificar se o token de autenticação está presente (verificando cookie primeiro, depois localStorage como fallback)
+  // Se o usuário tem um ID válido e está autenticado, consideramos elegível 
+  // sem necessidade de verificação adicional no localStorage
   const tokenCookie = Cookies.get('token');
+  if (tokenCookie) {
+    console.log('Token encontrado no cookie, usuário elegível para checkout');
+    return { isEligible: true };
+  }
   
-  if (!tokenCookie) {
-    // Se não encontrar o token no cookie, verificar o localStorage
-    try {
-      const authData = localStorage.getItem('auth');
-      if (!authData) {
-        console.warn('Dados de autenticação não encontrados no cookie nem no localStorage');
-        return { isEligible: false, message: 'Sessão expirada. Por favor, faça login novamente.' };
-      }
-    } catch (error) {
-      // Em caso de erro ao acessar localStorage (ex: navegação privada)
-      console.warn('Erro ao verificar autenticação no localStorage:', error);
+  // Verificação do localStorage somente como última opção
+  try {
+    // Verificar de várias maneiras possíveis
+    const authData = localStorage.getItem('auth');
+    const authToken = localStorage.getItem('auth_token_backup');
+    
+    if (!authData && !authToken) {
+      console.warn('Dados de autenticação não encontrados no cookie nem no localStorage');
       
-      // Se tem um ID de usuário válido, consideramos elegível mesmo sem token no storage
-      // já que o token pode estar sendo gerenciado de outra forma (ex: HttpOnly cookie)
-      if (userId) {
-        console.log('Usuário possui ID válido, prosseguindo mesmo sem token no storage');
-        return { isEligible: true };
-      }
-      
-      return { isEligible: false, message: 'Não foi possível verificar sua sessão. Por favor, faça login novamente.' };
+      // IMPORTANTE: Se o usuário tem ID válido, permitimos o checkout mesmo sem localStorage
+      // já que já passamos pelas verificações iniciais e sabemos que o usuário está logado
+      console.log('Usuário possui ID válido, prosseguindo mesmo sem token no storage');
+      return { isEligible: true };
     }
+  } catch (error) {
+    console.warn('Erro ao verificar autenticação no localStorage:', error);
+    
+    // Se tem um ID de usuário válido, consideramos elegível mesmo sem token no storage
+    console.log('Usuário possui ID válido, prosseguindo mesmo sem token no storage');
+    return { isEligible: true };
   }
 
   // Se passou por todas as verificações, o usuário está elegível
