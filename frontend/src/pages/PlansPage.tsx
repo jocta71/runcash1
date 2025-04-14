@@ -17,7 +17,7 @@ import { redirectToHublaCheckout, verifyCheckoutEligibility } from '@/integratio
 
 const PlansPage = () => {
   const { availablePlans, currentPlan, loading } = useSubscription();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [selectedInterval, setSelectedInterval] = useState<'monthly' | 'annual'>('monthly');
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -30,18 +30,51 @@ const PlansPage = () => {
     const authData = localStorage.getItem('auth');
     console.log('Dados de autenticação em localStorage:', authData ? 'Presente' : 'Ausente');
     
+    // Tenta recuperar o ID do usuário de diferentes fontes
+    const userId = user?.id || (user as any)?._id;
+    
+    console.log('Estado de autenticação:', { 
+      isAuthenticated, 
+      userId, 
+      hasLocalStorage: !!authData 
+    });
+    
     // Se o usuário não estiver logado, mostrar alerta
-    if (!user || !user.id) {
+    if (!isAuthenticated || !userId) {
       console.log('Usuário não está logado ou ID não disponível:', user);
+      
+      // Verificar se há dados no localStorage mas o contexto não está reconhecendo
+      if (authData) {
+        try {
+          // Tentar recuperar os dados do localStorage
+          const parsedAuthData = JSON.parse(authData);
+          console.log('Dados recuperados do localStorage:', parsedAuthData);
+          
+          // Se houver token mas o contexto não reconhece, pode haver um problema de sincronização
+          if (parsedAuthData?.token) {
+            console.log('Token presente no localStorage, mas contexto não reconhece. Recarregando página...');
+            window.location.reload(); // Tentar recarregar a página para sincronizar o contexto
+            return;
+          }
+        } catch (error) {
+          console.error('Erro ao analisar dados de autenticação:', error);
+        }
+      }
+      
       toast({
         title: "Aviso de autenticação",
         description: "Você precisa estar logado para assinar um plano.",
         variant: "default"
       });
+      
+      // Redirecionar para login se não estiver autenticado
+      setTimeout(() => {
+        navigate('/login', { state: { returnUrl: `/planos` } });
+      }, 2000);
     } else {
-      console.log('Usuário autenticado:', user.id);
+      console.log('Usuário autenticado:', userId);
     }
-  }, [user, toast]);
+  }, [user, isAuthenticated, toast, navigate]);
   
   const handleSelectPlan = (planId: string) => {
     // Se já for o plano atual, apenas mostrar mensagem
@@ -50,6 +83,18 @@ const PlansPage = () => {
         title: "Plano já ativo",
         description: "Você já está inscrito neste plano.",
       });
+      return;
+    }
+    
+    // Verificar se o usuário está autenticado antes de prosseguir
+    if (!isAuthenticated || !user) {
+      console.log('Usuário não autenticado ao selecionar plano');
+      toast({
+        title: "Login necessário",
+        description: "Você precisa estar logado para assinar um plano.",
+        variant: "destructive"
+      });
+      navigate('/login', { state: { returnUrl: `/planos` } });
       return;
     }
     
@@ -69,7 +114,11 @@ const PlansPage = () => {
     
     try {
       // Obter o ID do usuário (pode estar em user.id ou user._id)
-      const userId = user.id || user._id;
+      const userId = user.id || (user as any)._id;
+      if (!userId) {
+        throw new Error("ID do usuário não disponível. Por favor, faça login novamente.");
+      }
+      
       console.log('Dados do usuário completos:', user);
       console.log('Iniciando checkout com:', { planId, userId });
       
