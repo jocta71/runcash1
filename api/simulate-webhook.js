@@ -179,7 +179,12 @@ module.exports = async (req, res) => {
     console.log(`Simulando evento ${eventType}:`, eventPayload);
     
     // Enviar payload para o endpoint do webhook
-    const webhookUrl = `${process.env.VERCEL_URL || 'http://localhost:3000'}${endpoint}`;
+    const isProduction = process.env.NODE_ENV === 'production';
+    const webhookUrl = isProduction
+      ? `https://runcashh11.vercel.app${endpoint}`
+      : `https://${process.env.VERCEL_URL || 'localhost:3000'}${endpoint}`;
+    
+    console.log('Enviando webhook para:', webhookUrl);
     
     // Enviar como um webhook com cabeçalhos adequados
     const webhookResponse = await axios.post(
