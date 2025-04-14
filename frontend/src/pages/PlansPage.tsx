@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { PlanType } from '@/types/plans';
-import { Check, AlertCircle, Loader2 } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -13,7 +13,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { PaymentForm } from '@/components/PaymentForm';
 import { useNavigate } from 'react-router-dom';
-import { redirectToHublaCheckout } from '@/integrations/hubla/client';
+import { redirectToHublaCheckout, verifyCheckoutEligibility } from '@/integrations/hubla/client';
 
 const PlansPage = () => {
   const { availablePlans, currentPlan, loading } = useSubscription();
@@ -23,6 +23,25 @@ const PlansPage = () => {
   const navigate = useNavigate();
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  
+  // Verificar autenticação ao carregar a página
+  useEffect(() => {
+    // Verificar se o localStorage tem dados de autenticação
+    const authData = localStorage.getItem('auth');
+    console.log('Dados de autenticação em localStorage:', authData ? 'Presente' : 'Ausente');
+    
+    // Se o usuário não estiver logado, mostrar alerta
+    if (!user || !user.id) {
+      console.log('Usuário não está logado ou ID não disponível:', user);
+      toast({
+        title: "Aviso de autenticação",
+        description: "Você precisa estar logado para assinar um plano.",
+        variant: "default"
+      });
+    } else {
+      console.log('Usuário autenticado:', user.id);
+    }
+  }, [user, toast]);
   
   const handleSelectPlan = (planId: string) => {
     // Se já for o plano atual, apenas mostrar mensagem
@@ -34,10 +53,14 @@ const PlansPage = () => {
       return;
     }
     
-    if (!user) {
+    // Verificar elegibilidade do usuário para checkout
+    const eligibility = verifyCheckoutEligibility(user);
+    
+    if (!eligibility.isEligible) {
+      console.log('Usuário não elegível para checkout:', eligibility.message);
       toast({
         title: "Login necessário",
-        description: "Você precisa estar logado para assinar um plano.",
+        description: eligibility.message || "Você precisa estar logado para assinar um plano.",
         variant: "destructive"
       });
       navigate('/login', { state: { returnUrl: `/planos` } });
@@ -45,8 +68,15 @@ const PlansPage = () => {
     }
     
     try {
+      console.log('Iniciando checkout com:', { planId, userId: user.id });
+      
       // Obter a URL do checkout com base no plano
       const checkoutUrl = redirectToHublaCheckout(planId, user.id);
+      
+      // Verificar se a URL foi gerada corretamente
+      if (!checkoutUrl) {
+        throw new Error("Não foi possível gerar a URL de checkout");
+      }
       
       // Mostrar toast informando o redirecionamento
       toast({
@@ -59,19 +89,29 @@ const PlansPage = () => {
     } catch (error) {
       console.error('Erro ao redirecionar para checkout:', error);
       
-      // Exibir mensagem de erro como toast
+      // Exibir mensagem de erro como toast com detalhes específicos
       toast({
         title: "Erro no redirecionamento",
-        description: "Não foi possível redirecionar para a página de pagamento.",
+        description: error instanceof Error ? error.message : "Não foi possível redirecionar para a página de pagamento.",
         variant: "destructive"
       });
+      
+      // Se o erro for relacionado ao ID do usuário, sugerir login novamente
+      if (error instanceof Error && error.message.includes("usuário")) {
+        toast({
+          title: "Problema com autenticação",
+          description: "Por favor, tente fazer login novamente.",
+          variant: "destructive"
+        });
+        setTimeout(() => navigate('/login', { state: { returnUrl: `/planos` } }), 2000);
+      }
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <LucideIcons.Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
@@ -149,7 +189,7 @@ const PlansPage = () => {
               <ul className="space-y-3 mb-6 flex-grow">
                 {plan.features.map((feature, idx) => (
                   <li key={idx} className="flex items-start">
-                    <Check className="h-5 w-5 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
+                    <LucideIcons.Check className="h-5 w-5 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
                     <span className="text-sm">{feature}</span>
                   </li>
                 ))}

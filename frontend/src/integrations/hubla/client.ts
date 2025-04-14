@@ -40,6 +40,35 @@ const getCheckoutUrls = (): Record<string, string> => {
 const HUBLA_CHECKOUT_URLS = getCheckoutUrls();
 
 /**
+ * Verifica se o usuário está em condições de prosseguir com o checkout
+ * @param user Objeto do usuário atual
+ * @returns Objeto com status da verificação e mensagem de erro, se houver
+ */
+export const verifyCheckoutEligibility = (user: any): { isEligible: boolean; message?: string } => {
+  // Verificar se o usuário existe
+  if (!user) {
+    console.error('Usuário não encontrado');
+    return { isEligible: false, message: 'Usuário não encontrado. Por favor, faça login.' };
+  }
+
+  // Verificar se o ID do usuário está presente
+  if (!user.id) {
+    console.error('ID do usuário não encontrado:', user);
+    return { isEligible: false, message: 'ID do usuário não disponível. Por favor, faça login novamente.' };
+  }
+
+  // Verificar se o token de autenticação está presente (opcional, dependendo da implementação)
+  const authData = localStorage.getItem('auth');
+  if (!authData) {
+    console.warn('Dados de autenticação não encontrados no localStorage');
+    return { isEligible: false, message: 'Sessão expirada. Por favor, faça login novamente.' };
+  }
+
+  // Se passou por todas as verificações, o usuário está elegível
+  return { isEligible: true };
+};
+
+/**
  * Redireciona para checkout da Hubla com metadados do usuário
  * @param planId ID do plano a ser assinado ('basic' ou 'pro')
  * @param userId ID do usuário que está assinando (obrigatório para segurança)
