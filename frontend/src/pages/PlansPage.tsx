@@ -14,10 +14,11 @@ import { useAuth } from '@/context/AuthContext';
 import { PaymentForm } from '@/components/PaymentForm';
 import { useNavigate } from 'react-router-dom';
 import { redirectToHublaCheckout, verifyCheckoutEligibility } from '@/integrations/hubla/client';
+import Cookies from 'js-cookie';
 
 const PlansPage = () => {
   const { availablePlans, currentPlan, loading } = useSubscription();
-  const { user, isAuthenticated, checkAuth } = useAuth();
+  const { user, isAuthenticated, checkAuth, setUser, setToken } = useAuth();
   const [selectedInterval, setSelectedInterval] = useState<'monthly' | 'annual'>('monthly');
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -28,6 +29,66 @@ const PlansPage = () => {
   // Função auxiliar para obter o ID do usuário de forma segura
   const getUserId = () => {
     return user?.id || (user as any)?._id;
+  };
+
+  // Função para verificar autenticação sem depender do localStorage
+  const verifyAuthSafely = async () => {
+    // Tenta usar o token do cookie diretamente para verificar autenticação
+    try {
+      setIsCheckingAuth(true);
+      
+      // Verifica se o user já está no estado
+      if (user && getUserId()) {
+        console.log('Usuário já está no estado, não precisa verificar autenticação:', getUserId());
+        return true;
+      }
+      
+      // Tenta obter o token do cookie
+      const token = Cookies.get('token');
+      console.log('Token encontrado no cookie:', !!token);
+      
+      // Se não tiver token, já retorna falso
+      if (!token) {
+        console.log('Nenhum token encontrado no cookie');
+        return false;
+      }
+      
+      // Tenta verificar autenticação via API
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
+        const response = await fetch(`${API_URL}/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          // Atualiza o estado do contexto de autenticação
+          setUser(data.data);
+          setToken(token);
+          console.log('Autenticação verificada com sucesso via API');
+          return true;
+        }
+      } catch (error) {
+        console.error('Erro ao verificar autenticação via API:', error);
+      }
+      
+      // Se chegou até aqui, tenta o checkAuth padrão como fallback
+      try {
+        return await checkAuth();
+      } catch (error) {
+        console.error('Erro no checkAuth padrão:', error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Erro geral ao verificar autenticação:', error);
+      return false;
+    } finally {
+      setIsCheckingAuth(false);
+    }
   };
   
   // Verificar autenticação ao carregar a página
@@ -40,36 +101,22 @@ const PlansPage = () => {
         user
       });
       
-      // Se o usuário não estiver logado, tentar verificar autenticação novamente
+      // Se o usuário não estiver logado, tentar verificar autenticação usando o método seguro
       if (!isAuthenticated) {
-        setIsCheckingAuth(true);
-        try {
-          // Tentar verificar autenticação novamente
-          const isAuth = await checkAuth();
-          console.log('Resultado da verificação de autenticação:', isAuth);
-          
-          if (!isAuth) {
-            // Se ainda não estiver autenticado, mostrar alerta
-            toast({
-              title: "Aviso de autenticação",
-              description: "Você precisa estar logado para assinar um plano.",
-              variant: "default"
-            });
-            
-            // Redirecionar para login se não estiver autenticado
-            setTimeout(() => {
-              navigate('/login', { state: { returnUrl: `/planos` } });
-            }, 2000);
-          }
-        } catch (error) {
-          console.error('Erro ao verificar autenticação:', error);
+        const isAuth = await verifyAuthSafely();
+        
+        if (!isAuth) {
+          // Se ainda não estiver autenticado, mostrar alerta
           toast({
-            title: "Erro de autenticação",
-            description: "Ocorreu um erro ao verificar seu login. Por favor, tente novamente.",
-            variant: "destructive"
+            title: "Aviso de autenticação",
+            description: "Você precisa estar logado para assinar um plano.",
+            variant: "default"
           });
-        } finally {
-          setIsCheckingAuth(false);
+          
+          // Redirecionar para login após breve pausa
+          setTimeout(() => {
+            navigate('/login', { state: { returnUrl: `/planos` } });
+          }, 2000);
         }
       } else {
         console.log('Usuário autenticado:', getUserId());
@@ -77,7 +124,7 @@ const PlansPage = () => {
     };
     
     verifyAuthentication();
-  }, [isAuthenticated, user, toast, navigate, checkAuth]);
+  }, [isAuthenticated, user, toast, navigate]);
   
   const handleSelectPlan = async (planId: string) => {
     // Se já for o plano atual, apenas mostrar mensagem
@@ -89,12 +136,15 @@ const PlansPage = () => {
       return;
     }
     
-    // Verificar autenticação antes de prosseguir
     try {
-      // Tentar verificar a autenticação novamente para garantir que temos dados atualizados
-      const isAuth = await checkAuth();
+      // Mostrar indicador de carregamento
+      setIsCheckingAuth(true);
       
-      if (!isAuth || !user) {
+      // Verifica autenticação de forma segura sem depender do localStorage
+      const isAuth = await verifyAuthSafely();
+      setIsCheckingAuth(false);
+      
+      if (!isAuth) {
         console.log('Usuário não está autenticado. Redirecionando para login...');
         toast({
           title: "Login necessário",
@@ -105,8 +155,17 @@ const PlansPage = () => {
         return;
       }
       
-      // Verificar elegibilidade do usuário para checkout
-      const eligibility = verifyCheckoutEligibility(user);
+      // Neste ponto, sabemos que o usuário está autenticado e temos acesso aos dados do usuário
+      const userId = getUserId();
+      if (!userId) {
+        throw new Error("ID do usuário não disponível. Por favor, faça login novamente.");
+      }
+      
+      console.log('Dados do usuário completos:', user);
+      console.log('Iniciando checkout com:', { planId, userId });
+      
+      // Verificar elegibilidade do usuário para checkout (pode ser redundante, mas mantido por segurança)
+      const eligibility = verifyCheckoutEligibility(user!);
       
       if (!eligibility.isEligible) {
         toast({
@@ -117,15 +176,6 @@ const PlansPage = () => {
         navigate('/login', { state: { returnUrl: `/planos` } });
         return;
       }
-      
-      // Obter o ID do usuário (pode estar em user.id ou user._id)
-      const userId = getUserId();
-      if (!userId) {
-        throw new Error("ID do usuário não disponível. Por favor, faça login novamente.");
-      }
-      
-      console.log('Dados do usuário completos:', user);
-      console.log('Iniciando checkout com:', { planId, userId });
       
       // Obter a URL do checkout com base no plano
       const checkoutUrl = redirectToHublaCheckout(planId, userId);
@@ -145,6 +195,7 @@ const PlansPage = () => {
       window.location.href = checkoutUrl;
     } catch (error) {
       console.error('Erro ao redirecionar para checkout:', error);
+      setIsCheckingAuth(false);
       
       // Exibir mensagem de erro como toast com detalhes específicos
       toast({
