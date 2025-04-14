@@ -68,10 +68,32 @@ const SuspenseWrapper = ({ children, name }: { children: React.ReactNode, name?:
     }
   }, [name]);
   
+  // Obter uma mensagem personalizada baseada no nome da rota
+  const getMessage = () => {
+    switch (name) {
+      case 'home':
+        return 'Carregando página inicial...';
+      case 'login':
+        return 'Preparando página de login...';
+      case 'register':
+        return 'Preparando página de cadastro...';
+      case 'profile':
+        return 'Carregando seu perfil...';
+      case 'dashboard':
+        return 'Carregando dashboard...';
+      case 'plans':
+        return 'Carregando planos disponíveis...';
+      case 'subscription':
+        return 'Carregando detalhes da assinatura...';
+      default:
+        return 'Carregando conteúdo...';
+    }
+  };
+  
   return (
     <Suspense fallback={
       <div className="lazy-loading-container">
-        <LoadingScreen />
+        <LoadingScreen message={getMessage()} />
       </div>
     }>
       {children}

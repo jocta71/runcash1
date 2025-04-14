@@ -80,6 +80,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('Axios configurado para enviar cookies em todas requisições');
   }, []);
 
+  // Expor a instância do contexto para o objeto global window
+  // para permitir acesso fácil a partir de outros componentes
+  useEffect(() => {
+    // Criando um objeto de instância para expor para a janela global
+    const contextInstance = {
+      checkAuth,
+      isAuthenticated,
+      user,
+      token
+    };
+    
+    // Expor para a janela global
+    window.authContextInstance = contextInstance;
+    
+    console.log('Instância do contexto de autenticação exposta para window.authContextInstance');
+    
+    // Limpeza ao desmontar
+    return () => {
+      // Remover a referência quando o componente for desmontado
+      if (window.authContextInstance === contextInstance) {
+        window.authContextInstance = undefined;
+      }
+    };
+  }, [user, token, isAuthenticated]); // Atualizar quando estes valores mudarem
+
   // Verificar autenticação ao carregar
   useEffect(() => {
     const checkAuthOnLoad = async () => {
@@ -343,19 +368,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser,
     setToken
   };
-
-  // Expor o contexto globalmente para permitir verificação de autenticação após carregamento
-  useEffect(() => {
-    // Expor a função checkAuth na janela global
-    window.authContextInstance = {
-      checkAuth
-    };
-
-    return () => {
-      // Limpar na desmontagem
-      delete window.authContextInstance;
-    };
-  }, [checkAuth]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

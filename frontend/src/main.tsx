@@ -238,16 +238,29 @@ if (rootElement) {
     
     // Verificar autenticação em background após renderização
     setTimeout(() => {
+      // Garantir que a instância do contexto de autenticação esteja disponível globalmente 
+      // para que outros componentes possam acessá-la facilmente
       if (window.authContextInstance?.checkAuth) {
         logger.info('Verificando autenticação em background');
         window.authContextInstance.checkAuth()
           .then(result => {
             logger.info('Status de autenticação:', result ? 'autenticado' : 'não autenticado');
             markPerformance('auth_check_complete');
+            
+            // Forçar atualização do DOM para garantir que as rotas protegidas sejam atualizadas
+            if (result) {
+              logger.info('Usuário autenticado, atualizando estado de autenticação');
+              
+              // Disparar um evento personalizado que os componentes podem ouvir
+              const authEvent = new CustomEvent('auth:updated', { detail: { isAuthenticated: true } });
+              window.dispatchEvent(authEvent);
+            }
           })
           .catch(err => {
             logger.error('Erro ao verificar autenticação:', err);
           });
+      } else {
+        logger.warn('Instância de contexto de autenticação não encontrada na janela global');
       }
     }, 500);
   }, 600); // Tempo reduzido para carregamento
