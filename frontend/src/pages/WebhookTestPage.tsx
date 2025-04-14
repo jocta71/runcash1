@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useAuth } from '@/context/AuthContext';
 
 export default function WebhookTestPage() {
+  const { user } = useAuth();
   const [userId, setUserId] = useState('');
   const [planId, setPlanId] = useState('basic');
   const [eventType, setEventType] = useState('NewSale');
@@ -11,6 +13,14 @@ export default function WebhookTestPage() {
   
   // URL base da API
   const apiBaseUrl = 'https://runcashh11.vercel.app';
+
+  // Quando o componente montar, preencher o ID do usuário logado
+  useEffect(() => {
+    if (user?.id) {
+      setUserId(user.id);
+      console.log('ID do usuário logado:', user.id);
+    }
+  }, [user]);
 
   // Tipos de eventos suportados
   const eventTypes = [
