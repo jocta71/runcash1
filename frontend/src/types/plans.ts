@@ -1,21 +1,49 @@
-export interface PlanType {
-  id: string;
+/**
+ * Tipos relacionados aos planos de assinatura
+ */
+
+/**
+ * Tipos de planos disponíveis
+ */
+export type PlanType = 'basic' | 'pro';
+
+/**
+ * Interface para plano de assinatura
+ */
+export interface Plan {
+  id: PlanType;
   name: string;
   description: string;
   price: number;
-  interval: 'monthly' | 'annual';
+  billingPeriod: 'monthly' | 'annual';
   features: string[];
+  isPopular?: boolean;
+  asaasId?: string; // ID do plano no Asaas
 }
 
-export interface Plan {
-  id: string;
-  name: string;
-  type: PlanType;
-  description: string;
-  price: number;
-  interval: 'monthly' | 'annual';
-  features: string[];
-  allowedFeatures: string[];
+/**
+ * Interface para resposta de planos da API
+ */
+export interface PlansResponse {
+  success: boolean;
+  plans?: Plan[];
+  error?: string;
+}
+
+/**
+ * Interface para resposta de assinaturas da API
+ */
+export interface SubscriptionResponse {
+  success: boolean;
+  subscription?: {
+    id: string;
+    planId: PlanType;
+    status: 'active' | 'canceled' | 'pending' | 'overdue';
+    startDate: string;
+    nextBillingDate?: string;
+    canceledAt?: string;
+  };
+  error?: string;
 }
 
 export interface UserSubscription {

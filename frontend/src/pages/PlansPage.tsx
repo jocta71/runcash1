@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { PlanType } from '@/types/plans';
+import { Plan, PlanType } from '@/types/plans';
 import { Check, AlertCircle, Loader2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -13,7 +13,8 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { PaymentForm } from '@/components/PaymentForm';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { redirectToHublaCheckout, verifyCheckoutEligibility } from '@/integrations/hubla/client';
+import { redirectToAsaasCheckout } from '@/integrations/asaas/client';
+import { verifyCheckoutEligibility } from '@/utils/asaas-helpers';
 import Cookies from 'js-cookie';
 import Sidebar from '@/components/Sidebar';
 
@@ -166,7 +167,7 @@ const PlansPage = () => {
     verifyAuthentication();
   }, [isAuthenticated, user, toast, navigate]);
   
-  const handleSelectPlan = async (planId: string) => {
+  const handleSelectPlan = async (planId: PlanType) => {
     console.log('handleSelectPlan iniciado com plano:', planId);
     
     // Se já for o plano atual, apenas mostrar mensagem
@@ -211,15 +212,15 @@ const PlansPage = () => {
       console.log('Dados do usuário completos:', user);
       console.log('Iniciando checkout com:', { planId, userId });
       
-      // Verificar elegibilidade do usuário para checkout (pode ser redundante, mas mantido por segurança)
-      const eligibility = verifyCheckoutEligibility(user!);
-      console.log('Resultado da verificação de elegibilidade:', eligibility);
+      // Verificar elegibilidade do usuário para checkout
+      const eligibilityResult = verifyCheckoutEligibility(user!);
+      console.log('Resultado da verificação de elegibilidade:', eligibilityResult);
       
-      if (!eligibility.isEligible) {
-        console.log('Usuário não é elegível para checkout:', eligibility.message);
+      if (!eligibilityResult.isEligible) {
+        console.log('Usuário não é elegível para checkout:', eligibilityResult.message);
         toast({
           title: "Login necessário",
-          description: eligibility.message || "Você precisa estar logado para assinar um plano.",
+          description: eligibilityResult.message || "Você precisa estar logado para assinar um plano.",
           variant: "destructive"
         });
         navigate('/login', { state: { returnUrl: `/planos` } });
@@ -229,69 +230,33 @@ const PlansPage = () => {
       // Preservar dados de autenticação antes do redirecionamento
       preserveAuthData();
       
-      // Obter a URL do checkout com base no plano
-      console.log('Obtendo URL de checkout para planId:', planId, 'e userId:', userId);
-      const checkoutUrl = redirectToHublaCheckout(planId, userId);
-      console.log('URL de checkout gerada:', checkoutUrl);
-      
-      // Verificar se a URL foi gerada corretamente
-      if (!checkoutUrl) {
-        console.error('Falha ao gerar URL de checkout');
-        throw new Error("Não foi possível gerar a URL de checkout");
-      }
-      
       // Mostrar toast informando o redirecionamento
       toast({
         title: "Redirecionando para pagamento",
-        description: "Você será redirecionado para a página de pagamento segura da Hubla.",
+        description: "Você será redirecionado para a página de pagamento segura do Asaas.",
       });
       
-      console.log('Redirecionando para URL de checkout:', checkoutUrl);
+      // Redirecionar para o checkout do Asaas
+      console.log('Redirecionando para checkout do Asaas...');
+      const success = redirectToAsaasCheckout({
+        planId,
+        user,
+        isAuthenticated: true
+      });
       
-      // Armazenar URL de retorno no localStorage
-      try {
-        localStorage.setItem('checkout_return_url', '/planos');
-      } catch (error) {
-        console.warn('Não foi possível salvar URL de retorno:', error);
+      if (!success) {
+        throw new Error("Não foi possível redirecionar para o checkout. Tente novamente.");
       }
       
-      // Tentar redirecionar para a URL de checkout
-      try {
-        // Adicionar um pequeno atraso para garantir que o toast seja exibido
-        setTimeout(() => {
-          // Adicionar evento para detectar quando o usuário retornar do checkout
-          window.addEventListener('beforeunload', () => {
-            // Esta função será executada quando o usuário sair da página
-            preserveAuthData();
-          }, { once: true });
-          
-          // Usar window.location.href para uma navegação completa da página
-          window.location.href = checkoutUrl;
-        }, 1000);
-      } catch (redirectError) {
-        console.error('Erro durante o redirecionamento:', redirectError);
-        throw new Error("Falha ao redirecionar para a página de pagamento");
-      }
     } catch (error) {
-      console.error('Erro ao redirecionar para checkout:', error);
+      console.error('Erro ao processar checkout:', error);
       setIsCheckingAuth(false);
       
-      // Exibir mensagem de erro como toast com detalhes específicos
       toast({
-        title: "Erro no redirecionamento",
-        description: error instanceof Error ? error.message : "Não foi possível redirecionar para a página de pagamento.",
+        title: "Erro no processo de pagamento",
+        description: error instanceof Error ? error.message : "Ocorreu um erro inesperado",
         variant: "destructive"
       });
-      
-      // Se o erro for relacionado ao ID do usuário, sugerir login novamente
-      if (error instanceof Error && error.message.includes("usuário")) {
-        toast({
-          title: "Problema com autenticação",
-          description: "Por favor, tente fazer login novamente.",
-          variant: "destructive"
-        });
-        setTimeout(() => navigate('/login', { state: { returnUrl: `/planos` } }), 2000);
-      }
     }
   };
 
@@ -434,7 +399,7 @@ const PlansPage = () => {
           <div className="mt-8 p-4 bg-vegas-black/40 rounded-lg border border-gray-800">
             <h3 className="font-semibold mb-2">Informações de pagamento</h3>
             <p className="text-sm text-gray-400 mb-2">
-              • O pagamento é processado de forma segura via PIX através da plataforma Hubla.
+              • O pagamento é processado de forma segura via PIX através da plataforma Asaas.
             </p>
             <p className="text-sm text-gray-400 mb-2">
               • Você pode cancelar sua assinatura a qualquer momento.
