@@ -1,19 +1,10 @@
 const crypto = require('crypto');
 const axios = require('axios');
 
-// Função para verificar a assinatura do webhook
-const verifyHublaSignature = (payload, signature, secret) => {
-  if (!signature || !secret) return false;
-  
-  // Calcular a assinatura esperada
-  const hmac = crypto.createHmac('sha256', secret);
-  const expectedSignature = hmac.update(JSON.stringify(payload)).digest('hex');
-  
-  // Comparar assinaturas
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
+// Função para verificar o token do webhook Hubla
+const verifyHublaToken = (token, secret) => {
+  if (!token || !secret) return false;
+  return token === secret;
 };
 
 // Handler para webhook do Hubla
@@ -21,7 +12,7 @@ module.exports = async (req, res) => {
   // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-hubla-signature');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-hubla-token, x-hubla-sandbox, x-hubla-idempotency');
   
   // Lidar com solicitações OPTIONS (CORS preflight)
   if (req.method === 'OPTIONS') {
@@ -34,20 +25,29 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Obter a assinatura do webhook
-    const signature = req.headers['x-hubla-signature'];
+    // Registrar informações do cabeçalho para debug
+    console.log('Cabeçalhos do webhook Hubla:', {
+      token: req.headers['x-hubla-token'] ? 'Presente' : 'Ausente',
+      sandbox: req.headers['x-hubla-sandbox'],
+      idempotency: req.headers['x-hubla-idempotency']
+    });
+
+    // Verificar se é ambiente de sandbox
+    const isSandbox = req.headers['x-hubla-sandbox'] === 'true';
     
-    // Verificar assinatura (em ambiente de produção)
-    if (process.env.NODE_ENV === 'production') {
-      const isValid = verifyHublaSignature(
-        req.body,
-        signature,
+    // Obter o token do webhook
+    const token = req.headers['x-hubla-token'];
+    
+    // Verificar token (exceto em ambiente de sandbox)
+    if (!isSandbox && process.env.NODE_ENV === 'production') {
+      const isValidToken = verifyHublaToken(
+        token,
         process.env.HUBLA_WEBHOOK_SECRET
       );
       
-      if (!isValid) {
-        console.error('Assinatura inválida do webhook Hubla');
-        return res.status(401).json({ error: 'Assinatura inválida' });
+      if (!isValidToken) {
+        console.error('Token inválido do webhook Hubla');
+        return res.status(401).json({ error: 'Token inválido' });
       }
     }
     
@@ -75,8 +75,8 @@ module.exports = async (req, res) => {
           
           // Mapear tipo de plano
           const planTypeMap = {
-            'MENSAL': 'BASIC',
-            'ANUAL': 'PREMIUM'
+            'basic': 'BASIC',
+            'pro': 'PRO'
           };
           
           // Dados da assinatura
