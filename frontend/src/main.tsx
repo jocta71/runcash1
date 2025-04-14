@@ -8,7 +8,8 @@ import { getLogger } from './services/utils/logger'
 import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
-import globalRouletteDataService, { GlobalRouletteDataService } from './services/GlobalRouletteDataService'
+import globalRouletteDataService from './services/GlobalRouletteDataService'
+import { markPerformance, runAsync } from './utils/performance-optimizer'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -16,14 +17,21 @@ declare global {
     ROULETTE_SYSTEM_INITIALIZED: boolean;
     isRouletteSystemInitialized: () => boolean;
     getRouletteSystem: () => any;
+    authContextInstance?: {
+      checkAuth: () => Promise<boolean>;
+    };
   }
 }
+
+// Marcar início da aplicação
+markPerformance('app_init_start');
 
 // Inicializar o sistema de log
 initializeLogging();
 
 // Obter logger para o componente principal
 const logger = getLogger('Main');
+logger.info('Inicialização da aplicação iniciada');
 
 // Configurar manipuladores globais de erro
 setupGlobalErrorHandlers();
@@ -32,30 +40,66 @@ logger.info('Manipuladores globais de erro configurados');
 // Flag global para controlar a inicialização do sistema de roletas
 window.ROULETTE_SYSTEM_INITIALIZED = false;
 
-// Inicializar o sistema de roletas como parte do carregamento da aplicação
+// Inicializar o sistema de roletas com carregamento otimizado
 function initializeRoulettesSystem() {
-  logger.info('Inicializando sistema centralizado de roletas');
+  logger.info('Inicializando sistema de roletas com otimizações');
   
-  // Inicializar os serviços em ordem
+  // Inicializar serviços principais imediatamente
   const socketService = SocketService.getInstance();
   const eventService = EventService.getInstance();
-  const rouletteFeedService = RouletteFeedService.getInstance();
   
-  // Registrar o SocketService no RouletteFeedService
-  rouletteFeedService.registerSocketService(socketService);
+  // Variáveis para armazenar instâncias de serviços não-críticos
+  let rouletteFeedService: any = null;
   
-  // Inicializar o serviço global e buscar dados iniciais uma única vez
-  logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
-  
-  // Usar a instância importada diretamente
-  globalRouletteDataService.fetchRouletteData().then(data => {
-    logger.info(`Dados iniciais obtidos pelo serviço global: ${data.length} roletas`);
+  // Inicializar serviços não-críticos após a renderização
+  const initializeNonCriticalServices = () => {
+    logger.info('Iniciando inicialização de serviços não-críticos...');
     
-    // Em seguida, inicializar o RouletteFeedService que usará os dados do serviço global
-    rouletteFeedService.initialize().then(() => {
-      logger.info('RouletteFeedService inicializado usando dados do serviço global');
+    return runAsync(() => {
+      // Criar serviço de feed de roletas
+      rouletteFeedService = RouletteFeedService.getInstance();
       
-      // Disparar evento para notificar componentes
+      // Registrar socketService no feed
+      if (rouletteFeedService) {
+        rouletteFeedService.registerSocketService(socketService);
+        logger.info('RouletteFeedService registrado com SocketService');
+      }
+      
+      // Sinalizar que o sistema está inicializado
+      window.ROULETTE_SYSTEM_INITIALIZED = true;
+      markPerformance('roulette_services_initialized');
+      
+      return { rouletteFeedService };
+    }, 2000); // Atraso para permitir que a interface seja renderizada primeiro
+  };
+  
+  // Buscar dados apenas após a renderização
+  const fetchData = async () => {
+    try {
+      logger.info('Buscando dados de roletas...');
+      const data = await globalRouletteDataService.fetchRouletteData();
+      logger.info(`Dados obtidos: ${data.length} roletas`);
+      markPerformance('roulette_data_loaded');
+      
+      return data;
+    } catch (error) {
+      logger.error('Erro ao buscar dados de roletas:', error);
+      return [];
+    }
+  };
+  
+  // Inicializar RouletteFeedService com os dados
+  const initializeFeed = async (data: any[]) => {
+    if (!rouletteFeedService) {
+      logger.warn('RouletteFeedService não inicializado, pulando inicialização de feed');
+      return;
+    }
+    
+    try {
+      logger.info('Inicializando feed de roletas...');
+      await rouletteFeedService.initialize();
+      
+      // Disparar evento para atualização
       eventService.dispatchEvent({
         type: 'roulette:data-updated',
         data: {
@@ -64,46 +108,66 @@ function initializeRoulettesSystem() {
         }
       });
       
-      // Iniciar polling com intervalo de 10 segundos
-      rouletteFeedService.startPolling();
-      logger.info('Polling de roletas iniciado (intervalo de 10s)');
-    }).catch(error => {
-      logger.error('Erro ao inicializar RouletteFeedService:', error);
-    });
-  }).catch(error => {
-    logger.error('Erro ao buscar dados iniciais pelo serviço global:', error);
-  });
+      // Iniciar polling com delay para melhorar desempenho
+      setTimeout(() => {
+        if (rouletteFeedService) {
+          rouletteFeedService.startPolling();
+          logger.info('Polling de roletas iniciado');
+          markPerformance('roulette_polling_started');
+        }
+      }, 5000);
+    } catch (error) {
+      logger.error('Erro ao inicializar feed de roletas:', error);
+    }
+  };
   
-  // Marcar como inicializado
-  window.ROULETTE_SYSTEM_INITIALIZED = true;
+  // Sequência de inicialização otimizada
+  const startInitSequence = async () => {
+    // Primeiro inicializar serviços não-críticos
+    const services = await initializeNonCriticalServices();
+    logger.info('Serviços não-críticos inicializados');
+    
+    // Em seguida, buscar dados com um pequeno delay
+    setTimeout(async () => {
+      const data = await fetchData();
+      
+      // Por fim, inicializar feed com os dados obtidos
+      setTimeout(() => {
+        initializeFeed(data);
+      }, 2000);
+    }, 3000);
+  };
   
-  // Adicionar função para limpar recursos quando a página for fechada
+  // Iniciar sequência de inicialização
+  startInitSequence();
+  
+  // Limpeza ao fechar página
   window.addEventListener('beforeunload', () => {
-    rouletteFeedService.stop();
+    if (rouletteFeedService) {
+      rouletteFeedService.stop();
+    }
     window.ROULETTE_SYSTEM_INITIALIZED = false;
     logger.info('Sistema de roletas finalizado');
   });
   
+  // Retornar objeto com serviços inicializados
   return {
     socketService,
-    rouletteFeedService,
     eventService,
+    getRouletteFeedService: () => rouletteFeedService,
     globalRouletteDataService
   };
 }
 
-// Inicializar o SocketService logo no início para estabelecer conexão antecipada
-logger.info('Inicializando SocketService antes do render...');
-const socketService = SocketService.getInstance(); // Inicia a conexão
+// Inicializar connection socket em background
+logger.info('Iniciando conexão socket em background...');
+const socketService = SocketService.getInstance();
 
-// Informa ao usuário que a conexão está sendo estabelecida
-logger.info('Conexão com o servidor sendo estabelecida em background...');
-
-// Inicializar o sistema de roletas como parte do carregamento da aplicação
-logger.info('Inicializando sistema de roletas de forma centralizada...');
+// Inicializar sistema de roletas de forma não-bloqueante
+logger.info('Inicializando sistema de roletas em background...');
 const rouletteSystem = initializeRoulettesSystem();
 
-// Configuração global para requisições fetch
+// Otimização para requisições fetch
 const originalFetch = window.fetch;
 window.fetch = function(input, init) {
   const headers = init?.headers ? new Headers(init.headers) : new Headers();
@@ -121,24 +185,39 @@ window.fetch = function(input, init) {
   return originalFetch(input, newInit);
 };
 
-// Iniciar pré-carregamento de dados históricos
-logger.info('Iniciando pré-carregamento de dados históricos...');
-socketService.loadHistoricalRouletteNumbers().catch(err => {
-  logger.error('Erro ao pré-carregar dados históricos:', err);
-});
-
-// Expor globalmente a função para verificar se o sistema foi inicializado
+// Funções públicas para verificação do sistema
 window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
 window.getRouletteSystem = () => rouletteSystem;
 
+// Carregar dados históricos com delay para priorizar renderização
+const preloadHistoricalData = () => {
+  setTimeout(() => {
+    logger.info('Iniciando carregamento de dados históricos...');
+    socketService.loadHistoricalRouletteNumbers()
+      .then(() => {
+        logger.info('Dados históricos carregados com sucesso');
+        markPerformance('historical_data_loaded');
+      })
+      .catch(err => {
+        logger.error('Erro ao carregar dados históricos:', err);
+      });
+  }, 8000); // Delay significativo para priorizar UI
+};
+
+// Agendar carregamento de dados históricos
+preloadHistoricalData();
+
+// Renderizar a aplicação com otimizações
 const rootElement = document.getElementById("root");
 if (rootElement) {
-  // Adicionar elemento visual para indicar carregamento inicial
+  markPerformance('render_loading_screen');
+  
+  // Tela de carregamento otimizada
   rootElement.innerHTML = `
     <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #1a1a1a; color: #f0f0f0;">
       <div style="text-align: center;">
-        <h2>Carregando RunCash...</h2>
-        <p>Estabelecendo conexão com servidores</p>
+        <h2>Carregando RunCash</h2>
+        <p>Preparando a melhor experiência para você</p>
         <div style="width: 50px; height: 50px; border: 5px solid #ccc; border-top-color: #888; border-radius: 50%; margin: 20px auto; animation: spinner 1s linear infinite;"></div>
       </div>
     </div>
@@ -149,24 +228,32 @@ if (rootElement) {
     </style>
   `;
   
-  // Aguardar um pequeno intervalo para dar tempo à conexão de ser estabelecida
+  // Renderizar mais rapidamente
+  markPerformance('before_app_render');
+  
+  // Reduzir tempo de espera inicial para melhorar experiência
   setTimeout(() => {
     createRoot(rootElement).render(<App />);
+    markPerformance('after_app_render');
     
-    // Verificar autenticação novamente após carregar a aplicação completa
+    // Verificar autenticação em background após renderização
     setTimeout(() => {
       if (window.authContextInstance?.checkAuth) {
-        console.log('Verificando autenticação após inicialização completa da aplicação');
+        logger.info('Verificando autenticação em background');
         window.authContextInstance.checkAuth()
           .then(result => {
-            console.log('Verificação de autenticação pós-inicialização:', result ? 'autenticado' : 'não autenticado');
+            logger.info('Status de autenticação:', result ? 'autenticado' : 'não autenticado');
+            markPerformance('auth_check_complete');
           })
           .catch(err => {
-            console.error('Erro na verificação de autenticação pós-inicialização:', err);
+            logger.error('Erro ao verificar autenticação:', err);
           });
       }
-    }, 1000);
-  }, 1500);
+    }, 500);
+  }, 600); // Tempo reduzido para carregamento
 } else {
   logger.error('Elemento root não encontrado!');
 }
+
+// Marcar conclusão da inicialização
+markPerformance('main_initialization_complete');
