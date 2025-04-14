@@ -35,6 +35,7 @@ const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
+const WebhookTestPage = lazy(() => import("@/pages/WebhookTestPage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -210,6 +211,15 @@ const App = () => {
                           <ProtectedRoute>
                             <Suspense fallback={<LoadingScreen />}>
                               <LiveRoulettePage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        {/* Rota para teste de webhook */}
+                        <Route path="/webhook-test" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <WebhookTestPage />
                             </Suspense>
                           </ProtectedRoute>
                         } />
