@@ -7,13 +7,45 @@
   "functions": {
     "api/router.js": {
       "memory": 1024,
+      "maxDuration": 30
+    },
+    "api/proxy-roulette.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    },
+    "api/proxy.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    },
+    "api/status.js": {
+      "memory": 128,
       "maxDuration": 10
     }
   },
   "routes": [
     { 
+      "src": "/api/status", 
+      "dest": "/api/status"
+    },
+    { 
+      "src": "/api/proxy-roulette", 
+      "dest": "/api/proxy-roulette"
+    },
+    { 
+      "src": "/api/ROULETTES(.*)", 
+      "dest": "/api/proxy-roulette"
+    },
+    { 
+      "src": "/api/roulettes(.*)", 
+      "dest": "/api/proxy-roulette"
+    },
+    { 
+      "src": "/api/proxy(.*)", 
+      "dest": "/api/proxy"
+    },
+    { 
       "src": "/api/(.*)", 
-      "dest": "/api/router" 
+      "dest": "/api/router"
     },
     {
       "src": "/assets/(.*)",
@@ -35,6 +67,11 @@
       "headers": {
         "content-type": "text/css; charset=utf-8"
       }
+    },
+    {
+      "src": "/pages/(.*)",
+      "dest": "/index.html",
+      "status": 200
     },
     {
       "src": "/historico/(.*)",

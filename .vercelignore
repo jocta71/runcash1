@@ -39,6 +39,9 @@ api/**/*.js
 
 # Depois excetuamos os arquivos necessários
 !api/router.js
+!api/proxy-roulette.js
+!api/proxy.js
+!api/status.js
 !api/*/necessary-for-router/*.js
 
 # Não ignorar a pasta frontend
