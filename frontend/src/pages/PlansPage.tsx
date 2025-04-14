@@ -17,6 +17,12 @@ import { redirectToHublaCheckout, verifyCheckoutEligibility } from '@/integratio
 import Cookies from 'js-cookie';
 import Sidebar from '@/components/Sidebar';
 
+interface UserWithId {
+  id?: string;
+  _id?: string;
+  // outras propriedades do usuário
+}
+
 const PlansPage = () => {
   const { availablePlans, currentPlan, loading } = useSubscription();
   const { user, isAuthenticated, checkAuth, setUser, setToken } = useAuth();
@@ -27,7 +33,10 @@ const PlansPage = () => {
   
   // Função auxiliar para obter o ID do usuário de forma segura
   const getUserId = () => {
-    return user?.id || (user as any)?._id;
+    if (!user) return undefined;
+    // Tratando user como um objeto genérico com possíveis propriedades id ou _id
+    const userObj = user as UserWithId;
+    return userObj.id || userObj._id;
   };
 
   // Log de depuração inicial ao montar o componente
@@ -38,7 +47,7 @@ const PlansPage = () => {
       currentPath: location.pathname,
       currentPlan
     });
-  }, []);
+  }, [isAuthenticated, user, location.pathname, currentPlan]);
 
   // Garantir que os dados de autenticação sejam preservados no localStorage
   const preserveAuthData = () => {
