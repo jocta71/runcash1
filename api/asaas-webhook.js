@@ -5,15 +5,34 @@
  * da conexão com MongoDB, para diagnosticar e resolver problemas.
  */
 
-// API handler para o Vercel Serverless
+// Importar body-parser para processar o corpo da requisição
+const bodyParser = require('body-parser');
+
+// Criar middleware para parsear JSON
+const jsonParser = bodyParser.json();
+
+// Função para processar o corpo da requisição com promessas
+const parseBody = (req, res) => {
+  return new Promise((resolve, reject) => {
+    jsonParser(req, res, (error) => {
+      if (error) {
+        console.error('Erro ao processar corpo da requisição:', error);
+        return reject(error);
+      }
+      resolve();
+    });
+  });
+};
+
+// Handler principal do webhook
 module.exports = async (req, res) => {
-  // Configurar CORS
+  // Configurar CORS para aceitar qualquer origem
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', '*');
 
-  // Lidar com requisições OPTIONS (preflight CORS)
+  // Responder a requisições preflight OPTIONS imediatamente
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -26,14 +45,23 @@ module.exports = async (req, res) => {
     });
   }
 
-  // Apenas aceitar POST para eventos
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método não permitido' });
+    return res.status(405).json({ error: 'Method Not Allowed', method: req.method });
   }
 
   try {
     // Log dos headers para debug
     console.log('Headers recebidos:', JSON.stringify(req.headers));
+    
+    // Processar corpo da requisição se necessário
+    if (!req.body || typeof req.body === 'string') {
+      try {
+        await parseBody(req, res);
+        console.log('Corpo da requisição processado pelo body-parser');
+      } catch (parseError) {
+        console.error('Falha ao processar corpo com body-parser:', parseError.message);
+      }
+    }
     
     // Obter dados do webhook
     let webhookData = req.body;

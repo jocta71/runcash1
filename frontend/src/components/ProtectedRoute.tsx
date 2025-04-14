@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import LoadingScreen from './LoadingScreen';
@@ -13,20 +13,14 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { user, loading, checkAuth } = useAuth();
   const location = useLocation();
-  const [isVerifying, setIsVerifying] = useState(true);
 
   useEffect(() => {
-    const verifyAuth = async () => {
-      // Verificar autenticação quando o componente montar
-      await checkAuth();
-      setIsVerifying(false);
-    };
-    
-    verifyAuth();
+    // Verificar autenticação quando o componente montar
+    checkAuth();
   }, [checkAuth]);
 
   // Enquanto verifica autenticação, mostrar tela de carregamento
-  if (loading || isVerifying) {
+  if (loading) {
     return <LoadingScreen />;
   }
 
