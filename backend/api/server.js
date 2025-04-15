@@ -23,6 +23,7 @@ const notificationRouter = require('./routes/notification');
 const rouletteSearchRouter = require('./routes/rouletteSearch');
 const historyRouter = require('./routes/historyApi');
 const authRouter = require('./routes/auth');
+const asaasRouter = require('./routes/payment/asaasRouter');
 
 // Configuração do servidor
 const app = express();
@@ -33,7 +34,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Asaas-Access-Token']
 }));
 app.use(morgan('dev'));
 app.use(bodyParser.json());
@@ -51,7 +52,7 @@ app.use((req, res, next) => {
   
   // Outros headers necessários
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization,X-Asaas-Access-Token');
   
   // Para requisições OPTIONS (preflight)
   if (req.method === 'OPTIONS') {
@@ -95,6 +96,12 @@ app.use('/api/notification', notificationRouter);
 app.use('/api/roulette-search', rouletteSearchRouter);
 app.use('/api/history', historyRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/payment/asaas', asaasRouter);
+
+// Mapear URLs antigas para os novos endpoints do Asaas
+app.use('/api/asaas-create-customer', asaasRouter);
+app.use('/api/asaas-create-subscription', asaasRouter);
+app.use('/api/asaas-webhook', asaasRouter);
 
 // Rota de status da API
 app.get('/api/status', (req, res) => {
