@@ -4,7 +4,7 @@ const axios = require('axios');
 // Configurações da API Asaas
 const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
 const API_BASE_URL = ASAAS_ENVIRONMENT === 'production' 
-  ? 'https://www.asaas.com/api/v3'
+  ? 'https://api.asaas.com/v3'
   : 'https://sandbox.asaas.com/api/v3';
 
 console.log(`[ASAAS] Usando Asaas em ambiente: ${ASAAS_ENVIRONMENT}`);
