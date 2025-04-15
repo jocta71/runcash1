@@ -4,18 +4,21 @@
   "outputDirectory": "frontend/dist",
   "installCommand": "cd frontend && npm install",
   "framework": "vite",
-  "routes": [
-    { "src": "/api/asaas-create-customer", "dest": "/backend/api/payment/asaas-create-customer.js" },
-    { "src": "/api/asaas-create-subscription", "dest": "/backend/api/payment/asaas-create-subscription.js" },
-    { "src": "/api/asaas-webhook", "dest": "/backend/api/payment/asaas-webhook.js" }
-  ],
   "rewrites": [
     { 
       "source": "/api/asaas-webhook", 
-      "destination": "/api/asaas-webhook" 
+      "destination": "/backend/api/payment/asaas-webhook.js" 
     },
     { 
-      "source": "/api/((?!asaas-webhook).*)", 
+      "source": "/api/asaas-create-customer", 
+      "destination": "/backend/api/payment/asaas-create-customer.js" 
+    },
+    { 
+      "source": "/api/asaas-create-subscription", 
+      "destination": "/backend/api/payment/asaas-create-subscription.js" 
+    },
+    { 
+      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription).*)", 
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1" 
     },
     {
@@ -29,10 +32,6 @@
   ],
   "cleanUrls": true,
   "env": {
-    "NODE_ENV": "production",
-    "MONGODB_URI": "@mongodb_uri",
-    "MONGODB_DATABASE": "runcash",
-    "ASAAS_API_KEY": "@asaas_api_key",
-    "ASAAS_ENVIRONMENT": "sandbox"
+    "NODE_ENV": "production"
   }
 }
