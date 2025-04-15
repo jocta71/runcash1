@@ -6,7 +6,7 @@ import axios from 'axios';
 
 // URL base da API
 const API_BASE_URL = process.env.NODE_ENV === 'production'
-  ? 'https://runcashh11.vercel.app'
+  ? 'https://backendapi-production-36b5.up.railway.app'
   : '';
 
 /**

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { MongoClient } = require('mongodb');
+const { applyCors } = require('../cors-config');
 
 // URI de conexão com o MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -24,15 +25,11 @@ async function connectToDatabase() {
 }
 
 module.exports = async (req, res) => {
-  // Configuração de CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
-
-  // Resposta para solicitações preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  console.log('[ASAAS] Endpoint chamado: /api/asaas-create-subscription');
+  
+  // Aplicar configurações CORS
+  if (applyCors(req, res)) {
+    return; // Requisição OPTIONS já respondida
   }
 
   // Apenas aceitar solicitações POST
