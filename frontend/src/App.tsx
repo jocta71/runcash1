@@ -30,7 +30,7 @@ const NotFound = lazy(() => import("@/pages/NotFound"));
 const SeedPage = lazy(() => import("@/pages/SeedPage"));
 const PlansPage = lazy(() => import("@/pages/PlansPage"));
 const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
-const PaymentSuccess = lazy(() => import("@/pages/PaymentSuccess"));
+const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
 const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
@@ -190,10 +190,18 @@ const App = () => {
                           </ProtectedRoute>
                         } />
                         
+                        <Route path="/payment-success" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <PaymentSuccessPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
                         <Route path="/pagamento/sucesso" element={
                           <ProtectedRoute>
                             <Suspense fallback={<LoadingScreen />}>
-                              <PaymentSuccess />
+                              <PaymentSuccessPage />
                             </Suspense>
                           </ProtectedRoute>
                         } />

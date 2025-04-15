@@ -1,227 +1,175 @@
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 
-// Configurações da API Asaas
-const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
-const API_BASE_URL = ASAAS_ENVIRONMENT === 'production' 
-  ? 'https://www.asaas.com/api/v3'
-  : 'https://sandbox.asaas.com/api/v3';
-
-console.log(`Usando Asaas em ambiente: ${ASAAS_ENVIRONMENT}`);
-
 module.exports = async (req, res) => {
-  // Configurar CORS para aceitar qualquer origem
+  // Configuração de CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-  // Responder a requisições preflight OPTIONS imediatamente
+  // Resposta para solicitações preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // Apenas aceitar método POST
+  // Apenas aceitar solicitações POST
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed', method: req.method });
+    return res.status(405).json({ error: 'Método não permitido' });
   }
-
-  // Debug dos headers recebidos
-  console.log('Headers recebidos:', req.headers);
-  console.log('Corpo da requisição:', req.body);
 
   try {
-    const { planId, customerId, userId } = req.body;
-    
-    // Log detalhado dos parâmetros recebidos
-    console.log('Parâmetros recebidos:', { planId, customerId, userId });
-    
-    // Validação básica mais completa
-    if (!planId || !userId) {
-      return res.status(400).json({ error: 'Dados obrigatórios não fornecidos: planId ou userId' });
-    }
+    const { planId, userId, customerId } = req.body;
 
-    if (!customerId) {
-      console.error('customerId não fornecido na requisição');
-      return res.status(400).json({ error: 'ID do cliente (customerId) é obrigatório' });
-    }
-
-    // Mapeamento de planos
-    const planDetails = {
-      'free': { value: 0, name: 'Plano Gratuito RunCash' },
-      'basic': { value: 19.90, name: 'Plano Básico RunCash' },
-      'pro': { value: 49.90, name: 'Plano Profissional RunCash' },
-      'premium': { value: 99.90, name: 'Plano Premium RunCash' }
-    };
-
-    // Verificar se o plano é gratuito
-    if (planId === 'free') {
-      console.log('Processando plano gratuito para usuário:', userId);
-      
-      // Configure o cliente do Supabase
-      const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_KEY;
-      
-      if (!supabaseUrl || !supabaseKey) {
-        console.warn('Variáveis do Supabase não configuradas. Usando modo simulado.');
-        
-        return res.status(200).json({
-          success: true,
-          subscriptionId: `free_${Date.now()}`,
-          redirectUrl: `${req.headers.origin || 'https://runcashnew-frontend.vercel.app'}/payment-success?free=true`,
-          message: 'Assinatura gratuita simulada'
-        });
-      }
-      
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      
-      // Registrar assinatura gratuita diretamente no Supabase
-      try {
-        const { data, error } = await supabase
-          .from('subscriptions')
-          .upsert({
-            user_id: userId,
-            plan_id: 'free',
-            plan_type: 'FREE',
-            status: 'active',
-            start_date: new Date().toISOString(),
-            payment_provider: 'manual',
-            payment_id: `free_${Date.now()}`
-          })
-          .select();
-        
-        if (error) {
-          console.error('Erro ao criar assinatura gratuita:', error);
-          throw error;
-        }
-        
-        return res.status(200).json({
-          success: true,
-          subscriptionId: data[0]?.id,
-          redirectUrl: `${req.headers.origin || 'https://runcashnew-frontend.vercel.app'}/payment-success?free=true`,
-          message: 'Assinatura gratuita ativada com sucesso'
-        });
-      } catch (supabaseError) {
-        console.error('Erro com Supabase:', supabaseError);
-        
-        // Falha segura - retorna sucesso simulado mesmo com erro
-        return res.status(200).json({
-          success: true,
-          subscriptionId: `free_${Date.now()}`,
-          redirectUrl: `${req.headers.origin || 'https://runcashnew-frontend.vercel.app'}/payment-success?free=true`,
-          message: 'Assinatura gratuita simulada (fallback)'
-        });
-      }
-    }
-
-    // Calcular data de vencimento (próximo dia útil)
-    const today = new Date();
-    const nextDueDate = new Date(today);
-    nextDueDate.setDate(today.getDate() + 1); // Próximo dia
-    
-    // Converter para formato YYYY-MM-DD
-    const formattedDueDate = nextDueDate.toISOString().split('T')[0];
-
-    // Usar a chave de API das variáveis de ambiente
-    const apiKey = process.env.ASAAS_API_KEY;
-    
-    if (!apiKey) {
-      console.error('API key do Asaas não configurada');
-      return res.status(500).json({ 
-        error: 'Erro de configuração', 
-        message: 'A chave de API do Asaas não está configurada no servidor'
+    // Validar campos obrigatórios
+    if (!planId || !userId || !customerId) {
+      return res.status(400).json({ 
+        error: 'Campos obrigatórios', 
+        details: 'Todos os campos planId, userId e customerId são obrigatórios' 
       });
     }
 
-    // Criar assinatura no Asaas
-    const response = await axios({
-      method: 'post',
-      url: `${API_BASE_URL}/subscriptions`,
+    // Configuração do Supabase
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(500).json({ error: 'Configuração do Supabase não encontrada' });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Buscar detalhes do plano no banco de dados
+    const { data: planData, error: planError } = await supabase
+      .from('plans')
+      .select('*')
+      .eq('id', planId)
+      .single();
+
+    if (planError || !planData) {
+      console.error('Erro ao buscar plano:', planError);
+      return res.status(404).json({ error: 'Plano não encontrado' });
+    }
+
+    // Configuração da API do Asaas
+    const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
+    const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
+    const API_URL = ASAAS_ENVIRONMENT === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
+
+    if (!ASAAS_API_KEY) {
+      return res.status(500).json({ error: 'Chave de API do Asaas não configurada' });
+    }
+
+    // Configuração do cliente HTTP
+    const apiClient = axios.create({
+      baseURL: API_URL,
       headers: {
-        'access_token': apiKey,
+        'access_token': ASAAS_API_KEY,
         'Content-Type': 'application/json'
-      },
-      data: {
-        customer: customerId,
-        billingType: 'PIX', // Usar PIX como método de pagamento
-        value: planDetails[planId].value,
-        nextDueDate: formattedDueDate,
-        cycle: 'MONTHLY',
-        description: planDetails[planId].name,
-        maxPayments: 12, // 12 meses
-        externalReference: userId // Referência ao usuário no seu sistema
       }
     });
 
-    console.log('Assinatura criada com sucesso:', response.data);
-    
-    // Buscar informações da primeira cobrança para obter o link de pagamento
-    const paymentResponse = await axios({
-      method: 'get',
-      url: `${API_BASE_URL}/payments?subscription=${response.data.id}&status=PENDING`,
-      headers: {
-        'access_token': apiKey
-      }
-    });
-    
-    let paymentUrl = null;
-    if (paymentResponse.data.data && paymentResponse.data.data.length > 0) {
-      // Obter link de pagamento PIX
-      const paymentId = paymentResponse.data.data[0].id;
-      const pixResponse = await axios({
-        method: 'get',
-        url: `${API_BASE_URL}/payments/${paymentId}/pixQrCode`,
-        headers: {
-          'access_token': apiKey
-        }
-      });
-      
-      // Obter URL de pagamento
-      paymentUrl = pixResponse.data.success ? 
-                  pixResponse.data.encodedImage : 
-                  paymentResponse.data.data[0].invoiceUrl;
-    }
-
-    // Salvar informações da assinatura no Supabase
-    if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
-      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-      
-      const planTypeMap = {
-        'basic': 'BASIC',
-        'pro': 'PRO',
-        'premium': 'PREMIUM'
-      };
-      
-      await supabase
+    // Para plano gratuito, processar de forma diferente
+    if (planId === 'free') {
+      // Criar registro de assinatura no banco de dados
+      const { data: subscription, error: subError } = await supabase
         .from('subscriptions')
-        .upsert({
+        .insert({
           user_id: userId,
           plan_id: planId,
-          plan_type: planTypeMap[planId],
-          status: 'pending',
+          status: 'active',
           start_date: new Date().toISOString(),
-          payment_provider: 'asaas',
-          payment_id: response.data.id,
-          next_billing_date: formattedDueDate
-        });
+          payment_platform: 'free',
+          payment_id: `free_${Date.now()}`,
+        })
+        .select()
+        .single();
+
+      if (subError) {
+        console.error('Erro ao criar assinatura gratuita:', subError);
+        return res.status(500).json({ error: 'Erro ao criar assinatura gratuita' });
+      }
+
+      return res.json({
+        success: true,
+        free: true,
+        redirectUrl: '/payment-success?free=true',
+        subscriptionId: subscription.id
+      });
     }
+
+    // Calcular dados para a assinatura
+    const nextDueDate = new Date();
+    nextDueDate.setDate(nextDueDate.getDate() + 1); // Definir vencimento para o dia seguinte
+    const nextDueDateStr = nextDueDate.toISOString().split('T')[0];
+
+    const cycle = planData.interval === 'monthly' ? 'MONTHLY' : 'YEARLY';
+    const value = planData.price;
+
+    // Dados para criar a assinatura no Asaas
+    const subscriptionData = {
+      customer: customerId,
+      billingType: 'PIX',
+      value,
+      nextDueDate: nextDueDateStr,
+      cycle,
+      description: `Assinatura ${planData.name} - ${planData.interval}`,
+      externalReference: userId,
+    };
+
+    // Criar assinatura no Asaas
+    console.log('Criando assinatura no Asaas:', subscriptionData);
+    const asaasResponse = await apiClient.post('/subscriptions', subscriptionData);
+    const asaasSubscription = asaasResponse.data;
     
-    return res.status(200).json({
+    console.log('Assinatura criada no Asaas:', asaasSubscription);
+
+    // Obter o link de pagamento
+    const paymentLinkResponse = await apiClient.get(`/subscriptions/${asaasSubscription.id}/paymentLink`);
+    const paymentLink = paymentLinkResponse.data.url;
+
+    // Registrar assinatura no banco de dados
+    const { data: subscriptionRecord, error: dbError } = await supabase
+      .from('subscriptions')
+      .insert({
+        user_id: userId,
+        plan_id: planId,
+        status: 'pending',
+        payment_platform: 'asaas',
+        payment_id: asaasSubscription.id,
+        start_date: new Date().toISOString(),
+        payment_data: JSON.stringify(asaasSubscription)
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('Erro ao registrar assinatura no banco de dados:', dbError);
+      // Mesmo com erro, continuar e retornar o link de pagamento
+    }
+
+    return res.json({
       success: true,
-      subscriptionId: response.data.id,
-      redirectUrl: paymentUrl || response.data.invoiceUrl,
-      message: 'Assinatura criada com sucesso'
+      subscriptionId: asaasSubscription.id,
+      redirectUrl: paymentLink,
+      internalId: subscriptionRecord?.id || null
     });
   } catch (error) {
-    console.error('Erro detalhado na operação de assinatura:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data
-    });
+    console.error('Erro ao processar solicitação:', error);
+    
+    // Verificar se o erro é da API do Asaas
+    if (error.response && error.response.data) {
+      return res.status(error.response.status || 500).json({
+        error: 'Erro na API do Asaas',
+        details: error.response.data
+      });
+    }
 
-    return res.status(500).json({ 
-      error: 'Erro ao criar assinatura', 
-      details: error.response?.data || error.message 
+    return res.status(500).json({
+      error: 'Erro ao processar solicitação',
+      message: error.message
     });
   }
-}; 
+};
