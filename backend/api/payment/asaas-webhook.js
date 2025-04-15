@@ -1,4 +1,4 @@
-const { createClient } = require('@supabase/supabase-js');
+const { MongoClient } = require('mongodb');
 const axios = require('axios');
 
 // Configurações da API Asaas
@@ -13,8 +13,8 @@ module.exports = async (req, res) => {
   // Configurar CORS para aceitar qualquer origem
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
   // Responder a requisições preflight OPTIONS imediatamente
   if (req.method === 'OPTIONS') {
@@ -23,34 +23,34 @@ module.exports = async (req, res) => {
 
   // Para requisições GET (verificação do webhook)
   if (req.method === 'GET') {
-    return res.status(200).json({ status: 'Webhook endpoint ativo. Use POST para eventos do Asaas.' });
+    return res.status(200).json({ 
+      status: 'Webhook endpoint ativo. Use POST para eventos do Asaas.',
+      timestamp: new Date().toISOString()
+    });
   }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed', method: req.method });
   }
 
-  // Debug dos headers e corpo recebidos
-  console.log('Headers recebidos:', req.headers);
-  console.log('Corpo da requisição:', req.body);
+  let client;
 
   try {
     const webhookData = req.body;
     console.log('Evento recebido do Asaas:', webhookData);
     
-    // Configurar Supabase
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_KEY;
+    // Conectar ao MongoDB
+    client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    const db = client.db(process.env.MONGODB_DATABASE || 'runcash');
     
-    if (!supabaseUrl || !supabaseKey) {
-      console.warn('Variáveis do Supabase não configuradas. Usando modo simulado.');
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Evento processado em modo simulado (sem Supabase)' 
-      });
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Registrar o log do webhook
+    await db.collection('webhook_logs').insertOne({
+      provider: 'asaas',
+      event_type: webhookData.event,
+      payload: webhookData,
+      created_at: new Date()
+    });
     
     // Processar diferentes tipos de eventos
     const eventType = webhookData.event;
@@ -68,161 +68,36 @@ module.exports = async (req, res) => {
       return res.status(200).json({ message: 'Evento ignorado - não é uma assinatura' });
     }
     
-    // Buscar informações atualizadas da assinatura
-    try {
-      const apiKey = process.env.ASAAS_API_KEY;
-      
-      if (!apiKey) {
-        console.error('API key do Asaas não configurada');
-        throw new Error('A chave de API do Asaas não está configurada no servidor');
-      }
-      
-      const subscriptionResponse = await axios({
-        method: 'get',
-        url: `${API_BASE_URL}/subscriptions/${subscriptionId}`,
-        headers: {
-          'access_token': apiKey
-        }
-      });
-      
-      const subscriptionDetails = subscriptionResponse.data;
-      console.log('Detalhes da assinatura:', subscriptionDetails);
-      
-      // Buscar assinatura no Supabase pelo payment_id
-      const { data: subscriptionData, error: fetchError } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('payment_id', subscriptionId)
-        .single();
-      
-      if (fetchError || !subscriptionData) {
-        console.error('Assinatura não encontrada no banco de dados:', subscriptionId);
-        return res.status(404).json({ error: 'Assinatura não encontrada', subscription_id: subscriptionId });
-      }
-      
-      // Processar eventos
-      switch (eventType) {
-        case 'PAYMENT_CONFIRMED':
-        case 'PAYMENT_RECEIVED': {
-          // Atualizar assinatura para ativa quando o pagamento é confirmado
-          const { error: updateError } = await supabase
-            .from('subscriptions')
-            .update({ 
-              status: 'active',
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', subscriptionData.id);
-          
-          if (updateError) {
-            console.error('Erro ao atualizar status da assinatura:', updateError);
-            return res.status(500).json({ error: 'Erro ao atualizar assinatura' });
-          }
-          
-          console.log(`Assinatura ${subscriptionData.id} ativada com sucesso`);
-          break;
-        }
-        
-        case 'PAYMENT_OVERDUE': {
-          // Atualizar assinatura para atrasada
-          const { error: updateError } = await supabase
-            .from('subscriptions')
-            .update({ 
-              status: 'overdue',
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', subscriptionData.id);
-          
-          if (updateError) {
-            console.error('Erro ao atualizar status da assinatura:', updateError);
-            return res.status(500).json({ error: 'Erro ao atualizar assinatura' });
-          }
-          
-          console.log(`Assinatura ${subscriptionData.id} marcada como atrasada`);
-          break;
-        }
-        
-        case 'PAYMENT_DELETED':
-        case 'PAYMENT_REFUNDED':
-        case 'PAYMENT_REFUND_REQUESTED':
-        case 'SUBSCRIPTION_CANCELLED': {
-          // Cancelar assinatura
-          const { error: updateError } = await supabase
-            .from('subscriptions')
-            .update({ 
-              status: 'canceled',
-              end_date: new Date().toISOString(),
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', subscriptionData.id);
-          
-          if (updateError) {
-            console.error('Erro ao cancelar assinatura:', updateError);
-            return res.status(500).json({ error: 'Erro ao cancelar assinatura' });
-          }
-          
-          console.log(`Assinatura ${subscriptionData.id} cancelada`);
-          break;
-        }
-        
-        default:
-          console.log(`Evento não processado: ${eventType}`);
-      }
-      
-      return res.status(200).json({ 
-        success: true, 
-        message: `Evento ${eventType} processado com sucesso` 
-      });
-    } catch (apiError) {
-      console.error('Erro ao buscar detalhes da assinatura na API Asaas:', apiError.message);
-      
-      // Continuar processando mesmo sem os detalhes da API
-      // Isso permite que o webhook funcione mesmo com problemas temporários na API
-      // Vamos trabalhar apenas com os dados do webhook
-      
-      // Processar eventos diretamente do webhook
-      processWebhookWithoutApiDetails(eventType, subscriptionId, webhookData, supabase, res);
-    }
-  } catch (error) {
-    console.error('Erro ao processar webhook do Asaas:', error);
-    return res.status(500).json({ error: 'Erro interno do servidor', message: error.message });
-  }
-};
-
-// Função auxiliar para processar o webhook sem chamar a API do Asaas
-async function processWebhookWithoutApiDetails(eventType, subscriptionId, webhookData, supabase, res) {
-  try {
-    // Buscar assinatura no Supabase pelo payment_id
-    const { data: subscriptionData, error: fetchError } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('payment_id', subscriptionId)
-      .single();
+    // Buscar assinatura no MongoDB pelo payment_id
+    const subscriptionData = await db.collection('subscriptions').findOne({
+      payment_id: subscriptionId
+    });
     
-    if (fetchError || !subscriptionData) {
-      console.error('Assinatura não encontrada no banco de dados (fallback):', subscriptionId);
+    if (!subscriptionData) {
+      console.error('Assinatura não encontrada no banco de dados:', subscriptionId);
       return res.status(404).json({ error: 'Assinatura não encontrada', subscription_id: subscriptionId });
     }
     
-    let newStatus;
-    let endDate = null;
+    // Processar eventos
+    let status, endDate;
     
-    // Determinar o novo status com base no tipo de evento
     switch (eventType) {
       case 'PAYMENT_CONFIRMED':
       case 'PAYMENT_RECEIVED':
-        newStatus = 'active';
+        status = 'active';
         break;
       case 'PAYMENT_OVERDUE':
-        newStatus = 'overdue';
+        status = 'overdue';
         break;
       case 'PAYMENT_DELETED':
       case 'PAYMENT_REFUNDED':
       case 'PAYMENT_REFUND_REQUESTED':
       case 'SUBSCRIPTION_CANCELLED':
-        newStatus = 'canceled';
-        endDate = new Date().toISOString();
+        status = 'canceled';
+        endDate = new Date();
         break;
       default:
+        console.log(`Evento não processado: ${eventType}`);
         return res.status(200).json({ 
           success: true, 
           message: `Evento ${eventType} não requer atualização de status` 
@@ -231,32 +106,53 @@ async function processWebhookWithoutApiDetails(eventType, subscriptionId, webhoo
     
     // Atualizar assinatura
     const updateData = {
-      status: newStatus,
-      updated_at: new Date().toISOString()
+      status,
+      updated_at: new Date()
     };
     
     if (endDate) {
       updateData.end_date = endDate;
     }
     
-    const { error: updateError } = await supabase
-      .from('subscriptions')
-      .update(updateData)
-      .eq('id', subscriptionData.id);
+    await db.collection('subscriptions').updateOne(
+      { _id: subscriptionData._id },
+      { $set: updateData }
+    );
     
-    if (updateError) {
-      console.error('Erro ao atualizar assinatura (fallback):', updateError);
-      return res.status(500).json({ error: 'Erro ao atualizar assinatura', details: updateError });
-    }
+    console.log(`Assinatura ${subscriptionData._id} atualizada para ${status}`);
     
-    console.log(`Assinatura ${subscriptionData.id} atualizada para ${newStatus} (fallback)`);
+    // Adicionar notificação para o usuário
+    const notificationTitle = status === 'active' 
+      ? 'Pagamento confirmado' 
+      : status === 'overdue' 
+        ? 'Pagamento atrasado' 
+        : 'Assinatura cancelada';
+    
+    const notificationMessage = status === 'active' 
+      ? 'Seu pagamento foi confirmado e sua assinatura está ativa.' 
+      : status === 'overdue' 
+        ? 'Seu pagamento está atrasado. Por favor, regularize para manter seu acesso.' 
+        : 'Sua assinatura foi cancelada.';
+    
+    await db.collection('notifications').insertOne({
+      user_id: subscriptionData.user_id,
+      title: notificationTitle,
+      message: notificationMessage,
+      type: status === 'active' ? 'success' : status === 'overdue' ? 'warning' : 'error',
+      read: false,
+      created_at: new Date()
+    });
     
     return res.status(200).json({ 
       success: true, 
-      message: `Evento ${eventType} processado com sucesso (fallback)` 
+      message: `Evento ${eventType} processado com sucesso` 
     });
   } catch (error) {
-    console.error('Erro no processamento fallback:', error);
-    return res.status(500).json({ error: 'Erro no processamento fallback', message: error.message });
+    console.error('Erro ao processar webhook do Asaas:', error);
+    return res.status(500).json({ error: 'Erro interno do servidor', message: error.message });
+  } finally {
+    if (client) {
+      await client.close();
+    }
   }
-} 
+}; 
