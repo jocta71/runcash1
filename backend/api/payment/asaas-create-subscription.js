@@ -1,27 +1,5 @@
 const axios = require('axios');
-const { MongoClient } = require('mongodb');
-
-// URI de conexão com o MongoDB
-const MONGODB_URI = process.env.MONGODB_URI;
-
-// Inicializar cliente MongoDB
-let cachedDb = null;
-
-async function connectToDatabase() {
-  if (cachedDb) {
-    return cachedDb;
-  }
-  
-  // Conectar ao MongoDB
-  const client = await MongoClient.connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  });
-  
-  const db = client.db();
-  cachedDb = db;
-  return db;
-}
+const { createClient } = require('@supabase/supabase-js');
 
 module.exports = async (req, res) => {
   // Configuração de CORS
@@ -51,17 +29,25 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Conectar ao MongoDB
-    console.log('Conectando ao MongoDB...');
-    const db = await connectToDatabase();
-    console.log('Conexão com MongoDB estabelecida com sucesso');
+    // Configuração do Supabase
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(500).json({ error: 'Configuração do Supabase não encontrada' });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Buscar detalhes do plano no banco de dados
-    console.log(`Buscando plano com ID: ${planId}`);
-    const planData = await db.collection('plans').findOne({ id: planId });
+    const { data: planData, error: planError } = await supabase
+      .from('plans')
+      .select('*')
+      .eq('id', planId)
+      .single();
 
-    if (!planData) {
-      console.error('Plano não encontrado:', planId);
+    if (planError || !planData) {
+      console.error('Erro ao buscar plano:', planError);
       return res.status(404).json({ error: 'Plano não encontrado' });
     }
 
@@ -88,20 +74,21 @@ module.exports = async (req, res) => {
     // Para plano gratuito, processar de forma diferente
     if (planId === 'free') {
       // Criar registro de assinatura no banco de dados
-      const subscription = {
-        user_id: userId,
-        plan_id: planId,
-        status: 'active',
-        start_date: new Date().toISOString(),
-        payment_platform: 'free',
-        payment_id: `free_${Date.now()}`,
-        created_at: new Date()
-      };
-      
-      const result = await db.collection('subscriptions').insertOne(subscription);
-      
-      if (!result.insertedId) {
-        console.error('Erro ao criar assinatura gratuita');
+      const { data: subscription, error: subError } = await supabase
+        .from('subscriptions')
+        .insert({
+          user_id: userId,
+          plan_id: planId,
+          status: 'active',
+          start_date: new Date().toISOString(),
+          payment_platform: 'free',
+          payment_id: `free_${Date.now()}`,
+        })
+        .select()
+        .single();
+
+      if (subError) {
+        console.error('Erro ao criar assinatura gratuita:', subError);
         return res.status(500).json({ error: 'Erro ao criar assinatura gratuita' });
       }
 
@@ -109,7 +96,7 @@ module.exports = async (req, res) => {
         success: true,
         free: true,
         redirectUrl: '/payment-success?free=true',
-        subscriptionId: result.insertedId.toString()
+        subscriptionId: subscription.id
       });
     }
 
@@ -144,21 +131,22 @@ module.exports = async (req, res) => {
     const paymentLink = paymentLinkResponse.data.url;
 
     // Registrar assinatura no banco de dados
-    const subscriptionRecord = {
-      user_id: userId,
-      plan_id: planId,
-      status: 'pending',
-      payment_platform: 'asaas',
-      payment_id: asaasSubscription.id,
-      start_date: new Date().toISOString(),
-      payment_data: JSON.stringify(asaasSubscription),
-      created_at: new Date()
-    };
-    
-    const dbResult = await db.collection('subscriptions').insertOne(subscriptionRecord);
-    
-    if (!dbResult.insertedId) {
-      console.error('Erro ao registrar assinatura no banco de dados');
+    const { data: subscriptionRecord, error: dbError } = await supabase
+      .from('subscriptions')
+      .insert({
+        user_id: userId,
+        plan_id: planId,
+        status: 'pending',
+        payment_platform: 'asaas',
+        payment_id: asaasSubscription.id,
+        start_date: new Date().toISOString(),
+        payment_data: JSON.stringify(asaasSubscription)
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('Erro ao registrar assinatura no banco de dados:', dbError);
       // Mesmo com erro, continuar e retornar o link de pagamento
     }
 
@@ -166,7 +154,7 @@ module.exports = async (req, res) => {
       success: true,
       subscriptionId: asaasSubscription.id,
       redirectUrl: paymentLink,
-      internalId: dbResult?.insertedId?.toString() || null
+      internalId: subscriptionRecord?.id || null
     });
   } catch (error) {
     console.error('Erro ao processar solicitação:', error);
