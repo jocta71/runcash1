@@ -95,6 +95,7 @@ const App = () => {
                       <Routes>
                         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
                         <Route path="/auth" element={<AuthRoute><AuthPage /></AuthRoute>} />
+                        <Route path="/login" element={<Navigate to="/auth" replace />} />
                         <Route path="/auth/callback" element={<GoogleAuthHandler />} />
                         
                         <Route path="/roulette/:platformId/:rouletteId" element={<ProtectedRoute><RouletteDetailsPage /></ProtectedRoute>} />
