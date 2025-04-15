@@ -26,7 +26,7 @@ export const createAsaasCustomer = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const endpoint = '/api/payment/asaas/create-customer';
+    const endpoint = '/api/asaas-create-customer';
     console.log('Usando endpoint:', endpoint);
     
     const response = await apiClient.post(endpoint, {
