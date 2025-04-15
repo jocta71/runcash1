@@ -26,7 +26,7 @@ export const createAsaasCustomer = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const endpoint = '/api/asaas-create-customer';
+    const endpoint = '/asaas-create-customer';
     console.log('Usando endpoint:', endpoint);
     
     const response = await apiClient.post(endpoint, {
@@ -71,7 +71,7 @@ export const createAsaasSubscription = async (
   try {
     console.log(`Criando assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
-    const endpoint = '/api/payment/asaas/create-subscription';
+    const endpoint = '/payment/asaas/create-subscription';
     console.log('Usando endpoint:', endpoint);
     
     const response = await apiClient.post(endpoint, {
