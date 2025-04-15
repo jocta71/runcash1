@@ -4,7 +4,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
 import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import SocketService from '@/services/SocketAdapter';
 import LoadingScreen from './components/LoadingScreen';
 import RoulettesPage from './pages/Roulettes';
@@ -15,26 +15,26 @@ import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
 import { AuthProvider } from "./context/AuthContext";
 import { NotificationsProvider } from "./context/NotificationsContext";
+import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom';
 import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthPage from "./pages/AuthPage";
 import SoundManager from "./components/SoundManager";
-import HomePage from './pages/Index';
-import NotFound from './pages/NotFound';
-import AuthRoute from './components/AuthRoute';
-import RouletteDetailsPage from './pages/RouletteDetailsPage';
-import StrategyFormPage from './pages/StrategyFormPage';
-import StrategiesPage from './pages/StrategiesPage';
-import ProfilePage from './pages/ProfilePage';
-import ProfileSubscription from './pages/ProfileSubscription';
-import PaymentPage from './pages/PaymentPage';
-import PaymentSuccess from './pages/PaymentSuccess';
-import PaymentCanceled from './pages/PaymentCanceled';
-import LiveRoulettePage from './pages/LiveRoulettePage';
-import SeedPage from './pages/SeedPage';
-import AsaasTestPage from './pages/AsaasTestPage';
-import BillingPage from './pages/BillingPage';
-import PlansPage from './pages/PlansPage';
+
+// Importação de componentes principais com lazy loading
+const Index = lazy(() => import("@/pages/Index"));
+const StrategiesPage = lazy(() => import("@/pages/StrategiesPage"));
+const StrategyFormPage = lazy(() => import("@/pages/StrategyFormPage"));
+const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
+const SeedPage = lazy(() => import("@/pages/SeedPage"));
+const PlansPage = lazy(() => import("@/pages/PlansPage"));
+const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
+const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
+const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
+const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
+const TestPage = lazy(() => import("@/pages/TestPage"));
+const BillingPage = lazy(() => import("@/pages/BillingPage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -93,33 +93,143 @@ const App = () => {
                     <BrowserRouter>
                       <GoogleAuthHandler />
                       <Routes>
-                        <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-                        <Route path="/auth" element={<AuthRoute><AuthPage /></AuthRoute>} />
-                        <Route path="/login" element={<Navigate to="/auth" replace />} />
-                        <Route path="/auth/callback" element={<GoogleAuthHandler />} />
+                        {/* Rota pública de login - Acessível mesmo sem autenticação */}
+                        <Route path="/login" element={
+                          <Suspense fallback={<LoadingScreen />}>
+                            <AuthPage />
+                          </Suspense>
+                        } />
                         
-                        <Route path="/roulette/:platformId/:rouletteId" element={<ProtectedRoute><RouletteDetailsPage /></ProtectedRoute>} />
-                        <Route path="/strategies" element={<ProtectedRoute><StrategiesPage /></ProtectedRoute>} />
-                        <Route path="/strategies/new" element={<ProtectedRoute><StrategyFormPage /></ProtectedRoute>} />
-                        <Route path="/strategies/edit/:id" element={<ProtectedRoute><StrategyFormPage /></ProtectedRoute>} />
+                        {/* Redirecionamento para login se acessar diretamente a raiz sem autenticação */}
+                        <Route index element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <Index />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
                         
-                        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-                        <Route path="/profile/subscription" element={<ProtectedRoute><ProfileSubscription /></ProtectedRoute>} />
-                        <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
-                        <Route path="/planos" element={<PlansPage />} />
-                        <Route path="/payment/:planId" element={<ProtectedRoute><PaymentPage /></ProtectedRoute>} />
-                        <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
-                        <Route path="/payment-canceled" element={<ProtectedRoute><PaymentCanceled /></ProtectedRoute>} />
+                        {/* Todas as outras rotas são protegidas */}
+                        <Route path="/roulettes" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <RoulettesPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
                         
-                        <Route path="/roleta-ao-vivo" element={<ProtectedRoute><LiveRoulettePage /></ProtectedRoute>} />
-                        <Route path="/historico" element={<ProtectedRoute><RouletteHistoryPage /></ProtectedRoute>} />
-                        <Route path="/historico/:platformId/:rouletteId" element={<ProtectedRoute><RouletteAnalysisPage /></ProtectedRoute>} />
-                        <Route path="/seed-verify" element={<ProtectedRoute><SeedPage /></ProtectedRoute>} />
+                        <Route path="/history" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <RouletteHistoryPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
                         
-                        <Route path="/teste-asaas" element={<AsaasTestPage />} />
+                        <Route path="/analysis" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <RouletteAnalysisPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
                         
-                        <Route path="/error" element={<ErrorPage />} />
-                        <Route path="*" element={<NotFound />} />
+                        <Route path="/strategies" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <StrategiesPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/strategy/:id" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <StrategyFormPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/profile" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <ProfilePage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/billing" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <BillingPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/planos" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <PlansPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/pagamento" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <PaymentPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/pagamento/:planId" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <PaymentPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/payment-success" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <PaymentSuccessPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/pagamento/sucesso" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <PaymentSuccessPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/pagamento/cancelado" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <PaymentCanceled />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        <Route path="/live" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <LiveRoulettePage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        {/* Rota para página não encontrada */}
+                        <Route path="*" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <NotFound />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
                       </Routes>
                       <Toaster />
                     </BrowserRouter>
