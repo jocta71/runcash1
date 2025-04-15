@@ -26,20 +26,68 @@ export const createAsaasCustomer = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const response = await apiClient.post('/payment/asaas/create-customer', {
-      name: userData.name,
-      email: userData.email,
-      cpfCnpj: userData.cpfCnpj,
-      mobilePhone: userData.mobilePhone,
-      userId: localStorage.getItem('userId') // Adicionar userId automaticamente
-    });
-    
-    console.log('Resposta da API de criação de cliente:', response.data);
-    
-    if (response.data && response.data.customer && response.data.customer.asaasId) {
-      return response.data.customer.asaasId;
-    } else if (response.data && response.data.customerId) {
-      return response.data.customerId;
+    // Teste diferentes opções de endpoints
+    let endpoint;
+    try {
+      // Primeiro tenta com o caminho preferencial
+      endpoint = '/payment/asaas/create-customer';
+      const response = await apiClient.post(endpoint, {
+        name: userData.name,
+        email: userData.email,
+        cpfCnpj: userData.cpfCnpj,
+        mobilePhone: userData.mobilePhone,
+        userId: localStorage.getItem('userId') // Adicionar userId automaticamente
+      });
+      
+      console.log('Resposta da API de criação de cliente:', response.data);
+      
+      if (response.data && response.data.customer && response.data.customer.asaasId) {
+        return response.data.customer.asaasId;
+      } else if (response.data && response.data.customerId) {
+        return response.data.customerId;
+      }
+    } catch (firstError) {
+      console.log(`Erro ao tentar endpoint ${endpoint}:`, firstError);
+      
+      // Se o primeiro falhar, tenta o segundo caminho
+      try {
+        endpoint = '/asaas-create-customer';
+        const response = await apiClient.post(endpoint, {
+          name: userData.name,
+          email: userData.email,
+          cpfCnpj: userData.cpfCnpj,
+          mobilePhone: userData.mobilePhone,
+          userId: localStorage.getItem('userId') // Adicionar userId automaticamente
+        });
+        
+        console.log('Resposta da API de criação de cliente (alternativa):', response.data);
+        
+        if (response.data && response.data.customer && response.data.customer.asaasId) {
+          return response.data.customer.asaasId;
+        } else if (response.data && response.data.customerId) {
+          return response.data.customerId;
+        }
+      } catch (secondError) {
+        console.log(`Erro ao tentar endpoint ${endpoint}:`, secondError);
+        
+        // Se ambos falharem, tenta o terceiro como último recurso
+        endpoint = '/payment/create-customer';
+        const response = await apiClient.post(endpoint, {
+          name: userData.name,
+          email: userData.email,
+          cpfCnpj: userData.cpfCnpj,
+          mobilePhone: userData.mobilePhone,
+          userId: localStorage.getItem('userId') // Adicionar userId automaticamente
+        });
+        
+        console.log('Resposta da API de criação de cliente (última alternativa):', response.data);
+        
+        if (response.data && response.data.customer && response.data.customer.asaasId) {
+          return response.data.customer.asaasId;
+        } else if (response.data && response.data.customerId) {
+          return response.data.customerId;
+        }
+      }
     }
     
     throw new Error('ID de cliente não recebido');
@@ -68,19 +116,64 @@ export const createAsaasSubscription = async (
   try {
     console.log(`Criando assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
-    const response = await apiClient.post('/payment/asaas/create-subscription', {
-      planId,
-      userId,
-      customerId
-    });
-    
-    console.log('Resposta da API de criação de assinatura:', response.data);
-    
-    if (response.data && response.data.redirectUrl) {
-      return {
-        subscriptionId: response.data.subscriptionId || '',
-        redirectUrl: response.data.redirectUrl
-      };
+    let endpoint;
+    try {
+      // Primeiro tenta com o caminho preferencial
+      endpoint = '/payment/asaas/create-subscription';
+      const response = await apiClient.post(endpoint, {
+        planId,
+        userId,
+        customerId
+      });
+      
+      console.log('Resposta da API de criação de assinatura:', response.data);
+      
+      if (response.data && response.data.redirectUrl) {
+        return {
+          subscriptionId: response.data.subscriptionId || '',
+          redirectUrl: response.data.redirectUrl
+        };
+      }
+    } catch (firstError) {
+      console.log(`Erro ao tentar endpoint ${endpoint}:`, firstError);
+      
+      // Se o primeiro falhar, tenta o segundo caminho
+      try {
+        endpoint = '/asaas-create-subscription';
+        const response = await apiClient.post(endpoint, {
+          planId,
+          userId,
+          customerId
+        });
+        
+        console.log('Resposta da API de criação de assinatura (alternativa):', response.data);
+        
+        if (response.data && response.data.redirectUrl) {
+          return {
+            subscriptionId: response.data.subscriptionId || '',
+            redirectUrl: response.data.redirectUrl
+          };
+        }
+      } catch (secondError) {
+        console.log(`Erro ao tentar endpoint ${endpoint}:`, secondError);
+        
+        // Se ambos falharem, tenta o terceiro como último recurso
+        endpoint = '/payment/create-subscription';
+        const response = await apiClient.post(endpoint, {
+          planId,
+          userId,
+          customerId
+        });
+        
+        console.log('Resposta da API de criação de assinatura (última alternativa):', response.data);
+        
+        if (response.data && response.data.redirectUrl) {
+          return {
+            subscriptionId: response.data.subscriptionId || '',
+            redirectUrl: response.data.redirectUrl
+          };
+        }
+      }
     }
     
     throw new Error('URL de redirecionamento não recebida');
