@@ -3,6 +3,15 @@
  */
 
 import axios from 'axios';
+import config from '@/config/env';
+
+// Criar instância específica para requisições ao Asaas
+const apiClient = axios.create({
+  baseURL: config.apiBaseUrl || 'https://backendapi-production-36b5.up.railway.app/api'
+});
+
+// Log da URL base usada
+console.log('Asaas API client usando URL base:', apiClient.defaults.baseURL);
 
 /**
  * Cria um cliente no Asaas ou recupera um existente
@@ -17,16 +26,19 @@ export const createAsaasCustomer = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const response = await axios.post('/api/asaas-create-customer', {
+    const response = await apiClient.post('/asaas-create-customer', {
       name: userData.name,
       email: userData.email,
       cpfCnpj: userData.cpfCnpj,
-      mobilePhone: userData.mobilePhone
+      mobilePhone: userData.mobilePhone,
+      userId: localStorage.getItem('userId') // Adicionar userId automaticamente
     });
     
     console.log('Resposta da API de criação de cliente:', response.data);
     
-    if (response.data && response.data.customerId) {
+    if (response.data && response.data.customer && response.data.customer.asaasId) {
+      return response.data.customer.asaasId;
+    } else if (response.data && response.data.customerId) {
       return response.data.customerId;
     }
     
@@ -56,7 +68,7 @@ export const createAsaasSubscription = async (
   try {
     console.log(`Criando assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
-    const response = await axios.post('/api/asaas-create-subscription', {
+    const response = await apiClient.post('/asaas-create-subscription', {
       planId,
       userId,
       customerId
