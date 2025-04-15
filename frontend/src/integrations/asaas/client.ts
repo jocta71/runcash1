@@ -5,9 +5,7 @@
 import axios from 'axios';
 
 // URL base da API
-const API_BASE_URL = process.env.NODE_ENV === 'production'
-  ? 'https://backendapi-production-36b5.up.railway.app'
-  : '';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 /**
  * Cria um cliente no Asaas ou recupera um existente
