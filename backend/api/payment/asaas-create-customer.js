@@ -1,6 +1,5 @@
 // Versão de teste para depuração
 const axios = require('axios');
-const { applyCors } = require('../cors-config');
 
 // Configurações da API Asaas
 const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
@@ -19,9 +18,16 @@ module.exports = async (req, res) => {
   console.log('[ASAAS] URL:', req.url);
   console.log('[ASAAS] Cabeçalhos:', JSON.stringify(req.headers));
 
-  // Aplicar configurações CORS
-  if (applyCors(req, res)) {
-    return; // Requisição OPTIONS já respondida
+  // Configurar CORS para aceitar qualquer origem
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+
+  // Responder a requisições preflight OPTIONS imediatamente
+  if (req.method === 'OPTIONS') {
+    console.log('[ASAAS] Respondendo requisição OPTIONS com 200 OK');
+    return res.status(200).end();
   }
 
   // Apenas aceitar método POST

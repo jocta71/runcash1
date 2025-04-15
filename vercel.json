@@ -1,15 +1,25 @@
 {
   "version": 2,
   "builds": [
+    { "src": "backend/api/**/*.js", "use": "@vercel/node" },
     { "src": "frontend/package.json", "use": "@vercel/static-build", "config": { "distDir": "build" } }
   ],
   "routes": [
+    { "src": "/api/payment/asaas-create-customer", "dest": "backend/api/payment/asaas-create-customer.js" },
+    { "src": "/api/payment/asaas-create-subscription", "dest": "backend/api/payment/asaas-create-subscription.js" },
+    { "src": "/api/asaas-webhook", "dest": "backend/api/payment/asaas-webhook.js" },
+    { "src": "/api/payment/asaas-webhook", "dest": "backend/api/payment/asaas-webhook.js" },
+    
     { "src": "/sounds/(.*)", "dest": "/frontend/public/sounds/$1" },
     { "src": "/assets/(.*)", "dest": "/frontend/public/assets/$1" },
+    { "src": "/api/(.*)", "dest": "/backend/api/$1.js" },
+    { "src": "/(.*)", "dest": "/frontend/$1" },
     { "handle": "filesystem" },
     { "src": "/.*", "dest": "/frontend/index.html" }
   ],
   "env": {
-    "NEXT_PUBLIC_API_URL": "@backend_api_url"
+    "MONGODB_URI": "@mongodb_uri",
+    "ASAAS_API_KEY": "@asaas_api_key",
+    "ASAAS_ENVIRONMENT": "@asaas_environment"
   }
 }

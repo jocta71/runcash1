@@ -1,6 +1,5 @@
 const axios = require('axios');
 const { MongoClient, ObjectId } = require('mongodb');
-const { applyCors } = require('../cors-config');
 
 // Configurações da API Asaas
 const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
@@ -33,12 +32,15 @@ async function connectToDatabase() {
 }
 
 module.exports = async (req, res) => {
-  console.log('[WEBHOOK] Endpoint chamado: /api/asaas-webhook');
-  
-  // Aplicar configurações CORS - para webhooks, geralmente a origem é o Asaas
-  // Mas aplicamos CORS para permitir qualquer forma de teste
-  if (applyCors(req, res)) {
-    return; // Requisição OPTIONS já respondida
+  // Configurar CORS para aceitar qualquer origem
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+
+  // Responder a requisições preflight OPTIONS imediatamente
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
 
   // Para requisições GET (verificação do webhook)

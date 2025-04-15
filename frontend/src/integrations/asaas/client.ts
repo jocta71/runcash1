@@ -5,7 +5,9 @@
 import axios from 'axios';
 
 // URL base da API
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE_URL = process.env.NODE_ENV === 'production'
+  ? 'https://runcashh11.vercel.app'
+  : '';
 
 /**
  * Cria um cliente no Asaas ou recupera um existente
@@ -20,7 +22,7 @@ export const createAsaasCustomer = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const response = await axios.post(`${API_BASE_URL}/api/asaas-create-customer`, {
+    const response = await axios.post(`${API_BASE_URL}/api/payment/asaas-create-customer`, {
       name: userData.name,
       email: userData.email,
       cpfCnpj: userData.cpfCnpj,
@@ -59,7 +61,7 @@ export const createAsaasSubscription = async (
   try {
     console.log(`Criando assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
-    const response = await axios.post(`${API_BASE_URL}/api/asaas-create-subscription`, {
+    const response = await axios.post(`${API_BASE_URL}/api/payment/asaas-create-subscription`, {
       planId,
       userId,
       customerId

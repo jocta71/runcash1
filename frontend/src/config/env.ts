@@ -10,14 +10,14 @@ export const isProduction = import.meta.env.PROD ||
 // Valores padrão para cada ambiente
 const defaultValues: Record<string, Record<string, string>> = {
   development: {
-    VITE_WS_URL: '',
-    VITE_API_URL: '',
-    VITE_API_BASE_URL: ''
+    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
+    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
+    VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   },
   production: {
-    VITE_WS_URL: '',
-    VITE_API_URL: '',
-    VITE_API_BASE_URL: ''
+    VITE_WS_URL: 'wss://backend-production-2f96.up.railway.app',
+    VITE_API_URL: 'https://backendapi-production-36b5.up.railway.app/api',
+    VITE_API_BASE_URL: 'https://backendapi-production-36b5.up.railway.app/api'
   }
 };
 
@@ -31,8 +31,8 @@ interface EnvConfig {
 
 // Configuração para ambiente de produção
 const productionConfig: EnvConfig = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || '',
-  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || '',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backend-production-2f96.up.railway.app',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'wss://backend-production-2f96.up.railway.app',
   debugMode: false,
   env: 'production',
   optimizePollingForVisibility: true
@@ -40,8 +40,8 @@ const productionConfig: EnvConfig = {
 
 // Configuração para ambiente de desenvolvimento
 const developmentConfig: EnvConfig = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || '',
-  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || '',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api',
+  websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'wss://backend-production-2f96.up.railway.app',
   debugMode: true,
   env: 'development',
   optimizePollingForVisibility: false
@@ -71,9 +71,9 @@ export function getApiBaseUrl(): string {
         return `${origin}/api`;
       }
       
-      // Em desenvolvimento, retornar URL vazia
-      console.log('[ENV] Usando URL vazia para API em desenvolvimento');
-      return '';
+      // Em desenvolvimento, retornar URL padrão
+      console.log('[ENV] Usando URL padrão da API para desenvolvimento');
+      return 'https://backendapi-production-36b5.up.railway.app/api';
     }
   }
 }
@@ -105,9 +105,12 @@ export function getRequiredEnvVar(name: string): string {
   if (!isProduction) {
     console.warn(`[ENV] Variável ${name} não encontrada. Usando valor padrão.`);
     
-    // Valores padrão para desenvolvimento (agora vazios)
-    if (name === 'VITE_WS_URL' || name === 'VITE_API_URL' || name === 'VITE_API_BASE_URL') {
-      return '';
+    // Valores padrão para desenvolvimento
+    if (name === 'VITE_WS_URL') {
+      return 'wss://backend-production-2f96.up.railway.app';
+    }
+    if (name === 'VITE_API_URL' || name === 'VITE_API_BASE_URL') {
+      return 'https://backendapi-production-36b5.up.railway.app/api';
     }
   }
   
