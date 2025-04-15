@@ -26,7 +26,7 @@ export const createAsaasCustomer = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const response = await apiClient.post('/asaas-create-customer', {
+    const response = await apiClient.post('/payment/asaas/create-customer', {
       name: userData.name,
       email: userData.email,
       cpfCnpj: userData.cpfCnpj,
@@ -68,7 +68,7 @@ export const createAsaasSubscription = async (
   try {
     console.log(`Criando assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
-    const response = await apiClient.post('/asaas-create-subscription', {
+    const response = await apiClient.post('/payment/asaas/create-subscription', {
       planId,
       userId,
       customerId
