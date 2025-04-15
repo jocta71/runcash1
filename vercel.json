@@ -3,6 +3,8 @@
   "routes": [
     { "src": "/api/asaas-create-customer", "dest": "/backend/api/payment/asaas-create-customer.js" },
     { "src": "/api/asaas-create-subscription", "dest": "/backend/api/payment/asaas-create-subscription.js" },
-    { "src": "/api/asaas-webhook", "dest": "/backend/api/payment/asaas-webhook.js" }
+    { "src": "/api/asaas-webhook", "dest": "/backend/api/payment/asaas-webhook.js" },
+    { "src": "/api/auth/google", "dest": "/backend/api/auth/google.js" },
+    { "src": "/api/auth/google/callback", "dest": "/backend/api/auth/google-callback.js" }
   ]
 }
