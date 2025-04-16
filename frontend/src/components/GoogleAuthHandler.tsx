@@ -6,15 +6,15 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 
 // API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 /**
  * Componente que lida com a autenticação via Google
  * Verifica se há um token na URL e processa a autenticação
  */
 const GoogleAuthHandler = () => {
   const { setToken, setUser } = useAuth();
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleGoogleAuth = async () => {
@@ -58,14 +58,18 @@ const GoogleAuthHandler = () => {
             // Limpar a flag que indica login Google em progresso
             localStorage.removeItem('googleAuthInProgress');
             
+            // Verificar se há URL de redirecionamento armazenada
+            const redirectUrl = localStorage.getItem('redirectAfterGoogleAuth') || '/asaas-test';
+            localStorage.removeItem('redirectAfterGoogleAuth');
+            
             // Mostrar toast de sucesso
             toast({
               title: 'Login com Google concluído',
               description: 'Você foi autenticado com sucesso via Google',
             });
             
-            // Redirecionar para a página inicial
-            navigate('/');
+            // Redirecionar para a URL de redirecionamento ou página inicial
+            navigate(redirectUrl);
           }
         } catch (error) {
           console.error('Erro ao processar autenticação do Google:', error);
@@ -75,7 +79,7 @@ const GoogleAuthHandler = () => {
           
           toast({
             title: 'Erro na autenticação',
-            description: 'Ocorreu um erro ao processar sua autenticação com Google',
+            description: 'Não foi possível completar o login com Google',
             variant: 'destructive'
           });
           
@@ -102,9 +106,9 @@ const GoogleAuthHandler = () => {
     };
     
     handleGoogleAuth();
-  }, [navigate, setToken, setUser, toast]);
+  }, [setToken, setUser, navigate, toast, API_URL]);
   
-  // Este componente não renderiza nada visualmente
+  // Este componente não renderiza nada, apenas processa a autenticação
   return null;
 };
 

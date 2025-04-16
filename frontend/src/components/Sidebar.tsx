@@ -34,6 +34,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     { id: 'stats', label: 'Estatísticas', icon: BarChart3, path: '/estatisticas' },
     { id: 'fair-game', label: 'Jogo Justo', icon: Scale, path: '/jogo-justo' },
     { id: 'support', label: 'Suporte', icon: LifeBuoy, path: '/suporte' },
+    { id: 'asaas-test', label: 'Teste Asaas', icon: Beaker, path: '/asaas-test' },
   ];
   
   const handleOtherItemClick = (path: string) => {

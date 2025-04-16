@@ -30,7 +30,7 @@ const AsaasTestPage: React.FC = () => {
   // Verificar autenticação
   useEffect(() => {
     if (!authLoading && !user) {
-      navigate('/login');
+      navigate('/login?redirect=/test');
     }
   }, [user, authLoading, navigate]);
 
