@@ -34,7 +34,7 @@ const AsaasTestPage: React.FC = () => {
     }
   }, [user, authLoading, navigate]);
 
-  // Se ainda está carregando ou não há usuário, mostrar loading
+  // Se ainda está carregando ou não as duashá usuário, mostrar loading
   if (authLoading || !user) {
     return (
       <Container className="my-4 text-center">

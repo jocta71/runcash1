@@ -52,6 +52,9 @@ const AuthPage = () => {
     // Verificar se há erro no URL (redirecionado do Google Auth)
     const urlParams = new URLSearchParams(window.location.search);
     const error = urlParams.get('error');
+    const redirect = urlParams.get('redirect');
+    
+    // Se houver um erro no URL
     if (error === 'google_auth_disabled') {
       toast({
         title: "Autenticação Google desativada",
@@ -75,7 +78,17 @@ const AuthPage = () => {
           title: "Login bem-sucedido",
           description: "Bem-vindo de volta!",
         });
-        navigate('/');
+        
+        // Verificar se há um redirecionamento na URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirect = urlParams.get('redirect');
+        
+        // Redirecionar, mas ignorar se for para /test
+        if (redirect && redirect !== '/test') {
+          navigate(redirect);
+        } else {
+          navigate('/');
+        }
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
@@ -127,7 +140,17 @@ const AuthPage = () => {
           title: "Conta criada com sucesso",
           description: "Você já pode usar sua conta para acessar o sistema.",
         });
-        navigate('/');
+        
+        // Verificar se há um redirecionamento na URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirect = urlParams.get('redirect');
+        
+        // Redirecionar, mas ignorar se for para /test
+        if (redirect && redirect !== '/test') {
+          navigate(redirect);
+        } else {
+          navigate('/');
+        }
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
