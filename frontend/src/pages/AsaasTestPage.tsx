@@ -3,7 +3,6 @@ import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-b
 import { createAsaasCustomer, createAsaasSubscription, findAsaasPayment, cancelAsaasSubscription } from '../integrations/asaas/client';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 
 const AsaasTestPage: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
@@ -169,189 +168,310 @@ const AsaasTestPage: React.FC = () => {
     navigate(`/payment?planId=${planId}&customerId=${customerId}&paymentMethod=${paymentMethod}`);
   };
   
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    if (name === 'name') {
-      setName(value);
-    } else if (name === 'email') {
-      setEmail(value);
-    } else if (name === 'cpfCnpj') {
-      setCpf(value.replace(/\D/g, ''));
-    } else if (name === 'phone') {
-      setPhone(value.replace(/\D/g, ''));
-    } else if (name === 'plan') {
-      setPlanId(value);
-    } else if (name === 'paymentMethod') {
-      setPaymentMethod(value);
-    }
-  };
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-    setSubscriptionResult(null);
-    
-    try {
-      // Primeiro, criar o cliente no Asaas
-      const customerResponse = await axios.post('/api/asaas-create-customer', {
-        name,
-        email,
-        cpfCnpj: cpf.replace(/\D/g, ''),
-        phone: phone.replace(/\D/g, ''),
-        userId: user?.id
-      });
-      
-      if (customerResponse.data.id) {
-        const customerId = customerResponse.data.id;
-        
-        // Depois, criar a assinatura
-        const subscriptionResponse = await axios.post('/api/asaas-create-subscription', {
-          customerId,
-          planId: planId,
-          value: planId === 'basic' ? 29.90 : planId === 'pro' ? 49.90 : 99.90,
-          billingType: paymentMethod,
-          userId: user?.id
-        });
-        
-        if (subscriptionResponse.data.success) {
-          setSubscriptionResult(subscriptionResponse.data);
-          setCustomerId(customerId);
-          setPaymentId(subscriptionResponse.data.paymentId);
-          
-          // Se houver URL de pagamento, redirecionar
-          if (subscriptionResponse.data.paymentUrl) {
-            window.open(subscriptionResponse.data.paymentUrl, '_blank');
-          }
-        } else {
-          setError('Erro ao criar assinatura: ' + JSON.stringify(subscriptionResponse.data.error));
-        }
-      } else {
-        setError('Erro ao criar cliente: ' + JSON.stringify(customerResponse.data.error));
-      }
-    } catch (err: any) {
-      console.error('Erro ao processar pagamento:', err);
-      setError('Erro ao processar pagamento: ' + (err.response?.data?.error || err.message));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
   return (
-    <Container className="py-5">
-      <h1 className="mb-4">Teste de Integração Asaas</h1>
+    <Container className="my-4">
+      <h2 className="mb-4">Página de Teste - Integração Asaas</h2>
       
-      {error && <Alert variant="danger">{error}</Alert>}
+      {error && (
+        <Alert variant="danger" className="mb-4">
+          {error}
+        </Alert>
+      )}
       
-      <Card>
-        <Card.Body>
-          <Form onSubmit={handleSubmit}>
-            <Row>
-              <Col md={6}>
+      <Row>
+        <Col md={6} className="mb-4">
+          <Card>
+            <Card.Header>
+              <h5 className="mb-0">Criar Cliente</h5>
+            </Card.Header>
+            <Card.Body>
+              <Form onSubmit={handleCreateCustomer}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Nome completo</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="name"
-                    value={name}
-                    onChange={handleChange}
+                  <Form.Label>Nome Completo</Form.Label>
+                  <Form.Control 
+                    type="text" 
+                    value={name} 
+                    onChange={(e) => setName(e.target.value)}
                     required
                   />
                 </Form.Group>
-              </Col>
-              
-              <Col md={6}>
+                
                 <Form.Group className="mb-3">
-                  <Form.Label>E-mail</Form.Label>
-                  <Form.Control
-                    type="email"
-                    name="email"
-                    value={email}
-                    onChange={handleChange}
+                  <Form.Label>Email</Form.Label>
+                  <Form.Control 
+                    type="email" 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)}
                     required
                   />
                 </Form.Group>
-              </Col>
-            </Row>
-            
-            <Row>
-              <Col md={6}>
+                
                 <Form.Group className="mb-3">
-                  <Form.Label>CPF/CNPJ</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="cpfCnpj"
-                    value={cpf}
-                    onChange={handleChange}
+                  <Form.Label>CPF (apenas números)</Form.Label>
+                  <Form.Control 
+                    type="text" 
+                    value={cpf} 
+                    onChange={(e) => setCpf(e.target.value.replace(/\D/g, ''))}
                     required
+                    maxLength={11}
+                    minLength={11}
                   />
                 </Form.Group>
-              </Col>
-              
-              <Col md={6}>
+                
                 <Form.Group className="mb-3">
                   <Form.Label>Telefone</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="phone"
-                    value={phone}
-                    onChange={handleChange}
+                  <Form.Control 
+                    type="text" 
+                    value={phone} 
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                     required
                   />
                 </Form.Group>
-              </Col>
-            </Row>
-            
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Plano</Form.Label>
-                  <Form.Select
-                    name="plan"
-                    value={planId}
-                    onChange={handleChange}
-                    required
-                  >
-                    <option value="basic">Básico - R$ 29,90/mês</option>
-                    <option value="pro">Profissional - R$ 49,90/mês</option>
-                    <option value="premium">Premium - R$ 99,90/mês</option>
-                  </Form.Select>
-                </Form.Group>
-              </Col>
+                
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Spinner size="sm" animation="border" className="me-2" />
+                      Processando...
+                    </>
+                  ) : 'Criar Cliente'}
+                </Button>
+              </Form>
               
-              <Col md={6}>
+              {customerResult && (
+                <div className="mt-3">
+                  <Alert variant="success">
+                    Cliente criado com sucesso!
+                  </Alert>
+                  <div className="small mt-2">
+                    <strong>ID do Cliente:</strong> {customerResult.id}<br />
+                    <Button 
+                      variant="outline-secondary" 
+                      size="sm" 
+                      className="mt-2"
+                      onClick={() => {
+                        navigator.clipboard.writeText(customerResult.id);
+                        alert('ID copiado!');
+                      }}
+                    >
+                      Copiar ID
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+          
+          <Card className="mt-4">
+            <Card.Header>
+              <h5 className="mb-0">Cancelar Assinatura</h5>
+            </Card.Header>
+            <Card.Body>
+              <Form onSubmit={handleCancelSubscription}>
+                <Form.Group className="mb-3">
+                  <Form.Label>ID da Assinatura</Form.Label>
+                  <Form.Control 
+                    type="text" 
+                    value={subscriptionIdToCancel} 
+                    onChange={(e) => setSubscriptionIdToCancel(e.target.value)}
+                    required
+                  />
+                </Form.Group>
+                
+                <Button 
+                  type="submit" 
+                  disabled={isLoading}
+                  variant="danger"
+                >
+                  {isLoading ? (
+                    <>
+                      <Spinner size="sm" animation="border" className="me-2" />
+                      Cancelando...
+                    </>
+                  ) : 'Cancelar Assinatura'}
+                </Button>
+              </Form>
+              
+              {cancelResult && (
+                <div className="mt-3">
+                  <Alert variant="success">
+                    Assinatura cancelada com sucesso!
+                  </Alert>
+                  <div className="small mt-2">
+                    <pre className="p-2 bg-light rounded">
+                      {JSON.stringify(cancelResult, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+        </Col>
+        
+        <Col md={6} className="mb-4">
+          <Card>
+            <Card.Header>
+              <h5 className="mb-0">Criar Assinatura</h5>
+            </Card.Header>
+            <Card.Body>
+              <Form onSubmit={handleCreateSubscription}>
+                <Form.Group className="mb-3">
+                  <Form.Label>ID do Cliente</Form.Label>
+                  <Form.Control 
+                    type="text" 
+                    value={customerId} 
+                    onChange={(e) => setCustomerId(e.target.value)}
+                    required
+                  />
+                </Form.Group>
+                
+                <Form.Group className="mb-3">
+                  <Form.Label>ID do Plano</Form.Label>
+                  <Form.Control 
+                    type="text" 
+                    value={planId} 
+                    onChange={(e) => setPlanId(e.target.value)}
+                    required
+                  />
+                  <Form.Text className="text-muted">
+                    Exemplos: basic, pro, premium
+                  </Form.Text>
+                </Form.Group>
+                
                 <Form.Group className="mb-3">
                   <Form.Label>Método de Pagamento</Form.Label>
-                  <Form.Select
-                    name="paymentMethod"
+                  <Form.Control
+                    as="select"
                     value={paymentMethod}
-                    onChange={handleChange}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
                     required
                   >
-                    <option value="PIX">PIX</option>
-                    <option value="BOLETO">Boleto</option>
                     <option value="CREDIT_CARD">Cartão de Crédito</option>
-                  </Form.Select>
+                    <option value="PIX">PIX</option>
+                  </Form.Control>
+                  <Form.Text className="text-muted">
+                    Escolha como deseja pagar sua assinatura
+                  </Form.Text>
                 </Form.Group>
-              </Col>
-            </Row>
-            
-            <Button 
-              variant="primary" 
-              type="submit" 
-              disabled={isLoading}
-              className="w-100 mt-3"
-            >
-              {isLoading ? (
-                <>
-                  <Spinner animation="border" size="sm" className="me-2" />
-                  Processando...
-                </>
-              ) : 'Assinar Agora'}
-            </Button>
-          </Form>
-        </Card.Body>
-      </Card>
+                
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Spinner size="sm" animation="border" className="me-2" />
+                      Processando...
+                    </>
+                  ) : 'Criar Assinatura'}
+                </Button>
+              </Form>
+              
+              {subscriptionResult && (
+                <div className="mt-3">
+                  <Alert variant="success">
+                    Assinatura criada com sucesso!
+                  </Alert>
+                  <div className="small mt-2">
+                    <strong>ID da Assinatura:</strong> {subscriptionResult.subscriptionId}<br />
+                    {subscriptionResult.paymentId && (
+                      <>
+                        <strong>ID do Pagamento:</strong> {subscriptionResult.paymentId}<br />
+                        <Button 
+                          variant="outline-secondary" 
+                          size="sm" 
+                          className="mt-2 me-2"
+                          onClick={() => {
+                            navigator.clipboard.writeText(subscriptionResult.paymentId);
+                            alert('ID copiado!');
+                          }}
+                        >
+                          Copiar ID do Pagamento
+                        </Button>
+                        <Button 
+                          variant="primary" 
+                          size="sm" 
+                          className="mt-2"
+                          onClick={handleGoToPaymentPage}
+                        >
+                          Ir para Página de Pagamento
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+          
+          <Card className="mt-4">
+            <Card.Header>
+              <h5 className="mb-0">Verificar Pagamento</h5>
+            </Card.Header>
+            <Card.Body>
+              <Form onSubmit={handleCheckPayment}>
+                <Form.Group className="mb-3">
+                  <Form.Label>ID do Pagamento</Form.Label>
+                  <Form.Control 
+                    type="text" 
+                    value={paymentId} 
+                    onChange={(e) => setPaymentId(e.target.value)}
+                    required
+                  />
+                </Form.Group>
+                
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Spinner size="sm" animation="border" className="me-2" />
+                      Verificando...
+                    </>
+                  ) : 'Verificar Pagamento'}
+                </Button>
+              </Form>
+              
+              {paymentResult && (
+                <div className="mt-3">
+                  <Alert 
+                    variant={
+                      paymentResult.status === 'CONFIRMED' || paymentResult.status === 'RECEIVED' 
+                        ? 'success' 
+                        : paymentResult.status === 'PENDING' 
+                          ? 'info' 
+                          : 'warning'
+                    }
+                  >
+                    Status do Pagamento: <strong>{paymentResult.status}</strong>
+                  </Alert>
+                  <div className="small mt-2">
+                    <pre className="p-2 bg-light rounded">
+                      {JSON.stringify(paymentResult, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+      
+      <Row className="mt-4">
+        <Col>
+          <Card>
+            <Card.Header>
+              <h5 className="mb-0">Fluxo completo de teste</h5>
+            </Card.Header>
+            <Card.Body>
+              <ol>
+                <li>Crie um cliente usando o formulário "Criar Cliente"</li>
+                <li>Copie o ID do cliente retornado</li>
+                <li>Use esse ID no formulário "Criar Assinatura" junto com um ID de plano (ex: basic)</li>
+                <li>Copie o ID do pagamento retornado</li>
+                <li>Use esse ID no formulário "Verificar Pagamento" para conferir o status</li>
+                <li>Você também pode cancelar uma assinatura usando o formulário "Cancelar Assinatura"</li>
+                <li>Ou acesse a página de pagamento diretamente em: <code>/payment?planId=ID_DO_PLANO&customerId=ID_DO_CLIENTE</code></li>
+              </ol>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
     </Container>
   );
 };
