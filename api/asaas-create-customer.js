@@ -2,214 +2,198 @@
 const axios = require('axios');
 const { MongoClient } = require('mongodb');
 
-module.exports = async (req, res) => {
-  console.log('=== INÍCIO DA REQUISIÇÃO ===');
-  console.log('Método:', req.method);
-  console.log('URL:', req.url);
-  console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  console.log('Body:', JSON.stringify(req.body, null, 2));
+// MongoDB Configuration
+const MONGODB_URI = process.env.MONGODB_URI;
+const DB_NAME = 'runcashh';
 
-  // Configuração de CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
+// Asaas API Configuration
+const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
+const ASAAS_API_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://api.asaas.com/v3' 
+  : 'https://sandbox.asaas.com/api/v3';
+
+// CORS Headers Configuration
+function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
 
-  // Resposta para solicitações preflight
+module.exports = async (req, res) => {
+  // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
-    console.log('Requisição OPTIONS recebida - Respondendo com 200');
+    setCorsHeaders(res);
     return res.status(200).end();
   }
 
-  // Apenas aceitar solicitações POST
+  // Set CORS headers for all responses
+  setCorsHeaders(res);
+  
+  console.log('[CreateCustomer] Requisição recebida');
+  console.log('Method:', req.method);
+  console.log('Headers:', JSON.stringify(req.headers));
+  console.log('Body:', JSON.stringify(req.body));
+  console.log('ASAAS_API_KEY:', ASAAS_API_KEY ? 'Configurada (valor oculto)' : 'Não configurada');
+  
+  // Check if request method is POST
   if (req.method !== 'POST') {
-    console.log('Método não permitido:', req.method);
-    return res.status(405).json({ error: 'Método não permitido' });
+    console.log('[CreateCustomer] Método não suportado:', req.method);
+    return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
-
+  
+  // Check for required data
+  const { name, email, cpfCnpj } = req.body;
+  if (!name || !email || !cpfCnpj) {
+    console.log('[CreateCustomer] Dados incompletos:', { name, email, cpfCnpj });
+    return res.status(400).json({ 
+      error: 'Missing required data', 
+      required: ['name', 'email', 'cpfCnpj'],
+      received: Object.keys(req.body)
+    });
+  }
+  
+  // Validate API key
+  if (!ASAAS_API_KEY) {
+    console.error('[CreateCustomer] Chave de API Asaas não configurada');
+    return res.status(500).json({ error: 'Asaas API key is not configured' });
+  }
+  
+  console.log('[CreateCustomer] ASAAS_API_URL:', ASAAS_API_URL);
+  console.log('[CreateCustomer] ASAAS_API_KEY (primeiros 4 chars):', ASAAS_API_KEY.substring(0, 4));
+  
   let client;
-
+  
   try {
-    // Verificar dados obrigatórios
-    const { name, email, cpfCnpj, phone, userId } = req.body;
-    
-    console.log('Dados recebidos:', { 
-      name, 
-      email, 
-      cpfCnpj, 
-      phone, 
-      userId 
-    });
-    
-    if (!name || !email || !cpfCnpj) {
-      console.log('Dados incompletos:', { name, email, cpfCnpj });
-      return res.status(400).json({ 
-        success: false,
-        error: 'Dados incompletos', 
-        details: 'Nome, email e CPF/CNPJ são obrigatórios' 
-      });
-    }
-
-    // Conectar ao MongoDB
-    console.log('Conectando ao MongoDB...');
-    client = new MongoClient(process.env.MONGODB_URI);
+    // Connect to MongoDB
+    client = new MongoClient(MONGODB_URI);
     await client.connect();
-    console.log('Conexão com MongoDB estabelecida');
+    console.log('[CreateCustomer] Conectado ao MongoDB');
     
-    const db = client.db(process.env.MONGODB_DB_NAME || 'runcash');
+    const db = client.db(DB_NAME);
+    const customersCollection = db.collection('customers');
     
-    // Verificar se o cliente já existe pelo CPF/CNPJ
-    const existingCustomer = await db.collection('customers').findOne({ 
-      cpf_cnpj: cpfCnpj.replace(/[^\d]/g, '')
-    });
+    // Check if customer already exists in Asaas by cpfCnpj
+    console.log('[CreateCustomer] Verificando se cliente já existe no Asaas');
     
-    if (existingCustomer && existingCustomer.asaas_id) {
-      console.log(`Cliente já existe no Asaas com CPF/CNPJ ${cpfCnpj}: ${existingCustomer.asaas_id}`);
-      return res.status(200).json({ 
-        success: true,
-        data: {
-          customerId: existingCustomer.asaas_id
-        },
-        message: 'Cliente já cadastrado' 
-      });
-    }
-
-    // Configurar chamada para API do Asaas
-    // Forçar uso do sandbox enquanto estamos em teste
-    const ASAAS_ENVIRONMENT = 'sandbox';
-    console.log(`Usando ambiente Asaas: ${ASAAS_ENVIRONMENT}`);
+    let asaasCustomerId = null;
     
-    const asaasBaseUrl = ASAAS_ENVIRONMENT === 'production'
-      ? 'https://api.asaas.com/v3'
-      : 'https://sandbox.asaas.com/api/v3';
-    const asaasApiKey = process.env.ASAAS_API_KEY;
-
-    console.log('Configuração do Asaas:', {
-      baseUrl: asaasBaseUrl,
-      apiKey: asaasApiKey ? `${asaasApiKey.substring(0, 10)}...` : 'não definido',
-      environment: ASAAS_ENVIRONMENT,
-      nodeEnv: process.env.NODE_ENV
-    });
-
-    if (!asaasApiKey) {
-      throw new Error('Chave da API do Asaas não configurada');
-    }
-
-    if (asaasApiKey === '$api_key_aqui' || asaasApiKey.includes('$api_key')) {
-      throw new Error('Chave da API do Asaas inválida - valor padrão detectado');
-    }
-
-    const requestData = {
-      name,
-      email,
-      cpfCnpj: cpfCnpj.replace(/[^\d]/g, ''),
-      mobilePhone: phone ? phone.replace(/[^\d]/g, '') : undefined,
-      notificationDisabled: false
-    };
-
-    const requestHeaders = {
-      'Content-Type': 'application/json',
-      'User-Agent': 'RunCash/1.0',
-      'access_token': asaasApiKey
-    };
-
-    console.log('=== REQUISIÇÃO PARA O ASAAS ===');
-    console.log('URL:', `${asaasBaseUrl}/customers`);
-    console.log('Método: POST');
-    console.log('Dados:', JSON.stringify(requestData, null, 2));
-    console.log('Headers:', JSON.stringify({
-      ...requestHeaders,
-      'access_token': `${asaasApiKey.substring(0, 10)}...`
-    }, null, 2));
-
-    // Criar cliente no Asaas
-    const response = await axios.post(
-      `${asaasBaseUrl}/customers`,
-      requestData,
-      {
-        headers: requestHeaders,
-        validateStatus: function (status) {
-          return status >= 200 && status < 500;
-        }
-      }
-    );
-
-    console.log('=== RESPOSTA DO ASAAS ===');
-    console.log('Status:', response.status);
-    console.log('Dados:', JSON.stringify(response.data, null, 2));
-    console.log('Headers:', JSON.stringify(response.headers, null, 2));
-
-    // Verificar se a resposta foi bem sucedida
-    if (response.status !== 200 && response.status !== 201) {
-      console.error('=== ERRO NA RESPOSTA DO ASAAS ===');
-      console.error('Status:', response.status);
-      console.error('Dados:', JSON.stringify(response.data, null, 2));
-      console.error('Headers:', JSON.stringify(response.headers, null, 2));
-      console.error('Requisição:', {
-        url: `${asaasBaseUrl}/customers`,
-        method: 'POST',
-        data: requestData,
+    try {
+      const searchResponse = await axios({
+        method: 'get',
+        url: `${ASAAS_API_URL}/customers?cpfCnpj=${cpfCnpj}`,
         headers: {
-          ...requestHeaders,
-          'access_token': `${asaasApiKey.substring(0, 10)}...`
+          'access_token': ASAAS_API_KEY,
+          'Content-Type': 'application/json',
+          'User-Agent': 'RunCash/1.0'
         }
       });
-      throw new Error(`Erro na API do Asaas: ${response.status} - ${JSON.stringify(response.data)}`);
+      
+      console.log('[CreateCustomer] Resposta da busca por CPF:', JSON.stringify(searchResponse.data));
+      
+      if (searchResponse.data.data && searchResponse.data.data.length > 0) {
+        asaasCustomerId = searchResponse.data.data[0].id;
+        console.log(`[CreateCustomer] Cliente já existe no Asaas com ID: ${asaasCustomerId}`);
+      }
+    } catch (error) {
+      console.error('[CreateCustomer] Erro ao buscar cliente existente:', error.message);
+      // Continue with creating new customer
     }
-
-    const asaasCustomerId = response.data.id;
     
-    // Salvar cliente no MongoDB
-    await db.collection('customers').insertOne({
-      user_id: userId,
-      asaas_id: asaasCustomerId,
+    let customerResponse;
+    
+    if (asaasCustomerId) {
+      // Update existing customer
+      customerResponse = await axios({
+        method: 'post',
+        url: `${ASAAS_API_URL}/customers/${asaasCustomerId}`,
+        headers: {
+          'access_token': ASAAS_API_KEY,
+          'Content-Type': 'application/json',
+          'User-Agent': 'RunCash/1.0'
+        },
+        data: {
+          name,
+          email,
+          cpfCnpj,
+          ...req.body // Include any additional fields
+        }
+      });
+      
+      console.log('[CreateCustomer] Cliente atualizado no Asaas:', JSON.stringify(customerResponse.data));
+    } else {
+      // Create new customer
+      customerResponse = await axios({
+        method: 'post',
+        url: `${ASAAS_API_URL}/customers`,
+        headers: {
+          'access_token': ASAAS_API_KEY,
+          'Content-Type': 'application/json',
+          'User-Agent': 'RunCash/1.0'
+        },
+        data: {
+          name,
+          email,
+          cpfCnpj,
+          ...req.body, // Include any additional fields
+          notificationDisabled: false
+        }
+      });
+      
+      console.log('[CreateCustomer] Novo cliente criado no Asaas:', JSON.stringify(customerResponse.data));
+      asaasCustomerId = customerResponse.data.id;
+    }
+    
+    // Save customer data to MongoDB
+    const customerData = {
       name,
       email,
-      cpf_cnpj: cpfCnpj,
-      phone,
-      created_at: new Date(),
-      updated_at: new Date()
-    });
-
-    console.log(`Cliente criado no Asaas: ${asaasCustomerId} para usuário ${userId}`);
+      cpfCnpj,
+      phone: req.body.phone || null,
+      asaasCustomerId: asaasCustomerId,
+      status: 'PENDING',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
     
-    // Responder com sucesso
-    return res.status(201).json({
+    const result = await customersCollection.updateOne(
+      { cpfCnpj: cpfCnpj },
+      { $set: customerData },
+      { upsert: true }
+    );
+    
+    console.log('[CreateCustomer] Cliente salvo no MongoDB:', 
+      result.modifiedCount > 0 ? 'Atualizado' : 'Novo registro');
+
+    return res.status(200).json({
       success: true,
-      data: {
-        customerId: asaasCustomerId
-      },
-      message: 'Cliente criado com sucesso'
+      message: asaasCustomerId ? 'Customer updated successfully' : 'Customer created successfully',
+      customer: {
+        id: asaasCustomerId,
+        name,
+        email,
+        cpfCnpj
+      }
     });
   } catch (error) {
-    console.error('Erro ao criar cliente no Asaas:', error);
-    console.error('Detalhes do erro:', {
-      message: error.message,
-      response: error.response ? {
-        status: error.response.status,
-        data: error.response.data,
-        headers: error.response.headers
-      } : 'Sem resposta'
-    });
+    console.error('[CreateCustomer] Erro:', error.message);
     
-    // Tratar erros específicos da API do Asaas
-    if (error.response && error.response.data) {
-      return res.status(error.response.status || 500).json({
-        success: false,
-        error: 'Erro na API do Asaas',
-        details: error.response.data
+    // Log more error details if available
+    if (error.response) {
+      console.error('[CreateCustomer] Detalhes do erro Asaas:', {
+        status: error.response.status,
+        data: error.response.data
       });
     }
     
-    return res.status(500).json({ 
-      success: false,
-      error: 'Erro ao criar cliente',
-      message: error.message 
+    return res.status(error.response?.status || 500).json({
+      error: 'Failed to create customer',
+      message: error.response?.data?.errors?.[0]?.description || error.message
     });
   } finally {
-    // Fechar a conexão com o MongoDB
+    // Close MongoDB connection
     if (client) {
       await client.close();
+      console.log('[CreateCustomer] Conexão MongoDB fechada');
     }
   }
 }; 

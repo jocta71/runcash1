@@ -6,7 +6,7 @@ import axios, { AxiosError } from 'axios';
 
 // Configuração base do axios
 const api = axios.create({
-  baseURL: '/',
+  baseURL: '',  // Deixando vazio para usar URLs relativas
   headers: {
     'Content-Type': 'application/json'
   }
@@ -212,9 +212,11 @@ export const findAsaasPayment = async (paymentId: string): Promise<any> => {
  */
 interface PixQrCodeResponse {
   success: boolean;
-  qrCodeImage: string;
-  qrCodeText: string;
-  expirationDate?: string;
+  pixQrCode: {
+    encodedImage: string;
+    payload: string;
+    expirationDate: string;
+  };
 }
 
 /**
@@ -229,7 +231,7 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
   try {
     console.log(`Buscando QR code PIX: paymentId=${paymentId}`);
     
-    const response = await api.get<PixQrCodeResponse>(`api/asaas-pix-qrcode?paymentId=${paymentId}`);
+    const response = await api.post<PixQrCodeResponse>('api/asaas-pix-qrcode', { paymentId });
     
     console.log('Resposta da API de QR code PIX:', response.data);
     
@@ -238,9 +240,9 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
     }
     
     return {
-      qrCodeImage: response.data.qrCodeImage,
-      qrCodeText: response.data.qrCodeText,
-      expirationDate: response.data.expirationDate
+      qrCodeImage: response.data.pixQrCode.encodedImage,
+      qrCodeText: response.data.pixQrCode.payload,
+      expirationDate: response.data.pixQrCode.expirationDate
     };
   } catch (error) {
     console.error('Erro ao buscar QR code PIX no Asaas:', error);
