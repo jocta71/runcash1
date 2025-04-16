@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle } from 'lucide-react';
@@ -48,7 +48,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
   const { user } = useAuth();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
-    name: user?.user_metadata?.name || '',
+    name: user?.username || '',
     email: user?.email || '',
     cpf: '',
     phone: ''
@@ -56,6 +56,17 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Atualizar dados do formulário quando o usuário mudar
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        name: user.username || prev.name,
+        email: user.email || prev.email
+      }));
+    }
+  }, [user]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Limpa qualquer erro anterior quando o usuário começa a editar o formulário
     if (error) setError(null);
@@ -101,7 +112,8 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         name: formData.name,
         email: formData.email,
         cpfCnpj: cpfClean,
-        mobilePhone: formData.phone.replace(/\D/g, '')
+        mobilePhone: formData.phone.replace(/\D/g, ''),
+        userId: user.id
       });
       
       console.log('Cliente criado/recuperado com ID:', customerId);

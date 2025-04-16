@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { createAsaasCustomer, createAsaasSubscription, findAsaasPayment } from '../integrations/asaas/client';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const AsaasTestPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   
   // Estados para os formulários
@@ -18,16 +18,33 @@ const AsaasTestPage: React.FC = () => {
   const [paymentId, setPaymentId] = useState<string>('');
   
   // Estados para resultados e erros
-  const [loading, setLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [customerResult, setCustomerResult] = useState<any>(null);
   const [subscriptionResult, setSubscriptionResult] = useState<any>(null);
   const [paymentResult, setPaymentResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   
+  // Verificar autenticação
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/login?redirect=/test');
+    }
+  }, [user, authLoading, navigate]);
+
+  // Se ainda está carregando ou não há usuário, mostrar loading
+  if (authLoading || !user) {
+    return (
+      <Container className="my-4 text-center">
+        <Spinner animation="border" />
+        <p>Carregando...</p>
+      </Container>
+    );
+  }
+  
   // Criar cliente
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
     setCustomerResult(null);
     
@@ -37,7 +54,7 @@ const AsaasTestPage: React.FC = () => {
         email,
         cpfCnpj: cpf.replace(/\D/g, ''),
         mobilePhone: phone.replace(/\D/g, ''),
-        userId: user?.id || 'test-user'
+        userId: user.id
       });
       
       setCustomerResult({ id: result });
@@ -46,7 +63,7 @@ const AsaasTestPage: React.FC = () => {
       console.error('Erro ao criar cliente:', err);
       setError(err instanceof Error ? err.message : 'Erro ao criar cliente');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
   
@@ -63,7 +80,7 @@ const AsaasTestPage: React.FC = () => {
       return;
     }
     
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
     setSubscriptionResult(null);
     
@@ -83,7 +100,7 @@ const AsaasTestPage: React.FC = () => {
       console.error('Erro ao criar assinatura:', err);
       setError(err instanceof Error ? err.message : 'Erro ao criar assinatura');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
   
@@ -95,7 +112,7 @@ const AsaasTestPage: React.FC = () => {
       return;
     }
     
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
     setPaymentResult(null);
     
@@ -106,7 +123,7 @@ const AsaasTestPage: React.FC = () => {
       console.error('Erro ao verificar pagamento:', err);
       setError(err instanceof Error ? err.message : 'Erro ao verificar pagamento');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
   
@@ -180,8 +197,8 @@ const AsaasTestPage: React.FC = () => {
                   />
                 </Form.Group>
                 
-                <Button type="submit" disabled={loading}>
-                  {loading ? (
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? (
                     <>
                       <Spinner size="sm" animation="border" className="me-2" />
                       Processando...
@@ -245,8 +262,8 @@ const AsaasTestPage: React.FC = () => {
                   </Form.Text>
                 </Form.Group>
                 
-                <Button type="submit" disabled={loading}>
-                  {loading ? (
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? (
                     <>
                       <Spinner size="sm" animation="border" className="me-2" />
                       Processando...
@@ -308,8 +325,8 @@ const AsaasTestPage: React.FC = () => {
                   />
                 </Form.Group>
                 
-                <Button type="submit" disabled={loading}>
-                  {loading ? (
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? (
                     <>
                       <Spinner size="sm" animation="border" className="me-2" />
                       Verificando...
