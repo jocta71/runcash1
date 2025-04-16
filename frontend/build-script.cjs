@@ -69,21 +69,21 @@ function main() {
     }
     
     // Copiar logo.svg da raiz para dist
-    if (fs.existsSync(path.join(process.cwd(), 'public', 'logo.svg'))) {
+    if (fs.existsSync(path.join(process.cwd(), 'public', 'logo.png'))) {
       fs.copyFileSync(
-        path.join(process.cwd(), 'public', 'logo.svg'),
-        path.join(process.cwd(), 'dist', 'logo.svg')
+        path.join(process.cwd(), 'public', 'logo.png'),
+        path.join(process.cwd(), 'dist', 'logo.png')
       );
-      console.log('✅ logo.svg copiado com sucesso');
+      console.log('✅ logo.png copiado com sucesso');
     } else {
-      console.log('Aviso: Não foi possível copiar logo.svg');
+      console.log('Aviso: Não foi possível copiar logo.png');
     }
     
     // Copiar logo.svg da pasta img para dist/img
-    if (fs.existsSync(path.join(process.cwd(), 'public', 'img', 'logo.svg'))) {
+    if (fs.existsSync(path.join(process.cwd(), 'public', 'img', 'logo.png'))) {
       fs.copyFileSync(
-        path.join(process.cwd(), 'public', 'img', 'logo.svg'),
-        path.join(process.cwd(), 'dist', 'img', 'logo.svg')
+        path.join(process.cwd(), 'public', 'img', 'logo.png'),
+        path.join(process.cwd(), 'dist', 'img', 'logo.png')
       );
       console.log('✅ img/logo.svg copiado com sucesso');
     } else {
