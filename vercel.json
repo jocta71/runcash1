@@ -1,8 +1,9 @@
 {
   "version": 2,
-  "public": true,
-  "buildCommand": null,
+  "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
+  "installCommand": "cd frontend && npm install",
+  "framework": "vite",
   "rewrites": [
     { 
       "source": "/api/asaas-webhook", 
@@ -31,9 +32,6 @@
   ],
   "cleanUrls": true,
   "env": {
-    "NODE_ENV": "production",
-    "VITE_API_BASE_URL": "https://backendapi-production-36b5.up.railway.app/api",
-    "VITE_WS_URL": "https://backend-production-2f96.up.railway.app",
-    "FRONTEND_URL": "https://runcashh11.vercel.app"
+    "NODE_ENV": "production"
   }
 }
