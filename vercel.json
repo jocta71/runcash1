@@ -83,6 +83,14 @@
     {
       "source": "/test",
       "destination": "/api/test-page"
+    },
+    {
+      "source": "/login",
+      "destination": "/frontend/index.html"
+    },
+    {
+      "source": "/asaas-test",
+      "destination": "/frontend/index.html"
     }
   ],
   "env": {
@@ -93,5 +101,11 @@
     "ASAAS_ENVIRONMENT": "sandbox",
     "FRONTEND_URL": "https://runcashh11.vercel.app",
     "NODE_ENV": "production"
-  }
+  },
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/login", "dest": "/frontend/index.html" },
+    { "src": "/asaas-test", "dest": "/frontend/index.html" },
+    { "src": "/((?!api/).*)", "dest": "/frontend/index.html" }
+  ]
 }
