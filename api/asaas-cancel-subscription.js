@@ -59,9 +59,10 @@ module.exports = async (req, res) => {
     
     const db = client.db();
     const subscriptionsCollection = db.collection('subscriptions');
+    const customersCollection = db.collection('customers');
     
     // Verificar se a assinatura existe no banco
-    const existingSubscription = await subscriptionsCollection.findOne({ id: subscriptionId });
+    const existingSubscription = await subscriptionsCollection.findOne({ asaas_id: subscriptionId });
     console.log('Assinatura encontrada no MongoDB:', existingSubscription ? 'Sim' : 'Não');
     
     // Cancelar a assinatura no Asaas
@@ -84,17 +85,31 @@ module.exports = async (req, res) => {
     // Atualizar o status no MongoDB
     if (existingSubscription) {
       await subscriptionsCollection.updateOne(
-        { id: subscriptionId },
+        { asaas_id: subscriptionId },
         { 
           $set: { 
             status: 'CANCELLED',
             deleted: true,
-            updatedAt: new Date(),
-            canceledAt: new Date()
+            updated_at: new Date(),
+            canceled_at: new Date()
           } 
         }
       );
       console.log('Status da assinatura atualizado no MongoDB');
+      
+      // Atualizar também o status do cliente
+      if (existingSubscription.customer_id) {
+        await customersCollection.updateOne(
+          { asaas_id: existingSubscription.customer_id },
+          {
+            $set: {
+              subscription_status: 'CANCELLED',
+              updated_at: new Date()
+            }
+          }
+        );
+        console.log('Status do cliente atualizado no MongoDB');
+      }
     }
     
     // Retornar sucesso

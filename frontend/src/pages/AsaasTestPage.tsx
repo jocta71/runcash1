@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-bootstrap';
-import { createAsaasCustomer, createAsaasSubscription, findAsaasPayment } from '../integrations/asaas/client';
+import { createAsaasCustomer, createAsaasSubscription, findAsaasPayment, cancelAsaasSubscription } from '../integrations/asaas/client';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -16,12 +16,14 @@ const AsaasTestPage: React.FC = () => {
   const [cpf, setCpf] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
   const [paymentId, setPaymentId] = useState<string>('');
+  const [subscriptionIdToCancel, setSubscriptionIdToCancel] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('CREDIT_CARD');
   
   // Estados para resultados e erros
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [customerResult, setCustomerResult] = useState<any>(null);
   const [subscriptionResult, setSubscriptionResult] = useState<any>(null);
+  const [cancelResult, setCancelResult] = useState<any>(null);
   const [paymentResult, setPaymentResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   
@@ -97,6 +99,11 @@ const AsaasTestPage: React.FC = () => {
       if (result.paymentId) {
         setPaymentId(result.paymentId);
       }
+      
+      // Se tiver um ID de assinatura, copiar para o campo de cancelamento
+      if (result.subscriptionId) {
+        setSubscriptionIdToCancel(result.subscriptionId);
+      }
     } catch (err) {
       console.error('Erro ao criar assinatura:', err);
       setError(err instanceof Error ? err.message : 'Erro ao criar assinatura');
@@ -123,6 +130,29 @@ const AsaasTestPage: React.FC = () => {
     } catch (err) {
       console.error('Erro ao verificar pagamento:', err);
       setError(err instanceof Error ? err.message : 'Erro ao verificar pagamento');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Cancelar assinatura
+  const handleCancelSubscription = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subscriptionIdToCancel) {
+      setError('ID da assinatura é necessário');
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    setCancelResult(null);
+    
+    try {
+      const result = await cancelAsaasSubscription(subscriptionIdToCancel);
+      setCancelResult(result);
+    } catch (err) {
+      console.error('Erro ao cancelar assinatura:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao cancelar assinatura');
     } finally {
       setIsLoading(false);
     }
@@ -226,6 +256,51 @@ const AsaasTestPage: React.FC = () => {
                     >
                       Copiar ID
                     </Button>
+                  </div>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+          
+          <Card className="mt-4">
+            <Card.Header>
+              <h5 className="mb-0">Cancelar Assinatura</h5>
+            </Card.Header>
+            <Card.Body>
+              <Form onSubmit={handleCancelSubscription}>
+                <Form.Group className="mb-3">
+                  <Form.Label>ID da Assinatura</Form.Label>
+                  <Form.Control 
+                    type="text" 
+                    value={subscriptionIdToCancel} 
+                    onChange={(e) => setSubscriptionIdToCancel(e.target.value)}
+                    required
+                  />
+                </Form.Group>
+                
+                <Button 
+                  type="submit" 
+                  disabled={isLoading}
+                  variant="danger"
+                >
+                  {isLoading ? (
+                    <>
+                      <Spinner size="sm" animation="border" className="me-2" />
+                      Cancelando...
+                    </>
+                  ) : 'Cancelar Assinatura'}
+                </Button>
+              </Form>
+              
+              {cancelResult && (
+                <div className="mt-3">
+                  <Alert variant="success">
+                    Assinatura cancelada com sucesso!
+                  </Alert>
+                  <div className="small mt-2">
+                    <pre className="p-2 bg-light rounded">
+                      {JSON.stringify(cancelResult, null, 2)}
+                    </pre>
                   </div>
                 </div>
               )}
@@ -390,6 +465,7 @@ const AsaasTestPage: React.FC = () => {
                 <li>Use esse ID no formulário "Criar Assinatura" junto com um ID de plano (ex: basic)</li>
                 <li>Copie o ID do pagamento retornado</li>
                 <li>Use esse ID no formulário "Verificar Pagamento" para conferir o status</li>
+                <li>Você também pode cancelar uma assinatura usando o formulário "Cancelar Assinatura"</li>
                 <li>Ou acesse a página de pagamento diretamente em: <code>/payment?planId=ID_DO_PLANO&customerId=ID_DO_CLIENTE</code></li>
               </ol>
             </Card.Body>
