@@ -1,8 +1,7 @@
 {
-  "installCommand": "cd frontend && npm install",
+  "version": 2,
   "buildCommand": null,
-  "outputDirectory": "frontend/dist",
-  "framework": "vite",
+  "outputDirectory": null,
   "functions": {
     "api/asaas-create-customer.js": {
       "memory": 1024,
