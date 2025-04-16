@@ -33,7 +33,7 @@ const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
 const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
 const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
-
+const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
 
 // Criação do cliente de consulta
@@ -222,7 +222,14 @@ const App = () => {
                           </ProtectedRoute>
                         } />
                         
-                    
+                        {/* Rota para a página de teste */}
+                        <Route path="/test" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <TestPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
                         
                         {/* Rota para página não encontrada */}
                         <Route path="*" element={

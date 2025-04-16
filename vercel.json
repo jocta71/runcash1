@@ -77,12 +77,36 @@
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
     },
     {
-      "source": "/",
+      "source": "/test",
       "destination": "/api/test-page"
     },
     {
-      "source": "/test",
-      "destination": "/api/test-page"
+      "source": "/assets/(.*)",
+      "destination": "/frontend/dist/assets/$1"
+    },
+    {
+      "source": "/img/(.*)",
+      "destination": "/frontend/dist/img/$1"
+    },
+    {
+      "source": "/sounds/(.*)",
+      "destination": "/frontend/dist/sounds/$1"
+    },
+    {
+      "source": "/(.*\\.(js|css|png|jpg|svg|ico|json))",
+      "destination": "/frontend/dist/$1"
+    },
+    {
+      "source": "/(login|roulettes|history|analysis|strategies|profile|billing|planos|pagamento|live|test)(.*)",
+      "destination": "/frontend/dist/index.html"
+    },
+    {
+      "source": "/",
+      "destination": "/frontend/dist/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/frontend/dist/index.html"
     }
   ],
   "env": {

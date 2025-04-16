@@ -26,12 +26,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   // Se não estiver autenticado, redirecionar para login
   if (!user) {
-    // Não adicionar redirecionamento para /test ou outras rotas específicas
-    if (location.pathname === '/test') {
-      return <Navigate to="/login" replace />;
-    }
-    
-    // Para outras rotas, manter o comportamento normal
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
