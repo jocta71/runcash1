@@ -10,6 +10,7 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import axios from 'axios';
+import './AuthPage.css';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
