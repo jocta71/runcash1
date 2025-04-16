@@ -82,7 +82,7 @@
       "destination": "/api/test-page"
     },
     {
-      "source": "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg).*)",
+      "source": "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg|logo.svg|img/).*)",
       "destination": "/index.html"
     }
   ],

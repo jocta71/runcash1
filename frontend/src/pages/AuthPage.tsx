@@ -226,16 +226,6 @@ const AuthPage = () => {
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
                 </Button>
                 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <Separator className="w-full" />
-                  </div>
-                  <div className="relative flex justify-center">
-                    <span className="bg-card px-2 text-sm text-muted-foreground">
-                      Ou continue com
-                    </span>
-                  </div>
-                </div>
                 
                 <Button 
                   type="button" 

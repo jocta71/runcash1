@@ -52,9 +52,45 @@ function main() {
         path.join(process.cwd(), 'public', 'favicon.ico'),
         path.join(process.cwd(), 'dist', 'favicon.ico')
       );
+      console.log('✅ favicon.ico copiado com sucesso');
+    } else {
+      console.log('Aviso: Não foi possível copiar favicon.ico');
+    }
+    
+    // Copiar também o favicon.svg
+    if (fs.existsSync(path.join(process.cwd(), 'public', 'favicon.svg'))) {
+      fs.copyFileSync(
+        path.join(process.cwd(), 'public', 'favicon.svg'),
+        path.join(process.cwd(), 'dist', 'favicon.svg')
+      );
+      console.log('✅ favicon.svg copiado com sucesso');
+    } else {
+      console.log('Aviso: Não foi possível copiar favicon.svg');
+    }
+    
+    // Copiar logo.svg da raiz para dist
+    if (fs.existsSync(path.join(process.cwd(), 'public', 'logo.svg'))) {
+      fs.copyFileSync(
+        path.join(process.cwd(), 'public', 'logo.svg'),
+        path.join(process.cwd(), 'dist', 'logo.svg')
+      );
+      console.log('✅ logo.svg copiado com sucesso');
+    } else {
+      console.log('Aviso: Não foi possível copiar logo.svg');
+    }
+    
+    // Copiar logo.svg da pasta img para dist/img
+    if (fs.existsSync(path.join(process.cwd(), 'public', 'img', 'logo.svg'))) {
+      fs.copyFileSync(
+        path.join(process.cwd(), 'public', 'img', 'logo.svg'),
+        path.join(process.cwd(), 'dist', 'img', 'logo.svg')
+      );
+      console.log('✅ img/logo.svg copiado com sucesso');
+    } else {
+      console.log('Aviso: Não foi possível copiar img/logo.svg');
     }
   } catch (error) {
-    console.log('Aviso: Não foi possível copiar favicon.ico');
+    console.error('Erro ao copiar arquivos estáticos:', error);
   }
   
   console.log('Build concluído com sucesso!');
