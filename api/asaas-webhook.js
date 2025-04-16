@@ -1,6 +1,9 @@
 const { MongoClient } = require('mongodb');
+const axios = require('axios');
 
 const MONGODB_URI = process.env.MONGODB_URI;
+const asaasBaseUrl = process.env.ASAAS_BASE_URL;
+const asaasApiKey = process.env.ASAAS_API_KEY;
 
 module.exports = async (req, res) => {
   // Configuração de CORS
@@ -147,6 +150,18 @@ async function handlePaymentConfirmed(db, webhookData) {
       );
     }
   }
+
+  // Atualizar status do pagamento no Asaas
+  const response = await axios.get(
+    `${asaasBaseUrl}/payments/${paymentId}`,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'RunCash/1.0',
+        'access_token': asaasApiKey
+      }
+    }
+  );
 }
 
 async function handlePaymentOverdue(db, webhookData) {

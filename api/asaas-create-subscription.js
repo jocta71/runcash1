@@ -32,7 +32,17 @@ export default async function handler(req, res) {
     creditCardToken,
     creditCard,
     userEmail,
-    userName
+    userName,
+    holderName,
+    cardNumber,
+    expiryMonth,
+    expiryYear,
+    ccv,
+    holderEmail,
+    holderCpfCnpj,
+    holderPostalCode,
+    holderAddressNumber,
+    holderPhone
   } = req.body;
 
   if (!customerId) {
@@ -65,6 +75,7 @@ export default async function handler(req, res) {
     const asaasConfig = {
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'RunCash/1.0',
         'access_token': ASAAS_API_KEY
       }
     };
@@ -72,29 +83,30 @@ export default async function handler(req, res) {
     // Dados da assinatura
     const subscriptionData = {
       customer: customerId,
-      billingType: billingType,
+      billingType: 'CREDIT_CARD',
       value: value,
-      nextDueDate: nextDueDate || new Date().toISOString().split('T')[0],
+      nextDueDate: nextDueDate,
       cycle: cycle,
-      description: description || `Assinatura do plano ${plan.name}`,
-      autoRenew: true
+      description: `Assinatura do plano ${planId}`,
+      creditCard: {
+        holderName,
+        number: cardNumber.replace(/[^\d]/g, ''),
+        expiryMonth: expiryMonth,
+        expiryYear: expiryYear,
+        ccv
+      },
+      creditCardHolderInfo: {
+        name: holderName,
+        email: holderEmail,
+        cpfCnpj: holderCpfCnpj.replace(/[^\d]/g, ''),
+        postalCode: holderPostalCode.replace(/[^\d]/g, ''),
+        addressNumber: holderAddressNumber,
+        phone: holderPhone.replace(/[^\d]/g, '')
+      }
     };
 
-    // Adicionar dados de cartão de crédito se fornecidos
-    if (billingType === 'CREDIT_CARD') {
-      if (creditCardToken) {
-        subscriptionData.creditCardToken = creditCardToken;
-      } else if (creditCard) {
-        subscriptionData.creditCard = creditCard;
-      } else {
-        return res.status(400).json({ 
-          error: 'Para pagamento com cartão de crédito, é necessário fornecer creditCardToken ou creditCard' 
-        });
-      }
-    }
-
     // Criar assinatura no Asaas
-    const asaasResponse = await axios.post(
+    const response = await axios.post(
       `${ASAAS_API_URL}/subscriptions`,
       subscriptionData,
       asaasConfig
@@ -119,12 +131,12 @@ export default async function handler(req, res) {
     
     // Salvar assinatura
     const subscription = {
-      asaasId: asaasResponse.data.id,
+      asaasId: response.data.id,
       customerId: customerId,
       planId: planId,
       value: value,
-      status: asaasResponse.data.status,
-      nextDueDate: asaasResponse.data.nextDueDate,
+      status: response.data.status,
+      nextDueDate: response.data.nextDueDate,
       cycle: cycle,
       billingType: billingType,
       description: subscriptionData.description,
@@ -135,7 +147,7 @@ export default async function handler(req, res) {
 
     return res.status(201).json({
       success: true,
-      subscription: asaasResponse.data,
+      subscription: response.data,
       localSubscription: subscription
     });
   } catch (error) {
