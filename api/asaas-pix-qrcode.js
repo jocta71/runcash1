@@ -35,14 +35,8 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Forçar uso do sandbox enquanto estamos em teste
-    const ASAAS_ENVIRONMENT = 'sandbox';
-    console.log(`Usando ambiente Asaas: ${ASAAS_ENVIRONMENT}`);
-    
     // Configurar chamada para API do Asaas
-    const asaasBaseUrl = ASAAS_ENVIRONMENT === 'production'
-      ? 'https://api.asaas.com/v3'
-      : 'https://sandbox.asaas.com/api/v3';
+    const asaasBaseUrl = 'https://sandbox.asaas.com/api/v3';
     const asaasApiKey = process.env.ASAAS_API_KEY;
 
     console.log('Configuração do Asaas:', {
@@ -64,7 +58,7 @@ module.exports = async (req, res) => {
       }
     });
 
-    // Buscar QR code do pagamento
+    // Obter QR code do pagamento
     const response = await axios.get(
       `${asaasBaseUrl}/payments/${paymentId}/pixQrCode`,
       {
@@ -79,11 +73,11 @@ module.exports = async (req, res) => {
       }
     );
 
-    console.log('Resposta do Asaas (QR Code):', {
+    console.log('Resposta do Asaas:', {
       status: response.status,
       statusText: response.statusText,
       headers: response.headers,
-      data: typeof response.data === 'object' ? 'Objeto JSON recebido' : 'Resposta não é JSON'
+      data: typeof response.data === 'object' ? response.data : 'Resposta não é JSON'
     });
 
     // Verificar se a resposta foi bem sucedida
@@ -94,7 +88,7 @@ module.exports = async (req, res) => {
         data: response.data
       });
       return res.status(response.status).json({ 
-        error: 'Erro ao gerar QR code PIX',
+        error: 'Erro ao obter QR code PIX na API do Asaas',
         details: response.data
       });
     }
@@ -102,34 +96,21 @@ module.exports = async (req, res) => {
     // Verificar se a resposta contém os dados do QR code
     if (!response.data || !response.data.encodedImage) {
       return res.status(404).json({ 
-        error: 'QR code PIX não disponível',
-        details: 'Não foi possível gerar o QR code PIX para este pagamento'
+        error: 'QR Code não encontrado',
+        details: 'Não foi possível obter o QR code para este pagamento'
       });
     }
-
-    // Registrar no MongoDB
-    const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
-    const db = client.db();
-
-    await db.collection('pix_codes').insertOne({
-      payment_id: paymentId,
-      qr_code_generated: true,
-      expiration_date: response.data.expirationDate,
-      created_at: new Date()
-    });
-    
-    await client.close();
 
     // Retornar os dados do QR code
     return res.status(200).json({
       success: true,
+      paymentId: paymentId,
       qrCodeImage: response.data.encodedImage,
       qrCodeText: response.data.payload,
       expirationDate: response.data.expirationDate
     });
   } catch (error) {
-    console.error('Erro ao gerar QR code PIX:', error);
+    console.error('Erro ao obter QR code PIX:', error);
     
     // Tratar erros específicos da API do Asaas
     if (error.response && error.response.data) {
@@ -140,7 +121,7 @@ module.exports = async (req, res) => {
     }
     
     return res.status(500).json({ 
-      error: 'Erro ao gerar QR code PIX',
+      error: 'Erro ao obter QR code PIX',
       message: error.message 
     });
   }

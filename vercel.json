@@ -22,10 +22,6 @@
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-subscription-payments.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
     "api/test-page.js": {
       "memory": 1024,
       "maxDuration": 10
@@ -53,11 +49,7 @@
       "destination": "/api/asaas-pix-qrcode.js"
     },
     {
-      "source": "/api/asaas-subscription-payments",
-      "destination": "/api/asaas-subscription-payments.js"
-    },
-    {
-      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-subscription-payments|test-page).*)",
+      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|test-page).*)",
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
     },
     {
