@@ -1,20 +1,35 @@
 /**
- * Cliente para integração com Asaas
+ * Cliente para integração com Asaas - MODO TESTE DIRETO
+ * Aviso: Este código é apenas para testes e não deve ser usado em produção
+ * Conecta diretamente à API do Asaas sem passar pelo backend
  */
 
 import axios from 'axios';
 import config from '@/config/env';
 
-// Criar instância específica para requisições ao Asaas
+// Chave API de sandbox para testes - NUNCA use chaves reais no frontend
+// Esta chave é apenas para testes e deve ser substituída por uma implementação segura via backend
+const ASAAS_SANDBOX_KEY = '$aass_sandbox$'; // Substitua por uma chave de sandbox para testes
+
+// Criar instância específica para requisições diretas ao Asaas (apenas testes)
+const asaasDirectClient = axios.create({
+  baseURL: 'https://sandbox.asaas.com/api/v3',
+  headers: {
+    'Content-Type': 'application/json',
+    'access_token': ASAAS_SANDBOX_KEY
+  }
+});
+
+// Cliente original para backend (mantenha para referência)
 const apiClient = axios.create({
   baseURL: config.apiBaseUrl || 'https://backendapi-production-36b5.up.railway.app'
 });
 
 // Log da URL base usada
-console.log('Asaas API client usando URL base:', apiClient.defaults.baseURL);
+console.log('Asaas API client usando URL base para testes diretos:', asaasDirectClient.defaults.baseURL);
 
 /**
- * Cria um cliente no Asaas ou recupera um existente
+ * Cria um cliente no Asaas ou recupera um existente (modo teste direto)
  * @param userData Dados do usuário (nome, email, cpf/cnpj, telefone)
  */
 export const createAsaasCustomer = async (userData: {
@@ -24,7 +39,142 @@ export const createAsaasCustomer = async (userData: {
   mobilePhone?: string;
 }): Promise<string> => {
   try {
-    console.log('Criando/recuperando cliente no Asaas:', userData);
+    console.log('Criando/recuperando cliente no Asaas (modo direto):', userData);
+    
+    // Primeiro verifica se o cliente já existe pelo CPF/CNPJ
+    const searchResponse = await asaasDirectClient.get('/customers', {
+      params: { cpfCnpj: userData.cpfCnpj.replace(/\D/g, '') }
+    });
+    
+    let customerId;
+    
+    // Se cliente já existe, usar o ID existente
+    if (searchResponse.data.data && searchResponse.data.data.length > 0) {
+      customerId = searchResponse.data.data[0].id;
+      console.log('Cliente já existe no Asaas, ID:', customerId);
+      
+      // Atualiza os dados do cliente existente
+      await asaasDirectClient.post(`/customers/${customerId}`, {
+        name: userData.name,
+        email: userData.email,
+        mobilePhone: userData.mobilePhone?.replace(/\D/g, '')
+      });
+      
+      console.log('Dados do cliente atualizados com sucesso');
+    } else {
+      // Cria um novo cliente
+      const customerData = {
+        name: userData.name,
+        email: userData.email,
+        cpfCnpj: userData.cpfCnpj.replace(/\D/g, ''),
+        mobilePhone: userData.mobilePhone?.replace(/\D/g, ''),
+        notificationDisabled: false
+      };
+      
+      const createResponse = await asaasDirectClient.post('/customers', customerData);
+      customerId = createResponse.data.id;
+      console.log('Novo cliente criado no Asaas, ID:', customerId);
+    }
+    
+    return customerId;
+  } catch (error) {
+    console.error('Erro ao criar cliente no Asaas (modo direto):', error);
+    
+    if (error instanceof Error) {
+      throw new Error(`Falha ao criar cliente: ${error.message}`);
+    }
+    
+    throw new Error('Falha ao criar cliente no Asaas');
+  }
+};
+
+/**
+ * Cria uma assinatura no Asaas (modo teste direto)
+ * @param planId ID do plano a ser assinado
+ * @param userId ID do usuário no seu sistema
+ * @param customerId ID do cliente no Asaas
+ */
+export const createAsaasSubscription = async (
+  planId: string,
+  userId: string,
+  customerId: string
+): Promise<{ subscriptionId: string, redirectUrl: string }> => {
+  try {
+    console.log(`Criando assinatura (modo direto): planId=${planId}, userId=${userId}, customerId=${customerId}`);
+    
+    // Valores de exemplo baseados no ID do plano
+    let value = 19.90;
+    let planName = 'Plano Básico';
+    
+    if (planId === 'pro') {
+      value = 49.90;
+      planName = 'Plano Profissional';
+    } else if (planId === 'premium') {
+      value = 99.90;
+      planName = 'Plano Premium';
+    }
+    
+    // Data de vencimento (próximo mês)
+    const today = new Date();
+    const nextMonth = new Date(today.setMonth(today.getMonth() + 1));
+    const nextDueDate = nextMonth.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+    
+    // Dados da assinatura
+    const subscriptionData = {
+      customer: customerId,
+      billingType: 'PIX', // Ou outro método: 'CREDIT_CARD', 'BOLETO'
+      value: value,
+      nextDueDate: nextDueDate,
+      cycle: 'MONTHLY',
+      description: `Assinatura do ${planName}`,
+      externalReference: userId
+    };
+    
+    const response = await asaasDirectClient.post('/subscriptions', subscriptionData);
+    console.log('Resposta da criação de assinatura (modo direto):', response.data);
+    
+    // Para pagamentos via PIX, precisamos criar uma cobrança e pegar o QR code
+    const createPaymentResponse = await asaasDirectClient.post('/payments', {
+      customer: customerId,
+      billingType: 'PIX',
+      value: value,
+      dueDate: nextDueDate,
+      description: `Primeiro pagamento - ${planName}`,
+      externalReference: userId
+    });
+    
+    // Gerar o QR code PIX
+    const paymentId = createPaymentResponse.data.id;
+    const pixResponse = await asaasDirectClient.get(`/payments/${paymentId}/pixQrCode`);
+    
+    const paymentUrl = pixResponse.data.success ? 
+                      `https://sandbox.asaas.com/payment/auth/${paymentId}` : 
+                      `https://sandbox.asaas.com/i/${paymentId}`;
+    
+    return {
+      subscriptionId: response.data.id,
+      redirectUrl: paymentUrl
+    };
+  } catch (error) {
+    console.error('Erro ao criar assinatura no Asaas (modo direto):', error);
+    
+    if (error instanceof Error) {
+      throw new Error(`Falha ao criar assinatura: ${error.message}`);
+    }
+    
+    throw new Error('Falha ao criar assinatura no Asaas');
+  }
+};
+
+// Funções originais que chamam o backend (renomeadas para referência)
+export const createAsaasCustomerViaBackend = async (userData: {
+  name: string;
+  email: string;
+  cpfCnpj: string;
+  mobilePhone?: string;
+}): Promise<string> => {
+  try {
+    console.log('Criando/recuperando cliente no Asaas (via backend):', userData);
     
     const endpoint = '/asaas-create-customer';
     console.log('Usando endpoint:', endpoint);
@@ -57,19 +207,13 @@ export const createAsaasCustomer = async (userData: {
   }
 };
 
-/**
- * Cria uma assinatura no Asaas
- * @param planId ID do plano a ser assinado
- * @param userId ID do usuário no seu sistema
- * @param customerId ID do cliente no Asaas
- */
-export const createAsaasSubscription = async (
+export const createAsaasSubscriptionViaBackend = async (
   planId: string,
   userId: string,
   customerId: string
 ): Promise<{ subscriptionId: string, redirectUrl: string }> => {
   try {
-    console.log(`Criando assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
+    console.log(`Criando assinatura via backend: planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
     const endpoint = '/payment/asaas/create-subscription';
     console.log('Usando endpoint:', endpoint);
