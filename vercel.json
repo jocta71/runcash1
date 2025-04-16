@@ -75,6 +75,7 @@
     "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash",
     "MONGODB_DATABASE": "runcash",
     "ASAAS_API_KEY": "$api_key_aqui",
-    "ASAAS_ENVIRONMENT": "sandbox"
+    "ASAAS_ENVIRONMENT": "sandbox",
+    "ASAAS_API_URL": "https://sandbox.asaas.com/api/v3"
   }
 }

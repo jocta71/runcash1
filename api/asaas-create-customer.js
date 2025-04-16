@@ -27,6 +27,7 @@ module.exports = async (req, res) => {
     
     if (!name || !email || !cpfCnpj || !userId) {
       return res.status(400).json({ 
+        success: false,
         error: 'Dados incompletos', 
         details: 'Nome, email, CPF/CNPJ e ID do usuário são obrigatórios' 
       });
@@ -43,7 +44,10 @@ module.exports = async (req, res) => {
     if (existingCustomer && existingCustomer.asaas_id) {
       console.log(`Cliente já existe no Asaas para o usuário ${userId}: ${existingCustomer.asaas_id}`);
       return res.status(200).json({ 
-        customerId: existingCustomer.asaas_id,
+        success: true,
+        data: {
+          customerId: existingCustomer.asaas_id
+        },
         message: 'Cliente já cadastrado' 
       });
     }
@@ -95,7 +99,10 @@ module.exports = async (req, res) => {
     
     // Responder com sucesso
     return res.status(201).json({
-      customerId: asaasCustomerId,
+      success: true,
+      data: {
+        customerId: asaasCustomerId
+      },
       message: 'Cliente criado com sucesso'
     });
   } catch (error) {
@@ -104,12 +111,14 @@ module.exports = async (req, res) => {
     // Tratar erros específicos da API do Asaas
     if (error.response && error.response.data) {
       return res.status(error.response.status || 500).json({
+        success: false,
         error: 'Erro na API do Asaas',
         details: error.response.data
       });
     }
     
     return res.status(500).json({ 
+      success: false,
       error: 'Erro ao criar cliente',
       message: error.message 
     });
