@@ -79,6 +79,10 @@
     {
       "source": "/test",
       "destination": "/api/test-page"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "env": {
