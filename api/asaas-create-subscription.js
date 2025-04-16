@@ -1,5 +1,5 @@
-import { MongoClient } from 'mongodb';
-import axios from 'axios';
+const { MongoClient } = require('mongodb');
+const axios = require('axios');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
@@ -7,7 +7,7 @@ const ASAAS_API_URL = process.env.NODE_ENV === 'production'
   ? 'https://api.asaas.com/v3' 
   : 'https://sandbox.asaas.com/api/v3';
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   console.log('=== INÍCIO DA REQUISIÇÃO DE ASSINATURA ===');
   console.log('Método:', req.method);
   console.log('URL:', req.url);
