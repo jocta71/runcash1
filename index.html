@@ -46,30 +46,6 @@
       .btn:hover {
         background-color: #00cc00;
       }
-      .btn.secondary {
-        background-color: #333;
-        color: white;
-      }
-      .btn.secondary:hover {
-        background-color: #444;
-      }
-      ul {
-        list-style-type: none;
-        padding-left: 0;
-      }
-      ul li {
-        margin-bottom: 8px;
-        position: relative;
-        padding-left: 24px;
-      }
-      ul li:before {
-        content: "✓";
-        color: #00ff00;
-        position: absolute;
-        left: 0;
-        display: block;
-        margin: 20px auto;
-      }
       .warning {
         background-color: rgba(255, 150, 50, 0.2);
         border-left: 4px solid #ff9632;
@@ -77,20 +53,30 @@
         margin: 20px 0;
         border-radius: 4px;
       }
+      .error {
+        background-color: rgba(255, 80, 80, 0.2);
+        border-left: 4px solid #ff3232;
+        padding: 12px;
+        margin: 20px 0;
+        border-radius: 4px;
+        font-size: 0.9rem;
+      }
     </style>
   </head>
 
   <body>
     <div class="container">
       <h1>Bem-vindo à RunCash</h1>
-      <p>Por favor, escolha uma opção para continuar:</p>
-      
-      <div class="warning">
-        <p><strong>Nota:</strong> A página de teste do Asaas é somente para fins de teste. Para acessar a aplicação completa, use o botão abaixo.</p>
-      </div>
       
       <a href="/app" class="btn">Acessar o Site Principal</a>
-      <a href="/asaas-test" class="btn secondary">Acessar Página de Teste do Asaas</a>
+      
+      <div class="error">
+        <p><strong>Aviso:</strong> A rota /asaas-test não está funcionando no momento.</p>
+      </div>
+      
+      <div class="warning">
+        <p><strong>Nota:</strong> A página de teste em /test está ativa, mas não está acessível diretamente. Entre em contato com o administrador para mais informações.</p>
+      </div>
     </div>
   </body>
 </html>
