@@ -82,38 +82,36 @@ module.exports = async (req, res) => {
       throw new Error('Chave da API do Asaas inválida - valor padrão detectado');
     }
 
+    const requestData = {
+      name,
+      email,
+      cpfCnpj: cpfCnpj.replace(/[^\d]/g, ''),
+      mobilePhone: phone ? phone.replace(/[^\d]/g, '') : undefined,
+      notificationDisabled: false
+    };
+
+    const requestHeaders = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'RunCash/1.0',
+      'access_token': asaasApiKey
+    };
+
     console.log('Fazendo requisição para o Asaas:', {
       url: `${asaasBaseUrl}/customers`,
-      data: {
-        name,
-        email,
-        cpfCnpj: cpfCnpj.replace(/[^\d]/g, ''),
-        mobilePhone: phone ? phone.replace(/[^\d]/g, '') : undefined,
-        notificationDisabled: false
-      },
+      method: 'POST',
+      data: requestData,
       headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'RunCash/1.0',
-        'access_token': asaasApiKey
+        ...requestHeaders,
+        'access_token': `${asaasApiKey.substring(0, 10)}...`
       }
     });
 
     // Criar cliente no Asaas
     const response = await axios.post(
       `${asaasBaseUrl}/customers`,
+      requestData,
       {
-        name,
-        email,
-        cpfCnpj: cpfCnpj.replace(/[^\d]/g, ''),
-        mobilePhone: phone ? phone.replace(/[^\d]/g, '') : undefined,
-        notificationDisabled: false
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'RunCash/1.0',
-          'access_token': asaasApiKey
-        },
+        headers: requestHeaders,
         validateStatus: function (status) {
           return status >= 200 && status < 500; // Aceitar status codes entre 200-499
         }
@@ -125,7 +123,16 @@ module.exports = async (req, res) => {
       console.error('Erro na resposta do Asaas:', {
         status: response.status,
         data: response.data,
-        headers: response.headers
+        headers: response.headers,
+        request: {
+          url: `${asaasBaseUrl}/customers`,
+          method: 'POST',
+          data: requestData,
+          headers: {
+            ...requestHeaders,
+            'access_token': `${asaasApiKey.substring(0, 10)}...`
+          }
+        }
       });
       throw new Error(`Erro na API do Asaas: ${response.status} - ${JSON.stringify(response.data)}`);
     }
