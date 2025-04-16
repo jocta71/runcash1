@@ -12,6 +12,7 @@ const path = require('path');
 const mongodb = require('./libs/mongodb');
 const passport = require('./config/passport');
 const cookieParser = require('cookie-parser');
+const mongoose = require('mongoose');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -24,6 +25,7 @@ const rouletteSearchRouter = require('./routes/rouletteSearch');
 const historyRouter = require('./routes/historyApi');
 const authRouter = require('./routes/auth');
 const asaasRouter = require('./routes/payment/asaasRouter');
+const asaasProxyRoutes = require('./routes/payment/asaasProxy');
 
 // Configuração do servidor
 const app = express();
@@ -113,6 +115,14 @@ app.get('/api/status', (req, res) => {
   });
 });
 
+// Registrar rotas do proxy Asaas
+app.use('/api/asaas', asaasProxyRoutes);
+
+// Rota de verificação de saúde
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'UP', message: 'Servidor funcionando corretamente' });
+});
+
 // Tratamento de erros global
 app.use((err, req, res, next) => {
   console.error('Erro global:', err);
@@ -132,6 +142,7 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`API Server rodando na porta ${PORT}`);
       console.log(`Status da API: http://localhost:${PORT}/api/status`);
+      console.log(`URL do proxy Asaas: http://localhost:${PORT}/api/asaas/`);
     });
     
     // Tratar encerramento do servidor
@@ -156,6 +167,7 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`API Server rodando na porta ${PORT} (sem MongoDB)`);
       console.log(`Status da API: http://localhost:${PORT}/api/status`);
+      console.log(`URL do proxy Asaas: http://localhost:${PORT}/api/asaas/`);
     });
   }
 }
@@ -163,6 +175,15 @@ async function startServer() {
 // Se este arquivo for executado diretamente, iniciar o servidor
 if (require.main === module) {
   startServer();
+}
+
+// Conectar ao MongoDB se configurado
+if (process.env.MONGODB_URI) {
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('Conectado ao MongoDB com sucesso'))
+    .catch(err => console.error('Erro ao conectar ao MongoDB:', err));
+} else {
+  console.warn('AVISO: Variável MONGODB_URI não configurada, banco de dados não conectado.');
 }
 
 module.exports = app; 

@@ -26,10 +26,11 @@ const apiClient = axios.create({
 });
 
 // Log da URL base usada
-console.log('Asaas API client usando URL base para testes diretos:', asaasDirectClient.defaults.baseURL);
+console.log('Asaas API client usando URL base:', apiClient.defaults.baseURL);
 
 /**
- * Cria um cliente no Asaas ou recupera um existente (modo teste direto)
+ * Cria um cliente no Asaas ou recupera um existente
+ * Em produção, usa o backend. Em modo de teste, pode conectar diretamente.
  * @param userData Dados do usuário (nome, email, cpf/cnpj, telefone)
  */
 export const createAsaasCustomer = async (userData: {
@@ -38,6 +39,11 @@ export const createAsaasCustomer = async (userData: {
   cpfCnpj: string;
   mobilePhone?: string;
 }): Promise<string> => {
+  // Em produção, sempre usar o backend para segurança
+  if (config.isProduction) {
+    return createAsaasCustomerViaBackend(userData);
+  }
+  
   try {
     console.log('Criando/recuperando cliente no Asaas (modo direto):', userData);
     
@@ -80,16 +86,15 @@ export const createAsaasCustomer = async (userData: {
   } catch (error) {
     console.error('Erro ao criar cliente no Asaas (modo direto):', error);
     
-    if (error instanceof Error) {
-      throw new Error(`Falha ao criar cliente: ${error.message}`);
-    }
-    
-    throw new Error('Falha ao criar cliente no Asaas');
+    // Em caso de erro no modo direto, tentar via backend como fallback
+    console.log('Tentando criar cliente via backend como fallback...');
+    return createAsaasCustomerViaBackend(userData);
   }
 };
 
 /**
- * Cria uma assinatura no Asaas (modo teste direto)
+ * Cria uma assinatura no Asaas
+ * Em produção, usa o backend. Em modo de teste, pode conectar diretamente.
  * @param planId ID do plano a ser assinado
  * @param userId ID do usuário no seu sistema
  * @param customerId ID do cliente no Asaas
@@ -99,6 +104,11 @@ export const createAsaasSubscription = async (
   userId: string,
   customerId: string
 ): Promise<{ subscriptionId: string, redirectUrl: string }> => {
+  // Em produção, sempre usar o backend para segurança
+  if (config.isProduction) {
+    return createAsaasSubscriptionViaBackend(planId, userId, customerId);
+  }
+  
   try {
     console.log(`Criando assinatura (modo direto): planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
@@ -158,11 +168,9 @@ export const createAsaasSubscription = async (
   } catch (error) {
     console.error('Erro ao criar assinatura no Asaas (modo direto):', error);
     
-    if (error instanceof Error) {
-      throw new Error(`Falha ao criar assinatura: ${error.message}`);
-    }
-    
-    throw new Error('Falha ao criar assinatura no Asaas');
+    // Em caso de erro no modo direto, tentar via backend como fallback
+    console.log('Tentando criar assinatura via backend como fallback...');
+    return createAsaasSubscriptionViaBackend(planId, userId, customerId);
   }
 };
 
@@ -176,7 +184,7 @@ export const createAsaasCustomerViaBackend = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas (via backend):', userData);
     
-    const endpoint = '/asaas-create-customer';
+    const endpoint = '/api/asaas-create-customer';
     console.log('Usando endpoint:', endpoint);
     
     const response = await apiClient.post(endpoint, {
@@ -215,7 +223,7 @@ export const createAsaasSubscriptionViaBackend = async (
   try {
     console.log(`Criando assinatura via backend: planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
-    const endpoint = '/payment/asaas/create-subscription';
+    const endpoint = '/api/asaas-create-subscription';
     console.log('Usando endpoint:', endpoint);
     
     const response = await apiClient.post(endpoint, {
