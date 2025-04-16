@@ -1,223 +1,295 @@
-const { MongoClient } = require('mongodb');
+import { MongoClient } from 'mongodb';
 
-module.exports = async (req, res) => {
+const MONGODB_URI = process.env.MONGODB_URI;
+
+export default async function handler(req, res) {
   // Configuração de CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
-
-  // Resposta para solicitações preflight
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-
-  // Apenas aceitar solicitações POST
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
+  // Verificar se há um corpo de requisição
+  if (!req.body) {
+    return res.status(400).json({ error: 'Corpo da requisição vazio' });
+  }
+
+  const webhookData = req.body;
+  
+  // Identificar o tipo de evento
+  const event = webhookData.event;
+  
+  if (!event) {
+    return res.status(400).json({ error: 'Tipo de evento não identificado' });
+  }
+
   let client;
-
   try {
-    console.log('Webhook do Asaas recebido:', JSON.stringify(req.body));
-    
-    const event = req.body;
-    
-    // Verificar se o webhook contém os dados necessários
-    if (!event || !event.event) {
-      console.error('Webhook inválido:', event);
-      return res.status(400).json({ error: 'Webhook inválido' });
-    }
-
     // Conectar ao MongoDB
-    client = new MongoClient(process.env.MONGODB_URI);
+    client = new MongoClient(MONGODB_URI);
     await client.connect();
-    const db = client.db(process.env.MONGODB_DATABASE || 'runcash');
-    
-    // Processamento baseado no tipo de evento
-    switch (event.event) {
+    const db = client.db();
+
+    // Registrar o webhook recebido para fins de auditoria
+    await db.collection('webhooks').insertOne({
+      event: event,
+      data: webhookData,
+      receivedAt: new Date()
+    });
+
+    // Processar o evento com base no tipo
+    switch (event) {
       case 'PAYMENT_CONFIRMED':
       case 'PAYMENT_RECEIVED':
-        await handlePaymentConfirmed(db, event);
+        await handlePaymentConfirmed(db, webhookData);
         break;
       
       case 'PAYMENT_OVERDUE':
-        await handlePaymentOverdue(db, event);
+        await handlePaymentOverdue(db, webhookData);
         break;
       
       case 'PAYMENT_REFUNDED':
-      case 'PAYMENT_REFUND_CONFIRMED':
-        await handlePaymentRefunded(db, event);
+        await handlePaymentRefunded(db, webhookData);
         break;
       
-      case 'SUBSCRIPTION_CANCELLED':
-        await handleSubscriptionCancelled(db, event);
+      case 'SUBSCRIPTION_CANCELED':
+        await handleSubscriptionCanceled(db, webhookData);
         break;
-    
+      
+      case 'SUBSCRIPTION_RENEWED':
+        await handleSubscriptionRenewed(db, webhookData);
+        break;
+        
+      case 'SUBSCRIPTION_DELETED':
+        await handleSubscriptionDeleted(db, webhookData);
+        break;
+        
       default:
-        console.log(`Evento não processado: ${event.event}`);
+        console.log(`Evento não tratado: ${event}`);
     }
 
-    // Responder com sucesso
-    return res.status(200).json({ success: true, message: 'Webhook processado' });
+    return res.status(200).json({ message: 'Webhook processado com sucesso' });
   } catch (error) {
     console.error('Erro ao processar webhook:', error);
-    return res.status(500).json({ error: 'Erro ao processar webhook' });
+    return res.status(500).json({ error: 'Erro interno ao processar webhook' });
   } finally {
-    // Fechar a conexão com o MongoDB
     if (client) {
       await client.close();
     }
   }
-};
-
-// Função para lidar com pagamentos confirmados
-async function handlePaymentConfirmed(db, event) {
-  try {
-    const paymentId = event.payment.id;
-    const subscriptionId = event.payment.subscription;
-    
-    console.log(`Processando pagamento confirmado: ${paymentId} para assinatura ${subscriptionId}`);
-    
-    if (subscriptionId) {
-      // Atualizar status da assinatura no MongoDB
-      const result = await db.collection('subscriptions').updateOne(
-        { payment_id: subscriptionId },
-        { 
-          $set: { 
-            status: 'active',
-            last_payment_date: new Date(),
-            last_payment_id: paymentId,
-            updated_at: new Date()
-          }
-        }
-      );
-      
-      console.log(`Assinatura atualizada: ${result.modifiedCount} documento(s)`);
-      
-      // Registrar o pagamento no histórico
-      await db.collection('payment_history').insertOne({
-        subscription_id: subscriptionId,
-        payment_id: paymentId,
-        event: 'payment_confirmed',
-        amount: event.payment.value,
-        date: new Date(),
-        data: JSON.stringify(event)
-      });
-    }
-  } catch (error) {
-    console.error('Erro ao processar pagamento confirmado:', error);
-    throw error;
-  }
 }
 
-// Função para lidar com pagamentos em atraso
-async function handlePaymentOverdue(db, event) {
-  try {
-    const paymentId = event.payment.id;
-    const subscriptionId = event.payment.subscription;
-    
-    console.log(`Processando pagamento em atraso: ${paymentId} para assinatura ${subscriptionId}`);
-    
-    if (subscriptionId) {
-      // Atualizar status da assinatura no MongoDB
-      const result = await db.collection('subscriptions').updateOne(
-        { payment_id: subscriptionId },
-        { 
-          $set: { 
-            status: 'overdue',
-            updated_at: new Date()
-          }
-        }
-      );
-      
-      console.log(`Assinatura marcada como atrasada: ${result.modifiedCount} documento(s)`);
-      
-      // Registrar o evento no histórico
-      await db.collection('payment_history').insertOne({
-        subscription_id: subscriptionId,
-        payment_id: paymentId,
-        event: 'payment_overdue',
-        amount: event.payment.value,
-        date: new Date(),
-        data: JSON.stringify(event)
-      });
-    }
-  } catch (error) {
-    console.error('Erro ao processar pagamento em atraso:', error);
-    throw error;
-  }
-}
+// Funções para manipulação de eventos específicos
 
-// Função para lidar com pagamentos reembolsados
-async function handlePaymentRefunded(db, event) {
-  try {
-    const paymentId = event.payment.id;
-    const subscriptionId = event.payment.subscription;
-    
-    console.log(`Processando reembolso: ${paymentId} para assinatura ${subscriptionId}`);
-    
-    if (subscriptionId) {
-      // Atualizar status da assinatura no MongoDB
-      const result = await db.collection('subscriptions').updateOne(
-        { payment_id: subscriptionId },
-        { 
-          $set: { 
-            status: 'refunded',
-            updated_at: new Date()
-          }
-        }
-      );
-      
-      console.log(`Assinatura marcada como reembolsada: ${result.modifiedCount} documento(s)`);
-      
-      // Registrar o evento no histórico
-      await db.collection('payment_history').insertOne({
-        subscription_id: subscriptionId,
-        payment_id: paymentId,
-        event: 'payment_refunded',
-        amount: event.payment.value,
-        date: new Date(),
-        data: JSON.stringify(event)
-      });
-    }
-  } catch (error) {
-    console.error('Erro ao processar reembolso:', error);
-    throw error;
-  }
-}
+async function handlePaymentConfirmed(db, webhookData) {
+  const payment = webhookData.payment;
+  if (!payment || !payment.id) return;
 
-// Função para lidar com assinaturas canceladas
-async function handleSubscriptionCancelled(db, event) {
-  try {
-    const subscriptionId = event.subscription.id;
-    
-    console.log(`Processando cancelamento de assinatura: ${subscriptionId}`);
-    
-    // Atualizar status da assinatura no MongoDB
-    const result = await db.collection('subscriptions').updateOne(
-      { payment_id: subscriptionId },
+  const paymentId = payment.id;
+  const subscriptionId = payment.subscription;
+  
+  // Atualizar status do pagamento
+  if (paymentId) {
+    await db.collection('payments').updateOne(
+      { asaasId: paymentId },
       { 
         $set: { 
-          status: 'cancelled',
-          cancelled_at: new Date(),
-          updated_at: new Date()
+          status: 'CONFIRMED',
+          confirmedDate: new Date(),
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+  }
+  
+  // Se houver uma assinatura associada, atualizar status
+  if (subscriptionId) {
+    await db.collection('subscriptions').updateOne(
+      { asaasId: subscriptionId },
+      { 
+        $set: { 
+          status: 'ACTIVE',
+          updatedAt: new Date()
         }
       }
     );
     
-    console.log(`Assinatura marcada como cancelada: ${result.modifiedCount} documento(s)`);
+    // Buscar usuário associado à assinatura e atualizar status
+    const subscription = await db.collection('subscriptions').findOne({ asaasId: subscriptionId });
+    if (subscription && subscription.customerId) {
+      await db.collection('customers').updateOne(
+        { asaasId: subscription.customerId },
+        {
+          $set: {
+            subscriptionStatus: 'ACTIVE',
+            updatedAt: new Date()
+          }
+        }
+      );
+    }
+  }
+}
+
+async function handlePaymentOverdue(db, webhookData) {
+  const payment = webhookData.payment;
+  if (!payment || !payment.id) return;
+  
+  const paymentId = payment.id;
+  const subscriptionId = payment.subscription;
+  
+  // Atualizar status do pagamento
+  if (paymentId) {
+    await db.collection('payments').updateOne(
+      { asaasId: paymentId },
+      { 
+        $set: { 
+          status: 'OVERDUE',
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+  }
+  
+  // Se houver uma assinatura associada, atualizar status
+  if (subscriptionId) {
+    await db.collection('subscriptions').updateOne(
+      { asaasId: subscriptionId },
+      { 
+        $set: { 
+          status: 'INACTIVE',
+          updatedAt: new Date()
+        }
+      }
+    );
     
-    // Registrar o evento no histórico
-    await db.collection('payment_history').insertOne({
-      subscription_id: subscriptionId,
-      event: 'subscription_cancelled',
-      date: new Date(),
-      data: JSON.stringify(event)
-    });
-  } catch (error) {
-    console.error('Erro ao processar cancelamento de assinatura:', error);
-    throw error;
+    // Buscar usuário associado à assinatura e atualizar status
+    const subscription = await db.collection('subscriptions').findOne({ asaasId: subscriptionId });
+    if (subscription && subscription.customerId) {
+      await db.collection('customers').updateOne(
+        { asaasId: subscription.customerId },
+        {
+          $set: {
+            subscriptionStatus: 'INACTIVE',
+            updatedAt: new Date()
+          }
+        }
+      );
+    }
+  }
+}
+
+async function handlePaymentRefunded(db, webhookData) {
+  const payment = webhookData.payment;
+  if (!payment || !payment.id) return;
+  
+  const paymentId = payment.id;
+  
+  // Atualizar status do pagamento
+  if (paymentId) {
+    await db.collection('payments').updateOne(
+      { asaasId: paymentId },
+      { 
+        $set: { 
+          status: 'REFUNDED',
+          refundedDate: new Date(),
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+  }
+}
+
+async function handleSubscriptionCanceled(db, webhookData) {
+  const subscription = webhookData.subscription;
+  if (!subscription || !subscription.id) return;
+  
+  const subscriptionId = subscription.id;
+  
+  // Atualizar status da assinatura
+  await db.collection('subscriptions').updateOne(
+    { asaasId: subscriptionId },
+    { 
+      $set: { 
+        status: 'CANCELLED',
+        canceledDate: new Date(),
+        updatedAt: new Date()
+      }
+    }
+  );
+  
+  // Buscar usuário associado à assinatura e atualizar status
+  const sub = await db.collection('subscriptions').findOne({ asaasId: subscriptionId });
+  if (sub && sub.customerId) {
+    await db.collection('customers').updateOne(
+      { asaasId: sub.customerId },
+      {
+        $set: {
+          subscriptionStatus: 'CANCELLED',
+          updatedAt: new Date()
+        }
+      }
+    );
+  }
+}
+
+async function handleSubscriptionRenewed(db, webhookData) {
+  const subscription = webhookData.subscription;
+  if (!subscription || !subscription.id) return;
+  
+  const subscriptionId = subscription.id;
+  
+  // Atualizar detalhes da assinatura
+  await db.collection('subscriptions').updateOne(
+    { asaasId: subscriptionId },
+    { 
+      $set: { 
+        status: 'ACTIVE',
+        nextDueDate: subscription.nextDueDate,
+        updatedAt: new Date()
+      }
+    }
+  );
+}
+
+async function handleSubscriptionDeleted(db, webhookData) {
+  const subscription = webhookData.subscription;
+  if (!subscription || !subscription.id) return;
+  
+  const subscriptionId = subscription.id;
+  
+  // Atualizar status da assinatura
+  await db.collection('subscriptions').updateOne(
+    { asaasId: subscriptionId },
+    { 
+      $set: { 
+        status: 'DELETED',
+        deletedDate: new Date(),
+        updatedAt: new Date()
+      }
+    }
+  );
+  
+  // Buscar usuário associado à assinatura e atualizar status
+  const sub = await db.collection('subscriptions').findOne({ asaasId: subscriptionId });
+  if (sub && sub.customerId) {
+    await db.collection('customers').updateOne(
+      { asaasId: sub.customerId },
+      {
+        $set: {
+          subscriptionStatus: 'INACTIVE',
+          updatedAt: new Date()
+        }
+      }
+    );
   }
 } 

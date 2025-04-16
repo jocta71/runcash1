@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package } from 'lucide-react';
+import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package, Beaker } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 interface SidebarProps {
@@ -28,6 +28,17 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     } else if (id === 'plans') {
       navigate('/planos');
     }
+  };
+  
+  const otherOptions = [
+    { id: 'stats', label: 'Estatísticas', icon: BarChart3, path: '/estatisticas' },
+    { id: 'fair-game', label: 'Jogo Justo', icon: Scale, path: '/jogo-justo' },
+    { id: 'support', label: 'Suporte', icon: LifeBuoy, path: '/suporte' },
+    { id: 'asaas-test', label: 'Teste Asaas', icon: Beaker, path: '/asaas-test' },
+  ];
+  
+  const handleOtherItemClick = (path: string) => {
+    navigate(path);
   };
   
   const sidebarClasses = isMobile
@@ -131,26 +142,18 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
         <div>
           <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Outros</h3>
           <div className="space-y-1">
-            <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <BarChart3 size={18} className="text-white" />
+            {otherOptions.map((option) => (
+              <div 
+                key={option.id}
+                className="menu-item"
+                onClick={() => handleOtherItemClick(option.path)}
+              >
+                <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
+                  <option.icon size={18} className="text-white" />
+                </div>
+                <span className="truncate">{option.label}</span>
               </div>
-              <span className="truncate">Estatísticas</span>
-            </div>
-            
-            <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <Scale size={18} className="text-white" />
-              </div>
-              <span className="truncate">Jogo Justo</span>
-            </div>
-            
-            <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <LifeBuoy size={18} className="text-white" />
-              </div>
-              <span className="truncate">Suporte</span>
-            </div>
+            ))}
           </div>
         </div>
       </div>

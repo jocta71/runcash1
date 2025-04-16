@@ -35,6 +35,7 @@ const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
+const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -218,6 +219,15 @@ const App = () => {
                           <ProtectedRoute>
                             <Suspense fallback={<LoadingScreen />}>
                               <LiveRoulettePage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
+                        {/* Rota para a página de teste do Asaas */}
+                        <Route path="/asaas-test" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <AsaasTestPage />
                             </Suspense>
                           </ProtectedRoute>
                         } />
