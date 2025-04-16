@@ -135,7 +135,7 @@ const AsaasTestPage: React.FC = () => {
       return;
     }
     
-    navigate(`/payment?planId=${planId}&customerId=${customerId}`);
+    navigate(`/payment?planId=${planId}&customerId=${customerId}&paymentMethod=${paymentMethod}`);
   };
   
   return (

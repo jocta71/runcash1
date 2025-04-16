@@ -23,6 +23,7 @@ const AsaasPaymentPage: React.FC = () => {
   const planId = queryParams.get('planId');
   const customerId = queryParams.get('customerId');
   const returnUrl = queryParams.get('returnUrl') || '/account';
+  const paymentMethod = queryParams.get('paymentMethod') || 'PIX';
   
   // Estados
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -56,7 +57,7 @@ const AsaasPaymentPage: React.FC = () => {
         planId, 
         user.id, 
         customerId, 
-        'PIX'
+        paymentMethod
       );
       
       // Se for assinatura gratuita, redirecionar diretamente
@@ -69,12 +70,12 @@ const AsaasPaymentPage: React.FC = () => {
       setPaymentId(result.paymentId);
       setSubscriptionId(result.subscriptionId);
       
-      // Se tiver paymentId, mostrar modal do PIX
-      if (result.paymentId) {
+      // Se for PIX e tiver paymentId, mostrar modal do PIX
+      if (paymentMethod === 'PIX' && result.paymentId) {
         setShowPixModal(true);
       } 
-      // Se não tiver paymentId mas tiver redirectUrl, redirecionar
-      else if (result.redirectUrl) {
+      // Se for cartão de crédito e tiver redirectUrl, redirecionar
+      else if (paymentMethod === 'CREDIT_CARD' && result.redirectUrl) {
         window.location.href = result.redirectUrl;
       }
       // Caso contrário, mostrar erro
