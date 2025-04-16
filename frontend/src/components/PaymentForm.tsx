@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, CreditCard, QrCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { createAsaasCustomer, createAsaasSubscription } from '@/integrations/asaas/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 // Função para formatar CPF
 const formatCPF = (value: string) => {
@@ -58,7 +60,8 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
     name: user?.username || '',
     email: user?.email || '',
     cpf: '',
-    phone: ''
+    phone: '',
+    paymentMethod: 'PIX'
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +134,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         planId, 
         user.id,
         customerId,
-        'PIX'
+        formData.paymentMethod
       );
       
       console.log('Assinatura criada:', subscription);
@@ -144,8 +147,12 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         });
         onPaymentSuccess();
       } else if (subscription.paymentId) {
-        // Se tiver paymentId, redirecionar para página de pagamento PIX
-        window.location.href = `/payment?planId=${planId}&customerId=${customerId}&paymentId=${subscription.paymentId}`;
+        // Se tiver paymentId, redirecionar para página de pagamento
+        if (formData.paymentMethod === 'PIX') {
+          window.location.href = `/payment?planId=${planId}&customerId=${customerId}&paymentId=${subscription.paymentId}`;
+        } else {
+          window.location.href = subscription.redirectUrl || '/payment';
+        }
       } else {
         setError("Não foi possível obter as informações de pagamento. Por favor, tente novamente.");
       }
@@ -252,22 +259,46 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
             className="w-full bg-vegas-black border-gray-700"
           />
         </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Método de pagamento *
+          </label>
+          <RadioGroup
+            value={formData.paymentMethod}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}
+            className="flex flex-col space-y-2"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="PIX" id="pix" />
+              <Label htmlFor="pix" className="flex items-center">
+                <QrCode className="h-4 w-4 mr-2" />
+                PIX
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="CREDIT_CARD" id="credit-card" />
+              <Label htmlFor="credit-card" className="flex items-center">
+                <CreditCard className="h-4 w-4 mr-2" />
+                Cartão de Crédito
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
         
-        <div className="pt-2 flex space-x-3">
+        <div className="flex justify-end space-x-2 mt-6">
           <Button
             type="button"
             variant="outline"
             onClick={onCancel}
-            className="flex-1"
-            disabled={isLoading}
+            className="bg-transparent border-gray-700 text-gray-300 hover:bg-gray-800"
           >
             Cancelar
           </Button>
-          
           <Button
             type="submit"
-            className="flex-1 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
             disabled={isLoading}
+            className="bg-blue-600 hover:bg-blue-700"
           >
             {isLoading ? (
               <>
@@ -275,7 +306,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
                 Processando...
               </>
             ) : (
-              'Continuar para pagamento'
+              'Continuar'
             )}
           </Button>
         </div>
