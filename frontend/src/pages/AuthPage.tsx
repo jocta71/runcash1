@@ -270,7 +270,7 @@ const AuthPage = () => {
                       />
                     </svg>
                   )}
-                  Google
+                  Continuar com Google
                 </Button>
               </CardFooter>
             </form>
