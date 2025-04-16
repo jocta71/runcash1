@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="120" height="40" viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M10 8h100v24H10z" fill="#1A1A1A"/>
+  <text x="20" y="26" fill="#00FF00" font-family="Inter" font-size="18" font-weight="700">RunCash</text>
+  <path d="M95 15l5 5-5 5" stroke="#00FF00" stroke-width="2" fill="none"/>
+</svg> 

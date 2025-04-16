@@ -1,8 +1,6 @@
 {
-  "installCommand": "cd frontend && npm install",
-  "buildCommand": "cd frontend && npm run build",
-  "outputDirectory": "frontend/dist",
-  "framework": "vite",
+  "version": 2,
+  "buildCommand": null,
   "functions": {
     "api/asaas-create-customer.js": {
       "memory": 1024,
@@ -16,27 +14,76 @@
       "memory": 1024,
       "maxDuration": 10
     },
+    "api/asaas-find-payment.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
     "api/asaas-pix-qrcode.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-subscription-payments.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/test-page.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-create-pix-payment.js": {
       "memory": 1024,
       "maxDuration": 10
     }
   },
   "rewrites": [
-    { "source": "/api/users/login", "destination": "/api/users/login.js" },
-    { "source": "/api/users/signup", "destination": "/api/users/signup.js" },
-    { "source": "/api/plans", "destination": "/api/plans.js" },
-    { "source": "/api/plans/:id", "destination": "/api/plans.js" },
-    { "source": "/api/asaas-webhook", "destination": "/api/asaas-webhook.js" },
-    { "source": "/api/asaas-create-customer", "destination": "/api/asaas-create-customer.js" },
-    { "source": "/api/asaas-create-subscription", "destination": "/api/asaas-create-subscription.js" },
-    { "source": "/api/asaas-pix-qrcode", "destination": "/api/asaas-pix-qrcode.js" },
-    { "source": "/historico/(.*)", "destination": "/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/asaas-webhook",
+      "destination": "/api/asaas-webhook.js"
+    },
+    {
+      "source": "/api/asaas-create-customer",
+      "destination": "/api/asaas-create-customer.js"
+    },
+    {
+      "source": "/api/asaas-create-subscription",
+      "destination": "/api/asaas-create-subscription.js"
+    },
+    {
+      "source": "/api/asaas-find-payment",
+      "destination": "/api/asaas-find-payment.js"
+    },
+    {
+      "source": "/api/asaas-pix-qrcode",
+      "destination": "/api/asaas-pix-qrcode.js"
+    },
+    {
+      "source": "/api/asaas-subscription-payments",
+      "destination": "/api/asaas-subscription-payments.js"
+    },
+    {
+      "source": "/api/asaas-create-pix-payment",
+      "destination": "/api/asaas-create-pix-payment.js"
+    },
+    {
+      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-subscription-payments|test-page).*)",
+      "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
+    },
+    {
+      "source": "/",
+      "destination": "/api/test-page"
+    },
+    {
+      "source": "/test",
+      "destination": "/api/test-page"
+    }
   ],
-  "cleanUrls": true,
   "env": {
-    "NODE_ENV": "production",
-    "MONGODB_URI": "mongodb+srv://bortoluzzidev:zC4bq8Z48C6JtZ6T@cluster0.rwerrqj.mongodb.net",
-    "ASAAS_API_KEY": "$ASAAS_API_KEY"
+    "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash",
+    "MONGODB_DB_NAME": "runcash",
+    "MONGODB_ENABLED": "true",
+    "ASAAS_API_KEY": "$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmE4NzkxZDA3LTdiNzAtNDVkZC04ZWZjLTk0ZWJkODI1ZWIyNzo6JGFhY2hfZDVjODRmZjAtOGU4Ny00MWE5LWI4MGMtMWQ5MjBhOWI3YWYz",
+    "ASAAS_ENVIRONMENT": "sandbox",
+    "FRONTEND_URL": "https://runcashh11.vercel.app",
+    "NODE_ENV": "production"
   }
 }
