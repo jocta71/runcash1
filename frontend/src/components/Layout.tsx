@@ -129,7 +129,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
             <Menu size={24} className="text-[#00ff00]" />
           </button>
           
-          <img src="/img/logo.svg" alt="RunCash Logo" className="h-8" />
+          <img src="/img/logo-v2.svg" alt="RunCash Logo" className="h-8" />
           
           <button 
             className="p-2"
@@ -143,7 +143,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         <div className="hidden md:flex fixed top-0 left-0 right-0 md:left-64 z-40 h-[70px] items-center justify-between px-4 border-b border-[#33333359] bg-[#0B0A0F]">
           <div className="flex items-center gap-2">
             <Link to="/" className="flex items-center">
-              <img src="/img/logo.svg" alt="RunCash Logo" className="h-10" />
+              <img src="/img/logo-v2.svg" alt="RunCash Logo" className="h-10" />
             </Link>
             <div className="relative flex items-center ml-4 max-w-[180px]">
               <Search size={14} className="absolute left-2 text-gray-400" />

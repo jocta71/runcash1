@@ -53,8 +53,8 @@
       }
     </style>
     <linearGradient id="Gradiente_sem_nome_109" data-name="Gradiente sem nome 109" x1="431.04" y1="159.11" x2="578.2" y2="63.79" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="lime"/>
-      <stop offset="1" stop-color="#a3ffa3"/>
+      <stop offset="0" stop-color="#0066ff"/>
+      <stop offset="1" stop-color="#a3c2ff"/>
     </linearGradient>
     <linearGradient id="Gradiente_sem_nome_109-2" data-name="Gradiente sem nome 109" x1="455.17" y1="196.37" x2="602.33" y2="101.04" xlink:href="#Gradiente_sem_nome_109"/>
     <linearGradient id="Gradiente_sem_nome_109-3" data-name="Gradiente sem nome 109" x1="468.37" y1="216.74" x2="615.53" y2="121.42" xlink:href="#Gradiente_sem_nome_109"/>
