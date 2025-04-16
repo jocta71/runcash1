@@ -3,8 +3,14 @@ const axios = require('axios');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
-const ASAAS_API_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://api.asaas.com/v3' 
+
+// Determinar ambiente do Asaas (sandbox ou produção)
+const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || process.env.NODE_ENV === 'production' ? 'production' : 'sandbox';
+console.log(`Usando ambiente Asaas: ${ASAAS_ENVIRONMENT}`);
+
+// URL da API baseada no ambiente
+const ASAAS_API_URL = ASAAS_ENVIRONMENT === 'production'
+  ? 'https://api.asaas.com/v3'
   : 'https://sandbox.asaas.com/api/v3';
 
 module.exports = async (req, res) => {
@@ -121,7 +127,7 @@ module.exports = async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': 'RunCash/1.0',
-        'access_token': ASAAS_API_KEY
+        'Authorization': `Bearer ${ASAAS_API_KEY}`
       }
     };
 
@@ -204,14 +210,20 @@ module.exports = async (req, res) => {
     }, null, 2));
     console.log('Headers:', JSON.stringify({
       ...asaasConfig.headers,
-      'access_token': `${ASAAS_API_KEY.substring(0, 10)}...`
+      'Authorization': `Bearer ${ASAAS_API_KEY.substring(0, 10)}...`
     }, null, 2));
 
     // Criar assinatura no Asaas
     const response = await axios.post(
       `${ASAAS_API_URL}/subscriptions`,
       subscriptionData,
-      asaasConfig
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'RunCash/1.0',
+          'Authorization': `Bearer ${ASAAS_API_KEY}`
+        }
+      }
     );
 
     console.log('=== RESPOSTA DO ASAAS (CRIAR ASSINATURA) ===');

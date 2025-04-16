@@ -75,13 +75,18 @@ module.exports = async (req, res) => {
     }
 
     // Configurar chamada para API do Asaas
-    const asaasBaseUrl = 'https://sandbox.asaas.com/api/v3';
+    const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || process.env.NODE_ENV === 'production' ? 'production' : 'sandbox';
+    console.log(`Usando ambiente Asaas: ${ASAAS_ENVIRONMENT}`);
+    
+    const asaasBaseUrl = ASAAS_ENVIRONMENT === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
     const asaasApiKey = process.env.ASAAS_API_KEY;
 
     console.log('Configuração do Asaas:', {
       baseUrl: asaasBaseUrl,
       apiKey: asaasApiKey ? `${asaasApiKey.substring(0, 10)}...` : 'não definido',
-      environment: process.env.ASAAS_ENVIRONMENT,
+      environment: ASAAS_ENVIRONMENT,
       nodeEnv: process.env.NODE_ENV
     });
 
@@ -104,7 +109,7 @@ module.exports = async (req, res) => {
     const requestHeaders = {
       'Content-Type': 'application/json',
       'User-Agent': 'RunCash/1.0',
-      'access_token': asaasApiKey
+      'Authorization': `Bearer ${asaasApiKey}`
     };
 
     console.log('=== REQUISIÇÃO PARA O ASAAS ===');
