@@ -66,13 +66,14 @@ module.exports = async (req, res) => {
       throw new Error('Chave da API do Asaas não configurada');
     }
 
-    // Remover o prefixo $ da chave se existir
-    const cleanApiKey = asaasApiKey.startsWith('$') ? asaasApiKey.substring(1) : asaasApiKey;
+    if (asaasApiKey === '$api_key_aqui' || asaasApiKey.includes('$api_key')) {
+      throw new Error('Chave da API do Asaas inválida - valor padrão detectado');
+    }
 
     console.log('Fazendo requisição para o Asaas com os headers:', {
       'Content-Type': 'application/json',
       'User-Agent': 'RunCash/1.0',
-      'access_token': cleanApiKey ? `${cleanApiKey.substring(0, 5)}...${cleanApiKey.substring(cleanApiKey.length - 5)}` : 'não definido'
+      'access_token': asaasApiKey ? `${asaasApiKey.substring(0, 5)}...${asaasApiKey.substring(asaasApiKey.length - 5)}` : 'não definido'
     });
 
     // Preparar dados para criação do cliente no Asaas
@@ -92,7 +93,7 @@ module.exports = async (req, res) => {
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'RunCash/1.0',
-          'access_token': cleanApiKey
+          'access_token': asaasApiKey
         }
       }
     );
