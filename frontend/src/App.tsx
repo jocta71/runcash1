@@ -35,7 +35,8 @@ const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
-const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
+// Comentando a importação da página de teste do Asaas
+// const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -223,7 +224,8 @@ const App = () => {
                           </ProtectedRoute>
                         } />
                         
-                        {/* Rota para a página de teste do Asaas */}
+                        {/* Rota para a página de teste do Asaas - DESATIVADA */}
+                        {/* 
                         <Route path="/asaas-test" element={
                           <ProtectedRoute>
                             <Suspense fallback={<LoadingScreen />}>
@@ -231,6 +233,7 @@ const App = () => {
                             </Suspense>
                           </ProtectedRoute>
                         } />
+                        */}
                         
                         {/* Rota para página não encontrada */}
                         <Route path="*" element={
