@@ -65,7 +65,7 @@
     "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash",
     "MONGODB_DB_NAME": "runcash",
     "MONGODB_ENABLED": "true",
-    "ASAAS_API_KEY": "$aact_YTE9482$",
+    "ASAAS_API_KEY": "$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmE4NzkxZDA3LTdiNzAtNDVkZC04ZWZjLTk0ZWJkODI1ZWIyNzo6JGFhY2hfZDVjODRmZjAtOGU4Ny00MWE5LWI4MGMtMWQ5MjBhOWI3YWYz",
     "ASAAS_ENVIRONMENT": "sandbox",
     "FRONTEND_URL": "https://runcashh11.vercel.app",
     "NODE_ENV": "production"

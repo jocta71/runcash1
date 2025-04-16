@@ -35,8 +35,14 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Forçar uso do sandbox enquanto estamos em teste
+    const ASAAS_ENVIRONMENT = 'sandbox';
+    console.log(`Usando ambiente Asaas: ${ASAAS_ENVIRONMENT}`);
+    
     // Configurar chamada para API do Asaas
-    const asaasBaseUrl = 'https://sandbox.asaas.com/api/v3';
+    const asaasBaseUrl = ASAAS_ENVIRONMENT === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
     const asaasApiKey = process.env.ASAAS_API_KEY;
 
     console.log('Configuração do Asaas:', {
