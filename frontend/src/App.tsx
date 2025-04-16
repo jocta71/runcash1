@@ -20,7 +20,6 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthPage from "./pages/AuthPage";
 import SoundManager from "./components/SoundManager";
-import Welcome from './components/Welcome';
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -86,7 +85,7 @@ const App = () => {
   return (
     <ErrorBoundary FallbackComponent={ErrorPage}>
       <QueryClientProvider client={queryClient.current}>
-        <ThemeProvider defaultTheme="system" storageKey="runcash-theme">
+        <ThemeProvider defaultTheme="dark" storageKey="runcash-theme">
           <TooltipProvider>
             <AuthProvider>
               <SubscriptionProvider>
@@ -102,20 +101,11 @@ const App = () => {
                           </Suspense>
                         } />
                         
-                        {/* Nova rota de boas-vindas após login */}
-                        <Route path="/welcome" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <Welcome />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
                         {/* Redirecionamento para login se acessar diretamente a raiz sem autenticação */}
                         <Route index element={
                           <ProtectedRoute>
                             <Suspense fallback={<LoadingScreen />}>
-                              <Navigate to="/welcome" replace />
+                              <Index />
                             </Suspense>
                           </ProtectedRoute>
                         } />
@@ -233,7 +223,8 @@ const App = () => {
                           </ProtectedRoute>
                         } />
                         
-                       
+                     
+                        
                         {/* Rota para página não encontrada */}
                         <Route path="*" element={
                           <ProtectedRoute>
