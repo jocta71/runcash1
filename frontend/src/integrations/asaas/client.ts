@@ -105,14 +105,43 @@ export const createAsaasSubscription = async (
   try {
     console.log(`Criando assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
-    const response = await api.post<ApiResponse<SubscriptionResponse>>('api/asaas-create-subscription', {
+    // Montar payload com todos os dados necessários
+    const payload: any = {
       planId,
       userId,
       customerId,
-      paymentMethod,
-      creditCard,
-      creditCardHolderInfo
+      billingType: paymentMethod, // CREDIT_CARD, PIX, etc
+      cycle: 'MONTHLY',
+      value: creditCard?.value || 0,
+      description: `Assinatura RunCash - Plano ${planId}`
+    };
+    
+    // Adicionar dados de cartão se for pagamento com cartão
+    if (paymentMethod === 'CREDIT_CARD' && creditCard) {
+      payload.holderName = creditCard.holderName;
+      payload.cardNumber = creditCard.number;
+      payload.expiryMonth = creditCard.expiryMonth;
+      payload.expiryYear = creditCard.expiryYear;
+      payload.ccv = creditCard.ccv;
+      
+      // Adicionar dados do titular se fornecidos
+      if (creditCardHolderInfo) {
+        payload.holderEmail = creditCardHolderInfo.email;
+        payload.holderCpfCnpj = creditCardHolderInfo.cpfCnpj;
+        payload.holderPostalCode = creditCardHolderInfo.postalCode;
+        payload.holderAddressNumber = creditCardHolderInfo.addressNumber;
+        payload.holderPhone = creditCardHolderInfo.phone;
+      }
+    }
+    
+    console.log('Enviando payload para criação de assinatura:', {
+      ...payload,
+      cardNumber: payload.cardNumber ? `****${payload.cardNumber.slice(-4)}` : undefined,
+      ccv: payload.ccv ? '***' : undefined,
+      holderCpfCnpj: payload.holderCpfCnpj ? `****${payload.holderCpfCnpj.slice(-4)}` : undefined
     });
+    
+    const response = await api.post<ApiResponse<SubscriptionResponse>>('api/asaas-create-subscription', payload);
     
     console.log('Resposta da API de criação de assinatura:', response.data);
     
@@ -130,6 +159,11 @@ export const createAsaasSubscription = async (
     console.error('Erro ao criar assinatura no Asaas:', error);
     
     if (error instanceof AxiosError) {
+      console.error('Detalhes do erro:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
       throw new Error(`Falha ao criar assinatura: ${error.response?.data?.error || error.message}`);
     }
     

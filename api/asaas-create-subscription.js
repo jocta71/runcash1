@@ -12,7 +12,11 @@ module.exports = async (req, res) => {
   console.log('Método:', req.method);
   console.log('URL:', req.url);
   console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  console.log('Body:', JSON.stringify(req.body, null, 2));
+  console.log('Body (parcial):', JSON.stringify({
+    ...req.body,
+    creditCard: req.body.creditCard ? 'DADOS SENSÍVEIS OMITIDOS' : undefined,
+    creditCardHolderInfo: req.body.creditCardHolderInfo ? 'DADOS SENSÍVEIS OMITIDOS' : undefined
+  }, null, 2));
   
   // Configuração de CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -58,7 +62,9 @@ module.exports = async (req, res) => {
     planId,
     billingType,
     value,
-    cycle
+    cycle,
+    temCartao: !!cardNumber,
+    temTitular: !!holderName
   });
 
   if (!customerId) {
@@ -74,7 +80,13 @@ module.exports = async (req, res) => {
   // Verificar dados do cartão para pagamento com cartão de crédito
   if (billingType === 'CREDIT_CARD') {
     if (!holderName || !cardNumber || !expiryMonth || !expiryYear || !ccv) {
-      console.log('Erro: Dados do cartão incompletos');
+      console.log('Erro: Dados do cartão incompletos', { 
+        temHolderName: !!holderName, 
+        temCardNumber: !!cardNumber, 
+        temExpiryMonth: !!expiryMonth, 
+        temExpiryYear: !!expiryYear, 
+        temCcv: !!ccv 
+      });
       return res.status(400).json({ 
         error: 'Dados do cartão de crédito incompletos',
         details: 'Nome do titular, número do cartão, mês de expiração, ano de expiração e código de segurança são obrigatórios' 
@@ -82,7 +94,11 @@ module.exports = async (req, res) => {
     }
     
     if (!holderEmail || !holderCpfCnpj || !holderPostalCode) {
-      console.log('Erro: Dados do titular do cartão incompletos');
+      console.log('Erro: Dados do titular do cartão incompletos', { 
+        temHolderEmail: !!holderEmail, 
+        temHolderCpfCnpj: !!holderCpfCnpj, 
+        temHolderPostalCode: !!holderPostalCode 
+      });
       return res.status(400).json({ 
         error: 'Dados do titular do cartão incompletos',
         details: 'Email, CPF/CNPJ e CEP do titular são obrigatórios' 
@@ -126,22 +142,46 @@ module.exports = async (req, res) => {
     
     // Adicionar dados do cartão se for pagamento por cartão de crédito
     if (billingType === 'CREDIT_CARD') {
+      // Limpar dados para garantir formato correto
+      const cleanCardNumber = cardNumber.replace(/[^\d]/g, '');
+      const cleanCpfCnpj = holderCpfCnpj.replace(/[^\d]/g, '');
+      const cleanPostalCode = holderPostalCode.replace(/[^\d]/g, '');
+      const cleanHolderPhone = holderPhone ? holderPhone.replace(/[^\d]/g, '') : undefined;
+      
       subscriptionData.creditCard = {
-        holderName,
-        number: cardNumber.replace(/[^\d]/g, ''),
-        expiryMonth,
-        expiryYear,
-        ccv
+        holderName: holderName.trim(),
+        number: cleanCardNumber,
+        expiryMonth: expiryMonth.toString().padStart(2, '0'),
+        expiryYear: expiryYear.toString().length <= 2 ? `20${expiryYear}` : expiryYear.toString(),
+        ccv: ccv.toString()
       };
       
       subscriptionData.creditCardHolderInfo = {
-        name: holderName,
-        email: holderEmail,
-        cpfCnpj: holderCpfCnpj.replace(/[^\d]/g, ''),
-        postalCode: holderPostalCode.replace(/[^\d]/g, ''),
+        name: holderName.trim(),
+        email: holderEmail.trim(),
+        cpfCnpj: cleanCpfCnpj,
+        postalCode: cleanPostalCode,
         addressNumber: holderAddressNumber,
-        phone: holderPhone ? holderPhone.replace(/[^\d]/g, '') : undefined
+        phone: cleanHolderPhone
       };
+      
+      console.log('Dados do cartão formatados:', {
+        creditCard: {
+          holderName: subscriptionData.creditCard.holderName,
+          number: `****${subscriptionData.creditCard.number.slice(-4)}`,
+          expiryMonth: subscriptionData.creditCard.expiryMonth,
+          expiryYear: subscriptionData.creditCard.expiryYear,
+          ccv: '***'
+        },
+        creditCardHolderInfo: {
+          name: subscriptionData.creditCardHolderInfo.name,
+          email: subscriptionData.creditCardHolderInfo.email,
+          cpfCnpj: `***${subscriptionData.creditCardHolderInfo.cpfCnpj.slice(-4)}`,
+          postalCode: subscriptionData.creditCardHolderInfo.postalCode,
+          addressNumber: subscriptionData.creditCardHolderInfo.addressNumber,
+          phone: subscriptionData.creditCardHolderInfo.phone ? `***${subscriptionData.creditCardHolderInfo.phone.slice(-4)}` : undefined
+        }
+      });
     }
 
     console.log('=== REQUISIÇÃO PARA O ASAAS (CRIAR ASSINATURA) ===');
@@ -150,9 +190,16 @@ module.exports = async (req, res) => {
     console.log('Dados:', JSON.stringify({
       ...subscriptionData,
       creditCard: subscriptionData.creditCard ? {
-        ...subscriptionData.creditCard,
-        number: '************' + subscriptionData.creditCard.number.slice(-4),
+        holderName: subscriptionData.creditCard.holderName,
+        number: '************' + (subscriptionData.creditCard.number.slice(-4) || 'XXXX'),
+        expiryMonth: subscriptionData.creditCard.expiryMonth,
+        expiryYear: subscriptionData.creditCard.expiryYear,
         ccv: '***'
+      } : undefined,
+      creditCardHolderInfo: subscriptionData.creditCardHolderInfo ? {
+        ...subscriptionData.creditCardHolderInfo,
+        cpfCnpj: '***' + (subscriptionData.creditCardHolderInfo.cpfCnpj.slice(-4) || 'XXXX'),
+        phone: subscriptionData.creditCardHolderInfo.phone ? '***' + subscriptionData.creditCardHolderInfo.phone.slice(-4) : undefined
       } : undefined
     }, null, 2));
     console.log('Headers:', JSON.stringify({
@@ -164,12 +211,7 @@ module.exports = async (req, res) => {
     const response = await axios.post(
       `${ASAAS_API_URL}/subscriptions`,
       subscriptionData,
-      {
-        ...asaasConfig,
-        validateStatus: function (status) {
-          return status >= 200 && status < 500;
-        }
-      }
+      asaasConfig
     );
 
     console.log('=== RESPOSTA DO ASAAS (CRIAR ASSINATURA) ===');
@@ -232,7 +274,19 @@ module.exports = async (req, res) => {
   } catch (error) {
     console.error('=== ERRO AO CRIAR ASSINATURA ===');
     console.error('Mensagem:', error.message);
-    console.error('Detalhes:', error.response?.data || error.toString());
+    
+    if (error.response) {
+      console.error('Detalhes da resposta do erro:');
+      console.error('Status:', error.response.status);
+      console.error('Data:', JSON.stringify(error.response.data, null, 2));
+      console.error('Headers:', JSON.stringify(error.response.headers, null, 2));
+    } else if (error.request) {
+      console.error('Requisição feita mas sem resposta');
+      console.error('Request:', error.request);
+    } else {
+      console.error('Erro ao configurar requisição:', error.message);
+    }
+    console.error('Config:', JSON.stringify(error.config, null, 2));
     
     return res.status(error.response?.status || 500).json({
       success: false,
