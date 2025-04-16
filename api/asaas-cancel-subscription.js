@@ -1,5 +1,6 @@
-const axios = require('axios');
+// Endpoint para cancelar uma assinatura no Asaas
 const { MongoClient } = require('mongodb');
+const axios = require('axios');
 
 // Configuração do MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -22,30 +23,30 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Verificar se o método é GET
-  if (req.method !== 'GET') {
+  // Verificar se o método é POST
+  if (req.method !== 'POST') {
     return res.status(405).json({ 
       success: false, 
       error: 'Método não permitido',
-      message: 'Apenas requisições GET são permitidas para este endpoint'
+      message: 'Apenas requisições POST são permitidas para este endpoint'
     });
   }
 
-  const paymentId = req.query.paymentId;
+  // Extrair ID da assinatura do corpo da requisição
+  const { subscriptionId } = req.body || {};
 
-  // Verificar se o ID do pagamento foi fornecido
-  if (!paymentId) {
+  // Verificar se o ID da assinatura foi fornecido
+  if (!subscriptionId) {
     return res.status(400).json({ 
       success: false, 
       error: 'Dados incompletos',
-      message: 'ID do pagamento é obrigatório' 
+      message: 'ID da assinatura é obrigatório' 
     });
   }
 
-  console.log(`=== INÍCIO DA BUSCA DE PAGAMENTO ===`);
+  console.log(`=== INÍCIO DO CANCELAMENTO DE ASSINATURA ===`);
   console.log(`Método: ${req.method}`);
-  console.log(`URL: ${req.url}`);
-  console.log(`Pagamento ID: ${paymentId}`);
+  console.log(`Assinatura ID: ${subscriptionId}`);
 
   // Cliente MongoDB
   let client;
@@ -71,13 +72,14 @@ module.exports = async (req, res) => {
       nodeEnv: apiConfig.nodeEnv
     });
 
-    // Fazer requisição para o Asaas
-    console.log(`=== REQUISIÇÃO PARA O ASAAS ===`);
-    console.log(`URL: ${ASAAS_BASE_URL}/payments/${paymentId}`);
-    console.log(`Método: GET`);
+    // Fazer requisição para o Asaas para cancelar a assinatura
+    console.log(`=== REQUISIÇÃO PARA O ASAAS (CANCELAR ASSINATURA) ===`);
+    console.log(`URL: ${ASAAS_BASE_URL}/subscriptions/${subscriptionId}/cancel`);
+    console.log(`Método: POST`);
 
-    const response = await axios.get(
-      `${ASAAS_BASE_URL}/payments/${paymentId}`,
+    const response = await axios.post(
+      `${ASAAS_BASE_URL}/subscriptions/${subscriptionId}/cancel`,
+      {}, // corpo vazio conforme documentação do Asaas
       {
         headers: {
           'Content-Type': 'application/json',
@@ -92,29 +94,39 @@ module.exports = async (req, res) => {
     console.log(`Status: ${response.status}`);
     console.log(`Dados: ${JSON.stringify(response.data)}`);
 
-    // Salvar resultado no MongoDB para auditoria
+    // Salvar resultado no MongoDB
     const db = client.db();
-    await db.collection('api_logs').insertOne({
-      endpoint: 'asaas-find-payment',
-      requestData: { paymentId },
-      responseStatus: response.status,
-      responseData: {
-        id: response.data.id,
-        status: response.data.status,
-        dueDate: response.data.dueDate,
-        value: response.data.value
+    
+    // Atualizar status da assinatura no banco
+    await db.collection('subscriptions').updateOne(
+      { asaasId: subscriptionId },
+      { 
+        $set: { 
+          status: 'CANCELLED',
+          canceledAt: new Date()
+        } 
       },
+      { upsert: false }
+    );
+    
+    // Registrar operação nos logs
+    await db.collection('api_logs').insertOne({
+      endpoint: 'asaas-cancel-subscription',
+      requestData: { subscriptionId },
+      responseStatus: response.status,
+      responseData: response.data,
       timestamp: new Date()
     });
 
-    // Retornar os dados do pagamento
+    // Retornar sucesso
     return res.status(200).json({
       success: true,
-      payment: response.data
+      message: 'Assinatura cancelada com sucesso',
+      data: response.data
     });
 
   } catch (error) {
-    console.error('=== ERRO AO BUSCAR PAGAMENTO ===');
+    console.error('=== ERRO AO CANCELAR ASSINATURA ===');
     console.error(`Mensagem: ${error.message}`);
     
     if (error.response) {
@@ -127,9 +139,9 @@ module.exports = async (req, res) => {
       try {
         const db = client.db();
         await db.collection('errors').insertOne({
-          endpoint: 'asaas-find-payment',
+          endpoint: 'asaas-cancel-subscription',
           error: error.message,
-          paymentId,
+          subscriptionId,
           date: new Date()
         });
       } catch (dbError) {
@@ -139,7 +151,7 @@ module.exports = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: 'Erro ao buscar pagamento',
+      error: 'Erro ao cancelar assinatura',
       message: error.message
     });
   } finally {
@@ -147,6 +159,6 @@ module.exports = async (req, res) => {
       console.log('Fechando conexão com MongoDB');
       await client.close();
     }
-    console.log(`=== FIM DA BUSCA DE PAGAMENTO ===`);
+    console.log(`=== FIM DO CANCELAMENTO DE ASSINATURA ===`);
   }
 }; 

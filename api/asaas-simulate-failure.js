@@ -1,5 +1,6 @@
-const axios = require('axios');
+// Endpoint para simular falhas de pagamento no Asaas
 const { MongoClient } = require('mongodb');
+const axios = require('axios');
 
 // Configuração do MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -22,18 +23,19 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Verificar se o método é GET
-  if (req.method !== 'GET') {
+  // Verificar se o método é POST
+  if (req.method !== 'POST') {
     return res.status(405).json({ 
       success: false, 
       error: 'Método não permitido',
-      message: 'Apenas requisições GET são permitidas para este endpoint'
+      message: 'Apenas requisições POST são permitidas para este endpoint'
     });
   }
 
-  const paymentId = req.query.paymentId;
+  // Extrair dados da requisição
+  const { paymentId, reason } = req.body || {};
 
-  // Verificar se o ID do pagamento foi fornecido
+  // Verificar se os dados necessários foram fornecidos
   if (!paymentId) {
     return res.status(400).json({ 
       success: false, 
@@ -42,10 +44,28 @@ module.exports = async (req, res) => {
     });
   }
 
-  console.log(`=== INÍCIO DA BUSCA DE PAGAMENTO ===`);
+  if (!reason) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Dados incompletos',
+      message: 'Motivo da falha é obrigatório' 
+    });
+  }
+
+  // Validar o motivo da falha
+  const allowedReasons = ['INSUFFICIENT_FUNDS', 'CREDIT_CARD_EXPIRED', 'TRANSACTION_DECLINED', 'PROCESSING_ERROR'];
+  if (!allowedReasons.includes(reason)) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Motivo inválido',
+      message: `Motivo da falha deve ser um dos seguintes: ${allowedReasons.join(', ')}` 
+    });
+  }
+
+  console.log(`=== INÍCIO DA SIMULAÇÃO DE FALHA DE PAGAMENTO ===`);
   console.log(`Método: ${req.method}`);
-  console.log(`URL: ${req.url}`);
   console.log(`Pagamento ID: ${paymentId}`);
+  console.log(`Motivo: ${reason}`);
 
   // Cliente MongoDB
   let client;
@@ -71,12 +91,12 @@ module.exports = async (req, res) => {
       nodeEnv: apiConfig.nodeEnv
     });
 
-    // Fazer requisição para o Asaas
-    console.log(`=== REQUISIÇÃO PARA O ASAAS ===`);
+    // Primeiro, precisamos obter informações sobre o pagamento
+    console.log(`=== REQUISIÇÃO PARA O ASAAS (OBTER PAGAMENTO) ===`);
     console.log(`URL: ${ASAAS_BASE_URL}/payments/${paymentId}`);
     console.log(`Método: GET`);
 
-    const response = await axios.get(
+    const paymentResponse = await axios.get(
       `${ASAAS_BASE_URL}/payments/${paymentId}`,
       {
         headers: {
@@ -87,34 +107,68 @@ module.exports = async (req, res) => {
       }
     );
 
-    // Log da resposta
-    console.log(`=== RESPOSTA DO ASAAS ===`);
-    console.log(`Status: ${response.status}`);
-    console.log(`Dados: ${JSON.stringify(response.data)}`);
+    console.log(`Dados do pagamento obtidos: ${JSON.stringify(paymentResponse.data)}`);
+    
+    // No ambiente sandbox do Asaas, não é possível simular falhas diretamente via API
+    // Vamos cancelar o pagamento e registrar o motivo para simular uma falha
+    
+    // Cancelar o pagamento atual
+    console.log(`=== REQUISIÇÃO PARA O ASAAS (CANCELAR PAGAMENTO) ===`);
+    console.log(`URL: ${ASAAS_BASE_URL}/payments/${paymentId}`);
+    console.log(`Método: DELETE`);
 
-    // Salvar resultado no MongoDB para auditoria
+    const deleteResponse = await axios.delete(
+      `${ASAAS_BASE_URL}/payments/${paymentId}`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'RunCash/1.0',
+          'access_token': ASAAS_API_KEY
+        }
+      }
+    );
+
+    console.log(`Resposta do cancelamento: ${JSON.stringify(deleteResponse.data)}`);
+
+    // Salvar resultado no MongoDB
     const db = client.db();
-    await db.collection('api_logs').insertOne({
-      endpoint: 'asaas-find-payment',
-      requestData: { paymentId },
-      responseStatus: response.status,
-      responseData: {
-        id: response.data.id,
-        status: response.data.status,
-        dueDate: response.data.dueDate,
-        value: response.data.value
+    
+    // Atualizar status do pagamento no banco
+    await db.collection('payments').updateOne(
+      { paymentId },
+      { 
+        $set: { 
+          status: 'FAILED',
+          failureReason: reason,
+          failureAt: new Date(),
+          originalPaymentData: paymentResponse.data
+        } 
       },
+      { upsert: true }
+    );
+    
+    // Registrar operação nos logs
+    await db.collection('api_logs').insertOne({
+      endpoint: 'asaas-simulate-failure',
+      requestData: { paymentId, reason },
+      responseStatus: deleteResponse.status,
+      responseData: deleteResponse.data,
       timestamp: new Date()
     });
 
-    // Retornar os dados do pagamento
+    // Retornar sucesso
     return res.status(200).json({
       success: true,
-      payment: response.data
+      message: `Falha de pagamento simulada com sucesso: ${reason}`,
+      data: {
+        paymentId,
+        status: 'FAILED',
+        failureReason: reason
+      }
     });
 
   } catch (error) {
-    console.error('=== ERRO AO BUSCAR PAGAMENTO ===');
+    console.error('=== ERRO AO SIMULAR FALHA DE PAGAMENTO ===');
     console.error(`Mensagem: ${error.message}`);
     
     if (error.response) {
@@ -127,9 +181,10 @@ module.exports = async (req, res) => {
       try {
         const db = client.db();
         await db.collection('errors').insertOne({
-          endpoint: 'asaas-find-payment',
+          endpoint: 'asaas-simulate-failure',
           error: error.message,
           paymentId,
+          reason,
           date: new Date()
         });
       } catch (dbError) {
@@ -139,7 +194,7 @@ module.exports = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: 'Erro ao buscar pagamento',
+      error: 'Erro ao simular falha de pagamento',
       message: error.message
     });
   } finally {
@@ -147,6 +202,6 @@ module.exports = async (req, res) => {
       console.log('Fechando conexão com MongoDB');
       await client.close();
     }
-    console.log(`=== FIM DA BUSCA DE PAGAMENTO ===`);
+    console.log(`=== FIM DA SIMULAÇÃO DE FALHA DE PAGAMENTO ===`);
   }
 }; 

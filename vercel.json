@@ -1,6 +1,8 @@
 {
-  "version": 2,
+  "installCommand": "cd frontend && npm install",
   "buildCommand": null,
+  "outputDirectory": "frontend/dist",
+  "framework": "vite",
   "functions": {
     "api/asaas-create-customer.js": {
       "memory": 1024,
@@ -11,6 +13,22 @@
       "maxDuration": 10
     },
     "api/asaas-webhook.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-list-subscriptions.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-list-payments.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-cancel-subscription.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-simulate-failure.js": {
       "memory": 1024,
       "maxDuration": 10
     },
@@ -41,6 +59,22 @@
       "destination": "/api/asaas-create-subscription.js"
     },
     {
+      "source": "/api/asaas-list-subscriptions",
+      "destination": "/api/asaas-list-subscriptions.js"
+    },
+    {
+      "source": "/api/asaas-list-payments",
+      "destination": "/api/asaas-list-payments.js"
+    },
+    {
+      "source": "/api/asaas-cancel-subscription",
+      "destination": "/api/asaas-cancel-subscription.js"
+    },
+    {
+      "source": "/api/asaas-simulate-failure",
+      "destination": "/api/asaas-simulate-failure.js"
+    },
+    {
       "source": "/api/asaas-find-payment",
       "destination": "/api/asaas-find-payment.js"
     },
@@ -59,8 +93,17 @@
     {
       "source": "/test",
       "destination": "/api/test-page"
+    },
+    {
+      "source": "/historico/(.*)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
+  "cleanUrls": true,
   "env": {
     "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash",
     "MONGODB_DB_NAME": "runcash",

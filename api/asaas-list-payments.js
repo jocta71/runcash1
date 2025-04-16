@@ -1,5 +1,6 @@
-const axios = require('axios');
+// Endpoint para listar pagamentos de um cliente no Asaas
 const { MongoClient } = require('mongodb');
+const axios = require('axios');
 
 // Configuração do MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -31,21 +32,21 @@ module.exports = async (req, res) => {
     });
   }
 
-  const paymentId = req.query.paymentId;
+  const customerId = req.query.customerId;
 
-  // Verificar se o ID do pagamento foi fornecido
-  if (!paymentId) {
+  // Verificar se o ID do cliente foi fornecido
+  if (!customerId) {
     return res.status(400).json({ 
       success: false, 
       error: 'Dados incompletos',
-      message: 'ID do pagamento é obrigatório' 
+      message: 'ID do cliente é obrigatório' 
     });
   }
 
-  console.log(`=== INÍCIO DA BUSCA DE PAGAMENTO ===`);
+  console.log(`=== INÍCIO DA LISTAGEM DE PAGAMENTOS ===`);
   console.log(`Método: ${req.method}`);
   console.log(`URL: ${req.url}`);
-  console.log(`Pagamento ID: ${paymentId}`);
+  console.log(`Cliente ID: ${customerId}`);
 
   // Cliente MongoDB
   let client;
@@ -73,11 +74,11 @@ module.exports = async (req, res) => {
 
     // Fazer requisição para o Asaas
     console.log(`=== REQUISIÇÃO PARA O ASAAS ===`);
-    console.log(`URL: ${ASAAS_BASE_URL}/payments/${paymentId}`);
+    console.log(`URL: ${ASAAS_BASE_URL}/payments?customer=${customerId}`);
     console.log(`Método: GET`);
 
     const response = await axios.get(
-      `${ASAAS_BASE_URL}/payments/${paymentId}`,
+      `${ASAAS_BASE_URL}/payments?customer=${customerId}`,
       {
         headers: {
           'Content-Type': 'application/json',
@@ -90,31 +91,28 @@ module.exports = async (req, res) => {
     // Log da resposta
     console.log(`=== RESPOSTA DO ASAAS ===`);
     console.log(`Status: ${response.status}`);
-    console.log(`Dados: ${JSON.stringify(response.data)}`);
+    console.log(`Dados: ${JSON.stringify(response.data.data ? 
+      `${response.data.data.length} pagamentos encontrados` : 
+      'Nenhum pagamento encontrado')}`);
 
     // Salvar resultado no MongoDB para auditoria
     const db = client.db();
     await db.collection('api_logs').insertOne({
-      endpoint: 'asaas-find-payment',
-      requestData: { paymentId },
+      endpoint: 'asaas-list-payments',
+      requestData: { customerId },
       responseStatus: response.status,
-      responseData: {
-        id: response.data.id,
-        status: response.data.status,
-        dueDate: response.data.dueDate,
-        value: response.data.value
-      },
+      responseData: `${response.data.data ? response.data.data.length : 0} pagamentos encontrados`,
       timestamp: new Date()
     });
 
-    // Retornar os dados do pagamento
+    // Retornar os dados dos pagamentos
     return res.status(200).json({
       success: true,
-      payment: response.data
+      data: response.data.data || []
     });
 
   } catch (error) {
-    console.error('=== ERRO AO BUSCAR PAGAMENTO ===');
+    console.error('=== ERRO AO LISTAR PAGAMENTOS ===');
     console.error(`Mensagem: ${error.message}`);
     
     if (error.response) {
@@ -127,9 +125,9 @@ module.exports = async (req, res) => {
       try {
         const db = client.db();
         await db.collection('errors').insertOne({
-          endpoint: 'asaas-find-payment',
+          endpoint: 'asaas-list-payments',
           error: error.message,
-          paymentId,
+          customerId,
           date: new Date()
         });
       } catch (dbError) {
@@ -139,7 +137,7 @@ module.exports = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: 'Erro ao buscar pagamento',
+      error: 'Erro ao listar pagamentos',
       message: error.message
     });
   } finally {
@@ -147,6 +145,6 @@ module.exports = async (req, res) => {
       console.log('Fechando conexão com MongoDB');
       await client.close();
     }
-    console.log(`=== FIM DA BUSCA DE PAGAMENTO ===`);
+    console.log(`=== FIM DA LISTAGEM DE PAGAMENTOS ===`);
   }
 }; 
