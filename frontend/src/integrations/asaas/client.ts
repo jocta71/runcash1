@@ -22,11 +22,11 @@ const asaasDirectClient = axios.create({
 
 // Cliente original para backend (mantenha para referência)
 const apiClient = axios.create({
-  baseURL: window.location.origin // Usar a origem da página atual
+  baseURL: '' // Usar URL relativa para garantir que as requisições passem pelo proxy do Vercel
 });
 
 // Log da URL base usada
-console.log('Asaas API client usando URL base:', apiClient.defaults.baseURL);
+console.log('Asaas API client usando URL relativa para requisições');
 
 /**
  * Cria um cliente no Asaas ou recupera um existente

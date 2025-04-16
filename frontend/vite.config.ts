@@ -43,5 +43,12 @@ export default defineConfig({
         },
       },
     },
+    // Desativar geração de source maps em produção para melhorar performance
+    sourcemap: false,
+  },
+  // Otimização para evitar problemas com o Rollup no Vercel
+  optimizeDeps: {
+    exclude: ['@rollup/rollup-linux-x64-gnu'],
+    include: ['axios', 'react', 'react-dom', 'react-router-dom']
   }
 });
