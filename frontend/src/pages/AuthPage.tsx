@@ -75,7 +75,7 @@ const AuthPage = () => {
           title: "Login bem-sucedido",
           description: "Bem-vindo de volta!",
         });
-        navigate('/');
+        navigate('/welcome');
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
@@ -127,7 +127,7 @@ const AuthPage = () => {
           title: "Conta criada com sucesso",
           description: "Você já pode usar sua conta para acessar o sistema.",
         });
-        navigate('/');
+        navigate('/welcome');
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');

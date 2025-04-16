@@ -64,8 +64,8 @@ const GoogleAuthHandler = () => {
               description: 'Você foi autenticado com sucesso via Google',
             });
             
-            // Redirecionar para a página inicial
-            navigate('/');
+            // Redirecionar para a página de boas-vindas
+            navigate('/welcome');
           }
         } catch (error) {
           console.error('Erro ao processar autenticação do Google:', error);
