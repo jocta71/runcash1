@@ -1,7 +1,7 @@
 {
   "version": 2,
   "public": true,
-  "buildCommand": false,
+  "buildCommand": null,
   "outputDirectory": "frontend/dist",
   "rewrites": [
     { 
