@@ -110,7 +110,7 @@ module.exports = async (req, res) => {
     const requestHeaders = {
       'Content-Type': 'application/json',
       'User-Agent': 'RunCash/1.0',
-      'Authorization': `Bearer ${asaasApiKey}`
+      'access_token': asaasApiKey
     };
 
     console.log('=== REQUISIÇÃO PARA O ASAAS ===');

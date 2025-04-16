@@ -164,7 +164,7 @@ async function handlePaymentConfirmed(db, webhookData) {
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': 'RunCash/1.0',
-        'Authorization': `Bearer ${asaasApiKey}`
+        'access_token': asaasApiKey
       }
     }
   );

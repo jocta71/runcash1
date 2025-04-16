@@ -128,7 +128,7 @@ module.exports = async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': 'RunCash/1.0',
-        'Authorization': `Bearer ${ASAAS_API_KEY}`
+        'access_token': ASAAS_API_KEY
       }
     };
 
@@ -211,7 +211,7 @@ module.exports = async (req, res) => {
     }, null, 2));
     console.log('Headers:', JSON.stringify({
       ...asaasConfig.headers,
-      'Authorization': `Bearer ${ASAAS_API_KEY.substring(0, 10)}...`
+      'access_token': `${ASAAS_API_KEY.substring(0, 10)}...`
     }, null, 2));
 
     // Criar assinatura no Asaas
@@ -222,7 +222,7 @@ module.exports = async (req, res) => {
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'RunCash/1.0',
-          'Authorization': `Bearer ${ASAAS_API_KEY}`
+          'access_token': ASAAS_API_KEY
         }
       }
     );
