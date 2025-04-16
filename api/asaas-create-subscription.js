@@ -8,23 +8,31 @@ const ASAAS_API_URL = process.env.NODE_ENV === 'production'
   : 'https://sandbox.asaas.com/api/v3';
 
 export default async function handler(req, res) {
+  console.log('=== INÍCIO DA REQUISIÇÃO DE ASSINATURA ===');
+  console.log('Método:', req.method);
+  console.log('URL:', req.url);
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('Body:', JSON.stringify(req.body, null, 2));
+  
   // Configuração de CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
   if (req.method === 'OPTIONS') {
+    console.log('Requisição OPTIONS recebida - Respondendo com 200');
     return res.status(200).end();
   }
   
   if (req.method !== 'POST') {
+    console.log('Método não permitido:', req.method);
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
   const { 
     customerId, 
     planId,
-    billingType = 'PIX',
+    billingType = 'CREDIT_CARD',
     nextDueDate,
     value,
     cycle = 'MONTHLY',
@@ -45,32 +53,53 @@ export default async function handler(req, res) {
     holderPhone
   } = req.body;
 
+  console.log('Dados da assinatura recebidos:', {
+    customerId,
+    planId,
+    billingType,
+    value,
+    cycle
+  });
+
   if (!customerId) {
+    console.log('Erro: ID do cliente não fornecido');
     return res.status(400).json({ error: 'ID do cliente é obrigatório' });
   }
 
-  if (!planId) {
-    return res.status(400).json({ error: 'ID do plano é obrigatório' });
+  if (!value) {
+    console.log('Erro: Valor não fornecido');
+    return res.status(400).json({ error: 'Valor é obrigatório' });
   }
 
-  if (!value) {
-    return res.status(400).json({ error: 'Valor é obrigatório' });
+  // Verificar dados do cartão para pagamento com cartão de crédito
+  if (billingType === 'CREDIT_CARD') {
+    if (!holderName || !cardNumber || !expiryMonth || !expiryYear || !ccv) {
+      console.log('Erro: Dados do cartão incompletos');
+      return res.status(400).json({ 
+        error: 'Dados do cartão de crédito incompletos',
+        details: 'Nome do titular, número do cartão, mês de expiração, ano de expiração e código de segurança são obrigatórios' 
+      });
+    }
+    
+    if (!holderEmail || !holderCpfCnpj || !holderPostalCode) {
+      console.log('Erro: Dados do titular do cartão incompletos');
+      return res.status(400).json({ 
+        error: 'Dados do titular do cartão incompletos',
+        details: 'Email, CPF/CNPJ e CEP do titular são obrigatórios' 
+      });
+    }
   }
 
   // Configurar cliente MongoDB
   let client;
   try {
+    console.log('Conectando ao MongoDB...');
     client = new MongoClient(MONGODB_URI);
     await client.connect();
+    console.log('Conexão com MongoDB estabelecida');
+    
     const db = client.db();
-    const plansCollection = db.collection('plans');
-
-    // Buscar informações do plano
-    const plan = await plansCollection.findOne({ _id: planId });
-    if (!plan) {
-      return res.status(404).json({ error: 'Plano não encontrado' });
-    }
-
+    
     // Configurar chamada para API Asaas
     const asaasConfig = {
       headers: {
@@ -80,86 +109,141 @@ export default async function handler(req, res) {
       }
     };
 
+    console.log('Configuração do Asaas:', {
+      url: ASAAS_API_URL,
+      apiKey: ASAAS_API_KEY ? `${ASAAS_API_KEY.substring(0, 10)}...` : 'não definido'
+    });
+
     // Dados da assinatura
     const subscriptionData = {
       customer: customerId,
-      billingType: 'CREDIT_CARD',
+      billingType: billingType,
       value: value,
-      nextDueDate: nextDueDate,
+      nextDueDate: nextDueDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Amanhã como padrão
       cycle: cycle,
-      description: `Assinatura do plano ${planId}`,
-      creditCard: {
+      description: description || `Assinatura RunCash`
+    };
+    
+    // Adicionar dados do cartão se for pagamento por cartão de crédito
+    if (billingType === 'CREDIT_CARD') {
+      subscriptionData.creditCard = {
         holderName,
         number: cardNumber.replace(/[^\d]/g, ''),
-        expiryMonth: expiryMonth,
-        expiryYear: expiryYear,
+        expiryMonth,
+        expiryYear,
         ccv
-      },
-      creditCardHolderInfo: {
+      };
+      
+      subscriptionData.creditCardHolderInfo = {
         name: holderName,
         email: holderEmail,
         cpfCnpj: holderCpfCnpj.replace(/[^\d]/g, ''),
         postalCode: holderPostalCode.replace(/[^\d]/g, ''),
         addressNumber: holderAddressNumber,
-        phone: holderPhone.replace(/[^\d]/g, '')
-      }
-    };
+        phone: holderPhone ? holderPhone.replace(/[^\d]/g, '') : undefined
+      };
+    }
+
+    console.log('=== REQUISIÇÃO PARA O ASAAS (CRIAR ASSINATURA) ===');
+    console.log('URL:', `${ASAAS_API_URL}/subscriptions`);
+    console.log('Método: POST');
+    console.log('Dados:', JSON.stringify({
+      ...subscriptionData,
+      creditCard: subscriptionData.creditCard ? {
+        ...subscriptionData.creditCard,
+        number: '************' + subscriptionData.creditCard.number.slice(-4),
+        ccv: '***'
+      } : undefined
+    }, null, 2));
+    console.log('Headers:', JSON.stringify({
+      ...asaasConfig.headers,
+      'access_token': `${ASAAS_API_KEY.substring(0, 10)}...`
+    }, null, 2));
 
     // Criar assinatura no Asaas
     const response = await axios.post(
       `${ASAAS_API_URL}/subscriptions`,
       subscriptionData,
-      asaasConfig
+      {
+        ...asaasConfig,
+        validateStatus: function (status) {
+          return status >= 200 && status < 500;
+        }
+      }
     );
+
+    console.log('=== RESPOSTA DO ASAAS (CRIAR ASSINATURA) ===');
+    console.log('Status:', response.status);
+    console.log('Dados:', JSON.stringify(response.data, null, 2));
+
+    // Verificar se a resposta foi bem sucedida
+    if (response.status !== 200 && response.status !== 201) {
+      console.error('=== ERRO NA RESPOSTA DO ASAAS ===');
+      console.error('Status:', response.status);
+      console.error('Dados:', JSON.stringify(response.data, null, 2));
+      throw new Error(`Erro na API do Asaas: ${response.status} - ${JSON.stringify(response.data)}`);
+    }
 
     // Salvar detalhes da assinatura no MongoDB
     const subscriptionsCollection = db.collection('subscriptions');
     const customerCollection = db.collection('customers');
     
-    // Buscar ou atualizar informações do cliente
-    let customer = await customerCollection.findOne({ asaasId: customerId });
-    
-    if (!customer && userEmail) {
-      customer = {
-        asaasId: customerId,
-        email: userEmail,
-        name: userName,
-        createdAt: new Date()
-      };
-      await customerCollection.insertOne(customer);
-    }
+    // Buscar informações do cliente
+    let customer = await customerCollection.findOne({ asaas_id: customerId });
     
     // Salvar assinatura
     const subscription = {
-      asaasId: response.data.id,
-      customerId: customerId,
-      planId: planId,
+      asaas_id: response.data.id,
+      customer_id: customerId,
+      plan_id: planId,
       value: value,
       status: response.data.status,
-      nextDueDate: response.data.nextDueDate,
+      next_due_date: response.data.nextDueDate,
       cycle: cycle,
-      billingType: billingType,
+      billing_type: billingType,
       description: subscriptionData.description,
-      createdAt: new Date()
+      created_at: new Date(),
+      updated_at: new Date()
     };
     
     await subscriptionsCollection.insertOne(subscription);
+    console.log('Assinatura salva no MongoDB:', subscription.asaas_id);
+
+    // Atualizar status do cliente
+    if (customer) {
+      await customerCollection.updateOne(
+        { asaas_id: customerId },
+        {
+          $set: {
+            subscription_status: 'ACTIVE',
+            subscription_id: response.data.id,
+            updated_at: new Date()
+          }
+        }
+      );
+      console.log('Status de assinatura do cliente atualizado:', customerId);
+    }
 
     return res.status(201).json({
       success: true,
       subscription: response.data,
-      localSubscription: subscription
+      message: 'Assinatura criada com sucesso'
     });
   } catch (error) {
-    console.error('Erro ao criar assinatura:', error.response?.data || error.message);
+    console.error('=== ERRO AO CRIAR ASSINATURA ===');
+    console.error('Mensagem:', error.message);
+    console.error('Detalhes:', error.response?.data || error.toString());
     
     return res.status(error.response?.status || 500).json({
+      success: false,
       error: 'Erro ao criar assinatura',
       details: error.response?.data || error.message
     });
   } finally {
     if (client) {
       await client.close();
+      console.log('Conexão com MongoDB fechada');
     }
+    console.log('=== FIM DA REQUISIÇÃO DE ASSINATURA ===');
   }
 } 
