@@ -22,7 +22,7 @@ const asaasDirectClient = axios.create({
 
 // Cliente original para backend (mantenha para referência)
 const apiClient = axios.create({
-  baseURL: config.apiBaseUrl || 'https://backendapi-production-36b5.up.railway.app'
+  baseURL: window.location.origin // Usar a origem da página atual
 });
 
 // Log da URL base usada
@@ -184,7 +184,7 @@ export const createAsaasCustomerViaBackend = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas (via backend):', userData);
     
-    const endpoint = '/asaas-create-customer';
+    const endpoint = '/api/asaas-create-customer';
     console.log('Usando endpoint:', endpoint);
     
     const response = await apiClient.post(endpoint, {
@@ -223,7 +223,7 @@ export const createAsaasSubscriptionViaBackend = async (
   try {
     console.log(`Criando assinatura via backend: planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
-    const endpoint = '/asaas-create-subscription';
+    const endpoint = '/api/asaas-create-subscription';
     console.log('Usando endpoint:', endpoint);
     
     const response = await apiClient.post(endpoint, {
