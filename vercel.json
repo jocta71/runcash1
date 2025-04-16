@@ -81,20 +81,44 @@
       "destination": "/api/test-page"
     },
     {
-      "source": "/assets/(.*)",
-      "destination": "/frontend/dist/assets/$1"
+      "source": "/assets/:path*",
+      "destination": "/frontend/dist/assets/:path*"
     },
     {
-      "source": "/img/(.*)",
-      "destination": "/frontend/dist/img/$1"
+      "source": "/img/:path*",
+      "destination": "/frontend/dist/img/:path*"
     },
     {
-      "source": "/sounds/(.*)",
-      "destination": "/frontend/dist/sounds/$1"
+      "source": "/sounds/:path*",
+      "destination": "/frontend/dist/sounds/:path*"
     },
     {
-      "source": "/(.*\\.(js|css|png|jpg|svg|ico|json))",
-      "destination": "/frontend/dist/$1"
+      "source": "/:file.js",
+      "destination": "/frontend/dist/:file.js"
+    },
+    {
+      "source": "/:file.css",
+      "destination": "/frontend/dist/:file.css"
+    },
+    {
+      "source": "/:file.png",
+      "destination": "/frontend/dist/:file.png"
+    },
+    {
+      "source": "/:file.jpg",
+      "destination": "/frontend/dist/:file.jpg"
+    },
+    {
+      "source": "/:file.svg",
+      "destination": "/frontend/dist/:file.svg"
+    },
+    {
+      "source": "/:file.ico",
+      "destination": "/frontend/dist/:file.ico"
+    },
+    {
+      "source": "/:file.json",
+      "destination": "/frontend/dist/:file.json"
     },
     {
       "source": "/(login|roulettes|history|analysis|strategies|profile|billing|planos|pagamento|live|test)(.*)",
