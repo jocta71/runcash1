@@ -4,21 +4,51 @@
   "outputDirectory": "frontend/dist",
   "installCommand": "cd frontend && npm install",
   "framework": "vite",
+  "functions": {
+    "api/asaas-create-customer.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-create-subscription.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-webhook.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-find-payment.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-pix-qrcode.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
   "rewrites": [
     { 
       "source": "/api/asaas-webhook", 
-      "destination": "/backend/api/payment/asaas-webhook.js" 
+      "destination": "/api/asaas-webhook.js" 
     },
     { 
       "source": "/api/asaas-create-customer", 
-      "destination": "/backend/api/payment/asaas-create-customer.js" 
+      "destination": "/api/asaas-create-customer.js" 
     },
     { 
       "source": "/api/asaas-create-subscription", 
-      "destination": "/backend/api/payment/asaas-create-subscription.js" 
+      "destination": "/api/asaas-create-subscription.js" 
     },
     { 
-      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription).*)", 
+      "source": "/api/asaas-find-payment", 
+      "destination": "/api/asaas-find-payment.js" 
+    },
+    { 
+      "source": "/api/asaas-pix-qrcode", 
+      "destination": "/api/asaas-pix-qrcode.js" 
+    },
+    { 
+      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode).*)", 
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1" 
     },
     {
@@ -32,6 +62,10 @@
   ],
   "cleanUrls": true,
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "MONGODB_URI": "mongodb+srv://SEU_USER:SUA_SENHA@cluster.mongodb.net/runcash?retryWrites=true&w=majority",
+    "MONGODB_DATABASE": "runcash",
+    "ASAAS_API_KEY": "$api_key_aqui",
+    "ASAAS_ENVIRONMENT": "sandbox"
   }
 }

@@ -72,9 +72,9 @@ module.exports = async (req, res) => {
     const subscriptionData = await db.collection('subscriptions').findOne({
       payment_id: subscriptionId
     });
-    
+      
     if (!subscriptionData) {
-      console.error('Assinatura não encontrada no banco de dados:', subscriptionId);
+        console.error('Assinatura não encontrada no banco de dados:', subscriptionId);
       return res.status(404).json({ error: 'Assinatura não encontrada', subscription_id: subscriptionId });
     }
     
