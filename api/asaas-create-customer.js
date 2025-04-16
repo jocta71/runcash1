@@ -1,6 +1,7 @@
 // Endpoint de criação de cliente usando MongoDB
 const axios = require('axios');
 const { MongoClient } = require('mongodb');
+const crypto = require('crypto');
 
 module.exports = async (req, res) => {
   // Configuração de CORS
@@ -23,26 +24,29 @@ module.exports = async (req, res) => {
 
   try {
     // Verificar dados obrigatórios
-    const { name, email, cpfCnpj, phone, userId } = req.body;
+    const { name, email, cpfCnpj, phone } = req.body;
     
-    if (!name || !email || !cpfCnpj || !userId) {
+    if (!name || !email || !cpfCnpj) {
       return res.status(400).json({ 
         success: false,
         error: 'Dados incompletos', 
-        details: 'Nome, email, CPF/CNPJ e ID do usuário são obrigatórios' 
+        details: 'Nome, email e CPF/CNPJ são obrigatórios' 
       });
     }
+
+    // Gerar userId aleatório
+    const userId = crypto.randomBytes(16).toString('hex');
 
     // Conectar ao MongoDB
     client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
     const db = client.db(process.env.MONGODB_DATABASE || 'runcash');
     
-    // Verificar se o cliente já existe para este usuário
-    const existingCustomer = await db.collection('customers').findOne({ user_id: userId });
+    // Verificar se o cliente já existe para este CPF/CNPJ
+    const existingCustomer = await db.collection('customers').findOne({ cpf_cnpj: cpfCnpj });
     
     if (existingCustomer && existingCustomer.asaas_id) {
-      console.log(`Cliente já existe no Asaas para o usuário ${userId}: ${existingCustomer.asaas_id}`);
+      console.log(`Cliente já existe no Asaas com CPF/CNPJ ${cpfCnpj}: ${existingCustomer.asaas_id}`);
       return res.status(200).json({ 
         success: true,
         data: {
@@ -118,7 +122,8 @@ module.exports = async (req, res) => {
     return res.status(201).json({
       success: true,
       data: {
-        customerId: asaasCustomerId
+        customerId: asaasCustomerId,
+        userId: userId
       },
       message: 'Cliente criado com sucesso'
     });
