@@ -1,137 +1,27 @@
 {
   "version": 2,
-  "buildCommand": null,
-  "functions": {
-    "api/asaas-create-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-create-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-webhook.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-payment.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-pix-qrcode.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-cancel-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/test-page.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/asaas-webhook",
-      "destination": "/api/asaas-webhook.js"
-    },
-    {
-      "source": "/api/asaas-create-customer",
-      "destination": "/api/asaas-create-customer.js"
-    },
-    {
-      "source": "/api/asaas-create-subscription",
-      "destination": "/api/asaas-create-subscription.js"
-    },
-    {
-      "source": "/api/asaas-find-payment",
-      "destination": "/api/asaas-find-payment.js"
-    },
-    {
-      "source": "/api/asaas-pix-qrcode",
-      "destination": "/api/asaas-pix-qrcode.js"
-    },
-    {
-      "source": "/api/asaas-find-subscription",
-      "destination": "/api/asaas-find-subscription.js"
-    },
-    {
-      "source": "/api/asaas-cancel-subscription",
-      "destination": "/api/asaas-cancel-subscription.js"
-    },
-    {
-      "source": "/api/asaas-find-customer",
-      "destination": "/api/asaas-find-customer.js"
-    },
-    {
-      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|test-page).*)",
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
-    },
-    {
-      "source": "/test",
-      "destination": "/api/test-page"
-    },
-    {
-      "source": "/assets/:path*",
-      "destination": "/frontend/dist/assets/:path*"
-    },
-    {
-      "source": "/img/:path*",
-      "destination": "/frontend/dist/img/:path*"
-    },
-    {
-      "source": "/sounds/:path*",
-      "destination": "/frontend/dist/sounds/:path*"
-    },
-    {
-      "source": "/:file.js",
-      "destination": "/frontend/dist/:file.js"
-    },
-    {
-      "source": "/:file.css",
-      "destination": "/frontend/dist/:file.css"
-    },
-    {
-      "source": "/:file.png",
-      "destination": "/frontend/dist/:file.png"
-    },
-    {
-      "source": "/:file.jpg",
-      "destination": "/frontend/dist/:file.jpg"
-    },
-    {
-      "source": "/:file.svg",
-      "destination": "/frontend/dist/:file.svg"
-    },
-    {
-      "source": "/:file.ico",
-      "destination": "/frontend/dist/:file.ico"
-    },
-    {
-      "source": "/:file.json",
-      "destination": "/frontend/dist/:file.json"
-    },
-    {
-      "source": "/(login|roulettes|history|analysis|strategies|profile|billing|planos|pagamento|live|test)(.*)",
-      "destination": "/frontend/dist/index.html"
-    },
-    {
-      "source": "/",
-      "destination": "/frontend/dist/index.html"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/frontend/dist/index.html"
-    }
+  "builds": [
+    { "src": "frontend/package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } },
+    { "src": "api/*.js", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/asaas-webhook", "dest": "/api/asaas-webhook.js" },
+    { "src": "/api/asaas-create-customer", "dest": "/api/asaas-create-customer.js" },
+    { "src": "/api/asaas-create-subscription", "dest": "/api/asaas-create-subscription.js" },
+    { "src": "/api/asaas-find-payment", "dest": "/api/asaas-find-payment.js" },
+    { "src": "/api/asaas-pix-qrcode", "dest": "/api/asaas-pix-qrcode.js" },
+    { "src": "/api/asaas-find-subscription", "dest": "/api/asaas-find-subscription.js" },
+    { "src": "/api/asaas-cancel-subscription", "dest": "/api/asaas-cancel-subscription.js" },
+    { "src": "/api/asaas-find-customer", "dest": "/api/asaas-find-customer.js" },
+    { "src": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|test-page).*)", "dest": "https://backendapi-production-36b5.up.railway.app/api/$1" },
+    { "src": "/test", "dest": "/api/test-page" },
+    { "src": "/assets/(.*)", "dest": "/frontend/dist/assets/$1" },
+    { "src": "/img/(.*)", "dest": "/frontend/dist/img/$1" },
+    { "src": "/sounds/(.*)", "dest": "/frontend/dist/sounds/$1" },
+    { "src": "^/(.+\\.(js|css|png|jpg|svg|ico|json))$", "dest": "/frontend/dist/$1" },
+    { "src": "/(login|roulettes|history|analysis|strategies|profile|billing|planos|pagamento|live|test)(.*)", "dest": "/frontend/dist/index.html" },
+    { "src": "/", "dest": "/frontend/dist/index.html" },
+    { "src": "/(.*)", "dest": "/frontend/dist/index.html" }
   ],
   "env": {
     "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash",
