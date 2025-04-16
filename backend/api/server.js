@@ -28,9 +28,27 @@ const authRouter = require('./routes/auth');
 const app = express();
 const PORT = process.env.API_PORT || 3001;
 
+// Lista de origens permitidas
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:5173',
+  'https://runcash1.vercel.app',
+  'https://runcashh11.vercel.app'
+];
+
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: function(origin, callback) {
+    // Permitir requisições sem origem (como aplicativos móveis ou curl)
+    if (!origin) return callback(null, true);
+    
+    // Verificar se a origem está na lista de permitidas
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`Origem bloqueada pelo CORS: ${origin}`);
+      callback(null, false);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -46,8 +64,10 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Credentials', 'true');
   
   // Origem específica ou dinâmica baseada no request
-  const origin = req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:5173';
-  res.header('Access-Control-Allow-Origin', origin);
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
   
   // Outros headers necessários
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
