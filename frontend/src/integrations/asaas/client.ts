@@ -2,7 +2,40 @@
  * Cliente para integração com Asaas
  */
 
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
+
+// Configuração base do axios
+const api = axios.create({
+  baseURL: '/',
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Interceptor para tratamento de erros
+api.interceptors.response.use(
+  response => response,
+  (error: AxiosError) => {
+    console.error('Erro na requisição:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      config: {
+        url: error.config?.url,
+        method: error.config?.method
+      }
+    });
+    return Promise.reject(error);
+  }
+);
+
+/**
+ * Interface para resposta padrão da API
+ */
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
 
 /**
  * Cria um cliente no Asaas ou recupera um existente
@@ -18,7 +51,7 @@ export const createAsaasCustomer = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const response = await axios.post('/api/asaas-create-customer', {
+    const response = await api.post<ApiResponse<{ customerId: string }>>('api/asaas-create-customer', {
       name: userData.name,
       email: userData.email,
       cpfCnpj: userData.cpfCnpj,
@@ -28,21 +61,31 @@ export const createAsaasCustomer = async (userData: {
     
     console.log('Resposta da API de criação de cliente:', response.data);
     
-    if (response.data && response.data.customerId) {
-      return response.data.customerId;
+    if (response.data?.data?.customerId) {
+      return response.data.data.customerId;
     }
     
     throw new Error('ID de cliente não recebido');
   } catch (error) {
     console.error('Erro ao criar cliente no Asaas:', error);
     
-    if (error instanceof Error) {
-      throw new Error(`Falha ao criar cliente: ${error.message}`);
+    if (error instanceof AxiosError) {
+      throw new Error(`Falha ao criar cliente: ${error.response?.data?.error || error.message}`);
     }
     
     throw new Error('Falha ao criar cliente no Asaas');
   }
 };
+
+/**
+ * Interface para resposta de criação de assinatura
+ */
+interface SubscriptionResponse {
+  subscriptionId: string;
+  paymentId: string;
+  redirectUrl?: string;
+  status: string;
+}
 
 /**
  * Cria uma assinatura no Asaas
@@ -58,11 +101,11 @@ export const createAsaasSubscription = async (
   paymentMethod: string = 'PIX',
   creditCard?: any,
   creditCardHolderInfo?: any
-): Promise<{ subscriptionId: string, paymentId: string, redirectUrl?: string, status: string }> => {
+): Promise<SubscriptionResponse> => {
   try {
     console.log(`Criando assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
-    const response = await axios.post('/api/asaas-create-subscription', {
+    const response = await api.post<ApiResponse<SubscriptionResponse>>('api/asaas-create-subscription', {
       planId,
       userId,
       customerId,
@@ -73,26 +116,34 @@ export const createAsaasSubscription = async (
     
     console.log('Resposta da API de criação de assinatura:', response.data);
     
-    if (!response.data || !response.data.subscriptionId) {
+    if (!response.data?.data?.subscriptionId) {
       throw new Error('ID de assinatura não recebido');
     }
     
     return {
-      subscriptionId: response.data.subscriptionId,
-      paymentId: response.data.paymentId || '',
-      redirectUrl: response.data.redirectUrl,
-      status: response.data.status || 'PENDING'
+      subscriptionId: response.data.data.subscriptionId,
+      paymentId: response.data.data.paymentId || '',
+      redirectUrl: response.data.data.redirectUrl,
+      status: response.data.data.status || 'PENDING'
     };
   } catch (error) {
     console.error('Erro ao criar assinatura no Asaas:', error);
     
-    if (error instanceof Error) {
-      throw new Error(`Falha ao criar assinatura: ${error.message}`);
+    if (error instanceof AxiosError) {
+      throw new Error(`Falha ao criar assinatura: ${error.response?.data?.error || error.message}`);
     }
     
     throw new Error('Falha ao criar assinatura no Asaas');
   }
 };
+
+/**
+ * Interface para resposta de pagamento
+ */
+interface PaymentResponse {
+  success: boolean;
+  payment: any;
+}
 
 /**
  * Busca detalhes de um pagamento no Asaas
@@ -102,11 +153,11 @@ export const findAsaasPayment = async (paymentId: string): Promise<any> => {
   try {
     console.log(`Buscando pagamento: paymentId=${paymentId}`);
     
-    const response = await axios.get(`/api/asaas-find-payment?paymentId=${paymentId}`);
+    const response = await api.get<PaymentResponse>(`api/asaas-find-payment?paymentId=${paymentId}`);
     
     console.log('Resposta da API de busca de pagamento:', response.data);
     
-    if (!response.data || !response.data.success) {
+    if (!response.data?.success) {
       throw new Error('Falha ao buscar pagamento');
     }
     
@@ -114,8 +165,8 @@ export const findAsaasPayment = async (paymentId: string): Promise<any> => {
   } catch (error) {
     console.error('Erro ao buscar pagamento no Asaas:', error);
     
-    if (error instanceof Error) {
-      throw new Error(`Falha ao buscar pagamento: ${error.message}`);
+    if (error instanceof AxiosError) {
+      throw new Error(`Falha ao buscar pagamento: ${error.response?.data?.error || error.message}`);
     }
     
     throw new Error('Falha ao buscar pagamento no Asaas');
@@ -123,22 +174,32 @@ export const findAsaasPayment = async (paymentId: string): Promise<any> => {
 };
 
 /**
+ * Interface para resposta do QR code PIX
+ */
+interface PixQrCodeResponse {
+  success: boolean;
+  qrCodeImage: string;
+  qrCodeText: string;
+  expirationDate?: string;
+}
+
+/**
  * Busca QR code PIX para um pagamento no Asaas
  * @param paymentId ID do pagamento no Asaas
  */
 export const getAsaasPixQrCode = async (paymentId: string): Promise<{
-  qrCodeImage: string,
-  qrCodeText: string,
-  expirationDate?: string
+  qrCodeImage: string;
+  qrCodeText: string;
+  expirationDate?: string;
 }> => {
   try {
     console.log(`Buscando QR code PIX: paymentId=${paymentId}`);
     
-    const response = await axios.get(`/api/asaas-pix-qrcode?paymentId=${paymentId}`);
+    const response = await api.get<PixQrCodeResponse>(`api/asaas-pix-qrcode?paymentId=${paymentId}`);
     
     console.log('Resposta da API de QR code PIX:', response.data);
     
-    if (!response.data || !response.data.success) {
+    if (!response.data?.success) {
       throw new Error('Falha ao buscar QR code PIX');
     }
     
@@ -150,8 +211,8 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
   } catch (error) {
     console.error('Erro ao buscar QR code PIX no Asaas:', error);
     
-    if (error instanceof Error) {
-      throw new Error(`Falha ao buscar QR code PIX: ${error.message}`);
+    if (error instanceof AxiosError) {
+      throw new Error(`Falha ao buscar QR code PIX: ${error.response?.data?.error || error.message}`);
     }
     
     throw new Error('Falha ao buscar QR code PIX no Asaas');

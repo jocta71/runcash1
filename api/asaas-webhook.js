@@ -1,8 +1,8 @@
-import { MongoClient } from 'mongodb';
+const { MongoClient } = require('mongodb');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Configuração de CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');

@@ -44,6 +44,13 @@ interface PaymentFormProps {
   onCancel: () => void;
 }
 
+interface SubscriptionResponse {
+  subscriptionId: string;
+  paymentId?: string;
+  redirectUrl?: string;
+  status: string;
+}
+
 export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -120,55 +127,49 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
       
       // Passo 2: Criar assinatura
       console.log('Criando assinatura para o cliente...');
-      const { redirectUrl } = await createAsaasSubscription(
+      const subscription = await createAsaasSubscription(
         planId, 
         user.id,
-        customerId
+        customerId,
+        'PIX'
       );
       
-      console.log('Assinatura criada, redirecionando para:', redirectUrl);
+      console.log('Assinatura criada:', subscription);
       
-      // Se for plano gratuito, concluir diretamente
-      if (planId === 'free' || redirectUrl.includes('free=true')) {
+      // Se for plano gratuito ou assinatura já ativa, concluir diretamente
+      if (planId === 'free' || subscription.status === 'ACTIVE') {
         toast({
           title: "Plano ativado com sucesso!",
-          description: "Seu plano gratuito foi ativado com sucesso.",
+          description: "Seu plano foi ativado com sucesso.",
         });
         onPaymentSuccess();
+      } else if (subscription.paymentId) {
+        // Se tiver paymentId, redirecionar para página de pagamento PIX
+        window.location.href = `/payment?planId=${planId}&customerId=${customerId}&paymentId=${subscription.paymentId}`;
       } else {
-        // Para planos pagos, abrir a página de pagamento do Asaas em nova janela
-        toast({
-          title: "Redirecionando para pagamento",
-          description: "Uma nova janela foi aberta para concluir o pagamento via PIX.",
-        });
-        
-        // Abrir em nova janela para não perder o contexto atual
-        window.open(redirectUrl, '_blank');
-        
-        // Mostrar link de backup caso o popup seja bloqueado
-        setError(
-          `Se a janela de pagamento não abrir, clique neste link: ` + 
-          `<a href="${redirectUrl}" target="_blank" class="text-blue-400 underline">Abrir página de pagamento</a>`
-        );
+        setError("Não foi possível obter as informações de pagamento. Por favor, tente novamente.");
       }
     } catch (error) {
       console.error('Erro no processo de assinatura:', error);
       
-      // Exibir mensagem de erro detalhada
-      let errorMessage = "Ocorreu um erro ao processar sua assinatura.";
-      
       if (error instanceof Error) {
-        setError(`${errorMessage} ${error.message}`);
-        
-        // Mostrar diferentes mensagens dependendo do erro
-        if (error.message.includes('405')) {
-          setError("Erro na comunicação com a API de pagamento. Por favor, entre em contato com o suporte.");
+        // Tratar erros específicos
+        if (error.message.includes('404')) {
+          setError("Serviço de pagamento indisponível no momento. Por favor, tente novamente mais tarde.");
         } else if (error.message.includes('Network Error')) {
           setError("Erro de conexão. Verifique sua internet e tente novamente.");
+        } else {
+          setError(`Erro ao processar assinatura: ${error.message}`);
         }
       } else {
-        setError(errorMessage);
+        setError("Ocorreu um erro inesperado ao processar sua assinatura. Por favor, tente novamente.");
       }
+      
+      toast({
+        variant: "destructive",
+        title: "Erro na assinatura",
+        description: "Não foi possível processar sua assinatura. Por favor, tente novamente.",
+      });
     } finally {
       setIsLoading(false);
     }
