@@ -222,6 +222,15 @@ const App = () => {
                           </ProtectedRoute>
                         } />
                         
+                        {/* Rota para a página de teste */}
+                        <Route path="/test" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <TestPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
+                        
                         {/* Rota para página não encontrada */}
                         <Route path="*" element={
                           <ProtectedRoute>
