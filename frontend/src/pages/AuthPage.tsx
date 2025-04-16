@@ -19,14 +19,14 @@ const AuthPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [activeTab, setActiveTab] = useState('login');
-  const [isGoogleAuthEnabled, setIsGoogleAuthEnabled] = useState(true);
+  const [isGoogleAuthEnabled, setIsGoogleAuthEnabled] = useState(false);
   const [isCheckingGoogleAuth, setIsCheckingGoogleAuth] = useState(true);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
   // API URL
-  const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
 
   useEffect(() => {
     // Verificar se auth Google está disponível
@@ -44,16 +44,13 @@ const AuthPage = () => {
     
     checkGoogleAuthStatus();
     
-    // Verificar se há parâmetros de redirecionamento na URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const redirectUrl = urlParams.get('redirect') || '/asaas-test'; // Default para /asaas-test
-    
-    // Redirect to redirectUrl if already logged in
+    // Redirect to home if already logged in
     if (user) {
-      navigate(redirectUrl);
+      navigate('/');
     }
     
     // Verificar se há erro no URL (redirecionado do Google Auth)
+    const urlParams = new URLSearchParams(window.location.search);
     const error = urlParams.get('error');
     if (error === 'google_auth_disabled') {
       toast({
@@ -70,10 +67,6 @@ const AuthPage = () => {
     setErrorMessage('');
     
     try {
-      // Verificar se há parâmetros de redirecionamento na URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const redirectUrl = urlParams.get('redirect') || '/asaas-test'; // Default para /asaas-test
-      
       const { error } = await signIn(email, password);
       if (error) {
         setErrorMessage(error.message || 'Erro ao fazer login. Tente novamente.');
@@ -82,7 +75,7 @@ const AuthPage = () => {
           title: "Login bem-sucedido",
           description: "Bem-vindo de volta!",
         });
-        navigate(redirectUrl);
+        navigate('/');
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
@@ -151,10 +144,6 @@ const AuthPage = () => {
 
   const handleGoogleLogin = () => {
     if (isGoogleAuthEnabled) {
-      // Verificar se há parâmetros de redirecionamento na URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const redirectUrl = urlParams.get('redirect') || '/asaas-test'; // Default para /asaas-test
-      
       console.log('Redirecionando para autenticação Google:', `${API_URL}/auth/google`);
       
       // Antes de redirecionar, mostrar loading state
@@ -162,8 +151,6 @@ const AuthPage = () => {
       
       // Armazenar a informação que o login via Google foi iniciado
       localStorage.setItem('googleAuthInProgress', 'true');
-      // Armazenar a URL de redirecionamento para usar após o login com Google
-      localStorage.setItem('redirectAfterGoogleAuth', redirectUrl);
       
       // Redirecionar para a URL de autenticação Google
       window.location.href = `${API_URL}/auth/google`;

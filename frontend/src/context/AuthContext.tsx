@@ -93,13 +93,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             
             // Limpar o token da URL
             window.history.replaceState({}, document.title, window.location.pathname);
-            
-            // Verificar se há URL de redirecionamento armazenada para o Google Auth
-            const redirectUrl = localStorage.getItem('redirectAfterGoogleAuth') || '/asaas-test';
-            localStorage.removeItem('redirectAfterGoogleAuth');
-            
-            // Redirecionar para essa URL
-            window.location.href = redirectUrl;
           }
         } catch (error) {
           console.error('Erro ao carregar usuário após login do Google:', error);
