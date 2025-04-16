@@ -223,7 +223,14 @@ const App = () => {
                           </ProtectedRoute>
                         } />
                         
-                     
+                        {/* Rota para a página de teste do Asaas */}
+                        <Route path="/login" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <AsaasTestPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
                         
                         {/* Rota para página não encontrada */}
                         <Route path="*" element={
