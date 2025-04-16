@@ -2,8 +2,6 @@ const { MongoClient } = require('mongodb');
 const axios = require('axios');
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const dbName = 'runcashDB';
-
 // Forçar uso do sandbox enquanto estamos em teste
 const ASAAS_ENVIRONMENT = 'sandbox';
 console.log(`[WEBHOOK] Usando ambiente Asaas: ${ASAAS_ENVIRONMENT}`);
@@ -13,26 +11,7 @@ const asaasBaseUrl = ASAAS_ENVIRONMENT === 'production'
   : 'https://sandbox.asaas.com/api/v3';
 const asaasApiKey = process.env.ASAAS_API_KEY;
 
-// Configuração para Asaas API
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
-const ASAAS_API_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://api.asaas.com/v3' 
-  : 'https://sandbox.asaas.com/api/v3';
-
-const axiosConfig = {
-  headers: {
-    'Content-Type': 'application/json',
-    'access_token': ASAAS_API_KEY,
-    'User-Agent': 'RunCash/1.0'
-  }
-};
-
 module.exports = async (req, res) => {
-  console.log('=== WEBHOOK DO ASAAS RECEBIDO ===');
-  console.log('Método:', req.method);
-  console.log('URL:', req.url);
-  console.log('Cabeçalhos:', JSON.stringify(req.headers, null, 2));
-
   // Configuração de CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -54,17 +33,13 @@ module.exports = async (req, res) => {
 
   // Apenas processar solicitações POST para webhooks
   if (req.method !== 'POST') {
-    console.error('Método não permitido:', req.method);
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
   // Verificar se há um corpo de requisição
-  if (!req.body || Object.keys(req.body).length === 0) {
-    console.error('Corpo da solicitação vazio');
-    return res.status(400).json({ error: 'Corpo da solicitação vazio' });
+  if (!req.body) {
+    return res.status(400).json({ error: 'Corpo da requisição vazio' });
   }
-
-  console.log('Corpo da solicitação:', JSON.stringify(req.body, null, 2));
 
   const webhookData = req.body;
   
@@ -185,7 +160,13 @@ async function handlePaymentConfirmed(db, webhookData) {
   // Atualizar status do pagamento no Asaas
   const response = await axios.get(
     `${asaasBaseUrl}/payments/${paymentId}`,
-    axiosConfig
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'RunCash/1.0',
+        'access_token': asaasApiKey
+      }
+    }
   );
 }
 

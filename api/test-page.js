@@ -116,60 +116,50 @@ module.exports = (req, res) => {
                 <input type="number" class="form-control" id="subscriptionValue" value="99.90" required>
               </div>
               
+              <h5 class="mt-4 mb-3">Dados do Cartão de Crédito</h5>
               <div class="mb-3">
-                <label for="billingType" class="form-label">Método de Pagamento</label>
-                <select class="form-control" id="billingType" required onchange="togglePaymentFields()">
-                  <option value="CREDIT_CARD">Cartão de Crédito</option>
-                  <option value="PIX">PIX</option>
-                </select>
+                <label for="holderName" class="form-label">Nome no Cartão</label>
+                <input type="text" class="form-control" id="holderName" required>
+              </div>
+              <div class="mb-3">
+                <label for="cardNumber" class="form-label">Número do Cartão</label>
+                <input type="text" class="form-control" id="cardNumber" required placeholder="4111111111111111">
+              </div>
+              <div class="row">
+                <div class="col-md-4 mb-3">
+                  <label for="expiryMonth" class="form-label">Mês</label>
+                  <input type="text" class="form-control" id="expiryMonth" required placeholder="12" maxlength="2">
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label for="expiryYear" class="form-label">Ano</label>
+                  <input type="text" class="form-control" id="expiryYear" required placeholder="2030" maxlength="4">
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label for="ccv" class="form-label">CCV</label>
+                  <input type="text" class="form-control" id="ccv" required placeholder="123" maxlength="4">
+                </div>
               </div>
               
-              <div id="creditCardFields">
-                <h5 class="mt-4 mb-3">Dados do Cartão de Crédito</h5>
-                <div class="mb-3">
-                  <label for="holderName" class="form-label">Nome no Cartão</label>
-                  <input type="text" class="form-control" id="holderName" required>
-                </div>
-                <div class="mb-3">
-                  <label for="cardNumber" class="form-label">Número do Cartão</label>
-                  <input type="text" class="form-control" id="cardNumber" required placeholder="4111111111111111">
-                </div>
-                <div class="row">
-                  <div class="col-md-4 mb-3">
-                    <label for="expiryMonth" class="form-label">Mês</label>
-                    <input type="text" class="form-control" id="expiryMonth" required placeholder="12" maxlength="2">
-                  </div>
-                  <div class="col-md-4 mb-3">
-                    <label for="expiryYear" class="form-label">Ano</label>
-                    <input type="text" class="form-control" id="expiryYear" required placeholder="2030" maxlength="4">
-                  </div>
-                  <div class="col-md-4 mb-3">
-                    <label for="ccv" class="form-label">CCV</label>
-                    <input type="text" class="form-control" id="ccv" required placeholder="123" maxlength="4">
-                  </div>
-                </div>
-                
-                <h5 class="mt-4 mb-3">Dados do Titular</h5>
-                <div class="mb-3">
-                  <label for="holderEmail" class="form-label">Email do Titular</label>
-                  <input type="email" class="form-control" id="holderEmail" required>
-                </div>
-                <div class="mb-3">
-                  <label for="holderCpfCnpj" class="form-label">CPF do Titular</label>
-                  <input type="text" class="form-control" id="holderCpfCnpj" required maxlength="11">
-                </div>
-                <div class="mb-3">
-                  <label for="holderPostalCode" class="form-label">CEP</label>
-                  <input type="text" class="form-control" id="holderPostalCode" required placeholder="12345678" maxlength="8">
-                </div>
-                <div class="mb-3">
-                  <label for="holderAddressNumber" class="form-label">Número</label>
-                  <input type="text" class="form-control" id="holderAddressNumber" required placeholder="123">
-                </div>
-                <div class="mb-3">
-                  <label for="holderPhone" class="form-label">Telefone</label>
-                  <input type="text" class="form-control" id="holderPhone" required placeholder="11999998888">
-                </div>
+              <h5 class="mt-4 mb-3">Dados do Titular</h5>
+              <div class="mb-3">
+                <label for="holderEmail" class="form-label">Email do Titular</label>
+                <input type="email" class="form-control" id="holderEmail" required>
+              </div>
+              <div class="mb-3">
+                <label for="holderCpfCnpj" class="form-label">CPF do Titular</label>
+                <input type="text" class="form-control" id="holderCpfCnpj" required maxlength="11">
+              </div>
+              <div class="mb-3">
+                <label for="holderPostalCode" class="form-label">CEP</label>
+                <input type="text" class="form-control" id="holderPostalCode" required placeholder="12345678" maxlength="8">
+              </div>
+              <div class="mb-3">
+                <label for="holderAddressNumber" class="form-label">Número</label>
+                <input type="text" class="form-control" id="holderAddressNumber" required placeholder="123">
+              </div>
+              <div class="mb-3">
+                <label for="holderPhone" class="form-label">Telefone</label>
+                <input type="text" class="form-control" id="holderPhone" required placeholder="11999998888">
               </div>
               
               <button type="submit" class="btn btn-primary">Criar Assinatura</button>
@@ -216,45 +206,6 @@ module.exports = (req, res) => {
   </div>
 
   <script>
-    // Função para alternar campos de pagamento
-    function togglePaymentFields() {
-      const billingType = document.getElementById('billingType').value;
-      const creditCardFields = document.getElementById('creditCardFields');
-      
-      if (billingType === 'CREDIT_CARD') {
-        creditCardFields.style.display = 'block';
-        // Reativa os campos obrigatórios para cartão
-        document.getElementById('holderName').required = true;
-        document.getElementById('cardNumber').required = true;
-        document.getElementById('expiryMonth').required = true;
-        document.getElementById('expiryYear').required = true;
-        document.getElementById('ccv').required = true;
-        document.getElementById('holderEmail').required = true;
-        document.getElementById('holderCpfCnpj').required = true;
-        document.getElementById('holderPostalCode').required = true;
-        document.getElementById('holderAddressNumber').required = true;
-        document.getElementById('holderPhone').required = true;
-      } else {
-        creditCardFields.style.display = 'none';
-        // Remove obrigatoriedade dos campos de cartão
-        document.getElementById('holderName').required = false;
-        document.getElementById('cardNumber').required = false;
-        document.getElementById('expiryMonth').required = false;
-        document.getElementById('expiryYear').required = false;
-        document.getElementById('ccv').required = false;
-        document.getElementById('holderEmail').required = false;
-        document.getElementById('holderCpfCnpj').required = false;
-        document.getElementById('holderPostalCode').required = false;
-        document.getElementById('holderAddressNumber').required = false;
-        document.getElementById('holderPhone').required = false;
-      }
-    }
-    
-    // Inicializar campos de pagamento
-    document.addEventListener('DOMContentLoaded', function() {
-      togglePaymentFields();
-    });
-    
     // Criar Cliente
     document.getElementById('create-customer-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -304,19 +255,16 @@ module.exports = (req, res) => {
       resultDiv.innerHTML = '<div class="alert alert-info">Processando...</div>';
       
       try {
-        const billingType = document.getElementById('billingType').value;
-        
-        // Dados básicos da assinatura
-        const subscriptionData = {
-          customerId: document.getElementById('customerId').value,
-          planId: document.getElementById('planId').value,
-          value: parseFloat(document.getElementById('subscriptionValue').value),
-          billingType: billingType
-        };
-        
-        // Adicionar dados de cartão de crédito se for o método selecionado
-        if (billingType === 'CREDIT_CARD') {
-          Object.assign(subscriptionData, {
+        const response = await fetch('/api/asaas-create-subscription', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            customerId: document.getElementById('customerId').value,
+            planId: document.getElementById('planId').value,
+            value: parseFloat(document.getElementById('subscriptionValue').value),
+            billingType: 'CREDIT_CARD',
             // Dados do cartão
             holderName: document.getElementById('holderName').value,
             cardNumber: document.getElementById('cardNumber').value,
@@ -329,15 +277,7 @@ module.exports = (req, res) => {
             holderPostalCode: document.getElementById('holderPostalCode').value,
             holderAddressNumber: document.getElementById('holderAddressNumber').value,
             holderPhone: document.getElementById('holderPhone').value
-          });
-        }
-        
-        const response = await fetch('/api/asaas-create-subscription', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(subscriptionData),
+          }),
         });
         
         const data = await response.json();
@@ -359,13 +299,6 @@ module.exports = (req, res) => {
               <button class="btn btn-sm btn-outline-secondary mt-2" onclick="copyToClipboard('\${paymentId}')">
                 Copiar ID do Pagamento
               </button>
-              \${billingType === 'PIX' && paymentId ? \`
-                <div class="mt-3">
-                  <button class="btn btn-primary" onclick="generatePixQrCode('\${paymentId}')">
-                    Gerar QR Code PIX
-                  </button>
-                </div>
-              \` : ''}
             </div>
           \`;
         }
@@ -373,13 +306,6 @@ module.exports = (req, res) => {
         resultDiv.innerHTML = \`<div class="alert alert-danger">Erro: \${error.message}</div>\`;
       }
     });
-    
-    // Função para gerar QR Code PIX após criar assinatura
-    function generatePixQrCode(paymentId) {
-      document.getElementById('pixPaymentId').value = paymentId;
-      document.getElementById('pix-qrcode-form').dispatchEvent(new Event('submit'));
-      document.getElementById('pix-result').scrollIntoView({ behavior: 'smooth' });
-    }
     
     // Verificar Pagamento
     document.getElementById('check-payment-form').addEventListener('submit', async (e) => {

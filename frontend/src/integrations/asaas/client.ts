@@ -6,6 +6,7 @@ import axios, { AxiosError } from 'axios';
 
 // Configuração base do axios
 const api = axios.create({
+  baseURL: '/',
   headers: {
     'Content-Type': 'application/json'
   }
@@ -50,7 +51,7 @@ export const createAsaasCustomer = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const response = await api.post<ApiResponse<{ id: string }>>('/api/asaas-create-customer', {
+    const response = await api.post<ApiResponse<{ customerId: string }>>('api/asaas-create-customer', {
       name: userData.name,
       email: userData.email,
       cpfCnpj: userData.cpfCnpj,
@@ -60,8 +61,8 @@ export const createAsaasCustomer = async (userData: {
     
     console.log('Resposta da API de criação de cliente:', response.data);
     
-    if (response.data?.data?.id) {
-      return response.data.data.id;
+    if (response.data?.data?.customerId) {
+      return response.data.data.customerId;
     }
     
     throw new Error('ID de cliente não recebido');
@@ -140,7 +141,7 @@ export const createAsaasSubscription = async (
       holderCpfCnpj: payload.holderCpfCnpj ? `****${payload.holderCpfCnpj.slice(-4)}` : undefined
     });
     
-    const response = await api.post<ApiResponse<SubscriptionResponse>>('/api/asaas-create-subscription', payload);
+    const response = await api.post<ApiResponse<SubscriptionResponse>>('api/asaas-create-subscription', payload);
     
     console.log('Resposta da API de criação de assinatura:', response.data);
     

@@ -1,4 +1,4 @@
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient } = require('mongodb');
 const axios = require('axios');
 
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -15,17 +15,20 @@ const ASAAS_API_URL = ASAAS_ENVIRONMENT === 'production'
   : 'https://sandbox.asaas.com/api/v3';
 
 module.exports = async (req, res) => {
-  console.log('=== INÍCIO DA REQUISIÇÃO CRIAR ASSINATURA ===');
+  console.log('=== INÍCIO DA REQUISIÇÃO DE ASSINATURA ===');
   console.log('Método:', req.method);
   console.log('URL:', req.url);
   console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  console.log('Body:', JSON.stringify(req.body, null, 2));
+  console.log('Body (parcial):', JSON.stringify({
+    ...req.body,
+    creditCard: req.body.creditCard ? 'DADOS SENSÍVEIS OMITIDOS' : undefined,
+    creditCardHolderInfo: req.body.creditCardHolderInfo ? 'DADOS SENSÍVEIS OMITIDOS' : undefined
+  }, null, 2));
   
   // Configuração de CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
   if (req.method === 'OPTIONS') {
     console.log('Requisição OPTIONS recebida - Respondendo com 200');
@@ -120,16 +123,19 @@ module.exports = async (req, res) => {
     
     const db = client.db();
     
-    // Configurar requisição para API do Asaas
-    const axiosConfig = {
+    // Configurar chamada para API Asaas
+    const asaasConfig = {
       headers: {
         'Content-Type': 'application/json',
-        'access_token': ASAAS_API_KEY,
-        'User-Agent': 'RunCash/1.0'
+        'User-Agent': 'RunCash/1.0',
+        'access_token': ASAAS_API_KEY
       }
     };
 
-    console.log('Configuração da requisição para Asaas:', JSON.stringify(axiosConfig, null, 2));
+    console.log('Configuração do Asaas:', {
+      url: ASAAS_API_URL,
+      apiKey: ASAAS_API_KEY ? `${ASAAS_API_KEY.substring(0, 10)}...` : 'não definido'
+    });
 
     // Dados da assinatura
     const subscriptionData = {
@@ -204,62 +210,55 @@ module.exports = async (req, res) => {
       } : undefined
     }, null, 2));
     console.log('Headers:', JSON.stringify({
-      ...axiosConfig.headers,
+      ...asaasConfig.headers,
       'access_token': `${ASAAS_API_KEY.substring(0, 10)}...`
     }, null, 2));
 
-    // Verificar se o cliente existe no Asaas
-    console.log(`Verificando se cliente ${customerId} existe no Asaas`);
-    
-    // Log detalhado dos cabeçalhos para API
-    const headers = {
-      'access_token': ASAAS_API_KEY,
-      'User-Agent': 'RunCash/1.0'
-    };
-    console.log('Cabeçalhos da requisição:', JSON.stringify(headers));
-    
-    const customerResponse = await axios.get(`${ASAAS_API_URL}/customers/${customerId}`, {
-      headers
-    });
-
-    console.log('Criando assinatura no Asaas');
-    
-    // Logs para debugging
-    console.log('Tentando criar assinatura no Asaas');
-    console.log('API Key:', `${ASAAS_API_KEY.substring(0, 5)}...${ASAAS_API_KEY.substring(ASAAS_API_KEY.length - 5)}`);
-    console.log('Dados da assinatura:', { customerId, value, billingType, nextDueDate, planId });
-
-    // Criar assinatura
-    console.log('Criando assinatura na Asaas com os dados:', JSON.stringify(subscriptionData, null, 2));
-    const asaasResponse = await axios.post(
+    // Criar assinatura no Asaas
+    const response = await axios.post(
       `${ASAAS_API_URL}/subscriptions`,
       subscriptionData,
-      axiosConfig
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'RunCash/1.0',
+          'access_token': ASAAS_API_KEY
+        }
+      }
     );
 
-    console.log('Resposta da criação de assinatura:', JSON.stringify(asaasResponse.data, null, 2));
-    
+    console.log('=== RESPOSTA DO ASAAS (CRIAR ASSINATURA) ===');
+    console.log('Status:', response.status);
+    console.log('Dados:', JSON.stringify(response.data, null, 2));
+
     // Verificar se a resposta foi bem sucedida
-    if (asaasResponse.status !== 200 && asaasResponse.status !== 201) {
-      console.log(`Erro ao criar assinatura - Status: ${asaasResponse.status}`);
-      return res.status(400).json({
-        success: false,
-        message: 'Erro ao criar assinatura no Asaas',
-        error: asaasResponse.data
-      });
+    if (response.status !== 200 && response.status !== 201) {
+      console.error('=== ERRO NA RESPOSTA DO ASAAS ===');
+      console.error('Status:', response.status);
+      console.error('Dados:', JSON.stringify(response.data, null, 2));
+      throw new Error(`Erro na API do Asaas: ${response.status} - ${JSON.stringify(response.data)}`);
     }
 
+    // Salvar detalhes da assinatura no MongoDB
+    const subscriptionsCollection = db.collection('subscriptions');
+    const customerCollection = db.collection('customers');
+    
+    // Buscar informações do cliente
+    let customer = await customerCollection.findOne({ asaas_id: customerId });
+    
     // Salvar assinatura
     const subscription = {
-      asaas_id: asaasResponse.data.id,
+      asaas_id: response.data.id,
       customer_id: customerId,
       plan_id: planId,
       value: value,
-      status: asaasResponse.data.status,
-      next_due_date: asaasResponse.data.nextDueDate,
+      status: response.data.status,
+      next_due_date: response.data.nextDueDate,
       cycle: cycle,
       billing_type: billingType,
-      created_at: new Date()
+      description: subscriptionData.description,
+      created_at: new Date(),
+      updated_at: new Date()
     };
     
     await subscriptionsCollection.insertOne(subscription);
@@ -272,7 +271,7 @@ module.exports = async (req, res) => {
         {
           $set: {
             subscription_status: 'ACTIVE',
-            subscription_id: asaasResponse.data.id,
+            subscription_id: response.data.id,
             updated_at: new Date()
           }
         }
@@ -282,7 +281,7 @@ module.exports = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      subscription: asaasResponse.data,
+      subscription: response.data,
       message: 'Assinatura criada com sucesso'
     });
   } catch (error) {

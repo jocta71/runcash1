@@ -29,10 +29,6 @@
     "api/test-page.js": {
       "memory": 1024,
       "maxDuration": 10
-    },
-    "api/asaas-create-pix-payment.js": {
-      "memory": 1024,
-      "maxDuration": 10
     }
   },
   "rewrites": [
@@ -59,10 +55,6 @@
     {
       "source": "/api/asaas-subscription-payments",
       "destination": "/api/asaas-subscription-payments.js"
-    },
-    {
-      "source": "/api/asaas-create-pix-payment",
-      "destination": "/api/asaas-create-pix-payment.js"
     },
     {
       "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-subscription-payments|test-page).*)",
