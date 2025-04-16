@@ -187,12 +187,6 @@ router.get('/logout', (req, res) => {
 // @route   GET /api/auth/google/status
 // @access  Público
 router.get('/google/status', (req, res) => {
-  // Configuração CORS específica para esta rota
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  
-  // Retornar status da autenticação Google
   res.json({
     enabled: isGoogleAuthEnabled
   });
