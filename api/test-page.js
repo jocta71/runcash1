@@ -109,9 +109,59 @@ module.exports = (req, res) => {
               </div>
               <div class="mb-3">
                 <label for="planId" class="form-label">ID do Plano</label>
-                <input type="text" class="form-control" id="planId" required>
-                <div class="form-text">Exemplos: basic, pro, premium</div>
+                <input type="text" class="form-control" id="planId" placeholder="basic" value="basic">
               </div>
+              <div class="mb-3">
+                <label for="subscriptionValue" class="form-label">Valor da Assinatura</label>
+                <input type="number" class="form-control" id="subscriptionValue" value="99.90" required>
+              </div>
+              
+              <h5 class="mt-4 mb-3">Dados do Cartão de Crédito</h5>
+              <div class="mb-3">
+                <label for="holderName" class="form-label">Nome no Cartão</label>
+                <input type="text" class="form-control" id="holderName" required>
+              </div>
+              <div class="mb-3">
+                <label for="cardNumber" class="form-label">Número do Cartão</label>
+                <input type="text" class="form-control" id="cardNumber" required placeholder="4111111111111111">
+              </div>
+              <div class="row">
+                <div class="col-md-4 mb-3">
+                  <label for="expiryMonth" class="form-label">Mês</label>
+                  <input type="text" class="form-control" id="expiryMonth" required placeholder="12" maxlength="2">
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label for="expiryYear" class="form-label">Ano</label>
+                  <input type="text" class="form-control" id="expiryYear" required placeholder="2030" maxlength="4">
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label for="ccv" class="form-label">CCV</label>
+                  <input type="text" class="form-control" id="ccv" required placeholder="123" maxlength="4">
+                </div>
+              </div>
+              
+              <h5 class="mt-4 mb-3">Dados do Titular</h5>
+              <div class="mb-3">
+                <label for="holderEmail" class="form-label">Email do Titular</label>
+                <input type="email" class="form-control" id="holderEmail" required>
+              </div>
+              <div class="mb-3">
+                <label for="holderCpfCnpj" class="form-label">CPF do Titular</label>
+                <input type="text" class="form-control" id="holderCpfCnpj" required maxlength="11">
+              </div>
+              <div class="mb-3">
+                <label for="holderPostalCode" class="form-label">CEP</label>
+                <input type="text" class="form-control" id="holderPostalCode" required placeholder="12345678" maxlength="8">
+              </div>
+              <div class="mb-3">
+                <label for="holderAddressNumber" class="form-label">Número</label>
+                <input type="text" class="form-control" id="holderAddressNumber" required placeholder="123">
+              </div>
+              <div class="mb-3">
+                <label for="holderPhone" class="form-label">Telefone</label>
+                <input type="text" class="form-control" id="holderPhone" required placeholder="11999998888">
+              </div>
+              
               <button type="submit" class="btn btn-primary">Criar Assinatura</button>
             </form>
             <div id="subscription-result" class="mt-3"></div>
@@ -213,7 +263,20 @@ module.exports = (req, res) => {
           body: JSON.stringify({
             customerId: document.getElementById('customerId').value,
             planId: document.getElementById('planId').value,
-            userId: 'test-user'
+            value: parseFloat(document.getElementById('subscriptionValue').value),
+            billingType: 'CREDIT_CARD',
+            // Dados do cartão
+            holderName: document.getElementById('holderName').value,
+            cardNumber: document.getElementById('cardNumber').value,
+            expiryMonth: document.getElementById('expiryMonth').value,
+            expiryYear: document.getElementById('expiryYear').value,
+            ccv: document.getElementById('ccv').value,
+            // Dados do titular
+            holderEmail: document.getElementById('holderEmail').value,
+            holderCpfCnpj: document.getElementById('holderCpfCnpj').value,
+            holderPostalCode: document.getElementById('holderPostalCode').value,
+            holderAddressNumber: document.getElementById('holderAddressNumber').value,
+            holderPhone: document.getElementById('holderPhone').value
           }),
         });
         
