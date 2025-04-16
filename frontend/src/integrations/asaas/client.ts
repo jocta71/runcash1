@@ -156,4 +156,80 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
     
     throw new Error('Falha ao buscar QR code PIX no Asaas');
   }
+};
+
+/**
+ * Monitora o status de um pagamento com polling periódico
+ * @param paymentId ID do pagamento no Asaas
+ * @param onSuccess Callback para quando o pagamento for confirmado
+ * @param onError Callback para quando ocorrer um erro
+ * @param interval Intervalo em ms entre as verificações (padrão: 5000ms)
+ * @param timeout Tempo máximo em ms para monitorar (padrão: 10 minutos)
+ * @returns Função para cancelar o monitoramento
+ */
+export const checkPaymentStatus = (
+  paymentId: string,
+  onSuccess: (payment: any) => void,
+  onError: (error: Error) => void,
+  interval: number = 5000,
+  timeout: number = 10 * 60 * 1000
+): (() => void) => {
+  let timeoutId: number | null = null;
+  let intervalId: number | null = null;
+  let startTime = Date.now();
+  
+  const stopChecking = () => {
+    if (intervalId !== null) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+  };
+  
+  const checkStatus = async () => {
+    try {
+      if (Date.now() - startTime > timeout) {
+        stopChecking();
+        onError(new Error('Tempo limite excedido para verificação de pagamento'));
+        return;
+      }
+      
+      const payment = await findAsaasPayment(paymentId);
+      
+      if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
+        stopChecking();
+        onSuccess(payment);
+      } else if (payment.status === 'REFUNDED' || payment.status === 'REFUND_REQUESTED' || 
+                payment.status === 'OVERDUE' || payment.status === 'CANCELED') {
+        stopChecking();
+        onError(new Error(`Pagamento ${payment.status}: ${payment.status === 'OVERDUE' ? 'Expirado' : 'Cancelado ou reembolsado'}`));
+      }
+      // Continua verificando para outros status (PENDING, RECEIVED_IN_CASH...)
+    } catch (error) {
+      console.error('Erro ao verificar status do pagamento:', error);
+      if (error instanceof Error) {
+        onError(error);
+      } else {
+        onError(new Error('Erro desconhecido ao verificar pagamento'));
+      }
+    }
+  };
+  
+  // Inicia o polling
+  intervalId = window.setInterval(checkStatus, interval);
+  
+  // Define o timeout
+  timeoutId = window.setTimeout(() => {
+    stopChecking();
+    onError(new Error('Tempo limite excedido para verificação de pagamento'));
+  }, timeout);
+  
+  // Executa uma verificação imediata
+  checkStatus();
+  
+  // Retorna função para cancelar o monitoramento
+  return stopChecking;
 }; 
