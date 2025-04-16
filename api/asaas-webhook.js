@@ -2,7 +2,13 @@ const { MongoClient } = require('mongodb');
 const axios = require('axios');
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const asaasBaseUrl = process.env.ASAAS_BASE_URL;
+// Forçar uso do sandbox enquanto estamos em teste
+const ASAAS_ENVIRONMENT = 'sandbox';
+console.log(`[WEBHOOK] Usando ambiente Asaas: ${ASAAS_ENVIRONMENT}`);
+
+const asaasBaseUrl = ASAAS_ENVIRONMENT === 'production'
+  ? 'https://api.asaas.com/v3'
+  : 'https://sandbox.asaas.com/api/v3';
 const asaasApiKey = process.env.ASAAS_API_KEY;
 
 module.exports = async (req, res) => {

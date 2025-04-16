@@ -5,7 +5,8 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 
 // Determinar ambiente do Asaas (sandbox ou produção)
-const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || process.env.NODE_ENV === 'production' ? 'production' : 'sandbox';
+// Forçar uso do sandbox enquanto estamos em teste
+const ASAAS_ENVIRONMENT = 'sandbox'; 
 console.log(`Usando ambiente Asaas: ${ASAAS_ENVIRONMENT}`);
 
 // URL da API baseada no ambiente

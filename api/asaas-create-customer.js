@@ -75,7 +75,8 @@ module.exports = async (req, res) => {
     }
 
     // Configurar chamada para API do Asaas
-    const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || process.env.NODE_ENV === 'production' ? 'production' : 'sandbox';
+    // Forçar uso do sandbox enquanto estamos em teste
+    const ASAAS_ENVIRONMENT = 'sandbox';
     console.log(`Usando ambiente Asaas: ${ASAAS_ENVIRONMENT}`);
     
     const asaasBaseUrl = ASAAS_ENVIRONMENT === 'production'
