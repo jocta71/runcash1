@@ -168,7 +168,7 @@ const AuthPage = () => {
       <Card className="w-full max-w-md shadow-xl border-gray-800">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold flex justify-center">
-            <img src="/logo.svg" alt="RunCash Logo" className="h-14" />
+            <img src="/logo.png" alt="RunCash Logo" className="h-14" />
           </CardTitle>
           <CardDescription>
             {activeTab === 'login' ? 'Faça login para continuar' : 'Crie sua conta'}
