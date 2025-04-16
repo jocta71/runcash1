@@ -22,6 +22,12 @@ module.exports = async (req, res) => {
     // Obter o ID do pagamento da query
     const { paymentId } = req.query;
 
+    console.log('=== REQUISIÇÃO PARA VERIFICAR PAGAMENTO ===');
+    console.log('Método:', req.method);
+    console.log('URL:', req.url);
+    console.log('Query:', req.query);
+    console.log('PaymentId:', paymentId);
+
     if (!paymentId) {
       return res.status(400).json({ 
         error: 'Parâmetro ausente', 
@@ -30,12 +36,27 @@ module.exports = async (req, res) => {
     }
 
     // Configurar chamada para API do Asaas
-    const asaasBaseUrl = process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3';
+    const asaasBaseUrl = 'https://sandbox.asaas.com/api/v3';
     const asaasApiKey = process.env.ASAAS_API_KEY;
+
+    console.log('Configuração do Asaas:', {
+      baseUrl: asaasBaseUrl,
+      apiKey: asaasApiKey ? `${asaasApiKey.substring(0, 10)}...` : 'não definido'
+    });
 
     if (!asaasApiKey) {
       throw new Error('Chave da API do Asaas não configurada');
     }
+
+    console.log('Fazendo requisição para o Asaas:', {
+      url: `${asaasBaseUrl}/payments/${paymentId}`,
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'RunCash/1.0',
+        'access_token': `${asaasApiKey.substring(0, 10)}...`
+      }
+    });
 
     // Buscar detalhes do pagamento
     const response = await axios.get(
@@ -43,10 +64,34 @@ module.exports = async (req, res) => {
       {
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': 'RunCash/1.0',
           'access_token': asaasApiKey
+        },
+        validateStatus: function (status) {
+          return status >= 200 && status < 500;
         }
       }
     );
+
+    console.log('Resposta do Asaas:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      data: typeof response.data === 'object' ? response.data : 'Resposta não é JSON'
+    });
+
+    // Verificar se a resposta foi bem sucedida
+    if (response.status !== 200) {
+      console.error('Erro na resposta do Asaas:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data
+      });
+      return res.status(response.status).json({ 
+        error: 'Erro ao buscar pagamento na API do Asaas',
+        details: response.data
+      });
+    }
 
     // Verificar se a resposta contém os dados do pagamento
     if (!response.data || !response.data.id) {

@@ -315,11 +315,32 @@ module.exports = (req, res) => {
       
       try {
         const paymentId = document.getElementById('paymentId').value;
-        const response = await fetch(\`/api/asaas-find-payment?paymentId=\${paymentId}\`);
+        console.log('Verificando pagamento:', paymentId);
+        
+        const response = await fetch(\`/api/asaas-find-payment?paymentId=\${encodeURIComponent(paymentId)}\`);
+        
+        console.log('Status da resposta:', response.status);
+        
+        const contentType = response.headers.get('content-type');
+        console.log('Tipo de conteúdo da resposta:', contentType);
+        
+        // Verificar se a resposta é JSON
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          console.error('Resposta não é JSON:', text);
+          resultDiv.innerHTML = \`
+            <div class="alert alert-danger">
+              Resposta não é JSON válido. Verifique os logs.
+            </div>
+            <pre>\${text.substring(0, 500)}...</pre>
+          \`;
+          return;
+        }
+        
         const data = await response.json();
         
         if (data.error) {
-          resultDiv.innerHTML = \`<div class="alert alert-danger">\${data.error}</div>\`;
+          resultDiv.innerHTML = \`<div class="alert alert-danger">\${data.error}: \${data.details || ''}</div>\`;
         } else {
           let statusClass = 'info';
           if (data.payment.status === 'CONFIRMED' || data.payment.status === 'RECEIVED') {
@@ -336,6 +357,7 @@ module.exports = (req, res) => {
           \`;
         }
       } catch (error) {
+        console.error('Erro ao verificar pagamento:', error);
         resultDiv.innerHTML = \`<div class="alert alert-danger">Erro: \${error.message}</div>\`;
       }
     });
@@ -348,11 +370,32 @@ module.exports = (req, res) => {
       
       try {
         const paymentId = document.getElementById('pixPaymentId').value;
-        const response = await fetch(\`/api/asaas-pix-qrcode?paymentId=\${paymentId}\`);
+        console.log('Gerando QR Code para pagamento:', paymentId);
+        
+        const response = await fetch(\`/api/asaas-pix-qrcode?paymentId=\${encodeURIComponent(paymentId)}\`);
+        
+        console.log('Status da resposta:', response.status);
+        
+        const contentType = response.headers.get('content-type');
+        console.log('Tipo de conteúdo da resposta:', contentType);
+        
+        // Verificar se a resposta é JSON
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          console.error('Resposta não é JSON:', text);
+          resultDiv.innerHTML = \`
+            <div class="alert alert-danger">
+              Resposta não é JSON válido. Verifique os logs.
+            </div>
+            <pre>\${text.substring(0, 500)}...</pre>
+          \`;
+          return;
+        }
+        
         const data = await response.json();
         
         if (data.error) {
-          resultDiv.innerHTML = \`<div class="alert alert-danger">\${data.error}</div>\`;
+          resultDiv.innerHTML = \`<div class="alert alert-danger">\${data.error}: \${data.details || ''}</div>\`;
         } else {
           resultDiv.innerHTML = \`
             <div class="alert alert-success">QR Code gerado com sucesso!</div>
@@ -366,6 +409,7 @@ module.exports = (req, res) => {
           \`;
         }
       } catch (error) {
+        console.error('Erro ao gerar QR Code:', error);
         resultDiv.innerHTML = \`<div class="alert alert-danger">Erro: \${error.message}</div>\`;
       }
     });
