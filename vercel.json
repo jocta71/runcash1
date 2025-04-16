@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": null,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
   "functions": {
     "api/asaas-create-customer.js": {
       "memory": 1024,
@@ -82,7 +83,16 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": "/$1"
+    }
+  ],
+  "routes": [
+    { 
+      "handle": "filesystem" 
+    },
+    { 
+      "src": "/(.*)", 
+      "dest": "/index.html" 
     }
   ],
   "env": {
