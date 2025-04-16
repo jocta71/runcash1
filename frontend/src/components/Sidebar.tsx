@@ -26,7 +26,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     } else if (id === 'billing') {
       navigate('/billing');
     } else if (id === 'plans') {
-      navigate('/');
+      navigate('/planos');
     }
   };
   

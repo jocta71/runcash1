@@ -24,7 +24,7 @@ const PaymentPage = () => {
           description: 'O plano selecionado não está disponível.',
           variant: 'destructive'
         });
-        navigate('/');
+        navigate('/planos');
       }
     }
   }, [loading, availablePlans, planId, navigate, toast]);
@@ -34,7 +34,7 @@ const PaymentPage = () => {
   };
 
   const handleCancel = () => {
-    navigate('/');
+    navigate('/planos');
   };
 
   if (loading || !selectedPlan) {
@@ -50,7 +50,7 @@ const PaymentPage = () => {
       <Button 
         variant="ghost" 
         className="mb-6" 
-        onClick={() => navigate('/')}
+        onClick={() => navigate('/planos')}
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Voltar para planos

@@ -102,7 +102,7 @@ const ProfileSubscription = () => {
         <CardFooter>
           <Button 
             className="w-full bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/planos')}
           >
             Ver planos disponíveis
           </Button>
@@ -176,7 +176,7 @@ const ProfileSubscription = () => {
       <CardFooter className="flex flex-col sm:flex-row gap-3">
         <Button 
           className="flex-1 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/planos')}
         >
           Mudar de plano
         </Button>

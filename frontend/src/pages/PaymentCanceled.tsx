@@ -22,7 +22,7 @@ const PaymentCanceled = () => {
         <div className="space-y-4">
           <Button 
             className="w-full bg-vegas-gold hover:bg-vegas-gold/90 text-black"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/planos')}
           >
             Tentar Novamente
           </Button>
