@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "VITE_CJS_IGNORE_WARNING=true vite build",
-    "vercel-build": "VITE_CJS_IGNORE_WARNING=true vite build",
-    "build:dev": "vite build --mode development",
+    "build": "node build-script.cjs",
+    "vercel-build": "node build-script.cjs",
+    "build:dev": "npx vite build --mode development",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
