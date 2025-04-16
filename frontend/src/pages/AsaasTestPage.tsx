@@ -16,6 +16,7 @@ const AsaasTestPage: React.FC = () => {
   const [cpf, setCpf] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
   const [paymentId, setPaymentId] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<string>('CREDIT_CARD');
   
   // Estados para resultados e erros
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -89,7 +90,7 @@ const AsaasTestPage: React.FC = () => {
         planId,
         user?.id || 'test-user',
         customerId,
-        'PIX'
+        paymentMethod
       );
       
       setSubscriptionResult(result);
@@ -260,6 +261,18 @@ const AsaasTestPage: React.FC = () => {
                   <Form.Text className="text-muted">
                     Exemplos: basic, pro, premium
                   </Form.Text>
+                </Form.Group>
+                
+                <Form.Group className="mb-3">
+                  <Form.Label>Método de Pagamento</Form.Label>
+                  <Form.Select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    required
+                  >
+                    <option value="CREDIT_CARD">Cartão de Crédito</option>
+                    <option value="PIX">PIX</option>
+                  </Form.Select>
                 </Form.Group>
                 
                 <Button type="submit" disabled={isLoading}>
