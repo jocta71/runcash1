@@ -1,7 +1,6 @@
 {
   "version": 2,
   "buildCommand": null,
-  "outputDirectory": null,
   "functions": {
     "api/asaas-create-customer.js": {
       "memory": 1024,
@@ -15,11 +14,15 @@
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-list-subscriptions.js": {
+    "api/asaas-find-payment.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-list-payments.js": {
+    "api/asaas-pix-qrcode.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-find-subscription.js": {
       "memory": 1024,
       "maxDuration": 10
     },
@@ -27,15 +30,7 @@
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-simulate-failure.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-payment.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-pix-qrcode.js": {
+    "api/asaas-find-customer.js": {
       "memory": 1024,
       "maxDuration": 10
     },
@@ -58,22 +53,6 @@
       "destination": "/api/asaas-create-subscription.js"
     },
     {
-      "source": "/api/asaas-list-subscriptions",
-      "destination": "/api/asaas-list-subscriptions.js"
-    },
-    {
-      "source": "/api/asaas-list-payments",
-      "destination": "/api/asaas-list-payments.js"
-    },
-    {
-      "source": "/api/asaas-cancel-subscription",
-      "destination": "/api/asaas-cancel-subscription.js"
-    },
-    {
-      "source": "/api/asaas-simulate-failure",
-      "destination": "/api/asaas-simulate-failure.js"
-    },
-    {
       "source": "/api/asaas-find-payment",
       "destination": "/api/asaas-find-payment.js"
     },
@@ -82,7 +61,19 @@
       "destination": "/api/asaas-pix-qrcode.js"
     },
     {
-      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|test-page).*)",
+      "source": "/api/asaas-find-subscription",
+      "destination": "/api/asaas-find-subscription.js"
+    },
+    {
+      "source": "/api/asaas-cancel-subscription",
+      "destination": "/api/asaas-cancel-subscription.js"
+    },
+    {
+      "source": "/api/asaas-find-customer",
+      "destination": "/api/asaas-find-customer.js"
+    },
+    {
+      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|test-page).*)",
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
     },
     {
@@ -92,17 +83,8 @@
     {
       "source": "/test",
       "destination": "/api/test-page"
-    },
-    {
-      "source": "/historico/(.*)",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
     }
   ],
-  "cleanUrls": true,
   "env": {
     "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash",
     "MONGODB_DB_NAME": "runcash",

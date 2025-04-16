@@ -1,4 +1,4 @@
-// Endpoint para cancelar uma assinatura no Asaas
+// Endpoint para buscar detalhes de uma assinatura no Asaas
 
 // Importar módulos necessários
 const { MongoClient } = require('mongodb');
@@ -7,7 +7,7 @@ const axios = require('axios');
 // Configuração para CORS
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
@@ -35,18 +35,18 @@ module.exports = async (req, res) => {
   }
 
   // Validar método HTTP
-  if (req.method !== 'POST') {
+  if (req.method !== 'GET') {
     return res.status(405).json({ success: false, error: 'Método não permitido' });
   }
 
-  // Obter o ID da assinatura do corpo da requisição
-  const { subscriptionId } = req.body;
+  // Obter o ID da assinatura da query string
+  const { subscriptionId } = req.query;
   
   if (!subscriptionId) {
     return res.status(400).json({ success: false, error: 'ID da assinatura é obrigatório' });
   }
 
-  console.log(`Cancelando assinatura: ${subscriptionId}`);
+  console.log(`Buscando detalhes da assinatura: ${subscriptionId}`);
 
   let client;
   
@@ -60,14 +60,13 @@ module.exports = async (req, res) => {
     const db = client.db();
     const subscriptionsCollection = db.collection('subscriptions');
     
-    // Verificar se a assinatura existe no banco
-    const existingSubscription = await subscriptionsCollection.findOne({ id: subscriptionId });
-    console.log('Assinatura encontrada no MongoDB:', existingSubscription ? 'Sim' : 'Não');
+    // Tentar buscar do cache primeiro
+    const cachedSubscription = await subscriptionsCollection.findOne({ id: subscriptionId });
     
-    // Cancelar a assinatura no Asaas
-    console.log(`Enviando requisição de cancelamento para o Asaas...`);
+    // Buscar os dados mais recentes do Asaas
+    console.log(`Consultando a API do Asaas para a assinatura ${subscriptionId}...`);
     
-    const asaasResponse = await axios.delete(`${ASAAS_BASE_URL}/subscriptions/${subscriptionId}`, {
+    const asaasResponse = await axios.get(`${ASAAS_BASE_URL}/subscriptions/${subscriptionId}`, {
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': 'RunCash/1.0',
@@ -77,36 +76,44 @@ module.exports = async (req, res) => {
     
     console.log('Resposta da API do Asaas:', {
       status: asaasResponse.status,
-      statusText: asaasResponse.statusText,
-      data: asaasResponse.data
+      statusText: asaasResponse.statusText
     });
     
-    // Atualizar o status no MongoDB
-    if (existingSubscription) {
+    const subscription = asaasResponse.data;
+    
+    // Atualizar ou inserir no MongoDB
+    if (subscription && subscription.id) {
       await subscriptionsCollection.updateOne(
-        { id: subscriptionId },
-        { 
-          $set: { 
-            status: 'CANCELLED',
-            deleted: true,
-            updatedAt: new Date(),
-            canceledAt: new Date()
-          } 
-        }
+        { id: subscription.id },
+        { $set: { ...subscription, updatedAt: new Date() } },
+        { upsert: true }
       );
-      console.log('Status da assinatura atualizado no MongoDB');
     }
     
-    // Retornar sucesso
+    // Buscar os pagamentos relacionados a esta assinatura
+    const paymentsResponse = await axios.get(`${ASAAS_BASE_URL}/subscriptions/${subscriptionId}/payments`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'RunCash/1.0',
+        'access_token': ASAAS_API_KEY
+      }
+    });
+    
+    // Adicionar os pagamentos ao objeto de retorno
+    const paymentsData = paymentsResponse.data;
+    const payments = paymentsData.data || [];
+    
+    // Retornar os dados da assinatura
     return res.status(200).json({ 
       success: true,
-      message: 'Assinatura cancelada com sucesso',
-      details: asaasResponse.data
+      subscription,
+      payments,
+      cacheData: cachedSubscription || null
     });
   } catch (error) {
-    console.error('Erro ao cancelar assinatura:', error);
+    console.error('Erro ao buscar assinatura:', error);
     
-    let errorMessage = 'Erro ao cancelar assinatura';
+    let errorMessage = 'Erro ao buscar detalhes da assinatura';
     let statusCode = 500;
     
     if (error.response) {

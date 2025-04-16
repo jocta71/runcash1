@@ -91,6 +91,10 @@ module.exports = async (req, res) => {
         await handleSubscriptionDeleted(db, webhookData);
         break;
         
+      case 'SUBSCRIPTION_CREATED':
+        await handleSubscriptionCreated(webhookData, db);
+        break;
+        
       default:
         console.log(`Evento não tratado: ${event}`);
     }
@@ -323,5 +327,75 @@ async function handleSubscriptionDeleted(db, webhookData) {
         }
       }
     );
+  }
+}
+
+// Adicionar nova função para tratar evento de assinatura criada
+async function handleSubscriptionCreated(data, db) {
+  console.log('Processando evento SUBSCRIPTION_CREATED');
+  
+  try {
+    // Salvar webhook
+    await db.collection('webhooks').insertOne({
+      event: 'SUBSCRIPTION_CREATED',
+      data: data,
+      processedAt: new Date()
+    });
+    
+    const subscription = data.subscription;
+    const subscriptionId = subscription.id;
+    
+    // Atualizar status da assinatura no MongoDB, se existir
+    const result = await db.collection('subscriptions').updateOne(
+      { asaasId: subscriptionId },
+      { 
+        $set: { 
+          status: 'ACTIVE',
+          updatedAt: new Date()
+        }
+      }
+    );
+    
+    // Se não atualizou nenhum documento, é porque a assinatura ainda não existe no MongoDB
+    if (result.matchedCount === 0) {
+      console.log(`Assinatura ${subscriptionId} não encontrada no MongoDB. Será criada pelo evento.`);
+      
+      // Buscar customer pelo customer_id da assinatura
+      const customer = await db.collection('customers').findOne({ asaasId: subscription.customer });
+      
+      if (customer) {
+        // Criar assinatura no MongoDB
+        await db.collection('subscriptions').insertOne({
+          asaasId: subscriptionId,
+          customerId: subscription.customer,
+          value: subscription.value,
+          nextDueDate: subscription.nextDueDate,
+          status: subscription.status,
+          billingType: subscription.billingType,
+          cycle: subscription.cycle,
+          description: subscription.description,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        
+        // Atualizar customer com status da assinatura
+        await db.collection('customers').updateOne(
+          { asaasId: subscription.customer },
+          {
+            $set: {
+              subscriptionStatus: 'ACTIVE',
+              subscriptionId: subscriptionId,
+              updatedAt: new Date()
+            }
+          }
+        );
+      } else {
+        console.log(`Cliente ${subscription.customer} não encontrado no MongoDB para assinatura ${subscriptionId}`);
+      }
+    }
+    
+    console.log(`Evento SUBSCRIPTION_CREATED processado com sucesso para assinatura ${subscriptionId}`);
+  } catch (error) {
+    console.error('Erro ao processar evento SUBSCRIPTION_CREATED:', error);
   }
 } 

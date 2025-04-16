@@ -1,152 +1,154 @@
 const axios = require('axios');
 const { MongoClient } = require('mongodb');
 
-// Configuração do MongoDB
-const MONGODB_URI = process.env.MONGODB_URI;
-
-// Configuração do Asaas
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
-const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox');
-const ASAAS_BASE_URL = ASAAS_ENVIRONMENT === 'sandbox' 
-  ? 'https://sandbox.asaas.com/api/v3' 
-  : 'https://api.asaas.com/v3';
-
 module.exports = async (req, res) => {
-  // Configurar CORS
+  // Configuração de CORS
+  res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-  // Responder à requisição OPTIONS (preflight)
+  // Resposta para solicitações preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // Verificar se o método é GET
+  // Verificar método da requisição
   if (req.method !== 'GET') {
-    return res.status(405).json({ 
-      success: false, 
-      error: 'Método não permitido',
-      message: 'Apenas requisições GET são permitidas para este endpoint'
-    });
+    return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  const paymentId = req.query.paymentId;
-
-  // Verificar se o ID do pagamento foi fornecido
-  if (!paymentId) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'Dados incompletos',
-      message: 'ID do pagamento é obrigatório' 
-    });
-  }
-
-  console.log(`=== INÍCIO DA BUSCA DE PAGAMENTO ===`);
-  console.log(`Método: ${req.method}`);
-  console.log(`URL: ${req.url}`);
-  console.log(`Pagamento ID: ${paymentId}`);
-
-  // Cliente MongoDB
-  let client;
-  
   try {
-    console.log('Conectando ao MongoDB...');
-    client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    console.log('Conexão com MongoDB estabelecida');
+    // Obter o ID do pagamento da query
+    const { paymentId } = req.query;
 
-    // Configuração do Asaas
+    console.log('=== REQUISIÇÃO PARA VERIFICAR PAGAMENTO ===');
+    console.log('Método:', req.method);
+    console.log('URL:', req.url);
+    console.log('Query:', req.query);
+    console.log('PaymentId:', paymentId);
+
+    if (!paymentId) {
+      return res.status(400).json({ 
+        error: 'Parâmetro ausente', 
+        details: 'ID do pagamento é obrigatório' 
+      });
+    }
+
+    // Forçar uso do sandbox enquanto estamos em teste
+    const ASAAS_ENVIRONMENT = 'sandbox';
     console.log(`Usando ambiente Asaas: ${ASAAS_ENVIRONMENT}`);
-    const apiConfig = {
-      baseUrl: ASAAS_BASE_URL,
-      apiKey: ASAAS_API_KEY,
-      environment: ASAAS_ENVIRONMENT,
-      nodeEnv: process.env.NODE_ENV
-    };
+    
+    // Configurar chamada para API do Asaas
+    const asaasBaseUrl = ASAAS_ENVIRONMENT === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
+    const asaasApiKey = process.env.ASAAS_API_KEY;
+
     console.log('Configuração do Asaas:', {
-      baseUrl: apiConfig.baseUrl,
-      apiKey: ASAAS_API_KEY ? `${ASAAS_API_KEY.substring(0, 8)}...` : 'Não configurado',
-      environment: apiConfig.environment,
-      nodeEnv: apiConfig.nodeEnv
+      baseUrl: asaasBaseUrl,
+      apiKey: asaasApiKey ? `${asaasApiKey.substring(0, 10)}...` : 'não definido'
     });
 
-    // Fazer requisição para o Asaas
-    console.log(`=== REQUISIÇÃO PARA O ASAAS ===`);
-    console.log(`URL: ${ASAAS_BASE_URL}/payments/${paymentId}`);
-    console.log(`Método: GET`);
+    if (!asaasApiKey) {
+      throw new Error('Chave da API do Asaas não configurada');
+    }
 
+    console.log('Fazendo requisição para o Asaas:', {
+      url: `${asaasBaseUrl}/payments/${paymentId}`,
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'RunCash/1.0',
+        'access_token': `${asaasApiKey.substring(0, 10)}...`
+      }
+    });
+
+    // Buscar detalhes do pagamento
     const response = await axios.get(
-      `${ASAAS_BASE_URL}/payments/${paymentId}`,
+      `${asaasBaseUrl}/payments/${paymentId}`,
       {
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'RunCash/1.0',
-          'access_token': ASAAS_API_KEY
+          'access_token': asaasApiKey
+        },
+        validateStatus: function (status) {
+          return status >= 200 && status < 500;
         }
       }
     );
 
-    // Log da resposta
-    console.log(`=== RESPOSTA DO ASAAS ===`);
-    console.log(`Status: ${response.status}`);
-    console.log(`Dados: ${JSON.stringify(response.data)}`);
-
-    // Salvar resultado no MongoDB para auditoria
-    const db = client.db();
-    await db.collection('api_logs').insertOne({
-      endpoint: 'asaas-find-payment',
-      requestData: { paymentId },
-      responseStatus: response.status,
-      responseData: {
-        id: response.data.id,
-        status: response.data.status,
-        dueDate: response.data.dueDate,
-        value: response.data.value
-      },
-      timestamp: new Date()
+    console.log('Resposta do Asaas:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      data: typeof response.data === 'object' ? response.data : 'Resposta não é JSON'
     });
+
+    // Verificar se a resposta foi bem sucedida
+    if (response.status !== 200) {
+      console.error('Erro na resposta do Asaas:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data
+      });
+      return res.status(response.status).json({ 
+        error: 'Erro ao buscar pagamento na API do Asaas',
+        details: response.data
+      });
+    }
+
+    // Verificar se a resposta contém os dados do pagamento
+    if (!response.data || !response.data.id) {
+      return res.status(404).json({ 
+        error: 'Pagamento não encontrado',
+        details: 'Não foi possível encontrar este pagamento'
+      });
+    }
 
     // Retornar os dados do pagamento
     return res.status(200).json({
       success: true,
-      payment: response.data
-    });
-
-  } catch (error) {
-    console.error('=== ERRO AO BUSCAR PAGAMENTO ===');
-    console.error(`Mensagem: ${error.message}`);
-    
-    if (error.response) {
-      console.error(`Status: ${error.response.status}`);
-      console.error(`Dados: ${JSON.stringify(error.response.data)}`);
-    }
-
-    // Log do erro
-    if (client && client.topology && client.topology.isConnected()) {
-      try {
-        const db = client.db();
-        await db.collection('errors').insertOne({
-          endpoint: 'asaas-find-payment',
-          error: error.message,
-          paymentId,
-          date: new Date()
-        });
-      } catch (dbError) {
-        console.error('Erro ao salvar erro no banco:', dbError);
+      payment: {
+        id: response.data.id,
+        customer: response.data.customer,
+        value: response.data.value,
+        netValue: response.data.netValue,
+        billingType: response.data.billingType,
+        status: response.data.status,
+        dueDate: response.data.dueDate,
+        paymentDate: response.data.paymentDate,
+        invoiceUrl: response.data.invoiceUrl,
+        bankSlipUrl: response.data.bankSlipUrl,
+        transactionReceiptUrl: response.data.transactionReceiptUrl,
+        nossoNumero: response.data.nossoNumero,
+        description: response.data.description,
+        subscription: response.data.subscription,
+        installment: response.data.installment,
+        creditCard: response.data.creditCard ? {
+          creditCardBrand: response.data.creditCard.creditCardBrand,
+          creditCardNumber: response.data.creditCard.creditCardNumber,
+        } : null,
+        fine: response.data.fine,
+        interest: response.data.interest,
+        split: response.data.split
       }
-    }
-
-    return res.status(500).json({
-      success: false,
-      error: 'Erro ao buscar pagamento',
-      message: error.message
     });
-  } finally {
-    if (client) {
-      console.log('Fechando conexão com MongoDB');
-      await client.close();
+  } catch (error) {
+    console.error('Erro ao buscar pagamento:', error);
+    
+    // Tratar erros específicos da API do Asaas
+    if (error.response && error.response.data) {
+      return res.status(error.response.status || 500).json({
+        error: 'Erro na API do Asaas',
+        details: error.response.data
+      });
     }
-    console.log(`=== FIM DA BUSCA DE PAGAMENTO ===`);
+    
+    return res.status(500).json({ 
+      error: 'Erro ao buscar pagamento',
+      message: error.message 
+    });
   }
 }; 

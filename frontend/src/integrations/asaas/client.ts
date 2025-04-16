@@ -327,4 +327,119 @@ export const checkPaymentStatus = (
   
   // Retorna função para cancelar o monitoramento
   return stopChecking;
+};
+
+/**
+ * Busca detalhes de uma assinatura no Asaas
+ * @param subscriptionId ID da assinatura no Asaas
+ */
+export const findAsaasSubscription = async (subscriptionId: string): Promise<any> => {
+  try {
+    console.log(`Buscando assinatura: subscriptionId=${subscriptionId}`);
+    
+    const response = await api.get<ApiResponse<any>>(`api/asaas-find-subscription?subscriptionId=${subscriptionId}`);
+    
+    console.log('Resposta da API de busca de assinatura:', response.data);
+    
+    if (!response.data?.success) {
+      throw new Error('Falha ao buscar assinatura');
+    }
+    
+    return {
+      subscription: response.data.subscription,
+      payments: response.data.payments || []
+    };
+  } catch (error) {
+    console.error('Erro ao buscar assinatura no Asaas:', error);
+    
+    if (error instanceof AxiosError) {
+      throw new Error(`Falha ao buscar assinatura: ${error.response?.data?.error || error.message}`);
+    }
+    
+    throw new Error('Falha ao buscar assinatura no Asaas');
+  }
+};
+
+/**
+ * Cancela uma assinatura no Asaas
+ * @param subscriptionId ID da assinatura no Asaas
+ */
+export const cancelAsaasSubscription = async (subscriptionId: string): Promise<any> => {
+  try {
+    console.log(`Cancelando assinatura: subscriptionId=${subscriptionId}`);
+    
+    const response = await api.post<ApiResponse<any>>('api/asaas-cancel-subscription', {
+      subscriptionId
+    });
+    
+    console.log('Resposta da API de cancelamento de assinatura:', response.data);
+    
+    if (!response.data?.success) {
+      throw new Error('Falha ao cancelar assinatura');
+    }
+    
+    return {
+      success: true,
+      message: response.data.message,
+      details: response.data.details
+    };
+  } catch (error) {
+    console.error('Erro ao cancelar assinatura no Asaas:', error);
+    
+    if (error instanceof AxiosError) {
+      throw new Error(`Falha ao cancelar assinatura: ${error.response?.data?.error || error.message}`);
+    }
+    
+    throw new Error('Falha ao cancelar assinatura no Asaas');
+  }
+};
+
+/**
+ * Busca detalhes de um cliente no Asaas
+ * @param customerId ID do cliente no Asaas
+ * @param cpfCnpj CPF/CNPJ do cliente (alternativa ao ID)
+ * @param email Email do cliente (alternativa ao ID)
+ */
+export const findAsaasCustomer = async (
+  params: { customerId?: string; cpfCnpj?: string; email?: string; }
+): Promise<any> => {
+  try {
+    const { customerId, cpfCnpj, email } = params;
+    
+    if (!customerId && !cpfCnpj && !email) {
+      throw new Error('É necessário informar customerId, cpfCnpj ou email');
+    }
+    
+    console.log(`Buscando cliente: ${customerId || cpfCnpj || email}`);
+    
+    let queryParams = '';
+    if (customerId) {
+      queryParams = `customerId=${customerId}`;
+    } else if (cpfCnpj) {
+      queryParams = `cpfCnpj=${cpfCnpj}`;
+    } else if (email) {
+      queryParams = `email=${encodeURIComponent(email)}`;
+    }
+    
+    const response = await api.get<ApiResponse<any>>(`api/asaas-find-customer?${queryParams}`);
+    
+    console.log('Resposta da API de busca de cliente:', response.data);
+    
+    if (!response.data?.success) {
+      throw new Error('Falha ao buscar cliente');
+    }
+    
+    return {
+      customer: response.data.customer,
+      subscriptions: response.data.subscriptions || []
+    };
+  } catch (error) {
+    console.error('Erro ao buscar cliente no Asaas:', error);
+    
+    if (error instanceof AxiosError) {
+      throw new Error(`Falha ao buscar cliente: ${error.response?.data?.error || error.message}`);
+    }
+    
+    throw new Error('Falha ao buscar cliente no Asaas');
+  }
 }; 
