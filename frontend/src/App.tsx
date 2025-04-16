@@ -28,7 +28,6 @@ const StrategyFormPage = lazy(() => import("@/pages/StrategyFormPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const SeedPage = lazy(() => import("@/pages/SeedPage"));
-const PlansPage = lazy(() => import("@/pages/PlansPage"));
 const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
 const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
 const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
@@ -163,14 +162,6 @@ const App = () => {
                           <ProtectedRoute>
                             <Suspense fallback={<LoadingScreen />}>
                               <BillingPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/planos" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PlansPage />
                             </Suspense>
                           </ProtectedRoute>
                         } />

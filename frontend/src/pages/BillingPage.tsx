@@ -14,7 +14,7 @@ const BillingPage = () => {
   const { currentPlan, loading } = useSubscription();
 
   const handleViewPlans = () => {
-    navigate('/planos');
+    navigate('/');
   };
 
   return (

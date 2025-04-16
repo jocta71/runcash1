@@ -95,7 +95,7 @@ const ProfileDropdown = () => {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link to="/planos" className="flex items-center cursor-pointer">
+          <Link to="/" className="flex items-center cursor-pointer">
             <CreditCard className="mr-2 h-4 w-4" />
             <span>Planos</span>
           </Link>
