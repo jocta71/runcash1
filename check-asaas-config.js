@@ -67,6 +67,19 @@ if (fs.existsSync(envPath)) {
   console.log('   1. Uma chave de API válida');
   console.log('   2. O ambiente corretamente configurado (sandbox/production)');
   console.log('   3. Uma conta ativa no Asaas');
+
+  console.log('\n=== INSTRUÇÕES PARA RESOLVER PROBLEMAS COMUNS ===');
+  console.log('1. Se recebeu erro 401, acesse https://sandbox.asaas.com/');
+  console.log('2. Vá para Integrações > API Key');
+  console.log('3. Gere uma nova chave API se necessário');
+  console.log('4. Atualize a variável ASAAS_API_KEY no Vercel:');
+  console.log('   a. Acesse https://vercel.com/');
+  console.log('   b. Selecione seu projeto');
+  console.log('   c. Vá para Settings > Environment Variables');
+  console.log('   d. Atualize ou adicione a variável ASAAS_API_KEY com o valor correto');
+  console.log('   e. Faça um novo deploy do projeto');
+  console.log('\nLembre-se de que as chaves do sandbox e produção são diferentes.');
+  console.log('Use a chave do ambiente adequado para o estágio atual do seu projeto.');
 } else {
   console.error('❌ Arquivo .env não encontrado no caminho especificado');
 } 
