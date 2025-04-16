@@ -76,6 +76,7 @@ module.exports = async (req, res) => {
       {
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': 'RunCash/1.0',
           'access_token': asaasApiKey
         }
       }
