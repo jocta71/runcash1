@@ -147,6 +147,9 @@ module.exports = async (req, res) => {
       description: description || `Assinatura RunCash`
     };
     
+    // Adicionar parâmetros para notificação imediata
+    subscriptionData.notifyPaymentCreatedImmediately = true;
+    
     // Adicionar dados do cartão se for pagamento por cartão de crédito
     if (billingType === 'CREDIT_CARD') {
       // Limpar dados para garantir formato correto
@@ -279,9 +282,15 @@ module.exports = async (req, res) => {
       console.log('Status de assinatura do cliente atualizado:', customerId);
     }
 
+    // Retornando resposta no formato que o frontend espera
     return res.status(201).json({
       success: true,
-      subscription: response.data,
+      data: {
+        subscriptionId: response.data.id,
+        paymentId: response.data.paymentId || response.data.id,
+        redirectUrl: response.data.redirectUrl || null,
+        status: response.data.status
+      },
       message: 'Assinatura criada com sucesso'
     });
   } catch (error) {
