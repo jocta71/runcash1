@@ -35,7 +35,6 @@ interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
-  message?: string;
 }
 
 /**
@@ -47,6 +46,7 @@ export const createAsaasCustomer = async (userData: {
   email: string;
   cpfCnpj: string;
   mobilePhone?: string;
+  userId: string;
 }): Promise<string> => {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
@@ -55,7 +55,8 @@ export const createAsaasCustomer = async (userData: {
       name: userData.name,
       email: userData.email,
       cpfCnpj: userData.cpfCnpj,
-      phone: userData.mobilePhone
+      phone: userData.mobilePhone,
+      userId: userData.userId
     });
     
     console.log('Resposta da API de criação de cliente:', response.data);

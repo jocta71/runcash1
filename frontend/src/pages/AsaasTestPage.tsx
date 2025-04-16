@@ -3,7 +3,6 @@ import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-b
 import { createAsaasCustomer, createAsaasSubscription, findAsaasPayment } from '../integrations/asaas/client';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
 
 const AsaasTestPage: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
@@ -43,21 +42,26 @@ const AsaasTestPage: React.FC = () => {
   }
   
   // Criar cliente
-  const handleCreateCustomer = async () => {
+  const handleCreateCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    setCustomerResult(null);
+    
     try {
-      setIsLoading(true);
-      const customerId = await createAsaasCustomer({
-        name: 'Cliente Teste',
-        email: 'cliente@teste.com',
-        cpfCnpj: '12345678909',
-        mobilePhone: '11999999999'
+      const result = await createAsaasCustomer({
+        name,
+        email,
+        cpfCnpj: cpf.replace(/\D/g, ''),
+        mobilePhone: phone.replace(/\D/g, ''),
+        userId: user.id
       });
       
-      setCustomerId(customerId);
-      toast.success(`Cliente criado com sucesso! ID: ${customerId}`);
-    } catch (error) {
-      console.error('Erro ao criar cliente:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro desconhecido');
+      setCustomerResult({ id: result });
+      setCustomerId(result);
+    } catch (err) {
+      console.error('Erro ao criar cliente:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao criar cliente');
     } finally {
       setIsLoading(false);
     }
