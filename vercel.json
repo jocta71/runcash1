@@ -4,19 +4,11 @@
   "outputDirectory": "frontend/dist",
   "framework": "vite",
   "functions": {
-    "api/asaas-webhook.js": {
+    "api/asaas-api.js": {
       "memory": 1024,
       "maxDuration": 60
     },
-    "api/asaas-create-customer.js": {
-      "memory": 1024,
-      "maxDuration": 60
-    },
-    "api/asaas-create-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 60
-    },
-    "api/asaas-cancel-subscription.js": {
+    "api/auth-api.js": {
       "memory": 1024,
       "maxDuration": 60
     },
@@ -34,10 +26,17 @@
     }
   },
   "rewrites": [
-    { "source": "/api/asaas-webhook", "destination": "/api/asaas-webhook.js" },
-    { "source": "/api/asaas-create-customer", "destination": "/api/asaas-create-customer.js" },
-    { "source": "/api/asaas-create-subscription", "destination": "/api/asaas-create-subscription.js" },
-    { "source": "/api/asaas-cancel-subscription", "destination": "/api/asaas-cancel-subscription.js" },
+    { "source": "/api/auth/google/login", "destination": "/api/auth-api.js?operation=google-login" },
+    { "source": "/api/auth/google/callback", "destination": "/api/auth-api.js?operation=google-callback" },
+    { "source": "/api/auth/verify", "destination": "/api/auth-api.js?operation=verify-token" },
+    { "source": "/api/asaas-webhook", "destination": "/api/asaas-api.js?operation=webhook" },
+    { "source": "/api/asaas-create-customer", "destination": "/api/asaas-api.js?operation=create-customer" },
+    { "source": "/api/asaas-create-subscription", "destination": "/api/asaas-api.js?operation=create-subscription" },
+    { "source": "/api/asaas-cancel-subscription", "destination": "/api/asaas-api.js?operation=cancel-subscription" },
+    { "source": "/api/asaas-find-payment", "destination": "/api/asaas-api.js?operation=find-payment" },
+    { "source": "/api/asaas-find-customer", "destination": "/api/asaas-api.js?operation=find-customer" },
+    { "source": "/api/asaas-find-subscription", "destination": "/api/asaas-api.js?operation=find-subscription" },
+    { "source": "/api/asaas-pix-qrcode", "destination": "/api/asaas-api.js?operation=pix-qrcode" },
     { "source": "/api/payments-history", "destination": "/api/payments-history.js" },
     { "source": "/api/subscription-update-payment", "destination": "/api/subscription-update-payment.js" },
     { "source": "/api/subscription-change-plan", "destination": "/api/subscription-change-plan.js" },
@@ -49,6 +48,10 @@
     "NODE_ENV": "production",
     "MONGODB_URI": "mongodb+srv://username:password@your-mongodb-uri/database",
     "ASAAS_API_KEY": "your-asaas-api-key",
-    "ASAAS_ENVIRONMENT": "sandbox"
+    "ASAAS_ENVIRONMENT": "sandbox",
+    "JWT_SECRET": "seu_jwt_secret_seguro_aqui",
+    "GOOGLE_CLIENT_ID": "seu_google_client_id_aqui",
+    "GOOGLE_CLIENT_SECRET": "seu_google_client_secret_aqui",
+    "REDIRECT_URL": "https://runcashh11.vercel.app/api/auth/google/callback"
   }
 }

@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "axios": "^1.6.7",
-    "mongodb": "^6.3.0"
+    "axios": "^1.8.4",
+    "mongodb": "^6.6.0",
+    "jsonwebtoken": "^9.0.2",
+    "google-auth-library": "^9.7.0"
   }
 } 
