@@ -53,12 +53,27 @@ module.exports = async (req, res) => {
     }
 
     // Configurar chamada para API do Asaas
-    const asaasBaseUrl = process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3';
+    const asaasBaseUrl = 'https://sandbox.asaas.com/api/v3';
     const asaasApiKey = process.env.ASAAS_API_KEY;
+
+    console.log('Variáveis de ambiente disponíveis:', {
+      ASAAS_API_KEY: asaasApiKey ? 'definida' : 'não definida',
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL_ENV: process.env.VERCEL_ENV
+    });
 
     if (!asaasApiKey) {
       throw new Error('Chave da API do Asaas não configurada');
     }
+
+    // Remover o prefixo $ da chave se existir
+    const cleanApiKey = asaasApiKey.startsWith('$') ? asaasApiKey.substring(1) : asaasApiKey;
+
+    console.log('Fazendo requisição para o Asaas com os headers:', {
+      'Content-Type': 'application/json',
+      'User-Agent': 'RunCash/1.0',
+      'access_token': cleanApiKey ? `${cleanApiKey.substring(0, 5)}...${cleanApiKey.substring(cleanApiKey.length - 5)}` : 'não definido'
+    });
 
     // Preparar dados para criação do cliente no Asaas
     const customerData = {
@@ -77,7 +92,7 @@ module.exports = async (req, res) => {
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'RunCash/1.0',
-          'access_token': asaasApiKey
+          'access_token': cleanApiKey
         }
       }
     );
