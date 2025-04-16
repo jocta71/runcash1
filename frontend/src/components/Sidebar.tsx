@@ -49,7 +49,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     <div className="p-3 flex flex-col h-full justify-between">
       <div className="flex justify-center items-center py-4 mb-2">
         <Link to="/" className="flex items-center justify-center">
-          <span className="font-bold text-xl text-primary">RunCash</span>
+          <img src="/img/logo.svg" alt="RunCash Logo" className="h-12" />
         </Link>
       </div>
       
