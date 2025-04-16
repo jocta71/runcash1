@@ -41,12 +41,12 @@ module.exports = async (req, res) => {
       userId 
     });
     
-    if (!name || !email || !cpfCnpj || !userId) {
-      console.log('Dados incompletos:', { name, email, cpfCnpj, userId });
+    if (!name || !email || !cpfCnpj) {
+      console.log('Dados incompletos:', { name, email, cpfCnpj });
       return res.status(400).json({ 
         success: false,
         error: 'Dados incompletos', 
-        details: 'Nome, email, CPF/CNPJ e ID do usuário são obrigatórios' 
+        details: 'Nome, email e CPF/CNPJ são obrigatórios' 
       });
     }
 
@@ -58,11 +58,13 @@ module.exports = async (req, res) => {
     
     const db = client.db(process.env.MONGODB_DB_NAME || 'runcash');
     
-    // Verificar se o cliente já existe para este usuário
-    const existingCustomer = await db.collection('customers').findOne({ user_id: userId });
+    // Verificar se o cliente já existe pelo CPF/CNPJ
+    const existingCustomer = await db.collection('customers').findOne({ 
+      cpf_cnpj: cpfCnpj.replace(/[^\d]/g, '')
+    });
     
     if (existingCustomer && existingCustomer.asaas_id) {
-      console.log(`Cliente já existe no Asaas para o usuário ${userId}: ${existingCustomer.asaas_id}`);
+      console.log(`Cliente já existe no Asaas com CPF/CNPJ ${cpfCnpj}: ${existingCustomer.asaas_id}`);
       return res.status(200).json({ 
         success: true,
         data: {
