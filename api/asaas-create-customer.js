@@ -3,11 +3,11 @@ const axios = require('axios');
 const { MongoClient } = require('mongodb');
 
 module.exports = async (req, res) => {
-  console.log('Requisição recebida:', {
-    method: req.method,
-    headers: req.headers,
-    body: req.body
-  });
+  console.log('=== INÍCIO DA REQUISIÇÃO ===');
+  console.log('Método:', req.method);
+  console.log('URL:', req.url);
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('Body:', JSON.stringify(req.body, null, 2));
 
   // Configuração de CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -17,7 +17,7 @@ module.exports = async (req, res) => {
 
   // Resposta para solicitações preflight
   if (req.method === 'OPTIONS') {
-    console.log('Requisição OPTIONS recebida');
+    console.log('Requisição OPTIONS recebida - Respondendo com 200');
     return res.status(200).end();
   }
 
@@ -33,7 +33,13 @@ module.exports = async (req, res) => {
     // Verificar dados obrigatórios
     const { name, email, cpfCnpj, phone, userId } = req.body;
     
-    console.log('Dados recebidos:', { name, email, cpfCnpj, phone, userId });
+    console.log('Dados recebidos:', { 
+      name, 
+      email, 
+      cpfCnpj, 
+      phone, 
+      userId 
+    });
     
     if (!name || !email || !cpfCnpj || !userId) {
       console.log('Dados incompletos:', { name, email, cpfCnpj, userId });
@@ -48,6 +54,8 @@ module.exports = async (req, res) => {
     console.log('Conectando ao MongoDB...');
     client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
+    console.log('Conexão com MongoDB estabelecida');
+    
     const db = client.db(process.env.MONGODB_DB_NAME || 'runcash');
     
     // Verificar se o cliente já existe para este usuário
@@ -68,10 +76,11 @@ module.exports = async (req, res) => {
     const asaasBaseUrl = 'https://sandbox.asaas.com/api/v3';
     const asaasApiKey = process.env.ASAAS_API_KEY;
 
-    console.log('Variáveis de ambiente:', {
-      ASAAS_API_KEY: asaasApiKey ? `${asaasApiKey.substring(0, 10)}...` : 'não definido',
-      ASAAS_ENVIRONMENT: process.env.ASAAS_ENVIRONMENT,
-      NODE_ENV: process.env.NODE_ENV
+    console.log('Configuração do Asaas:', {
+      baseUrl: asaasBaseUrl,
+      apiKey: asaasApiKey ? `${asaasApiKey.substring(0, 10)}...` : 'não definido',
+      environment: process.env.ASAAS_ENVIRONMENT,
+      nodeEnv: process.env.NODE_ENV
     });
 
     if (!asaasApiKey) {
@@ -96,15 +105,14 @@ module.exports = async (req, res) => {
       'access_token': asaasApiKey
     };
 
-    console.log('Fazendo requisição para o Asaas:', {
-      url: `${asaasBaseUrl}/customers`,
-      method: 'POST',
-      data: requestData,
-      headers: {
-        ...requestHeaders,
-        'access_token': `${asaasApiKey.substring(0, 10)}...`
-      }
-    });
+    console.log('=== REQUISIÇÃO PARA O ASAAS ===');
+    console.log('URL:', `${asaasBaseUrl}/customers`);
+    console.log('Método: POST');
+    console.log('Dados:', JSON.stringify(requestData, null, 2));
+    console.log('Headers:', JSON.stringify({
+      ...requestHeaders,
+      'access_token': `${asaasApiKey.substring(0, 10)}...`
+    }, null, 2));
 
     // Criar cliente no Asaas
     const response = await axios.post(
@@ -113,35 +121,33 @@ module.exports = async (req, res) => {
       {
         headers: requestHeaders,
         validateStatus: function (status) {
-          return status >= 200 && status < 500; // Aceitar status codes entre 200-499
+          return status >= 200 && status < 500;
         }
       }
     );
 
+    console.log('=== RESPOSTA DO ASAAS ===');
+    console.log('Status:', response.status);
+    console.log('Dados:', JSON.stringify(response.data, null, 2));
+    console.log('Headers:', JSON.stringify(response.headers, null, 2));
+
     // Verificar se a resposta foi bem sucedida
     if (response.status !== 200 && response.status !== 201) {
-      console.error('Erro na resposta do Asaas:', {
-        status: response.status,
-        data: response.data,
-        headers: response.headers,
-        request: {
-          url: `${asaasBaseUrl}/customers`,
-          method: 'POST',
-          data: requestData,
-          headers: {
-            ...requestHeaders,
-            'access_token': `${asaasApiKey.substring(0, 10)}...`
-          }
+      console.error('=== ERRO NA RESPOSTA DO ASAAS ===');
+      console.error('Status:', response.status);
+      console.error('Dados:', JSON.stringify(response.data, null, 2));
+      console.error('Headers:', JSON.stringify(response.headers, null, 2));
+      console.error('Requisição:', {
+        url: `${asaasBaseUrl}/customers`,
+        method: 'POST',
+        data: requestData,
+        headers: {
+          ...requestHeaders,
+          'access_token': `${asaasApiKey.substring(0, 10)}...`
         }
       });
       throw new Error(`Erro na API do Asaas: ${response.status} - ${JSON.stringify(response.data)}`);
     }
-
-    console.log('Resposta do Asaas:', {
-      status: response.status,
-      data: response.data,
-      headers: response.headers
-    });
 
     const asaasCustomerId = response.data.id;
     
