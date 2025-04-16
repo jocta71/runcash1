@@ -4,51 +4,66 @@ const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-// Função para executar comandos com saída para console
+// Função para executar comandos
 function runCommand(command) {
   console.log(`Executando comando: ${command}`);
   try {
     execSync(command, { stdio: 'inherit' });
     return true;
   } catch (error) {
-    console.error(`Erro ao executar comando: ${command}`);
-    console.error(error);
-    return false;
+    console.log(`Erro ao executar comando: ${command}`);
+    throw error;
   }
 }
 
 // Função principal
 function main() {
-  console.log("Iniciando processo de build personalizado...");
+  console.log('Iniciando processo de build personalizado...');
+  console.log(`Diretório atual: ${process.cwd()}`);
   
-  // Garantir que estamos na pasta frontend
-  const currentDir = process.cwd();
-  console.log(`Diretório atual: ${currentDir}`);
+  // Verificar dependências
+  console.log('Verificando dependências...');
+  runCommand('npm install');
   
-  // Instalar dependências (se ainda não estiverem instaladas)
-  console.log("Verificando dependências...");
-  if (!runCommand("npm install")) {
-    process.exit(1);
+  // Verificar e instalar react-bootstrap se necessário
+  try {
+    require.resolve('react-bootstrap');
+    console.log('react-bootstrap já está instalado');
+  } catch (e) {
+    console.log('Instalando react-bootstrap...');
+    runCommand('npm install react-bootstrap');
   }
   
-  // Verificar se a pasta node_modules/vite existe
-  const vitePath = path.join(currentDir, 'node_modules', '.bin', 'vite');
-  if (!fs.existsSync(vitePath)) {
-    console.log("Vite não encontrado em node_modules/.bin, instalando explicitamente...");
-    if (!runCommand("npm install vite@latest --no-save")) {
-      process.exit(1);
+  // Executar build
+  console.log('Iniciando build do projeto...');
+  runCommand('node ./node_modules/vite/bin/vite.js build');
+  
+  // Copiar arquivos estáticos importantes 
+  console.log('Copiando arquivos estáticos importantes...');
+  
+  // Garantir que os diretórios existam
+  fs.mkdirSync(path.join(process.cwd(), 'dist', 'img'), { recursive: true });
+  fs.mkdirSync(path.join(process.cwd(), 'dist', 'sounds'), { recursive: true });
+  
+  // Copiar favicon se existir
+  try {
+    if (fs.existsSync(path.join(process.cwd(), 'public', 'favicon.ico'))) {
+      fs.copyFileSync(
+        path.join(process.cwd(), 'public', 'favicon.ico'),
+        path.join(process.cwd(), 'dist', 'favicon.ico')
+      );
     }
+  } catch (error) {
+    console.log('Aviso: Não foi possível copiar favicon.ico');
   }
   
-  // Executar o build
-  console.log("Iniciando build do projeto...");
-  if (!runCommand("node ./node_modules/vite/bin/vite.js build")) {
-    process.exit(1);
-  }
-  
-  console.log("Build concluído com sucesso!");
-  process.exit(0);
+  console.log('Build concluído com sucesso!');
 }
 
-// Executar o script
-main(); 
+// Executar script
+try {
+  main();
+} catch (error) {
+  console.error('Erro durante o processo de build:', error);
+  process.exit(1);
+} 

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Container, Row, Col, Card, Button } from 'react-bootstrap';
 import { CheckCircle } from 'react-bootstrap-icons';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 /**
  * Página de sucesso após confirmação do pagamento
@@ -31,16 +32,16 @@ const PaymentSuccessPage: React.FC = () => {
   }, [navigate]);
   
   return (
-    <Container className="my-5">
-      <Row className="justify-content-center">
-        <Col md={8} lg={6}>
-          <Card className="text-center shadow">
-            <Card.Body className="py-5">
-              <div className="mb-4 text-success">
+    <div className="container my-5">
+      <div className="flex justify-center">
+        <div className="w-full max-w-lg">
+          <Card className="shadow">
+            <CardContent className="py-5 text-center">
+              <div className="mb-4 text-green-500">
                 <CheckCircle size={80} />
               </div>
               
-              <h2 className="mb-3">Pagamento Confirmado!</h2>
+              <h2 className="mb-3 text-2xl font-bold">Pagamento Confirmado!</h2>
               
               <p className="mb-4">
                 {planId ? (
@@ -54,30 +55,30 @@ const PaymentSuccessPage: React.FC = () => {
                 )}
               </p>
               
-              <p className="text-muted mb-4">
+              <p className="text-muted mb-4 text-gray-500">
                 Você será redirecionado para sua conta em {countdown} segundos...
               </p>
               
-              <div className="d-grid gap-2 d-md-flex justify-content-md-center">
+              <div className="flex justify-center gap-4">
                 <Button 
-                  variant="primary" 
+                  variant="default" 
                   onClick={() => navigate('/account')}
                 >
                   Ir para minha conta
                 </Button>
                 
                 <Button 
-                  variant="outline-primary"
+                  variant="outline"
                   onClick={() => navigate('/')}
                 >
                   Voltar ao início
                 </Button>
               </div>
-            </Card.Body>
+            </CardContent>
           </Card>
-        </Col>
-      </Row>
-    </Container>
+        </div>
+      </div>
+    </div>
   );
 };
 
