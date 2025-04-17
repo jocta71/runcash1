@@ -469,53 +469,15 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     >
       {/* Logo de fundo com baixa opacidade e saturação 0 */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-lg">
-        {/* Logo de roleta estilizada em SVG */}
-        <svg 
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 200 200"
-          className="w-4/5 h-auto opacity-[0.04] grayscale filter select-none"
+        <img 
+          src="/assets/logo.svg" 
+          alt="Logo" 
+          className="w-auto h-[90%] max-w-[95%] opacity-[0.03] grayscale filter select-none"
           style={{ 
-            maxWidth: "90%", 
-            maxHeight: "90%", 
             objectFit: "contain",
             transformOrigin: "center"
-          }}
-        >
-          {/* Roda externa da roleta */}
-          <circle cx="100" cy="100" r="90" fill="none" stroke="currentColor" strokeWidth="6" />
-          
-          {/* Divisões da roleta */}
-          {Array.from({ length: 36 }).map((_, i) => {
-            const angle = (i * 10) * Math.PI / 180;
-            const x1 = 100 + 90 * Math.cos(angle);
-            const y1 = 100 + 90 * Math.sin(angle);
-            const x2 = 100 + 75 * Math.cos(angle);
-            const y2 = 100 + 75 * Math.sin(angle);
-            return (
-              <line 
-                key={i} 
-                x1={x1} 
-                y1={y1} 
-                x2={x2} 
-                y2={y2} 
-                stroke="currentColor" 
-                strokeWidth="2" 
-              />
-            );
-          })}
-          
-          {/* Círculo central */}
-          <circle cx="100" cy="100" r="55" fill="none" stroke="currentColor" strokeWidth="4" />
-          <circle cx="100" cy="100" r="45" fill="none" stroke="currentColor" strokeWidth="2" />
-          
-          {/* Bola da roleta */}
-          <circle cx="150" cy="100" r="8" fill="currentColor" />
-          
-          {/* Texto estilizado "ROULETTE" */}
-          <path d="M65 130 L85 130 M65 130 L65 150 M65 140 L75 140 M85 130 L85 150" stroke="currentColor" strokeWidth="3" fill="none" />
-          <path d="M95 130 L95 150 M95 130 L105 130 M95 140 L105 140 M95 150 L105 150" stroke="currentColor" strokeWidth="3" fill="none" />
-          <path d="M115 130 L125 130 L125 150 L115 150 L115 130" stroke="currentColor" strokeWidth="3" fill="none" />
-        </svg>
+          }} 
+        />
       </div>
       
       {/* Reprodutor de áudio (invisível) */}
