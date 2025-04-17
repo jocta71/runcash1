@@ -129,8 +129,6 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
             <Menu size={24} className="text-[#00ff00]" />
           </button>
           
-          <img src="/img/logo-v2.svg" alt="RunCash Logo" className="h-8" />
-          
           <button 
             className="p-2"
             onClick={() => setChatOpen(true)}
@@ -142,34 +140,16 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         {/* Desktop Header */}
         <div className="hidden md:flex fixed top-0 left-0 right-0 md:left-64 z-40 h-[70px] items-center justify-between px-4 border-b border-[#33333359] bg-[#0B0A0F]">
           <div className="flex items-center gap-2">
-            <Link to="/" className="flex items-center">
-              <img src="/img/logo-v2.svg" alt="RunCash Logo" className="h-10" />
-            </Link>
-            <div className="relative flex items-center ml-4 max-w-[180px]">
-              <Search size={14} className="absolute left-2 text-gray-400" />
-              <Input 
-                type="text" 
-                placeholder="Pesquisar roleta..." 
-                className="h-8 pl-7 py-1 pr-2 text-xs bg-[#1A191F] border-none rounded-full text-white focus-visible:ring-0 focus-visible:ring-offset-0" 
-                value={search} 
-                onChange={e => setSearch(e.target.value)} 
-              />
-            </div>
+            {/* Logo e caixa de pesquisa removidos conforme solicitado */}
           </div>
           
           <AnimatedInsights />
           
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-[#1A191F] rounded-full py-1 px-3">
-              <span className="h-5 w-5 bg-blue-500 rounded-full flex items-center justify-center">
-                <span className="text-[10px] text-white">R$</span>
-              </span>
-              <span className="text-white text-xs">1.346,34</span>
-              <Wallet size={14} className="text-gray-400" />
-            </div>
-            
-            <Button variant="default" size="sm" className="h-8 text-black font-medium bg-gradient-to-b from-[#00ff00] to-[#00ff00] hover:from-[#00ff00]/90 hover:to-[#00ff00]/90">
-              <Wallet size={14} className="mr-1" /> Saldo
+            <Button variant="default" size="sm" asChild className="h-8 text-white font-medium bg-gradient-to-b from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900">
+              <Link to="/planos">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg> Planos
+              </Link>
             </Button>
             
             {/* Informações do usuário */}
@@ -189,20 +169,6 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
             >
               <LogOut size={14} className="mr-1" /> Sair
             </Button>
-          </div>
-        </div>
-        
-        {/* Mobile Search Bar */}
-        <div className="md:hidden px-4 pt-2 pb-2">
-          <div className="relative flex items-center w-full">
-            <Search size={16} className="absolute left-3 text-gray-400" />
-            <Input 
-              type="text" 
-              placeholder="Pesquisar roleta..." 
-              className="w-full pl-9 py-2 pr-3 text-sm bg-[#1A191F] border-none rounded-full text-white focus-visible:ring-0 focus-visible:ring-offset-0" 
-              value={search} 
-              onChange={e => setSearch(e.target.value)} 
-            />
           </div>
         </div>
         
@@ -226,8 +192,10 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
             </Button>
           </div>
           
-          <Button variant="default" size="sm" className="h-8 text-black font-medium bg-gradient-to-b from-[#00ff00] to-[#00ff00] hover:from-[#00ff00]/90 hover:to-[#00ff00]/90">
-            <Wallet size={14} className="mr-1" /> Saldo
+          <Button variant="default" size="sm" asChild className="h-8 text-white font-medium bg-gradient-to-b from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900">
+            <Link to="/planos">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg> Planos
+            </Link>
           </Button>
         </div>
         
