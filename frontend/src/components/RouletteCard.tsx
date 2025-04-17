@@ -1,17 +1,12 @@
-import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, BarChart3 } from 'lucide-react';
-import React, { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
-import { toast } from '@/components/ui/use-toast';
+import { Loader2 } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import RouletteSidePanelStats from './RouletteSidePanelStats';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from "@/components/ui/card";
-import { RouletteData, RouletteNumberEvent } from '@/types';
+import { RouletteData } from '@/types';
 import NumberDisplay from './NumberDisplay';
 import { Badge } from "@/components/ui/badge";
-import { PieChart, Phone, Timer, Cpu, Zap, History } from "lucide-react";
 import { useRouletteSettingsStore } from '@/stores/routleteStore';
 import { cn } from '@/lib/utils';
-import { fetchWithCorsSupport } from '@/utils/api-helpers';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
 
 // Debug flag - set to false to disable logs in production
@@ -105,8 +100,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
   const [updateCount, setUpdateCount] = useState(0);
   const [hasRealData, setHasRealData] = useState(false);
-  const [showStats, setShowStats] = useState(false);
-  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
   const [rawRouletteData, setRawRouletteData] = useState<any>(null);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -335,36 +328,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     
   }, [rawRouletteData]);
   
-  // Função para alternar exibição de estatísticas
-  const toggleStats = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Se vamos mostrar as estatísticas e ainda não as abrimos antes,
-    // solicitar dados detalhados apenas neste momento
-    if (!showStats) {
-      // Carrega dados detalhados apenas quando necessário
-      globalRouletteDataService.fetchDetailedRouletteData().then(detailedData => {
-        // Procurar os dados detalhados da roleta atual
-        const myDetailedRoulette = detailedData.find((roulette: any) => 
-          roulette.id === safeData.id || 
-          roulette._id === safeData.id || 
-          roulette.name === safeData.name || 
-          roulette.nome === safeData.name
-        );
-        
-        if (myDetailedRoulette) {
-          console.log(`[${componentId}] Dados detalhados carregados para ${safeData.name}`);
-          // Processar os dados detalhados
-          setRawRouletteData(myDetailedRoulette);
-          processApiData(myDetailedRoulette);
-        }
-      });
-    }
-    
-    setShowStats(!showStats);
-  };
-  
   // Função para abrir detalhes da roleta
   const handleCardClick = () => {
     // Removida a navegação para a página de detalhes
@@ -453,131 +416,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             </div>
           )}
         </div>
-        
-        {/* Botões de ação */}
-        <div className="flex items-center justify-center mt-4">
-          <button
-            onClick={toggleStats}
-            className="flex items-center gap-2 py-1.5 px-3 rounded-md bg-black bg-opacity-40 hover:bg-opacity-60 text-xs text-white border border-gray-700 transition-all duration-200 hover:border-vegas-green/50"
-          >
-            <BarChart3 className="h-3.5 w-3.5 text-vegas-green" />
-            {showStats ? "Ocultar estatísticas" : "Ver estatísticas"}
-          </button>
-        </div>
       </CardContent>
-
-      {/* Painel de estatísticas */}
-      {showStats && (
-        <div className="mt-0 px-4 pb-4">
-          <div className="bg-black bg-opacity-40 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl overflow-hidden">
-            <div className="flex justify-between items-center p-3 border-b border-gray-700">
-              <h3 className="text-sm font-medium text-white flex items-center">
-                <BarChart3 className="h-4 w-4 mr-2 text-vegas-green" />
-                Estatísticas Rápidas
-              </h3>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={toggleStats}
-                className="h-6 w-6 p-0 text-gray-400 hover:text-white hover:bg-black/30" 
-                title="Minimizar"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H6" />
-                </svg>
-              </Button>
-            </div>
-          
-            {/* Grid de estatísticas */}
-            <div className="grid grid-cols-2 gap-3 p-3">
-              {/* Contadores */}
-              <div className="bg-black bg-opacity-30 p-3 rounded-lg border border-gray-800">
-                <div className="text-xs text-gray-400 mb-1 flex items-center">
-                  <div className="w-3 h-3 bg-[#FF1D46] rounded-full mr-1.5"></div>
-                  Vermelho
-                </div>
-                <div className="text-white font-medium text-lg">
-                  {recentNumbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
-                </div>
-              </div>
-              <div className="bg-black bg-opacity-30 p-3 rounded-lg border border-gray-800">
-                <div className="text-xs text-gray-400 mb-1 flex items-center">
-                  <div className="w-3 h-3 bg-[#292524] rounded-full mr-1.5"></div>
-                  Preto
-                </div>
-                <div className="text-white font-medium text-lg">
-                  {recentNumbers.filter(n => n !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
-                </div>
-              </div>
-              <div className="bg-black bg-opacity-30 p-3 rounded-lg border border-gray-800">
-                <div className="text-xs text-gray-400 mb-1">Par</div>
-                <div className="text-white font-medium text-lg">
-                  {recentNumbers.filter(n => n !== 0 && n % 2 === 0).length}
-                </div>
-              </div>
-              <div className="bg-black bg-opacity-30 p-3 rounded-lg border border-gray-800">
-                <div className="text-xs text-gray-400 mb-1">Ímpar</div>
-                <div className="text-white font-medium text-lg">
-                  {recentNumbers.filter(n => n % 2 === 1).length}
-                </div>
-              </div>
-              
-              <div className="col-span-2 bg-black bg-opacity-30 p-3 rounded-lg border border-gray-800">
-                <div className="text-xs text-gray-400 mb-1 flex items-center">
-                  <div className="w-3 h-3 bg-vegas-green rounded-full mr-1.5"></div>
-                  Zero
-                </div>
-                <div className="text-white font-medium text-lg">
-                  {recentNumbers.filter(n => n === 0).length}
-                </div>
-              </div>
-            </div>
-          
-            {/* Link para estatísticas completas */}
-            <div className="p-3 bg-black bg-opacity-50 border-t border-gray-700">
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsStatsModalOpen(true);
-                }}
-                className="w-full py-2 bg-black/60 hover:bg-black/80 text-white font-medium rounded-md transition-all duration-200 text-sm flex items-center justify-center border border-vegas-green"
-              >
-                <PieChart className="h-4 w-4 mr-2 text-vegas-green" />
-                Ver estatísticas completas
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Modal de estatísticas completas */}
-      <div className={`fixed inset-0 z-50 ${isStatsModalOpen ? 'flex' : 'hidden'} items-center justify-center bg-black/80`}>
-        <div className="w-[90%] max-w-4xl h-[90vh] rounded-xl overflow-hidden bg-[#14161F] border border-gray-700">
-          <div className="flex justify-between items-center p-4 border-b border-gray-700">
-            <h2 className="text-xl font-bold text-white flex items-center">
-              <BarChart3 className="mr-3 text-vegas-green h-6 w-6" />
-              Estatísticas da {safeData.name}
-            </h2>
-            <button 
-              onClick={() => setIsStatsModalOpen(false)}
-              className="text-gray-400 hover:text-white bg-black/30 p-2 rounded-lg hover:bg-black/50 transition-colors"
-              title="Fechar"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="p-0 h-[calc(90vh-65px)] overflow-y-auto">
-            <RouletteSidePanelStats
-              roletaNome={safeData.name}
-              lastNumbers={recentNumbers}
-              wins={0}
-              losses={0}
-            />
-          </div>
-        </div>
-      </div>
 
       {/* Toast de notificação */}
       {toastVisible && (
