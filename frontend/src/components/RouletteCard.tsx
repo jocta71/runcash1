@@ -498,25 +498,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           )}
         </div>
         
-        {/* Seletor de Estratégia */}
-        <div className="mt-3 mb-2">
-          <div className="relative">
-            <button
-              ref={estrategiaButtonRef}
-              onClick={navegarParaEstrategias}
-              className="w-full flex items-center justify-between bg-transparent border border-gray-700 rounded px-3 py-2 text-sm transition-colors hover:border-white"
-            >
-              <div className="flex items-center">
-                <Target className="h-3 w-3 mr-2" />
-                <span>Estratégia Padrão do Sistema</span>
-              </div>
-              <div className="flex items-center">
-                <ChevronDown className="h-3 w-3 ml-2" />
-              </div>
-            </button>
-          </div>
-        </div>
-        
         {/* Rodapé */}
         <div className="mt-2 flex items-center justify-between text-xs">
           <div className="flex items-center space-x-2">
