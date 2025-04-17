@@ -70,7 +70,7 @@
 
 @layer components {
   .neon-border-green {
-    @apply border border-vegas-green shadow-[0_0_10px_rgba(0,255,0,0.5)];
+    @apply border border-transparent bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-border shadow-[0_0_10px_rgba(0,255,0,0.5)];
   }
   
   .neon-border-gold {
@@ -86,11 +86,11 @@
   }
 
   .menu-item {
-    @apply flex items-center gap-3 px-4 py-2 rounded-lg text-gray-300 hover:text-green-400 hover:bg-[#22202a] transition-all duration-200 cursor-pointer text-sm;
+    @apply flex items-center gap-3 px-4 py-2 rounded-lg text-[#C8E9C8] hover:text-[#00FF00] hover:bg-[#1A3D1A] transition-all duration-200 cursor-pointer text-sm;
   }
 
   .menu-item.active {
-    @apply bg-[#22202a] text-green-400;
+    @apply bg-[#1A3D1A] text-[#00FF00];
   }
 
   .hover-scale {
@@ -98,7 +98,7 @@
   }
 
   .hover-neon-green {
-    @apply transition-all duration-200 hover:text-vegas-green hover:shadow-[0_0_10px_rgba(0,255,0,0.7)];
+    @apply transition-all duration-200 hover:bg-gradient-to-r hover:from-[#00FF00] hover:to-[#A3FFA3] hover:bg-clip-text hover:text-transparent hover:shadow-[0_0_10px_rgba(0,255,0,0.7)];
   }
 
   .hover-neon-gold {
@@ -131,7 +131,7 @@
   
   /* Mobile responsive styles */
   .mobile-menu-toggle {
-    @apply md:hidden block p-2 text-white hover:text-green-400 transition-colors;
+    @apply md:hidden block p-2 text-white hover:bg-gradient-to-r hover:from-[#00FF00] hover:to-[#A3FFA3] hover:bg-clip-text hover:text-transparent transition-colors;
   }
   
   .mobile-sidebar {
@@ -147,7 +147,7 @@
   }
   
   .mobile-chat-toggle {
-    @apply md:hidden block p-2 text-white hover:text-green-400 transition-colors;
+    @apply md:hidden block p-2 text-white hover:bg-gradient-to-r hover:from-[#00FF00] hover:to-[#A3FFA3] hover:bg-clip-text hover:text-transparent transition-colors;
   }
 }
 

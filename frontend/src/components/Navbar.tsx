@@ -8,7 +8,7 @@ const Navbar = () => {
         <div className="flex justify-between h-16 items-center">
           <div className="flex-shrink-0">
             <Link to="/" className="flex items-center">
-              <span className="font-bold text-xl text-[#00ff00]">RunCash</span>
+              <span className="font-bold text-xl bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-text text-transparent">RunCash</span>
             </Link>
           </div>
           <NavbarAuth />

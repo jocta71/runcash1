@@ -73,7 +73,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
           <div className="space-y-1">
             <div className="menu-item">
               <div className="bg-[#1A191F] p-1.5 rounded-md">
-                <Gift size={18} className="text-green-500" />
+                <Gift size={18} className="bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-text text-transparent" />
               </div>
               <span>Código Promocional</span>
             </div>
@@ -111,7 +111,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
                 onClick={() => handleSettingsItemClick(option.id)}
               >
                 <div className="bg-[#1A191F] p-1.5 rounded-md">
-                  <option.icon size={18} className={activeSettingsTab === option.id ? "text-green-400" : "text-white"} />
+                  <option.icon size={18} className={activeSettingsTab === option.id ? "bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-text text-transparent" : "text-white"} />
                 </div>
                 <span>{option.label}</span>
               </div>

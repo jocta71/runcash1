@@ -58,10 +58,17 @@ export default {
 				vegas: {
 					black: '#0A0C14',
 					darkgray: '#161A26',
-					green: '#00ff00',
-					gold: '#ffad33',
+					green: {
+						DEFAULT: '#00FF00',
+						light: '#A3FFA3',
+						dark: '#1A3D1A',
+						muted: '#C8E9C8'
+					},
+					gold: '#FFFFFF',
+					darkgold: '#E0E0E0',
 					blue: '#36B5FF',
 					red: '#FF4560',
+					darkgreen: '#0E3B28',
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',

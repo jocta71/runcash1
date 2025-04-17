@@ -56,17 +56,17 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-vegas-green/60 rounded-full transition-all duration-300;
+    @apply bg-gradient-to-r from-[#00FF00]/60 to-[#A3FFA3]/60 rounded-full transition-all duration-300;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-vegas-green;
+    @apply bg-gradient-to-r from-[#00FF00] to-[#A3FFA3];
   }
 }
 
 @layer components {
   .neon-border-green {
-    @apply border border-vegas-green shadow-[0_0_10px_rgba(0,255,0,0.5)];
+    @apply border border-transparent bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-border shadow-[0_0_10px_rgba(0,255,0,0.5)];
   }
   
   .neon-border-gold {
@@ -82,19 +82,19 @@
   }
 
   .green-glow-card {
-    @apply relative border-opacity-75 border-green-900/20;
+    @apply relative border-opacity-75 border-[#1A3D1A]/50;
     @apply backdrop-blur-sm backdrop-filter;
-    @apply shadow-[0_2px_15px_rgba(0,255,0,0.1),0_0_3px_rgba(0,255,0,0.15)_inset];
-    @apply before:absolute before:inset-0 before:-z-10 before:rounded-lg before:bg-green-500/5 before:blur-xl;
+    @apply shadow-[0_2px_15px_rgba(0,255,0,0.1),0_0_3px_rgba(163,255,163,0.15)_inset];
+    @apply before:absolute before:inset-0 before:-z-10 before:rounded-lg before:bg-gradient-to-r before:from-[#00FF00]/5 before:to-[#A3FFA3]/5 before:blur-xl;
     @apply after:absolute after:inset-0 after:-z-10 after:rounded-lg after:shadow-[0_0_15px_rgba(0,255,0,0.15)];
   }
 
   .menu-item {
-    @apply flex items-center gap-3 px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-[#22202a] transition-all duration-200 cursor-pointer text-sm;
+    @apply flex items-center gap-3 px-4 py-2 rounded-lg text-[#C8E9C8] hover:text-[#00FF00] hover:bg-[#1A3D1A] transition-all duration-200 cursor-pointer text-sm;
   }
 
   .menu-item.active {
-    @apply bg-[#22202a] text-white;
+    @apply bg-[#1A3D1A] text-[#00FF00];
   }
 
   .hover-scale {
@@ -102,11 +102,11 @@
   }
 
   .hover-neon-green {
-    @apply transition-all duration-200 hover:text-vegas-green hover:shadow-[0_0_10px_rgba(0,255,0,0.7)];
+    @apply transition-all duration-200 hover:bg-gradient-to-r hover:from-[#00FF00] hover:to-[#A3FFA3] hover:bg-clip-text hover:text-transparent hover:shadow-[0_0_10px_rgba(0,255,0,0.7)];
   }
 
   .hover-neon-gold {
-    @apply transition-all duration-200 hover:text-vegas-gold hover:shadow-[0_0_10px_rgba(0,255,0,0.7)];
+    @apply transition-all duration-200 hover:text-vegas-gold hover:shadow-[0_0_10px_rgba(255,173,51,0.7)];
   }
 
   .hover-neon-blue {
@@ -115,7 +115,7 @@
   
   /* Mobile responsive styles */
   .mobile-menu-toggle {
-    @apply md:hidden block p-2 text-white hover:text-vegas-green transition-colors;
+    @apply md:hidden block p-2 text-white hover:bg-gradient-to-r hover:from-[#00FF00] hover:to-[#A3FFA3] hover:bg-clip-text hover:text-transparent transition-colors;
   }
   
   .mobile-sidebar {
@@ -131,7 +131,7 @@
   }
   
   .mobile-chat-toggle {
-    @apply md:hidden block p-2 text-white hover:text-vegas-green transition-colors;
+    @apply md:hidden block p-2 text-white hover:bg-gradient-to-r hover:from-[#00FF00] hover:to-[#A3FFA3] hover:bg-clip-text hover:text-transparent transition-colors;
   }
 }
 

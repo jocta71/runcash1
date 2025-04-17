@@ -20,7 +20,7 @@ const ChatInput = ({ newMessage, setNewMessage, handleSendMessage }: ChatInputPr
           className="border-none bg-transparent text-white text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-8 placeholder:text-gray-500"
         />
         <div className="p-1 bg-[#1A191F] rounded-md">
-          <Button type="submit" size="icon" variant="ghost" className="h-6 w-6 text-vegas-green hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 p-0">
+          <Button type="submit" size="icon" variant="ghost" className="h-6 w-6 bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-text text-transparent hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 p-0">
             <Send size={14} />
           </Button>
         </div>

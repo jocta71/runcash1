@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,7 +60,12 @@ export default {
 				vegas: {
 					black: '#0A0C14',
 					darkgray: '#161A26',
-					green: '#00ff00',
+					green: {
+						DEFAULT: '#00FF00',
+						light: '#A3FFA3',
+						dark: '#1A3D1A',
+						muted: '#C8E9C8'
+					},
 					gold: '#FFFFFF',        // Changed from D4AF37 to white
 					darkgold: '#E0E0E0',    // Changed to light gray
 					blue: '#36B5FF',

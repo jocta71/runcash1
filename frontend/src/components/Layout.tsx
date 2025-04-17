@@ -126,14 +126,14 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
             className="p-2"
             onClick={() => setSidebarOpen(true)}
           >
-            <Menu size={24} className="text-[#00ff00]" />
+            <Menu size={24} className="bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-text text-transparent" />
           </button>
           
           <button 
             className="p-2"
             onClick={() => setChatOpen(true)}
           >
-            <MessageSquare size={24} className="text-[#00ff00]" />
+            <MessageSquare size={24} className="bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-text text-transparent" />
           </button>
         </div>
         
