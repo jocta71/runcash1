@@ -623,9 +623,9 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
   return (
     <div className="w-full bg-[#14161F] rounded-lg overflow-y-auto max-h-screen">
-      <div className="p-4">
+      <div className="p-4 border-b border-gray-800">
         <h2 className="text-white flex items-center text-xl font-bold mb-2">
-          <BarChart className="mr-3" /> Estatísticas da {roletaNome}
+          <BarChart className="mr-3 text-vegas-green" /> Estatísticas da {roletaNome}
         </h2>
         <p className="text-sm text-gray-400 mb-4">
           {isLoading ? (
@@ -638,16 +638,16 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       
       {isLoading ? (
         <div className="flex items-center justify-center p-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-vegas-green"></div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
           {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
-          <div className="p-4 rounded-lg border border-gray-600 bg-[#14161F] md:col-span-2">
+          <div className="p-4 rounded-lg border border-gray-700 bg-[#14161F] md:col-span-2">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-white flex items-center text-base font-bold">
-                <BarChart className="mr-2 h-5 w-5" /> Histórico de Números 
-                <span className="ml-2 text-xs font-normal text-vegas-gold">
+                <BarChart className="mr-2 h-5 w-5 text-vegas-green" /> Histórico de Números 
+                <span className="ml-2 text-xs font-normal text-vegas-green">
                   (Mostrando {visibleNumbers.length} de {filteredNumbers.length})
                 </span>
               </h3>
@@ -660,7 +660,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     onClick={() => handleFilterByColor('todos')}
                     className={`px-2 py-1 text-xs rounded-md ${
                       colorFilter === 'todos' 
-                        ? 'bg-vegas-gold text-black' 
+                        ? 'bg-vegas-green text-black' 
                         : 'bg-gray-800 text-white hover:bg-gray-700'
                     }`}
                   >
@@ -726,7 +726,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
               <div className="flex justify-center mt-4">
                 <button 
                   onClick={handleShowMore} 
-                  className="flex items-center gap-1 py-2 px-6 text-sm bg-vegas-gold hover:bg-[#D4AF37] text-black font-medium rounded-md transition-colors shadow-md"
+                  className="flex items-center gap-1 py-2 px-6 text-sm bg-vegas-green hover:bg-[#05C77F] text-black font-medium rounded-md transition-colors shadow-md"
                 >
                   Mostrar Mais {filteredNumbers.length - visibleNumbersCount} Números <ChevronDown className="h-4 w-4" />
                 </button>
@@ -735,9 +735,9 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
 
           {/* Distribution Pie Chart */}
-          <div className="p-4 space-y-3 bg-[#14161F] border border-gray-800">
+          <div className="p-4 space-y-3 bg-[#14161F] border border-gray-700 rounded-lg">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <ChartBar size={20} className="text-white mr-2" /> Distribuição por Cor
+              <ChartBar size={20} className="text-vegas-green mr-2" /> Distribuição por Cor
             </h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -756,16 +756,16 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     ))}
                   </Pie>
                   <Legend />
-                  <Tooltip />
+                  <Tooltip contentStyle={{ backgroundColor: '#222', borderColor: '#059669' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
           
           {/* Win Rate Chart */}
-          <div className="p-4 space-y-3 bg-[#14161F] border border-gray-800">
+          <div className="p-4 space-y-3 bg-[#14161F] border border-gray-700 rounded-lg">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <PercentIcon size={20} className="text-white mr-2" /> Taxa de Vitória
+              <PercentIcon size={20} className="text-vegas-green mr-2" /> Taxa de Vitória
             </h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -784,19 +784,21 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     dataKey="value"
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   >
-                    <Cell key="wins" fill="#00ff00" />
+                    <Cell key="wins" fill="#059669" />
                     <Cell key="losses" fill="#ef4444" />
                   </Pie>
                   <Legend />
-                  <Tooltip />
+                  <Tooltip contentStyle={{ backgroundColor: '#222', borderColor: '#059669' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
           
           {/* Hot & Cold Numbers */}
-          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-800">
-            <h3 className="text-sm font-medium text-white mb-3">Números Quentes & Frios</h3>
+          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-700 rounded-lg">
+            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+              <ChartBar size={20} className="text-vegas-green mr-2" /> Números Quentes & Frios
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="p-2 bg-[#14161F] rounded-lg border border-gray-800">
                 <h4 className="text-xs font-medium text-red-500 mb-2 flex items-center">
@@ -808,7 +810,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                       <div className={`w-7 h-7 rounded-[4px] ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-gray-700`}>
                         {item.number}
                       </div>
-                      <span className="text-vegas-gold text-xs">({item.frequency}x)</span>
+                      <span className="text-vegas-green text-xs">({item.frequency}x)</span>
                     </div>
                   ))}
                 </div>
@@ -824,7 +826,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                       <div className={`w-7 h-7 rounded-[4px] ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-gray-700`}>
                         {item.number}
                       </div>
-                      <span className="text-vegas-gold text-xs">({item.frequency}x)</span>
+                      <span className="text-vegas-green text-xs">({item.frequency}x)</span>
                     </div>
                   ))}
                 </div>
@@ -833,9 +835,9 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Frequency Chart */}
-          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-800">
+          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-700 rounded-lg">
             <h3 className="text-sm font-medium text-white mb-3 flex items-center">
-              <ChartBar size={20} className="text-white mr-2" /> Frequência de Números
+              <ChartBar size={20} className="text-vegas-green mr-2" /> Frequência de Números
             </h3>
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -844,18 +846,20 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 12}} />
                   <YAxis stroke="#ccc" tick={{fontSize: 12}} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#222', borderColor: 'white' }} 
+                    contentStyle={{ backgroundColor: '#222', borderColor: '#059669' }} 
                     labelStyle={{ color: 'white' }}
                   />
-                  <Bar dataKey="frequency" fill="white" />
+                  <Bar dataKey="frequency" fill="#059669" />
                 </RechartsBarChart>
               </ResponsiveContainer>
             </div>
           </div>
           
           {/* Média de cores por hora */}
-          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-800">
-            <h3 className="text-sm font-medium text-white mb-3">Média de cores por hora</h3>
+          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-700 rounded-lg">
+            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+              <ChartBar size={20} className="text-vegas-green mr-2" /> Média de cores por hora
+            </h3>
             <div className="grid grid-cols-3 gap-3">
               {colorHourlyStats.map((stat, index) => (
                 <div key={`color-stat-${index}`} className="bg-[#14161F] border border-gray-800 rounded-md p-3">
