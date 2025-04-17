@@ -622,12 +622,12 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const winRate = (wins / (wins + losses)) * 100;
 
   return (
-    <div className="w-full bg-[#14161F] rounded-lg overflow-y-auto max-h-screen">
-      <div className="p-4 border-b border-gray-800">
-        <h2 className="text-white flex items-center text-xl font-bold mb-2">
-          <BarChart className="mr-3 text-vegas-green" /> Estatísticas da {roletaNome}
+    <div className="w-full bg-[#14161F] rounded-lg overflow-y-auto max-h-screen shadow-xl">
+      <div className="p-6 border-b border-gray-800 bg-[#181C2A]">
+        <h2 className="text-white flex items-center text-xl font-bold mb-3">
+          <BarChart className="mr-3 text-vegas-green h-6 w-6" /> Estatísticas da {roletaNome}
         </h2>
-        <p className="text-sm text-gray-400 mb-4">
+        <p className="text-sm text-gray-400">
           {isLoading ? (
             "Carregando dados históricos..."
           ) : (
@@ -637,14 +637,14 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       </div>
       
       {isLoading ? (
-        <div className="flex items-center justify-center p-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-vegas-green"></div>
+        <div className="flex items-center justify-center p-16">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-700 border-t-vegas-green"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-          {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
-          <div className="p-4 rounded-lg border border-gray-700 bg-[#14161F] md:col-span-2">
-            <div className="flex justify-between items-center mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5">
+          {/* Historical Numbers Section */}
+          <div className="p-5 rounded-xl border border-gray-700 bg-[#181C2A] shadow-md md:col-span-2">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
               <h3 className="text-white flex items-center text-base font-bold">
                 <BarChart className="mr-2 h-5 w-5 text-vegas-green" /> Histórico de Números 
                 <span className="ml-2 text-xs font-normal text-vegas-green">
@@ -653,14 +653,14 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
               </h3>
               
               {/* Filtros de cor */}
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-gray-400">Filtrar:</span>
-                <div className="flex space-x-1">
+              <div className="flex items-center space-x-3">
+                <span className="text-xs text-white">Filtrar:</span>
+                <div className="flex space-x-1.5">
                   <button
                     onClick={() => handleFilterByColor('todos')}
-                    className={`px-2 py-1 text-xs rounded-md ${
+                    className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
                       colorFilter === 'todos' 
-                        ? 'bg-vegas-green text-black' 
+                        ? 'bg-vegas-green text-black font-medium shadow-lg' 
                         : 'bg-gray-800 text-white hover:bg-gray-700'
                     }`}
                   >
@@ -668,9 +668,9 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   </button>
                   <button
                     onClick={() => handleFilterByColor('vermelho')}
-                    className={`px-2 py-1 text-xs rounded-md ${
+                    className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
                       colorFilter === 'vermelho' 
-                        ? 'bg-[#FF1D46] text-white' 
+                        ? 'bg-[#FF1D46] text-white font-medium shadow-lg' 
                         : 'bg-gray-800 text-white hover:bg-gray-700'
                     }`}
                   >
@@ -678,9 +678,9 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   </button>
                   <button
                     onClick={() => handleFilterByColor('preto')}
-                    className={`px-2 py-1 text-xs rounded-md ${
+                    className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
                       colorFilter === 'preto' 
-                        ? 'bg-[#292524] text-white' 
+                        ? 'bg-[#292524] text-white font-medium shadow-lg' 
                         : 'bg-gray-800 text-white hover:bg-gray-700'
                     }`}
                   >
@@ -688,9 +688,9 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   </button>
                   <button
                     onClick={() => handleFilterByColor('verde')}
-                    className={`px-2 py-1 text-xs rounded-md ${
+                    className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
                       colorFilter === 'verde' 
-                        ? 'bg-vegas-green text-black' 
+                        ? 'bg-vegas-green text-black font-medium shadow-lg' 
                         : 'bg-gray-800 text-white hover:bg-gray-700'
                     }`}
                   >
@@ -701,13 +701,13 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             </div>
             
             {visibleNumbers.length > 0 ? (
-              <div className="flex flex-wrap gap-1 p-3 border border-gray-700 rounded-md bg-gray-900">
+              <div className="flex flex-wrap gap-2 p-4 border border-gray-700 rounded-xl bg-[#14161F] shadow-inner">
                 {visibleNumbers.map((n, idx) => (
                   <div 
                     key={idx} 
-                    className="flex flex-col items-center mb-2 w-10"
+                    className="flex flex-col items-center mb-2 w-11"
                   >
-                    <div className={`w-8 h-8 flex items-center justify-center text-sm font-medium rounded-[4px] border border-gray-700 ${getRouletteNumberColor(n.numero)}`}>
+                    <div className={`w-9 h-9 flex items-center justify-center text-sm font-medium rounded-md border border-gray-700 shadow-sm ${getRouletteNumberColor(n.numero)} hover:scale-110 transition-transform duration-200`}>
                       {n.numero}
                     </div>
                     <div className="text-[9px] text-gray-400 mt-1">
@@ -717,16 +717,16 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="flex justify-center items-center h-[200px] text-gray-400">
+              <div className="flex justify-center items-center h-[200px] rounded-xl bg-[#14161F] text-gray-400">
                 Nenhum número encontrado com o filtro selecionado
               </div>
             )}
             
             {visibleNumbersCount < filteredNumbers.length && (
-              <div className="flex justify-center mt-4">
+              <div className="flex justify-center mt-5">
                 <button 
                   onClick={handleShowMore} 
-                  className="flex items-center gap-1 py-2 px-6 text-sm bg-vegas-green hover:bg-[#05C77F] text-black font-medium rounded-md transition-colors shadow-md"
+                  className="flex items-center gap-2 py-2.5 px-6 text-sm bg-vegas-green hover:bg-[#05C77F] text-black font-medium rounded-md transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                 >
                   Mostrar Mais {filteredNumbers.length - visibleNumbersCount} Números <ChevronDown className="h-4 w-4" />
                 </button>
@@ -735,39 +735,47 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
 
           {/* Distribution Pie Chart */}
-          <div className="p-4 space-y-3 bg-[#14161F] border border-gray-700 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+          <div className="p-5 space-y-4 bg-[#181C2A] border border-gray-700 rounded-xl shadow-md">
+            <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Distribuição por Cor
             </h3>
-            <div className="h-[180px]">
+            <div className="h-[220px] pt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="50%"
-                    outerRadius={60}
+                    outerRadius={80}
                     fill="white"
                     dataKey="value"
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
                   >
                     {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                      <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
                     ))}
                   </Pie>
-                  <Legend />
-                  <Tooltip contentStyle={{ backgroundColor: '#222', borderColor: '#059669' }} />
+                  <Legend verticalAlign="bottom" />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#222', 
+                      borderColor: '#059669',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+                    }} 
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
           
           {/* Win Rate Chart */}
-          <div className="p-4 space-y-3 bg-[#14161F] border border-gray-700 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+          <div className="p-5 space-y-4 bg-[#181C2A] border border-gray-700 rounded-xl shadow-md">
+            <h3 className="text-sm font-medium text-white flex items-center">
               <PercentIcon size={20} className="text-vegas-green mr-2" /> Taxa de Vitória
             </h3>
-            <div className="h-[180px]">
+            <div className="h-[220px] pt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -777,56 +785,64 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     ]}
                     cx="50%"
                     cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
+                    innerRadius={50}
+                    outerRadius={80}
                     fill="white"
                     paddingAngle={5}
                     dataKey="value"
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
                   >
-                    <Cell key="wins" fill="#059669" />
-                    <Cell key="losses" fill="#ef4444" />
+                    <Cell key="wins" fill="#059669" stroke="transparent" />
+                    <Cell key="losses" fill="#ef4444" stroke="transparent" />
                   </Pie>
-                  <Legend />
-                  <Tooltip contentStyle={{ backgroundColor: '#222', borderColor: '#059669' }} />
+                  <Legend verticalAlign="bottom" />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#222', 
+                      borderColor: '#059669',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+                    }} 
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
           
           {/* Hot & Cold Numbers */}
-          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-700 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+          <div className="p-5 space-y-4 md:col-span-2 bg-[#181C2A] border border-gray-700 rounded-xl shadow-md">
+            <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Números Quentes & Frios
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="p-2 bg-[#14161F] rounded-lg border border-gray-800">
-                <h4 className="text-xs font-medium text-red-500 mb-2 flex items-center">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-[#14161F] rounded-xl border border-gray-800 shadow-inner">
+                <h4 className="text-xs font-medium text-red-400 mb-3 flex items-center">
                   <ArrowUp size={18} className="mr-2" /> Números Quentes
                 </h4>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-3">
                   {hot.map((item, i) => (
-                    <div key={i} className="flex items-center space-x-2">
-                      <div className={`w-7 h-7 rounded-[4px] ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-gray-700`}>
+                    <div key={i} className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105">
+                      <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-gray-700 shadow-sm group-hover:shadow-md`}>
                         {item.number}
                       </div>
-                      <span className="text-vegas-green text-xs">({item.frequency}x)</span>
+                      <span className="text-vegas-green text-xs font-medium">({item.frequency}x)</span>
                     </div>
                   ))}
                 </div>
               </div>
               
-              <div className="p-2 bg-[#14161F] rounded-lg border border-gray-800">
-                <h4 className="text-xs font-medium text-blue-500 mb-2 flex items-center">
+              <div className="p-4 bg-[#14161F] rounded-xl border border-gray-800 shadow-inner">
+                <h4 className="text-xs font-medium text-blue-400 mb-3 flex items-center">
                   <ArrowDown size={18} className="mr-2" /> Números Frios
                 </h4>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-3">
                   {cold.map((item, i) => (
-                    <div key={i} className="flex items-center space-x-2">
-                      <div className={`w-7 h-7 rounded-[4px] ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-gray-700`}>
+                    <div key={i} className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105">
+                      <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-gray-700 shadow-sm group-hover:shadow-md`}>
                         {item.number}
                       </div>
-                      <span className="text-vegas-green text-xs">({item.frequency}x)</span>
+                      <span className="text-vegas-green text-xs font-medium">({item.frequency}x)</span>
                     </div>
                   ))}
                 </div>
@@ -835,44 +851,72 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Frequency Chart */}
-          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-700 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+          <div className="p-5 space-y-4 md:col-span-2 bg-[#181C2A] border border-gray-700 rounded-xl shadow-md">
+            <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Frequência de Números
             </h3>
-            <div className="h-[180px]">
+            <div className="h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
-                <RechartsBarChart data={frequencyData} margin={{ top: 10, right: 30, left: 20, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="number" stroke="#ccc" tick={{fontSize: 12}} />
-                  <YAxis stroke="#ccc" tick={{fontSize: 12}} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#222', borderColor: '#059669' }} 
-                    labelStyle={{ color: 'white' }}
+                <RechartsBarChart data={frequencyData} margin={{ top: 10, right: 10, left: 10, bottom: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                  <XAxis 
+                    dataKey="number" 
+                    stroke="#ccc" 
+                    tick={{fontSize: 11}}
+                    tickLine={false}
+                    axisLine={{stroke: '#333'}}
                   />
-                  <Bar dataKey="frequency" fill="#059669" />
+                  <YAxis 
+                    stroke="#ccc" 
+                    tick={{fontSize: 11}}
+                    tickLine={false}
+                    axisLine={{stroke: '#333'}}
+                    width={30}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#222', 
+                      borderColor: '#059669', 
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+                    }} 
+                    labelStyle={{ color: 'white' }}
+                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                  />
+                  <Bar 
+                    dataKey="frequency" 
+                    fill="#059669"
+                    radius={[4, 4, 0, 0]}
+                    animationDuration={1500}
+                  />
                 </RechartsBarChart>
               </ResponsiveContainer>
             </div>
           </div>
           
           {/* Média de cores por hora */}
-          <div className="p-4 space-y-3 md:col-span-2 bg-[#14161F] border border-gray-700 rounded-lg">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center">
+          <div className="p-5 space-y-4 md:col-span-2 bg-[#181C2A] border border-gray-700 rounded-xl shadow-md">
+            <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Média de cores por hora
             </h3>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {colorHourlyStats.map((stat, index) => (
-                <div key={`color-stat-${index}`} className="bg-[#14161F] border border-gray-800 rounded-md p-3">
+                <div key={`color-stat-${index}`} className="bg-[#14161F] border border-gray-800 rounded-xl p-4 shadow-md hover:shadow-lg transition-shadow duration-200">
                   <div className="flex items-center">
                     <div 
-                      className="w-8 h-8 rounded-md mr-3 flex items-center justify-center" 
+                      className="w-10 h-10 rounded-lg mr-3 flex items-center justify-center shadow-inner" 
                       style={{ backgroundColor: stat.color === "#111827" ? "black" : stat.color }}
                     >
-                      <div className="w-5 h-5 rounded-full border-2 border-white"></div>
+                      <div className="w-6 h-6 rounded-full border-2 border-white"></div>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-white">{stat.name}</p>
-                      <p className="text-xs text-gray-400">Total de {stat.total} <span className="bg-gray-800 text-xs px-1.5 py-0.5 rounded ml-1">{stat.percentage}%</span></p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Total de {stat.total} 
+                        <span className="bg-[#1A1C25] text-xs px-2 py-0.5 rounded-full ml-2 text-vegas-green">
+                          {stat.percentage}%
+                        </span>
+                      </p>
                     </div>
                   </div>
                 </div>
