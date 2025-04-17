@@ -585,7 +585,9 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
   // Função para mostrar mais números
   const handleShowMore = () => {
-    setVisibleNumbersCount(prev => Math.min(prev + 50, historicalNumbers.length));
+    // Calcular dinamicamente quantos números mostrar com base no total disponível
+    const incremento = Math.min(50, Math.max(20, Math.floor(filteredNumbers.length * 0.1)));
+    setVisibleNumbersCount(prev => Math.min(prev + incremento, filteredNumbers.length));
   };
 
   // Função para filtrar números por cor
@@ -644,7 +646,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           <div className="p-4 rounded-lg border border-gray-600 bg-[#14161F] md:col-span-2">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-white flex items-center text-base font-bold">
-                <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {visibleNumbers.length} de {filteredNumbers.length})
+                <BarChart className="mr-2 h-5 w-5" /> Histórico de Números 
+                <span className="ml-2 text-xs font-normal text-vegas-gold">
+                  (Mostrando {visibleNumbers.length} de {filteredNumbers.length})
+                </span>
               </h3>
               
               {/* Filtros de cor */}
@@ -696,7 +701,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             </div>
             
             {visibleNumbers.length > 0 ? (
-              <div className="flex flex-wrap gap-1 max-h-[250px] overflow-y-auto p-3 border border-gray-700 rounded-md bg-gray-900">
+              <div className="flex flex-wrap gap-1 p-3 border border-gray-700 rounded-md bg-gray-900">
                 {visibleNumbers.map((n, idx) => (
                   <div 
                     key={idx} 
@@ -718,12 +723,12 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             )}
             
             {visibleNumbersCount < filteredNumbers.length && (
-              <div className="flex justify-center mt-3">
+              <div className="flex justify-center mt-4">
                 <button 
                   onClick={handleShowMore} 
-                  className="flex items-center gap-1 py-2 px-4 text-sm bg-vegas-gold hover:bg-[#D4AF37] text-black font-medium rounded-md transition-colors"
+                  className="flex items-center gap-1 py-2 px-6 text-sm bg-vegas-gold hover:bg-[#D4AF37] text-black font-medium rounded-md transition-colors shadow-md"
                 >
-                  Mostrar Mais <ChevronDown className="h-4 w-4" />
+                  Mostrar Mais {filteredNumbers.length - visibleNumbersCount} Números <ChevronDown className="h-4 w-4" />
                 </button>
               </div>
             )}
