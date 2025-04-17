@@ -395,7 +395,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         </div>
         
         {/* Números recentes */}
-        <div className="flex flex-wrap gap-1 justify-center my-5 p-3">
+        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/50">
           {recentNumbers.length > 0 ? (
             recentNumbers.slice(0, 20).map((num, idx) => (
             <NumberDisplay 
