@@ -493,7 +493,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           <div className="flex gap-1 items-center">
             <Badge 
               variant={hasRealData ? "secondary" : "default"} 
-              className={`text-xs ${hasRealData ? 'bg-vegas-green/20 text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
+              className={`text-xs ${hasRealData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
             >
               {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}
             </Badge>
@@ -553,8 +553,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
                     <button
                       key={estrategia.id}
                       onClick={() => selecionarEstrategia(estrategia.id)}
-                      className={`w-full text-left p-2 text-xs hover:bg-vegas-green/20 transition-colors duration-150 flex items-start ${
-                        estrategiaSelecionada === estrategia.id ? 'bg-vegas-green/30 text-white' : 'text-gray-300'
+                      className={`w-full text-left p-2 text-xs hover:bg-black/20 transition-colors duration-150 flex items-start ${
+                        estrategiaSelecionada === estrategia.id ? 'bg-black/40 text-white' : 'text-gray-300'
                       }`}
                     >
                       <div className="flex-1">
@@ -662,9 +662,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
                   e.stopPropagation();
                   setIsStatsModalOpen(true);
                 }}
-                className="w-full py-2 bg-vegas-green hover:bg-vegas-green/90 text-black font-medium rounded-md transition-all duration-200 text-sm flex items-center justify-center"
+                className="w-full py-2 bg-black/60 hover:bg-black/80 text-white font-medium rounded-md transition-all duration-200 text-sm flex items-center justify-center border border-vegas-green"
               >
-                <PieChart className="h-4 w-4 mr-2" />
+                <PieChart className="h-4 w-4 mr-2 text-vegas-green" />
                 Ver estatísticas completas
               </button>
             </div>
