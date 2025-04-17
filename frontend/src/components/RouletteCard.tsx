@@ -470,9 +470,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       {/* Logo de fundo com baixa opacidade e saturação 0 */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-lg">
         <img 
-          src="/assets/logo.svg" 
-          alt="Logo" 
-          className="w-auto h-[90%] max-w-[95%] opacity-[0.03] grayscale filter select-none"
+          src="/assets/icon-rabbit.svg" 
+          alt="Icon Rabbit" 
+          className="w-[80%] h-auto opacity-[0.025] grayscale filter select-none"
           style={{ 
             objectFit: "contain",
             transformOrigin: "center"
