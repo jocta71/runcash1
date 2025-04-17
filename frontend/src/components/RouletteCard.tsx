@@ -459,9 +459,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     <Card 
       ref={cardRef}
       className={cn(
-        "relative overflow-visible transition-all duration-300 hover:shadow-md", 
-        "green-glow-card",
-        isNewNumber ? "border-green-500 shadow-green-200 animate-pulse" : "",
+        "relative overflow-visible transition-all duration-300 backdrop-filter backdrop-blur-sm bg-opacity-40 border border-gray-700", 
+        "hover:shadow-[0_0_15px_rgba(5,150,105,0.3)] hover:border-vegas-green/50",
+        isNewNumber ? "border-vegas-green shadow-[0_0_25px_rgba(5,150,105,0.5)] animate-pulse" : "",
         isDetailView ? "w-full" : "w-full",
         showEstrategiaDropdown ? "dropdown-open z-10" : ""
       )}
@@ -473,16 +473,22 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       <CardContent className="p-4">
         {/* Cabeçalho */}
         <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold truncate">{safeData.name}</h3>
+          <h3 className="text-lg font-semibold truncate text-white flex items-center">
+            <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
+            {safeData.name}
+          </h3>
           <div className="flex gap-1 items-center">
-            <Badge variant={hasRealData ? "secondary" : "default"} className="text-xs">
+            <Badge 
+              variant={hasRealData ? "secondary" : "default"} 
+              className={`text-xs ${hasRealData ? 'bg-vegas-green/20 text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
+            >
               {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}
             </Badge>
           </div>
         </div>
         
         {/* Números recentes */}
-        <div className="flex flex-wrap gap-1 justify-center my-5">
+        <div className="flex flex-wrap gap-1 justify-center my-5 bg-black bg-opacity-30 p-3 rounded-xl border border-gray-700/50 shadow-inner">
           {recentNumbers.length > 0 ? (
             recentNumbers.slice(0, 20).map((num, idx) => (
             <NumberDisplay 
@@ -493,20 +499,78 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             />
             ))
           ) : (
-            <div className="text-center text-gray-500 py-2">
-              {loading ? "Carregando números..." : "Nenhum número disponível"}
+            <div className="text-center text-gray-400 py-2 w-full">
+              {loading ? (
+                <div className="flex items-center justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2 text-vegas-green" />
+                  Carregando números...
+                </div>
+              ) : "Nenhum número disponível"}
             </div>
           )}
         </div>
         
-        {/* Rodapé */}
-        <div className="mt-2 flex items-center justify-between text-xs">
-          <div className="flex items-center space-x-2">
-            {/* Espaço vazio onde estava o botão de estatísticas */}
-          </div>
+        {/* Botões de ação */}
+        <div className="flex items-center justify-between mt-4">
+          <button
+            onClick={toggleStats}
+            className="flex items-center gap-2 py-1.5 px-3 rounded-md bg-black bg-opacity-40 hover:bg-opacity-60 text-xs text-white border border-gray-700 transition-all duration-200 hover:border-vegas-green/50"
+          >
+            <BarChart3 className="h-3.5 w-3.5 text-vegas-green" />
+            {showStats ? "Ocultar estatísticas" : "Ver estatísticas"}
+          </button>
           
-          <div className="flex items-center text-xs text-gray-400">
-            {loading ? "Carregando..." : (hasRealData ? "" : "Aguardando dados")}
+          <div className="relative" ref={(el) => { if (el) estrategiaButtonRef.current = el as unknown as HTMLButtonElement; }}>
+            <button
+              onClick={toggleEstrategiaDropdown}
+              className="flex items-center gap-2 py-1.5 px-3 rounded-md bg-black bg-opacity-40 hover:bg-opacity-60 text-xs text-white border border-gray-700 transition-all duration-200 hover:border-vegas-green/50"
+            >
+              <Target className="h-3.5 w-3.5 text-vegas-green" />
+              Estratégias
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            
+            {showEstrategiaDropdown && (
+              <div className="absolute right-0 mt-1 w-64 bg-[#14161F] bg-opacity-95 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-md shadow-lg overflow-hidden z-50">
+                <div className="p-2 border-b border-gray-700">
+                  <p className="text-xs text-gray-400">Selecione uma estratégia</p>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {ESTRATEGIAS_ROLETA.map((estrategia) => (
+                    <button
+                      key={estrategia.id}
+                      onClick={() => selecionarEstrategia(estrategia.id)}
+                      className={`w-full text-left p-2 text-xs hover:bg-vegas-green/20 transition-colors duration-150 flex items-start ${
+                        estrategiaSelecionada === estrategia.id ? 'bg-vegas-green/30 text-white' : 'text-gray-300'
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium">{estrategia.nome}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{estrategia.descricao}</p>
+                      </div>
+                      {estrategiaSelecionada === estrategia.id && (
+                        <span className="text-vegas-green">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <div className="p-2 bg-gray-800/50 border-t border-gray-700">
+                  <button
+                    onClick={navegarParaEstrategias}
+                    className="w-full text-xs text-vegas-green hover:text-vegas-green/80 flex items-center justify-center"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    Ver todas as estratégias
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
@@ -514,96 +578,106 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       {/* Painel de estatísticas */}
       {showStats && (
         <div className="mt-0 px-4 pb-4">
-          <div className="bg-gray-100 p-3 rounded-lg border border-gray-200">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-sm font-medium text-gray-800 flex items-center">
-            <BarChart3 className="h-3 w-3 mr-1" />
-            Estatísticas
-          </h3>
+          <div className="bg-black bg-opacity-40 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl overflow-hidden">
+            <div className="flex justify-between items-center p-3 border-b border-gray-700">
+              <h3 className="text-sm font-medium text-white flex items-center">
+                <BarChart3 className="h-4 w-4 mr-2 text-vegas-green" />
+                Estatísticas Rápidas
+              </h3>
               <Button 
                 variant="ghost" 
                 size="icon" 
                 onClick={toggleStats}
-                className="h-5 w-5 p-0" 
+                className="h-6 w-6 p-0 text-gray-400 hover:text-white hover:bg-black/30" 
                 title="Minimizar"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H6" />
                 </svg>
               </Button>
             </div>
           
-          {/* Grid de estatísticas */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            {/* Contadores */}
-              <div className="bg-white p-2 rounded shadow-sm">
-                <div className="text-gray-500">Vermelho</div>
-                <div className="text-gray-900 font-medium">
-                {recentNumbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
+            {/* Grid de estatísticas */}
+            <div className="grid grid-cols-2 gap-3 p-3">
+              {/* Contadores */}
+              <div className="bg-black bg-opacity-30 p-3 rounded-lg border border-gray-800">
+                <div className="text-xs text-gray-400 mb-1 flex items-center">
+                  <div className="w-3 h-3 bg-[#FF1D46] rounded-full mr-1.5"></div>
+                  Vermelho
+                </div>
+                <div className="text-white font-medium text-lg">
+                  {recentNumbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
+                </div>
+              </div>
+              <div className="bg-black bg-opacity-30 p-3 rounded-lg border border-gray-800">
+                <div className="text-xs text-gray-400 mb-1 flex items-center">
+                  <div className="w-3 h-3 bg-[#292524] rounded-full mr-1.5"></div>
+                  Preto
+                </div>
+                <div className="text-white font-medium text-lg">
+                  {recentNumbers.filter(n => n !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
+                </div>
+              </div>
+              <div className="bg-black bg-opacity-30 p-3 rounded-lg border border-gray-800">
+                <div className="text-xs text-gray-400 mb-1">Par</div>
+                <div className="text-white font-medium text-lg">
+                  {recentNumbers.filter(n => n !== 0 && n % 2 === 0).length}
+                </div>
+              </div>
+              <div className="bg-black bg-opacity-30 p-3 rounded-lg border border-gray-800">
+                <div className="text-xs text-gray-400 mb-1">Ímpar</div>
+                <div className="text-white font-medium text-lg">
+                  {recentNumbers.filter(n => n % 2 === 1).length}
+                </div>
+              </div>
+              
+              <div className="col-span-2 bg-black bg-opacity-30 p-3 rounded-lg border border-gray-800">
+                <div className="text-xs text-gray-400 mb-1 flex items-center">
+                  <div className="w-3 h-3 bg-vegas-green rounded-full mr-1.5"></div>
+                  Zero
+                </div>
+                <div className="text-white font-medium text-lg">
+                  {recentNumbers.filter(n => n === 0).length}
+                </div>
               </div>
             </div>
-              <div className="bg-white p-2 rounded shadow-sm">
-                <div className="text-gray-500">Preto</div>
-                <div className="text-gray-900 font-medium">
-                {recentNumbers.filter(n => n !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length}
-              </div>
-            </div>
-              <div className="bg-white p-2 rounded shadow-sm">
-                <div className="text-gray-500">Par</div>
-                <div className="text-gray-900 font-medium">
-                {recentNumbers.filter(n => n !== 0 && n % 2 === 0).length}
-              </div>
-            </div>
-              <div className="bg-white p-2 rounded shadow-sm">
-                <div className="text-gray-500">Ímpar</div>
-                <div className="text-gray-900 font-medium">
-                {recentNumbers.filter(n => n % 2 === 1).length}
-              </div>
-            </div>
-          </div>
           
-          {/* Link para estatísticas completas */}
-          <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsStatsModalOpen(true);
-              }}
-              className="mt-3 text-xs text-blue-600 hover:text-blue-800 flex items-center"
-          >
-            <PieChart className="h-3 w-3 mr-1" />
-            Ver estatísticas completas
-          </button>
+            {/* Link para estatísticas completas */}
+            <div className="p-3 bg-black bg-opacity-50 border-t border-gray-700">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsStatsModalOpen(true);
+                }}
+                className="w-full py-2 bg-vegas-green hover:bg-vegas-green/90 text-black font-medium rounded-md transition-all duration-200 text-sm flex items-center justify-center"
+              >
+                <PieChart className="h-4 w-4 mr-2" />
+                Ver estatísticas completas
+              </button>
+            </div>
           </div>
         </div>
       )}
       
       {/* Modal de estatísticas completas */}
-      <div className={`fixed inset-0 z-50 ${isStatsModalOpen ? 'flex' : 'hidden'} items-center justify-center bg-black/70`}>
-        <div className="bg-white w-1/2 h-[90vh] rounded-lg overflow-y-auto">
-          <div className="flex justify-between items-center p-4 border-b border-gray-200">
-            <h2 className="text-xl font-bold">Estatísticas da {safeData.name}</h2>
-            <div className="flex items-center space-x-2">
-              <button 
-                onClick={() => setIsStatsModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700 bg-gray-100 p-1 rounded-md"
-                title="Minimizar"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
+      <div className={`fixed inset-0 z-50 ${isStatsModalOpen ? 'flex' : 'hidden'} items-center justify-center bg-black/80`}>
+        <div className="w-[90%] max-w-4xl h-[90vh] rounded-xl overflow-hidden bg-[#14161F] border border-gray-700 shadow-2xl">
+          <div className="flex justify-between items-center p-4 border-b border-gray-700">
+            <h2 className="text-xl font-bold text-white flex items-center">
+              <BarChart3 className="mr-3 text-vegas-green h-6 w-6" />
+              Estatísticas da {safeData.name}
+            </h2>
             <button 
               onClick={() => setIsStatsModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700"
-                title="Fechar"
+              className="text-gray-400 hover:text-white bg-black/30 p-2 rounded-lg hover:bg-black/50 transition-colors"
+              title="Fechar"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            </div>
           </div>
-          <div className="p-4">
+          <div className="p-0 h-[calc(90vh-65px)] overflow-y-auto">
             <RouletteSidePanelStats
               roletaNome={safeData.name}
               lastNumbers={recentNumbers}
@@ -616,7 +690,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
       {/* Toast de notificação */}
       {toastVisible && (
-        <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-50 animate-fade-in">
+        <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in">
           {toastMessage}
         </div>
       )}
