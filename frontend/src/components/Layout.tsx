@@ -207,7 +207,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         </div>
         
         {/* Área do conteúdo principal */}
-        <main className="pt-4 md:pt-[70px] pb-8 px-4 md:px-6 md:pl-[280px] w-full min-h-screen bg-[#100f13]">
+        <main className="pt-4 md:pt-[70px] pb-8 px-4 md:px-6 md:pl-[280px] w-full min-h-screen bg-[#0B0A0F]">
           {children}
         </main>
       </div>
