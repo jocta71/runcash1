@@ -511,8 +511,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
                 <span>Estratégia Padrão do Sistema</span>
               </div>
               <div className="flex items-center">
-                <span className="bg-gray-800 text-xs px-2 py-0.5 rounded mr-1">Sistema</span>
-                <span className="bg-green-800 text-xs px-2 py-0.5 rounded">Pública</span>
                 <ChevronDown className="h-3 w-3 ml-2" />
               </div>
             </button>
