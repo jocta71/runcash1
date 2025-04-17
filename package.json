@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "echo \"No tests configured\""
+    "test": "echo \"No tests configured\"",
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "build:dev": "cd frontend && npm run build:dev",
+    "preview": "cd frontend && npm run preview"
   },
   "dependencies": {
     "axios": "^1.6.7",

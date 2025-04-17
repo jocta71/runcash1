@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node start-dev.cjs",
     "build": "node build-script.cjs",
     "vercel-build": "node build-script.cjs",
     "build:dev": "npx vite build --mode development",
