@@ -121,7 +121,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
       
       <div className="flex-1 relative">
         {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between p-4 border-b border-[#33333359] bg-[#22c55e0d]">
+        <div className="md:hidden flex items-center justify-between p-4 border-b border-[#33333359] bg-[#131614]">
           <button 
             className="p-2"
             onClick={() => setSidebarOpen(true)}
@@ -138,7 +138,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         </div>
         
         {/* Desktop Header */}
-        <div className="hidden md:flex fixed top-0 left-0 right-0 md:left-64 z-40 h-[70px] items-center justify-between px-4 border-b border-[#33333359] bg-[#22c55e0d]">
+        <div className="hidden md:flex fixed top-0 left-0 right-0 md:left-64 z-40 h-[70px] items-center justify-between px-4 border-b border-[#33333359] bg-[#131614]">
           <div className="flex items-center gap-2">
             {/* Logo e caixa de pesquisa removidos conforme solicitado */}
           </div>
@@ -207,7 +207,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         </div>
         
         {/* Área do conteúdo principal */}
-        <main className="pt-4 md:pt-[70px] pb-8 px-4 md:px-6 md:pl-[280px] w-full min-h-screen bg-[#22c55e0d]">
+        <main className="pt-4 md:pt-[70px] pb-8 px-4 md:px-6 md:pl-[280px] w-full min-h-screen bg-[#131614]">
           {children}
         </main>
       </div>
