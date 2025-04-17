@@ -1,4 +1,4 @@
-import { ChartBar, BarChart, ArrowDown, ArrowUp, PercentIcon } from "lucide-react";
+import { ChartBar, BarChart, ArrowDown, ArrowUp, PercentIcon, ChevronDown } from "lucide-react";
 import {
   ResponsiveContainer,
   BarChart as RechartsBarChart,
@@ -16,6 +16,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import globalRouletteDataService from '../services/GlobalRouletteDataService';
 import rouletteHistoryService from '../services/RouletteHistoryService';
 import { getLogger } from '../services/utils/logger';
+import { uniqueId } from 'lodash';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -35,6 +36,9 @@ interface RouletteNumber {
   numero: number;
   timestamp: string;
 }
+
+// Tipo para filtros de cor
+type ColorFilter = 'todos' | 'vermelho' | 'preto' | 'verde';
 
 // Função para gerar números aleatórios para testes (apenas como último recurso)
 const generateFallbackNumbers = (count: number = 20): number[] => {
@@ -395,7 +399,7 @@ export const processApiData = (apiRoulette: any, currentNumbers: RouletteNumber[
 };
 
 // Modificando o componente para integrar lastNumbers aos dados históricos
-const RouletteSidePanelStats = ({ 
+const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({ 
   roletaNome, 
   lastNumbers, 
   wins, 
@@ -403,8 +407,10 @@ const RouletteSidePanelStats = ({
 }: RouletteSidePanelStatsProps) => {
   const [historicalNumbers, setHistoricalNumbers] = useState<RouletteNumber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const subscriberId = useRef<string>(`sidepanel-${roletaNome}-${Math.random().toString(36).substring(2, 9)}`);
-  const isInitialRequestDone = useRef<boolean>(false);
+  const [visibleNumbersCount, setVisibleNumbersCount] = useState(30); // Inicializar com 30 números visíveis
+  const [colorFilter, setColorFilter] = useState<ColorFilter>('todos'); // Filtro de cor
+  const isInitialRequestDone = useRef(false);
+  const subscriberId = useRef(uniqueId('roulette_stats_subscriber_'));
   
   // Função para processar os dados da roleta - otimizada para menos recálculos
   const handleApiData = useCallback(() => {
@@ -577,6 +583,35 @@ const RouletteSidePanelStats = ({
     }
   }, [lastNumbers, roletaNome, historicalNumbers]);
 
+  // Função para mostrar mais números
+  const handleShowMore = () => {
+    setVisibleNumbersCount(prev => Math.min(prev + 50, historicalNumbers.length));
+  };
+
+  // Função para filtrar números por cor
+  const handleFilterByColor = (color: ColorFilter) => {
+    setColorFilter(color);
+    // Ao mudar o filtro, resetamos a contagem para evitar páginas vazias
+    setVisibleNumbersCount(30);
+  };
+
+  // Filtrar números pela cor selecionada
+  const filteredNumbers = useMemo(() => {
+    if (colorFilter === 'todos') return historicalNumbers;
+    
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    
+    return historicalNumbers.filter(item => {
+      if (colorFilter === 'verde') return item.numero === 0;
+      if (colorFilter === 'vermelho') return redNumbers.includes(item.numero);
+      if (colorFilter === 'preto') return item.numero !== 0 && !redNumbers.includes(item.numero);
+      return true;
+    });
+  }, [historicalNumbers, colorFilter]);
+
+  // Números a serem exibidos com filtro aplicado
+  const visibleNumbers = filteredNumbers.slice(0, visibleNumbersCount);
+
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
   const pieData = generateGroupDistribution(historicalNumbers.map(n => n.numero));
@@ -607,24 +642,91 @@ const RouletteSidePanelStats = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
           {/* Historical Numbers Section - Ocupa a largura total em todas as telas */}
           <div className="p-4 rounded-lg border border-gray-600 bg-[#14161F] md:col-span-2">
-            <h3 className="text-white flex items-center text-base font-bold mb-3">
-              <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {historicalNumbers.length})
-            </h3>
-            <div className="flex flex-wrap gap-1 max-h-[200px] overflow-y-auto p-3">
-              {historicalNumbers.map((n, idx) => (
-                <div 
-                  key={idx} 
-                  className="flex flex-col items-center mb-2 w-10"
-                >
-                  <div className={`w-8 h-8 flex items-center justify-center text-sm font-medium rounded-[4px] border border-gray-700 ${getRouletteNumberColor(n.numero)}`}>
-                    {n.numero}
-                  </div>
-                  <div className="text-[9px] text-gray-400 mt-1">
-                    {n.timestamp}
-                  </div>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-white flex items-center text-base font-bold">
+                <BarChart className="mr-2 h-5 w-5" /> Histórico de Números (Mostrando: {visibleNumbers.length} de {filteredNumbers.length})
+              </h3>
+              
+              {/* Filtros de cor */}
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-gray-400">Filtrar:</span>
+                <div className="flex space-x-1">
+                  <button
+                    onClick={() => handleFilterByColor('todos')}
+                    className={`px-2 py-1 text-xs rounded-md ${
+                      colorFilter === 'todos' 
+                        ? 'bg-vegas-gold text-black' 
+                        : 'bg-gray-800 text-white hover:bg-gray-700'
+                    }`}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    onClick={() => handleFilterByColor('vermelho')}
+                    className={`px-2 py-1 text-xs rounded-md ${
+                      colorFilter === 'vermelho' 
+                        ? 'bg-[#FF1D46] text-white' 
+                        : 'bg-gray-800 text-white hover:bg-gray-700'
+                    }`}
+                  >
+                    Vermelho
+                  </button>
+                  <button
+                    onClick={() => handleFilterByColor('preto')}
+                    className={`px-2 py-1 text-xs rounded-md ${
+                      colorFilter === 'preto' 
+                        ? 'bg-[#292524] text-white' 
+                        : 'bg-gray-800 text-white hover:bg-gray-700'
+                    }`}
+                  >
+                    Preto
+                  </button>
+                  <button
+                    onClick={() => handleFilterByColor('verde')}
+                    className={`px-2 py-1 text-xs rounded-md ${
+                      colorFilter === 'verde' 
+                        ? 'bg-vegas-green text-black' 
+                        : 'bg-gray-800 text-white hover:bg-gray-700'
+                    }`}
+                  >
+                    Zero
+                  </button>
                 </div>
-              ))}
+              </div>
             </div>
+            
+            {visibleNumbers.length > 0 ? (
+              <div className="flex flex-wrap gap-1 max-h-[250px] overflow-y-auto p-3 border border-gray-700 rounded-md bg-gray-900">
+                {visibleNumbers.map((n, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex flex-col items-center mb-2 w-10"
+                  >
+                    <div className={`w-8 h-8 flex items-center justify-center text-sm font-medium rounded-[4px] border border-gray-700 ${getRouletteNumberColor(n.numero)}`}>
+                      {n.numero}
+                    </div>
+                    <div className="text-[9px] text-gray-400 mt-1">
+                      {n.timestamp}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex justify-center items-center h-[200px] text-gray-400">
+                Nenhum número encontrado com o filtro selecionado
+              </div>
+            )}
+            
+            {visibleNumbersCount < filteredNumbers.length && (
+              <div className="flex justify-center mt-3">
+                <button 
+                  onClick={handleShowMore} 
+                  className="flex items-center gap-1 py-2 px-4 text-sm bg-vegas-gold hover:bg-[#D4AF37] text-black font-medium rounded-md transition-colors"
+                >
+                  Mostrar Mais <ChevronDown className="h-4 w-4" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Distribution Pie Chart */}
