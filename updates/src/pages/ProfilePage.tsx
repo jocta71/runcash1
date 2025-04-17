@@ -62,7 +62,7 @@ const ProfilePage = () => {
       variant: "default"
     });
   };
-  return <div className="flex min-h-screen bg-[#0B0A0F]">
+  return <div className="flex min-h-screen bg-[#22c55e0d]">
       <div className="w-64 flex-shrink-0">
         <Sidebar />
       </div>

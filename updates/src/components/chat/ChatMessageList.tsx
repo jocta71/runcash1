@@ -1,4 +1,3 @@
-
 import React from 'react';
 import ChatMessage from './ChatMessage';
 import { ChatMessage as ChatMessageType } from './types';
@@ -9,7 +8,7 @@ interface ChatMessageListProps {
 
 const ChatMessageList = ({ messages }: ChatMessageListProps) => {
   return (
-    <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-none bg-[#0b0a0f]">
+    <div className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-none bg-[#22c55e0d]">
       {messages.map((msg) => (
         <ChatMessage key={msg.id} message={msg} />
       ))}

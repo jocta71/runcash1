@@ -42,7 +42,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   
   const sidebarClasses = isMobile
     ? "h-full w-full mobile-sidebar-inner animate-slide-right"
-    : "h-screen fixed top-0 left-0 w-64 hidden md:flex flex-col animate-slide-right z-40 bg-[#0B0A0F] border-r border-[#33333359]";
+    : "h-screen fixed top-0 left-0 w-64 hidden md:flex flex-col animate-slide-right z-40 bg-[#22c55e0d] border-r border-[#33333359]";
   
   const content = (
     <div className="p-3 flex flex-col h-full justify-between">

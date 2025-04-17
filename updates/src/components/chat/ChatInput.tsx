@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Send } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -12,7 +11,7 @@ interface ChatInputProps {
 
 const ChatInput = ({ newMessage, setNewMessage, handleSendMessage }: ChatInputProps) => {
   return (
-    <form onSubmit={handleSendMessage} className="p-3 border-t border-[#33333359] bg-[#0b0a0f]">
+    <form onSubmit={handleSendMessage} className="p-3 border-t border-[#33333359] bg-[#22c55e0d]">
       <div className="flex items-center gap-1 bg-[#1A191F] rounded-md px-2 py-1">
         <Input 
           value={newMessage}

@@ -3,7 +3,7 @@ import NavbarAuth from './NavbarAuth';
 
 const Navbar = () => {
   return (
-    <nav className="bg-[#0B0A0F] border-b border-[#33333359] sticky top-0 z-50">
+    <nav className="bg-[#22c55e0d] border-b border-[#33333359] sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between h-16 items-center">
           <div className="flex-shrink-0">

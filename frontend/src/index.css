@@ -123,7 +123,7 @@
   }
   
   .mobile-sidebar-inner {
-    @apply w-3/4 max-w-xs h-full bg-[#0B0A0F] overflow-auto border-r border-[#33333359];
+    @apply w-3/4 max-w-xs h-full bg-[#22c55e0d] overflow-auto border-r border-[#33333359];
   }
   
   .mobile-header {

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { CreditCard, Check } from 'lucide-react';
@@ -20,7 +19,7 @@ const BillingPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0B0A0F]">
+    <div className="flex min-h-screen bg-[#22c55e0d]">
       <div className="w-64 flex-shrink-0">
         <Sidebar />
       </div>
