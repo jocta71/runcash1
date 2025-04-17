@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -15,9 +15,15 @@ const GoogleAuthHandler = () => {
   const { setToken, setUser } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const handlerExecuted = useRef(false);
 
   useEffect(() => {
+    // Evitar execuções duplicadas
+    if (handlerExecuted.current) return;
+    
     const handleGoogleAuth = async () => {
+      handlerExecuted.current = true;
+      
       // Verificar se há um token do Google Auth na URL
       const urlParams = new URLSearchParams(window.location.search);
       const googleToken = urlParams.get('google_token');
@@ -25,18 +31,26 @@ const GoogleAuthHandler = () => {
       // Verificar se o login via Google foi iniciado
       const googleAuthInProgress = localStorage.getItem('googleAuthInProgress');
       
+      // Se não há token nem processo em andamento, não fazer nada
+      if (!googleToken && googleAuthInProgress !== 'true') return;
+      
       // Se houver um token na URL, processar a autenticação
       if (googleToken) {
         try {
-          console.log('GoogleAuthHandler: Token do Google encontrado na URL');
-          
-          // Salvar o token no cookie
-          Cookies.set('token', googleToken, {
-            secure: true,
-            sameSite: 'none',
+          // Configurar cookie com opções adequadas ao ambiente
+          const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+          const cookieOptions = {
+            secure: isLocalhost ? false : window.location.protocol === "https:",
+            sameSite: isLocalhost ? 'lax' as const : 'none' as const,
             path: '/',
             expires: 30
-          });
+          };
+          
+          // Salvar o token no cookie
+          Cookies.set('token', googleToken, cookieOptions);
+          
+          // Salvar no localStorage como backup
+          localStorage.setItem('auth_token_backup', googleToken);
           
           // Atualizar o estado de autenticação
           setToken(googleToken);
@@ -68,8 +82,6 @@ const GoogleAuthHandler = () => {
             navigate('/');
           }
         } catch (error) {
-          console.error('Erro ao processar autenticação do Google:', error);
-          
           // Limpar a flag que indica login Google em progresso
           localStorage.removeItem('googleAuthInProgress');
           
@@ -83,12 +95,8 @@ const GoogleAuthHandler = () => {
           navigate('/login');
         }
       }
-      // Se o login via Google foi iniciado mas não há token na URL,
-      // verificar se o usuário está voltando da página de autenticação do Google
+      // Se o login via Google foi iniciado mas não há token na URL
       else if (googleAuthInProgress === 'true') {
-        // O usuário estava tentando fazer login com Google mas algo deu errado
-        console.log('Login via Google iniciado mas não completado');
-        
         // Limpar a flag
         localStorage.removeItem('googleAuthInProgress');
         
@@ -101,7 +109,12 @@ const GoogleAuthHandler = () => {
       }
     };
     
-    handleGoogleAuth();
+    // Executar com um pequeno delay para não bloquear a renderização inicial
+    const timer = setTimeout(() => {
+      handleGoogleAuth();
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, [navigate, setToken, setUser, toast]);
   
   // Este componente não renderiza nada visualmente

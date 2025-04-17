@@ -61,21 +61,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Configurar axios para sempre enviar credenciais (cookies)
     axios.defaults.withCredentials = true;
-    
-    console.log('Axios configurado para enviar cookies em todas requisições');
   }, []);
 
   // Verificar autenticação ao carregar
   useEffect(() => {
     const checkAuthOnLoad = async () => {
-      console.log('Verificando autenticação ao carregar a página');
-      
       // Verificar se há um token do Google Auth na URL
       const urlParams = new URLSearchParams(window.location.search);
       const googleToken = urlParams.get('google_token');
       
       if (googleToken) {
-        console.log('Token do Google encontrado na URL, salvando...');
         // Salvar o token e limpar a URL
         saveToken(googleToken);
         
@@ -89,7 +84,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           if (response.data.success) {
             setUser(response.data.data);
-            console.log('Dados do usuário carregados após login do Google');
             
             // Limpar o token da URL
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -104,7 +98,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Verificação normal de autenticação
       const authResult = await checkAuth();
-      console.log('Resultado da verificação de autenticação:', authResult ? 'autenticado' : 'não autenticado');
       setLoading(false);
     };
     
@@ -117,7 +110,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const interceptorId = axios.interceptors.request.use(
       (config) => {
         if (token) {
-          console.log('Adicionando token ao header de autorização:', token.substring(0, 15) + '...');
           config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
@@ -133,32 +125,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Verificar se o usuário está autenticado
   const checkAuth = async (): Promise<boolean> => {
-    // Verificar primeiro no cookie
+    // Verificar primeiro no cookie (mais rápido)
     const storedToken = Cookies.get(TOKEN_COOKIE_NAME);
     
-    // Se não encontrar no cookie, tentar no localStorage (fallback)
-    const backupToken = !storedToken ? localStorage.getItem('auth_token_backup') : null;
+    // Se token encontrado, verificar com API
+    if (storedToken) {
+      return verifyTokenWithApi(storedToken);
+    }
     
-    // Se encontrou no localStorage mas não no cookie, restaurar no cookie
-    if (!storedToken && backupToken) {
-      console.log('Token não encontrado no cookie, mas recuperado do localStorage. Restaurando...');
+    // Se não encontrar no cookie, tentar no localStorage (fallback)
+    const backupToken = localStorage.getItem('auth_token_backup');
+    
+    // Se encontrou no localStorage mas não no cookie, restaurar no cookie e verificar
+    if (backupToken) {
       saveToken(backupToken);
-      // Usar o token restaurado
       return verifyTokenWithApi(backupToken);
     }
     
-    if (!storedToken) {
-      console.log('Nenhum token encontrado no cookie ou localStorage');
-      return false;
-    }
-
-    return verifyTokenWithApi(storedToken);
+    // Nenhum token encontrado
+    return false;
   };
 
   // Função para verificar o token com a API
   const verifyTokenWithApi = async (token: string): Promise<boolean> => {
     try {
-      console.log('Verificando autenticação com o token:', token.substring(0, 15) + '...');
       const response = await axios.get(`${API_URL}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`
@@ -167,11 +157,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (response.data.success) {
         setUser(response.data.data);
-        setToken(token); // Assegurar que o token está no estado
-        console.log('Autenticação verificada com sucesso');
+        setToken(token);
         return true;
       } else {
-        console.log('Token inválido retornado pela API');
+        // Token inválido - limpar tudo
         Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
         localStorage.removeItem('auth_token_backup');
         setToken(null);
@@ -179,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
     } catch (error) {
-      console.error('Erro ao verificar autenticação:', error);
+      // Erro na verificação - limpar tudo
       Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
       localStorage.removeItem('auth_token_backup');
       setToken(null);
@@ -190,11 +179,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Função auxiliar para salvar token
   const saveToken = (newToken: string) => {
-    console.log('Salvando token no cookie com as opções:', COOKIE_OPTIONS);
-    
     // Verificar ambiente atual para ajustar configurações
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    const isDevEnvironment = isLocalhost || window.location.hostname.includes("vercel.app");
     
     // Configurar opções específicas do ambiente
     const cookieOptions = {
@@ -204,15 +190,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sameSite: isLocalhost ? 'lax' as const : COOKIE_OPTIONS.sameSite
     };
     
-    // Salvar no cookie do lado cliente - não pode ser HttpOnly pelo frontend
+    // Salvar no cookie do lado cliente
     Cookies.set(TOKEN_COOKIE_NAME, newToken, cookieOptions);
     
-    // Salvar também no localStorage como fallback (será usado apenas se o cookie falhar)
-    try {
-      localStorage.setItem('auth_token_backup', newToken);
-    } catch (error) {
-      console.warn('Não foi possível salvar o token no localStorage:', error);
-    }
+    // Salvar também no localStorage como fallback
+    localStorage.setItem('auth_token_backup', newToken);
     
     setToken(newToken);
   };
@@ -290,36 +272,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Logout
   const signOut = () => {
-    console.log('Realizando logout e limpando todos os dados de autenticação');
-    
-    // Limpar cookie
+    // Limpar cookie com várias opções para garantir remoção
     Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
-    
-    // Remover opções adicionais para casos específicos
-    Cookies.remove(TOKEN_COOKIE_NAME, { 
-      path: '/',
-      secure: true,
-      sameSite: 'none'
-    });
-    
-    // Limpar também sem as opções (fallback)
     Cookies.remove(TOKEN_COOKIE_NAME);
     
     // Limpar localStorage
-    try {
-      localStorage.removeItem('auth_token_backup');
-    } catch (error) {
-      console.warn('Erro ao limpar localStorage:', error);
-    }
+    localStorage.removeItem('auth_token_backup');
     
     // Limpar estados
     setToken(null);
     setUser(null);
     
     // Chamar logout na API para limpar também cookies HttpOnly
-    axios.get(`${API_URL}/auth/logout`).catch((error) => {
-      console.warn('Erro ao chamar logout na API:', error);
-    });
+    axios.get(`${API_URL}/auth/logout`).catch(() => {});
   };
 
   // Valor do contexto

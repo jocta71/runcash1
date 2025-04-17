@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import LoadingScreen from './LoadingScreen';
@@ -13,14 +13,22 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { user, loading, checkAuth } = useAuth();
   const location = useLocation();
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    // Verificar autenticação quando o componente montar
-    checkAuth();
-  }, [checkAuth]);
+    // Evitar verificações repetidas se já tiver um usuário ou já estiver verificado
+    if (!user && !authChecked && !loading) {
+      const verifyAuth = async () => {
+        await checkAuth();
+        setAuthChecked(true);
+      };
+      
+      verifyAuth();
+    }
+  }, [user, authChecked, loading, checkAuth]);
 
-  // Enquanto verifica autenticação, mostrar tela de carregamento
-  if (loading) {
+  // Mostrar tela de carregamento apenas durante a verificação inicial
+  if (loading && !authChecked) {
     return <LoadingScreen />;
   }
 
