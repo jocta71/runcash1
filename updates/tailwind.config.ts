@@ -63,7 +63,7 @@ export default {
 					green: {
 						DEFAULT: '#00FF00',
 						light: '#A3FFA3',
-						dark: '#1A3D1A',
+						dark: 'rgb(25, 31, 27)',
 						muted: '#C8E9C8'
 					},
 					gold: '#FFFFFF',        // Changed from D4AF37 to white
