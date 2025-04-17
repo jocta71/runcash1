@@ -303,3 +303,13 @@ img.video {
   width: 100%;
   height: auto;
 }
+
+.w-full {
+  width: 100%;
+}
+.h-full {
+  height: 100%;
+}
+img {
+  max-width: 100%;
+}

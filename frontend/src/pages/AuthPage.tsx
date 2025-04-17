@@ -169,8 +169,8 @@ const AuthPage = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
       <Card className="w-full max-w-md shadow-xl border-gray-800">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="flex justify-center py-8">
-            <Logo width={240} />
+          <CardTitle>
+            <Logo />
           </CardTitle>
           <CardDescription>
             {activeTab === 'login' ? 'Faça login para continuar' : 'Crie sua conta'}
