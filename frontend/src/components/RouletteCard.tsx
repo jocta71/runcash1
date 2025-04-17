@@ -1,4 +1,4 @@
-import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, BarChart3, ChevronDown } from 'lucide-react';
+import { TrendingUp, Eye, EyeOff, Target, Star, RefreshCw, ArrowUp, ArrowDown, Loader2, HelpCircle, BarChart3 } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -94,17 +94,6 @@ interface RouletteCardProps {
   isDetailView?: boolean;
 }
 
-// Lista de estratégias disponíveis para a roleta
-const ESTRATEGIAS_ROLETA = [
-  { id: 'martingale', nome: 'Martingale', descricao: 'Dobre a aposta após cada perda' },
-  { id: 'dalembert', nome: 'D\'Alembert', descricao: 'Aumente a aposta em 1 unidade após perda, diminua após ganho' },
-  { id: 'fibonacci', nome: 'Fibonacci', descricao: 'Siga a sequência de Fibonacci para apostas' },
-  { id: 'labouchere', nome: 'Labouchère', descricao: 'Crie uma sequência de números e aposte a soma do primeiro e último' },
-  { id: 'paroli', nome: 'Paroli', descricao: 'Dobre a aposta após cada vitória' },
-  { id: 'colunas', nome: 'Colunas Alternadas', descricao: 'Aposte nas colunas alternando padrões' },
-  { id: 'duzias', nome: 'Dúzias Progressivas', descricao: 'Aposte nas dúzias com progressão' },
-];
-
 const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false }) => {
   // Estados
   const [lastNumber, setLastNumber] = useState<number | null>(null);
@@ -122,15 +111,12 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
-  const [estrategiaSelecionada, setEstrategiaSelecionada] = useState<string>('martingale'); // Martingale selecionado por padrão
-  const [showEstrategiaDropdown, setShowEstrategiaDropdown] = useState(false);
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const estrategiaButtonRef = useRef<HTMLButtonElement | null>(null);
   
   // Hooks
   const navigate = useNavigate();
@@ -201,20 +187,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     };
   }, [dataManager, componentId, handleDataUpdate]);
   
-  // Efeito para mostrar notificação da estratégia selecionada por padrão
-  useEffect(() => {
-    // Mostrar notificação sobre a estratégia padrão selecionada
-    if (enableNotifications) {
-      const estrategiaPadrao = ESTRATEGIAS_ROLETA.find(e => e.id === 'martingale');
-      if (estrategiaPadrao) {
-        setToastVisible(true);
-        setToastMessage(`Estratégia "${estrategiaPadrao.nome}" selecionada por padrão`);
-        setTimeout(() => setToastVisible(false), 3000);
-      }
-    }
-  }, [enableNotifications]); // Executar apenas uma vez após a montagem inicial
-  
-  // Adicionar um comentário para garantir que este é o único lugar fazendo requisições
+  // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
   // Console.log para verificar se há apenas uma fonte de requisições:
   console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas GlobalRouletteDataManager para obter dados da API.');
   
@@ -414,56 +387,14 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
   };
 
-  // Função para selecionar uma estratégia
-  const selecionarEstrategia = (estrategiaId: string) => {
-    const estrategia = ESTRATEGIAS_ROLETA.find(e => e.id === estrategiaId);
-    setEstrategiaSelecionada(estrategiaId);
-    setShowEstrategiaDropdown(false);
-    
-    if (estrategia && enableNotifications) {
-      setToastVisible(true);
-      setToastMessage(`Estratégia "${estrategia.nome}" selecionada`);
-      setTimeout(() => setToastVisible(false), 3000);
-    }
-  };
-
-  // Função para navegar até a página de estratégias
-  const navegarParaEstrategias = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
-    navigate('/strategies');
-  };
-
-  // Função simplificada para alternar o dropdown de estratégia
-  const toggleEstrategiaDropdown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowEstrategiaDropdown(!showEstrategiaDropdown);
-  };
-  
-  // Efeito para fechar o dropdown quando clicar fora
-  useEffect(() => {
-    if (showEstrategiaDropdown) {
-      const handleClickOutside = (e: MouseEvent) => {
-        if (estrategiaButtonRef.current && !estrategiaButtonRef.current.contains(e.target as Node)) {
-          setShowEstrategiaDropdown(false);
-        }
-      };
-      
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showEstrategiaDropdown]);
-
   return (
     <Card 
       ref={cardRef}
       className={cn(
         "relative overflow-visible transition-all duration-300 backdrop-filter backdrop-blur-sm bg-opacity-40 bg-[#0B0A0F] border border-gray-700", 
-        "hover:shadow-[0_0_15px_rgba(5,150,105,0.3)] hover:border-vegas-green/50",
-        isNewNumber ? "border-vegas-green shadow-[0_0_25px_rgba(5,150,105,0.5)] animate-pulse" : "",
-        isDetailView ? "w-full" : "w-full",
-        showEstrategiaDropdown ? "dropdown-open z-10" : ""
+        "hover:border-vegas-green/50",
+        isNewNumber ? "border-vegas-green animate-pulse" : "",
+        isDetailView ? "w-full" : "w-full"
       )}
       onClick={handleCardClick}
     >
@@ -501,7 +432,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         </div>
         
         {/* Números recentes */}
-        <div className="flex flex-wrap gap-1 justify-center my-5 bg-black bg-opacity-30 p-3 rounded-xl border border-gray-700/50 shadow-inner">
+        <div className="flex flex-wrap gap-1 justify-center my-5 bg-black bg-opacity-30 p-3 rounded-xl border border-gray-700/50">
           {recentNumbers.length > 0 ? (
             recentNumbers.slice(0, 20).map((num, idx) => (
             <NumberDisplay 
@@ -524,7 +455,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         </div>
         
         {/* Botões de ação */}
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex items-center justify-center mt-4">
           <button
             onClick={toggleStats}
             className="flex items-center gap-2 py-1.5 px-3 rounded-md bg-black bg-opacity-40 hover:bg-opacity-60 text-xs text-white border border-gray-700 transition-all duration-200 hover:border-vegas-green/50"
@@ -532,59 +463,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             <BarChart3 className="h-3.5 w-3.5 text-vegas-green" />
             {showStats ? "Ocultar estatísticas" : "Ver estatísticas"}
           </button>
-          
-          <div className="relative" ref={(el) => { if (el) estrategiaButtonRef.current = el as unknown as HTMLButtonElement; }}>
-            <button
-              onClick={toggleEstrategiaDropdown}
-              className="flex items-center gap-2 py-1.5 px-3 rounded-md bg-black bg-opacity-40 hover:bg-opacity-60 text-xs text-white border border-gray-700 transition-all duration-200 hover:border-vegas-green/50"
-            >
-              <Target className="h-3.5 w-3.5 text-vegas-green" />
-              Estratégias
-              <ChevronDown className="h-3 w-3" />
-            </button>
-            
-            {showEstrategiaDropdown && (
-              <div className="absolute right-0 mt-1 w-64 bg-[#14161F] bg-opacity-95 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-md shadow-lg overflow-hidden z-50">
-                <div className="p-2 border-b border-gray-700">
-                  <p className="text-xs text-gray-400">Selecione uma estratégia</p>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
-                  {ESTRATEGIAS_ROLETA.map((estrategia) => (
-                    <button
-                      key={estrategia.id}
-                      onClick={() => selecionarEstrategia(estrategia.id)}
-                      className={`w-full text-left p-2 text-xs hover:bg-black/20 transition-colors duration-150 flex items-start ${
-                        estrategiaSelecionada === estrategia.id ? 'bg-black/40 text-white' : 'text-gray-300'
-                      }`}
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium">{estrategia.nome}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{estrategia.descricao}</p>
-                      </div>
-                      {estrategiaSelecionada === estrategia.id && (
-                        <span className="text-vegas-green">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-                <div className="p-2 bg-gray-800/50 border-t border-gray-700">
-                  <button
-                    onClick={navegarParaEstrategias}
-                    className="w-full text-xs text-vegas-green hover:text-vegas-green/80 flex items-center justify-center"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                    Ver todas as estratégias
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </CardContent>
 
@@ -674,7 +552,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       
       {/* Modal de estatísticas completas */}
       <div className={`fixed inset-0 z-50 ${isStatsModalOpen ? 'flex' : 'hidden'} items-center justify-center bg-black/80`}>
-        <div className="w-[90%] max-w-4xl h-[90vh] rounded-xl overflow-hidden bg-[#14161F] border border-gray-700 shadow-2xl">
+        <div className="w-[90%] max-w-4xl h-[90vh] rounded-xl overflow-hidden bg-[#14161F] border border-gray-700">
           <div className="flex justify-between items-center p-4 border-b border-gray-700">
             <h2 className="text-xl font-bold text-white flex items-center">
               <BarChart3 className="mr-3 text-vegas-green h-6 w-6" />
@@ -703,7 +581,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
       {/* Toast de notificação */}
       {toastVisible && (
-        <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in">
+        <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
           {toastMessage}
         </div>
       )}
