@@ -460,6 +460,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       ref={cardRef}
       className={cn(
         "relative overflow-visible transition-all duration-300 hover:shadow-md", 
+        "green-glow-card",
         isNewNumber ? "border-green-500 shadow-green-200 animate-pulse" : "",
         isDetailView ? "w-full" : "w-full",
         showEstrategiaDropdown ? "dropdown-open z-10" : ""

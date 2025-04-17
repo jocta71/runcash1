@@ -81,6 +81,14 @@
     @apply bg-white/5 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl;
   }
 
+  .green-glow-card {
+    @apply relative border-opacity-75 border-green-900/20;
+    @apply backdrop-blur-sm backdrop-filter;
+    @apply shadow-[0_2px_15px_rgba(0,255,0,0.1),0_0_3px_rgba(0,255,0,0.15)_inset];
+    @apply before:absolute before:inset-0 before:-z-10 before:rounded-lg before:bg-green-500/5 before:blur-xl;
+    @apply after:absolute after:inset-0 after:-z-10 after:rounded-lg after:shadow-[0_0_15px_rgba(0,255,0,0.15)];
+  }
+
   .menu-item {
     @apply flex items-center gap-3 px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-[#22202a] transition-all duration-200 cursor-pointer text-sm;
   }
