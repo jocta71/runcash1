@@ -472,7 +472,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         <img 
           src="/assets/icon-rabbit.svg" 
           alt="Icon Rabbit" 
-          className="w-[80%] h-auto opacity-[0.025] grayscale filter select-none"
+          className="w-[95%] h-auto opacity-[0.025] grayscale filter select-none"
           style={{ 
             objectFit: "contain",
             transformOrigin: "center"
