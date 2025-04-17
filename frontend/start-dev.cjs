@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 const { execSync } = require('child_process');
 
 // Função para executar comandos
@@ -38,4 +36,5 @@ try {
   main();
 } catch (error) {
   console.error('Erro durante a inicialização do servidor:', error);
-  process.exit(1); 
+  process.exit(1);
+} 
