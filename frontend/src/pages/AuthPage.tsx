@@ -10,7 +10,6 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import axios from 'axios';
-import './AuthPage.css';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
@@ -168,10 +167,8 @@ const AuthPage = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
       <Card className="w-full max-w-md shadow-xl border-gray-800">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold flex justify-center py-6">
-            <div className="w-56">
-              <img src="/img/logo.svg" alt="RunCash Logo" className="video" />
-            </div>
+          <CardTitle className="text-2xl font-bold flex justify-center">
+            <img src="/img/logo.svg" alt="RunCash Logo" className="h-14" />
           </CardTitle>
           <CardDescription>
             {activeTab === 'login' ? 'Faça login para continuar' : 'Crie sua conta'}

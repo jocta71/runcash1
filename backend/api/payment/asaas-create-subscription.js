@@ -118,9 +118,9 @@ module.exports = async (req, res) => {
 
     // Registrar assinatura no MongoDB
     const dbSubscription = await db.collection('subscriptions').insertOne({
-          user_id: userId,
-          plan_id: planId,
-          status: 'pending',
+      user_id: userId,
+      plan_id: planId,
+      status: 'pending',
       payment_platform: 'asaas',
       payment_id: asaasSubscription.id,
       start_date: new Date(),
@@ -144,7 +144,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Erro ao processar solicitação',
       message: error.message
     });
@@ -154,4 +154,4 @@ module.exports = async (req, res) => {
       await client.close();
     }
   }
-}; 
+};
