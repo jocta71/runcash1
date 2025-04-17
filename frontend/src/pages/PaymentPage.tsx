@@ -12,7 +12,7 @@ const PaymentPage = () => {
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
-
+  
   useEffect(() => {
     if (!loading && availablePlans && planId) {
       const plan = availablePlans.find(p => p.id === planId);
@@ -70,8 +70,8 @@ const PaymentPage = () => {
                 ? 'Grátis' 
                 : `R$ ${selectedPlan.price.toFixed(2)}/${selectedPlan.interval === 'monthly' ? 'mês' : 'ano'}`}
             </p>
-          </div>
-          
+              </div>
+              
           {selectedPlan.interval === 'annual' && (
             <div className="bg-vegas-gold/20 text-vegas-gold text-sm px-3 py-1 rounded-full">
               2 meses grátis
@@ -80,11 +80,11 @@ const PaymentPage = () => {
         </div>
       </div>
 
-      <PaymentForm 
+            <PaymentForm 
         planId={planId || ''} 
-        onPaymentSuccess={handlePaymentSuccess}
-        onCancel={handleCancel}
-      />
+              onPaymentSuccess={handlePaymentSuccess}
+              onCancel={handleCancel}
+            />
     </div>
   );
 };
