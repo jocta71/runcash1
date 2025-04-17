@@ -622,8 +622,8 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const winRate = (wins / (wins + losses)) * 100;
 
   return (
-    <div className="w-full bg-[#14161F] rounded-lg overflow-y-auto max-h-screen shadow-xl">
-      <div className="p-6 border-b border-gray-800 bg-[#181C2A]">
+    <div className="w-full rounded-lg overflow-y-auto max-h-screen">
+      <div className="p-5 border-b border-gray-800 bg-opacity-40 backdrop-filter backdrop-blur-sm">
         <h2 className="text-white flex items-center text-xl font-bold mb-3">
           <BarChart className="mr-3 text-vegas-green h-6 w-6" /> Estatísticas da {roletaNome}
         </h2>
@@ -643,7 +643,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5">
           {/* Historical Numbers Section */}
-          <div className="p-5 rounded-xl border border-gray-700 bg-[#181C2A] shadow-md md:col-span-2">
+          <div className="p-5 rounded-xl border border-gray-700 bg-opacity-50 backdrop-filter backdrop-blur-sm shadow-md md:col-span-2">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
               <h3 className="text-white flex items-center text-base font-bold">
                 <BarChart className="mr-2 h-5 w-5 text-vegas-green" /> Histórico de Números 
@@ -661,7 +661,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
                       colorFilter === 'todos' 
                         ? 'bg-vegas-green text-black font-medium shadow-lg' 
-                        : 'bg-gray-800 text-white hover:bg-gray-700'
+                        : 'bg-black bg-opacity-50 text-white hover:bg-opacity-70'
                     }`}
                   >
                     Todos
@@ -671,7 +671,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
                       colorFilter === 'vermelho' 
                         ? 'bg-[#FF1D46] text-white font-medium shadow-lg' 
-                        : 'bg-gray-800 text-white hover:bg-gray-700'
+                        : 'bg-black bg-opacity-50 text-white hover:bg-opacity-70'
                     }`}
                   >
                     Vermelho
@@ -681,7 +681,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
                       colorFilter === 'preto' 
                         ? 'bg-[#292524] text-white font-medium shadow-lg' 
-                        : 'bg-gray-800 text-white hover:bg-gray-700'
+                        : 'bg-black bg-opacity-50 text-white hover:bg-opacity-70'
                     }`}
                   >
                     Preto
@@ -691,7 +691,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
                       colorFilter === 'verde' 
                         ? 'bg-vegas-green text-black font-medium shadow-lg' 
-                        : 'bg-gray-800 text-white hover:bg-gray-700'
+                        : 'bg-black bg-opacity-50 text-white hover:bg-opacity-70'
                     }`}
                   >
                     Zero
@@ -701,7 +701,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             </div>
             
             {visibleNumbers.length > 0 ? (
-              <div className="flex flex-wrap gap-2 p-4 border border-gray-700 rounded-xl bg-[#14161F] shadow-inner">
+              <div className="flex flex-wrap gap-2 p-4 border border-gray-700 rounded-xl bg-black bg-opacity-30 shadow-inner">
                 {visibleNumbers.map((n, idx) => (
                   <div 
                     key={idx} 
@@ -717,7 +717,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="flex justify-center items-center h-[200px] rounded-xl bg-[#14161F] text-gray-400">
+              <div className="flex justify-center items-center h-[200px] rounded-xl bg-black bg-opacity-30 text-gray-400">
                 Nenhum número encontrado com o filtro selecionado
               </div>
             )}
@@ -735,7 +735,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
 
           {/* Distribution Pie Chart */}
-          <div className="p-5 space-y-4 bg-[#181C2A] border border-gray-700 rounded-xl shadow-md">
+          <div className="p-5 space-y-4 bg-opacity-50 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl shadow-md">
             <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Distribuição por Cor
             </h3>
@@ -759,7 +759,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   <Legend verticalAlign="bottom" />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: '#222', 
+                      backgroundColor: 'rgba(0,0,0,0.8)', 
                       borderColor: '#059669',
                       borderRadius: '8px',
                       boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
@@ -771,7 +771,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Win Rate Chart */}
-          <div className="p-5 space-y-4 bg-[#181C2A] border border-gray-700 rounded-xl shadow-md">
+          <div className="p-5 space-y-4 bg-opacity-50 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl shadow-md">
             <h3 className="text-sm font-medium text-white flex items-center">
               <PercentIcon size={20} className="text-vegas-green mr-2" /> Taxa de Vitória
             </h3>
@@ -799,7 +799,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   <Legend verticalAlign="bottom" />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: '#222', 
+                      backgroundColor: 'rgba(0,0,0,0.8)', 
                       borderColor: '#059669',
                       borderRadius: '8px',
                       boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
@@ -811,12 +811,12 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Hot & Cold Numbers */}
-          <div className="p-5 space-y-4 md:col-span-2 bg-[#181C2A] border border-gray-700 rounded-xl shadow-md">
+          <div className="p-5 space-y-4 md:col-span-2 bg-opacity-50 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl shadow-md">
             <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Números Quentes & Frios
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-[#14161F] rounded-xl border border-gray-800 shadow-inner">
+              <div className="p-4 bg-black bg-opacity-30 rounded-xl border border-gray-800 shadow-inner">
                 <h4 className="text-xs font-medium text-red-400 mb-3 flex items-center">
                   <ArrowUp size={18} className="mr-2" /> Números Quentes
                 </h4>
@@ -832,7 +832,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                 </div>
               </div>
               
-              <div className="p-4 bg-[#14161F] rounded-xl border border-gray-800 shadow-inner">
+              <div className="p-4 bg-black bg-opacity-30 rounded-xl border border-gray-800 shadow-inner">
                 <h4 className="text-xs font-medium text-blue-400 mb-3 flex items-center">
                   <ArrowDown size={18} className="mr-2" /> Números Frios
                 </h4>
@@ -851,7 +851,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Frequency Chart */}
-          <div className="p-5 space-y-4 md:col-span-2 bg-[#181C2A] border border-gray-700 rounded-xl shadow-md">
+          <div className="p-5 space-y-4 md:col-span-2 bg-opacity-50 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl shadow-md">
             <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Frequência de Números
             </h3>
@@ -875,7 +875,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: '#222', 
+                      backgroundColor: 'rgba(0,0,0,0.8)', 
                       borderColor: '#059669', 
                       borderRadius: '8px',
                       boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
@@ -895,13 +895,13 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Média de cores por hora */}
-          <div className="p-5 space-y-4 md:col-span-2 bg-[#181C2A] border border-gray-700 rounded-xl shadow-md">
+          <div className="p-5 space-y-4 md:col-span-2 bg-opacity-50 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl shadow-md">
             <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Média de cores por hora
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {colorHourlyStats.map((stat, index) => (
-                <div key={`color-stat-${index}`} className="bg-[#14161F] border border-gray-800 rounded-xl p-4 shadow-md hover:shadow-lg transition-shadow duration-200">
+                <div key={`color-stat-${index}`} className="bg-black bg-opacity-30 border border-gray-800 rounded-xl p-4 shadow-md hover:shadow-lg transition-shadow duration-200">
                   <div className="flex items-center">
                     <div 
                       className="w-10 h-10 rounded-lg mr-3 flex items-center justify-center shadow-inner" 
@@ -913,7 +913,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                       <p className="text-sm font-medium text-white">{stat.name}</p>
                       <p className="text-xs text-gray-400 mt-1">
                         Total de {stat.total} 
-                        <span className="bg-[#1A1C25] text-xs px-2 py-0.5 rounded-full ml-2 text-vegas-green">
+                        <span className="bg-black bg-opacity-60 text-xs px-2 py-0.5 rounded-full ml-2 text-vegas-green">
                           {stat.percentage}%
                         </span>
                       </p>
