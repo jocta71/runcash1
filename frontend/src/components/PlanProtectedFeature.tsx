@@ -69,7 +69,7 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
   // Renderizar o componente de acesso bloqueado
   return (
     <div className="relative border border-dashed border-gray-600 rounded-md p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center">
+      <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-4 text-center">
         <LockKeyhole className="h-8 w-8 mb-2 text-red-400" />
         <h3 className="text-lg font-semibold mb-1">Recurso Bloqueado</h3>
         <p className="text-sm text-gray-300 mb-4">{message}</p>
