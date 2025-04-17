@@ -58,7 +58,7 @@ export default {
 					foreground: 'hsl(var(--card-foreground))'
 				},
 				vegas: {
-					black: '#0A0C14',
+					black: '#050505',
 					darkgray: '#161A26',
 					green: {
 						DEFAULT: '#00FF00',
@@ -188,7 +188,7 @@ export default {
 			},
 			backgroundImage: {
 				'gold-gradient': 'linear-gradient(135deg, #FFFFFF 0%, #F0F0F0 50%, #FFFFFF 100%)',  // Changed from gold to white/gray
-				'dark-gradient': 'linear-gradient(135deg, #0A0C14 0%, #161A26 100%)',
+				'dark-gradient': 'linear-gradient(135deg, #050505 0%, #161A26 100%)',
 				'table-felt': 'linear-gradient(135deg, #0E3B28 0%, #0D2F20 100%)'
 			}
 		}

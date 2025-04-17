@@ -118,11 +118,11 @@
   }
   
   .casino-gradient-bg {
-    @apply bg-gradient-to-b from-[#0A0C14] to-[#0A1716];
+    @apply bg-gradient-to-b from-[#050505] to-[#0A1010];
   }
   
   .casino-card {
-    @apply bg-gradient-to-b from-vegas-black/90 to-[#0A1716]/90 backdrop-blur-sm border border-white/20 rounded-xl shadow-lg;
+    @apply bg-gradient-to-b from-vegas-black/90 to-[#0A1010]/90 backdrop-blur-sm border border-white/20 rounded-xl shadow-lg;
   }
   
   .table-felt {

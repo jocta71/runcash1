@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { TrendingUp, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,7 +28,7 @@ const PopularBets = ({ bets, onSelectBet, className }: PopularBetsProps) => {
   const sortedBets = [...bets].sort((a, b) => b.players - a.players);
   
   return (
-    <div className={cn("bg-gradient-to-b from-vegas-black/80 to-[#0A1716]/80 rounded-xl border border-vegas-gold/20 p-4", className)}>
+    <div className={cn("bg-gradient-to-b from-vegas-black/80 to-[#0A1010]/80 rounded-xl border border-vegas-gold/20 p-4", className)}>
       <div className="flex items-center gap-2 mb-4">
         <TrendingUp size={18} className="text-vegas-gold" />
         <h3 className="text-vegas-gold font-bold">Apostas Populares</h3>

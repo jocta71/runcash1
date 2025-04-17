@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dices } from 'lucide-react';
@@ -60,7 +59,7 @@ const RouletteWheel = ({ onResult, size = 'md', className = '' }: RouletteWheelP
   
   return (
     <div className={`flex flex-col items-center ${className}`}>
-      <div className={`${sizeDimensions[size].wheel} relative overflow-hidden rounded-full border-4 border-vegas-gold shadow-xl bg-[#0A0C14] mb-4`}>
+      <div className={`${sizeDimensions[size].wheel} relative overflow-hidden rounded-full border-4 border-vegas-gold shadow-xl bg-[#050505] mb-4`}>
         {/* Inner wheel with numbers */}
         <div
           className="absolute inset-0 rounded-full"
