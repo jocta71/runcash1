@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface RouletteNumberProps {
@@ -15,7 +14,7 @@ const RouletteNumber = ({ number, className = '' }: RouletteNumberProps) => {
     if (redNumbers.includes(num)) {
       return "bg-red-600 text-white";
     } else {
-      return "bg-black text-white";
+      return "bg-transparent text-white";
     }
   };
 

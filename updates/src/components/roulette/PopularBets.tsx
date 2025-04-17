@@ -60,7 +60,7 @@ const PopularBets = ({ bets, onSelectBet, className }: PopularBetsProps) => {
                           ? 'bg-green-600 text-white' 
                           : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num) 
                             ? 'bg-red-600 text-white' 
-                            : 'bg-black text-white'
+                            : 'bg-transparent text-white'
                         }`}
                     >
                       {num}

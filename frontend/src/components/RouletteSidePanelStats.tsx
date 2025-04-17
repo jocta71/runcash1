@@ -623,7 +623,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
   return (
     <div className="w-full rounded-lg overflow-y-auto max-h-screen">
-      <div className="p-5 border-b border-gray-800 bg-opacity-40 backdrop-filter backdrop-blur-sm">
+      <div className="p-5 border-b border-gray-800 bg-opacity-40">
         <h2 className="text-white flex items-center text-xl font-bold mb-3">
           <BarChart className="mr-3 text-vegas-green h-6 w-6" /> Estatísticas da {roletaNome}
         </h2>
@@ -643,7 +643,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5">
           {/* Historical Numbers Section */}
-          <div className="p-5 rounded-xl border border-gray-700 bg-opacity-50 backdrop-filter backdrop-blur-sm md:col-span-2">
+          <div className="p-5 rounded-xl border border-gray-700 bg-opacity-50 md:col-span-2">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
               <h3 className="text-white flex items-center text-base font-bold">
                 <BarChart className="mr-2 h-5 w-5 text-vegas-green" /> Histórico de Números 
@@ -735,7 +735,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
 
           {/* Distribution Pie Chart */}
-          <div className="p-5 space-y-4 bg-opacity-50 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl">
+          <div className="p-5 space-y-4 bg-opacity-50 border border-gray-700 rounded-xl">
             <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Distribuição por Cor
             </h3>
@@ -770,7 +770,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Win Rate Chart */}
-          <div className="p-5 space-y-4 bg-opacity-50 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl">
+          <div className="p-5 space-y-4 bg-opacity-50 border border-gray-700 rounded-xl">
             <h3 className="text-sm font-medium text-white flex items-center">
               <PercentIcon size={20} className="text-vegas-green mr-2" /> Taxa de Vitória
             </h3>
@@ -809,7 +809,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Hot & Cold Numbers */}
-          <div className="p-5 space-y-4 md:col-span-2 bg-opacity-50 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl">
+          <div className="p-5 space-y-4 md:col-span-2 bg-opacity-50 border border-gray-700 rounded-xl">
             <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Números Quentes & Frios
             </h3>
@@ -849,7 +849,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Frequency Chart */}
-          <div className="p-5 space-y-4 md:col-span-2 bg-opacity-50 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl">
+          <div className="p-5 space-y-4 md:col-span-2 bg-opacity-50 border border-gray-700 rounded-xl">
             <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Frequência de Números
             </h3>
@@ -892,7 +892,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Média de cores por hora */}
-          <div className="p-5 space-y-4 md:col-span-2 bg-opacity-50 backdrop-filter backdrop-blur-sm border border-gray-700 rounded-xl">
+          <div className="p-5 space-y-4 md:col-span-2 bg-opacity-50 border border-gray-700 rounded-xl">
             <h3 className="text-sm font-medium text-white flex items-center">
               <ChartBar size={20} className="text-vegas-green mr-2" /> Média de cores por hora
             </h3>

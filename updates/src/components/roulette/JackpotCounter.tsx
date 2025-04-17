@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DollarSign, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -47,7 +46,7 @@ const JackpotCounter = ({
           <Trophy size={20} className="text-vegas-gold" />
           <h3 className="text-vegas-gold font-bold text-lg">JACKPOT</h3>
         </div>
-        <div className="bg-black px-2 py-1 rounded-md border border-vegas-gold/30">
+        <div className="bg-transparent px-2 py-1 rounded-md border border-vegas-gold/30">
           <DollarSign size={16} className="text-vegas-gold" />
         </div>
       </div>

@@ -21,7 +21,7 @@ const RouletteWheel = ({ onResult, size = 'md', className = '' }: RouletteWheelP
   const getNumberColor = (num: number) => {
     if (num === 0) return 'text-white bg-green-600';
     const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    return redNumbers.includes(num) ? 'text-white bg-red-600' : 'text-white bg-black';
+    return redNumbers.includes(num) ? 'text-white bg-red-600' : 'text-white bg-transparent';
   };
   
   const sizeDimensions = {

@@ -1,4 +1,3 @@
-
 import {
   Dialog,
   DialogContent,
@@ -105,7 +104,7 @@ const getRouletteNumberColor = (num: number) => {
   if (redNumbers.includes(num)) {
     return "bg-red-600 text-white";
   } else {
-    return "bg-black text-white";
+    return "bg-transparent text-white";
   }
 };
 

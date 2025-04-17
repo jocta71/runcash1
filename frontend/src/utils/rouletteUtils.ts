@@ -14,7 +14,7 @@ export const getRouletteNumberColor = (num: number): string => {
   } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
     return 'bg-red-600 text-white'; // Vermelho para números específicos
   } else {
-    return 'bg-black text-white'; // Preto para os demais números
+    return 'bg-transparent text-white'; // Transparente para os demais números
   }
 };
 

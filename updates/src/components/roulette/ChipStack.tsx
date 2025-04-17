@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface ChipStackProps {
@@ -17,7 +16,7 @@ const ChipStack = ({ amount, size = 'md' }: ChipStackProps) => {
       'bg-blue-600 border-blue-800',     // $500
       'bg-green-600 border-green-800',   // $1000
       'bg-purple-600 border-purple-800', // $5000
-      'bg-black border-gray-800'         // $10000
+      'bg-transparent border-gray-800'    // $10000
     ];
     return colors[index % colors.length];
   };

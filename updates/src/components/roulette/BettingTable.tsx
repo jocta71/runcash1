@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import ChipStack from './ChipStack';
@@ -46,10 +45,10 @@ const BettingTable = ({ onBetPlaced, className }: BettingTableProps) => {
     { name: '3rd col', numbers: Array.from({ length: 12 }, (_, i) => 3 * i + 3) }
   ];
   
-  const getNumberColor = (num: number) => {
+  const getNumberClass = (num: number) => {
     if (num === 0) return 'bg-green-600 text-white';
     const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    return redNumbers.includes(num) ? 'bg-red-600 text-white' : 'bg-black text-white';
+    return redNumbers.includes(num) ? 'bg-red-600 text-white' : 'bg-transparent text-white';
   };
   
   const isSelected = (num: number) => {
@@ -75,7 +74,7 @@ const BettingTable = ({ onBetPlaced, className }: BettingTableProps) => {
                 <div
                   key={num}
                   className={cn(
-                    getNumberColor(num),
+                    getNumberClass(num),
                     "aspect-square flex items-center justify-center rounded text-xs font-bold hover:opacity-80 cursor-pointer transition-all",
                     isSelected(num) && "ring-2 ring-vegas-gold animate-pulse-gold"
                   )}
@@ -140,7 +139,7 @@ const BettingTable = ({ onBetPlaced, className }: BettingTableProps) => {
           </div>
           <div 
             className={cn(
-              "bg-black text-white p-2 rounded cursor-pointer hover:bg-gray-900 transition-all",
+              "bg-transparent text-white p-2 rounded cursor-pointer hover:bg-gray-900 transition-all",
               selectedBet?.type === 'black' && "ring-2 ring-vegas-gold"
             )}
             onClick={() => handleSectionClick('black', [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35])}

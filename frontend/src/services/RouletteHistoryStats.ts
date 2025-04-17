@@ -196,16 +196,9 @@ class RouletteStatisticsService {
    * Retorna a cor CSS para um número da roleta
    */
   public getRouletteNumberColor(num: number) {
-    if (num === 0) return "bg-vegas-green text-black";
-    
-    // Red numbers
+    if (num === 0) return "bg-green-600 text-white";
     const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    
-    if (redNumbers.includes(num)) {
-      return "bg-red-600 text-white";
-    } else {
-      return "bg-black text-white";
-    }
+    return redNumbers.includes(num) ? "bg-red-600 text-white" : "bg-transparent text-white";
   }
   
   /**

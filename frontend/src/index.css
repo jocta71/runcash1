@@ -78,12 +78,11 @@
   }
 
   .glass-card {
-    @apply bg-white/5 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl;
+    @apply bg-white/5 border border-white/10 rounded-xl;
   }
 
   .green-glow-card {
     @apply relative border-opacity-75 border-[#1A3D1A]/50;
-    @apply backdrop-blur-sm backdrop-filter;
     @apply shadow-[0_2px_15px_rgba(0,255,0,0.1),0_0_3px_rgba(163,255,163,0.15)_inset];
     @apply before:absolute before:inset-0 before:-z-10 before:rounded-lg before:bg-gradient-to-r before:from-[#00FF00]/5 before:to-[#A3FFA3]/5 before:blur-xl;
     @apply after:absolute after:inset-0 after:-z-10 after:rounded-lg after:shadow-[0_0_15px_rgba(0,255,0,0.15)];
@@ -119,7 +118,7 @@
   }
   
   .mobile-sidebar {
-    @apply fixed inset-0 z-50 bg-vegas-black/90 backdrop-blur-sm transition-all duration-300 md:hidden;
+    @apply fixed inset-0 z-50 bg-vegas-black/90 transition-all duration-300 md:hidden;
   }
   
   .mobile-sidebar-inner {

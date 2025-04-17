@@ -43,7 +43,7 @@ const SeedPage = () => {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold text-[#00ff00] mb-6">Ferramenta de População de Números das Roletas</h1>
         
-        <div className="bg-[#17161e]/90 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
+        <div className="bg-[#17161e]/90 border border-white/10 rounded-xl p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Configurações</h2>
           
           <div className="mb-4">
@@ -74,7 +74,7 @@ const SeedPage = () => {
           </Button>
         </div>
         
-        <div className="bg-[#17161e]/90 backdrop-filter backdrop-blur-sm border border-white/10 rounded-xl p-6">
+        <div className="bg-[#17161e]/90 border border-white/10 rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-4">Logs</h2>
           
           <div className="bg-black/50 rounded-md p-4 h-80 overflow-y-auto font-mono text-sm">
