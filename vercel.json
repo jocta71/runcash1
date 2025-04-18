@@ -3,6 +3,18 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "functions": {
+    "api/asaas.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/user-api.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/endpoints-redirector.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
     "api/asaas-create-customer.js": {
       "memory": 1024,
       "maxDuration": 10
@@ -34,52 +46,68 @@
     "api/asaas-find-customer.js": {
       "memory": 1024,
       "maxDuration": 10
-    },
-    "api/test-page.js": {
-      "memory": 1024,
-      "maxDuration": 10
     }
   },
   "rewrites": [
     {
+      "source": "/api/asaas",
+      "destination": "/api/asaas.js"
+    },
+    {
+      "source": "/api/user-api",
+      "destination": "/api/user-api.js"
+    },
+    {
       "source": "/api/asaas-webhook",
-      "destination": "/api/asaas-webhook.js"
+      "destination": "/api/endpoints-redirector.js"
     },
     {
       "source": "/api/asaas-create-customer",
-      "destination": "/api/asaas-create-customer.js"
+      "destination": "/api/endpoints-redirector.js"
     },
     {
       "source": "/api/asaas-create-subscription",
-      "destination": "/api/asaas-create-subscription.js"
+      "destination": "/api/endpoints-redirector.js"
     },
     {
       "source": "/api/asaas-find-payment",
-      "destination": "/api/asaas-find-payment.js"
+      "destination": "/api/endpoints-redirector.js"
     },
     {
       "source": "/api/asaas-pix-qrcode",
-      "destination": "/api/asaas-pix-qrcode.js"
+      "destination": "/api/endpoints-redirector.js"
     },
     {
       "source": "/api/asaas-find-subscription",
-      "destination": "/api/asaas-find-subscription.js"
+      "destination": "/api/endpoints-redirector.js"
     },
     {
       "source": "/api/asaas-cancel-subscription",
-      "destination": "/api/asaas-cancel-subscription.js"
+      "destination": "/api/endpoints-redirector.js"
     },
     {
       "source": "/api/asaas-find-customer",
-      "destination": "/api/asaas-find-customer.js"
+      "destination": "/api/endpoints-redirector.js"
     },
     {
-      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|test-page).*)",
+      "source": "/api/check-payment-status",
+      "destination": "/api/endpoints-redirector.js"
+    },
+    {
+      "source": "/api/regenerate-pix-code",
+      "destination": "/api/endpoints-redirector.js"
+    },
+    {
+      "source": "/api/user",
+      "destination": "/api/endpoints-redirector.js"
+    },
+    {
+      "source": "/api/user-subscriptions",
+      "destination": "/api/endpoints-redirector.js"
+    },
+    {
+      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|asaas|user-api|endpoints-redirector|check-payment-status|regenerate-pix-code|user|user-subscriptions).*)",
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
-    },
-    {
-      "source": "/test",
-      "destination": "/api/test-page"
     },
     {
       "source": "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg|logo.png|img/).*)",
