@@ -1,0 +1,216 @@
+/* Estilos para a página de conta do usuário */
+
+.accountContainer {
+  padding: 2rem 0;
+}
+
+.accountHeader {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.card {
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  border: none;
+  margin-bottom: 1.5rem;
+}
+
+.card:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.cardHeader {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e5e5e5;
+  padding: 1rem 1.5rem;
+  font-weight: 600;
+  border-radius: 10px 10px 0 0;
+}
+
+.userInfoList {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.userInfoItem {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.userInfoItem:last-child {
+  border-bottom: none;
+}
+
+.label {
+  font-weight: 600;
+  color: #555;
+  margin-right: 0.5rem;
+}
+
+.editButton {
+  background-color: transparent;
+  border: 1px solid #007bff;
+  color: #007bff;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  margin-top: 1rem;
+}
+
+.editButton:hover {
+  background-color: #007bff;
+  color: white;
+}
+
+.subscriptionTable {
+  width: 100%;
+  margin-bottom: 1rem;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.subscriptionTable th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.subscriptionTable td {
+  padding: 0.75rem;
+  vertical-align: middle;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.statusBadge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+  text-align: center;
+}
+
+.active {
+  background-color: #28a745;
+  color: white;
+}
+
+.pending {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.inactive {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btnGroup {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.detailButton, .payButton {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.detailButton {
+  background-color: transparent;
+  border: 1px solid #6c757d;
+  color: #6c757d;
+}
+
+.detailButton:hover {
+  background-color: #6c757d;
+  color: white;
+}
+
+.payButton {
+  background-color: transparent;
+  border: 1px solid #007bff;
+  color: #007bff;
+}
+
+.payButton:hover {
+  background-color: #007bff;
+  color: white;
+}
+
+.noSubscriptions {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.noSubscriptionsText {
+  color: #6c757d;
+  margin-bottom: 1.5rem;
+}
+
+.plansButton {
+  display: inline-block;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  text-decoration: none;
+  transition: background-color 0.2s ease;
+}
+
+.plansButton:hover {
+  background-color: #0069d9;
+  text-decoration: none;
+  color: white;
+}
+
+.loadingContainer {
+  text-align: center;
+  padding: 3rem 0;
+}
+
+.spinner {
+  display: inline-block;
+  width: 2rem;
+  height: 2rem;
+  border: 0.25rem solid rgba(0, 123, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #007bff;
+  animation: spin 1s infinite linear;
+  margin-top: 1rem;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .subscriptionTable {
+    display: block;
+    overflow-x: auto;
+  }
+  
+  .btnGroup {
+    flex-direction: column;
+  }
+  
+  .detailButton, .payButton {
+    width: 100%;
+    margin-bottom: 0.25rem;
+  }
+} 
