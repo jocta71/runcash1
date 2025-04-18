@@ -41,14 +41,17 @@ module.exports = async (req, res) => {
       creditCardHolderInfo 
     } = req.body;
     
-    if (!planId || !userId || !customerId) {
+    // Gerar userId automático se não for fornecido
+    const userIdentifier = userId || `auto_${customerId}_${Date.now()}`;
+    
+    if (!planId || !customerId) {
       return res.status(400).json({ 
         error: 'Dados incompletos',
-        message: 'É necessário fornecer planId, userId e customerId'
+        message: 'É necessário fornecer planId e customerId'
       });
     }
     
-    console.log(`Iniciando criação de assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
+    console.log(`Iniciando criação de assinatura: planId=${planId}, userId=${userIdentifier}, customerId=${customerId}`);
     
     // Conectar ao MongoDB para buscar os dados do plano
     client = new MongoClient(MONGODB_URI);
@@ -68,7 +71,7 @@ module.exports = async (req, res) => {
       const subscriptionId = `free_${Date.now()}`;
       
       const subscription = await db.collection('subscriptions').insertOne({
-        user_id: userId,
+        user_id: userIdentifier,
         plan_id: planId,
         status: 'active',
         start_date: new Date(),
@@ -107,7 +110,7 @@ module.exports = async (req, res) => {
       nextDueDate: nextDueDateStr,
       cycle,
       description: `Assinatura ${planData.name} - ${planData.interval}`,
-      externalReference: userId,
+      externalReference: userIdentifier,
     };
 
     // Se for pagamento com cartão, adicionar os dados
@@ -196,7 +199,7 @@ module.exports = async (req, res) => {
     
     // Registrar assinatura no MongoDB
     const dbSubscription = await db.collection('subscriptions').insertOne({
-      user_id: userId,
+      user_id: userIdentifier,
       plan_id: planId,
       status: 'pending',
       payment_platform: 'asaas',
