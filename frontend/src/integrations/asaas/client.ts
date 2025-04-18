@@ -3,7 +3,6 @@
  */
 
 import axios, { AxiosError } from 'axios';
-import API_ROUTES from '@/config/api';
 
 // Configuração base do axios
 const api = axios.create({
@@ -142,7 +141,7 @@ export const createAsaasSubscription = async (
       holderCpfCnpj: payload.holderCpfCnpj ? `****${payload.holderCpfCnpj.slice(-4)}` : undefined
     });
     
-    const response = await axios.post<ApiResponse<SubscriptionResponse>>(API_ROUTES.payment.createSubscription, payload);
+    const response = await api.post<ApiResponse<SubscriptionResponse>>('api/asaas-create-subscription', payload);
     
     console.log('Resposta da API de criação de assinatura:', response.data);
     
@@ -230,7 +229,7 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
   try {
     console.log(`Buscando QR code PIX: paymentId=${paymentId}`);
     
-    const response = await axios.get<PixQrCodeResponse>(`${API_ROUTES.payment.pixQrCode}?paymentId=${paymentId}`);
+    const response = await api.get<PixQrCodeResponse>(`api/asaas-pix-qrcode?paymentId=${paymentId}`);
     
     console.log('Resposta da API de QR code PIX:', response.data);
     

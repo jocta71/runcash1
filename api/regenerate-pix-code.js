@@ -1,6 +1,5 @@
 // Endpoint para regenerar QR code PIX para um pagamento existente
 const axios = require('axios');
-const { MongoClient } = require('mongodb');
 
 module.exports = async (req, res) => {
   // Configuração de CORS
@@ -21,9 +20,6 @@ module.exports = async (req, res) => {
       error: 'Método não permitido' 
     });
   }
-  
-  // Definir timestamps para medição de performance
-  const startTime = Date.now();
   
   try {
     // Obter paymentId ou subscriptionId da query ou body
@@ -66,8 +62,7 @@ module.exports = async (req, res) => {
       headers: {
         'access_token': ASAAS_API_KEY,
         'Content-Type': 'application/json'
-      },
-      timeout: 10000 // Timeout de 10 segundos
+      }
     });
 
     // Se temos apenas o subscriptionId, precisamos buscar o paymentId
@@ -80,18 +75,9 @@ module.exports = async (req, res) => {
         });
         
         if (paymentsResponse.data.data && paymentsResponse.data.data.length > 0) {
-          // Buscar o pagamento mais recente em status pendente
-          const pendingPayments = paymentsResponse.data.data.filter(p => 
-            p.status !== 'RECEIVED' && p.status !== 'CONFIRMED' && p.status !== 'REFUNDED');
-          
-          if (pendingPayments.length > 0) {
-            paymentId = pendingPayments[0].id;
-            console.log(`Pagamento pendente encontrado: ${paymentId}`);
-          } else {
-            // Se não tiver pendentes, pegar o mais recente
-            paymentId = paymentsResponse.data.data[0].id;
-            console.log(`Nenhum pagamento pendente. Usando o mais recente: ${paymentId}`);
-          }
+          // Pegar o pagamento mais recente
+          paymentId = paymentsResponse.data.data[0].id;
+          console.log(`Pagamento encontrado: ${paymentId}`);
         } else {
           return res.status(404).json({
             success: false,
@@ -109,7 +95,7 @@ module.exports = async (req, res) => {
     }
 
     // Agora que temos o paymentId, buscar informações do pagamento
-    console.log(`Verificando detalhes do pagamento ${paymentId}...`);
+    console.log(`Verificando se o pagamento ${paymentId} é do tipo PIX...`);
     
     let payment;
     try {
@@ -126,13 +112,7 @@ module.exports = async (req, res) => {
       if (payment.status === 'RECEIVED' || payment.status === 'CONFIRMED') {
         return res.status(400).json({
           success: false,
-          error: 'Este pagamento já foi confirmado',
-          payment: {
-            id: payment.id,
-            value: payment.value,
-            status: payment.status,
-            dueDate: payment.dueDate
-          }
+          error: 'Este pagamento já foi confirmado'
         });
       }
       
@@ -146,94 +126,39 @@ module.exports = async (req, res) => {
       });
     }
     
-    // Gerar QR Code PIX com mecanismo de tentativas
+    // Gerar QR Code PIX
     console.log(`Gerando QR Code PIX para o pagamento ${paymentId}...`);
     
-    let qrCodeData = null;
-    const maxRetries = 3;
-    let lastError = null;
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        if (attempt > 0) {
-          // Adicionar atraso crescente entre tentativas
-          const delay = 500 * attempt; // 0, 500ms, 1000ms
-          console.log(`Tentativa ${attempt + 1}/${maxRetries}. Aguardando ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+    try {
+      const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`);
+      
+      console.log('QR Code PIX gerado com sucesso!');
+      
+      // Retornar QR Code e informações do pagamento
+      return res.status(200).json({
+        success: true,
+        payment: {
+          id: payment.id,
+          value: payment.value,
+          status: payment.status,
+          dueDate: payment.dueDate,
+          description: payment.description
+        },
+        qrCode: {
+          encodedImage: pixResponse.data.encodedImage,
+          payload: pixResponse.data.payload,
+          expirationDate: pixResponse.data.expirationDate
         }
-        
-        const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`);
-        qrCodeData = pixResponse.data;
-        
-        // Se obteve com sucesso, sair do loop
-        break;
-      } catch (pixError) {
-        lastError = pixError;
-        console.error(`Erro na tentativa ${attempt + 1}/${maxRetries}:`, pixError.message);
-        
-        if (pixError.response) {
-          console.error('Detalhes do erro:', {
-            status: pixError.response.status,
-            data: pixError.response.data
-          });
-        }
-      }
-    }
-    
-    // Verificar se conseguimos o QR Code
-    if (!qrCodeData) {
-      console.error('Falha em todas as tentativas de obter QR Code');
+      });
+    } catch (pixError) {
+      console.error('Erro ao gerar QR Code PIX:', pixError.message);
+      
       return res.status(500).json({
         success: false,
-        error: 'Não foi possível gerar o QR Code após várias tentativas',
-        details: lastError?.message || 'Erro desconhecido'
+        error: 'Erro ao gerar QR Code PIX',
+        details: pixError.message
       });
     }
-    
-    console.log('QR Code PIX gerado com sucesso!');
-    
-    // Tentar registrar no MongoDB, se configurado
-    if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
-      try {
-        const client = new MongoClient(process.env.MONGODB_URI);
-        await client.connect();
-        const db = client.db(process.env.MONGODB_DB_NAME || 'runcash');
-        
-        // Registrar log da operação
-        await db.collection('pix_regeneration_logs').insertOne({
-          payment_id: paymentId,
-          subscription_id: subscriptionId,
-          timestamp: new Date(),
-          success: true,
-          processing_time_ms: Date.now() - startTime
-        });
-        
-        await client.close();
-      } catch (dbError) {
-        console.error('Erro ao registrar regeneração no MongoDB:', dbError.message);
-        // Não falhamos a request se o log falhar
-      }
-    }
-    
-    // Retornar QR Code e informações do pagamento
-    return res.status(200).json({
-      success: true,
-      payment: {
-        id: payment.id,
-        value: payment.value,
-        status: payment.status,
-        dueDate: payment.dueDate,
-        description: payment.description,
-        customer: payment.customer,
-        subscription: payment.subscription
-      },
-      qrCode: {
-        encodedImage: qrCodeData.encodedImage,
-        payload: qrCodeData.payload,
-        expirationDate: qrCodeData.expirationDate
-      },
-      processingTime: Date.now() - startTime
-    });
   } catch (error) {
     console.error('Erro inesperado:', error.message);
     

@@ -187,100 +187,84 @@ module.exports = async (req, res) => {
       try {
         console.log(`Buscando pagamento para assinatura ${subscription.id}...`);
         
-        // Abordagem otimizada: Verificar se o pagamento está disponível na resposta da assinatura (firstPayment)
+        // Verificar se o pagamento já está disponível na resposta da assinatura
         if (subscription.firstPayment) {
-          console.log(`Pagamento encontrado nos dados da assinatura:`, subscription.firstPayment);
+          console.log(`Encontrado firstPayment na resposta da assinatura:`, subscription.firstPayment);
           paymentId = subscription.firstPayment.id;
           
-          // Solicitar QR Code PIX utilizando ID do pagamento
           try {
-            console.log(`Solicitando QR Code PIX para pagamento ${paymentId}...`);
+            console.log(`Solicitando QR Code PIX para pagamento ${paymentId} (via firstPayment)...`);
             const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`);
             
             qrCode = {
               encodedImage: pixResponse.data.encodedImage,
-              payload: pixResponse.data.payload,
-              expirationDate: pixResponse.data.expirationDate
+              payload: pixResponse.data.payload
             };
             
-            console.log('QR Code PIX obtido com sucesso');
-            
-            // Também obter detalhes adicionais do pagamento
-            const paymentDetails = await apiClient.get(`/payments/${paymentId}`);
-            console.log(`Detalhes do pagamento obtidos: status=${paymentDetails.data.status}, valor=${paymentDetails.data.value}`);
-            
-          } catch (pixError) {
-            console.error(`Erro ao obter QR Code PIX para pagamento ${paymentId}:`, pixError.message);
-            
-            // Se ocorrer erro, registrar detalhes completos para diagnóstico
-            if (pixError.response) {
-              console.error('Detalhes do erro:', {
-                status: pixError.response.status,
-                data: pixError.response.data
-              });
-            }
+            console.log('QR Code PIX gerado com sucesso via firstPayment');
+          } catch (fpPixError) {
+            console.error(`Erro ao obter QR Code do firstPayment:`, fpPixError.message);
           }
         }
         
         // Se não conseguiu o QR code via firstPayment, tentar via API de pagamentos
         if (!qrCode) {
-          // Implementar um mecanismo de tentativas com intervalos crescentes
-          const maxRetries = 3;
-          const initialDelay = 500; // 500ms
-          
-          for (let attempt = 0; attempt < maxRetries && !qrCode; attempt++) {
+          // Obter o pagamento associado à assinatura
+          const paymentsResponse = await apiClient.get(`/payments`, {
+            params: { subscription: subscription.id }
+          });
+
+          console.log(`Resposta de pagamentos:`, {
+            status: paymentsResponse.status,
+            count: paymentsResponse.data.data ? paymentsResponse.data.data.length : 0
+          });
+
+          if (paymentsResponse.data.data && paymentsResponse.data.data.length > 0) {
+            const payment = paymentsResponse.data.data[0];
+            paymentId = payment.id;
+            
+            console.log(`Pagamento encontrado: ${paymentId}, status: ${payment.status}`);
+            
+            // Buscar QR Code PIX
+            console.log(`Solicitando QR Code PIX para pagamento ${paymentId}...`);
+            
             try {
-              // Aplicar delay progressivo (0ms, 500ms, 1000ms)
-              const delay = attempt > 0 ? initialDelay * attempt : 0;
-              if (delay > 0) {
-                console.log(`Aguardando ${delay}ms antes da tentativa ${attempt + 1}...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-              }
+              const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`);
               
-              // Obter o pagamento associado à assinatura
-              const paymentsResponse = await apiClient.get(`/payments`, {
-                params: { subscription: subscription.id }
+              console.log(`QR Code obtido com sucesso:`, {
+                hasEncodedImage: !!pixResponse.data.encodedImage,
+                hasPayload: !!pixResponse.data.payload,
+                dataSize: JSON.stringify(pixResponse.data).length
               });
-
-              console.log(`Resposta de pagamentos (tentativa ${attempt + 1}):`, {
-                status: paymentsResponse.status,
-                count: paymentsResponse.data.data ? paymentsResponse.data.data.length : 0
+              
+              qrCode = {
+                encodedImage: pixResponse.data.encodedImage,
+                payload: pixResponse.data.payload
+              };
+              
+              console.log('QR Code PIX gerado com sucesso');
+            } catch (pixSpecificError) {
+              console.error(`Erro ao obter QR Code PIX para pagamento ${paymentId}:`, {
+                message: pixSpecificError.message,
+                status: pixSpecificError.response?.status,
+                data: pixSpecificError.response?.data
               });
-
-              if (paymentsResponse.data.data && paymentsResponse.data.data.length > 0) {
-                const payment = paymentsResponse.data.data[0];
-                paymentId = payment.id;
-                
-                console.log(`Pagamento encontrado: ${paymentId}, status: ${payment.status}`);
-                
-                // Buscar QR Code PIX
-                const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`);
-                
-                console.log(`QR Code obtido com sucesso:`, {
-                  hasEncodedImage: !!pixResponse.data.encodedImage,
-                  hasPayload: !!pixResponse.data.payload
+              
+              // Tentar obter informações do pagamento diretamente
+              try {
+                const paymentDetailsResponse = await apiClient.get(`/payments/${paymentId}`);
+                console.log(`Detalhes do pagamento:`, {
+                  status: paymentDetailsResponse.data.status,
+                  billingType: paymentDetailsResponse.data.billingType,
+                  value: paymentDetailsResponse.data.value
                 });
-                
-                qrCode = {
-                  encodedImage: pixResponse.data.encodedImage,
-                  payload: pixResponse.data.payload,
-                  expirationDate: pixResponse.data.expirationDate
-                };
-                
-                // Se encontrou o QR code, parar as tentativas
-                break;
-              } else {
-                console.warn(`Nenhum pagamento encontrado para assinatura ${subscription.id} na tentativa ${attempt + 1}`);
+              } catch (detailsError) {
+                console.error(`Erro ao obter detalhes do pagamento:`, detailsError.message);
               }
-            } catch (attemptError) {
-              console.error(`Erro na tentativa ${attempt + 1}:`, attemptError.message);
             }
+          } else {
+            console.warn(`Nenhum pagamento encontrado para assinatura ${subscription.id}`);
           }
-        }
-        
-        // Se ainda não temos QR Code, informar claramente ao cliente que ele pode usar o endpoint de regeneração
-        if (!qrCode && paymentId) {
-          console.log(`QR Code não pôde ser obtido. Cliente deverá usar endpoint de regeneração com paymentId=${paymentId}`);
         }
       } catch (pixError) {
         console.error('Erro ao obter QR Code PIX:', {

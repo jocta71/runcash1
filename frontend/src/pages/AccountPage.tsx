@@ -2,9 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { Spinner } from '../components/ui/spinner';
-import API_ROUTES from '@/config/api';
 
 interface Subscription {
   subscription_id: string;
@@ -43,8 +42,8 @@ export default function AccountPage() {
       try {
         setLoading(true);
         
-        // Buscar assinaturas do usuário no backend do Railway
-        const response = await axios.get(`${API_ROUTES.user.subscriptions}?userId=${user.id}`);
+        // Buscar assinaturas do usuário
+        const response = await axios.get(`/api/user-subscriptions?userId=${user.id}`);
         
         if (response.data.success) {
           setSubscriptions(response.data.subscriptions || []);
