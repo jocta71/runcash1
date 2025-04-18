@@ -6,6 +6,12 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { createAsaasCustomer, createAsaasSubscription } from '@/integrations/asaas/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card } from '@/components/ui/card';
+import { CreditCard, QrCode } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
+import axios from 'axios';
+import PixPayment from './PixPayment';
 
 // Função para formatar CPF
 const formatCPF = (value: string) => {
@@ -51,7 +57,7 @@ interface SubscriptionResponse {
   status: string;
 }
 
-export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormProps) => {
+export function PaymentForm({ planId, onPaymentSuccess, onCancel }: PaymentFormProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -62,7 +68,9 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit-card'>('pix');
+  const [subscriptionData, setSubscriptionData] = useState<any>(null);
+
   // Atualizar dados do formulário quando o usuário mudar
   useEffect(() => {
     if (user) {
@@ -174,112 +182,150 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
       setIsLoading(false);
     }
   };
-  
+
+  const handleCreateSubscription = async () => {
+    if (!user || !user.id) {
+      setError('Você precisa estar autenticado para continuar.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Criar assinatura
+      const response = await axios.post('/api/asaas-create-subscription', {
+        customerId: user.asaasId || user.id, // Usar o ID do usuário caso asaasId não exista
+        planId: planId,
+        userId: user.id,
+        billingType: paymentMethod === 'pix' ? 'PIX' : 'CREDIT_CARD', 
+        description: `Assinatura RunCash - Plano ${planId}`
+      });
+
+      if (response.data.success) {
+        const { subscriptionId, paymentId, qrCode } = response.data.data;
+        
+        console.log('Assinatura criada com sucesso:', {
+          subscriptionId,
+          paymentId,
+          hasQrCode: !!qrCode
+        });
+        
+        // Armazenar dados da assinatura
+        setSubscriptionData({
+          subscriptionId,
+          paymentId,
+          qrCode
+        });
+        
+        // Se for pagamento PIX e não tiver QR Code, mostrar toast de instruções
+        if (paymentMethod === 'pix' && !qrCode) {
+          toast({
+            title: 'QR Code sendo gerado',
+            description: 'Aguarde um momento enquanto o QR Code do PIX é gerado.',
+            duration: 5000
+          });
+        }
+      } else {
+        setError(response.data.error || 'Erro ao criar assinatura');
+      }
+    } catch (err: any) {
+      console.error('Erro ao criar assinatura:', err);
+      setError(err.response?.data?.error || 'Erro ao comunicar com o servidor');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Iniciar processo de assinatura ao carregar o componente
+  useEffect(() => {
+    handleCreateSubscription();
+  }, []);
+
+  // Renderizar campos para cartão de crédito
+  const renderCreditCardForm = () => {
+    return (
+      <div className="space-y-4">
+        <p className="text-center text-gray-500 mb-4">
+          O pagamento com cartão de crédito será implementado em breve.
+        </p>
+        <Button variant="default" onClick={() => setPaymentMethod('pix')} className="w-full">
+          Usar PIX
+        </Button>
+      </div>
+    );
+  };
+
+  // Renderizar mensagem de erro
+  const renderError = () => {
+    if (!error) return null;
+    
+    return (
+      <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 flex items-start">
+        <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="font-medium">Erro ao processar pagamento</p>
+          <p>{error}</p>
+          <Button variant="outline" onClick={handleCreateSubscription} className="mt-2">
+            Tentar novamente
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  if (isLoading && !subscriptionData) {
+    return (
+      <Card className="p-6">
+        <div className="flex flex-col items-center justify-center p-8">
+          <Spinner size="lg" />
+          <p className="mt-4 text-gray-600">Preparando seu pagamento...</p>
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <div className="w-full p-6 mx-auto rounded-lg">
-      <h2 className="text-xl font-bold text-white mb-4">Complete seus dados de pagamento</h2>
-      <p className="text-gray-400 mb-4">
-        O pagamento será processado via PIX através da plataforma Asaas
-      </p>
+    <Card className="p-6">
+      {renderError()}
       
-      {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Erro</AlertTitle>
-          <AlertDescription dangerouslySetInnerHTML={{ __html: error }} />
-        </Alert>
-      )}
+      <Tabs defaultValue="pix" value={paymentMethod} onValueChange={(v: string) => setPaymentMethod(v as 'pix' | 'credit-card')}>
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="pix" className="flex items-center">
+            <QrCode className="w-4 h-4 mr-2" />
+            PIX
+          </TabsTrigger>
+          <TabsTrigger value="credit-card" className="flex items-center">
+            <CreditCard className="w-4 h-4 mr-2" />
+            Cartão de Crédito
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="pix" className="mt-0">
+          {subscriptionData ? (
+            <PixPayment 
+              paymentId={subscriptionData.paymentId}
+              subscriptionId={subscriptionData.subscriptionId}
+              qrCode={subscriptionData.qrCode}
+              onPaymentSuccess={onPaymentSuccess}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center p-8">
+              <p className="text-gray-600">Configurando pagamento com PIX...</p>
+            </div>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="credit-card" className="mt-0">
+          {renderCreditCardForm()}
+        </TabsContent>
+      </Tabs>
       
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-1">
-            Nome completo *
-          </label>
-          <Input
-            id="name"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            placeholder="Seu nome completo"
-            className="w-full bg-vegas-black border-gray-700"
-            required
-          />
-        </div>
-        
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
-            E-mail *
-          </label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            value={formData.email}
-            onChange={handleChange}
-            placeholder="seu@email.com"
-            className="w-full bg-vegas-black border-gray-700"
-            required
-          />
-        </div>
-        
-        <div>
-          <label htmlFor="cpf" className="block text-sm font-medium text-gray-300 mb-1">
-            CPF *
-          </label>
-          <Input
-            id="cpf"
-            name="cpf"
-            value={formData.cpf}
-            onChange={handleChange}
-            placeholder="XXX.XXX.XXX-XX"
-            maxLength={14}
-            className="w-full bg-vegas-black border-gray-700"
-            required
-          />
-        </div>
-        
-        <div>
-          <label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-1">
-            Telefone
-          </label>
-          <Input
-            id="phone"
-            name="phone"
-            value={formData.phone}
-            onChange={handleChange}
-            placeholder="(XX) XXXXX-XXXX"
-            maxLength={15}
-            className="w-full bg-vegas-black border-gray-700"
-          />
-        </div>
-        
-        <div className="pt-2 flex space-x-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            className="flex-1"
-            disabled={isLoading}
-          >
-            Cancelar
-          </Button>
-          
-          <Button
-            type="submit"
-            className="flex-1 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processando...
-              </>
-            ) : (
-              'Continuar para pagamento'
-            )}
-          </Button>
-        </div>
-      </form>
-    </div>
+      <div className="mt-6 pt-4 border-t border-gray-200">
+        <Button variant="outline" onClick={onCancel} className="w-full">
+          Cancelar
+        </Button>
+      </div>
+    </Card>
   );
-}; 
+} 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package, Beaker } from 'lucide-react';
+import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package, Beaker, User } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 interface SidebarProps {
@@ -14,14 +14,17 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   const navigate = useNavigate();
   
   const settingsOptions = [
-    { id: 'account-information', label: 'Conta', icon: Settings },
+    { id: 'account', label: 'Minha Conta', icon: User },
+    { id: 'account-information', label: 'Perfil', icon: Settings },
     { id: 'billing', label: 'Pagamentos', icon: CreditCard },
     { id: 'plans', label: 'Planos', icon: Package },
   ];
   
   const handleSettingsItemClick = (id: string) => {
     setActiveSettingsTab(id);
-    if (id === 'account-information') {
+    if (id === 'account') {
+      navigate('/account');
+    } else if (id === 'account-information') {
       navigate('/profile');
     } else if (id === 'billing') {
       navigate('/billing');
