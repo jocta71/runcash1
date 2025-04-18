@@ -52,36 +52,43 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Definir valor baseado no plano se não foi enviado ou é zero
-    let subscriptionValue = value;
+    // Tabela de valores oficiais para cada plano (único local confiável de preços)
+    const OFFICIAL_PLAN_PRICES = {
+      'basic': 19.90,
+      'basico': 19.90,
+      'pro': 49.90,
+      'premium': 99.90,
+      'professional': 49.90,
+      'profissional': 49.90,
+      'vip': 99.90
+    };
     
-    if (!subscriptionValue || subscriptionValue <= 0) {
-      // Mapeamento de valores padrão para cada plano
-      const planValues = {
-        'basic': 19.90,
-        'basico': 19.90,
-        'pro': 49.90,
-        'premium': 99.90,
-        'professional': 49.90,
-        'profissional': 49.90,
-        'vip': 99.90
-      };
-      
-      // Converter planId para minúsculas para busca no objeto
-      const planKey = planId.toString().toLowerCase();
-      
-      // Verificar se temos um valor padrão para este plano
-      if (planValues[planKey]) {
-        subscriptionValue = planValues[planKey];
-        console.log(`Valor não fornecido ou zero. Usando valor padrão ${subscriptionValue} para o plano ${planId}`);
-      } else {
-        // Se não temos um valor padrão para este plano, retornar erro
-        return res.status(400).json({ 
-          success: false,
-          error: 'O valor da assinatura deve ser maior que zero' 
-        });
-      }
+    // Converter planId para minúsculas para busca no objeto
+    const planKey = planId.toString().toLowerCase();
+    
+    // Verificar se o plano existe na tabela de preços oficiais
+    if (!OFFICIAL_PLAN_PRICES[planKey]) {
+      return res.status(400).json({ 
+        success: false,
+        error: `Plano '${planId}' não reconhecido`
+      });
     }
+    
+    // Obter o valor oficial para este plano
+    const officialPrice = OFFICIAL_PLAN_PRICES[planKey];
+    
+    // Valor recebido do cliente
+    const clientValue = parseFloat(value);
+    
+    // Sempre usar o valor oficial, mas registrar se um valor diferente foi enviado
+    if (!clientValue || clientValue <= 0) {
+      console.log(`Valor não fornecido ou inválido. Usando valor oficial ${officialPrice} para o plano ${planId}`);
+    } else if (clientValue !== officialPrice) {
+      console.warn(`ALERTA DE SEGURANÇA: Cliente tentou definir valor ${clientValue} para plano ${planId}. Usando valor oficial ${officialPrice}`);
+    }
+    
+    // Sempre usar o valor oficial, independente do que foi enviado
+    const subscriptionValue = officialPrice;
 
     // Configuração da API do Asaas
     const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
@@ -111,7 +118,8 @@ module.exports = async (req, res) => {
     console.log('Dados recebidos para criação de assinatura:', {
       customerId,
       planId,
-      value: subscriptionValue, // Usar o valor corrigido
+      valueFromClient: value,
+      valueUsed: subscriptionValue,
       billingType,
       cycle
     });
@@ -121,7 +129,7 @@ module.exports = async (req, res) => {
       customer: customerId,
       billingType,
       cycle,
-      value: subscriptionValue, // Usar o valor corrigido
+      value: subscriptionValue, // Usar sempre o valor oficial
       nextDueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Amanhã
       description: description || `Assinatura RunCash - Plano ${planId}`,
       callback: {
@@ -228,7 +236,7 @@ module.exports = async (req, res) => {
           payment_id: paymentId,
           status: subscription.status,
           billing_type: billingType,
-          value: subscriptionValue, // Usar o valor corrigido
+          value: subscriptionValue, // Usar o valor oficial
           created_at: new Date()
         });
         
