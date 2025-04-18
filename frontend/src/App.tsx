@@ -35,7 +35,6 @@ const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
-const AccountPage = lazy(() => import("@/pages/AccountPage"));
 // Comentando a importação da página de teste do Asaas
 // const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 
@@ -235,15 +234,6 @@ const App = () => {
                           </ProtectedRoute>
                         } />
                         */}
-                        
-                        {/* Nova rota para a página de conta */}
-                        <Route path="/account" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <AccountPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
                         
                         {/* Rota para página não encontrada */}
                         <Route path="*" element={
