@@ -15,7 +15,7 @@
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-create-customer.js": {
+    "api/check-payment-status.js": {
       "memory": 1024,
       "maxDuration": 10
     },
@@ -23,19 +23,19 @@
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-webhook.js": {
+    "api/regenerate-pix-code.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-find-payment.js": {
+    "api/user.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-pix-qrcode.js": {
+    "api/user-subscriptions.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-find-subscription.js": {
+    "api/asaas-find-customer.js": {
       "memory": 1024,
       "maxDuration": 10
     },
@@ -43,7 +43,23 @@
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-find-customer.js": {
+    "api/asaas-find-subscription.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-pix-qrcode.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-find-payment.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-webhook.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-create-customer.js": {
       "memory": 1024,
       "maxDuration": 10
     }
