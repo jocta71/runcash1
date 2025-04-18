@@ -39,13 +39,12 @@ const PlansPage = () => {
         description: "Você precisa estar logado para assinar um plano.",
         variant: "destructive"
       });
-      navigate('/login', { state: { returnUrl: `/checkout?planId=${planId}` } });
+      navigate('/login', { state: { returnUrl: `/pagamento/${planId}` } });
       return;
     }
     
-    // Redirecionar para a página de checkout integrada com Asaas
-    const selectedPlan = availablePlans.find(p => p.id === planId);
-    navigate(`/checkout?planId=${planId}&planName=${selectedPlan?.name}&planPrice=${selectedPlan?.price}`);
+    // Redirecionar para a página de pagamento
+    navigate(`/pagamento/${planId}`);
   };
 
   if (loading) {

@@ -35,10 +35,8 @@ const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
-const SubscriptionDetailsPage = lazy(() => import("@/pages/SubscriptionDetailsPage"));
-const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
-const CheckoutPage = lazy(() => import("@/pages/CheckoutPage"));
-const SubscriptionSummaryPage = lazy(() => import("@/pages/SubscriptionSummaryPage"));
+// Comentando a importação da página de teste do Asaas
+// const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -218,35 +216,10 @@ const App = () => {
                           </ProtectedRoute>
                         } />
                         
-                        {/* Novas rotas para integração com Asaas */}
-                        <Route path="/checkout" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <CheckoutPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/minhas-assinaturas" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <SubscriptionSummaryPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
                         <Route path="/live" element={
                           <ProtectedRoute>
                             <Suspense fallback={<LoadingScreen />}>
                               <LiveRoulettePage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/subscription-details" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <SubscriptionDetailsPage />
                             </Suspense>
                           </ProtectedRoute>
                         } />
