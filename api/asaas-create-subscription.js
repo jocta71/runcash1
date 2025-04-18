@@ -52,12 +52,35 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Validar o valor da assinatura
-    if (!value || value <= 0) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'O valor da assinatura deve ser maior que zero' 
-      });
+    // Definir valor baseado no plano se não foi enviado ou é zero
+    let subscriptionValue = value;
+    
+    if (!subscriptionValue || subscriptionValue <= 0) {
+      // Mapeamento de valores padrão para cada plano
+      const planValues = {
+        'basic': 19.90,
+        'basico': 19.90,
+        'pro': 49.90,
+        'premium': 99.90,
+        'professional': 49.90,
+        'profissional': 49.90,
+        'vip': 99.90
+      };
+      
+      // Converter planId para minúsculas para busca no objeto
+      const planKey = planId.toString().toLowerCase();
+      
+      // Verificar se temos um valor padrão para este plano
+      if (planValues[planKey]) {
+        subscriptionValue = planValues[planKey];
+        console.log(`Valor não fornecido ou zero. Usando valor padrão ${subscriptionValue} para o plano ${planId}`);
+      } else {
+        // Se não temos um valor padrão para este plano, retornar erro
+        return res.status(400).json({ 
+          success: false,
+          error: 'O valor da assinatura deve ser maior que zero' 
+        });
+      }
     }
 
     // Configuração da API do Asaas
@@ -88,7 +111,7 @@ module.exports = async (req, res) => {
     console.log('Dados recebidos para criação de assinatura:', {
       customerId,
       planId,
-      value,
+      value: subscriptionValue, // Usar o valor corrigido
       billingType,
       cycle
     });
@@ -98,7 +121,7 @@ module.exports = async (req, res) => {
       customer: customerId,
       billingType,
       cycle,
-      value,
+      value: subscriptionValue, // Usar o valor corrigido
       nextDueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Amanhã
       description: description || `Assinatura RunCash - Plano ${planId}`,
       callback: {
@@ -205,7 +228,7 @@ module.exports = async (req, res) => {
           payment_id: paymentId,
           status: subscription.status,
           billing_type: billingType,
-          value,
+          value: subscriptionValue, // Usar o valor corrigido
           created_at: new Date()
         });
         
