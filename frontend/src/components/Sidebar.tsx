@@ -17,6 +17,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     { id: 'account-information', label: 'Conta', icon: Settings },
     { id: 'billing', label: 'Pagamentos', icon: CreditCard },
     { id: 'plans', label: 'Planos', icon: Package },
+    { id: 'subscriptions', label: 'Assinaturas', icon: CircleDollarSign },
   ];
   
   const handleSettingsItemClick = (id: string) => {
@@ -27,6 +28,8 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
       navigate('/billing');
     } else if (id === 'plans') {
       navigate('/planos');
+    } else if (id === 'subscriptions') {
+      navigate('/minhas-assinaturas');
     }
   };
   

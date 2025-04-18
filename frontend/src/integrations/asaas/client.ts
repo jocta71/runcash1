@@ -221,35 +221,27 @@ interface PixQrCodeResponse {
  * Busca QR code PIX para um pagamento no Asaas
  * @param paymentId ID do pagamento no Asaas
  */
-export const getAsaasPixQrCode = async (paymentId: string): Promise<{
-  qrCodeImage: string;
-  qrCodeText: string;
-  expirationDate?: string;
-}> => {
+export const getAsaasPixQrCode = async (paymentId: string): Promise<any> => {
   try {
-    console.log(`Buscando QR code PIX: paymentId=${paymentId}`);
+    console.log(`Buscando QR Code PIX: paymentId=${paymentId}`);
     
-    const response = await api.get<PixQrCodeResponse>(`api/asaas-pix-qrcode?paymentId=${paymentId}`);
+    const response = await api.get<ApiResponse<any>>(`api/asaas-pix-qrcode?paymentId=${paymentId}`);
     
-    console.log('Resposta da API de QR code PIX:', response.data);
+    console.log('Resposta da API de QR Code PIX:', response.data);
     
     if (!response.data?.success) {
-      throw new Error('Falha ao buscar QR code PIX');
+      throw new Error('Falha ao buscar QR Code PIX');
     }
     
-    return {
-      qrCodeImage: response.data.qrCodeImage,
-      qrCodeText: response.data.qrCodeText,
-      expirationDate: response.data.expirationDate
-    };
+    return response.data.qrCode;
   } catch (error) {
-    console.error('Erro ao buscar QR code PIX no Asaas:', error);
+    console.error('Erro ao buscar QR Code PIX no Asaas:', error);
     
     if (error instanceof AxiosError) {
-      throw new Error(`Falha ao buscar QR code PIX: ${error.response?.data?.error || error.message}`);
+      throw new Error(`Falha ao buscar QR Code PIX: ${error.response?.data?.error || error.message}`);
     }
     
-    throw new Error('Falha ao buscar QR code PIX no Asaas');
+    throw new Error('Falha ao buscar QR Code PIX no Asaas');
   }
 };
 
@@ -368,7 +360,7 @@ export const cancelAsaasSubscription = async (subscriptionId: string): Promise<a
   try {
     console.log(`Cancelando assinatura: subscriptionId=${subscriptionId}`);
     
-    const response = await api.post<ApiResponse<any>>('api/asaas-cancel-subscription', {
+    const response = await api.post<ApiResponse<any>>(`api/asaas-cancel-subscription`, {
       subscriptionId
     });
     
@@ -378,11 +370,7 @@ export const cancelAsaasSubscription = async (subscriptionId: string): Promise<a
       throw new Error('Falha ao cancelar assinatura');
     }
     
-    return {
-      success: true,
-      message: response.data.message,
-      details: response.data.details
-    };
+    return response.data;
   } catch (error) {
     console.error('Erro ao cancelar assinatura no Asaas:', error);
     
@@ -396,30 +384,18 @@ export const cancelAsaasSubscription = async (subscriptionId: string): Promise<a
 
 /**
  * Busca detalhes de um cliente no Asaas
- * @param customerId ID do cliente no Asaas
- * @param cpfCnpj CPF/CNPJ do cliente (alternativa ao ID)
- * @param email Email do cliente (alternativa ao ID)
+ * @param params Parâmetros para busca (customerId, cpfCnpj ou email)
  */
 export const findAsaasCustomer = async (
   params: { customerId?: string; cpfCnpj?: string; email?: string; }
 ): Promise<any> => {
   try {
-    const { customerId, cpfCnpj, email } = params;
+    console.log('Buscando cliente com parâmetros:', params);
     
-    if (!customerId && !cpfCnpj && !email) {
-      throw new Error('É necessário informar customerId, cpfCnpj ou email');
-    }
-    
-    console.log(`Buscando cliente: ${customerId || cpfCnpj || email}`);
-    
-    let queryParams = '';
-    if (customerId) {
-      queryParams = `customerId=${customerId}`;
-    } else if (cpfCnpj) {
-      queryParams = `cpfCnpj=${cpfCnpj}`;
-    } else if (email) {
-      queryParams = `email=${encodeURIComponent(email)}`;
-    }
+    const queryParams = new URLSearchParams();
+    if (params.customerId) queryParams.append('customerId', params.customerId);
+    if (params.cpfCnpj) queryParams.append('cpfCnpj', params.cpfCnpj);
+    if (params.email) queryParams.append('email', params.email);
     
     const response = await api.get<ApiResponse<any>>(`api/asaas-find-customer?${queryParams}`);
     
@@ -429,10 +405,7 @@ export const findAsaasCustomer = async (
       throw new Error('Falha ao buscar cliente');
     }
     
-    return {
-      customer: response.data.customer,
-      subscriptions: response.data.subscriptions || []
-    };
+    return response.data.customer;
   } catch (error) {
     console.error('Erro ao buscar cliente no Asaas:', error);
     
