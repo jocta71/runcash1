@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Copy, Check, RefreshCw, AlertCircle } from 'lucide-react';
 import { Spinner } from './ui/spinner';
+import API_ROUTES from '@/config/api';
 
 interface PixPaymentProps {
   paymentId?: string;
@@ -58,8 +59,8 @@ const PixPayment: React.FC<PixPaymentProps> = ({
     setRegenerating(true);
     
     try {
-      // Tentar regenerar o QR Code
-      const response = await axios.get('/api/regenerate-pix-code', {
+      // Tentar regenerar o QR Code usando a API no Railway
+      const response = await axios.get(API_ROUTES.payment.regeneratePixCode, {
         params: { 
           paymentId, 
           subscriptionId 
@@ -99,7 +100,7 @@ const PixPayment: React.FC<PixPaymentProps> = ({
     setCheckingStatus(true);
     
     try {
-      const response = await axios.get('/api/check-payment-status', {
+      const response = await axios.get(API_ROUTES.payment.checkStatus, {
         params: { 
           paymentId: paymentId || paymentInfo?.id
         }

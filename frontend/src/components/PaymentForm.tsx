@@ -12,6 +12,7 @@ import { CreditCard, QrCode } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import axios from 'axios';
 import PixPayment from './PixPayment';
+import API_ROUTES from '@/config/api';
 
 // Função para formatar CPF
 const formatCPF = (value: string) => {
@@ -193,8 +194,8 @@ export function PaymentForm({ planId, onPaymentSuccess, onCancel }: PaymentFormP
     setError(null);
 
     try {
-      // Criar assinatura
-      const response = await axios.post('/api/asaas-create-subscription', {
+      // Criar assinatura usando a API no Railway
+      const response = await axios.post(API_ROUTES.payment.createSubscription, {
         customerId: user.asaasId || user.id, // Usar o ID do usuário caso asaasId não exista
         planId: planId,
         userId: user.id,
