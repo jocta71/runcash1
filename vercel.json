@@ -3,31 +3,35 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "functions": {
-    "api/asaas.js": {
+    "api/asaas-create-customer.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/notification.js": {
+    "api/asaas-create-subscription.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/auth.js": {
+    "api/asaas-webhook.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/profile.js": {
+    "api/asaas-find-payment.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/subscriptions.js": {
+    "api/asaas-pix-qrcode.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/transactions.js": {
+    "api/asaas-find-subscription.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/user-files.js": {
+    "api/asaas-cancel-subscription.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-find-customer.js": {
       "memory": 1024,
       "maxDuration": 10
     },
@@ -38,32 +42,44 @@
   },
   "rewrites": [
     {
-      "source": "/api/asaas/:operation",
-      "destination": "/api/asaas.js"
+      "source": "/api/asaas-webhook",
+      "destination": "/api/asaas-webhook.js"
     },
     {
-      "source": "/api/notification/:action?/:id?",
-      "destination": "/api/notification.js"
+      "source": "/api/asaas-create-customer",
+      "destination": "/api/asaas-create-customer.js"
     },
     {
-      "source": "/api/roulette/:operation?",
-      "destination": "/pages/api/roulette.js"
+      "source": "/api/asaas-create-subscription",
+      "destination": "/api/asaas-create-subscription.js"
     },
     {
-      "source": "/api/roulette-history",
-      "destination": "/pages/api/roulette.js?operation=history"
+      "source": "/api/asaas-find-payment",
+      "destination": "/api/asaas-find-payment.js"
     },
     {
-      "source": "/api/proxy-roulette",
-      "destination": "/pages/api/roulette.js?operation=proxy"
+      "source": "/api/asaas-pix-qrcode",
+      "destination": "/api/asaas-pix-qrcode.js"
+    },
+    {
+      "source": "/api/asaas-find-subscription",
+      "destination": "/api/asaas-find-subscription.js"
+    },
+    {
+      "source": "/api/asaas-cancel-subscription",
+      "destination": "/api/asaas-cancel-subscription.js"
+    },
+    {
+      "source": "/api/asaas-find-customer",
+      "destination": "/api/asaas-find-customer.js"
+    },
+    {
+      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|test-page).*)",
+      "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
     },
     {
       "source": "/test",
       "destination": "/api/test-page"
-    },
-    {
-      "source": "/api/((?!asaas|notification|roulette|roulette-history|proxy-roulette|test-page).*)",
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
     },
     {
       "source": "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg|logo.png|img/).*)",
@@ -77,7 +93,6 @@
     "ASAAS_API_KEY": "$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmE4NzkxZDA3LTdiNzAtNDVkZC04ZWZjLTk0ZWJkODI1ZWIyNzo6JGFhY2hfZDVjODRmZjAtOGU4Ny00MWE5LWI4MGMtMWQ5MjBhOWI3YWYz",
     "ASAAS_ENVIRONMENT": "sandbox",
     "FRONTEND_URL": "https://runcashh11.vercel.app",
-    "NODE_ENV": "production",
-    "JWT_SECRET": "runcash_jwt_secret_key_3423kj4h234"
+    "NODE_ENV": "production"
   }
 }

@@ -1,8 +1,8 @@
 export enum PlanType {
-  FREE = 'free',
-  BASIC = 'basic',
-  PRO = 'pro',
-  PREMIUM = 'premium'
+  FREE = 'FREE',
+  BASIC = 'BASIC',
+  PRO = 'PRO',
+  PREMIUM = 'PREMIUM'
 }
 
 export interface Plan {
@@ -18,22 +18,14 @@ export interface Plan {
 
 export interface UserSubscription {
   id: string;
-  subscriptionId?: string;
-  userId?: string;
+  userId: string;
   planId: string;
-  planType?: PlanType;
-  status: 'active' | 'inactive' | 'overdue' | 'canceled' | 'pending';
-  startDate: string;
-  endDate: string | null;
-  nextDueDate?: string;
-  autoRenew?: boolean;
+  planType: PlanType;
+  startDate: Date;
+  endDate: Date | null;
+  status: 'active' | 'canceled' | 'past_due' | 'trial';
   paymentMethod?: string;
-  paymentProvider?: string;
-}
-
-export interface PlanFeature {
-  id: string;
-  name: string;
-  description: string;
-  includedInPlans: PlanType[];
+  paymentProvider?: 'stripe' | 'manual';
+  paymentId?: string;
+  nextBillingDate?: Date;
 } 

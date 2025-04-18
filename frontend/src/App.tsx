@@ -20,6 +20,7 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthPage from "./pages/AuthPage";
 import SoundManager from "./components/SoundManager";
+import SubscriptionEventListener from "./components/SubscriptionEventListener";
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -94,6 +95,7 @@ const App = () => {
                   <SoundManager>
                     <BrowserRouter>
                       <GoogleAuthHandler />
+                      <SubscriptionEventListener />
                       <Routes>
                         {/* Rota pública de login - Acessível mesmo sem autenticação */}
                         <Route path="/login" element={

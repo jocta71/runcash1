@@ -10,7 +10,6 @@ import { Input } from './ui/input';
 import ProfileDropdown from './ProfileDropdown';
 import AnimatedInsights from './AnimatedInsights';
 import Footer from './Footer';
-import NotificationCenter from './NotificationCenter';
 
 // Interface estendida para o usuário com firstName e lastName
 interface ExtendedUser {
@@ -161,8 +160,6 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
               </div>
             )}
             
-            <NotificationCenter />
-            
             <ProfileDropdown />
             
             <Button 
@@ -184,7 +181,6 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
                 <span className="text-xs font-medium">Olá, {getDisplayName()}</span>
               </div>
             )}
-            <NotificationCenter />
             <ProfileDropdown />
             
             <Button 
