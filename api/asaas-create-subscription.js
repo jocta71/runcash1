@@ -187,81 +187,83 @@ module.exports = async (req, res) => {
       try {
         console.log(`Buscando pagamento para assinatura ${subscription.id}...`);
         
-        // Esperar um momento para garantir que o pagamento seja criado
-        await new Promise(resolve => setTimeout(resolve, 10000));
-        
-        // Obter o pagamento associado à assinatura
-        const paymentsResponse = await apiClient.get(`/payments`, {
-          params: { subscription: subscription.id }
-        });
-
-        console.log(`Resposta de pagamentos:`, {
-          status: paymentsResponse.status,
-          count: paymentsResponse.data.data ? paymentsResponse.data.data.length : 0
-        });
-
-        if (paymentsResponse.data.data && paymentsResponse.data.data.length > 0) {
-          const payment = paymentsResponse.data.data[0];
-          paymentId = payment.id;
-          
-          console.log(`Pagamento encontrado: ${paymentId}, status: ${payment.status}`);
-          
-          // Buscar QR Code PIX
-          console.log(`Solicitando QR Code PIX para pagamento ${paymentId}...`);
+        // Verificar se o pagamento já está disponível na resposta da assinatura
+        if (subscription.firstPayment) {
+          console.log(`Encontrado firstPayment na resposta da assinatura:`, subscription.firstPayment);
+          paymentId = subscription.firstPayment.id;
           
           try {
+            console.log(`Solicitando QR Code PIX para pagamento ${paymentId} (via firstPayment)...`);
             const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`);
-            
-            console.log(`QR Code obtido com sucesso:`, {
-              hasEncodedImage: !!pixResponse.data.encodedImage,
-              hasPayload: !!pixResponse.data.payload,
-              dataSize: JSON.stringify(pixResponse.data).length
-            });
             
             qrCode = {
               encodedImage: pixResponse.data.encodedImage,
               payload: pixResponse.data.payload
             };
             
-            console.log('QR Code PIX gerado com sucesso');
-          } catch (pixSpecificError) {
-            console.error(`Erro ao obter QR Code PIX para pagamento ${paymentId}:`, {
-              message: pixSpecificError.message,
-              status: pixSpecificError.response?.status,
-              data: pixSpecificError.response?.data
-            });
-            
-            // Tentar obter informações do pagamento diretamente
-            try {
-              const paymentDetailsResponse = await apiClient.get(`/payments/${paymentId}`);
-              console.log(`Detalhes do pagamento:`, {
-                status: paymentDetailsResponse.data.status,
-                billingType: paymentDetailsResponse.data.billingType,
-                value: paymentDetailsResponse.data.value
-              });
-            } catch (detailsError) {
-              console.error(`Erro ao obter detalhes do pagamento:`, detailsError.message);
-            }
+            console.log('QR Code PIX gerado com sucesso via firstPayment');
+          } catch (fpPixError) {
+            console.error(`Erro ao obter QR Code do firstPayment:`, fpPixError.message);
           }
-        } else {
-          console.warn(`Nenhum pagamento encontrado para assinatura ${subscription.id}`);
-          
-          // Verificar se há informação de pagamento na resposta da assinatura
-          if (subscription.firstPayment) {
-            console.log(`Encontrado firstPayment na resposta da assinatura:`, subscription.firstPayment);
-            paymentId = subscription.firstPayment.id;
+        }
+        
+        // Se não conseguiu o QR code via firstPayment, tentar via API de pagamentos
+        if (!qrCode) {
+          // Obter o pagamento associado à assinatura
+          const paymentsResponse = await apiClient.get(`/payments`, {
+            params: { subscription: subscription.id }
+          });
+
+          console.log(`Resposta de pagamentos:`, {
+            status: paymentsResponse.status,
+            count: paymentsResponse.data.data ? paymentsResponse.data.data.length : 0
+          });
+
+          if (paymentsResponse.data.data && paymentsResponse.data.data.length > 0) {
+            const payment = paymentsResponse.data.data[0];
+            paymentId = payment.id;
             
-            // Tentar obter QR Code deste pagamento
+            console.log(`Pagamento encontrado: ${paymentId}, status: ${payment.status}`);
+            
+            // Buscar QR Code PIX
+            console.log(`Solicitando QR Code PIX para pagamento ${paymentId}...`);
+            
             try {
               const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`);
+              
+              console.log(`QR Code obtido com sucesso:`, {
+                hasEncodedImage: !!pixResponse.data.encodedImage,
+                hasPayload: !!pixResponse.data.payload,
+                dataSize: JSON.stringify(pixResponse.data).length
+              });
+              
               qrCode = {
                 encodedImage: pixResponse.data.encodedImage,
                 payload: pixResponse.data.payload
               };
-              console.log('QR Code PIX gerado com firstPayment');
-            } catch (altPixError) {
-              console.error(`Erro ao obter QR Code com firstPayment:`, altPixError.message);
+              
+              console.log('QR Code PIX gerado com sucesso');
+            } catch (pixSpecificError) {
+              console.error(`Erro ao obter QR Code PIX para pagamento ${paymentId}:`, {
+                message: pixSpecificError.message,
+                status: pixSpecificError.response?.status,
+                data: pixSpecificError.response?.data
+              });
+              
+              // Tentar obter informações do pagamento diretamente
+              try {
+                const paymentDetailsResponse = await apiClient.get(`/payments/${paymentId}`);
+                console.log(`Detalhes do pagamento:`, {
+                  status: paymentDetailsResponse.data.status,
+                  billingType: paymentDetailsResponse.data.billingType,
+                  value: paymentDetailsResponse.data.value
+                });
+              } catch (detailsError) {
+                console.error(`Erro ao obter detalhes do pagamento:`, detailsError.message);
+              }
             }
+          } else {
+            console.warn(`Nenhum pagamento encontrado para assinatura ${subscription.id}`);
           }
         }
       } catch (pixError) {
