@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Copy, Check, RefreshCw, AlertCircle } from 'lucide-react';
 import { Spinner } from './ui/spinner';
 import API_ROUTES from '@/config/api';
+import { useToast } from '@/hooks/use-toast';
 
 interface PixPaymentProps {
   paymentId?: string;
@@ -28,6 +29,8 @@ const PixPayment: React.FC<PixPaymentProps> = ({
   const [regenerating, setRegenerating] = useState(false);
   const [paymentInfo, setPaymentInfo] = useState<any>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [autoRegenerated, setAutoRegenerated] = useState(false);
+  const { toast } = useToast();
   
   // Tempo limite para expiração do QR Code em milissegundos (1 hora)
   const QR_CODE_EXPIRATION = 60 * 60 * 1000; 
@@ -43,6 +46,11 @@ const PixPayment: React.FC<PixPaymentProps> = ({
     if (qrCode?.payload) {
       navigator.clipboard.writeText(qrCode.payload);
       setCopied(true);
+      toast({
+        title: "Código PIX copiado!",
+        description: "Cole o código no aplicativo do seu banco.",
+        duration: 3000
+      });
       setTimeout(() => setCopied(false), 3000);
     }
   };
@@ -50,6 +58,7 @@ const PixPayment: React.FC<PixPaymentProps> = ({
   // Função para gerar/regenerar QR Code PIX
   const generateQrCode = async () => {
     if (!paymentId && !subscriptionId) {
+      console.error("Tentativa de gerar QR Code sem IDs necessários");
       setError('Não foi possível gerar o QR Code: ID de pagamento ou assinatura não fornecido');
       return;
     }
@@ -58,8 +67,10 @@ const PixPayment: React.FC<PixPaymentProps> = ({
     setError(null);
     setRegenerating(true);
     
+    console.log(`Gerando QR Code para ${paymentId ? `pagamento ${paymentId}` : `assinatura ${subscriptionId}`}`);
+    
     try {
-      // Tentar regenerar o QR Code usando a API no Railway
+      // Tentar regenerar o QR Code usando a API
       const response = await axios.get(API_ROUTES.payment.regeneratePixCode, {
         params: { 
           paymentId, 
@@ -68,6 +79,12 @@ const PixPayment: React.FC<PixPaymentProps> = ({
       });
       
       if (response.data.success) {
+        console.log("QR Code gerado com sucesso:", {
+          hasImage: !!response.data.qrCode.encodedImage,
+          hasPayload: !!response.data.qrCode.payload,
+          status: response.data.payment.status
+        });
+        
         setQrCode(response.data.qrCode);
         setPaymentInfo(response.data.payment);
         setError(null);
@@ -75,11 +92,13 @@ const PixPayment: React.FC<PixPaymentProps> = ({
         // Se o pagamento já estiver confirmado, executar callback de sucesso
         if (response.data.payment.status === 'CONFIRMED' || 
             response.data.payment.status === 'RECEIVED') {
+          console.log("Pagamento já confirmado");
           if (onPaymentSuccess) {
             onPaymentSuccess();
           }
         }
       } else {
+        console.error("Erro retornado pela API:", response.data.error);
         setError(response.data.error || 'Erro ao gerar QR Code');
       }
     } catch (err: any) {
@@ -100,14 +119,25 @@ const PixPayment: React.FC<PixPaymentProps> = ({
     setCheckingStatus(true);
     
     try {
+      console.log(`Verificando status do pagamento ${paymentId || paymentInfo?.id}...`);
       const response = await axios.get(API_ROUTES.payment.checkStatus, {
         params: { 
           paymentId: paymentId || paymentInfo?.id
         }
       });
       
+      console.log(`Status atual: ${response.data.status}`);
+      
       if (response.data.status === 'CONFIRMED' || response.data.status === 'RECEIVED') {
         // Pagamento confirmado
+        console.log("Pagamento confirmado!");
+        toast({
+          title: "Pagamento confirmado!",
+          description: "Obrigado, seu pagamento foi processado com sucesso.",
+          variant: "default",
+          duration: 5000
+        });
+        
         if (onPaymentSuccess) {
           onPaymentSuccess();
         }
@@ -135,14 +165,31 @@ const PixPayment: React.FC<PixPaymentProps> = ({
   // Efeito para carregar o QR Code inicial se necessário
   useEffect(() => {
     if (!initialQrCode && (paymentId || subscriptionId)) {
+      console.log("QR Code não fornecido inicialmente, gerando...");
       generateQrCode();
     }
   }, []);
+  
+  // Efeito para verificar se é necessário auto-regenerar o QR Code
+  useEffect(() => {
+    // Se temos IDs mas não temos QR Code ou está sem a imagem, tentar regenerar uma vez automaticamente
+    if ((paymentId || subscriptionId) && 
+        (!qrCode || !qrCode.encodedImage || !qrCode.payload) && 
+        !autoRegenerated && 
+        !regenerating) {
+      console.log("QR Code ausente ou incompleto, tentando regeneração automática...");
+      setAutoRegenerated(true);
+      setTimeout(() => {
+        generateQrCode();
+      }, 2000); // Esperar 2 segundos antes de tentar regenerar
+    }
+  }, [qrCode, paymentId, subscriptionId, autoRegenerated, regenerating]);
   
   // Efeito para iniciar a verificação periódica de status
   useEffect(() => {
     // Iniciar verificação periódica apenas se temos um QR Code válido
     if (qrCode && (paymentId || paymentInfo?.id)) {
+      console.log("Iniciando verificação periódica de status");
       const timer = setInterval(checkPaymentStatus, STATUS_CHECK_INTERVAL);
       setStatusCheckTimer(timer);
       
@@ -240,7 +287,7 @@ const PixPayment: React.FC<PixPaymentProps> = ({
       )}
       
       {/* QR Code */}
-      {qrCode && !isQrCodeExpired() && (
+      {qrCode && qrCode.encodedImage && qrCode.payload && !isQrCodeExpired() ? (
         <div className="flex flex-col items-center">
           <div className="bg-white p-2 border rounded-md mb-4">
             <img 
@@ -264,6 +311,12 @@ const PixPayment: React.FC<PixPaymentProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center p-6 border rounded-md mb-4">
+          <AlertCircle className="w-10 h-10 text-yellow-500 mb-2" />
+          <p className="text-center text-gray-600">QR Code não disponível ou expirado.</p>
+          <p className="text-center text-sm text-gray-500 mb-4">Por favor, clique no botão abaixo para gerar o QR Code.</p>
         </div>
       )}
       

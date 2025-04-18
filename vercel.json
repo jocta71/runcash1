@@ -3,22 +3,25 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "framework": "vite",
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "https://backend-production-2f96.up.railway.app/api/$1",
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "X-Requested-With, Content-Type, Accept"
-      }
+  "rewrites": [
+    { 
+      "source": "/api/:path*",
+      "destination": "https://backend-production-2f96.up.railway.app/api/:path*"
     },
+    { 
+      "source": "/(.*)", 
+      "destination": "/index.html" 
+    }
+  ],
+  "headers": [
     {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://runcashh11.vercel.app" },
+        { "key": "Access-Control-Allow-Credentials", "value": "true" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "X-Requested-With, Content-Type, Accept, Authorization" }
+      ]
     }
   ],
   "cleanUrls": true,
