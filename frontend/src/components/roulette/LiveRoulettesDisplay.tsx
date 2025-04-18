@@ -400,7 +400,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
                 <div 
                   key={roleta.id} 
                   ref={el => rouletteCardRefs.current[index] = el}
-                  className={`bg-gray-900 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-800 transition-colors border border-gray-800 ${selectedRoulette?.id === roleta.id ? 'ring-2 ring-[#00ff00]' : ''}`}
+                  className={`bg-gray-900 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-800 transition-colors border ${selectedRoulette?.id === roleta.id ? 'border-2 border-[#00ff00]' : 'border-gray-800'}`}
                   onClick={() => handleRouletteSelect(roleta)}
                 >
                   <div className="p-3">

@@ -383,7 +383,7 @@ const Index = () => {
       return (
         <div 
           key={roulette.id} 
-          className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === roulette.id ? 'p-0.5 bg-green-500 shadow-lg shadow-green-500/20' : 'p-0.5'}`}
+          className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === roulette.id ? 'border-2 border-green-500 shadow-lg shadow-green-500/20' : 'p-0.5'}`}
           onClick={() => setSelectedRoulette(roulette)}
         >
           <RouletteCard
