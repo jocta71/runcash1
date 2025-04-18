@@ -87,8 +87,10 @@ module.exports = async (req, res) => {
       callback: {
         activated: `${FRONTEND_URL}/api/asaas-webhook`,
         invoiceCreated: `${FRONTEND_URL}/api/asaas-webhook`,
-        payment: `${FRONTEND_URL}/api/asaas-webhook`
-      }
+        payment: `${FRONTEND_URL}/api/asaas-webhook`,
+        successUrl: `${FRONTEND_URL}/success` // URL para redirecionamento após pagamento bem-sucedido
+      },
+      notifyPaymentCreatedImmediately: true
     };
 
     // Adicionar dados de cartão de crédito se for pagamento com cartão
