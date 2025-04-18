@@ -1,0 +1,11 @@
+# Ignorar pasta de APIs que agora estão no Railway
+/api
+/api/**/*
+
+# Ignorar outros arquivos desnecessários
+/node_modules
+/.git
+/README.md
+
+# Não ignorar a pasta frontend que contém o código do frontend
+!/frontend 

@@ -2,97 +2,25 @@
   "version": 2,
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
-  "functions": {
-    "api/asaas-create-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-create-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-webhook.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-payment.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-pix-qrcode.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-cancel-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/test-page.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  },
-  "rewrites": [
+  "framework": "vite",
+  "routes": [
     {
-      "source": "/api/asaas-webhook",
-      "destination": "/api/asaas-webhook.js"
+      "src": "/api/(.*)",
+      "dest": "https://backend-production-2f96.up.railway.app/api/$1",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "X-Requested-With, Content-Type, Accept"
+      }
     },
     {
-      "source": "/api/asaas-create-customer",
-      "destination": "/api/asaas-create-customer.js"
+      "handle": "filesystem"
     },
     {
-      "source": "/api/asaas-create-subscription",
-      "destination": "/api/asaas-create-subscription.js"
-    },
-    {
-      "source": "/api/asaas-find-payment",
-      "destination": "/api/asaas-find-payment.js"
-    },
-    {
-      "source": "/api/asaas-pix-qrcode",
-      "destination": "/api/asaas-pix-qrcode.js"
-    },
-    {
-      "source": "/api/asaas-find-subscription",
-      "destination": "/api/asaas-find-subscription.js"
-    },
-    {
-      "source": "/api/asaas-cancel-subscription",
-      "destination": "/api/asaas-cancel-subscription.js"
-    },
-    {
-      "source": "/api/asaas-find-customer",
-      "destination": "/api/asaas-find-customer.js"
-    },
-    {
-      "source": "/api/((?!asaas-webhook|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|test-page).*)",
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
-    },
-    {
-      "source": "/test",
-      "destination": "/api/test-page"
-    },
-    {
-      "source": "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg|logo.png|img/).*)",
-      "destination": "/index.html"
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ],
-  "env": {
-    "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash",
-    "MONGODB_DB_NAME": "runcash",
-    "MONGODB_ENABLED": "true",
-    "ASAAS_API_KEY": "$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmE4NzkxZDA3LTdiNzAtNDVkZC04ZWZjLTk0ZWJkODI1ZWIyNzo6JGFhY2hfZDVjODRmZjAtOGU4Ny00MWE5LWI4MGMtMWQ5MjBhOWI3YWYz",
-    "ASAAS_ENVIRONMENT": "sandbox",
-    "FRONTEND_URL": "https://runcashh11.vercel.app",
-    "NODE_ENV": "production"
-  }
+  "cleanUrls": true,
+  "trailingSlash": false
 }
