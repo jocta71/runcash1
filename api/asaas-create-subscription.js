@@ -12,24 +12,44 @@ const API_BASE_URL = ASAAS_ENVIRONMENT === 'production'
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = process.env.MONGODB_DATABASE || 'runcash';
 
+// Configurações de timeout
+const MONGODB_CONNECT_TIMEOUT = 5000; // 5 segundos
+const ASAAS_REQUEST_TIMEOUT = 7000; // 7 segundos
+
+// Instância axios configurada
+const asaasClient = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: ASAAS_REQUEST_TIMEOUT,
+  headers: { 'access_token': ASAAS_API_KEY }
+});
+
+// Função para conectar ao MongoDB com timeout
+async function connectToMongo() {
+  const client = new MongoClient(MONGODB_URI, { 
+    serverSelectionTimeoutMS: MONGODB_CONNECT_TIMEOUT,
+    connectTimeoutMS: MONGODB_CONNECT_TIMEOUT 
+  });
+  await client.connect();
+  return client;
+}
+
 module.exports = async (req, res) => {
-  // Configurar CORS para aceitar qualquer origem
+  // Configurar CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-  // Responder a requisições preflight OPTIONS imediatamente
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // Apenas aceitar POST para criar assinaturas
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
   let client;
+  const startTime = Date.now();
 
   try {
     const { 
@@ -51,54 +71,79 @@ module.exports = async (req, res) => {
       });
     }
     
-    console.log(`Iniciando criação de assinatura: planId=${planId}, userId=${userIdentifier}, customerId=${customerId}`);
+    console.log(`[${Date.now() - startTime}ms] Iniciando criação de assinatura: planId=${planId}, userId=${userIdentifier}, customerId=${customerId}`);
     
-    // Conectar ao MongoDB para buscar os dados do plano
-    client = new MongoClient(MONGODB_URI);
-    await client.connect();
+    // Conectar ao MongoDB - com timeout e tratamento de erro
+    try {
+      client = await connectToMongo();
+    } catch (dbError) {
+      console.error(`[${Date.now() - startTime}ms] Erro ao conectar ao MongoDB:`, dbError.message);
+      return res.status(500).json({ 
+        error: 'Erro ao conectar ao banco de dados',
+        message: 'Tente novamente mais tarde'
+      });
+    }
+    
     const db = client.db(MONGODB_DB);
     
-    // Buscar dados do plano no MongoDB
-    const planData = await db.collection('plans').findOne({ id: planId });
+    // Buscar dados do plano no MongoDB - com timeout
+    let planData;
+    try {
+      planData = await db.collection('plans').findOne({ id: planId });
+      console.log(`[${Date.now() - startTime}ms] Dados do plano recuperados`);
+    } catch (planError) {
+      await client.close();
+      console.error(`[${Date.now() - startTime}ms] Erro ao buscar plano:`, planError.message);
+      return res.status(500).json({ error: 'Erro ao buscar dados do plano' });
+    }
     
     if (!planData) {
+      await client.close();
       return res.status(404).json({ error: 'Plano não encontrado' });
     }
     
-    // Para plano gratuito, processar de forma diferente
+    // Para plano gratuito, processar de forma diferente (mais rápido)
     if (planId === 'free') {
-      // Criar registro de assinatura no MongoDB
-      const subscriptionId = `free_${Date.now()}`;
-      
-      const subscription = await db.collection('subscriptions').insertOne({
-        user_id: userIdentifier,
-        plan_id: planId,
-        status: 'active',
-        start_date: new Date(),
-        payment_platform: 'free',
-        payment_id: subscriptionId
-      });
+      try {
+        const subscriptionId = `free_${Date.now()}`;
+        
+        const subscription = await db.collection('subscriptions').insertOne({
+          user_id: userIdentifier,
+          plan_id: planId,
+          status: 'active',
+          start_date: new Date(),
+          payment_platform: 'free',
+          payment_id: subscriptionId
+        });
 
-      const freeSubscriptionId = subscription.insertedId.toString();
-      return res.json({
-        success: true,
-        free: true,
-        redirectUrl: '/payment-success?free=true',
-        id: freeSubscriptionId,
-        subscriptionId: freeSubscriptionId,
-        data: {
+        await client.close();
+        
+        const freeSubscriptionId = subscription.insertedId.toString();
+        console.log(`[${Date.now() - startTime}ms] Assinatura gratuita criada: ${freeSubscriptionId}`);
+        
+        return res.json({
+          success: true,
+          free: true,
+          redirectUrl: '/payment-success?free=true',
           id: freeSubscriptionId,
-          subscriptionId: freeSubscriptionId
-        },
-        status: 'ACTIVE'
-      });
+          subscriptionId: freeSubscriptionId,
+          data: {
+            id: freeSubscriptionId,
+            subscriptionId: freeSubscriptionId
+          },
+          status: 'ACTIVE'
+        });
+      } catch (freeError) {
+        await client.close();
+        console.error(`[${Date.now() - startTime}ms] Erro ao criar assinatura gratuita:`, freeError.message);
+        return res.status(500).json({ error: 'Erro ao criar assinatura gratuita' });
+      }
     }
 
-    // Calcular dados para a assinatura
+    // Cálculo de datas e valores para a assinatura
     const nextDueDate = new Date();
-    nextDueDate.setDate(nextDueDate.getDate() + 1); // Definir vencimento para o dia seguinte
+    nextDueDate.setDate(nextDueDate.getDate() + 1);
     const nextDueDateStr = nextDueDate.toISOString().split('T')[0];
-
     const cycle = planData.interval === 'monthly' ? 'MONTHLY' : 'YEARLY';
     const value = planData.price;
 
@@ -115,7 +160,6 @@ module.exports = async (req, res) => {
 
     // Se for pagamento com cartão, adicionar os dados
     if (billingType === 'CREDIT_CARD' && creditCard) {
-      // Adicionar dados do cartão
       subscriptionData.creditCard = {
         holderName: creditCard.holderName,
         number: creditCard.number,
@@ -124,7 +168,6 @@ module.exports = async (req, res) => {
         ccv: creditCard.ccv
       };
       
-      // Adicionar dados do titular se fornecidos
       if (creditCardHolderInfo) {
         subscriptionData.creditCardHolderInfo = {
           name: creditCardHolderInfo.name || creditCard.holderName,
@@ -138,76 +181,97 @@ module.exports = async (req, res) => {
       }
     }
     
-    console.log('Criando assinatura no Asaas:', {
-      ...subscriptionData,
-      creditCard: subscriptionData.creditCard ? {
-        ...subscriptionData.creditCard,
-        number: '************' + (subscriptionData.creditCard.number || '').slice(-4),
-        ccv: '***'
-      } : undefined,
-      creditCardHolderInfo: subscriptionData.creditCardHolderInfo ? {
-        ...subscriptionData.creditCardHolderInfo,
-        cpfCnpj: '********'
-      } : undefined
-    });
+    // Log de criação com redação de informações sensíveis
+    console.log(`[${Date.now() - startTime}ms] Enviando dados para Asaas (${billingType})`);
     
-    // Criar assinatura no Asaas
-    const asaasResponse = await axios.post(
-      `${API_BASE_URL}/subscriptions`, 
-      subscriptionData,
-      { headers: { 'access_token': ASAAS_API_KEY } }
-    );
+    // Criar assinatura no Asaas - com timeout
+    let asaasSubscription;
+    try {
+      const asaasResponse = await asaasClient.post('/subscriptions', subscriptionData);
+      asaasSubscription = asaasResponse.data;
+      console.log(`[${Date.now() - startTime}ms] Assinatura criada no Asaas: ${asaasSubscription.id}`);
+    } catch (asaasError) {
+      await client.close();
+      console.error(`[${Date.now() - startTime}ms] Erro na API do Asaas:`, asaasError.message);
+      
+      // Retornar detalhes do erro da API do Asaas
+      if (asaasError.response && asaasError.response.data) {
+        return res.status(asaasError.response.status || 500).json({
+          error: 'Erro na API do Asaas',
+          details: asaasError.response.data
+        });
+      }
+      
+      return res.status(500).json({
+        error: 'Erro ao criar assinatura no Asaas',
+        message: asaasError.message
+      });
+    }
     
-    const asaasSubscription = asaasResponse.data;
-    console.log('Assinatura criada no Asaas:', asaasSubscription);
-    
-    // Obter o pagamento ou link de pagamento
+    // Informações adicionais para a resposta
     let paymentId = null;
     let redirectUrl = null;
     
-    // Se for PIX, buscar o primeiro pagamento para obter o QR code depois
-    if (billingType === 'PIX') {
-      // Buscar os pagamentos da assinatura
-      const paymentsResponse = await axios.get(
-        `${API_BASE_URL}/payments?subscription=${asaasSubscription.id}`,
-        { headers: { 'access_token': ASAAS_API_KEY } }
-      );
-      
-      if (paymentsResponse.data.data && paymentsResponse.data.data.length > 0) {
-        paymentId = paymentsResponse.data.data[0].id;
-        console.log('Pagamento PIX criado:', paymentId);
-      }
-    }
-    
-    // Se for cartão, não precisamos do link, pois o pagamento é automático
-    if (billingType === 'CREDIT_CARD') {
-      console.log('Pagamento com cartão processado automaticamente');
-    } else {
-      // Para outros métodos como PIX, obter o link de pagamento
+    // Obter informações de pagamento (em paralelo ao registro no MongoDB)
+    const paymentPromise = (async () => {
       try {
-        const paymentLinkResponse = await axios.get(
-          `${API_BASE_URL}/subscriptions/${asaasSubscription.id}/paymentLink`,
-          { headers: { 'access_token': ASAAS_API_KEY } }
-        );
-        redirectUrl = paymentLinkResponse.data.url;
-        console.log('Link de pagamento gerado:', redirectUrl);
-      } catch (linkError) {
-        console.error('Erro ao obter link de pagamento:', linkError.message);
-        // Continuar mesmo sem o link, pois a assinatura já foi criada
+        if (billingType === 'PIX') {
+          // Buscar pagamentos da assinatura
+          const paymentsResponse = await asaasClient.get(`/payments?subscription=${asaasSubscription.id}`);
+          
+          if (paymentsResponse.data.data && paymentsResponse.data.data.length > 0) {
+            paymentId = paymentsResponse.data.data[0].id;
+            console.log(`[${Date.now() - startTime}ms] Pagamento PIX criado: ${paymentId}`);
+          }
+        }
+        
+        // Obter link de pagamento (exceto para cartão)
+        if (billingType !== 'CREDIT_CARD') {
+          try {
+            const paymentLinkResponse = await asaasClient.get(`/subscriptions/${asaasSubscription.id}/paymentLink`);
+            redirectUrl = paymentLinkResponse.data.url;
+            console.log(`[${Date.now() - startTime}ms] Link de pagamento gerado`);
+          } catch (linkError) {
+            console.error(`[${Date.now() - startTime}ms] Erro ao obter link de pagamento:`, linkError.message);
+            // Não falhar se não conseguir obter o link
+          }
+        }
+      } catch (paymentError) {
+        console.error(`[${Date.now() - startTime}ms] Erro ao processar informações de pagamento:`, paymentError.message);
+        // Não falhar se não conseguir obter informações de pagamento
       }
-    }
+    })();
     
     // Registrar assinatura no MongoDB
-    const dbSubscription = await db.collection('subscriptions').insertOne({
-      user_id: userIdentifier,
-      plan_id: planId,
-      status: 'pending',
-      payment_platform: 'asaas',
-      payment_id: asaasSubscription.id,
-      start_date: new Date(),
-      payment_data: JSON.stringify(asaasSubscription),
-      updated_at: new Date()
-    });
+    let dbSubscription;
+    try {
+      dbSubscription = await db.collection('subscriptions').insertOne({
+        user_id: userIdentifier,
+        plan_id: planId,
+        status: 'pending',
+        payment_platform: 'asaas',
+        payment_id: asaasSubscription.id,
+        start_date: new Date(),
+        payment_data: JSON.stringify({
+          id: asaasSubscription.id,
+          status: asaasSubscription.status
+        }), // Armazenar apenas o essencial
+        updated_at: new Date()
+      });
+      
+      console.log(`[${Date.now() - startTime}ms] Assinatura registrada no MongoDB`);
+    } catch (dbError) {
+      console.error(`[${Date.now() - startTime}ms] Erro ao registrar assinatura no MongoDB:`, dbError.message);
+      // Continuar mesmo com erro no MongoDB
+    }
+    
+    // Aguardar a conclusão da promise de pagamento
+    await paymentPromise;
+    
+    // Fechar conexão com MongoDB
+    await client.close();
+    
+    console.log(`[${Date.now() - startTime}ms] Processo de criação de assinatura concluído`);
     
     // Retornar resposta em formato compatível com o frontend
     return res.json({
@@ -221,28 +285,24 @@ module.exports = async (req, res) => {
       paymentId,
       redirectUrl,
       status: asaasSubscription.status,
-      internalId: dbSubscription.insertedId.toString()
+      internalId: dbSubscription?.insertedId?.toString() || null
     });
     
   } catch (error) {
-    console.error('Erro ao processar solicitação:', error);
+    console.error(`[${Date.now() - startTime}ms] Erro não tratado:`, error.message);
     
-    // Verificar se o erro é da API do Asaas
-    if (error.response && error.response.data) {
-      return res.status(error.response.status || 500).json({
-        error: 'Erro na API do Asaas',
-        details: error.response.data
-      });
+    // Fechar conexão com MongoDB em caso de erro
+    if (client) {
+      try {
+        await client.close();
+      } catch (closeError) {
+        console.error('Erro ao fechar conexão MongoDB:', closeError.message);
+      }
     }
     
     return res.status(500).json({
       error: 'Erro ao processar solicitação',
-      message: error.message
+      message: 'Ocorreu um erro ao processar sua solicitação. Tente novamente.'
     });
-  } finally {
-    // Fechar a conexão com o MongoDB
-    if (client) {
-      await client.close();
-    }
   }
 }; 
