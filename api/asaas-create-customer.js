@@ -45,10 +45,16 @@ module.exports = async (req, res) => {
     
     console.log('Cliente criado com sucesso:', response.data.id);
     
+    // Estrutura de resposta compatível com o frontend
     return res.status(200).json({
       success: true,
-      customerId: response.data.id,
-      customer: response.data
+      id: response.data.id,              // Formato 1 (cliente.id)
+      customerId: response.data.id,      // Formato 2 (cliente.customerId)
+      data: {                            // Formato 3 (cliente.data.id)
+        id: response.data.id,
+        customerId: response.data.id
+      },
+      customer: response.data            // Objeto cliente completo
     });
   } catch (error) {
     console.error('Erro ao criar cliente no Asaas:', error);
@@ -71,10 +77,16 @@ module.exports = async (req, res) => {
           const existingCustomer = searchResponse.data.data[0];
           console.log(`Cliente existente recuperado! ID: ${existingCustomer.id}`);
           
+          // Estrutura de resposta compatível para cliente existente
           return res.status(200).json({
             success: true,
-            customerId: existingCustomer.id,
-            customer: existingCustomer,
+            id: existingCustomer.id,              // Formato 1
+            customerId: existingCustomer.id,      // Formato 2
+            data: {                               // Formato 3
+              id: existingCustomer.id,
+              customerId: existingCustomer.id
+            },
+            customer: existingCustomer,           // Objeto cliente completo
             existing: true
           });
         }

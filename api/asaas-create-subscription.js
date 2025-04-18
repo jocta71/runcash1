@@ -76,11 +76,17 @@ module.exports = async (req, res) => {
         payment_id: subscriptionId
       });
 
+      const freeSubscriptionId = subscription.insertedId.toString();
       return res.json({
         success: true,
         free: true,
         redirectUrl: '/payment-success?free=true',
-        subscriptionId: subscription.insertedId.toString(),
+        id: freeSubscriptionId,
+        subscriptionId: freeSubscriptionId,
+        data: {
+          id: freeSubscriptionId,
+          subscriptionId: freeSubscriptionId
+        },
         status: 'ACTIVE'
       });
     }
@@ -200,9 +206,15 @@ module.exports = async (req, res) => {
       updated_at: new Date()
     });
     
+    // Retornar resposta em formato compatível com o frontend
     return res.json({
       success: true,
+      id: asaasSubscription.id,
       subscriptionId: asaasSubscription.id,
+      data: {
+        id: asaasSubscription.id,
+        subscriptionId: asaasSubscription.id
+      },
       paymentId,
       redirectUrl,
       status: asaasSubscription.status,
