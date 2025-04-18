@@ -14,54 +14,6 @@
     "api/endpoints-redirector.js": {
       "memory": 1024,
       "maxDuration": 10
-    },
-    "api/check-payment-status.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-create-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/regenerate-pix-code.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/user.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/user-subscriptions.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-cancel-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-pix-qrcode.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-payment.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-webhook.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-create-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
     }
   },
   "rewrites": [

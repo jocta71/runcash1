@@ -1,5 +1,6 @@
 // Arquivo para redirecionar as chamadas dos endpoints antigos para os novos
 // Isso evita que seja necessário atualizar todas as chamadas no frontend imediatamente
+const axios = require('axios');
 
 module.exports = async (req, res) => {
   // Configuração de CORS
@@ -78,11 +79,48 @@ module.exports = async (req, res) => {
   
   console.log(`Redirecionando para: ${finalUrl}`);
   
-  // Fazer o proxy da requisição para o novo endpoint
-  // Por simplicidade, apenas retornamos a URL para onde redirecionar
-  return res.status(307).json({
-    success: true,
-    redirectUrl: finalUrl,
-    message: 'Este endpoint está obsoleto. Por favor, atualize para o novo padrão de API.'
-  });
+  try {
+    // Fazer o proxy da requisição para o novo endpoint
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : process.env.FRONTEND_URL || 'http://localhost:3000';
+    
+    const targetUrl = `${baseUrl}${finalUrl}`;
+    console.log(`URL alvo: ${targetUrl}`);
+    
+    // Configurar opções para a requisição
+    const options = {
+      method: req.method,
+      url: targetUrl,
+      headers: {
+        'Content-Type': req.headers['content-type'] || 'application/json'
+      }
+    };
+    
+    // Adicionar corpo da requisição para métodos POST, PUT, DELETE
+    if (['POST', 'PUT', 'DELETE'].includes(req.method) && req.body) {
+      options.data = req.body;
+    }
+    
+    // Fazer a requisição para o endpoint consolidado
+    const response = await axios(options);
+    
+    // Retornar a resposta do endpoint consolidado
+    return res.status(response.status).json(response.data);
+  } catch (error) {
+    console.error('Erro ao redirecionar requisição:', error);
+    
+    // Se houver uma resposta do axios, retorná-la
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
+    }
+    
+    // Caso contrário, retornar erro genérico
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao redirecionar requisição',
+      message: error.message,
+      redirectUrl: finalUrl
+    });
+  }
 }; 
