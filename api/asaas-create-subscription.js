@@ -52,6 +52,14 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Validar o valor da assinatura
+    if (!value || value <= 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'O valor da assinatura deve ser maior que zero' 
+      });
+    }
+
     // Configuração da API do Asaas
     const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
     const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
@@ -74,6 +82,15 @@ module.exports = async (req, res) => {
         'access_token': ASAAS_API_KEY,
         'Content-Type': 'application/json'
       }
+    });
+
+    // Log para depuração dos dados recebidos
+    console.log('Dados recebidos para criação de assinatura:', {
+      customerId,
+      planId,
+      value,
+      billingType,
+      cycle
     });
 
     // Construir o payload da assinatura
