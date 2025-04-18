@@ -27,7 +27,7 @@ interface User {
 }
 
 export default function AccountPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,11 +151,21 @@ export default function AccountPage() {
               
               <ul className="space-y-4">
                 <li>
-                  <span className="font-medium text-gray-700">Nome:</span> {user.username}
+                  <span className="font-medium text-gray-700">Nome:</span> {user.name}
                 </li>
                 <li>
                   <span className="font-medium text-gray-700">Email:</span> {user.email}
                 </li>
+                {user.phone && (
+                  <li>
+                    <span className="font-medium text-gray-700">Telefone:</span> {user.phone}
+                  </li>
+                )}
+                {user.cpfCnpj && (
+                  <li>
+                    <span className="font-medium text-gray-700">CPF/CNPJ:</span> {user.cpfCnpj}
+                  </li>
+                )}
               </ul>
               
               <button 
