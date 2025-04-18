@@ -108,6 +108,17 @@ const BillingPage = () => {
                             <span>R$ {currentPlan.price.toFixed(2)}</span>
                           </div>
                         </div>
+                        
+                        <div className="flex justify-center mt-4">
+                          <Button 
+                            onClick={() => navigate('/subscription-details')} 
+                            className="text-vegas-gold border border-vegas-gold hover:bg-vegas-gold/10"
+                            variant="outline"
+                          >
+                            Ver histórico completo
+                            <ExternalLink className="ml-2 h-4 w-4" />
+                          </Button>
+                        </div>
                       </>
                     ) : (
                       <p className="text-gray-400 text-center py-4">

@@ -182,42 +182,52 @@ const ProfileSubscription = () => {
         </Button>
         
         {currentSubscription.status === 'active' && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button 
-                variant="outline" 
-                className="flex-1 border-red-600 text-red-600 hover:bg-red-600/10"
-                disabled={isCanceling}
-              >
-                {isCanceling ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Cancelando...
-                  </>
-                ) : (
-                  "Cancelar assinatura"
-                )}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent className="bg-vegas-black border-gray-700">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Ao cancelar sua assinatura, você perderá acesso a todos os recursos premium 
-                  quando o período atual terminar. Essa ação não pode ser desfeita.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel className="border-gray-700 bg-transparent">Voltar</AlertDialogCancel>
-                <AlertDialogAction 
-                  className="bg-red-600 hover:bg-red-700"
-                  onClick={handleCancelSubscription}
+          <>
+            <Button
+              variant="outline"
+              className="flex-1 border-vegas-gold text-vegas-gold hover:bg-vegas-gold/10"
+              onClick={() => navigate('/subscription-details')}
+            >
+              Ver detalhes completos
+            </Button>
+            
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="flex-1 border-red-600 text-red-600 hover:bg-red-600/10"
+                  disabled={isCanceling}
                 >
-                  Confirmar cancelamento
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                  {isCanceling ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Cancelando...
+                    </>
+                  ) : (
+                    "Cancelar assinatura"
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-vegas-black border-gray-700">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Ao cancelar sua assinatura, você perderá acesso a todos os recursos premium 
+                    quando o período atual terminar. Essa ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="border-gray-700 bg-transparent">Voltar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    className="bg-red-600 hover:bg-red-700"
+                    onClick={handleCancelSubscription}
+                  >
+                    Confirmar cancelamento
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
         )}
       </CardFooter>
     </Card>
