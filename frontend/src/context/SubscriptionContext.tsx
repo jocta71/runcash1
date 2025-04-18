@@ -75,34 +75,14 @@ export const availablePlans: Plan[] = [
   }
 ];
 
-export enum PlanType {
-  FREE = 'free',
-  BASIC = 'basic',
-  PRO = 'pro',
-  PREMIUM = 'premium'
-}
-
-export interface UserSubscription {
-  id: string;
-  status: string;
-  startDate: string;
-  endDate?: string;
-  nextBillingDate?: string;
-  paymentMethod?: string;
-  value?: number;
-  // ... other existing properties ...
-}
-
 interface SubscriptionContextType {
-  currentPlan: Plan | null;
   currentSubscription: UserSubscription | null;
+  currentPlan: Plan | null;
   availablePlans: Plan[];
   loading: boolean;
-  error: string | null;
-  cancelSubscription: () => Promise<void>;
-  refreshSubscription: () => Promise<void>;
   hasFeatureAccess: (featureId: string) => boolean;
   upgradePlan: (planId: string) => Promise<void>;
+  cancelSubscription: () => Promise<void>;
   loadUserSubscription: () => Promise<void>;
 }
 
@@ -159,11 +139,9 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         currentPlan,
         availablePlans,
         loading,
-        error: null,
-        cancelSubscription,
-        refreshSubscription: () => Promise.resolve(),
         hasFeatureAccess,
         upgradePlan,
+        cancelSubscription,
         loadUserSubscription
       }}
     >
