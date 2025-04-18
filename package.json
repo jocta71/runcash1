@@ -7,12 +7,10 @@
     "dev": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
     "build:dev": "cd frontend && npm run build:dev",
-    "preview": "cd frontend && npm run preview",
-    "register-webhook": "node webhook-register.js"
+    "preview": "cd frontend && npm run preview"
   },
   "dependencies": {
     "axios": "^1.6.7",
-    "dotenv": "^16.3.1",
     "lucide-react": "^0.501.0",
     "mongodb": "^6.3.0"
   }
