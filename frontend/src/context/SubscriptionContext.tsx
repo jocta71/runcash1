@@ -75,85 +75,129 @@ export const availablePlans: Plan[] = [
   }
 ];
 
+// Definição do Contexto
 interface SubscriptionContextType {
-  currentSubscription: UserSubscription | null;
-  currentPlan: Plan | null;
   availablePlans: Plan[];
+  currentPlan: Plan | null;
+  currentSubscription: UserSubscription | null;
   loading: boolean;
-  hasFeatureAccess: (featureId: string) => boolean;
-  upgradePlan: (planId: string) => Promise<void>;
-  cancelSubscription: () => Promise<void>;
-  loadUserSubscription: () => Promise<void>;
+  error: string | null;
+  cancelSubscription: () => Promise<boolean>;
+  refreshUserSubscription: () => Promise<void>;
 }
 
-const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
+// Estado inicial do contexto
+const initialState: SubscriptionContextType = {
+  availablePlans,
+  currentPlan: null,
+  currentSubscription: null,
+  loading: false,
+  error: null,
+  cancelSubscription: async () => false,
+  refreshUserSubscription: async () => {}
+};
 
-// Versão mock do SubscriptionProvider que sempre fornece acesso premium
+// Criação do contexto
+const SubscriptionContext = createContext<SubscriptionContextType>(initialState);
+
+// Provedor do contexto
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Sempre usar o plano premium como padrão
-  const premiumPlan = availablePlans.find(plan => plan.id === 'premium') || availablePlans[3];
-  
-  // Estado inicial com plano premium
-  const [currentSubscription] = useState<UserSubscription | null>({
-    id: 'mock-subscription',
-    userId: 'mock-user',
-    planId: 'premium',
-    planType: PlanType.PREMIUM,
-    startDate: new Date(),
-    endDate: null,
-    status: 'active',
-    paymentMethod: 'mock',
-    paymentProvider: 'manual',
-    nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-  });
-  
-  const [currentPlan] = useState<Plan | null>(premiumPlan);
-  const [loading] = useState(false);
+  const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Função mock para carregar assinatura (não faz nada)
-  const loadUserSubscription = async (): Promise<void> => {
-    // Não faz nada, já que o estado inicial já inclui o plano premium
-    return Promise.resolve();
+  // Função para buscar a assinatura atual do usuário
+  const refreshUserSubscription = async () => {
+    try {
+      setLoading(true);
+      // Simular busca na API
+      // TODO: Implementar busca real na API
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Dados simulados - em produção, buscar da API
+      const userPlanId = 'pro'; // Simular plano ativo
+      const matchingPlan = availablePlans.find(plan => plan.id === userPlanId) || null;
+      
+      if (matchingPlan) {
+        setCurrentPlan(matchingPlan);
+        setCurrentSubscription({
+          id: 'sub-123',
+          subscriptionId: 'asaas-sub-123', // ID da assinatura no ASAAS
+          status: 'active',
+          planId: matchingPlan.id,
+          startDate: new Date().toISOString(),
+          endDate: null,
+          nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          autoRenew: true
+        });
+      }
+      
+      setError(null);
+    } catch (err) {
+      console.error('Erro ao buscar assinatura:', err);
+      setError('Falha ao carregar informações de assinatura');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Sempre retorna true para qualquer recurso
-  const hasFeatureAccess = (featureId: string): boolean => {
-    return true;
+  // Função para cancelar assinatura
+  const cancelSubscription = async (): Promise<boolean> => {
+    try {
+      setLoading(true);
+      // Simular chamada à API
+      // TODO: Implementar cancelamento real
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Atualizar estado
+      if (currentSubscription) {
+        setCurrentSubscription({
+          ...currentSubscription,
+          status: 'canceled',
+          endDate: new Date().toISOString(),
+          autoRenew: false
+        });
+      }
+      
+      setError(null);
+      return true;
+    } catch (err) {
+      console.error('Erro ao cancelar assinatura:', err);
+      setError('Falha ao cancelar assinatura');
+      return false;
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Funções mock para upgrade e cancelamento (não fazem nada)
-  const upgradePlan = async (planId: string): Promise<void> => {
-    console.log(`Upgrade para o plano ${planId} simulado com sucesso`);
-    return Promise.resolve();
-  };
+  // Buscar assinatura ao montar o componente
+  React.useEffect(() => {
+    refreshUserSubscription();
+  }, []);
 
-  const cancelSubscription = async (): Promise<void> => {
-    console.log('Cancelamento de assinatura simulado com sucesso');
-    return Promise.resolve();
+  const value: SubscriptionContextType = {
+    availablePlans,
+    currentPlan,
+    currentSubscription,
+    loading,
+    error,
+    cancelSubscription,
+    refreshUserSubscription
   };
 
   return (
-    <SubscriptionContext.Provider
-      value={{
-        currentSubscription,
-        currentPlan,
-        availablePlans,
-        loading,
-        hasFeatureAccess,
-        upgradePlan,
-        cancelSubscription,
-        loadUserSubscription
-      }}
-    >
+    <SubscriptionContext.Provider value={value}>
       {children}
     </SubscriptionContext.Provider>
   );
 };
 
+// Hook para usar o contexto
 export const useSubscription = () => {
   const context = useContext(SubscriptionContext);
-  if (context === undefined) {
-    throw new Error('useSubscription must be used within a SubscriptionProvider');
+  if (!context) {
+    throw new Error('useSubscription deve ser usado dentro de um SubscriptionProvider');
   }
   return context;
 }; 

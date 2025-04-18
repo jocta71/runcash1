@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -7,12 +7,18 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Loader2, CreditCard, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { cancelAsaasSubscription, findAsaasSubscription } from '@/integrations/asaas/client';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 const ProfileSubscription = () => {
-  const { currentSubscription, currentPlan, loading, cancelSubscription } = useSubscription();
+  const { currentSubscription, currentPlan, loading, cancelSubscription, refreshUserSubscription } = useSubscription();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isCanceling, setIsCanceling] = useState(false);
+  const [paymentDetails, setPaymentDetails] = useState([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancellingSubscription, setCancellingSubscription] = useState(false);
   
   const handleCancelSubscription = async () => {
     try {
@@ -75,6 +81,28 @@ const ProfileSubscription = () => {
         return <CreditCard className="h-10 w-10 text-gray-400" />;
     }
   };
+  
+  // Buscar detalhes da assinatura e pagamentos
+  useEffect(() => {
+    const fetchSubscriptionDetails = async () => {
+      if (!currentSubscription?.subscriptionId) return;
+      
+      try {
+        setLoadingDetails(true);
+        const details = await findAsaasSubscription(currentSubscription.subscriptionId);
+        
+        if (details?.payments) {
+          setPaymentDetails(details.payments);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar detalhes da assinatura:', error);
+      } finally {
+        setLoadingDetails(false);
+      }
+    };
+    
+    fetchSubscriptionDetails();
+  }, [currentSubscription]);
   
   if (loading) {
     return (
@@ -182,42 +210,48 @@ const ProfileSubscription = () => {
         </Button>
         
         {currentSubscription.status === 'active' && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button 
-                variant="outline" 
-                className="flex-1 border-red-600 text-red-600 hover:bg-red-600/10"
-                disabled={isCanceling}
-              >
-                {isCanceling ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Cancelando...
-                  </>
-                ) : (
-                  "Cancelar assinatura"
-                )}
+          <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="destructive" className="bg-red-500/20 text-red-500 hover:bg-red-500/30 border-red-500/50">
+                Cancelar assinatura
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent className="bg-vegas-black border-gray-700">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Ao cancelar sua assinatura, você perderá acesso a todos os recursos premium 
-                  quando o período atual terminar. Essa ação não pode ser desfeita.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel className="border-gray-700 bg-transparent">Voltar</AlertDialogCancel>
-                <AlertDialogAction 
-                  className="bg-red-600 hover:bg-red-700"
-                  onClick={handleCancelSubscription}
+            </DialogTrigger>
+            <DialogContent className="bg-vegas-black border border-gray-700 sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle className="text-white">Cancelar assinatura</DialogTitle>
+                <DialogDescription>
+                  Tem certeza que deseja cancelar sua assinatura? Você perderá acesso aos recursos premium ao final do período pago.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-md text-sm mt-2">
+                <AlertTriangle className="h-4 w-4 inline-block mr-1" />
+                O cancelamento é irreversível. Para retomar o acesso, você precisará fazer uma nova assinatura.
+              </div>
+              <DialogFooter className="mt-4">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setCancelDialogOpen(false)}
+                  disabled={cancellingSubscription}
                 >
-                  Confirmar cancelamento
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                  Voltar
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleCancelSubscription}
+                  disabled={cancellingSubscription}
+                >
+                  {cancellingSubscription ? (
+                    <>
+                      <span className="animate-spin mr-2">⏳</span>
+                      Cancelando...
+                    </>
+                  ) : (
+                    'Confirmar cancelamento'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
       </CardFooter>
     </Card>
