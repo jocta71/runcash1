@@ -9,6 +9,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import ProfileDropdown from './ProfileDropdown';
 import AnimatedInsights from './AnimatedInsights';
+import Footer from './Footer';
 
 // Interface estendida para o usuário com firstName e lastName
 interface ExtendedUser {
@@ -210,6 +211,11 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         <main className="pt-4 md:pt-[70px] pb-8 px-4 md:px-6 md:pl-[280px] w-full min-h-screen bg-[#131614]">
           {children}
         </main>
+
+        {/* Footer - com classe para evitar sobreposição com o chat */}
+        <div className="md:pl-64 lg:pl-64 md:pr-[400px] lg:pr-[400px] pb-[100px] md:pb-0">
+          <Footer />
+        </div>
       </div>
       
       {/* Chat fixo na parte inferior */}
