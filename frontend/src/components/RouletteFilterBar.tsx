@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import RouletteSearch from '@/components/RouletteSearch';
@@ -6,6 +6,7 @@ import { RouletteData } from '@/types';
 import { 
   filterRoulettesBySearchTerm
 } from '@/utils/rouletteFilters';
+import { extractProviders } from '@/utils/rouletteProviders';
 
 interface RouletteFilterBarProps {
   roulettes: RouletteData[];
@@ -25,6 +26,11 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
   // Estados para os filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Extrair provedores das roletas
+  const providers = useMemo(() => {
+    return extractProviders(roulettes);
+  }, [roulettes]);
   
   // Efeito para aplicar os filtros quando mudam
   useEffect(() => {
@@ -85,7 +91,19 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
           </Button>
         </div>
         
-        {/* Apenas a contagem de roletas filtradas */}
+        {/* Provedores disponíveis */}
+        <div className="flex flex-wrap gap-2">
+          {providers.map(provider => (
+            <div 
+              key={provider.id} 
+              className="px-2 py-1 rounded-full text-xs border border-gray-700 bg-gray-800 text-gray-300"
+            >
+              {provider.name}
+            </div>
+          ))}
+        </div>
+        
+        {/* Contagem de roletas filtradas */}
         <div className="flex justify-end items-center">
           <div className="text-sm text-gray-400">
             Mostrando {filteredCount} roletas
