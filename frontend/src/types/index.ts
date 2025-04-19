@@ -39,7 +39,7 @@ export interface RouletteData {
   nome?: string;
   name?: string;
   numeros?: number[];
-  numero?: number[];
+  numero?: number[] | {numero: number; cor?: string}[];
   lastNumbers?: number[];
   estado_estrategia?: string;
   ativa?: boolean;

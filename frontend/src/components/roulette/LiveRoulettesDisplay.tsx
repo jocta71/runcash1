@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import RouletteCard from '@/components/RouletteCard';
-import { RouletteData } from '@/integrations/api/rouletteService';
+import { RouletteData } from '@/types';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import LastNumbersBar from './LastNumbersBar';
 import EventService from '@/services/EventService';
@@ -8,214 +8,6 @@ import CasinoAPIAdapter from '@/services/CasinoAPIAdapter';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
 import RouletteStatsModal from '@/components/RouletteStatsModal';
 import RouletteStatsInline from './RouletteStatsInline';
-
-// Componente de estatísticas inline 
-const RouletteStatsInline = ({ roletaNome, lastNumbers }: { roletaNome: string, lastNumbers: number[] }) => {
-  // Calcular estatísticas
-  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-  const redCount = lastNumbers.filter(n => redNumbers.includes(n)).length;
-  const blackCount = lastNumbers.filter(n => n !== 0 && !redNumbers.includes(n)).length;
-  const zeroCount = lastNumbers.filter(n => n === 0).length;
-  const total = lastNumbers.length;
-  
-  // Calcular porcentagens
-  const redPercent = Math.round((redCount / total) * 100);
-  const blackPercent = Math.round((blackCount / total) * 100);
-  const zeroPercent = Math.round((zeroCount / total) * 100);
-  
-  // Calcular frequência de números
-  const numberFrequency: Record<number, number> = {};
-  lastNumbers.forEach(num => {
-    numberFrequency[num] = (numberFrequency[num] || 0) + 1;
-  });
-  
-  // Encontrar números quentes (mais frequentes)
-  const hotNumbers = Object.entries(numberFrequency)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(entry => ({ number: parseInt(entry[0]), count: entry[1] }));
-    
-  // Encontrar números frios (menos frequentes)
-  const coldNumbers = Object.entries(numberFrequency)
-    .sort((a, b) => a[1] - b[1])
-    .slice(0, 5)
-    .map(entry => ({ number: parseInt(entry[0]), count: entry[1] }));
-  
-  return (
-    <div className="p-6">
-      <h2 className="text-xl font-bold text-green-500 mb-4">{roletaNome} - Estatísticas</h2>
-      
-      {/* Grid de 3 colunas para organizar as estatísticas */}
-      <div className="grid grid-cols-3 gap-6">
-        {/* Coluna 1: Números históricos */}
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-white font-semibold mb-3">Últimos Números</h3>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {lastNumbers.slice(0, 18).map((num, idx) => {
-              const bgColor = num === 0 
-                ? "bg-green-600" 
-                : redNumbers.includes(num) ? "bg-red-600" : "bg-black";
-              
-              return (
-                <div 
-                  key={idx}
-                  className={`${bgColor} w-8 h-8 rounded-full flex items-center justify-center text-white font-medium`}
-                >
-                  {num}
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-gray-400 text-sm">Total de jogos: {total}</p>
-        </div>
-        
-        {/* Coluna 2: Taxas de vitória */}
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-white font-semibold mb-3">Distribuição de Cores</h3>
-          
-          {/* Barra vermelho */}
-          <div className="mb-2">
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-red-500">Vermelho</span>
-              <span className="text-white">{redCount} ({redPercent}%)</span>
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-2.5">
-              <div className="bg-red-600 h-2.5 rounded-full" style={{ width: `${redPercent}%` }}></div>
-            </div>
-          </div>
-          
-          {/* Barra preto */}
-          <div className="mb-2">
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-gray-300">Preto</span>
-              <span className="text-white">{blackCount} ({blackPercent}%)</span>
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-2.5">
-              <div className="bg-gray-900 h-2.5 rounded-full" style={{ width: `${blackPercent}%` }}></div>
-            </div>
-          </div>
-          
-          {/* Barra verde */}
-          <div className="mb-2">
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-green-500">Zero</span>
-              <span className="text-white">{zeroCount} ({zeroPercent}%)</span>
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-2.5">
-              <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${zeroPercent}%` }}></div>
-            </div>
-          </div>
-          
-          {/* Estatísticas adicionais em grid */}
-          <div className="grid grid-cols-2 gap-2 mt-4">
-            <div className="bg-gray-700 p-2 rounded">
-              <p className="text-xs text-gray-400">Par</p>
-              <p className="text-white font-medium">
-                {lastNumbers.filter(n => n !== 0 && n % 2 === 0).length} ({Math.round((lastNumbers.filter(n => n !== 0 && n % 2 === 0).length / total) * 100)}%)
-              </p>
-            </div>
-            <div className="bg-gray-700 p-2 rounded">
-              <p className="text-xs text-gray-400">Ímpar</p>
-              <p className="text-white font-medium">
-                {lastNumbers.filter(n => n % 2 === 1).length} ({Math.round((lastNumbers.filter(n => n % 2 === 1).length / total) * 100)}%)
-              </p>
-            </div>
-            <div className="bg-gray-700 p-2 rounded">
-              <p className="text-xs text-gray-400">1-18</p>
-              <p className="text-white font-medium">
-                {lastNumbers.filter(n => n >= 1 && n <= 18).length} ({Math.round((lastNumbers.filter(n => n >= 1 && n <= 18).length / total) * 100)}%)
-              </p>
-            </div>
-            <div className="bg-gray-700 p-2 rounded">
-              <p className="text-xs text-gray-400">19-36</p>
-              <p className="text-white font-medium">
-                {lastNumbers.filter(n => n >= 19 && n <= 36).length} ({Math.round((lastNumbers.filter(n => n >= 19 && n <= 36).length / total) * 100)}%)
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        {/* Coluna 3: Números quentes e frios */}
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-white font-semibold mb-3">Frequência de Números</h3>
-          
-          {/* Números quentes */}
-          <div className="mb-4">
-            <h4 className="text-sm text-gray-400 mb-2">Números Quentes</h4>
-            <div className="flex flex-wrap gap-2">
-              {hotNumbers.map(({number, count}) => {
-                const bgColor = number === 0 
-                  ? "bg-green-600" 
-                  : redNumbers.includes(number) ? "bg-red-600" : "bg-black";
-                
-                return (
-                  <div key={number} className="flex flex-col items-center">
-                    <div 
-                      className={`${bgColor} w-8 h-8 rounded-full flex items-center justify-center text-white font-medium mb-1`}
-                    >
-                      {number}
-                    </div>
-                    <span className="text-xs text-gray-400">{count}x</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          
-          {/* Números frios */}
-          <div>
-            <h4 className="text-sm text-gray-400 mb-2">Números Frios</h4>
-            <div className="flex flex-wrap gap-2">
-              {coldNumbers.map(({number, count}) => {
-                const bgColor = number === 0 
-                  ? "bg-green-600" 
-                  : redNumbers.includes(number) ? "bg-red-600" : "bg-black";
-                
-                return (
-                  <div key={number} className="flex flex-col items-center">
-                    <div 
-                      className={`${bgColor} w-8 h-8 rounded-full flex items-center justify-center text-white font-medium mb-1`}
-                    >
-                      {number}
-                    </div>
-                    <span className="text-xs text-gray-400">{count}x</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Resumo de estatísticas */}
-      <div className="mt-6 bg-gray-800 rounded-lg p-4">
-        <h3 className="text-white font-semibold mb-3">Resumo de Estatísticas</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-700 p-3 rounded">
-            <p className="text-sm text-gray-400">Vermelhos</p>
-            <p className="text-xl font-bold text-white">{redCount}</p>
-            <p className="text-xs text-red-400">{redPercent}% do total</p>
-          </div>
-          <div className="bg-gray-700 p-3 rounded">
-            <p className="text-sm text-gray-400">Pretos</p>
-            <p className="text-xl font-bold text-white">{blackCount}</p>
-            <p className="text-xs text-gray-400">{blackPercent}% do total</p>
-          </div>
-          <div className="bg-gray-700 p-3 rounded">
-            <p className="text-sm text-gray-400">Zeros</p>
-            <p className="text-xl font-bold text-white">{zeroCount}</p>
-            <p className="text-xs text-green-400">{zeroPercent}% do total</p>
-          </div>
-          <div className="bg-gray-700 p-3 rounded">
-            <p className="text-sm text-gray-400">Total de jogos</p>
-            <p className="text-xl font-bold text-white">{total}</p>
-            <p className="text-xs text-blue-400">100%</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 interface RouletteTable {
   tableId: string;
@@ -236,6 +28,12 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
   const [showStatsInline, setShowStatsInline] = useState(false);
   const rouletteCardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  
+  // Novos estados para filtros e layout
+  const [providerFilter, setProviderFilter] = useState<string>('todos');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortBy, setSortBy] = useState<'nome' | 'atividade' | 'provedor'>('nome');
   
   // Referência ao serviço de feed centralizado, sem iniciar novo polling
   const feedService = React.useMemo(() => {
@@ -359,35 +157,179 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     setShowStatsInline(false);
   };
 
+  // Obter todos os provedores únicos para criar o filtro
+  const availableProviders = useMemo(() => {
+    if (!roulettes.length) return [];
+    
+    const providers = new Set<string>();
+    
+    // Adicionar todos os provedores encontrados
+    roulettes.forEach(roleta => {
+      if (roleta.provedor) {
+        providers.add(roleta.provedor);
+      } else {
+        providers.add('Desconhecido');
+      }
+    });
+    
+    // Converter para array e ordenar
+    return Array.from(providers).sort();
+  }, [roulettes]);
+  
+  // Contar roletas por provedor para exibir as contagens
+  const providerCounts = useMemo(() => {
+    const counts: Record<string, number> = { todos: roulettes.length };
+    
+    roulettes.forEach(roleta => {
+      const provider = roleta.provedor || 'Desconhecido';
+      counts[provider] = (counts[provider] || 0) + 1;
+    });
+    
+    return counts;
+  }, [roulettes]);
+  
+  // Roletas filtradas por provedor e termo de busca
+  const filteredRoulettes = useMemo(() => {
+    let filtered = [...roulettes];
+    
+    // Aplicar filtro de provedor
+    if (providerFilter !== 'todos') {
+      filtered = filtered.filter(roleta => {
+        const provider = roleta.provedor || 'Desconhecido';
+        return provider === providerFilter;
+      });
+    }
+    
+    // Aplicar busca por texto
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(roleta => {
+        const name = (roleta.nome || roleta.name || '').toLowerCase();
+        const provider = (roleta.provedor || 'Desconhecido').toLowerCase();
+        return name.includes(term) || provider.includes(term);
+      });
+    }
+    
+    // Ordenar os resultados
+    return filtered.sort((a, b) => {
+      if (sortBy === 'nome') {
+        return (a.nome || a.name || '').localeCompare(b.nome || b.name || '');
+      } else if (sortBy === 'provedor') {
+        return (a.provedor || 'Desconhecido').localeCompare(b.provedor || 'Desconhecido');
+      } else if (sortBy === 'atividade') {
+        // Ordenar por número de jogadores online ou atividade recente
+        const aCount = a.jogadores_online || 0;
+        const bCount = b.jogadores_online || 0;
+        return bCount - aCount;
+      }
+      return 0;
+    });
+  }, [roulettes, providerFilter, searchTerm, sortBy]);
+
   // Se temos dados passados por props, mostrar eles diretamente
   if (roulettesData && roulettesData.length > 0) {
     return (
       <div className="max-w-[1200px] mx-auto px-4 py-6">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
             <h2 className="text-2xl font-bold text-white">Roletas Disponíveis</h2>
             <p className="text-gray-400">Escolha uma roleta para começar a jogar</p>
           </div>
-          <div className="relative w-64">
-            <input 
-              type="text" 
-              placeholder="Buscar roleta..." 
-              className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-            <svg 
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
+          
+          {/* Barra de ferramentas de filtros/busca */}
+          <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+            {/* Campo de busca */}
+            <div className="relative w-full md:w-64">
+              <input 
+                type="text" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar roleta..." 
+                className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <svg 
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                width="16" 
+                height="16" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </div>
+            
+            {/* Seletor de ordenação */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'nome' | 'atividade' | 'provedor')}
+              className="bg-gray-800 text-white py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
             >
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
+              <option value="nome">Ordenar: Nome</option>
+              <option value="provedor">Ordenar: Provedor</option>
+              <option value="atividade">Ordenar: Atividade</option>
+            </select>
+            
+            {/* Botões de layout */}
+            <div className="flex gap-2 bg-gray-800 rounded-md p-1">
+              <button 
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-gray-700' : ''}`}
+                title="Visualização em grade"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                </svg>
+              </button>
+              <button 
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-gray-700' : ''}`}
+                title="Visualização em lista"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
+                  <line x1="3" y1="6" x2="21" y2="6"></line>
+                  <line x1="3" y1="12" x2="21" y2="12"></line>
+                  <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Filtros de provedor */}
+        <div className="mb-6 overflow-auto">
+          <div className="flex gap-2 pb-2">
+            <button
+              onClick={() => setProviderFilter('todos')}
+              className={`px-4 py-2 rounded-md transition whitespace-nowrap ${
+                providerFilter === 'todos'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              Todos ({providerCounts.todos || 0})
+            </button>
+            
+            {availableProviders.map(provider => (
+              <button
+                key={provider}
+                onClick={() => setProviderFilter(provider)}
+                className={`px-4 py-2 rounded-md transition whitespace-nowrap ${
+                  providerFilter === provider
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                {provider} ({providerCounts[provider] || 0})
+              </button>
+            ))}
           </div>
         </div>
         
@@ -395,132 +337,162 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
         <div className="flex flex-col md:flex-row gap-4">
           {/* Lista de roletas à esquerda */}
           <div className="w-full md:w-1/2 overflow-y-auto max-h-[calc(100vh-200px)]">
-            <div className="grid grid-cols-1 gap-3">
-              {roulettes.map((roleta, index) => (
-                <div 
-                  key={roleta.id} 
-                  ref={el => rouletteCardRefs.current[index] = el}
-                  className={`bg-gray-900 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-800 transition-colors border ${selectedRoulette?.id === roleta.id ? 'border-2 border-[#00ff00]' : 'border-gray-800'}`}
-                  onClick={() => handleRouletteSelect(roleta)}
+            {filteredRoulettes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-40 bg-gray-900 rounded-lg p-6">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 mb-4">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <p className="text-gray-400 text-center">Nenhuma roleta encontrada com os filtros atuais</p>
+                <button 
+                  onClick={() => {
+                    setProviderFilter('todos');
+                    setSearchTerm('');
+                  }}
+                  className="mt-3 text-green-500 hover:text-green-400"
                 >
-                  <div className="p-3">
-                    {/* Cabeçalho do card */}
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="flex items-center gap-2">
-                        {/* Nome da roleta com contagem de atualizações */}
-                        <h3 className="text-lg font-semibold text-white">{roleta.nome}</h3>
-                        
-                        {/* Ícone do número de atualizações */}
-                        <div className="flex items-center">
-                          <span className="bg-gray-800 text-xs text-gray-300 px-2 py-0.5 rounded">
-                            {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? roleta.numero.length : 0} números
-                          </span>
+                  Limpar filtros
+                </button>
+              </div>
+            ) : (
+              <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'grid grid-cols-1 gap-3'}>
+                {filteredRoulettes.map((roleta, index) => (
+                  <div 
+                    key={roleta.id} 
+                    ref={el => rouletteCardRefs.current[index] = el}
+                    className={`bg-gray-900 rounded-lg overflow-hidden shadow-lg cursor-pointer hover:bg-gray-800 transition-colors border ${
+                      selectedRoulette?.id === roleta.id ? 'border-2 border-[#00ff00]' : 'border-gray-800'
+                    }`}
+                    onClick={() => handleRouletteSelect(roleta)}
+                  >
+                    <div className="p-3">
+                      {/* Cabeçalho do card */}
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Nome da roleta com contagem de atualizações */}
+                          <h3 className="text-lg font-semibold text-white">{roleta.nome || roleta.name}</h3>
+                          
+                          {/* Badge de provedor */}
+                          {roleta.provedor && (
+                            <span className="bg-gray-700 text-xs text-gray-300 px-2 py-0.5 rounded-full">
+                              {roleta.provedor}
+                            </span>
+                          )}
+                          
+                          {/* Ícone do número de atualizações */}
+                          <div className="flex items-center">
+                            <span className="bg-gray-800 text-xs text-gray-300 px-2 py-0.5 rounded">
+                              {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? roleta.numero.length : 0} números
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    {/* Número atual e últimos números em linha */}
-                    <div className="flex items-center gap-2">
-                      {/* Número atual */}
-                      <div className="flex-shrink-0">
-                        {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? (
-                          <div 
-                            className={`${
-                              roleta.numero[0].numero === 0 
-                                ? "bg-green-600" 
-                                : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(roleta.numero[0].numero)
-                                  ? "bg-red-600"
-                                  : "bg-black"
-                            } w-12 h-12 rounded-full flex items-center justify-center text-white text-xl font-bold`}
-                          >
-                            {roleta.numero[0].numero}
+                      
+                      {/* Número atual e últimos números em linha */}
+                      <div className="flex items-center gap-2">
+                        {/* Número atual */}
+                        <div className="flex-shrink-0">
+                          {Array.isArray(roleta.numero) && roleta.numero.length > 0 ? (
+                            (() => {
+                              // Extrair o número principal
+                              const numero = typeof roleta.numero[0] === 'number' 
+                                ? roleta.numero[0] 
+                                : roleta.numero[0].numero;
+                              
+                              return (
+                                <div 
+                                  className={`${
+                                    numero === 0 
+                                      ? "bg-green-600" 
+                                      : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(numero)
+                                        ? "bg-red-600"
+                                        : "bg-black"
+                                  } w-12 h-12 rounded-full flex items-center justify-center text-white text-xl font-bold`}
+                                >
+                                  {numero}
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            <div className="bg-gray-700 text-gray-400 w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold">
+                              ?
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Últimos números recentes em linha */}
+                        <div className="overflow-hidden">
+                          <div className="flex space-x-1">
+                            {Array.isArray(roleta.numero) && roleta.numero.slice(1, 8).map((num, idx) => {
+                              // Extrair o número, independente do formato
+                              const numeroValue = typeof num === 'number' ? num : num.numero;
+                              
+                              return (
+                                <div 
+                                  key={idx}
+                                  className={`${
+                                    numeroValue === 0 
+                                      ? "bg-green-600" 
+                                      : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(numeroValue)
+                                        ? "bg-red-600"
+                                        : "bg-black"
+                                  } w-7 h-7 rounded-full flex items-center justify-center text-white text-sm`}
+                                >
+                                  {numeroValue}
+                                </div>
+                              );
+                            })}
                           </div>
-                        ) : (
-                          <div className="bg-gray-700 text-gray-400 w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold">
-                            ?
-                          </div>
-                        )}
+                        </div>
                       </div>
                       
-                      {/* Últimos números recentes em linha */}
-                      <div className="flex flex-wrap gap-1">
-                        {Array.isArray(roleta.numero) && roleta.numero.slice(1, 6).map((n, index) => {
-                          const num = n.numero;
-                          const bgColor = num === 0 
-                            ? "bg-green-600" 
-                            : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
-                              ? "bg-red-600"
-                              : "bg-black";
-                          
-                          return (
-                            <div 
-                              key={index} 
-                              className={`${bgColor} text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium`}
-                            >
-                              {num}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    
-                    {/* Rodapé do card simplificado */}
-                    <div className="flex items-center justify-between mt-3 text-xs text-gray-500 border-t border-gray-800 pt-2">
-                      <div className="flex items-center gap-1">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          width="12" 
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <polyline points="12 6 12 12 16 14"></polyline>
-                        </svg>
-                        <span>Tempo real</span>
-                      </div>
+                      {/* Informações adicionais da roleta se estiver em modo lista */}
+                      {viewMode === 'list' && (
+                        <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-gray-400">
+                          <div>
+                            <span className="block">Jogadores:</span>
+                            <span className="text-white font-medium">{roleta.jogadores_online || '-'}</span>
+                          </div>
+                          <div>
+                            <span className="block">Dealer:</span>
+                            <span className="text-white font-medium">{roleta.dealer || '-'}</span>
+                          </div>
+                          <div>
+                            <span className="block">Status:</span>
+                            <span className={`font-medium ${roleta.online ? 'text-green-500' : 'text-gray-500'}`}>
+                              {roleta.online ? 'Online' : 'Offline'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          {/* Painel de estatísticas à direita */}
-          <div className="w-full md:w-1/2 bg-gray-900 rounded-lg overflow-hidden shadow-lg border border-gray-800">
-            {selectedRoulette && Array.isArray(selectedRoulette.numero) && selectedRoulette.numero.length > 0 ? (
-              <RouletteStatsInline 
-                roletaNome={selectedRoulette.nome}
-                lastNumbers={selectedRoulette.numero.map(n => n.numero)}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-[70vh] p-6 text-center">
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  width="64" 
-                  height="64" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="1.5" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  className="text-gray-600 mb-4"
-                >
-                  <path d="M3 3v18h18"></path>
-                  <path d="M18 12V8"></path>
-                  <path d="M12 18v-2"></path>
-                  <path d="M6 18v-6"></path>
-                </svg>
-                <h3 className="text-xl font-semibold text-gray-300 mb-2">Selecione uma roleta</h3>
-                <p className="text-gray-500 max-w-md">Clique em uma roleta à esquerda para visualizar estatísticas detalhadas, histórico de números e tendências.</p>
+                ))}
               </div>
             )}
           </div>
+          
+          {/* Estatísticas à direita */}
+          {showStatsInline && selectedRoulette && (
+            <div className="w-full md:w-1/2 bg-gray-900 rounded-lg overflow-hidden shadow-xl">
+              <div className="flex justify-between items-center p-4 border-b border-gray-800">
+                <h3 className="text-xl font-bold text-white">{selectedRoulette.nome || selectedRoulette.name}</h3>
+                <button 
+                  onClick={handleCloseStats}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+              <RouletteStatsInline 
+                roletaNome={selectedRoulette.nome || selectedRoulette.name || ''} 
+                lastNumbers={(selectedRoulette.numero || []).map(n => typeof n === 'number' ? n : n.numero)} 
+              />
+            </div>
+          )}
         </div>
       </div>
     );
@@ -544,29 +516,119 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h2 className="text-2xl font-bold mb-6 text-white">Roletas ao Vivo</h2>
-      
-      {/* Grid de roletas com exatamente 3 cards por linha */}
-      <div className="grid grid-cols-3 gap-6">
-        {tables.map(table => (
-          <LastNumbersBar 
-            key={table.tableId}
-            tableId={table.tableId}
-            tableName={table.tableName}
-          />
-        ))}
-      </div>
-      
-      {/* Botão para atualizar manualmente com a nova função */}
-      <div className="flex justify-center mt-8">
-        <button 
-          onClick={() => (window as any).forceRouletteUpdate?.()}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors"
-        >
-          Atualizar Agora
-        </button>
-      </div>
+    <div className="container mx-auto p-4">
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center min-h-[50vh]">
+          <div className="w-16 h-16 border-4 border-gray-300 border-t-green-500 rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-400">Carregando roletas...</p>
+        </div>
+      ) : (
+        <>
+          {/* Adicionando filtros também nesta visualização */}
+          <div className="mb-6">
+            <div className="flex flex-col md:flex-row justify-between items-start mb-4 gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Roletas Disponíveis</h2>
+                <p className="text-gray-400">Escolha uma roleta para começar a jogar</p>
+              </div>
+              
+              {/* Barra de ferramentas de filtros/busca */}
+              <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                {/* Campo de busca */}
+                <div className="relative w-full md:w-64">
+                  <input 
+                    type="text" 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar roleta..." 
+                    className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <svg 
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                    width="16" 
+                    height="16" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </div>
+                
+                {/* Seletor de ordenação */}
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'nome' | 'atividade' | 'provedor')}
+                  className="bg-gray-800 text-white py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="nome">Ordenar: Nome</option>
+                  <option value="provedor">Ordenar: Provedor</option>
+                  <option value="atividade">Ordenar: Atividade</option>
+                </select>
+              </div>
+            </div>
+            
+            {/* Filtros de provedor */}
+            <div className="mb-4 overflow-auto">
+              <div className="flex gap-2 pb-2">
+                <button
+                  onClick={() => setProviderFilter('todos')}
+                  className={`px-4 py-2 rounded-md transition whitespace-nowrap ${
+                    providerFilter === 'todos'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  Todos ({providerCounts.todos || 0})
+                </button>
+                
+                {availableProviders.map(provider => (
+                  <button
+                    key={provider}
+                    onClick={() => setProviderFilter(provider)}
+                    className={`px-4 py-2 rounded-md transition whitespace-nowrap ${
+                      providerFilter === provider
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    }`}
+                  >
+                    {provider} ({providerCounts[provider] || 0})
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          {filteredRoulettes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 bg-gray-900 rounded-lg p-6">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 mb-4">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <p className="text-gray-400 text-center">Nenhuma roleta encontrada com os filtros atuais</p>
+              <button 
+                onClick={() => {
+                  setProviderFilter('todos');
+                  setSearchTerm('');
+                }}
+                className="mt-3 text-green-500 hover:text-green-400"
+              >
+                Limpar filtros
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredRoulettes.map((roleta) => (
+                <RouletteCard key={roleta.id} data={roleta} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
