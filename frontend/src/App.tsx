@@ -36,7 +36,7 @@ const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
 // Nova página de IA de análise
-const AIAnalysisPage = lazy(() => import("@/pages/AIAnalysisPage"));
+const AIAnalysisPage = lazy(() => import("@/pages/AIAnalysisPage.tsx"));
 // Comentando a importação da página de teste do Asaas
 // const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 
