@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, ChevronDown } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import RouletteSearch from '@/components/RouletteSearch';
 import { RouletteData } from '@/types';
@@ -7,12 +7,6 @@ import {
   filterRoulettesBySearchTerm
 } from '@/utils/rouletteFilters';
 import { extractProviders, filterRoulettesByProvider } from '@/utils/rouletteProviders';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 interface RouletteFilterBarProps {
   roulettes: RouletteData[];
@@ -121,44 +115,6 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
             />
           </div>
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="h-10 bg-gray-900 text-gray-200 border-gray-800 px-3"
-              >
-                Provedores {selectedProviders.length > 0 && `(${selectedProviders.length})`}
-                <ChevronDown className="ml-2 h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56 bg-gray-900 border-gray-800 text-gray-200">
-              {providers.map(provider => (
-                <DropdownMenuCheckboxItem
-                  key={provider.id}
-                  checked={selectedProviders.includes(provider.id)}
-                  onCheckedChange={() => handleProviderToggle(provider.id)}
-                  className="focus:bg-gray-800 focus:text-white cursor-pointer"
-                >
-                  {provider.name}
-                </DropdownMenuCheckboxItem>
-              ))}
-              
-              {selectedProviders.length > 0 && (
-                <div className="border-t border-gray-800 p-2 mt-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="w-full text-xs text-gray-400 hover:text-white"
-                    onClick={clearProviderFilters}
-                  >
-                    Limpar filtros
-                  </Button>
-                </div>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          
           <Button
             variant="outline"
             size="icon"
@@ -169,6 +125,41 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
           >
             <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
           </Button>
+        </div>
+        
+        {/* Provedores sempre visíveis */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-gray-400">Provedores:</div>
+            {selectedProviders.length > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-6 px-2 text-xs text-gray-400 hover:text-white"
+                onClick={clearProviderFilters}
+              >
+                <X className="h-3 w-3 mr-1" />
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {providers.map(provider => (
+              <Button
+                key={provider.id}
+                variant={selectedProviders.includes(provider.id) ? "default" : "outline"}
+                size="sm"
+                className={`text-xs px-3 py-1 h-7 ${
+                  selectedProviders.includes(provider.id) 
+                    ? "bg-vegas-gold text-black hover:bg-vegas-gold/90" 
+                    : "bg-gray-900 text-gray-300 border-gray-800 hover:bg-gray-800 hover:text-white"
+                }`}
+                onClick={() => handleProviderToggle(provider.id)}
+              >
+                {provider.name}
+              </Button>
+            ))}
+          </div>
         </div>
         
         {/* Contagem de roletas filtradas */}
