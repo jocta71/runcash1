@@ -13,17 +13,28 @@ interface AIMessage {
 // Componente de carregamento com leap-frog estilizado
 const LoadingIndicator = () => {
   return (
-    <div className="flex flex-col items-center my-6 p-3 rounded-lg bg-black/10 backdrop-blur-sm border border-white/5">
+    <div className="flex flex-col items-center my-6 p-4 rounded-lg bg-black/20 backdrop-blur-sm border border-white/5">
       <div className="flex items-center space-x-2 mb-3">
         <Bot size={18} className="text-green-400" />
         <span className="text-green-400 text-sm">RunCash IA</span>
       </div>
-      <div className="leap-frog mb-2">
-        <div className="leap-frog__dot"></div>
-        <div className="leap-frog__dot"></div>
-        <div className="leap-frog__dot"></div>
+      
+      <div className="relative flex items-center justify-center w-16 h-16 my-2">
+        {/* Círculo pulsante ao redor do logo */}
+        <div className="absolute inset-0 w-full h-full rounded-full border-2 border-green-500/50 animate-pulse"></div>
+        
+        {/* Logo do coelho */}
+        <div className="w-12 h-12 flex items-center justify-center">
+          <img 
+            src="/assets/icon-rabbit.svg" 
+            alt="RunCash Rabbit" 
+            className="w-full h-full object-contain animate-bounce" 
+            style={{ animationDuration: '2s' }}
+          />
+        </div>
       </div>
-      <div className="text-green-400/80 text-xs">Processando sua consulta...</div>
+      
+      <div className="text-green-400/80 text-xs mt-2">Processando sua consulta...</div>
     </div>
   );
 };
