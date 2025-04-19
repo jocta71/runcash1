@@ -151,8 +151,11 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
                         parityFilter !== null || 
                         timeFilter !== null;
   
+  // Número de roletas filtradas
+  const filteredCount = roulettes.length;
+  
   return (
-    <div style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }} className="rounded-lg p-4 mb-6 border border-gray-700/50">
+    <div className="rounded-lg p-4 mb-6 border border-gray-700/50" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
       <div className="flex flex-col gap-4">
         {/* Barra de busca e botão de atualização */}
         <div className="flex items-center gap-2">
@@ -187,10 +190,10 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
           onTimeFilterChange={setTimeFilter}
         />
         
-        {/* Exibir contadores */}
-        <div className="flex justify-between items-center text-sm text-gray-400">
-          <div>
-            Mostrando <span className="text-vegas-gold font-medium">{roulettes.length}</span> roletas
+        {/* Exibir contadores e botão de limpar todos */}
+        <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-700/30">
+          <div className="text-sm text-gray-400">
+            Mostrando <span className="text-vegas-gold font-medium">{filteredCount}</span> roletas
           </div>
           
           {hasAnyFilters && (
@@ -198,7 +201,7 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
               variant="ghost"
               size="sm"
               onClick={clearAllFilters}
-              className="h-7 px-2 text-xs hover:text-white"
+              className="h-7 px-2 text-xs text-vegas-gold hover:text-white hover:bg-vegas-gold/10"
             >
               Limpar todos os filtros
             </Button>
