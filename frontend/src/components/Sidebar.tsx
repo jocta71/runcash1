@@ -111,14 +111,6 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
               <span className="truncate">Análise Avançada</span>
             </div>
             
-            <div className="menu-item" onClick={() => navigate('/ai-analysis')}>
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <Brain size={18} className="bg-gradient-to-r from-[#9c27b0] to-[#e91e63] bg-clip-text text-transparent" />
-              </div>
-              <span className="truncate">Análise por IA</span>
-              <span className="py-0.5 px-1.5 rounded-md bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[9px] font-bold">NOVO</span>
-            </div>
-            
             <div className="menu-item" onClick={() => navigate('/strategies')}>
               <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <Rocket size={18} className="text-white" />
