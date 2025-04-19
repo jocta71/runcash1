@@ -491,6 +491,24 @@ const Index = () => {
     // Por enquanto, apenas exibir uma mensagem no console
   };
 
+  // Recuperar provedor selecionado do localStorage na inicialização
+  useEffect(() => {
+    const savedProvider = localStorage.getItem('selectedProvider');
+    if (savedProvider) {
+      setSelectedProvider(savedProvider);
+      setShowProviderInfo(true);
+    }
+  }, []);
+  
+  // Salvar provedor selecionado no localStorage quando mudar
+  useEffect(() => {
+    if (selectedProvider) {
+      localStorage.setItem('selectedProvider', selectedProvider);
+    } else {
+      localStorage.removeItem('selectedProvider');
+    }
+  }, [selectedProvider]);
+
   return (
     <Layout preloadData={true}>
       <div className="container mx-auto px-4 pt-4 md:pt-8">
