@@ -102,6 +102,9 @@
     "ASAAS_ENVIRONMENT": "sandbox",
     "FRONTEND_URL": "https://runcashh11.vercel.app",
     "NODE_ENV": "production",
-    "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+    "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+    "GEMINI_API_KEY": "AIzaSyDvpb9h0XJoc_0NrZZokQYgz8qkWxMBP3Q",
+    "AI_PROVIDER": "gemini",
+    "GEMINI_MODEL": "gemini-2.0-flash"
   }
 }

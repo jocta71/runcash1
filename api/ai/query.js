@@ -748,9 +748,23 @@ module.exports.getRouletteData = getRouletteData;
 // Handler principal do endpoint
 module.exports.handler = async (req, res) => {
   // Configuração de CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = [
+    'https://runcashh11.vercel.app', 
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ];
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // Permitir qualquer origem em desenvolvimento, mas em produção seria mais restrito
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   
   // Responder a requisições OPTIONS (pre-flight)
   if (req.method === 'OPTIONS') {

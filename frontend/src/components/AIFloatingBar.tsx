@@ -19,15 +19,6 @@ const AIFloatingBar: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Definir a chave da API Gemini no localStorage ao montar o componente
-  useEffect(() => {
-    if (!localStorage.getItem('GEMINI_API_KEY')) {
-      const apiKey = 'AIzaSyDvpb9h0XJoc_0NrZZokQYgz8qkWxMBP3Q';
-      localStorage.setItem('GEMINI_API_KEY', apiKey);
-      console.log('Chave da API Gemini definida no localStorage.');
-    }
-  }, []);
-
   useEffect(() => {
     if (messagesEndRef.current && expanded) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -42,77 +33,17 @@ const AIFloatingBar: React.FC = () => {
 
   const sendMessageToGemini = async (query: string) => {
     try {
-      const apiKey = process.env.REACT_APP_GEMINI_API_KEY || 
-                     import.meta.env.VITE_GEMINI_API_KEY || 
-                     import.meta.env.REACT_APP_GEMINI_API_KEY || 
-                     localStorage.getItem('GEMINI_API_KEY');
-      
-      if (!apiKey) {
-        throw new Error('Chave da API Gemini não encontrada');
-      }
-      
-      const model = 'gemini-2.0-flash';
-      const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
-      
-      // Buscar dados da roleta - em um app real você obteria isso da sua API
+      // Buscar dados da roleta
       const roletaData = await fetchRouletteData();
+      
+      // Usar o endpoint do backend para evitar problemas de CORS
+      const apiUrl = '/api/ai/query';
       
       const response = await axios.post(
         apiUrl,
         {
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { 
-                  text: `Instruções do sistema:
-                  Você é um assistente especializado em análise de dados de roletas de cassino.
-                  
-                  DIRETRIZES PARA SUAS RESPOSTAS:
-                  1. Seja EXTREMAMENTE DIRETO E OBJETIVO - vá direto ao ponto.
-                  2. Use frases curtas e precisas.
-                  3. Organize visualmente suas respostas com:
-                     - Marcadores (•) para listas
-                     - Texto em **negrito** para destacar números e informações importantes
-                     - Tabelas simples quando necessário comparar dados
-                     - Espaçamento adequado para melhor legibilidade
-                  4. Forneça APENAS as informações solicitadas, sem explicações desnecessárias.
-                  5. Se a resposta tiver estatísticas, apresente-as de forma estruturada e visualmente clara.
-                  6. Sempre responda em português brasileiro.
-                  7. Nunca mencione marcas de IA ou similar nas suas respostas.
-                  8. Você é a IA RunCash, especializada em análise de roletas.
-                  
-                  Dados da roleta: ${JSON.stringify(roletaData)}
-                  
-                  Consulta do usuário: ${query}`
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 500,
-            topP: 0.95,
-            topK: 40
-          },
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            }
-          ]
+          query: query,
+          rouletteData: roletaData
         },
         { 
           headers: { 'Content-Type': 'application/json' },
@@ -120,9 +51,9 @@ const AIFloatingBar: React.FC = () => {
         }
       );
       
-      return response.data.candidates[0].content.parts[0].text;
+      return response.data.response;
     } catch (error) {
-      console.error('Erro ao consultar API Gemini:', error);
+      console.error('Erro ao consultar API de IA:', error);
       return 'Desculpe, ocorreu um erro ao processar sua consulta. Por favor, tente novamente mais tarde.';
     }
   };
