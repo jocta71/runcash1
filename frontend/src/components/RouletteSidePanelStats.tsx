@@ -701,7 +701,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             </div>
             
             {visibleNumbers.length > 0 ? (
-              <div className="flex flex-wrap gap-2 p-4 border border-gray-700 rounded-xl bg-black bg-opacity-30">
+              <div className="flex flex-wrap gap-2 p-4 border border-gray-700 rounded-xl" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
                 {visibleNumbers.map((n, idx) => (
                   <div 
                     key={idx} 
@@ -717,7 +717,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="flex justify-center items-center h-[200px] rounded-xl bg-black bg-opacity-30 text-gray-400">
+              <div className="flex justify-center items-center h-[200px] rounded-xl text-gray-400" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
                 Nenhum número encontrado com o filtro selecionado
               </div>
             )}
@@ -814,7 +814,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
               <ChartBar size={20} className="text-vegas-green mr-2" /> Números Quentes & Frios
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-black bg-opacity-30 rounded-xl border border-gray-800">
+              <div className="p-4 rounded-xl border border-gray-800" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
                 <h4 className="text-xs font-medium text-red-400 mb-3 flex items-center">
                   <ArrowUp size={18} className="mr-2" /> Números Quentes
                 </h4>
@@ -830,7 +830,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                 </div>
               </div>
               
-              <div className="p-4 bg-black bg-opacity-30 rounded-xl border border-gray-800">
+              <div className="p-4 rounded-xl border border-gray-800" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
                 <h4 className="text-xs font-medium text-blue-400 mb-3 flex items-center">
                   <ArrowDown size={18} className="mr-2" /> Números Frios
                 </h4>

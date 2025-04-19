@@ -54,7 +54,7 @@ const LastNumbers = ({ numbers, className = '', isBlurred = false, roletaId }: L
   // Verificar se temos números válidos para exibir
   if (displayNumbers.length === 0) {
     return (
-      <div className={`flex items-center justify-center py-4 text-zinc-500 ${className}`}>
+      <div className={`flex items-center justify-center py-4 text-zinc-500 ${className}`} style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
         {isUpdating ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         ) : (
@@ -65,7 +65,10 @@ const LastNumbers = ({ numbers, className = '', isBlurred = false, roletaId }: L
   }
 
   return (
-    <div className={`flex flex-wrap gap-2 justify-center ${className} ${isUpdating ? 'opacity-70 transition-opacity duration-300' : ''}`}>
+    <div 
+      className={`flex flex-wrap gap-2 justify-center p-3 rounded-lg ${className} ${isUpdating ? 'opacity-70 transition-opacity duration-300' : ''}`}
+      style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}
+    >
       {displayNumbers.map((number, index) => (
         <RouletteNumber
           key={`${number}-${index}`}
