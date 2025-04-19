@@ -25,14 +25,33 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortMode, setSortMode] = useState<string>('default');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Identifica os provedores disponíveis
   useEffect(() => {
+    const rouletteCount = Object.keys(roulettes).length;
+    setIsLoading(rouletteCount === 0); // Definir como carregando se não houver roletas
+    
+    if (rouletteCount === 0) {
+      // Se não houver roletas ainda, definir provedores padrão
+      const defaultProviders = [
+        { id: 'Evolution Gaming', name: 'Evolution Gaming', count: 0 },
+        { id: 'Pragmatic Play', name: 'Pragmatic Play', count: 0 },
+        { id: 'Auto Roulettes', name: 'Auto Roulettes', count: 0 },
+        { id: 'Lightning', name: 'Lightning', count: 0 },
+        { id: 'Immersive', name: 'Immersive', count: 0 }
+      ];
+      setProviders(defaultProviders);
+      return;
+    }
+    
     const providerMap = new Map<string, { name: string; count: number }>();
     
     Object.values(roulettes).forEach(roulette => {
       // Extrair o provedor do nome da roleta
       let providerName = 'Outros';
+      
+      if (!roulette || !roulette.name) return;
       
       if (roulette.name.includes('Evolution')) {
         providerName = 'Evolution Gaming';
@@ -79,13 +98,19 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
 
   // Aplica os filtros quando mudam
   useEffect(() => {
-    applyFilters();
-  }, [selectedProviders, searchTerm]);
+    if (!isLoading) {
+      applyFilters();
+    }
+  }, [selectedProviders, searchTerm, isLoading]);
 
   // Função para aplicar os filtros
   const applyFilters = () => {
+    if (Object.keys(roulettes).length === 0) return;
+    
     let filteredIds = Object.entries(roulettes)
       .filter(([id, roulette]) => {
+        if (!roulette || !roulette.name) return false;
+        
         // Verificar se passa pelo filtro de provedor
         const providerMatch = selectedProviders.length === 0 || selectedProviders.some(provider => {
           if (provider === 'Evolution Gaming') return roulette.name.includes('Evolution');
@@ -150,7 +175,7 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
   };
 
   return (
-    <div className="roulette-filters bg-black/40 rounded-lg p-4 mb-6">
+    <div className="roulette-filters bg-black/40 rounded-lg p-4 mb-6 sticky top-0 z-10">
       <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
         <div className="search-box flex-grow">
           <input
@@ -159,6 +184,7 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
             className="w-full bg-black/40 border border-green-500/30 rounded px-4 py-2 text-white"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            disabled={isLoading}
           />
         </div>
         
@@ -168,6 +194,7 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
               onClick={() => handleViewModeChange('grid')}
               className={`px-3 py-1 ${viewMode === 'grid' ? 'bg-green-600/80' : 'bg-black/60'}`}
               title="Visualização em grade"
+              disabled={isLoading}
             >
               <span className="icon">□□</span>
             </button>
@@ -175,6 +202,7 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
               onClick={() => handleViewModeChange('list')}
               className={`px-3 py-1 ${viewMode === 'list' ? 'bg-green-600/80' : 'bg-black/60'}`}
               title="Visualização em lista"
+              disabled={isLoading}
             >
               <span className="icon">☰</span>
             </button>
@@ -184,6 +212,7 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
             className="bg-black/40 border border-green-500/30 rounded px-2 py-1"
             value={sortMode}
             onChange={handleSortChange}
+            disabled={isLoading}
           >
             <option value="default">Ordenação padrão</option>
             <option value="name-asc">Nome (A-Z)</option>
@@ -197,14 +226,15 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
         {providers.map(provider => (
           <button
             key={provider.id}
-            onClick={() => handleProviderSelect(provider.id)}
+            onClick={() => !isLoading && handleProviderSelect(provider.id)}
             className={`px-3 py-1 rounded-full text-sm ${
               selectedProviders.includes(provider.id)
                 ? 'bg-green-600/80 text-white'
                 : 'bg-gray-800/80 text-gray-300'
-            }`}
+            } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={isLoading}
           >
-            {provider.name} ({provider.count})
+            {provider.name} {!isLoading && `(${provider.count})`}
           </button>
         ))}
       </div>
