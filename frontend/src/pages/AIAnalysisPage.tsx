@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import Layout from '@/components/Layout';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import useRouletteData from '@/hooks/useRouletteData';
+import { useRouletteData } from '@/hooks/useRouletteData';
 import useRouletteTrends from '@/hooks/useRouletteTrends';
 
 // Interface para as mensagens do chat
@@ -47,7 +47,7 @@ export default function AIAnalysisPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Hooks personalizados para obter dados da roleta
-  const { rouletteData, isLoading: isLoadingRouletteData } = useRouletteData();
+  const { numbers, loading: isLoadingRouletteData } = useRouletteData('1', 'Premium European Roulette', 100);
   const { trends } = useRouletteTrends();
 
   // Função para enviar mensagem para a IA
@@ -279,10 +279,10 @@ export default function AIAnalysisPage() {
                           <div className="text-sm font-medium mb-1">Proporção de Cores</div>
                           <div className="flex gap-2">
                             <Badge variant="outline" className="bg-red-500/20">
-                              Vermelho: {rouletteData?.redCount || "..."} ({rouletteData?.redPercentage || "..."}%)
+                              Vermelho: {numbers?.redCount || "..."} ({numbers?.redPercentage || "..."}%)
                             </Badge>
                             <Badge variant="outline" className="bg-black/20">
-                              Preto: {rouletteData?.blackCount || "..."} ({rouletteData?.blackPercentage || "..."}%)
+                              Preto: {numbers?.blackCount || "..."} ({numbers?.blackPercentage || "..."}%)
                             </Badge>
                           </div>
                         </div>
@@ -291,10 +291,10 @@ export default function AIAnalysisPage() {
                           <div className="text-sm font-medium mb-1">Paridade</div>
                           <div className="flex gap-2">
                             <Badge variant="outline">
-                              Pares: {rouletteData?.evenCount || "..."} ({rouletteData?.evenPercentage || "..."}%)
+                              Pares: {numbers?.evenCount || "..."} ({numbers?.evenPercentage || "..."}%)
                             </Badge>
                             <Badge variant="outline">
-                              Ímpares: {rouletteData?.oddCount || "..."} ({rouletteData?.oddPercentage || "..."}%)
+                              Ímpares: {numbers?.oddCount || "..."} ({numbers?.oddPercentage || "..."}%)
                             </Badge>
                           </div>
                         </div>
@@ -303,13 +303,13 @@ export default function AIAnalysisPage() {
                           <div className="text-sm font-medium mb-1">Dúzias</div>
                           <div className="flex flex-wrap gap-2">
                             <Badge variant="outline">
-                              1ª: {rouletteData?.dozenCounts?.[0] || "..."} ({rouletteData?.dozenPercentages?.[0] || "..."}%)
+                              1ª: {numbers?.dozenCounts?.[0] || "..."} ({numbers?.dozenPercentages?.[0] || "..."}%)
                             </Badge>
                             <Badge variant="outline">
-                              2ª: {rouletteData?.dozenCounts?.[1] || "..."} ({rouletteData?.dozenPercentages?.[1] || "..."}%)
+                              2ª: {numbers?.dozenCounts?.[1] || "..."} ({numbers?.dozenPercentages?.[1] || "..."}%)
                             </Badge>
                             <Badge variant="outline">
-                              3ª: {rouletteData?.dozenCounts?.[2] || "..."} ({rouletteData?.dozenPercentages?.[2] || "..."}%)
+                              3ª: {numbers?.dozenCounts?.[2] || "..."} ({numbers?.dozenPercentages?.[2] || "..."}%)
                             </Badge>
                           </div>
                         </div>
