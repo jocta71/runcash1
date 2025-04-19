@@ -150,6 +150,7 @@ const RouletteDetailsPage = () => {
               ))}
             </div>
           </div>
+          
 
           {/* Win Rate Chart */}
           <div className="glass-card p-4 md:p-6 space-y-4 rounded-lg border border-white/10 bg-[#17161e]/90">
