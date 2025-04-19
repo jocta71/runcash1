@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Send, X, RotateCcw, Loader2, Bot, ChevronUp, MessageSquare, Sparkles } from 'lucide-react';
 import { RouletteRepository } from '../services/data/rouletteRepository';
-import CustomLoader from './CustomLoader';
 
 interface AIMessage {
   id: number;
@@ -11,18 +10,21 @@ interface AIMessage {
   timestamp: Date;
 }
 
-// Componente de loader simples com estilo inspirado no cubo
-const SimpleLoader = () => (
+// Componente de loader com cubo 3D (igual ao loading inicial)
+const CubeLoader = () => (
   <div className="flex items-center justify-center">
-    <div className="w-20 h-20 relative animate-spin">
-      <div className="w-full h-full rounded border-4 border-t-transparent border-green-500 absolute"></div>
-      <div className="w-full h-full rounded border-4 border-green-300 border-opacity-20 absolute"></div>
-      <div className="absolute inset-[5px] rounded-full bg-black/70 flex items-center justify-center">
-        <img 
-          src="/assets/icon-rabbit.svg" 
-          alt="Icon Rabbit" 
-          className="w-10 h-10 object-contain"
-        />
+    <div style={{width: "150px", height: "150px", position: "relative", transformStyle: "preserve-3d", animation: "cube-rotate 4s linear infinite"}}>
+      <div style={{position: "absolute", inset: 0, background: "#222", transform: "rotatex(90deg) translatez(75px)", display: "flex", justifyContent: "center", alignItems: "center"}}>
+        <img src="/assets/icon-rabbit.svg" alt="Icon Rabbit" style={{width: "60px", height: "60px", objectFit: "contain"}} />
+      </div>
+      <div style={{position: "absolute", inset: 0, transformStyle: "preserve-3d"}}>
+        <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(0deg) translatez(75px)"}}></span>
+        <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(90deg) translatez(75px)"}}></span>
+        <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(180deg) translatez(75px)"}}></span>
+        <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(270deg) translatez(75px)"}}></span>
+      </div>
+      <div style={{position: "absolute", inset: 0, background: "#222", transform: "rotatex(90deg) translatez(75px)"}}>
+        <div style={{content: "''", position: "absolute", background: "#3aff5e", inset: 0, transform: "translatez(-250px)", filter: "blur(30px)", boxShadow: "0 0 120px rgba(58, 134, 255, 0.2), 0 0 200px rgba(58, 134, 255, 0.4), 0 0 300px #00ff2f, 0 0 400px #51fd71, 0 0 500px #3aff5e"}}></div>
       </div>
     </div>
   </div>
@@ -417,7 +419,7 @@ const AIFloatingBar: React.FC = () => {
                   <span className="text-xs font-medium text-green-400">Assistente</span>
                 </div>
                 <div className="flex flex-col items-center justify-center py-4">
-                  <SimpleLoader />
+                  <CubeLoader />
                 </div>
               </div>
             </div>
