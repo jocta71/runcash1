@@ -385,7 +385,7 @@ const AIFloatingBar: React.FC = () => {
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}
               >
                 {msg.role === 'user' ? (
-                  <div className="max-w-[85%] rounded-2xl p-3 shadow-md bg-gradient-to-r from-green-600 to-emerald-500 text-white">
+                  <div className="max-w-[85%] rounded-2xl p-3 text-white">
                     <div 
                       className="prose prose-invert max-w-none text-sm whitespace-pre-wrap" 
                       dangerouslySetInnerHTML={{ 
@@ -398,7 +398,7 @@ const AIFloatingBar: React.FC = () => {
                 ) : (
                   <div className="max-w-[85%] text-white">
                     <div 
-                      className="text-sm whitespace-pre-wrap text-left px-4 py-3 bg-black/30 rounded-2xl" 
+                      className="text-sm whitespace-pre-wrap text-left px-4 py-3" 
                       style={{ textAlign: 'left' }}
                       dangerouslySetInnerHTML={{ 
                         __html: processMessageContent(msg.content)
