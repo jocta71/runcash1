@@ -31,9 +31,6 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
-import { ProviderFilter } from '@/components/ProviderFilter';
-import { ProviderInfoCard } from '@/components/ProviderInfoCard';
-import { Features } from '@/components/Features';
 
 interface ChatMessage {
   id: string;
@@ -72,10 +69,6 @@ const Index = () => {
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
-  
-  // Novo estado para filtro de provedor
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
-  const [showProviderInfo, setShowProviderInfo] = useState(false);
   
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
@@ -335,38 +328,8 @@ const Index = () => {
     };
   }, [loadRouletteData, knownRoulettes]);
   
-  // Extrair a lista de provedores disponíveis
-  const availableProviders = useMemo(() => {
-    if (!Array.isArray(roulettes) || roulettes.length === 0) {
-      return [];
-    }
-    
-    // Extrair provedores únicos
-    const providers = Array.from(new Set(
-      roulettes
-        .filter(roulette => roulette.provedor) // Filtrar roletas que têm provedor definido
-        .map(roulette => roulette.provedor as string) // Mapear para o nome do provedor
-    )).sort(); // Ordenar alfabeticamente
-    
-    return providers;
-  }, [roulettes]);
-  
-  // Filtrar roletas pelo provedor selecionado
-  const filteredRoulettes = useMemo(() => {
-    if (!Array.isArray(roulettes) || roulettes.length === 0) {
-      return [];
-    }
-    
-    // Se não houver provedor selecionado, retornar todas as roletas
-    if (!selectedProvider) {
-      return roulettes;
-    }
-    
-    // Filtrar roletas pelo provedor selecionado
-    return roulettes.filter(roulette => 
-      roulette.provedor === selectedProvider
-    );
-  }, [roulettes, selectedProvider]);
+  // Simplificar para usar diretamente as roletas
+  const filteredRoulettes = roulettes;
   
   const topRoulettes = useMemo(() => {
     return [...roulettes].sort((a, b) => {
@@ -389,37 +352,33 @@ const Index = () => {
     // Log para depuração
     console.log(`[Index] Renderizando ${roulettes.length} roletas disponíveis`);
 
-    // Usar roletas filtradas pelo provedor
-    let roulettesToRender = filteredRoulettes;
+    // Usar diretamente todas as roletas, sem filtro
+    let filteredRoulettes = roulettes;
     
     // Mais logs para depuração - mostrar o total de roletas
-    console.log(`[Index] Exibindo ${roulettesToRender.length} roletas (filtradas por provedor: ${selectedProvider || 'todos'})`);
+    console.log(`[Index] Exibindo todas as ${filteredRoulettes.length} roletas disponíveis`);
     
     // MODIFICAÇÃO CRÍTICA: Mostrar todas as roletas sem paginação
-    const allRoulettes = roulettesToRender;
+    const allRoulettes = filteredRoulettes;
     
     console.log(`[Index] Exibindo todas as ${allRoulettes.length} roletas disponíveis`);
 
     return allRoulettes.map(roulette => {
       // Garantir que temos números válidos
-      let safeNumbers: number[] = [];
-      
-      if (Array.isArray(roulette.numero) && roulette.numero.length > 0) {
-        safeNumbers = roulette.numero
-          .filter(n => n !== null && n !== undefined)
-          .map(n => {
-            // Já filtramos null e undefined acima, então agora é seguro fazer o cast
-            const value = n as (number | {numero: number});
-            if (typeof value === 'object' && 'numero' in value) {
-              return value.numero;
-            }
-            return value as number;
-          });
-      } else if (Array.isArray(roulette.lastNumbers) && roulette.lastNumbers.length > 0) {
-        safeNumbers = roulette.lastNumbers;
-      } else if (Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
-        safeNumbers = roulette.numeros;
-      }
+      const safeNumbers = Array.isArray(roulette.numero) 
+        ? roulette.numero
+            .filter(n => n !== null && n !== undefined) // Filtrar nulos e undefined primeiro
+            .map(n => {
+              if (n && typeof n === 'object' && n !== null && 'numero' in n) {
+                return n.numero;
+              }
+              return n;
+            })
+        : Array.isArray(roulette.lastNumbers)
+          ? roulette.lastNumbers
+          : Array.isArray(roulette.numeros)
+            ? roulette.numeros
+            : [];
       
       return (
         <div 
@@ -484,71 +443,10 @@ const Index = () => {
     );
   };
 
-  // Handler para cliques em funcionalidades
-  const handleFeatureClick = (featureId: string) => {
-    console.log(`Funcionalidade clicada: ${featureId}`);
-    // Aqui seria implementada a lógica para cada funcionalidade
-    // Por enquanto, apenas exibir uma mensagem no console
-  };
-
-  // Recuperar provedor selecionado do localStorage na inicialização
-  useEffect(() => {
-    const savedProvider = localStorage.getItem('selectedProvider');
-    if (savedProvider) {
-      setSelectedProvider(savedProvider);
-      setShowProviderInfo(true);
-    }
-  }, []);
-  
-  // Salvar provedor selecionado no localStorage quando mudar
-  useEffect(() => {
-    if (selectedProvider) {
-      localStorage.setItem('selectedProvider', selectedProvider);
-    } else {
-      localStorage.removeItem('selectedProvider');
-    }
-  }, [selectedProvider]);
-
   return (
     <Layout preloadData={true}>
       <div className="container mx-auto px-4 pt-4 md:pt-8">
-        {/* Barra de filtros */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-white">Roletas Disponíveis</h1>
-          
-          <div className="flex gap-4">
-            {/* Filtro de Provedor */}
-            {availableProviders.length > 0 && (
-              <div className="flex items-center gap-2">
-                <ProviderFilter 
-                  providers={availableProviders}
-                  selectedProvider={selectedProvider}
-                  onSelectProvider={(provider) => {
-                    setSelectedProvider(provider);
-                    setShowProviderInfo(!!provider);
-                  }}
-                />
-                
-                {selectedProvider && (
-                  <Button
-                    variant="outline"
-                    className="text-gray-300 border-gray-700 hover:bg-gray-800"
-                    onClick={() => setShowProviderInfo(!showProviderInfo)}
-                  >
-                    {showProviderInfo ? 'Ocultar Informações' : 'Mostrar Informações'}
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-        
-        {/* Informações do provedor (quando selecionado) */}
-        {selectedProvider && showProviderInfo && (
-          <div className="mb-6">
-            <ProviderInfoCard providerName={selectedProvider} />
-          </div>
-        )}
+        {/* Cabeçalho removido completamente */}
         
         {/* Mensagem de erro */}
         {error && (
@@ -567,22 +465,15 @@ const Index = () => {
           </div>
         ) : (
           <div className="flex flex-col lg:flex-row gap-6">
-            {/* Coluna esquerda: Cards de roleta */}
+            {/* Cards de roleta à esquerda */}
             <div className="w-full lg:w-1/2">
-              {filteredRoulettes.length === 0 && !isLoading && !error ? (
-                <div className="bg-[#1e1e24] p-6 rounded-lg text-center">
-                  <p className="text-gray-400">Nenhuma roleta encontrada para o provedor selecionado.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
-                  {renderRouletteCards()}
-                </div>
-              )}
+              <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+                {renderRouletteCards()}
+              </div>
             </div>
             
-            {/* Coluna direita com duas seções: estatísticas e funcionalidades */}
-            <div className="w-full lg:w-1/2 space-y-6">
-              {/* Painel de estatísticas */}
+            {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
+            <div className="w-full lg:w-1/2">
               {selectedRoulette ? (
                 <RouletteSidePanelStats
                   roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
@@ -599,9 +490,6 @@ const Index = () => {
                   </p>
                 </div>
               )}
-              
-              {/* Funcionalidades sugeridas */}
-              <Features onFeatureClick={handleFeatureClick} />
             </div>
           </div>
         )}
