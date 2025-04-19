@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Send, X, RotateCcw, Loader2 } from 'lucide-react';
+import { RouletteRepository } from '../services/data/rouletteRepository';
 
 interface AIMessage {
   id: number;
@@ -116,8 +117,134 @@ const AIFloatingBar: React.FC = () => {
   // Função para buscar dados da roleta
   const fetchRouletteData = async () => {
     try {
-      // Em uma implementação real, você buscaria isso de sua API
-      // Por agora, vamos apenas simular dados simplificados
+      // Buscar dados reais do repositório
+      const roulettesWithNumbers = await RouletteRepository.fetchAllRoulettesWithNumbers();
+      
+      if (!roulettesWithNumbers || !Array.isArray(roulettesWithNumbers) || roulettesWithNumbers.length === 0) {
+        throw new Error('Não foi possível obter dados das roletas');
+      }
+      
+      // Extrair números recentes
+      const allNumbers = [];
+      const numerosPorRoleta = {};
+      
+      // Organizar dados por roleta
+      for (const roleta of roulettesWithNumbers) {
+        if (roleta.numbers && Array.isArray(roleta.numbers)) {
+          // Adicionar todos os números à lista geral
+          allNumbers.push(...roleta.numbers.map(n => n.number));
+          
+          // Organizar números por roleta
+          numerosPorRoleta[roleta.name] = roleta.numbers.map(n => n.number);
+        }
+      }
+      
+      // Limitar a 50 números mais recentes
+      const recentNumbers = allNumbers.slice(0, 50);
+      
+      // Classificar números por cor
+      const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+      const blackNumbers = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
+      
+      let redCount = 0;
+      let blackCount = 0;
+      let greenCount = 0;
+      let evenCount = 0;
+      let oddCount = 0;
+      const dozenCounts = [0, 0, 0];
+      
+      recentNumbers.forEach(num => {
+        if (num === 0) {
+          greenCount++;
+          return;
+        }
+        
+        if (redNumbers.includes(num)) redCount++;
+        if (blackNumbers.includes(num)) blackCount++;
+        
+        if (num % 2 === 0) evenCount++;
+        else oddCount++;
+        
+        if (num >= 1 && num <= 12) dozenCounts[0]++;
+        else if (num >= 13 && num <= 24) dozenCounts[1]++;
+        else if (num >= 25 && num <= 36) dozenCounts[2]++;
+      });
+      
+      // Calcular frequências para números quentes/frios
+      const numFrequency = {};
+      recentNumbers.forEach(num => {
+        numFrequency[num] = (numFrequency[num] || 0) + 1;
+      });
+      
+      // Ordenar por frequência
+      const sortedNumbers = Object.entries(numFrequency)
+        .sort((a, b) => b[1] - a[1])
+        .map(entry => parseInt(entry[0]));
+      
+      const hotNumbers = sortedNumbers.slice(0, 4);
+      const coldNumbers = sortedNumbers.slice(-4).reverse();
+      
+      // Identificar tendências
+      const trends = [];
+      let colorStreak = { color: null, count: 0 };
+      let parityStreak = { parity: null, count: 0 };
+      let dozenStreak = { dozen: null, count: 0 };
+      
+      // Tendências de cor
+      for (let i = 0; i < Math.min(10, recentNumbers.length); i++) {
+        const num = recentNumbers[i];
+        let color = 'green';
+        if (redNumbers.includes(num)) color = 'red';
+        else if (blackNumbers.includes(num)) color = 'black';
+        
+        if (i === 0) {
+          colorStreak.color = color;
+          colorStreak.count = 1;
+        } else if (color === colorStreak.color) {
+          colorStreak.count++;
+        } else {
+          break;
+        }
+      }
+      
+      if (colorStreak.count >= 3) {
+        trends.push({ type: 'color', value: colorStreak.color, count: colorStreak.count });
+      }
+      
+      // Organizar dados formatados para a IA
+      return {
+        numbers: {
+          recent: recentNumbers,
+          raw: recentNumbers,
+          redCount,
+          blackCount,
+          greenCount,
+          redPercentage: Number(((redCount / (recentNumbers.length || 1)) * 100).toFixed(2)),
+          blackPercentage: Number(((blackCount / (recentNumbers.length || 1)) * 100).toFixed(2)),
+          greenPercentage: Number(((greenCount / (recentNumbers.length || 1)) * 100).toFixed(2)),
+          evenCount,
+          oddCount,
+          evenPercentage: Number(((evenCount / (recentNumbers.length || 1)) * 100).toFixed(2)),
+          oddPercentage: Number(((oddCount / (recentNumbers.length || 1)) * 100).toFixed(2)),
+          dozenCounts,
+          dozenPercentages: dozenCounts.map(count => 
+            Number(((count / (recentNumbers.length || 1)) * 100).toFixed(2))
+          ),
+          hotNumbers,
+          coldNumbers
+        },
+        trends,
+        roletas: roulettesWithNumbers.map(r => ({
+          id: r.id,
+          name: r.name,
+          online: true // Substitui status
+        })),
+        numerosPorRoleta
+      };
+    } catch (error) {
+      console.error('Erro ao buscar dados da roleta:', error);
+      
+      // Em caso de erro, retornar dados simulados como fallback
       return {
         numbers: {
           recent: [12, 35, 0, 26, 3, 15, 4, 0, 32, 15],
@@ -134,9 +261,6 @@ const AIFloatingBar: React.FC = () => {
           { type: 'dozen', value: '2nd', count: 4 }
         ]
       };
-    } catch (error) {
-      console.error('Erro ao buscar dados da roleta:', error);
-      return null;
     }
   };
 

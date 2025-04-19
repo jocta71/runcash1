@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import ChatUI from './ChatUI';
+import AIFloatingBar from './AIFloatingBar';
 import { Loader2, LogOut, Search, Wallet, Menu, MessageSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { RouletteRepository } from '../services/data/rouletteRepository';
@@ -225,6 +226,9 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
       
       {/* Mobile Chat (drawer) */}
       <ChatUI isOpen={chatOpen} onClose={() => setChatOpen(false)} isMobile={true} />
+      
+      {/* Barra flutuante da IA */}
+      <AIFloatingBar />
     </div>
   );
 };
