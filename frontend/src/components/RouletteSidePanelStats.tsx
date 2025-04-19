@@ -769,7 +769,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           {isLoading ? (
             ""
           ) : (
-            `Análise detalhada dos últimos ${historicalNumbers.length} números e tendências`
+            ""
           )}
         </p>
       </div>
