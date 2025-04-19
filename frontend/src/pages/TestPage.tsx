@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchRoulettesWithNumbers } from '../integrations/api/rouletteApi';
+import GlowingCubeLoader from '@/components/GlowingCubeLoader';
 
 interface RouletteData {
   id: string;
@@ -8,6 +9,9 @@ interface RouletteData {
   name?: string;
   numero?: any[];
   canonicalId?: string;
+  estado_estrategia?: string;
+  vitorias?: number;
+  derrotas?: number;
 }
 
 const TestPage: React.FC = () => {
@@ -41,7 +45,7 @@ const TestPage: React.FC = () => {
   
   if (loading) {
     return <div className="flex justify-center items-center h-screen">
-      <div className="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full"></div>
+      <GlowingCubeLoader />
     </div>;
   }
   

@@ -11,6 +11,7 @@ import { Input } from './ui/input';
 import ProfileDropdown from './ProfileDropdown';
 import AnimatedInsights from './AnimatedInsights';
 import Footer from './Footer';
+import GlowingCubeLoader from './GlowingCubeLoader';
 
 // Interface estendida para o usuário com firstName e lastName
 interface ExtendedUser {
@@ -79,7 +80,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#100f13] flex flex-col items-center justify-center text-white">
-        <Loader2 className="w-16 h-16 text-green-500 animate-spin" />
+        <GlowingCubeLoader />
       </div>
     );
   }

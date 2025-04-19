@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { useRouletteData } from '@/hooks/useRouletteData';
 import useRouletteTrends from '@/hooks/useRouletteTrends';
 import EventService from '@/services/EventService';
+import GlowingCubeLoader from '@/components/GlowingCubeLoader';
 
 // Interface para as mensagens do chat
 interface Message {
@@ -121,10 +122,8 @@ const StatsTabContent = ({value, stats, isLoadingData, hasError, useExampleQuest
           <CardHeader>
             <CardTitle className="text-base">Estatísticas Rápidas</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
+          <CardContent className="flex justify-center items-center py-8">
+            <GlowingCubeLoader />
           </CardContent>
         </Card>
       );
@@ -471,11 +470,10 @@ export default function AIAnalysisPage() {
                           <AvatarImage src="/ai-assistant.png" alt="IA" />
                           <AvatarFallback>IA</AvatarFallback>
                         </Avatar>
-                        <div className="rounded-lg bg-primary/10 px-4 py-2 text-sm flex items-center space-x-2">
-                          <Skeleton className="h-4 w-4 rounded-full bg-primary/20" />
-                          <Skeleton className="h-4 w-4 rounded-full bg-primary/30" />
-                          <Skeleton className="h-4 w-4 rounded-full bg-primary/40" />
-                          <span className="ml-2 text-xs text-muted-foreground">Analisando dados...</span>
+                        <div className="rounded-lg bg-primary/10 px-4 py-4 text-sm flex items-center justify-center">
+                          <div className="scale-50">
+                            <GlowingCubeLoader />
+                          </div>
                         </div>
                       </div>
                     )}
