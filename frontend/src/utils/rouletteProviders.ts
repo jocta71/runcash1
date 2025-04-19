@@ -45,7 +45,7 @@ const providerMapping: Record<string, string> = {
 // Mapeamento explícito de roletas para cada provedor
 export const providerRoulettesMap: Record<string, string[]> = {
   'Evolution': [
-    'American Roulette',
+    
     'Lightning Roulette',
     'Immersive Roulette',
     'Speed Auto Roulette',
@@ -53,16 +53,7 @@ export const providerRoulettesMap: Record<string, string[]> = {
     'Auto Roulette VIP',
     'Speed Roulette',
     'Bucharest Auto-Roulette',
-    'Brazilian Mega Roulette',
-    'Dansk Roulette',
-    'Deutsches Roulette',
-    'Dragonara Roulette',
-    'Football Studio Roulette',
-    'Gold Vault Roulette',
-    'Hippodrome Grand Casino',
-    'Jawhara Roulette',
-    'Romanian Roulette',
-    'XXXtreme Lightning Roulette',
+    'XXtreme Lightning Roulette',
     'VIP Roulette',
     'Live Roulette'
   ],
