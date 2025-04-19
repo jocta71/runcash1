@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowDownAZ, ListFilter, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import RouletteFilters, { RouletteProvider } from '@/components/RouletteFilters';
 import RouletteSearch from '@/components/RouletteSearch';
@@ -23,7 +23,6 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
   // Estados para os filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
-  const [showProviderFilter, setShowProviderFilter] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Extrair provedores das roletas
@@ -71,11 +70,6 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
     applyFilters();
   }, [roulettes, searchTerm, selectedProviders, providers, onFilter]);
   
-  // Função para togglear a exibição do filtro de provedores
-  const toggleProviderFilter = () => {
-    setShowProviderFilter(prev => !prev);
-  };
-  
   // Função para lidar com a seleção de um provedor
   const handleProviderSelect = (providerId: string) => {
     setSelectedProviders(prev => {
@@ -112,7 +106,7 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
   return (
     <div className="bg-gray-800/50 rounded-lg p-4 mb-6 border border-gray-700/50">
       <div className="flex flex-col gap-4">
-        {/* Barra de busca e botões */}
+        {/* Barra de busca e botão de atualização */}
         <div className="flex items-center gap-2">
           <div className="flex-1">
             <RouletteSearch
@@ -120,16 +114,6 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
               onSearch={setSearchTerm}
             />
           </div>
-          
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={toggleProviderFilter}
-            className={`h-10 w-10 ${showProviderFilter ? 'bg-vegas-gold text-black' : 'text-vegas-gold'}`}
-            title="Filtrar por provedor"
-          >
-            <ListFilter size={18} />
-          </Button>
           
           <Button
             variant="outline"
@@ -143,15 +127,13 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
           </Button>
         </div>
         
-        {/* Filtros de provedor (exibidos apenas quando o botão é clicado) */}
-        {showProviderFilter && (
-          <RouletteFilters
-            providers={providers}
-            selectedProviders={selectedProviders}
-            onProviderSelect={handleProviderSelect}
-            onClearFilters={() => setSelectedProviders([])}
-          />
-        )}
+        {/* Filtros de provedor (sempre visíveis) */}
+        <RouletteFilters
+          providers={providers}
+          selectedProviders={selectedProviders}
+          onProviderSelect={handleProviderSelect}
+          onClearFilters={() => setSelectedProviders([])}
+        />
         
         {/* Exibir contadores */}
         <div className="flex justify-between items-center text-sm text-gray-400">
