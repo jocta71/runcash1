@@ -296,13 +296,36 @@ export default function AIAnalysisPage() {
     setIsLoading(true);
 
     try {
-      // Chamada real à API de IA
+      // Preparar os dados da roleta para enviar junto com a consulta
+      const rouletteDataForAI = {
+        numbers: {
+          recent: Array.isArray(numbers.raw) ? numbers.raw.slice(0, 20) : [],
+          redCount,
+          blackCount,
+          redPercentage,
+          blackPercentage,
+          evenCount,
+          oddCount,
+          evenPercentage,
+          oddPercentage,
+          dozenCounts,
+          dozenPercentages,
+          hotNumbers: numbers.hotNumbers || [],
+          coldNumbers: numbers.coldNumbers || []
+        },
+        trends: trends || []
+      };
+
+      // Chamada real à API de IA com dados para análise
       const response = await fetch('/api/ai/query', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query: input }),
+        body: JSON.stringify({ 
+          query: input,
+          rouletteData: rouletteDataForAI
+        }),
       });
 
       if (!response.ok) {

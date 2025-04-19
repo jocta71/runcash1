@@ -91,6 +91,27 @@ export interface RouletteDataSummary {
   lastResults: number[];
 }
 
+// Adicionar validação para garantir propriedades obrigatórias nos números da roleta  
+const validateRouletteNumbers = (numbers: any[]): boolean => {
+  if (!Array.isArray(numbers) || numbers.length === 0) return false;
+  
+  // Verificar se o primeiro item tem a estrutura esperada
+  const firstItem = numbers[0];
+  
+  // Se for um objeto, verificar propriedades esperadas
+  if (typeof firstItem === 'object' && firstItem !== null) {
+    // Verificar se tem pelo menos uma das propriedades chave
+    const hasNumero = 'numero' in firstItem && (typeof firstItem.numero === 'number' || !isNaN(parseInt(firstItem.numero)));
+    const hasCor = 'cor' in firstItem && typeof firstItem.cor === 'string';
+    const hasTimestamp = 'timestamp' in firstItem && typeof firstItem.timestamp === 'string';
+    
+    return hasNumero && (hasCor || hasTimestamp);
+  }
+  
+  // Se for um número ou string convertível para número
+  return typeof firstItem === 'number' || (typeof firstItem === 'string' && !isNaN(parseInt(firstItem)));
+};
+
 /**
  * Função para buscar números da roleta pelo endpoint único
  */
@@ -420,19 +441,29 @@ export function useRouletteData(
     // Combinar sem duplicar números
     const numberMap = new Map();
     
-    // Adicionar números iniciais ao mapa, usando o valor do número como chave
+    // Adicionar números iniciais ao mapa, usando o timestamp como chave única
     initialNumbers.forEach(item => {
-      const numeroValue = typeof item === 'object' ? item.numero : item;
-      if (!numberMap.has(numeroValue)) {
-        numberMap.set(numeroValue, item);
+      // Se for um objeto com timestamp
+      if (typeof item === 'object' && item !== null && item.timestamp) {
+        numberMap.set(item.timestamp, item);
+      } else {
+        // Se for um número simples, usar o valor como chave
+        const numeroValue = typeof item === 'object' ? item.numero : item;
+        if (!numberMap.has(`value_${numeroValue}`)) {
+          numberMap.set(`value_${numeroValue}`, item);
+        }
       }
     });
     
-    // Adicionar novos números, substituindo os existentes se houver duplicatas
+    // Adicionar novos números, substituindo os existentes se houver duplicatas pelo timestamp
     newNumbers.forEach(item => {
-      const numeroValue = typeof item === 'object' ? item.numero : item;
-      if (!numberMap.has(numeroValue)) {
-        numberMap.set(numeroValue, item);
+      if (typeof item === 'object' && item !== null && item.timestamp) {
+        numberMap.set(item.timestamp, item);
+      } else {
+        const numeroValue = typeof item === 'object' ? item.numero : item;
+        if (!numberMap.has(`value_${numeroValue}`)) {
+          numberMap.set(`value_${numeroValue}`, item);
+        }
       }
     });
     
@@ -487,9 +518,22 @@ export function useRouletteData(
       const unsubscribe = RequestThrottler.subscribeToUpdates(throttleKey, (processedNumbers) => {
         if (processedNumbers && Array.isArray(processedNumbers) && processedNumbers.length > 0) {
           logger.debug(`Recebida atualização via throttler para ${roletaNome}: ${processedNumbers.length} números`);
-          setInitialNumbers(processedNumbers);
-          setHasData(true);
-          initialLoadRef.current = true;
+          
+          // Verificar se os dados recebidos têm a estrutura esperada
+          if (validateRouletteNumbers(processedNumbers)) {
+            setInitialNumbers(processedNumbers);
+            setHasData(true);
+            initialLoadRef.current = true;
+          } else {
+            logger.warn(`⚠️ Dados recebidos para ${roletaNome} têm formato inválido:`, processedNumbers.slice(0, 2));
+            // Tentar normalizar os dados antes de definir
+            const normalizedNumbers = normalizeRouletteData({ numero: processedNumbers });
+            if (normalizedNumbers.length > 0) {
+              setInitialNumbers(normalizedNumbers);
+              setHasData(true);
+              initialLoadRef.current = true;
+            }
+          }
           setLoading(false);
         }
       });
@@ -501,6 +545,35 @@ export function useRouletteData(
         isRefresh // Forçar execução imediata apenas em caso de refresh manual
       );
       
+      // Processar os dados recebidos
+      if (numerosArray && Array.isArray(numerosArray) && numerosArray.length > 0) {
+        // Verificar se recebemos um array de objetos ou de números
+        if (typeof numerosArray[0] === 'object') {
+          logger.debug(`Recebidos dados já formatados para ${roletaNome}`);
+          // Já é um array de objetos, usar diretamente
+          setInitialNumbers(numerosArray);
+          setHasData(true);
+          initialLoadRef.current = true;
+          setLoading(false);
+          return true;
+        } else {
+          // É um array de números, converter para objetos
+          logger.debug(`Convertendo array de números para objetos para ${roletaNome}`);
+          const formattedNumbers = numerosArray.map(num => ({
+            numero: typeof num === 'number' ? num : parseInt(String(num), 10),
+            cor: determinarCorNumero(typeof num === 'number' ? num : parseInt(String(num), 10)),
+            timestamp: new Date().toISOString(),
+            roleta_id: roletaId,
+            roleta_nome: roletaNome
+          }));
+          setInitialNumbers(formattedNumbers);
+          setHasData(true);
+          initialLoadRef.current = true;
+          setLoading(false);
+          return true;
+        }
+      }
+      
       // Se não conseguimos dados do throttler, tente o cache
       if (!numerosArray || !Array.isArray(numerosArray) || numerosArray.length === 0) {
         if (rouletteDataCache.has(canonicalIdRef.current)) {
@@ -510,7 +583,7 @@ export function useRouletteData(
             setInitialNumbers(cachedData);
             setHasData(true);
             initialLoadRef.current = true;
-        setLoading(false);
+            setLoading(false);
             return true;
           }
         }
@@ -535,9 +608,9 @@ export function useRouletteData(
     } finally {
       // Garantir que loading e refreshLoading sejam sempre definidos como false ao final
       setLoading(false);
-      setRefreshLoading(false);
+      if (isRefresh) setRefreshLoading(false);
     }
-  }, [roletaId, roletaNome, limit, canonicalIdRef.current]);
+  }, [roletaId, roletaNome, limit, normalizeRouletteData]);
   
   // Função para extrair e processar estratégia da API - MODIFICADA PARA USAR THROTTLER
   const loadStrategy = useCallback(async (): Promise<boolean> => {

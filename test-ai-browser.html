@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste da API de IA RunCash</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    h1 {
+      color: #0066cc;
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 10px;
+    }
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 12px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #0052a3;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 10px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .response {
+      background-color: #f9f9f9;
+      border-left: 4px solid #0066cc;
+      padding: 15px;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+    .error {
+      background-color: #fff0f0;
+      border-left: 4px solid #cc0000;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    .status {
+      margin-top: 20px;
+      color: #666;
+      font-size: 14px;
+    }
+    .log {
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-top: 10px;
+      font-family: monospace;
+      height: 100px;
+      overflow-y: auto;
+      background-color: #f0f0f0;
+      font-size: 14px;
+    }
+    .log-entry {
+      margin: 2px 0;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 2px;
+    }
+    .log-time {
+      color: #666;
+      margin-right: 10px;
+    }
+    .log-info { color: #0066cc; }
+    .log-success { color: #008800; }
+    .log-error { color: #cc0000; }
+  </style>
+</head>
+<body>
+  <h1>Teste da API de IA RunCash</h1>
+  
+  <div class="card">
+    <h2>Configuração do Endpoint</h2>
+    <label for="endpoint">URL do Endpoint:</label>
+    <input type="text" id="endpoint" value="/api/ai/query" placeholder="Ex: https://seusite.com/api/ai/query">
+    
+    <label for="model">Modelo (se configurável no servidor):</label>
+    <select id="model">
+      <option value="gpt-4o">GPT-4o (Padrão)</option>
+      <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Mais Econômico)</option>
+    </select>
+  </div>
+  
+  <div class="card">
+    <h2>Consulta de Teste</h2>
+    <label for="query">Digite sua pergunta:</label>
+    <textarea id="query" rows="3" placeholder="Ex: Quais são os números mais quentes baseado nos dados atuais?">Baseado nos dados recentes, quais números têm maior probabilidade de aparecer nas próximas rodadas?</textarea>
+    
+    <label>
+      <input type="checkbox" id="useSimulatedData" checked>
+      Usar dados simulados de roleta (recomendado para teste)
+    </label>
+    
+    <button id="sendBtn" onclick="sendQuery()">Enviar Consulta</button>
+  </div>
+  
+  <div class="card">
+    <h2>Resultado</h2>
+    <div id="responseContainer"></div>
+    <div id="statusContainer" class="status"></div>
+    
+    <h3>Log de Execução:</h3>
+    <div id="logContainer" class="log"></div>
+  </div>
+  
+  <script>
+    // Dados simulados de roleta para teste
+    const mockRouletteData = {
+      numbers: {
+        recent: [12, 35, 0, 26, 3, 15, 4, 0, 32, 15, 7, 19, 23, 11, 5, 0, 14, 9, 32, 17],
+        raw: [12, 35, 0, 26, 3, 15, 4, 0, 32, 15, 7, 19, 23, 11, 5, 0, 14, 9, 32, 17],
+        redCount: 45,
+        blackCount: 42,
+        redPercentage: 46.88,
+        blackPercentage: 43.75,
+        evenCount: 38,
+        oddCount: 49,
+        evenPercentage: 39.58,
+        oddPercentage: 51.04,
+        dozenCounts: [35, 32, 25],
+        dozenPercentages: [36.46, 33.33, 26.04],
+        hotNumbers: [32, 15, 0, 26],
+        coldNumbers: [6, 13, 33, 1]
+      },
+      trends: [
+        { type: 'color', value: 'red', count: 3 },
+        { type: 'parity', value: 'odd', count: 5 },
+        { type: 'dozen', value: '2nd', count: 4 }
+      ]
+    };
+    
+    // Elementos DOM
+    const endpointInput = document.getElementById('endpoint');
+    const queryInput = document.getElementById('query');
+    const modelSelect = document.getElementById('model');
+    const useSimulatedDataCheckbox = document.getElementById('useSimulatedData');
+    const sendBtn = document.getElementById('sendBtn');
+    const responseContainer = document.getElementById('responseContainer');
+    const statusContainer = document.getElementById('statusContainer');
+    const logContainer = document.getElementById('logContainer');
+    
+    // Carregar configurações salvas
+    if (localStorage.getItem('aiEndpoint')) {
+      endpointInput.value = localStorage.getItem('aiEndpoint');
+    }
+    
+    // Função para adicionar entradas ao log
+    function addLog(message, type = 'info') {
+      const now = new Date();
+      const time = now.toLocaleTimeString();
+      
+      const logEntry = document.createElement('div');
+      logEntry.className = `log-entry log-${type}`;
+      
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'log-time';
+      timeSpan.textContent = time;
+      
+      logEntry.appendChild(timeSpan);
+      logEntry.appendChild(document.createTextNode(message));
+      
+      logContainer.appendChild(logEntry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+    
+    // Função para enviar consulta
+    async function sendQuery() {
+      const endpoint = endpointInput.value.trim();
+      const query = queryInput.value.trim();
+      const useSimulatedData = useSimulatedDataCheckbox.checked;
+      
+      // Validação
+      if (!endpoint) {
+        showError('Por favor, informe a URL do endpoint.');
+        return;
+      }
+      
+      if (!query) {
+        showError('Por favor, digite uma consulta para a IA.');
+        return;
+      }
+      
+      // Salvar endpoint para próxima vez
+      localStorage.setItem('aiEndpoint', endpoint);
+      
+      // Limpar resultados anteriores
+      responseContainer.innerHTML = '';
+      statusContainer.textContent = '';
+      
+      // Mostrar carregamento
+      sendBtn.disabled = true;
+      sendBtn.innerHTML = '<div class="spinner"></div> Processando...';
+      
+      addLog(`Enviando consulta para: ${endpoint}`, 'info');
+      addLog(`Consulta: "${query}"`, 'info');
+      
+      const startTime = Date.now();
+      
+      try {
+        // Preparar dados
+        const requestData = {
+          query: query
+        };
+        
+        if (useSimulatedData) {
+          requestData.rouletteData = mockRouletteData;
+          addLog('Usando dados simulados de roleta para teste', 'info');
+        }
+        
+        // Adicionar modelo se especificado
+        if (modelSelect.value && modelSelect.value !== 'gpt-4o') {
+          requestData.model = modelSelect.value;
+          addLog(`Solicitando uso do modelo: ${modelSelect.value}`, 'info');
+        }
+        
+        // Enviar requisição
+        addLog('Enviando requisição, aguardando resposta...', 'info');
+        
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestData)
+        });
+        
+        const endTime = Date.now();
+        const processingTime = (endTime - startTime) / 1000;
+        
+        // Processar resposta
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+          addLog(`Resposta recebida com sucesso (${processingTime.toFixed(2)}s)`, 'success');
+          
+          // Mostrar resposta
+          const responseDiv = document.createElement('div');
+          responseDiv.className = 'response';
+          responseDiv.textContent = data.response;
+          responseContainer.appendChild(responseDiv);
+          
+          // Status
+          statusContainer.textContent = `Tempo de processamento: ${processingTime.toFixed(2)} segundos`;
+        } else {
+          // Resposta com erro
+          showError(`Erro: ${data.message || 'Resposta em formato inesperado'}`);
+          addLog(`Recebido status: ${response.status}, mensagem: ${data.message || 'Desconhecida'}`, 'error');
+        }
+      } catch (error) {
+        // Erro de rede ou outro
+        showError(`Erro ao processar requisição: ${error.message}`);
+        addLog(`Erro de execução: ${error.message}`, 'error');
+      } finally {
+        // Restaurar botão
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Enviar Consulta';
+      }
+    }
+    
+    // Exibir erro
+    function showError(message) {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error';
+      errorDiv.textContent = message;
+      responseContainer.appendChild(errorDiv);
+    }
+    
+    // Permitir enviar com Enter
+    queryInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendQuery();
+      }
+    });
+    
+    // Log inicial
+    addLog('Teste de IA RunCash inicializado', 'info');
+  </script>
+</body>
+</html> 
