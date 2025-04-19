@@ -13,17 +13,12 @@ interface AIMessage {
 // Componente de carregamento com leap-frog estilizado
 const LoadingIndicator = () => {
   return (
-    <div className="flex flex-col items-center my-6">
-      <div className="flex items-center space-x-2 mb-3">
-        <img src="/assets/icon-rabbit.svg" alt="RunCash" className="w-5 h-5" />
-        <span className="text-green-400 text-sm">RunCash IA</span>
-      </div>
-      <div className="leap-frog mb-2">
+    <div className="flex justify-start">
+      <div className="leap-frog">
         <div className="leap-frog__dot"></div>
         <div className="leap-frog__dot"></div>
         <div className="leap-frog__dot"></div>
       </div>
-      <div className="text-green-400/80 text-xs">Buscando...</div>
     </div>
   );
 };
@@ -392,14 +387,8 @@ const AIFloatingBar: React.FC = () => {
                   </div>
                 ) : (
                   <div className="max-w-[85%] text-white">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center">
-                        <img src="/assets/icon-rabbit.svg" alt="RunCash" className="w-3 h-3" />
-                      </div>
-                      <span className="text-xs font-medium text-green-400">Assistente</span>
-                    </div>
                     <div 
-                      className="text-sm whitespace-pre-wrap pl-7" 
+                      className="text-sm whitespace-pre-wrap" 
                       dangerouslySetInnerHTML={{ 
                         __html: msg.content
                           .replace(/\*\*(.*?)\*\*/g, '<strong class="text-green-300">$1</strong>')

@@ -45,7 +45,7 @@ const TestPage: React.FC = () => {
   
   if (loading) {
     return <div className="flex justify-center items-center h-screen">
-      <GlowingCubeLoader size="large" showLabels={true} />
+      <GlowingCubeLoader />
     </div>;
   }
   
