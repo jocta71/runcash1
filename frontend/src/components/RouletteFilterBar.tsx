@@ -104,7 +104,7 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
   };
   
   return (
-    <div className="bg-gray-800/50 rounded-lg p-4 mb-6 border border-gray-700/50">
+    <div style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }} className="rounded-lg p-4 mb-6 border border-gray-700/50">
       <div className="flex flex-col gap-4">
         {/* Barra de busca e botão de atualização */}
         <div className="flex items-center gap-2">
