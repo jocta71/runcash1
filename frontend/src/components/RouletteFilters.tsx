@@ -19,18 +19,12 @@ interface RouletteFiltersProps {
 }
 
 /**
- * Componente para filtrar roletas por diversos critérios
- * Este componente agora serve como um redirecionamento para o SidePanelStats
+ * Componente simplificado que serve como intermediário para abrir o SidePanelStats
+ * Todos os filtros de roleta foram movidos para o SidePanelStats
  */
 const RouletteFilters: React.FC<RouletteFiltersProps> = ({
   providers,
   selectedProviders,
-  onProviderSelect,
-  onClearFilters,
-  onNumberFilterChange,
-  onColorFilterChange,
-  onParityFilterChange,
-  onTimeFilterChange,
   onOpenSidePanelStats
 }) => {
   // Se não existirem provedores, não renderiza o componente
@@ -52,6 +46,9 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
         <div className="flex items-center gap-2">
           <Filter size={16} className="text-vegas-gold" />
           <h3 className="text-sm font-medium text-white">Filtros de roleta</h3>
+        </div>
+        <div className="text-xs text-gray-400">
+          Clique para abrir os filtros avançados
         </div>
       </div>
       
