@@ -11,24 +11,51 @@ interface AIMessage {
 }
 
 // Componente de loader com cubo 3D (igual ao loading inicial)
-const CubeLoader = () => (
-  <div className="flex items-center justify-center">
-    <div style={{width: "150px", height: "150px", position: "relative", transformStyle: "preserve-3d", animation: "cube-rotate 4s linear infinite"}}>
-      <div style={{position: "absolute", inset: 0, background: "#222", transform: "rotatex(90deg) translatez(75px)", display: "flex", justifyContent: "center", alignItems: "center"}}>
-        <img src="/assets/icon-rabbit.svg" alt="Icon Rabbit" style={{width: "60px", height: "60px", objectFit: "contain"}} />
-      </div>
-      <div style={{position: "absolute", inset: 0, transformStyle: "preserve-3d"}}>
-        <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(0deg) translatez(75px)"}}></span>
-        <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(90deg) translatez(75px)"}}></span>
-        <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(180deg) translatez(75px)"}}></span>
-        <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(270deg) translatez(75px)"}}></span>
-      </div>
-      <div style={{position: "absolute", inset: 0, background: "#222", transform: "rotatex(90deg) translatez(75px)"}}>
-        <div style={{content: "''", position: "absolute", background: "#3aff5e", inset: 0, transform: "translatez(-250px)", filter: "blur(30px)", boxShadow: "0 0 120px rgba(58, 134, 255, 0.2), 0 0 200px rgba(58, 134, 255, 0.4), 0 0 300px #00ff2f, 0 0 400px #51fd71, 0 0 500px #3aff5e"}}></div>
+const CubeLoader = () => {
+  // Usar caminho relativo à raiz da aplicação para garantir que a imagem seja encontrada
+  const rabbitIconPath = window.location.origin + '/assets/icon-rabbit.svg';
+  
+  return (
+    <div className="flex items-center justify-center">
+      <div style={{width: "150px", height: "150px", position: "relative", transformStyle: "preserve-3d", animation: "cube-rotate 4s linear infinite"}}>
+        <div style={{position: "absolute", inset: 0, background: "#222", transform: "rotatex(90deg) translatez(75px)", display: "flex", justifyContent: "center", alignItems: "center"}}>
+          <img 
+            src={rabbitIconPath} 
+            alt="Icon Rabbit" 
+            style={{width: "60px", height: "60px", objectFit: "contain"}} 
+            onError={(e) => {
+              // Se a imagem falhar, tentar outro caminho ou mostrar um emoji
+              e.currentTarget.onerror = null; // Evitar loops infinitos
+              e.currentTarget.src = '/img/logo.svg'; // Tentar um caminho alternativo que existe na pasta
+              
+              // Se mesmo assim falhar, mostrar um emoji de coelho
+              e.currentTarget.onerror = () => {
+                // Criar um span com emoji de coelho
+                const parent = e.currentTarget.parentElement;
+                if (parent) {
+                  e.currentTarget.style.display = 'none';
+                  const textNode = document.createElement('span');
+                  textNode.textContent = '🐰';
+                  textNode.style.fontSize = '40px';
+                  parent.appendChild(textNode);
+                }
+              };
+            }}
+          />
+        </div>
+        <div style={{position: "absolute", inset: 0, transformStyle: "preserve-3d"}}>
+          <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(0deg) translatez(75px)"}}></span>
+          <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(90deg) translatez(75px)"}}></span>
+          <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(180deg) translatez(75px)"}}></span>
+          <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(270deg) translatez(75px)"}}></span>
+        </div>
+        <div style={{position: "absolute", inset: 0, background: "#222", transform: "rotatex(90deg) translatez(75px)"}}>
+          <div style={{content: "''", position: "absolute", background: "#3aff5e", inset: 0, transform: "translatez(-250px)", filter: "blur(30px)", boxShadow: "0 0 120px rgba(58, 134, 255, 0.2), 0 0 200px rgba(58, 134, 255, 0.4), 0 0 300px #00ff2f, 0 0 400px #51fd71, 0 0 500px #3aff5e"}}></div>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const AIFloatingBar: React.FC = () => {
   const [messages, setMessages] = useState<AIMessage[]>([]);
