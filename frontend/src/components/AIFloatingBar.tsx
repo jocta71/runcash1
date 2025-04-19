@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Send, X, RotateCcw, Loader2, Bot, ChevronUp, MessageSquare } from 'lucide-react';
+import { Send, X, RotateCcw, Loader2, Bot, ChevronUp, MessageSquare, Sparkles } from 'lucide-react';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import CustomLoader from './CustomLoader';
 
@@ -261,13 +261,13 @@ const AIFloatingBar: React.FC = () => {
   // A interface recolhida mostra apenas a barra de entrada
   if (!expanded) {
     return (
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-4 right-4 z-50">
         <button 
           onClick={toggleExpand}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-500 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full shadow-lg hover:shadow-xl hover:shadow-green-500/20 transform hover:scale-105 transition-all duration-300"
           aria-label="Abrir assistente de IA"
         >
-          <Bot size={20} />
+          <Sparkles size={20} className="animate-pulse" />
           <span className="font-medium">Assistente IA</span>
         </button>
       </div>
@@ -276,60 +276,63 @@ const AIFloatingBar: React.FC = () => {
 
   // A interface expandida mostra o histórico de mensagens e a entrada
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-300">
-      <div className="w-full max-w-3xl h-[80vh] bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slideUp">
-        {/* Cabeçalho */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800/60 bg-gradient-to-r from-purple-800/30 to-blue-800/30">
+    <div className="fixed bottom-4 right-4 z-50 w-[95%] max-w-3xl">
+      <div className="w-full bg-black/10 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-green-500/20 flex flex-col overflow-hidden animate-slideUp transition-all">
+        {/* Cabeçalho com efeito glass */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-r from-green-600/20 to-emerald-500/20 backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-inner">
-              <Bot size={22} className="text-white" />
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-inner">
+              <Bot size={20} className="text-white" />
             </div>
             <div>
-              <h2 className="text-white font-semibold text-lg">RunCash Assistente</h2>
-              <p className="text-gray-400 text-xs">Powered by AI</p>
+              <h2 className="text-white font-semibold">RunCash Assistente</h2>
+              <div className="flex items-center">
+                <span className="w-2 h-2 rounded-full bg-green-400 mr-2 animate-pulse"></span>
+                <p className="text-green-300/80 text-xs">IA Avançada</p>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button 
               onClick={clearChat}
-              className="p-2 rounded-full bg-gray-800/50 hover:bg-gray-700 text-gray-300 hover:text-white transition-all"
+              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-green-300 hover:text-white transition-all"
               title="Limpar conversa"
             >
-              <RotateCcw size={18} />
+              <RotateCcw size={16} />
             </button>
             <button 
               onClick={toggleExpand}
-              className="p-2 rounded-full bg-gray-800/50 hover:bg-gray-700 text-gray-300 hover:text-white transition-all"
+              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-green-300 hover:text-white transition-all"
               title="Fechar"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
         </div>
         
         {/* Área de mensagens */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 bg-gradient-to-br from-gray-900 to-black/80">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 max-h-[60vh] bg-gradient-to-b from-black/20 to-black/30 backdrop-blur-md">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-600/20 to-blue-600/20 flex items-center justify-center mb-6">
-                <MessageSquare size={30} className="text-purple-400" />
+            <div className="h-48 flex flex-col items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400/10 to-emerald-600/10 flex items-center justify-center mb-4">
+                <MessageSquare size={24} className="text-green-400" />
               </div>
-              <h3 className="text-white font-medium text-xl mb-3">Como posso ajudar?</h3>
-              <p className="text-gray-400 text-center max-w-md">
-                Pergunte sobre análises de roletas, tendências de números, estratégias ou qualquer dado estatístico das roletas.
+              <h3 className="text-white font-medium text-lg mb-2">Como posso ajudar?</h3>
+              <p className="text-gray-300/70 text-center text-sm max-w-md mb-4">
+                Pergunte sobre análises de roletas, tendências ou estratégias.
               </p>
-              <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md">
+              <div className="grid grid-cols-2 gap-2 w-full max-w-md">
                 <button 
                   onClick={() => setInput("Quais são os números quentes agora?")}
-                  className="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700/70 text-gray-300 hover:text-white text-left text-sm transition-all"
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-green-300 hover:text-white text-left text-xs transition-all border border-white/5"
                 >
-                  Quais são os números quentes agora?
+                  Quais são os números quentes?
                 </button>
                 <button 
                   onClick={() => setInput("Detectou algum padrão de cor nas últimas jogadas?")}
-                  className="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700/70 text-gray-300 hover:text-white text-left text-sm transition-all"
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-green-300 hover:text-white text-left text-xs transition-all border border-white/5"
                 >
-                  Detectou algum padrão de cor nas últimas jogadas?
+                  Há padrões de cor recentes?
                 </button>
               </div>
             </div>
@@ -340,27 +343,27 @@ const AIFloatingBar: React.FC = () => {
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}
               >
                 <div 
-                  className={`max-w-[85%] rounded-2xl p-4 shadow-md ${
+                  className={`max-w-[85%] rounded-2xl p-3 shadow-md ${
                     msg.role === 'user' 
-                      ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
-                      : 'bg-gradient-to-r from-gray-800 to-gray-900 text-white border border-gray-700/50'
+                      ? 'bg-gradient-to-r from-green-600 to-emerald-500 text-white'
+                      : 'bg-white/10 backdrop-blur-md text-white border border-white/10'
                   }`}
                 >
                   {msg.role === 'ai' && (
-                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700/30">
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-blue-600 flex items-center justify-center">
-                        <Bot size={12} className="text-white" />
+                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center">
+                        <Bot size={10} className="text-black/80" />
                       </div>
-                      <span className="text-xs font-medium text-gray-400">Assistente RunCash</span>
+                      <span className="text-xs font-medium text-green-400">Assistente</span>
                     </div>
                   )}
                   <div 
                     className="prose prose-invert max-w-none text-sm whitespace-pre-wrap" 
                     dangerouslySetInnerHTML={{ 
                       __html: msg.content
-                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\*\*(.*?)\*\*/g, '<strong class="text-green-300">$1</strong>')
                         .replace(/\n/g, '<br>')
-                        .replace(/•\s(.*?)(?=\n|$)/g, '<div class="flex items-start"><span class="mr-2 text-purple-400">•</span><span>$1</span></div>')
+                        .replace(/•\s(.*?)(?=\n|$)/g, '<div class="flex items-start"><span class="mr-2 text-green-400">•</span><span>$1</span></div>')
                     }} 
                   />
                 </div>
@@ -369,16 +372,16 @@ const AIFloatingBar: React.FC = () => {
           )}
           {loading && (
             <div className="flex justify-start">
-              <div className="max-w-[85%] rounded-2xl p-6 shadow-md bg-gradient-to-r from-gray-800 to-gray-900 text-white border border-gray-700/50 animate-pulse">
-                <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-700/30">
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-blue-600 flex items-center justify-center">
-                    <Bot size={12} className="text-white" />
+              <div className="max-w-[85%] rounded-2xl p-4 shadow-md bg-white/10 backdrop-blur-md text-white border border-white/10 animate-pulse">
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center">
+                    <Bot size={10} className="text-black/80" />
                   </div>
-                  <span className="text-xs font-medium text-gray-400">Assistente RunCash</span>
+                  <span className="text-xs font-medium text-green-400">Assistente</span>
                 </div>
-                <div className="flex flex-col items-center justify-center">
+                <div className="flex flex-col items-center justify-center py-4">
                   <CustomLoader />
-                  <span className="mt-4 text-center text-sm text-purple-400">
+                  <span className="mt-3 text-center text-sm text-green-400">
                     Analisando dados das roletas...
                   </span>
                 </div>
@@ -388,8 +391,8 @@ const AIFloatingBar: React.FC = () => {
           <div ref={messagesEndRef} />
         </div>
         
-        {/* Barra de entrada */}
-        <form onSubmit={handleSubmit} className="p-4 border-t border-gray-800/60 bg-gradient-to-r from-gray-900 to-gray-950">
+        {/* Barra de entrada com efeito glass */}
+        <form onSubmit={handleSubmit} className="p-3 border-t border-white/10 backdrop-blur-md bg-black/20">
           <div className="relative flex items-center">
             <input
               ref={inputRef}
@@ -397,25 +400,20 @@ const AIFloatingBar: React.FC = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Pergunte algo sobre as roletas..."
-              className="w-full bg-gray-800/50 border border-gray-700/50 focus:border-purple-500/70 rounded-full px-5 py-3 text-white text-sm focus:outline-none shadow-inner"
+              className="w-full bg-white/5 border border-white/10 focus:border-green-500/50 rounded-full px-5 py-2 text-white text-sm focus:outline-none shadow-inner backdrop-blur-md"
               disabled={loading}
             />
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className={`absolute right-1.5 p-2 rounded-full ${
+              className={`absolute right-1 p-2 rounded-full ${
                 loading || !input.trim() 
-                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
-                  : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:shadow-lg hover:from-purple-500 hover:to-blue-500'
+                  ? 'bg-gray-600/30 text-gray-400 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-lg hover:shadow-green-500/20'
               } transition-all duration-200`}
             >
-              <Send size={18} />
+              <Send size={16} />
             </button>
-          </div>
-          <div className="mt-2 flex justify-center">
-            <span className="text-xs text-gray-500">
-              Powered by RunCash AI • <button onClick={clearChat} className="text-purple-400 hover:underline">Limpar Conversa</button>
-            </span>
           </div>
         </form>
       </div>
