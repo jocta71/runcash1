@@ -13,9 +13,9 @@ interface AIMessage {
 // Componente de carregamento com leap-frog estilizado
 const LoadingIndicator = () => {
   return (
-    <div className="flex flex-col items-center my-6 p-3 rounded-lg bg-black/10 backdrop-blur-sm border border-white/5">
+    <div className="flex flex-col items-center my-6">
       <div className="flex items-center space-x-2 mb-3">
-        <Bot size={18} className="text-green-400" />
+        <img src="/assets/icon-rabbit.svg" alt="RunCash" className="w-5 h-5" />
         <span className="text-green-400 text-sm">RunCash IA</span>
       </div>
       <div className="leap-frog mb-2">
@@ -23,7 +23,7 @@ const LoadingIndicator = () => {
         <div className="leap-frog__dot"></div>
         <div className="leap-frog__dot"></div>
       </div>
-      <div className="text-green-400/80 text-xs">Processando sua consulta...</div>
+      <div className="text-green-400/80 text-xs">Buscando...</div>
     </div>
   );
 };
@@ -59,7 +59,7 @@ const AIFloatingBar: React.FC = () => {
       const response = await axios.post(
         apiUrl,
         {
-          query: query,
+          query: query + " IMPORTANTE: Resposta curta e direta. Sem explicações. Máximo 1-2 linhas.",
           rouletteData: roletaData
         },
         { 
@@ -71,7 +71,7 @@ const AIFloatingBar: React.FC = () => {
       return response.data.response;
     } catch (error) {
       console.error('Erro ao consultar API de IA:', error);
-      return 'Desculpe, ocorreu um erro ao processar sua consulta. Por favor, tente novamente mais tarde.';
+      return 'Erro ao processar consulta. Tente novamente.';
     }
   };
   
@@ -139,7 +139,7 @@ const AIFloatingBar: React.FC = () => {
       
       // Ordenar por frequência
       const sortedNumbers = Object.entries(numFrequency)
-        .sort((a, b) => b[1] - a[1])
+        .sort((a: [string, number], b: [string, number]) => b[1] - a[1])
         .map(entry => parseInt(entry[0]));
       
       const hotNumbers = sortedNumbers.slice(0, 4);
@@ -283,7 +283,7 @@ const AIFloatingBar: React.FC = () => {
           <div className="mb-2">
             <div className="flex items-center gap-2 mb-1">
               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-inner">
-                <Bot size={14} className="text-white" />
+                <img src="/assets/icon-rabbit.svg" alt="RunCash" className="w-4 h-4" />
               </div>
               <h3 className="text-white font-medium text-sm">Descubra tendências & padrões lucrativos</h3>
             </div>
@@ -319,7 +319,7 @@ const AIFloatingBar: React.FC = () => {
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-r from-green-600/20 to-emerald-500/20 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-inner">
-              <Bot size={20} className="text-white" />
+              <img src="/assets/icon-rabbit.svg" alt="RunCash" className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-white font-semibold">RunCash Assistente</h2>
@@ -379,31 +379,36 @@ const AIFloatingBar: React.FC = () => {
                 key={msg.id} 
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}
               >
-                <div 
-                  className={`max-w-[85%] rounded-2xl p-3 shadow-md ${
-                    msg.role === 'user' 
-                      ? 'bg-gradient-to-r from-green-600 to-emerald-500 text-white'
-                      : 'bg-white/10 backdrop-blur-md text-white border border-white/10'
-                  }`}
-                >
-                  {msg.role === 'ai' && (
-                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
+                {msg.role === 'user' ? (
+                  <div className="max-w-[85%] rounded-2xl p-3 shadow-md bg-gradient-to-r from-green-600 to-emerald-500 text-white">
+                    <div 
+                      className="prose prose-invert max-w-none text-sm whitespace-pre-wrap" 
+                      dangerouslySetInnerHTML={{ 
+                        __html: msg.content
+                          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')
+                          .replace(/\n/g, '<br>')
+                      }} 
+                    />
+                  </div>
+                ) : (
+                  <div className="max-w-[85%] text-white">
+                    <div className="flex items-center gap-2 mb-2">
                       <div className="w-5 h-5 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center">
-                        <Bot size={10} className="text-black/80" />
+                        <img src="/assets/icon-rabbit.svg" alt="RunCash" className="w-3 h-3" />
                       </div>
                       <span className="text-xs font-medium text-green-400">Assistente</span>
                     </div>
-                  )}
-                  <div 
-                    className="prose prose-invert max-w-none text-sm whitespace-pre-wrap" 
-                    dangerouslySetInnerHTML={{ 
-                      __html: msg.content
-                        .replace(/\*\*(.*?)\*\*/g, '<strong class="text-green-300">$1</strong>')
-                        .replace(/\n/g, '<br>')
-                        .replace(/•\s(.*?)(?=\n|$)/g, '<div class="flex items-start"><span class="mr-2 text-green-400">•</span><span>$1</span></div>')
-                    }} 
-                  />
-                </div>
+                    <div 
+                      className="text-sm whitespace-pre-wrap pl-7" 
+                      dangerouslySetInnerHTML={{ 
+                        __html: msg.content
+                          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-green-300">$1</strong>')
+                          .replace(/\n/g, '<br>')
+                          .replace(/•\s(.*?)(?=\n|$)/g, '<div class="flex items-start"><span class="mr-2 text-green-400">•</span><span>$1</span></div>')
+                      }} 
+                    />
+                  </div>
+                )}
               </div>
             ))
           )}

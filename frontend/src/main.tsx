@@ -193,9 +193,14 @@ if (rootElement) {
           }
 
           .glowing-cube .top::before {
-            content: '🐇';
+            content: '';
             position: absolute;
-            font-size: 7rem;
+            width: 100%;
+            height: 100%;
+            background-image: url('/assets/icon-rabbit.svg');
+            background-size: 80px;
+            background-position: center;
+            background-repeat: no-repeat;
             display: flex;
             justify-content: center;
             align-items: center;
