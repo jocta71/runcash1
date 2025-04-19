@@ -99,6 +99,14 @@ export default {
 					'0%': { opacity: '0', transform: 'translateY(10px)' },
 					'100%': { opacity: '1', transform: 'translateY(0)' }
 				},
+				'fadeIn': {
+					'0%': { opacity: '0' },
+					'100%': { opacity: '1' }
+				},
+				'slideUp': {
+					'0%': { transform: 'translateY(30px)', opacity: '0' },
+					'100%': { transform: 'translateY(0)', opacity: '1' }
+				},
 				'pulse-neon': {
 					'0%, 100%': { boxShadow: '0 0 10px 0 rgba(59, 255, 161, 0.15)' },
 					'50%': { boxShadow: '0 0 20px 5px rgba(59, 255, 161, 0.25)' }
@@ -149,6 +157,8 @@ export default {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				'fade-in': 'fade-in 0.4s ease-out',
+				'fadeIn': 'fadeIn 0.4s ease-out',
+				'slideUp': 'slideUp 0.5s ease-out',
 				'pulse-neon': 'pulse-neon 2s infinite',
 				'pulse-gold': 'pulse-gold 2s infinite',
 				'pulse-blue': 'pulse-blue 2s infinite',

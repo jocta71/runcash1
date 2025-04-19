@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Send, X, RotateCcw, Loader2 } from 'lucide-react';
+import { Send, X, RotateCcw, Loader2, Bot, ChevronUp, MessageSquare } from 'lucide-react';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import CustomLoader from './CustomLoader';
 
@@ -261,115 +261,164 @@ const AIFloatingBar: React.FC = () => {
   // A interface recolhida mostra apenas a barra de entrada
   if (!expanded) {
     return (
-      <div className="fixed bottom-4 left-0 right-0 mx-auto z-50 w-[90%] max-w-lg">
-        <div className="bg-[#141318] border border-[#2a2a2e] rounded-full shadow-lg p-2 flex items-center">
-          <button 
-            onClick={toggleExpand}
-            className="w-8 h-8 rounded-full flex items-center justify-center bg-green-600 text-white mr-2"
-          >
-            <RotateCcw size={16} />
-          </button>
-          <div 
-            onClick={toggleExpand}
-            className="flex-1 py-2 px-4 cursor-pointer text-gray-400"
-          >
-            Pergunte algo sobre as roletas...
-          </div>
-        </div>
+      <div className="fixed bottom-6 right-6 z-50">
+        <button 
+          onClick={toggleExpand}
+          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-500 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+          aria-label="Abrir assistente de IA"
+        >
+          <Bot size={20} />
+          <span className="font-medium">Assistente IA</span>
+        </button>
       </div>
     );
   }
 
   // A interface expandida mostra o histórico de mensagens e a entrada
   return (
-    <div className="fixed bottom-4 left-0 right-0 mx-auto z-50 w-[90%] max-w-2xl bg-[#141318] border border-[#2a2a2e] rounded-lg shadow-lg flex flex-col max-h-[70vh]">
-      {/* Cabeçalho */}
-      <div className="flex items-center justify-between p-3 border-b border-[#2a2a2e]">
-        <div className="flex items-center">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-green-700 flex items-center justify-center mr-2">
-            <span className="text-white font-bold">R</span>
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-300">
+      <div className="w-full max-w-3xl h-[80vh] bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slideUp">
+        {/* Cabeçalho */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800/60 bg-gradient-to-r from-purple-800/30 to-blue-800/30">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-inner">
+              <Bot size={22} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-white font-semibold text-lg">RunCash Assistente</h2>
+              <p className="text-gray-400 text-xs">Powered by AI</p>
+            </div>
           </div>
-          <span className="text-white font-medium">RunCash Assistente</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <button 
-            onClick={clearChat}
-            className="text-gray-400 hover:text-white p-1 rounded-md transition-colors"
-            title="Limpar chat"
-          >
-            <RotateCcw size={16} />
-          </button>
-          <button 
-            onClick={toggleExpand}
-            className="text-gray-400 hover:text-white p-1 rounded-md transition-colors"
-            title="Minimizar"
-          >
-            <X size={18} />
-          </button>
-        </div>
-      </div>
-      
-      {/* Área de mensagens */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[300px] max-h-[calc(70vh-120px)]">
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-gray-500">
-            <p className="text-center mb-2">Olá! Como posso ajudar com análise de roletas hoje?</p>
-            <p className="text-center text-sm">Experimente perguntar sobre números quentes, padrões recentes ou estratégias.</p>
-          </div>
-        ) : (
-          messages.map((msg) => (
-            <div 
-              key={msg.id} 
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={clearChat}
+              className="p-2 rounded-full bg-gray-800/50 hover:bg-gray-700 text-gray-300 hover:text-white transition-all"
+              title="Limpar conversa"
             >
-              <div 
-                className={`max-w-[80%] rounded-lg p-3 ${
-                  msg.role === 'user' 
-                    ? 'bg-green-600 text-white'
-                    : 'bg-[#1e293b] text-white'
-                }`}
-              >
-                <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: msg.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-              </div>
-            </div>
-          ))
-        )}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-[#1e293b] text-white max-w-[80%] rounded-lg p-4">
-              <div className="flex flex-col items-center">
-                <CustomLoader />
-                <span className="mt-3 text-center text-sm text-green-400">Analisando dados das roletas...</span>
-              </div>
-            </div>
+              <RotateCcw size={18} />
+            </button>
+            <button 
+              onClick={toggleExpand}
+              className="p-2 rounded-full bg-gray-800/50 hover:bg-gray-700 text-gray-300 hover:text-white transition-all"
+              title="Fechar"
+            >
+              <X size={20} />
+            </button>
           </div>
-        )}
-        <div ref={messagesEndRef} />
+        </div>
+        
+        {/* Área de mensagens */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 bg-gradient-to-br from-gray-900 to-black/80">
+          {messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-600/20 to-blue-600/20 flex items-center justify-center mb-6">
+                <MessageSquare size={30} className="text-purple-400" />
+              </div>
+              <h3 className="text-white font-medium text-xl mb-3">Como posso ajudar?</h3>
+              <p className="text-gray-400 text-center max-w-md">
+                Pergunte sobre análises de roletas, tendências de números, estratégias ou qualquer dado estatístico das roletas.
+              </p>
+              <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md">
+                <button 
+                  onClick={() => setInput("Quais são os números quentes agora?")}
+                  className="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700/70 text-gray-300 hover:text-white text-left text-sm transition-all"
+                >
+                  Quais são os números quentes agora?
+                </button>
+                <button 
+                  onClick={() => setInput("Detectou algum padrão de cor nas últimas jogadas?")}
+                  className="p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700/70 text-gray-300 hover:text-white text-left text-sm transition-all"
+                >
+                  Detectou algum padrão de cor nas últimas jogadas?
+                </button>
+              </div>
+            </div>
+          ) : (
+            messages.map((msg) => (
+              <div 
+                key={msg.id} 
+                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}
+              >
+                <div 
+                  className={`max-w-[85%] rounded-2xl p-4 shadow-md ${
+                    msg.role === 'user' 
+                      ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
+                      : 'bg-gradient-to-r from-gray-800 to-gray-900 text-white border border-gray-700/50'
+                  }`}
+                >
+                  {msg.role === 'ai' && (
+                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700/30">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-blue-600 flex items-center justify-center">
+                        <Bot size={12} className="text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-gray-400">Assistente RunCash</span>
+                    </div>
+                  )}
+                  <div 
+                    className="prose prose-invert max-w-none text-sm whitespace-pre-wrap" 
+                    dangerouslySetInnerHTML={{ 
+                      __html: msg.content
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\n/g, '<br>')
+                        .replace(/•\s(.*?)(?=\n|$)/g, '<div class="flex items-start"><span class="mr-2 text-purple-400">•</span><span>$1</span></div>')
+                    }} 
+                  />
+                </div>
+              </div>
+            ))
+          )}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="max-w-[85%] rounded-2xl p-6 shadow-md bg-gradient-to-r from-gray-800 to-gray-900 text-white border border-gray-700/50 animate-pulse">
+                <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-700/30">
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-blue-600 flex items-center justify-center">
+                    <Bot size={12} className="text-white" />
+                  </div>
+                  <span className="text-xs font-medium text-gray-400">Assistente RunCash</span>
+                </div>
+                <div className="flex flex-col items-center justify-center">
+                  <CustomLoader />
+                  <span className="mt-4 text-center text-sm text-purple-400">
+                    Analisando dados das roletas...
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+        
+        {/* Barra de entrada */}
+        <form onSubmit={handleSubmit} className="p-4 border-t border-gray-800/60 bg-gradient-to-r from-gray-900 to-gray-950">
+          <div className="relative flex items-center">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Pergunte algo sobre as roletas..."
+              className="w-full bg-gray-800/50 border border-gray-700/50 focus:border-purple-500/70 rounded-full px-5 py-3 text-white text-sm focus:outline-none shadow-inner"
+              disabled={loading}
+            />
+            <button
+              type="submit"
+              disabled={loading || !input.trim()}
+              className={`absolute right-1.5 p-2 rounded-full ${
+                loading || !input.trim() 
+                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:shadow-lg hover:from-purple-500 hover:to-blue-500'
+              } transition-all duration-200`}
+            >
+              <Send size={18} />
+            </button>
+          </div>
+          <div className="mt-2 flex justify-center">
+            <span className="text-xs text-gray-500">
+              Powered by RunCash AI • <button onClick={clearChat} className="text-purple-400 hover:underline">Limpar Conversa</button>
+            </span>
+          </div>
+        </form>
       </div>
-      
-      {/* Barra de entrada */}
-      <form onSubmit={handleSubmit} className="p-3 border-t border-[#2a2a2e] flex items-center space-x-2">
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Pergunte algo sobre as roletas..."
-          className="flex-1 bg-[#1a191e] border border-[#2a2a2e] rounded-md px-4 py-2 text-white text-sm focus:outline-none focus:border-green-500"
-          disabled={loading}
-        />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className={`p-2 rounded-md ${
-            loading || !input.trim() 
-              ? 'bg-green-600/50 text-white/50 cursor-not-allowed' 
-              : 'bg-green-600 text-white hover:bg-green-700'
-          }`}
-        >
-          <Send size={18} />
-        </button>
-      </form>
     </div>
   );
 };

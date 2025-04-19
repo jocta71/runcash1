@@ -6,14 +6,10 @@ const Loader = () => {
     <StyledWrapper>
       <div className="loader">
         <div className="loader-inner">
-          <div className="loader-block" />
-          <div className="loader-block" />
-          <div className="loader-block" />
-          <div className="loader-block" />
-          <div className="loader-block" />
-          <div className="loader-block" />
-          <div className="loader-block" />
-          <div className="loader-block" />
+          <div className="cube cube1"></div>
+          <div className="cube cube2"></div>
+          <div className="cube cube3"></div>
+          <div className="cube cube4"></div>
         </div>
       </div>
     </StyledWrapper>
@@ -30,80 +26,59 @@ const StyledWrapper = styled.div`
     position: relative;
   }
 
-  .loader:before {
-    content: "";
-    position: absolute;
-    top: -10px;
-    left: -10px;
-    right: -10px;
-    bottom: -10px;
-    border-radius: 50%;
-  }
-
   .loader-inner {
+    position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
-    position: relative;
+    width: 100%;
+    height: 100%;
+    transform: rotate(45deg);
   }
 
-  .loader-block {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    margin: 2px;
-    background-color: #fff;
-    box-shadow: 0 0 20px #fff;
-    animation: loader_562 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  .cube {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    animation: cube 1.5s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;
   }
 
-  .loader-block:nth-child(1) {
-    animation-delay: 0.1s;
+  .cube1 {
+    background-image: linear-gradient(to right, #8b5cf6, #6366f1);
+    left: 0;
+    top: 0;
+    animation-delay: -0.3s;
   }
 
-  .loader-block:nth-child(2) {
-    animation-delay: 0.2s;
+  .cube2 {
+    background-image: linear-gradient(to right, #6366f1, #3b82f6);
+    right: 0;
+    top: 0;
+    animation-delay: -0.15s;
   }
 
-  .loader-block:nth-child(3) {
-    animation-delay: 0.3s;
+  .cube3 {
+    background-image: linear-gradient(to right, #8b5cf6, #d946ef);
+    right: 0;
+    bottom: 0;
+    animation-delay: 0s;
   }
 
-  .loader-block:nth-child(4) {
-    animation-delay: 0.4s;
+  .cube4 {
+    background-image: linear-gradient(to right, #3b82f6, #0ea5e9);
+    left: 0;
+    bottom: 0;
+    animation-delay: -0.45s;
   }
 
-  .loader-block:nth-child(5) {
-    animation-delay: 0.5s;
+  @keyframes cube {
+    0% { transform: scale(1) rotate(0); opacity: 1; }
+    25% { transform: scale(0.8) rotate(90deg); opacity: 0.8; }
+    50% { transform: scale(1.2) rotate(180deg); opacity: 1; }
+    75% { transform: scale(0.9) rotate(270deg); opacity: 0.9; }
+    100% { transform: scale(1) rotate(360deg); opacity: 1; }
   }
-
-  .loader-block:nth-child(6) {
-    animation-delay: 0.6s;
-  }
-
-  .loader-block:nth-child(7) {
-    animation-delay: 0.7s;
-  }
-
-  .loader-block:nth-child(8) {
-    animation-delay: 0.8s;
-  }
-
-  @keyframes loader_562 {
-    0% {
-      transform: scale(1);
-      box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
-    }
-
-    20% {
-      transform: scale(1, 2.5);
-      box-shadow: 0 0 50px rgba(255, 255, 255, 0.7);
-    }
-
-    40% {
-      transform: scale(1);
-      box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
-    }
-  }`;
+`;
 
 export default Loader; 
