@@ -51,11 +51,8 @@ export const providerRoulettesMap: Record<string, string[]> = {
     'Speed Auto Roulette',
     'Auto-Roulette',
     'Auto Roulette VIP',
-    'Speed Roulette',
-    'Bucharest Auto-Roulette',
-    'XXtreme Lightning Roulette',
-    'VIP Roulette',
-    'Live Roulette'
+    'Speed Roulette'
+    
   ],
   'Pragmatic Play': [
     'Mega Roulette',
