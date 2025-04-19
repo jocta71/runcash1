@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
-import { Check, Filter, X, Calendar, Hash, Circle } from 'lucide-react';
+import { Check, Filter, X, Calendar, Hash, Circle, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface RouletteProvider {
   id: string;
@@ -38,6 +45,7 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
   const [selectedColor, setSelectedColor] = useState<'red' | 'black' | 'green' | null>(null);
   const [selectedParity, setSelectedParity] = useState<'even' | 'odd' | null>(null);
   const [timeFilter, setTimeFilter] = useState<string>('');
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
 
   // Se não existirem provedores, não renderiza o componente
   if (!providers || providers.length === 0) {
@@ -74,17 +82,42 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
   };
 
   // Handler para o filtro de cor
-  const handleColorChange = (color: 'red' | 'black' | 'green' | null) => {
-    const newColor = selectedColor === color ? null : color;
+  const handleColorChange = (value: string) => {
+    const colorMap: Record<string, 'red' | 'black' | 'green' | null> = {
+      'todas': null,
+      'vermelho': 'red',
+      'preto': 'black',
+      'verde': 'green'
+    };
+    
+    const newColor = colorMap[value] || null;
     setSelectedColor(newColor);
     onColorFilterChange?.(newColor);
   };
 
   // Handler para o filtro de paridade
-  const handleParityChange = (parity: 'even' | 'odd' | null) => {
-    const newParity = selectedParity === parity ? null : parity;
+  const handleParityChange = (value: string) => {
+    const parityMap: Record<string, 'even' | 'odd' | null> = {
+      'todas': null,
+      'par': 'even',
+      'impar': 'odd'
+    };
+    
+    const newParity = parityMap[value] || null;
     setSelectedParity(newParity);
     onParityFilterChange?.(newParity);
+  };
+
+  // Handler para o filtro de provedor
+  const handleProviderChange = (value: string) => {
+    setSelectedProvider(value);
+    if (value === 'all') {
+      // Limpar todos os provedores selecionados
+      onClearFilters();
+    } else {
+      // Selecionar apenas o provedor escolhido
+      onProviderSelect(value);
+    }
   };
 
   // Limpar todos os filtros
@@ -93,6 +126,7 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
     setSelectedColor(null);
     setSelectedParity(null);
     setTimeFilter('');
+    setSelectedProvider('');
     onClearFilters();
     onNumberFilterChange?.(null);
     onColorFilterChange?.(null);
@@ -122,96 +156,33 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
         )}
       </div>
       
-      {/* Filtros por cor */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 mb-2">
-            <Circle size={16} className="text-vegas-gold" />
-            <h4 className="text-xs font-medium text-gray-400">Filtrar por cor</h4>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => handleColorChange('red')}
-              size="sm"
-              variant={selectedColor === 'red' ? "default" : "outline"}
-              className={cn(
-                "h-8 rounded-full",
-                selectedColor === 'red' ? "bg-red-600 text-white hover:bg-red-700" : "text-red-500 border-red-700/30 hover:bg-red-500/10"
-              )}
-            >
-              {selectedColor === 'red' && <Check size={14} className="mr-1" />}
-              Vermelhos
-            </Button>
-            <Button
-              onClick={() => handleColorChange('black')}
-              size="sm"
-              variant={selectedColor === 'black' ? "default" : "outline"}
-              className={cn(
-                "h-8 rounded-full",
-                selectedColor === 'black' ? "bg-gray-800 text-white hover:bg-gray-900" : "text-gray-300 border-gray-700/30 hover:bg-gray-800/10"
-              )}
-            >
-              {selectedColor === 'black' && <Check size={14} className="mr-1" />}
-              Pretos
-            </Button>
-            <Button
-              onClick={() => handleColorChange('green')}
-              size="sm"
-              variant={selectedColor === 'green' ? "default" : "outline"}
-              className={cn(
-                "h-8 rounded-full",
-                selectedColor === 'green' ? "bg-green-600 text-white hover:bg-green-700" : "text-green-500 border-green-700/30 hover:bg-green-500/10"
-              )}
-            >
-              {selectedColor === 'green' && <Check size={14} className="mr-1" />}
-              Zero
-            </Button>
-          </div>
+      {/* Filtros em grid */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        {/* Filtro por cor */}
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Por cores</label>
+          <Select onValueChange={handleColorChange} value={selectedColor || 'todas'}>
+            <SelectTrigger className="w-full bg-[#111] border-gray-700 text-white h-9">
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#111] border-gray-700 text-white">
+              <SelectItem value="todas">Todas</SelectItem>
+              <SelectItem value="vermelho" className="flex items-center">
+                <span className="mr-2 w-2 h-2 rounded-full bg-red-600"></span> Vermelhos
+              </SelectItem>
+              <SelectItem value="preto" className="flex items-center">
+                <span className="mr-2 w-2 h-2 rounded-full bg-gray-900"></span> Pretos
+              </SelectItem>
+              <SelectItem value="verde" className="flex items-center">
+                <span className="mr-2 w-2 h-2 rounded-full bg-green-600"></span> Zero
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Filtros por paridade */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 mb-2">
-            <Hash size={16} className="text-vegas-gold" />
-            <h4 className="text-xs font-medium text-gray-400">Filtrar por paridade</h4>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => handleParityChange('even')}
-              size="sm"
-              variant={selectedParity === 'even' ? "default" : "outline"}
-              className={cn(
-                "h-8 rounded-full",
-                selectedParity === 'even' ? "bg-vegas-gold text-black hover:bg-vegas-gold/90" : "text-vegas-gold hover:bg-vegas-gold/10 border-vegas-gold/30"
-              )}
-            >
-              {selectedParity === 'even' && <Check size={14} className="mr-1" />}
-              Pares
-            </Button>
-            <Button
-              onClick={() => handleParityChange('odd')}
-              size="sm"
-              variant={selectedParity === 'odd' ? "default" : "outline"}
-              className={cn(
-                "h-8 rounded-full",
-                selectedParity === 'odd' ? "bg-vegas-gold text-black hover:bg-vegas-gold/90" : "text-vegas-gold hover:bg-vegas-gold/10 border-vegas-gold/30"
-              )}
-            >
-              {selectedParity === 'odd' && <Check size={14} className="mr-1" />}
-              Ímpares
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Segunda linha de filtros */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Filtro por número */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 mb-2">
-            <Hash size={16} className="text-vegas-gold" />
-            <h4 className="text-xs font-medium text-gray-400">Filtrar por número específico</h4>
-          </div>
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Por número</label>
           <Input
             value={numberFilter}
             onChange={handleNumberChange}
@@ -219,53 +190,54 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
             type="number"
             min={0}
             max={36}
-            className="h-8 bg-gray-800/50 border-gray-700/50 text-white"
+            className="w-full h-9 bg-[#111] border-gray-700 text-white"
           />
+        </div>
+
+        {/* Filtro por hora */}
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Por paridade</label>
+          <Select onValueChange={handleParityChange} value={selectedParity || 'todas'}>
+            <SelectTrigger className="w-full bg-[#111] border-gray-700 text-white h-9">
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#111] border-gray-700 text-white">
+              <SelectItem value="todas">Todas</SelectItem>
+              <SelectItem value="par">Pares</SelectItem>
+              <SelectItem value="impar">Ímpares</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Filtro por provedor */}
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Por provedor</label>
+          <Select onValueChange={handleProviderChange} value={selectedProvider || 'all'}>
+            <SelectTrigger className="w-full bg-[#111] border-gray-700 text-white h-9">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#111] border-gray-700 text-white max-h-[200px] overflow-y-auto">
+              <SelectItem value="all">Todos</SelectItem>
+              {providers.map(provider => (
+                <SelectItem key={provider.id} value={provider.id}>
+                  {provider.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Filtro por tempo */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 mb-2">
-            <Calendar size={16} className="text-vegas-gold" />
-            <h4 className="text-xs font-medium text-gray-400">Filtrar por tempo (minutos)</h4>
-          </div>
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Por tempo (min)</label>
           <Input
             value={timeFilter}
             onChange={handleTimeChange}
-            placeholder="Últimos X minutos"
+            placeholder="Últimos X min"
             type="number"
             min={1}
-            className="h-8 bg-gray-800/50 border-gray-700/50 text-white"
+            className="w-full h-9 bg-[#111] border-gray-700 text-white"
           />
-        </div>
-      </div>
-
-      {/* Filtro por provedores */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 mb-2">
-          <Filter size={16} className="text-vegas-gold" />
-          <h4 className="text-xs font-medium text-gray-400">Filtrar por provedor</h4>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {providers.map(provider => {
-            const isSelected = selectedProviders.includes(provider.id);
-            
-            return (
-              <Button
-                key={provider.id}
-                onClick={() => onProviderSelect(provider.id)}
-                size="sm"
-                variant={isSelected ? "default" : "outline"}
-                className={cn(
-                  "h-8 rounded-full",
-                  isSelected ? "bg-vegas-gold text-black hover:bg-vegas-gold/90" : "text-vegas-gold hover:bg-vegas-gold/10 border-vegas-gold/30"
-                )}
-              >
-                {isSelected && <Check size={14} className="mr-1" />}
-                {provider.name}
-              </Button>
-            );
-          })}
         </div>
       </div>
     </div>
