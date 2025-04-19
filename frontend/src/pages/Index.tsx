@@ -32,6 +32,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
 import RouletteFilterBar from '@/components/RouletteFilterBar';
+import { extractProviders } from '@/utils/rouletteProviders';
 
 interface ChatMessage {
   id: string;
@@ -460,7 +461,9 @@ const Index = () => {
 
   // Função para lidar com o filtro de roletas
   const handleRouletteFilter = (filtered: RouletteData[]) => {
-    setFilteredRoulettes(filtered);
+    // Mantendo essa função para compatibilidade com o código existente
+    // Agora os filtros são controlados diretamente pelo painel lateral
+    setFilteredRoulettes(roulettes);
   };
 
   return (
@@ -488,11 +491,7 @@ const Index = () => {
             {/* Cards de roleta à esquerda */}
             <div className="w-full lg:w-1/2">
               {/* Adicionar barra de filtro acima dos cards de roleta */}
-              <RouletteFilterBar 
-                roulettes={roulettes}
-                onFilter={handleRouletteFilter}
-                onRefresh={loadRouletteData}
-              />
+              {/* Removendo o componente RouletteFilterBar conforme solicitado */}
               
               <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
                 {renderRouletteCards()}
@@ -507,6 +506,7 @@ const Index = () => {
                   lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
                   wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
                   losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                  providers={useMemo(() => extractProviders(roulettes), [roulettes])}
                 />
               ) : (
                 <div className="w-full bg-gray-900 rounded-lg p-6 text-center">
