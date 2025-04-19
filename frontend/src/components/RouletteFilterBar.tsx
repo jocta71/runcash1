@@ -17,6 +17,7 @@ interface RouletteFilterBarProps {
   roulettes: RouletteData[];
   onFilter: (filtered: RouletteData[]) => void;
   onRefresh?: () => void;
+  onOpenSidePanelStats?: () => void;
 }
 
 /**
@@ -25,7 +26,8 @@ interface RouletteFilterBarProps {
 const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
   roulettes,
   onFilter,
-  onRefresh
+  onRefresh,
+  onOpenSidePanelStats
 }) => {
   // Estados para os filtros
   const [searchTerm, setSearchTerm] = useState('');
@@ -188,6 +190,7 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
           onColorFilterChange={setColorFilter}
           onParityFilterChange={setParityFilter}
           onTimeFilterChange={setTimeFilter}
+          onOpenSidePanelStats={onOpenSidePanelStats}
         />
         
         {/* Exibir contadores e botão de limpar todos */}
