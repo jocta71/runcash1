@@ -220,6 +220,16 @@ const AIFloatingBar: React.FC = () => {
     }
   };
 
+  // Função para processar o conteúdo da mensagem, garantindo alinhamento à esquerda
+  const processMessageContent = (content: string) => {
+    return content
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="text-green-300">$1</strong>')
+      .replace(/\n/g, '<br>')
+      .replace(/<div/g, '<div style="text-align: left;"')
+      .replace(/<p/g, '<p style="text-align: left;"')
+      .replace(/•\s(.*?)(?=\n|$)/g, '<div style="display: flex; align-items: start; text-align: left;"><span style="margin-right: 0.5rem;" class="text-green-400">•</span><span>$1</span></div>');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -386,15 +396,13 @@ const AIFloatingBar: React.FC = () => {
                     />
                   </div>
                 ) : (
-                  <div className="max-w-[85%] text-white bg-black/20 backdrop-blur-md p-4 px-6 rounded-xl" style={{textAlign: 'center'}}>
+                  <div className="max-w-[85%] text-white">
                     <div 
-                      className="text-sm whitespace-pre-wrap" 
+                      className="text-sm whitespace-pre-wrap text-left px-4 py-3 bg-black/30 rounded-2xl" 
+                      style={{ textAlign: 'left' }}
                       dangerouslySetInnerHTML={{ 
-                        __html: msg.content
-                          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-green-300">$1</strong>')
-                          .replace(/\n/g, '<br>')
-                          .replace(/•\s(.*?)(?=\n|$)/g, '<div class="flex items-start"><span class="mr-2 text-green-400">•</span><span>$1</span></div>')
-                      }}
+                        __html: processMessageContent(msg.content)
+                      }} 
                     />
                   </div>
                 )}
