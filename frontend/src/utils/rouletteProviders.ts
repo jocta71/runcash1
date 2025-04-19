@@ -107,19 +107,8 @@ export function identifyProvider(rouletteName: string): string {
       return provider;
     }
   }
-  
-  // Casos específicos baseados no nome completo
-  if (lowerName.includes('american')) return 'Evolution';
-  if (lowerName.includes('brazilian')) return 'Evolution';
-  if (lowerName.includes('bucharest')) return 'Evolution';
-  if (lowerName.includes('dansk')) return 'Evolution';
-  if (lowerName.includes('deutsches')) return 'Evolution';
-  if (lowerName.includes('dragonara')) return 'Evolution';
-  if (lowerName.includes('football studio')) return 'Evolution';
-  if (lowerName.includes('gold vault')) return 'Evolution';
-  if (lowerName.includes('hippodrome')) return 'Evolution';
-  if (lowerName.includes('jawhara')) return 'Evolution';
-  if (lowerName.includes('romanian')) return 'Evolution';
+
+
   
   // Se não encontrou, retorna "Outro"
   return 'Outro';
