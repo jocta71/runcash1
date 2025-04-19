@@ -278,7 +278,10 @@ const AIFloatingBar: React.FC = () => {
   // A interface recolhida mostra apenas a barra de entrada
   if (!expanded) {
     return (
-      <div className="fixed bottom-4 left-0 right-0 flex justify-center z-50">
+      <div className="fixed bottom-4 left-0 right-0 flex flex-col items-center z-50">
+        <div className="mb-2 px-3 py-1 bg-gradient-to-r from-green-500/90 to-emerald-600/90 text-white text-sm rounded-full shadow-lg">
+          <span className="font-medium">Assistente RunCash IA</span>
+        </div>
         <div className="w-[95%] max-w-xl bg-black/10 backdrop-blur-xl border border-white/10 rounded-full shadow-lg overflow-hidden">
           <form onSubmit={(e) => { e.preventDefault(); toggleExpand(); }} className="relative flex items-center">
             <input
