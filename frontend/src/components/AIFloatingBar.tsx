@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
-import { Send, X, RotateCcw, Loader2 } from 'lucide-react';
+import { Send, X, RotateCcw } from 'lucide-react';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import CustomLoader from './CustomLoader';
+import GeminiService from '../services/ai/geminiService';
+import { RouletteData, NumberFrequency } from '../types/ai-data';
 
 interface AIMessage {
   id: number;
@@ -31,92 +32,8 @@ const AIFloatingBar: React.FC = () => {
     }
   }, [expanded]);
 
-  const sendMessageToGemini = async (query: string) => {
-    try {
-      const apiKey = process.env.REACT_APP_GEMINI_API_KEY || localStorage.getItem('GEMINI_API_KEY');
-      
-      if (!apiKey) {
-        throw new Error('Chave da API Gemini não encontrada');
-      }
-      
-      const model = 'gemini-2.0-flash';
-      const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
-      
-      // Buscar dados da roleta - em um app real você obteria isso da sua API
-      const roletaData = await fetchRouletteData();
-      
-      const response = await axios.post(
-        apiUrl,
-        {
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { 
-                  text: `Instruções do sistema:
-                  Você é um assistente especializado em análise de dados de roletas de cassino.
-                  
-                  DIRETRIZES PARA SUAS RESPOSTAS:
-                  1. Seja EXTREMAMENTE DIRETO E OBJETIVO - vá direto ao ponto.
-                  2. Use frases curtas e precisas.
-                  3. Organize visualmente suas respostas com:
-                     - Marcadores (•) para listas
-                     - Texto em **negrito** para destacar números e informações importantes
-                     - Tabelas simples quando necessário comparar dados
-                     - Espaçamento adequado para melhor legibilidade
-                  4. Forneça APENAS as informações solicitadas, sem explicações desnecessárias.
-                  5. Se a resposta tiver estatísticas, apresente-as de forma estruturada e visualmente clara.
-                  6. Sempre responda em português brasileiro.
-                  7. Nunca mencione marcas de IA ou similar nas suas respostas.
-                  8. Você é a IA RunCash, especializada em análise de roletas.
-                  
-                  Dados da roleta: ${JSON.stringify(roletaData)}
-                  
-                  Consulta do usuário: ${query}`
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 500,
-            topP: 0.95,
-            topK: 40
-          },
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_MEDIUM_AND_ABOVE"
-            }
-          ]
-        },
-        { 
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 30000 // Timeout de 30 segundos
-        }
-      );
-      
-      return response.data.candidates[0].content.parts[0].text;
-    } catch (error) {
-      console.error('Erro ao consultar API Gemini:', error);
-      return 'Desculpe, ocorreu um erro ao processar sua consulta. Por favor, tente novamente mais tarde.';
-    }
-  };
-  
   // Função para buscar dados da roleta
-  const fetchRouletteData = async () => {
+  const fetchRouletteData = async (): Promise<RouletteData> => {
     try {
       // Buscar dados reais do repositório
       const roulettesWithNumbers = await RouletteRepository.fetchAllRoulettesWithNumbers();
@@ -127,7 +44,7 @@ const AIFloatingBar: React.FC = () => {
       
       // Extrair números recentes
       const allNumbers = [];
-      const numerosPorRoleta = {};
+      const numerosPorRoleta: {[key: string]: number[]} = {};
       
       // Organizar dados por roleta
       for (const roleta of roulettesWithNumbers) {
@@ -172,14 +89,19 @@ const AIFloatingBar: React.FC = () => {
       });
       
       // Calcular frequências para números quentes/frios
-      const numFrequency = {};
+      const numFrequency: NumberFrequency = {};
       recentNumbers.forEach(num => {
         numFrequency[num] = (numFrequency[num] || 0) + 1;
       });
       
-      // Ordenar por frequência
+      // Ordenar por frequência - corrigindo erro de tipo
       const sortedNumbers = Object.entries(numFrequency)
-        .sort((a, b) => b[1] - a[1])
+        .sort((a, b) => {
+          // Convertendo explicitamente para números para resolver o erro de tipo
+          const countA = a[1] as number;
+          const countB = b[1] as number;
+          return countB - countA;
+        })
         .map(entry => parseInt(entry[0]));
       
       const hotNumbers = sortedNumbers.slice(0, 4);
@@ -188,8 +110,6 @@ const AIFloatingBar: React.FC = () => {
       // Identificar tendências
       const trends = [];
       let colorStreak = { color: null, count: 0 };
-      let parityStreak = { parity: null, count: 0 };
-      let dozenStreak = { dozen: null, count: 0 };
       
       // Tendências de cor
       for (let i = 0; i < Math.min(10, recentNumbers.length); i++) {
@@ -208,7 +128,7 @@ const AIFloatingBar: React.FC = () => {
         }
       }
       
-      if (colorStreak.count >= 3) {
+      if (colorStreak.count >= 3 && colorStreak.color) {
         trends.push({ type: 'color', value: colorStreak.color, count: colorStreak.count });
       }
       
@@ -245,23 +165,8 @@ const AIFloatingBar: React.FC = () => {
     } catch (error) {
       console.error('Erro ao buscar dados da roleta:', error);
       
-      // Em caso de erro, retornar dados simulados como fallback
-      return {
-        numbers: {
-          recent: [12, 35, 0, 26, 3, 15, 4, 0, 32, 15],
-          redCount: 45,
-          blackCount: 42,
-          evenCount: 38,
-          oddCount: 49,
-          hotNumbers: [32, 15, 0, 26],
-          coldNumbers: [6, 13, 33, 1]
-        },
-        trends: [
-          { type: 'color', value: 'red', count: 3 },
-          { type: 'parity', value: 'odd', count: 5 },
-          { type: 'dozen', value: '2nd', count: 4 }
-        ]
-      };
+      // Em caso de erro, usar dados de exemplo do serviço
+      return GeminiService.getExampleRouletteData();
     }
   };
 
@@ -281,7 +186,11 @@ const AIFloatingBar: React.FC = () => {
     setLoading(true);
     
     try {
-      const aiResponse = await sendMessageToGemini(input);
+      // Buscar dados da roleta
+      const rouletteData = await fetchRouletteData();
+      
+      // Usar o serviço para consultar a API Gemini
+      const aiResponse = await GeminiService.queryRoulettesAnalysis(input, rouletteData);
       
       const aiMessage: AIMessage = {
         id: Date.now() + 1,

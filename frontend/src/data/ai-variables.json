@@ -1,0 +1,35 @@
+{
+  "numbers": {
+    "recent": [12, 35, 0, 26, 3, 15, 4, 0, 32, 15],
+    "raw": [12, 35, 0, 26, 3, 15, 4, 0, 32, 15, 7, 19, 23, 8, 11, 29, 16, 0, 33, 22],
+    "redCount": 45,
+    "blackCount": 42,
+    "greenCount": 3,
+    "redPercentage": 50.0,
+    "blackPercentage": 46.67,
+    "greenPercentage": 3.33,
+    "evenCount": 38,
+    "oddCount": 49,
+    "evenPercentage": 43.68,
+    "oddPercentage": 56.32,
+    "dozenCounts": [15, 18, 12],
+    "dozenPercentages": [33.33, 40.0, 26.67],
+    "hotNumbers": [32, 15, 0, 26],
+    "coldNumbers": [6, 13, 33, 1]
+  },
+  "trends": [
+    { "type": "color", "value": "red", "count": 3 },
+    { "type": "parity", "value": "odd", "count": 5 },
+    { "type": "dozen", "value": "2nd", "count": 4 }
+  ],
+  "roletas": [
+    { "id": "roulette1", "name": "Roleta Brasileira", "online": true },
+    { "id": "roulette2", "name": "Roleta Européia", "online": true },
+    { "id": "roulette3", "name": "Roleta Americana", "online": false }
+  ],
+  "numerosPorRoleta": {
+    "Roleta Brasileira": [12, 35, 0, 26, 3, 15, 4, 0, 32, 15],
+    "Roleta Européia": [7, 11, 23, 36, 0, 14, 31, 9, 22, 18],
+    "Roleta Americana": [0, 26, 3, 15, 32, 5, 22, 16, 0, 33]
+  }
+} 
