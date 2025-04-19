@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Send, X, RotateCcw, Loader2 } from 'lucide-react';
 import { RouletteRepository } from '../services/data/rouletteRepository';
+import CustomLoader from './CustomLoader';
 
 interface AIMessage {
   id: number;
@@ -392,10 +393,10 @@ const AIFloatingBar: React.FC = () => {
         )}
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-[#1e293b] text-white max-w-[80%] rounded-lg p-3">
-              <div className="flex items-center space-x-2">
-                <Loader2 className="h-4 w-4 animate-spin text-green-500" />
-                <span>Pensando...</span>
+            <div className="bg-[#1e293b] text-white max-w-[80%] rounded-lg p-4">
+              <div className="flex flex-col items-center">
+                <CustomLoader />
+                <span className="mt-3 text-center text-sm text-green-400">Analisando dados das roletas...</span>
               </div>
             </div>
           </div>
