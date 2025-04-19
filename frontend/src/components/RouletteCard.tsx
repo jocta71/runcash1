@@ -380,7 +380,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       <CardContent className="p-4 relative z-10">
         {/* Cabeçalho */}
         <div className="flex justify-between items-center mb-3">
-          <h3 className="font-semibold truncate text-white flex items-center" style={{ fontSize: '0.8125rem' }}>
+          <h3 className="text-lg font-semibold truncate text-white flex items-center">
             <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
             {safeData.name}
           </h3>
