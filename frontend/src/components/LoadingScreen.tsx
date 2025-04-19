@@ -8,7 +8,7 @@ import GlowingCubeLoader from './GlowingCubeLoader';
 const LoadingScreen = () => {
   return (
     <div className="flex items-center justify-center h-screen bg-background">
-      <GlowingCubeLoader />
+      <GlowingCubeLoader size="large" showLabels={true} />
     </div>
   );
 };

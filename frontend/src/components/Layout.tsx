@@ -80,7 +80,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#100f13] flex flex-col items-center justify-center text-white">
-        <GlowingCubeLoader />
+        <GlowingCubeLoader size="large" showLabels={true} />
       </div>
     );
   }

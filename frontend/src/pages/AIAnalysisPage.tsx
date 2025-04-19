@@ -123,7 +123,7 @@ const StatsTabContent = ({value, stats, isLoadingData, hasError, useExampleQuest
             <CardTitle className="text-base">Estatísticas Rápidas</CardTitle>
           </CardHeader>
           <CardContent className="flex justify-center items-center py-8">
-            <GlowingCubeLoader />
+            <GlowingCubeLoader size="medium" showLabels={true} />
           </CardContent>
         </Card>
       );
@@ -433,19 +433,19 @@ export default function AIAnalysisPage() {
                       <div
                         key={index}
                         className={cn(
-                          "flex gap-3 w-max max-w-[80%]",
-                          message.role === 'user' ? "ml-auto" : ""
+                          "w-full flex",
+                          message.role === 'user' ? "justify-end" : "justify-start"
                         )}
                       >
                         {message.role === 'assistant' && (
-                          <Avatar className="h-8 w-8">
+                          <Avatar className="h-8 w-8 mt-1 mr-3">
                             <AvatarImage src="/ai-assistant.png" alt="IA" />
                             <AvatarFallback>IA</AvatarFallback>
                           </Avatar>
                         )}
                         
                         <div className={cn(
-                          "rounded-lg px-4 py-2 text-sm",
+                          "rounded-lg px-4 py-2 text-sm max-w-[75%]",
                           message.role === 'assistant' 
                             ? "bg-primary/10 text-foreground" 
                             : "bg-primary text-primary-foreground"
@@ -457,7 +457,7 @@ export default function AIAnalysisPage() {
                         </div>
                         
                         {message.role === 'user' && (
-                          <Avatar className="h-8 w-8">
+                          <Avatar className="h-8 w-8 mt-1 ml-3">
                             <AvatarFallback>EU</AvatarFallback>
                           </Avatar>
                         )}
@@ -465,15 +465,13 @@ export default function AIAnalysisPage() {
                     ))}
                     
                     {isLoading && (
-                      <div className="flex gap-3">
-                        <Avatar className="h-8 w-8">
+                      <div className="flex items-start">
+                        <Avatar className="h-8 w-8 mr-3">
                           <AvatarImage src="/ai-assistant.png" alt="IA" />
                           <AvatarFallback>IA</AvatarFallback>
                         </Avatar>
-                        <div className="rounded-lg bg-primary/10 px-4 py-4 text-sm flex items-center justify-center">
-                          <div className="scale-50">
-                            <GlowingCubeLoader />
-                          </div>
+                        <div className="scale-50 origin-left">
+                          <GlowingCubeLoader size="small" showLabels={false} />
                         </div>
                       </div>
                     )}
