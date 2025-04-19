@@ -9,37 +9,9 @@ export interface RouletteProvider {
 // Mapeamento de identificadores nos nomes para provedores
 const providerMapping: Record<string, string> = {
   // Evolution Gaming
-  'lightning': 'Evolution',
-  'xxxtreme': 'Evolution',
-  'immersive': 'Evolution',
-  'speed': 'Evolution',
-  'auto-roulette': 'Evolution',
-  'auto roulette': 'Evolution',
-  
-  // Pragmatic Play
-  'auto-': 'Pragmatic Play',
-  'auto ': 'Pragmatic Play',
-  'pragmatic': 'Pragmatic Play',
-  'mega': 'Pragmatic Play',
-  
-  // Playtech
-  'playtech': 'Playtech',
-  'prestige': 'Playtech',
-  'premium': 'Playtech',
-  
-  // Authentic Gaming
-  'authentic': 'Authentic Gaming',
-  'casino': 'Authentic Gaming',
-  
-  // Ezugi
-  'ezugi': 'Ezugi',
-  'casino floor': 'Ezugi',
-  
-  // Outros comuns
-  'netent': 'NetEnt',
-  'microgaming': 'Microgaming',
-  'betgames': 'BetGames',
-  'vivo': 'Vivo Gaming',
+   
+
+
 };
 
 // Mapeamento explícito de roletas para cada provedor
