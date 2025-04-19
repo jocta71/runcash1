@@ -1,5 +1,10 @@
 import { RouletteData } from '@/types';
-import { RouletteProvider } from '@/components/RouletteFilters';
+
+// Definição do tipo RouletteProvider
+export interface RouletteProvider {
+  id: string;
+  name: string;
+}
 
 // Mapeamento de identificadores nos nomes para provedores
 const providerMapping: Record<string, string> = {

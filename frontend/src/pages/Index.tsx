@@ -32,6 +32,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
 import RouletteFilterBar from '@/components/RouletteFilterBar';
+import { extractProviders } from '@/utils/rouletteProviders';
 
 interface ChatMessage {
   id: string;
@@ -492,13 +493,6 @@ const Index = () => {
                 roulettes={roulettes}
                 onFilter={handleRouletteFilter}
                 onRefresh={loadRouletteData}
-                onOpenSidePanelStats={() => {
-                  // Se não tiver uma roleta selecionada, selecionar a primeira
-                  if (!selectedRoulette && filteredRoulettes.length > 0) {
-                    setSelectedRoulette(filteredRoulettes[0]);
-                  }
-                  // O painel já está aberto e visível por design
-                }}
               />
               
               <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
@@ -514,6 +508,7 @@ const Index = () => {
                   lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
                   wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
                   losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                  providers={extractProviders(roulettes)}
                 />
               ) : (
                 <div className="w-full bg-gray-900 rounded-lg p-6 text-center">

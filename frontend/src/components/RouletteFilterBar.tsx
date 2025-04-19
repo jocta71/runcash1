@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { RouletteProvider } from '@/components/RouletteFilters';
 import RouletteSearch from '@/components/RouletteSearch';
 import { RouletteData } from '@/types';
-import { extractProviders } from '@/utils/rouletteProviders';
 import { 
   filterRoulettesBySearchTerm
 } from '@/utils/rouletteFilters';
@@ -13,27 +11,20 @@ interface RouletteFilterBarProps {
   roulettes: RouletteData[];
   onFilter: (filtered: RouletteData[]) => void;
   onRefresh?: () => void;
-  onOpenSidePanelStats?: () => void;
 }
 
 /**
- * Componente que combina filtros para roletas
- * Os filtros avançados foram movidos para o SidePanel
+ * Componente simplificado que contém apenas a barra de busca e o botão de atualização
+ * Todos os filtros estão exclusivamente no SidePanelStats
  */
 const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
   roulettes,
   onFilter,
-  onRefresh,
-  onOpenSidePanelStats
+  onRefresh
 }) => {
   // Estados para os filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  // Extrair provedores das roletas
-  const providers = useMemo(() => {
-    return extractProviders(roulettes);
-  }, [roulettes]);
   
   // Efeito para aplicar os filtros quando mudam
   useEffect(() => {
@@ -67,13 +58,6 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
     }
   };
   
-  // Função para abrir o painel lateral de filtros
-  const handleOpenFilterPanel = () => {
-    if (onOpenSidePanelStats) {
-      onOpenSidePanelStats();
-    }
-  };
-  
   // Número de roletas filtradas
   const filteredCount = roulettes.length;
   
@@ -101,18 +85,8 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
           </Button>
         </div>
         
-        {/* Botão para abrir o painel lateral de filtros */}
-        <div className="flex justify-between items-center">
-          <div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleOpenFilterPanel}
-              className="text-vegas-gold"
-            >
-              Filtros avançados
-            </Button>
-          </div>
+        {/* Apenas a contagem de roletas filtradas */}
+        <div className="flex justify-end items-center">
           <div className="text-sm text-gray-400">
             Mostrando {filteredCount} roletas
           </div>
