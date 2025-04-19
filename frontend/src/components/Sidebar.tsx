@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package, Beaker } from 'lucide-react';
+import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package, Beaker, Brain, Bot } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 interface SidebarProps {
@@ -83,6 +83,47 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
                 <Heart size={18} className="text-white" />
               </div>
               <span className="truncate">Favoritos</span>
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Análises</h3>
+          <div className="space-y-1">
+            <div className="menu-item" onClick={() => navigate('/roulettes')}>
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
+                <BarChart3 size={18} className="text-white" />
+              </div>
+              <span className="truncate">Roletas</span>
+            </div>
+            
+            <div className="menu-item" onClick={() => navigate('/history')}>
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
+                <Ticket size={18} className="text-white" />
+              </div>
+              <span className="truncate">Histórico</span>
+            </div>
+            
+            <div className="menu-item" onClick={() => navigate('/analysis')}>
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
+                <Beaker size={18} className="text-white" />
+              </div>
+              <span className="truncate">Análise Avançada</span>
+            </div>
+            
+            <div className="menu-item" onClick={() => navigate('/ai-analysis')}>
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
+                <Brain size={18} className="bg-gradient-to-r from-[#9c27b0] to-[#e91e63] bg-clip-text text-transparent" />
+              </div>
+              <span className="truncate">Análise por IA</span>
+              <span className="py-0.5 px-1.5 rounded-md bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[9px] font-bold">NOVO</span>
+            </div>
+            
+            <div className="menu-item" onClick={() => navigate('/strategies')}>
+              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
+                <Rocket size={18} className="text-white" />
+              </div>
+              <span className="truncate">Estratégias</span>
             </div>
           </div>
         </div>

@@ -3,6 +3,68 @@
 
 const fs = require('fs');
 const path = require('path');
+const express = require('express');
+const http = require('http');
+const cors = require('cors');
+const { Server } = require('socket.io');
+const { MongoClient } = require('mongodb');
+const dotenv = require('dotenv');
+
+// Carregar variáveis de ambiente
+dotenv.config();
+
+// Configuração
+const PORT = process.env.PORT || 3000;
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
+
+// Inicializar Express
+const app = express();
+
+// Importar rotas da API
+const aiAnalysisRoutes = require('./api/ai-analysis');
+
+// Middlewares
+app.use(cors());
+app.use(express.json());
+
+// Configurar rotas da API
+app.use('/api/ai', aiAnalysisRoutes);
+
+// Rota principal para verificação
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'RunCash API Server',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Inicializar servidor HTTP
+const server = http.createServer(app);
+
+// Inicializar Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Configurar eventos do Socket.IO
+io.on('connection', (socket) => {
+  console.log(`[Socket.IO] Novo cliente conectado: ${socket.id}`);
+  
+  socket.on('disconnect', () => {
+    console.log(`[Socket.IO] Cliente desconectado: ${socket.id}`);
+  });
+});
+
+// Iniciar servidor
+server.listen(PORT, () => {
+  console.log(`[Server] API e servidor WebSocket iniciados na porta ${PORT}`);
+  console.log(`[Server] API IA disponível em /api/ai`);
+});
 
 console.log('=== RunCash WebSocket Launcher ===');
 console.log('Diretório atual:', process.cwd());
