@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import RouletteSearch from '@/components/RouletteSearch';
 import { RouletteData } from '@/types';
 import { 
   filterRoulettesBySearchTerm
 } from '@/utils/rouletteFilters';
-import { extractProviders, identifyProvider } from '@/utils/rouletteProviders';
+import { extractProviders, filterRoulettesByProvider } from '@/utils/rouletteProviders';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface RouletteFilterBarProps {
   roulettes: RouletteData[];
@@ -15,7 +21,8 @@ interface RouletteFilterBarProps {
 }
 
 /**
- * Componente simplificado que contém barra de busca, botão de atualização e filtros rápidos de provedor
+ * Componente simplificado com barra de busca, filtro de provedores e botão de atualização
+ * Filtros mais avançados permanecem exclusivamente no SidePanelStats
  */
 const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
   roulettes,
@@ -25,35 +32,12 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
   // Estados para os filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
-  const [providerExpanded, setProviderExpanded] = useState<boolean>(false);
+  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   
-  // Extrair provedores das roletas
+  // Extrair provedores disponíveis
   const providers = useMemo(() => {
     return extractProviders(roulettes);
   }, [roulettes]);
-  
-  // Agrupar roletas por provedor
-  const roulettesByProvider = useMemo(() => {
-    const groups: Record<string, RouletteData[]> = {};
-    
-    // Inicializar grupos vazios para cada provedor
-    providers.forEach(provider => {
-      groups[provider.name] = [];
-    });
-    
-    // Classificar cada roleta no grupo do seu provedor
-    roulettes.forEach(roulette => {
-      const name = roulette.name || roulette.nome || '';
-      const provider = identifyProvider(name);
-      
-      if (provider && groups[provider]) {
-        groups[provider].push(roulette);
-      }
-    });
-    
-    return groups;
-  }, [roulettes, providers]);
   
   // Efeito para aplicar os filtros quando mudam
   useEffect(() => {
@@ -65,13 +49,9 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
         filtered = filterRoulettesBySearchTerm(filtered, searchTerm);
       }
       
-      // Aplicar filtro de provedor
-      if (selectedProvider) {
-        filtered = filtered.filter(roulette => {
-          const name = roulette.name || roulette.nome || '';
-          const provider = identifyProvider(name);
-          return provider === selectedProvider;
-        });
+      // Aplicar filtro de provedores
+      if (selectedProviders.length > 0) {
+        filtered = filterRoulettesByProvider(filtered, selectedProviders);
       }
       
       // Enviar os resultados filtrados
@@ -79,7 +59,7 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
     };
     
     applyFilters();
-  }, [roulettes, searchTerm, selectedProvider, onFilter]);
+  }, [roulettes, searchTerm, selectedProviders, onFilter]);
   
   // Função para atualizar os dados
   const handleRefresh = () => {
@@ -95,44 +75,39 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
       }, 2000);
     }
   };
-
-  // Função para selecionar/desselecionar um provedor
-  const handleProviderClick = (providerName: string) => {
-    // Se clicar no mesmo provedor que já está selecionado
-    if (providerName === selectedProvider) {
-      // Alterna o estado expandido
-      setProviderExpanded(!providerExpanded);
-    } else {
-      // Seleciona o novo provedor e o expande
-      setSelectedProvider(providerName);
-      setProviderExpanded(true);
-    }
+  
+  // Lidar com a seleção/deseleção de provedores
+  const handleProviderToggle = (providerId: string) => {
+    setSelectedProviders(prev => {
+      if (prev.includes(providerId)) {
+        return prev.filter(id => id !== providerId);
+      } else {
+        return [...prev, providerId];
+      }
+    });
   };
-
-  // Função para limpar todos os filtros
-  const clearFilters = () => {
-    setSearchTerm('');
-    setSelectedProvider(null);
-    setProviderExpanded(false);
+  
+  // Limpar todos os filtros de provedores
+  const clearProviderFilters = () => {
+    setSelectedProviders([]);
   };
   
   // Número de roletas filtradas
   const filteredCount = useMemo(() => {
-    let count = roulettes.length;
-    
-    if (selectedProvider) {
-      count = roulettes.filter(roulette => {
-        const name = roulette.name || roulette.nome || '';
-        const provider = identifyProvider(name);
-        return provider === selectedProvider;
-      }).length;
+    let filtered = [...roulettes];
+      
+    // Aplicar filtro de pesquisa
+    if (searchTerm.trim()) {
+      filtered = filterRoulettesBySearchTerm(filtered, searchTerm);
     }
     
-    return count;
-  }, [roulettes, selectedProvider]);
-  
-  // Verificar se há filtros ativos
-  const hasActiveFilters = selectedProvider !== null || searchTerm !== '';
+    // Aplicar filtro de provedores
+    if (selectedProviders.length > 0) {
+      filtered = filterRoulettesByProvider(filtered, selectedProviders);
+    }
+    
+    return filtered.length;
+  }, [roulettes, searchTerm, selectedProviders]);
   
   return (
     <div className="rounded-lg p-4 mb-6 border border-gray-700/50" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
@@ -146,6 +121,44 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
             />
           </div>
           
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-10 bg-gray-900 text-gray-200 border-gray-800 px-3"
+              >
+                Provedores {selectedProviders.length > 0 && `(${selectedProviders.length})`}
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56 bg-gray-900 border-gray-800 text-gray-200">
+              {providers.map(provider => (
+                <DropdownMenuCheckboxItem
+                  key={provider.id}
+                  checked={selectedProviders.includes(provider.id)}
+                  onCheckedChange={() => handleProviderToggle(provider.id)}
+                  className="focus:bg-gray-800 focus:text-white cursor-pointer"
+                >
+                  {provider.name}
+                </DropdownMenuCheckboxItem>
+              ))}
+              
+              {selectedProviders.length > 0 && (
+                <div className="border-t border-gray-800 p-2 mt-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="w-full text-xs text-gray-400 hover:text-white"
+                    onClick={clearProviderFilters}
+                  >
+                    Limpar filtros
+                  </Button>
+                </div>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
           <Button
             variant="outline"
             size="icon"
@@ -156,63 +169,6 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
           >
             <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
           </Button>
-        </div>
-        
-        {/* Filtros e botão para limpar */}
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-gray-400">Provedores:</div>
-          {hasActiveFilters && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-6 px-2 text-xs text-gray-400 hover:text-white flex items-center gap-1"
-              onClick={clearFilters}
-            >
-              <X size={12} /> Limpar filtros
-            </Button>
-          )}
-        </div>
-        
-        {/* Provedores disponíveis (agora como filtros) */}
-        <div className="flex flex-wrap gap-2">
-          {providers.map(provider => {
-            const isSelected = selectedProvider === provider.name;
-            
-            return (
-              <div key={provider.id} className="flex flex-col">
-                <div 
-                  className={`px-2 py-1 rounded-full text-xs border transition-colors cursor-pointer flex items-center gap-1 ${
-                    isSelected 
-                      ? 'border-blue-500 bg-blue-500/20 text-blue-400' 
-                      : 'border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700'
-                  }`}
-                  onClick={() => handleProviderClick(provider.name)}
-                >
-                  {provider.name}
-                  {isSelected && (
-                    providerExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />
-                  )}
-                </div>
-                
-                {/* Lista de roletas do provedor quando expandido */}
-                {isSelected && providerExpanded && roulettesByProvider[provider.name]?.length > 0 && (
-                  <div className="ml-4 mt-1 flex flex-col gap-1 max-h-40 overflow-y-auto">
-                    {roulettesByProvider[provider.name].map((roulette, index) => (
-                      <div 
-                        key={index} 
-                        className="px-2 py-1 text-xs text-gray-400 border-l border-blue-800"
-                        title={roulette.name || roulette.nome || ''}
-                      >
-                        {(roulette.name || roulette.nome || '').length > 30 
-                          ? (roulette.name || roulette.nome || '').substring(0, 30) + '...' 
-                          : (roulette.name || roulette.nome || '')}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
         </div>
         
         {/* Contagem de roletas filtradas */}
