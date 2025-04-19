@@ -139,12 +139,7 @@ if (rootElement) {
       <div style="text-align: center;">
         <div style="width: 150px; height: 150px; position: relative; transform-style: preserve-3d; animation: cube-rotate 4s linear infinite; margin: 0 auto;">
           <div style="position: absolute; inset: 0; background: #222; transform: rotatex(90deg) translatez(75px); display: flex; justify-content: center; align-items: center;">
-            <img 
-              src="${window.location.origin}/assets/icon-rabbit.svg" 
-              alt="Icon Rabbit" 
-              style="width: 60px; height: 60px; object-fit: contain;"
-              onerror="this.onerror=null; this.src='/img/logo.svg'; this.onerror=function(){this.style.display='none'; var span=document.createElement('span'); span.textContent='🐰'; span.style.fontSize='40px'; this.parentElement.appendChild(span);}"
-            />
+            <span style="font-size: 50px;">🐰</span>
           </div>
           <div style="position: absolute; inset: 0; transform-style: preserve-3d;">
             <span style="position: absolute; inset: 0; background: linear-gradient(#151515, #3aff5e); transform: rotatey(0deg) translatez(75px);"></span>
