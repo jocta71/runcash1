@@ -137,14 +137,26 @@ if (rootElement) {
   rootElement.innerHTML = `
     <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #1a1a1a; color: #f0f0f0;">
       <div style="text-align: center;">
-        <h2>Carregando RunCash...</h2>
-        <p>Estabelecendo conexão com servidores</p>
-        <div style="width: 50px; height: 50px; border: 5px solid #ccc; border-top-color: #888; border-radius: 50%; margin: 20px auto; animation: spinner 1s linear infinite;"></div>
+        <div style="width: 150px; height: 150px; position: relative; transform-style: preserve-3d; animation: cube-rotate 4s linear infinite; margin: 0 auto;">
+          <div style="position: absolute; inset: 0; background: #222; transform: rotatex(90deg) translatez(75px); display: flex; justify-content: center; align-items: center;">
+            <img src="/assets/icon-rabbit.svg" alt="Icon Rabbit" style="width: 60px; height: 60px; object-fit: contain;" />
+          </div>
+          <div style="position: absolute; inset: 0; transform-style: preserve-3d;">
+            <span style="position: absolute; inset: 0; background: linear-gradient(#151515, #3aff5e); transform: rotatey(0deg) translatez(75px);"></span>
+            <span style="position: absolute; inset: 0; background: linear-gradient(#151515, #3aff5e); transform: rotatey(90deg) translatez(75px);"></span>
+            <span style="position: absolute; inset: 0; background: linear-gradient(#151515, #3aff5e); transform: rotatey(180deg) translatez(75px);"></span>
+            <span style="position: absolute; inset: 0; background: linear-gradient(#151515, #3aff5e); transform: rotatey(270deg) translatez(75px);"></span>
+          </div>
+          <div style="position: absolute; inset: 0; background: #222; transform: rotatex(90deg) translatez(75px);">
+            <div style="content: ''; position: absolute; background: #3aff5e; inset: 0; transform: translatez(-250px); filter: blur(30px); box-shadow: 0 0 120px rgba(58, 134, 255, 0.2), 0 0 200px rgba(58, 134, 255, 0.4), 0 0 300px #00ff2f, 0 0 400px #51fd71, 0 0 500px #3aff5e;"></div>
+          </div>
+        </div>
       </div>
     </div>
     <style>
-      @keyframes spinner {
-        to {transform: rotate(360deg);}
+      @keyframes cube-rotate {
+        0% { transform: rotatex(-30deg) rotatey(0deg); }
+        100% { transform: rotatex(-30deg) rotatey(360deg); }
       }
     </style>
   `;
