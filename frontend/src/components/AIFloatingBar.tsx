@@ -386,7 +386,7 @@ const AIFloatingBar: React.FC = () => {
                     />
                   </div>
                 ) : (
-                  <div className="max-w-[85%] text-white">
+                  <div className="max-w-[85%] text-white bg-black/20 backdrop-blur-md p-4 px-6 rounded-xl" style={{textAlign: 'center'}}>
                     <div 
                       className="text-sm whitespace-pre-wrap" 
                       dangerouslySetInnerHTML={{ 
@@ -394,7 +394,7 @@ const AIFloatingBar: React.FC = () => {
                           .replace(/\*\*(.*?)\*\*/g, '<strong class="text-green-300">$1</strong>')
                           .replace(/\n/g, '<br>')
                           .replace(/•\s(.*?)(?=\n|$)/g, '<div class="flex items-start"><span class="mr-2 text-green-400">•</span><span>$1</span></div>')
-                      }} 
+                      }}
                     />
                   </div>
                 )}
