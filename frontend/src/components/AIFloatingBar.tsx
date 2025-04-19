@@ -227,7 +227,7 @@ const AIFloatingBar: React.FC = () => {
       const aiResponse = await sendMessageToGemini(input);
       
       const aiMessage: AIMessage = {
-        id: Date.now() + 1,
+        id: Math.floor(Math.random() * 1000000),
         role: 'ai',
         content: aiResponse,
         timestamp: new Date()
@@ -238,7 +238,7 @@ const AIFloatingBar: React.FC = () => {
       console.error('Erro ao processar mensagem:', error);
       
       const errorMessage: AIMessage = {
-        id: Date.now() + 1,
+        id: Math.floor(Math.random() * 1000000),
         role: 'ai',
         content: 'Desculpe, ocorreu um erro ao processar sua consulta. Por favor, tente novamente mais tarde.',
         timestamp: new Date()
@@ -261,14 +261,14 @@ const AIFloatingBar: React.FC = () => {
   // A interface recolhida mostra apenas a barra de entrada
   if (!expanded) {
     return (
-      <div className="fixed bottom-4 right-4 z-50">
+      <div className="fixed bottom-4 left-0 right-0 flex justify-center z-50">
         <button 
           onClick={toggleExpand}
           className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full shadow-lg hover:shadow-xl hover:shadow-green-500/20 transform hover:scale-105 transition-all duration-300"
           aria-label="Abrir assistente de IA"
         >
           <Sparkles size={20} className="animate-pulse" />
-          <span className="font-medium">Assistente IA</span>
+          <span className="font-medium">Pergunte sobre padrões e tendências 💡</span>
         </button>
       </div>
     );
@@ -276,8 +276,8 @@ const AIFloatingBar: React.FC = () => {
 
   // A interface expandida mostra o histórico de mensagens e a entrada
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[95%] max-w-3xl">
-      <div className="w-full bg-black/10 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-green-500/20 flex flex-col overflow-hidden animate-slideUp transition-all">
+    <div className="fixed bottom-4 left-0 right-0 flex justify-center z-50">
+      <div className="w-[95%] max-w-3xl bg-black/10 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-green-500/20 flex flex-col overflow-hidden animate-slideUp transition-all">
         {/* Cabeçalho com efeito glass */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-r from-green-600/20 to-emerald-500/20 backdrop-blur-md">
           <div className="flex items-center gap-3">
