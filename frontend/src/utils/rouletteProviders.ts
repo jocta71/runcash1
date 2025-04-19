@@ -42,6 +42,81 @@ const providerMapping: Record<string, string> = {
   'vivo': 'Vivo Gaming',
 };
 
+// Mapeamento explícito de roletas para cada provedor
+export const providerRoulettesMap: Record<string, string[]> = {
+  'Evolution': [
+    'American Roulette',
+    'Lightning Roulette',
+    'Immersive Roulette',
+    'Speed Auto Roulette',
+    'Auto-Roulette',
+    'Auto Roulette VIP',
+    'Speed Roulette',
+    'Bucharest Auto-Roulette',
+    'Brazilian Mega Roulette',
+    'Dansk Roulette',
+    'Deutsches Roulette',
+    'Dragonara Roulette',
+    'Football Studio Roulette',
+    'Gold Vault Roulette',
+    'Hippodrome Grand Casino',
+    'Jawhara Roulette',
+    'Romanian Roulette',
+    'XXXtreme Lightning Roulette',
+    'VIP Roulette',
+    'Live Roulette'
+  ],
+  'Pragmatic Play': [
+    'Mega Roulette',
+    'Auto-Roulette',
+    'Speed Roulette',
+    'Pragmatic Roulette',
+    'PowerUp Roulette',
+    'Roulette Azure',
+    'Roulette Ruby'
+  ],
+  'Playtech': [
+    'Prestige Roulette',
+    'Premium Roulette',
+    'Playtech Roulette',
+    'Age of the Gods Roulette',
+    'Quantum Roulette'
+  ],
+  'Authentic Gaming': [
+    'Authentic Roulette',
+    'Casino Roulette',
+    'Grand Roulette',
+    'Blaze Roulette',
+    'Viva Las Vegas'
+  ],
+  'Ezugi': [
+    'Ezugi Roulette',
+    'Casino Floor Roulette',
+    'Salsa Roulette',
+    'Portomaso Roulette',
+    'Oracle Roulette'
+  ],
+  'NetEnt': [
+    'NetEnt Roulette',
+    'Advanced Roulette',
+    'Professional Roulette'
+  ],
+  'Microgaming': [
+    'Microgaming Roulette',
+    'European Roulette Gold'
+  ],
+  'BetGames': [
+    'BetGames Roulette',
+    'Classic Roulette'
+  ],
+  'Vivo Gaming': [
+    'Vivo Roulette',
+    'European Roulette',
+    'Chroma Roulette'
+  ],
+  'Outro': []
+};
+
 /**
  * Identifica o provedor com base no nome da roleta
  * @param rouletteName Nome da roleta
@@ -51,6 +126,20 @@ export function identifyProvider(rouletteName: string): string {
   if (!rouletteName) return 'Outro';
   
   const lowerName = rouletteName.toLowerCase();
+  
+  // Primeiro verifica no mapeamento explícito
+  for (const [provider, roulettes] of Object.entries(providerRoulettesMap)) {
+    if (provider === 'Outro') continue; // Ignora a categoria "Outro"
+    
+    // Verifica se o nome da roleta está na lista deste provedor
+    // Usando pesquisa por substring para aumentar a chance de correspondência
+    const isMatch = roulettes.some(roulette => 
+      lowerName.includes(roulette.toLowerCase()) || 
+      roulette.toLowerCase().includes(lowerName)
+    );
+    
+    if (isMatch) return provider;
+  }
   
   // Verificar se o nome contém algum dos identificadores conhecidos
   for (const [identifier, provider] of Object.entries(providerMapping)) {
