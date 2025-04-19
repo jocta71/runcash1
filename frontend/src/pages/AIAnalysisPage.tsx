@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useRouletteData } from '@/hooks/useRouletteData';
 import useRouletteTrends from '@/hooks/useRouletteTrends';
+import EventService from '@/services/EventService';
 
 // Interface para as mensagens do chat
 interface Message {
@@ -199,6 +200,7 @@ export default function AIAnalysisPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [rouletteDataError, setRouletteDataError] = useState<string | null>(null);
   const [trendsError, setTrendsError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // Hooks personalizados para obter dados da roleta - com fallback para evitar erros
   let rouletteData;
@@ -224,6 +226,33 @@ export default function AIAnalysisPage() {
   }
   const { trends = [] } = trendData;
 
+  // Ouvir eventos de erro da API
+  useEffect(() => {
+    // Função para lidar com falhas na API
+    const handleApiFailure = (event: any) => {
+      console.error('Evento de falha na API recebido:', event);
+      setApiError(`Falha na comunicação com o servidor: ${event.error || 'Erro desconhecido'}`);
+    };
+
+    // Função para lidar com erros de inicialização
+    const handleInitError = (event: any) => {
+      console.error('Erro na inicialização do sistema de roletas:', event);
+      setRouletteDataError(`Erro de inicialização: ${event.message || 'Falha desconhecida'}`);
+    };
+
+    // Ouvir eventos de erro
+    EventService.on('roulette:api-failure', handleApiFailure);
+    EventService.on('roulette:initialization-error', handleInitError);
+    EventService.on('roulette:critical-error', handleInitError); // Mesmo handler para erros críticos
+
+    // Limpeza quando o componente for desmontado
+    return () => {
+      EventService.off('roulette:api-failure', handleApiFailure);
+      EventService.off('roulette:initialization-error', handleInitError);
+      EventService.off('roulette:critical-error', handleInitError);
+    };
+  }, []);
+
   // Notificar o usuário sobre erros na carga de dados
   useEffect(() => {
     if (rouletteDataError) {
@@ -241,7 +270,15 @@ export default function AIAnalysisPage() {
         variant: "destructive",
       });
     }
-  }, [rouletteDataError, trendsError, toast]);
+
+    if (apiError) {
+      toast({
+        title: "Problema na API",
+        description: apiError,
+        variant: "destructive",
+      });
+    }
+  }, [rouletteDataError, trendsError, apiError, toast]);
 
   // Função para enviar mensagem para a IA
   const handleSendMessage = async () => {
@@ -338,7 +375,7 @@ export default function AIAnalysisPage() {
   const dozenPercentages = numbers.dozenPercentages || [0, 0, 0];
 
   // Verificar se há algum erro nos dados
-  const hasDataError = rouletteDataError !== null || trendsError !== null || rouletteData?.error === true;
+  const hasDataError = rouletteDataError !== null || trendsError !== null || apiError !== null || rouletteData?.error === true;
 
   return (
     <Layout>

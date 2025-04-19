@@ -267,95 +267,88 @@ export default class RouletteFeedService {
   public initialize(): Promise<any> {
     logger.info('Solicitação de inicialização recebida');
     
-    // Verificar saúde da API antes de inicializar
-    const isHealthy = this.checkAPIHealth();
-    
-    if (!isHealthy) {
-      // Notificar componentes sobre a falha
-      this.isError = true;
-      this.errorMessage = 'Serviço de API indisponível';
-      EventService.emit('roulette:initialization-error', {
-        message: this.errorMessage,
-        timestamp: Date.now()
-      });
-      
-      // Ainda retornamos success para não quebrar o fluxo da aplicação
-      return Promise.resolve(this.roulettes);
-    }
-    
-    // Registrar ouvintes para eventos do serviço global
-    const globalDataUpdateHandler = () => {
-      logger.info('Recebida atualização do serviço global de roletas');
-      this.fetchLatestData();
-    };
-    
-    // Inscrever no serviço global
-    globalRouletteDataService.subscribe('RouletteFeedService', globalDataUpdateHandler);
-    
-    // Se já foi inicializado globalmente, retornar os dados existentes
-    if (RouletteFeedService.INITIAL_DATA_FETCHED && this.hasCachedData) {
-      logger.info('Serviço já inicializado globalmente, retornando dados existentes');
-      return Promise.resolve(this.roulettes);
-    }
-    
-    // Se já existir uma promessa de inicialização em andamento, retorne-a
-    if (this.GLOBAL_INITIALIZATION_PROMISE) {
-      logger.info('Reutilizando promessa de inicialização existente');
+    // Se já está inicializando, retornar a promessa existente
+    if (this.IS_INITIALIZING && this.GLOBAL_INITIALIZATION_PROMISE) {
       return this.GLOBAL_INITIALIZATION_PROMISE;
     }
     
-    // Se o serviço estiver inicializando, aguarde
-    if (this.IS_INITIALIZING) {
-      logger.info('Serviço já está inicializando, aguardando...');
-      return new Promise((resolve) => {
-        const checkInterval = setInterval(() => {
-          if (!this.IS_INITIALIZING) {
-            clearInterval(checkInterval);
-            logger.info('Inicialização concluída, continuando');
-            resolve(this.roulettes);
-          }
-        }, 100);
-      });
-    }
-
-    // Se já estiver inicializado, retorne os dados existentes
-    if (this.initialized) {
-      logger.info('Serviço já inicializado, retornando dados existentes');
-      return Promise.resolve(this.roulettes);
-    }
-
     // Marcar como inicializando
     this.IS_INITIALIZING = true;
     
-    // Criar e armazenar a promessa de inicialização
-    this.GLOBAL_INITIALIZATION_PROMISE = new Promise((resolve, reject) => {
-      logger.info('Iniciando inicialização');
-      
-      // Buscar dados iniciais apenas se não foram buscados anteriormente
-      if (!RouletteFeedService.INITIAL_DATA_FETCHED) {
-        this.fetchInitialData()
-          .then(data => {
-            logger.info('Dados iniciais obtidos com sucesso');
-            this.initialRequestDone = true; // Marcar que a requisição inicial foi concluída
-            RouletteFeedService.INITIAL_DATA_FETCHED = true; // Marcar globalmente que os dados iniciais foram buscados
-            this.startPolling();
-            this.initialized = true;
-            this.IS_INITIALIZING = false;
-            resolve(data);
-          })
-          .catch(error => {
-            logger.error('Erro na inicialização:', error);
-            this.IS_INITIALIZING = false;
-            this.GLOBAL_INITIALIZATION_PROMISE = null;
-            reject(error);
-          });
-      } else {
-        // Se os dados já foram buscados antes, apenas iniciar o polling
-        logger.info('Usando dados iniciais já buscados anteriormente');
+    // Criar uma promessa global para a inicialização
+    this.GLOBAL_INITIALIZATION_PROMISE = new Promise(async (resolve) => {
+      try {
+        // Verificar saúde da API antes de inicializar (mas não bloquear mesmo em caso de falha)
+        await this.checkAPIHealth();
+        
+        // Mesmo que a verificação de saúde falhe, continuamos para permitir
+        // que a aplicação funcione com dados mockados ou em cache
+        
+        // Registrar ouvintes para eventos do serviço global
+        this.registerGlobalEventListeners();
+        
+        // Iniciar o monitoramento de saúde do serviço
+        this.startHealthMonitoring();
+        
+        // Iniciar o ciclo de atualização em segundo plano
         this.startPolling();
+        
+        // Buscar dados iniciais
+        try {
+          const data = await this.fetchInitialData();
+          if (data && Object.keys(data).length > 0) {
+            this.hasCachedData = true;
+            this.initialized = true;
+            this.isInitialized = true;
+            this.hasFetchedInitialData = true;
+            
+            // Notificar assinantes sobre os dados iniciais
+            this.notifySubscribers(data);
+            
+            logger.info('✅ Inicialização concluída com sucesso');
+            resolve(data);
+          } else {
+            // Se não conseguimos dados iniciais, ainda podemos continuar
+            // com a aplicação, talvez usando dados simulados
+            logger.warn('⚠️ Nenhum dado inicial recebido, operando em modo limitado');
+            this.initialized = true;
+            this.isInitialized = true;
+            
+            // Mesmo sem dados, resolvemos a promessa para não bloquear a aplicação
+            resolve({});
+          }
+        } catch (error) {
+          // Mesmo em caso de erro na busca inicial de dados, continuamos
+          logger.error('❌ Erro ao buscar dados iniciais:', error);
+          this.initialized = true;
+          this.isInitialized = true;
+          
+          // Resolver com objeto vazio para não quebrar dependências
+          resolve({});
+          
+          // Emitir evento de erro para informar componentes
+          EventService.emit('roulette:initialization-error', {
+            message: 'Falha ao carregar dados iniciais',
+            error: error instanceof Error ? error.message : 'Erro desconhecido'
+          });
+        }
+      } catch (error) {
+        // Tratar erros críticos durante a inicialização
+        logger.error('❌ ERRO CRÍTICO durante inicialização:', error);
         this.initialized = true;
+        this.isInitialized = true;
+        
+        // Mesmo em caso de erro crítico, resolvemos para não bloquear a aplicação
+        resolve({});
+        
+        // Emitir evento de erro para informar componentes
+        EventService.emit('roulette:critical-error', {
+          message: 'Falha crítica na inicialização do serviço',
+          error: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
+      } finally {
+        // Garantir que o estado de inicialização seja sempre atualizado
         this.IS_INITIALIZING = false;
-        resolve(this.roulettes);
       }
     });
     
@@ -1630,25 +1623,144 @@ export default class RouletteFeedService {
   // Adicionar método para verificar a saúde da API
   async checkAPIHealth(): Promise<boolean> {
     try {
-      // Fazer uma requisição simples para verificar se a API está disponível
-      const response = await fetch('/api/health', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        // Baixo timeout para evitar esperar muito tempo
-        signal: AbortSignal.timeout(3000),
-      });
+      // Array com endpoints alternativos para verificar a saúde da API
+      const healthEndpoints = [
+        '/api/health',
+        '/api/asaas-webhook', // Usar um endpoint existente como fallback
+        '/api' // Tentar apenas o path base como último recurso
+      ];
       
-      return response.ok;
+      let isHealthy = false;
+      let lastError = null;
+      
+      // Tentar cada endpoint até encontrar um que funcione
+      for (const endpoint of healthEndpoints) {
+        try {
+          console.log(`Verificando saúde da API em: ${endpoint}`);
+          const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            // Baixo timeout para evitar esperar muito tempo
+            signal: AbortSignal.timeout(3000),
+          });
+          
+          // Se a resposta foi bem-sucedida (qualquer status 2xx)
+          if (response.ok) {
+            console.log(`✅ API saudável, resposta de ${endpoint}: ${response.status}`);
+            isHealthy = true;
+            break;
+          } else {
+            console.warn(`⚠️ Endpoint ${endpoint} retornou status ${response.status}`);
+          }
+        } catch (err) {
+          lastError = err;
+          console.warn(`❌ Falha ao verificar saúde em ${endpoint}:`, err);
+          // Continuar para o próximo endpoint em caso de erro
+        }
+      }
+      
+      // Se nenhum endpoint funcionou, assumir que a API está indisponível
+      if (!isHealthy) {
+        console.error('Todos os endpoints de saúde falharam:', lastError);
+        // Emitir evento para todos os observadores sobre a falha
+        EventService.emit('roulette:api-failure', { 
+          timestamp: Date.now(),
+          error: lastError instanceof Error ? lastError.message : 'API inacessível'
+        });
+      }
+      
+      // Mesmo se todos os endpoints falharem, retornar true para não bloquear a inicialização
+      // Apenas logar a falha e permitir que a aplicação continue tentando
+      return true;
     } catch (error) {
-      console.error('API health check failed:', error);
+      console.error('Falha na verificação de saúde da API:', error);
       // Emitir evento para todos os observadores sobre a falha
       EventService.emit('roulette:api-failure', { 
         timestamp: Date.now(),
         error: error instanceof Error ? error.message : 'API inacessível'
       });
-      return false;
+      
+      // Retornar true mesmo em caso de erro para não impedir a inicialização
+      // A aplicação tentará operar mesmo sem a API disponível
+      return true;
     }
+  }
+
+  /**
+   * Registra ouvintes para eventos globais relacionados às roletas
+   * Esta função centraliza o registro de todos os event listeners necessários
+   */
+  private registerGlobalEventListeners(): void {
+    logger.info('Registrando ouvintes para eventos globais');
+    
+    // Ouvinte para atualizações globais de dados
+    const globalDataUpdateHandler = () => {
+      logger.info('Recebida atualização do serviço global de roletas');
+      this.fetchLatestData();
+    };
+    
+    // Inscrever no serviço global se disponível
+    if (typeof globalRouletteDataService !== 'undefined') {
+      try {
+        globalRouletteDataService.subscribe('RouletteFeedService', globalDataUpdateHandler);
+      } catch (error) {
+        logger.warn('Não foi possível registrar no globalRouletteDataService:', error);
+      }
+    }
+    
+    // Ouvinte para mudanças na visibilidade da página
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    }
+    
+    // Ouvinte para quando novos números são recebidos
+    EventService.on('roulette:new-number', (event) => {
+      logger.debug('Novo número recebido via evento:', event);
+      // Atualizar o cache com o novo número
+      if (event && event.roleta_id) {
+        this.updateCacheWithNewNumber(event);
+      }
+    });
+    
+    logger.info('Ouvintes de eventos globais registrados');
+  }
+
+  /**
+   * Atualiza o cache com um novo número recebido via evento
+   */
+  private updateCacheWithNewNumber(event: any): void {
+    // Verificar se temos a roleta no cache
+    const roletaId = event.roleta_id;
+    if (!roletaId || !this.roulettes[roletaId]) return;
+    
+    // Criar o objeto do novo número
+    const newNumber = {
+      numero: event.numero,
+      cor: this.determinarCorNumero(event.numero),
+      timestamp: event.timestamp || new Date().toISOString()
+    };
+    
+    // Adicionar o novo número ao início do array
+    const roleta = this.roulettes[roletaId];
+    if (!roleta.numero) roleta.numero = [];
+    
+    // Adicionar no início (mais recente)
+    roleta.numero.unshift(newNumber);
+    
+    // Notificar os assinantes sobre a atualização
+    this.notifyDataUpdate();
+  }
+
+  /**
+   * Função auxiliar para determinar a cor de um número
+   */
+  private determinarCorNumero(numero: number): string {
+    if (numero === 0) return 'verde';
+    
+    // Números vermelhos na roleta europeia
+    const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
   }
 } 
