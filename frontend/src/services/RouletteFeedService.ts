@@ -191,6 +191,10 @@ export default class RouletteFeedService {
   private requestCounter: number = 0;
   private requestTimestamp: number = 0;
 
+  // Adicionar nova propriedade para verificar a saúde da API
+  private isError: boolean = false;
+  private errorMessage: string = '';
+
   /**
    * O construtor configura os parâmetros iniciais e inicia o serviço
    * @param options Opções de configuração para o serviço
@@ -262,6 +266,22 @@ export default class RouletteFeedService {
    */
   public initialize(): Promise<any> {
     logger.info('Solicitação de inicialização recebida');
+    
+    // Verificar saúde da API antes de inicializar
+    const isHealthy = this.checkAPIHealth();
+    
+    if (!isHealthy) {
+      // Notificar componentes sobre a falha
+      this.isError = true;
+      this.errorMessage = 'Serviço de API indisponível';
+      EventService.emit('roulette:initialization-error', {
+        message: this.errorMessage,
+        timestamp: Date.now()
+      });
+      
+      // Ainda retornamos success para não quebrar o fluxo da aplicação
+      return Promise.resolve(this.roulettes);
+    }
     
     // Registrar ouvintes para eventos do serviço global
     const globalDataUpdateHandler = () => {
@@ -1605,5 +1625,30 @@ export default class RouletteFeedService {
     // Implemente a lógica para notificar sobre o término de uma requisição
     // Esta é uma implementação básica e pode ser expandida conforme necessário
     logger.info(`🔄 Requisição ${requestId} concluída com sucesso: ${status}`);
+  }
+
+  // Adicionar método para verificar a saúde da API
+  async checkAPIHealth(): Promise<boolean> {
+    try {
+      // Fazer uma requisição simples para verificar se a API está disponível
+      const response = await fetch('/api/health', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Baixo timeout para evitar esperar muito tempo
+        signal: AbortSignal.timeout(3000),
+      });
+      
+      return response.ok;
+    } catch (error) {
+      console.error('API health check failed:', error);
+      // Emitir evento para todos os observadores sobre a falha
+      EventService.emit('roulette:api-failure', { 
+        timestamp: Date.now(),
+        error: error instanceof Error ? error.message : 'API inacessível'
+      });
+      return false;
+    }
   }
 } 

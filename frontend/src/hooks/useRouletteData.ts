@@ -321,7 +321,22 @@ export function useRouletteData(
   const eventService = useMemo(() => EventService.getInstance(), []);
   
   // Adicionar referência ao RouletteFeedService para controle centralizado de requests
-  const feedService = useMemo(() => RouletteFeedService.getInstance(), []);
+  // Com tratamento de erro para inicialização
+  const feedService = useMemo(() => {
+    try {
+      return RouletteFeedService.getInstance();
+    } catch (error) {
+      console.error('Erro ao inicializar serviço de feed de roleta:', error);
+      // Retorna uma implementação mock para evitar quebrar a UI
+      return {
+        getAllRoulettes: () => ({}),
+        getRouletteById: () => null,
+        refreshCache: async () => ({}),
+        initialize: async () => ({}),
+        subscribe: () => ({ unsubscribe: () => {} })
+      } as any; // Usamos "any" para evitar erros de tipo
+    }
+  }, []);
   
   // Verifica se a roleta tem dados (números)
   const checkIfRouleteHasData = useCallback((roulette: any): boolean => {
@@ -871,7 +886,7 @@ export function useRouletteData(
     fetchAllData();
   }, [feedService]);
   
-  // Retornar o resultado processado
+  // Garantir valores padrão no retorno
   return {
     numbers,
     loading,

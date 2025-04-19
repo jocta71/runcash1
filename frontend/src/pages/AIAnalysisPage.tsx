@@ -21,6 +21,37 @@ interface Message {
   timestamp: Date;
 }
 
+// Interface para os dados de números da roleta
+interface RouletteNumbers {
+  redCount?: number;
+  blackCount?: number;
+  greenCount?: number;
+  redPercentage?: number;
+  blackPercentage?: number;
+  greenPercentage?: number;
+  evenCount?: number;
+  oddCount?: number;
+  evenPercentage?: number;
+  oddPercentage?: number;
+  dozenCounts?: number[];
+  dozenPercentages?: number[];
+  columnCounts?: number[];
+  columnPercentages?: number[];
+  highCount?: number;
+  lowCount?: number;
+  highPercentage?: number;
+  lowPercentage?: number;
+  hotNumbers?: any[];
+  coldNumbers?: any[];
+  [key: string]: any; // Para qualquer outra propriedade que possa existir
+}
+
+// Interface para os dados de trends da roleta
+interface RouletteTrendsData {
+  trends: any;
+  isLoading?: boolean;
+}
+
 // Lista de exemplos de perguntas que podem ser feitas à IA
 const EXAMPLE_QUESTIONS = [
   "Qual é a tendência atual para a roleta Crazy Time?",
@@ -30,6 +61,127 @@ const EXAMPLE_QUESTIONS = [
   "Identifique sequências repetidas nas últimas 50 rodadas",
   "Qual é a probabilidade de sair um número vermelho nas próximas 3 jogadas?",
 ];
+
+// Renomeado para evitar conflito com o import
+const StatsTabContent = ({value, stats, isLoadingData, hasError, useExampleQuestion}) => {
+  if (value === 'suggestions') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Perguntas sugeridas</CardTitle>
+          <CardDescription>Clique para usar uma pergunta pré-definida</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {EXAMPLE_QUESTIONS.map((question, index) => (
+              <Button 
+                key={index} 
+                variant="outline" 
+                className="w-full justify-start text-left h-auto py-2 px-3"
+                onClick={() => useExampleQuestion(question)}
+              >
+                {question}
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  } 
+  
+  if (value === 'stats') {
+    if (hasError) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Estatísticas Indisponíveis</CardTitle>
+            <CardDescription>Não foi possível carregar os dados</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              O serviço de estatísticas está temporariamente indisponível. 
+              Tente novamente mais tarde ou contate o suporte se o problema persistir.
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={() => window.location.reload()}
+              className="w-full"
+            >
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+    
+    if (isLoadingData) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Estatísticas Rápidas</CardTitle>
+            <CardDescription>Carregando dados...</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+          </CardContent>
+        </Card>
+      );
+    }
+    
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Estatísticas Rápidas</CardTitle>
+          <CardDescription>Dados das últimas 100 rodadas</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <div className="text-sm font-medium mb-1">Proporção de Cores</div>
+            <div className="flex gap-2">
+              <Badge variant="outline" className="bg-red-500/20">
+                Vermelho: {stats.redCount} ({stats.redPercentage}%)
+              </Badge>
+              <Badge variant="outline" className="bg-black/20">
+                Preto: {stats.blackCount} ({stats.blackPercentage}%)
+              </Badge>
+            </div>
+          </div>
+          
+          <div>
+            <div className="text-sm font-medium mb-1">Paridade</div>
+            <div className="flex gap-2">
+              <Badge variant="outline">
+                Pares: {stats.evenCount} ({stats.evenPercentage}%)
+              </Badge>
+              <Badge variant="outline">
+                Ímpares: {stats.oddCount} ({stats.oddPercentage}%)
+              </Badge>
+            </div>
+          </div>
+          
+          <div>
+            <div className="text-sm font-medium mb-1">Dúzias</div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">
+                1ª: {stats.dozenCounts[0] || 0} ({stats.dozenPercentages[0] || 0}%)
+              </Badge>
+              <Badge variant="outline">
+                2ª: {stats.dozenCounts[1] || 0} ({stats.dozenPercentages[1] || 0}%)
+              </Badge>
+              <Badge variant="outline">
+                3ª: {stats.dozenCounts[2] || 0} ({stats.dozenPercentages[2] || 0}%)
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  return null;
+};
 
 // Componente principal da página
 export default function AIAnalysisPage() {
@@ -45,10 +197,51 @@ export default function AIAnalysisPage() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [rouletteDataError, setRouletteDataError] = useState<string | null>(null);
+  const [trendsError, setTrendsError] = useState<string | null>(null);
 
-  // Hooks personalizados para obter dados da roleta
-  const { numbers, loading: isLoadingRouletteData } = useRouletteData('1', 'Premium European Roulette', 100);
-  const { trends } = useRouletteTrends();
+  // Hooks personalizados para obter dados da roleta - com fallback para evitar erros
+  let rouletteData;
+  try {
+    rouletteData = useRouletteData('1', 'Premium European Roulette', 100);
+  } catch (error) {
+    console.error('Erro ao carregar dados da roleta:', error);
+    setRouletteDataError('Falha ao carregar dados da roleta. Tente novamente mais tarde.');
+    rouletteData = { numbers: {}, loading: false, error: true };
+  }
+  
+  // Garantindo que numbers tenha valor padrão caso venha undefined
+  const numbers = (rouletteData?.numbers || {}) as RouletteNumbers;
+  const isLoadingRouletteData = rouletteData?.loading || false;
+  
+  // Adicionando tratamento de erro para o hook de tendências
+  let trendData: RouletteTrendsData = { trends: [] };
+  try {
+    trendData = useRouletteTrends();
+  } catch (error) {
+    console.error('Erro ao carregar tendências:', error);
+    setTrendsError('Falha ao carregar dados de tendências. Tente novamente mais tarde.');
+  }
+  const { trends = [] } = trendData;
+
+  // Notificar o usuário sobre erros na carga de dados
+  useEffect(() => {
+    if (rouletteDataError) {
+      toast({
+        title: "Erro de conexão",
+        description: rouletteDataError,
+        variant: "destructive",
+      });
+    }
+    
+    if (trendsError) {
+      toast({
+        title: "Erro de tendências",
+        description: trendsError,
+        variant: "destructive",
+      });
+    }
+  }, [rouletteDataError, trendsError, toast]);
 
   // Função para enviar mensagem para a IA
   const handleSendMessage = async () => {
@@ -132,6 +325,21 @@ export default function AIAnalysisPage() {
     inputRef.current?.focus();
   };
 
+  // Extração segura de valores para evitar erros de undefined
+  const redCount = numbers.redCount || 0;
+  const blackCount = numbers.blackCount || 0;
+  const redPercentage = numbers.redPercentage || 0; 
+  const blackPercentage = numbers.blackPercentage || 0;
+  const evenCount = numbers.evenCount || 0;
+  const oddCount = numbers.oddCount || 0;
+  const evenPercentage = numbers.evenPercentage || 0;
+  const oddPercentage = numbers.oddPercentage || 0;
+  const dozenCounts = numbers.dozenCounts || [0, 0, 0];
+  const dozenPercentages = numbers.dozenPercentages || [0, 0, 0];
+
+  // Verificar se há algum erro nos dados
+  const hasDataError = rouletteDataError !== null || trendsError !== null || rouletteData?.error === true;
+
   return (
     <Layout>
       <Helmet>
@@ -141,6 +349,13 @@ export default function AIAnalysisPage() {
 
       <div className="container max-w-6xl mx-auto py-6">
         <h1 className="text-3xl font-bold mb-6">Análise Inteligente de Roletas</h1>
+        
+        {hasDataError && (
+          <div className="bg-destructive/10 text-destructive rounded-md p-3 mb-4">
+            <p className="font-medium">Alerta: Serviço de Dados Indisponível</p>
+            <p className="text-sm">Algumas funcionalidades de análise estatística podem não estar disponíveis.</p>
+          </div>
+        )}
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {/* Painel principal de chat com a IA */}
@@ -238,85 +453,34 @@ export default function AIAnalysisPage() {
               </TabsList>
               
               <TabsContent value="suggestions">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Perguntas sugeridas</CardTitle>
-                    <CardDescription>Clique para usar uma pergunta pré-definida</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {EXAMPLE_QUESTIONS.map((question, index) => (
-                        <Button 
-                          key={index} 
-                          variant="outline" 
-                          className="w-full justify-start text-left h-auto py-2 px-3"
-                          onClick={() => useExampleQuestion(question)}
-                        >
-                          {question}
-                        </Button>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                <StatsTabContent 
+                  stats={{}} 
+                  isLoadingData={false} 
+                  hasError={false} 
+                  value="suggestions"
+                  useExampleQuestion={useExampleQuestion}
+                />
               </TabsContent>
               
               <TabsContent value="stats">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Estatísticas Rápidas</CardTitle>
-                    <CardDescription>Dados das últimas 100 rodadas</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {isLoadingRouletteData ? (
-                      <>
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-full" />
-                      </>
-                    ) : (
-                      <>
-                        <div>
-                          <div className="text-sm font-medium mb-1">Proporção de Cores</div>
-                          <div className="flex gap-2">
-                            <Badge variant="outline" className="bg-red-500/20">
-                              Vermelho: {numbers?.redCount || "..."} ({numbers?.redPercentage || "..."}%)
-                            </Badge>
-                            <Badge variant="outline" className="bg-black/20">
-                              Preto: {numbers?.blackCount || "..."} ({numbers?.blackPercentage || "..."}%)
-                            </Badge>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <div className="text-sm font-medium mb-1">Paridade</div>
-                          <div className="flex gap-2">
-                            <Badge variant="outline">
-                              Pares: {numbers?.evenCount || "..."} ({numbers?.evenPercentage || "..."}%)
-                            </Badge>
-                            <Badge variant="outline">
-                              Ímpares: {numbers?.oddCount || "..."} ({numbers?.oddPercentage || "..."}%)
-                            </Badge>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <div className="text-sm font-medium mb-1">Dúzias</div>
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline">
-                              1ª: {numbers?.dozenCounts?.[0] || "..."} ({numbers?.dozenPercentages?.[0] || "..."}%)
-                            </Badge>
-                            <Badge variant="outline">
-                              2ª: {numbers?.dozenCounts?.[1] || "..."} ({numbers?.dozenPercentages?.[1] || "..."}%)
-                            </Badge>
-                            <Badge variant="outline">
-                              3ª: {numbers?.dozenCounts?.[2] || "..."} ({numbers?.dozenPercentages?.[2] || "..."}%)
-                            </Badge>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
+                <StatsTabContent 
+                  stats={{
+                    redCount,
+                    blackCount, 
+                    redPercentage,
+                    blackPercentage,
+                    evenCount,
+                    oddCount,
+                    evenPercentage,
+                    oddPercentage,
+                    dozenCounts,
+                    dozenPercentages
+                  }} 
+                  isLoadingData={isLoadingRouletteData}
+                  hasError={hasDataError}
+                  value="stats"
+                  useExampleQuestion={useExampleQuestion}
+                />
               </TabsContent>
             </Tabs>
           </div>
