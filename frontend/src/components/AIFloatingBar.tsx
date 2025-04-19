@@ -10,110 +10,21 @@ interface AIMessage {
   timestamp: Date;
 }
 
-// Componente de loader com cubo 3D (igual ao loading inicial)
-const CubeLoader = () => {
+// Componente de carregamento com leap-frog estilizado
+const LoadingIndicator = () => {
   return (
-    <>
-      <style>
-        {`
-        .glowing-cube-container {
-          width: 100%;
-          height: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        
-        .glowing-cube {
-          position: relative;
-          width: 80px;
-          height: 80px;
-          transform-style: preserve-3d;
-          transform: rotateX(30deg);
-          animation: animate 4s linear infinite;
-        }
-        
-        @keyframes animate {
-          0% {
-            transform: rotateX(45deg) rotateY(45deg);
-          }
-          50% {
-            transform: rotateX(45deg) rotateY(225deg);
-          }
-          100% {
-            transform: rotateX(45deg) rotateY(405deg);
-          }
-        }
-        
-        .glowing-cube div {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          transform-style: preserve-3d;
-        }
-        
-        .glowing-cube div span {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(#222, #3aff5e);
-          transform: rotateY(calc(90deg * var(--i))) translateZ(40px);
-        }
-        
-        .top {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 80px;
-          height: 80px;
-          background: #222;
-          transform: rotateX(90deg) translateZ(40px);
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
-        
-        .top::before {
-          content: '❤️';
-          position: absolute;
-          font-size: 2rem;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
-        
-        .top::after {
-          content: '';
-          position: absolute;
-          width: 80px;
-          height: 80px;
-          background: #3aff5e;
-          transform: translateZ(-150px);
-          filter: blur(20px);
-          box-shadow: 0 0 120px rgba(58, 255, 94, 0.2),
-                      0 0 200px rgba(58, 255, 94, 0.4),
-                      0 0 300px rgba(58, 255, 94, 0.6),
-                      0 0 400px rgba(58, 255, 94, 0.8),
-                      0 0 500px rgb(58, 255, 94);
-        }
-      `}
-      </style>
-      <div className="glowing-cube-container">
-        <div className="glowing-cube">
-          <div>
-            <span style={{ "--i": 0 } as React.CSSProperties}></span>
-            <span style={{ "--i": 1 } as React.CSSProperties}></span>
-            <span style={{ "--i": 2 } as React.CSSProperties}></span>
-            <span style={{ "--i": 3 } as React.CSSProperties}></span>
-          </div>
-          <div className="top"></div>
-        </div>
+    <div className="flex flex-col items-center my-6 p-3 rounded-lg bg-black/10 backdrop-blur-sm border border-white/5">
+      <div className="flex items-center space-x-2 mb-3">
+        <Bot size={18} className="text-green-400" />
+        <span className="text-green-400 text-sm">RunCash IA</span>
       </div>
-    </>
+      <div className="leap-frog mb-2">
+        <div className="leap-frog__dot"></div>
+        <div className="leap-frog__dot"></div>
+        <div className="leap-frog__dot"></div>
+      </div>
+      <div className="text-green-400/80 text-xs">Processando sua consulta...</div>
+    </div>
   );
 };
 
@@ -497,13 +408,7 @@ const AIFloatingBar: React.FC = () => {
             ))
           )}
           {loading && (
-            <div className="flex justify-center my-4">
-              <div className="leap-frog">
-                <div className="leap-frog__dot"></div>
-                <div className="leap-frog__dot"></div>
-                <div className="leap-frog__dot"></div>
-              </div>
-            </div>
+            <LoadingIndicator />
           )}
           <div ref={messagesEndRef} />
         </div>
