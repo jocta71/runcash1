@@ -193,7 +193,7 @@ if (rootElement) {
           }
 
           .glowing-cube .top::before {
-            content: '❤';
+            content: '🐇';
             position: absolute;
             font-size: 7rem;
             display: flex;

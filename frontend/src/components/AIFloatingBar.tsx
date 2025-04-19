@@ -497,22 +497,11 @@ const AIFloatingBar: React.FC = () => {
             ))
           )}
           {loading && (
-            <div className="flex justify-start">
-              <div className="max-w-[85%] rounded-2xl p-4 shadow-md bg-white/10 backdrop-blur-md text-white border border-white/10">
-                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
-                  <div className="w-5 h-5 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center">
-                    <Bot size={10} className="text-black/80" />
-                  </div>
-                  <span className="text-xs font-medium text-green-400">Assistente</span>
-                </div>
-                <div className="flex flex-col items-center justify-center py-4">
-                  {/* From Uiverse.io by G4b413l */}
-                  <div className="leap-frog">
-                    <div className="leap-frog__dot"></div>
-                    <div className="leap-frog__dot"></div>
-                    <div className="leap-frog__dot"></div>
-                  </div>
-                </div>
+            <div className="flex justify-center my-4">
+              <div className="leap-frog">
+                <div className="leap-frog__dot"></div>
+                <div className="leap-frog__dot"></div>
+                <div className="leap-frog__dot"></div>
               </div>
             </div>
           )}
