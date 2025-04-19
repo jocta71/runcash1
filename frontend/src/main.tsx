@@ -99,10 +99,6 @@ const socketService = SocketService.getInstance(); // Inicia a conexão
 // Informa ao usuário que a conexão está sendo estabelecida
 logger.info('Conexão com o servidor sendo estabelecida em background...');
 
-// Inicializar o sistema de roletas como parte do carregamento da aplicação
-logger.info('Inicializando sistema de roletas de forma centralizada...');
-const rouletteSystem = initializeRoulettesSystem();
-
 // Configuração global para requisições fetch
 const originalFetch = window.fetch;
 window.fetch = function(input, init) {
@@ -121,15 +117,9 @@ window.fetch = function(input, init) {
   return originalFetch(input, newInit);
 };
 
-// Iniciar pré-carregamento de dados históricos
-logger.info('Iniciando pré-carregamento de dados históricos...');
-socketService.loadHistoricalRouletteNumbers().catch(err => {
-  logger.error('Erro ao pré-carregar dados históricos:', err);
-});
-
 // Expor globalmente a função para verificar se o sistema foi inicializado
 window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
-window.getRouletteSystem = () => rouletteSystem;
+window.getRouletteSystem = () => null; // Será inicializado após renderização
 
 const rootElement = document.getElementById("root");
 if (rootElement) {
@@ -224,10 +214,15 @@ if (rootElement) {
     </div>
   `;
   
-  // Aguardar um pequeno intervalo para dar tempo à conexão de ser estabelecida
+  // Renderizar o App
+  createRoot(rootElement).render(<App />);
+  
+  // Inicializar o sistema de roletas após a renderização
   setTimeout(() => {
-    createRoot(rootElement).render(<App />);
-  }, 1500);
+    logger.info('Inicializando sistema de roletas após renderização...');
+    const rouletteSystem = initializeRoulettesSystem();
+    window.getRouletteSystem = () => rouletteSystem;
+  }, 500);
 } else {
   logger.error('Elemento root não encontrado!');
 }
