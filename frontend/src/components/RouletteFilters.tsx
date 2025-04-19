@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Check, Filter, X, Calendar, Hash, Circle, ChevronDown } from 'lucide-react';
+import { Check, Filter, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -40,98 +40,159 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
   onParityFilterChange,
   onTimeFilterChange
 }) => {
-  // Estados para os filtros
-  const [numberFilter, setNumberFilter] = useState<string>('');
-  const [selectedColor, setSelectedColor] = useState<'red' | 'black' | 'green' | null>(null);
-  const [selectedParity, setSelectedParity] = useState<'even' | 'odd' | null>(null);
-  const [timeFilter, setTimeFilter] = useState<string>('');
-  const [selectedProvider, setSelectedProvider] = useState<string>('');
+  // Estado para saber se há filtros aplicados
+  const [hasActiveFilters, setHasActiveFilters] = useState(false);
+  
+  // Estados para cada filtro selecionado
+  const [selectedColor, setSelectedColor] = useState('todas');
+  const [selectedNumber, setSelectedNumber] = useState('todos');
+  const [selectedParity, setSelectedParity] = useState('todas');
+  const [selectedTime, setSelectedTime] = useState('todos');
+  const [selectedProvider, setSelectedProvider] = useState('todos');
 
   // Se não existirem provedores, não renderiza o componente
   if (!providers || providers.length === 0) {
     return null;
   }
 
-  // Verificar se há qualquer filtro ativo
-  const hasFilters = selectedProviders.length > 0 || 
-    numberFilter || 
-    selectedColor || 
-    selectedParity || 
-    timeFilter;
+  // Opções para o filtro de números
+  const numberOptions = [
+    { value: 'todos', label: 'Todos' },
+    { value: '0', label: '0' },
+    { value: '1', label: '1' },
+    { value: '2', label: '2' },
+    { value: '3', label: '3' },
+    // ... outros números podem ser adicionados conforme necessário
+  ];
 
-  // Handler para o filtro de número
-  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setNumberFilter(value);
-    
-    const parsedNumber = value ? parseInt(value, 10) : null;
-    if (parsedNumber === null || (!isNaN(parsedNumber) && parsedNumber >= 0 && parsedNumber <= 36)) {
-      onNumberFilterChange?.(parsedNumber);
-    }
-  };
-
-  // Handler para o filtro de tempo
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setTimeFilter(value);
-    
-    const parsedTime = value ? parseInt(value, 10) : null;
-    if (parsedTime === null || !isNaN(parsedTime)) {
-      onTimeFilterChange?.(parsedTime);
-    }
-  };
+  // Opções para o filtro de tempo
+  const timeOptions = [
+    { value: 'todos', label: 'Todos' },
+    { value: '1', label: 'Último 1 min' },
+    { value: '5', label: 'Últimos 5 min' },
+    { value: '10', label: 'Últimos 10 min' },
+    { value: '30', label: 'Últimos 30 min' },
+    { value: '60', label: 'Última 1 hora' },
+  ];
 
   // Handler para o filtro de cor
   const handleColorChange = (value: string) => {
-    const colorMap: Record<string, 'red' | 'black' | 'green' | null> = {
-      'todas': null,
-      'vermelho': 'red',
-      'preto': 'black',
-      'verde': 'green'
-    };
+    setSelectedColor(value);
+    let color: 'red' | 'black' | 'green' | null = null;
     
-    const newColor = colorMap[value] || null;
-    setSelectedColor(newColor);
-    onColorFilterChange?.(newColor);
+    switch (value) {
+      case 'vermelho':
+        color = 'red';
+        break;
+      case 'preto':
+        color = 'black';
+        break;
+      case 'verde':
+        color = 'green';
+        break;
+      case 'todas':
+      default:
+        color = null;
+    }
+    
+    onColorFilterChange?.(color);
+    checkActiveFilters();
+  };
+
+  // Handler para o filtro de número
+  const handleNumberChange = (value: string) => {
+    setSelectedNumber(value);
+    
+    if (value === 'todos') {
+      onNumberFilterChange?.(null);
+    } else {
+      const num = parseInt(value, 10);
+      if (!isNaN(num)) {
+        onNumberFilterChange?.(num);
+      }
+    }
+    
+    checkActiveFilters();
   };
 
   // Handler para o filtro de paridade
   const handleParityChange = (value: string) => {
-    const parityMap: Record<string, 'even' | 'odd' | null> = {
-      'todas': null,
-      'par': 'even',
-      'impar': 'odd'
-    };
+    setSelectedParity(value);
+    let parity: 'even' | 'odd' | null = null;
     
-    const newParity = parityMap[value] || null;
-    setSelectedParity(newParity);
-    onParityFilterChange?.(newParity);
+    switch (value) {
+      case 'par':
+        parity = 'even';
+        break;
+      case 'impar':
+        parity = 'odd';
+        break;
+      case 'todas':
+      default:
+        parity = null;
+    }
+    
+    onParityFilterChange?.(parity);
+    checkActiveFilters();
+  };
+
+  // Handler para o filtro de tempo
+  const handleTimeChange = (value: string) => {
+    setSelectedTime(value);
+    
+    if (value === 'todos') {
+      onTimeFilterChange?.(null);
+    } else {
+      const minutes = parseInt(value, 10);
+      if (!isNaN(minutes)) {
+        onTimeFilterChange?.(minutes);
+      }
+    }
+    
+    checkActiveFilters();
   };
 
   // Handler para o filtro de provedor
   const handleProviderChange = (value: string) => {
     setSelectedProvider(value);
-    if (value === 'all') {
-      // Limpar todos os provedores selecionados
+    
+    if (value === 'todos') {
       onClearFilters();
     } else {
-      // Selecionar apenas o provedor escolhido
       onProviderSelect(value);
     }
+    
+    checkActiveFilters();
+  };
+
+  // Verificar se há filtros ativos
+  const checkActiveFilters = () => {
+    const hasFilters = 
+      selectedColor !== 'todas' || 
+      selectedNumber !== 'todos' || 
+      selectedParity !== 'todas' || 
+      selectedTime !== 'todos' || 
+      selectedProvider !== 'todos' ||
+      selectedProviders.length > 0;
+    
+    setHasActiveFilters(hasFilters);
   };
 
   // Limpar todos os filtros
   const handleClearAllFilters = () => {
-    setNumberFilter('');
-    setSelectedColor(null);
-    setSelectedParity(null);
-    setTimeFilter('');
-    setSelectedProvider('');
+    setSelectedColor('todas');
+    setSelectedNumber('todos');
+    setSelectedParity('todas');
+    setSelectedTime('todos');
+    setSelectedProvider('todos');
+    
     onClearFilters();
     onNumberFilterChange?.(null);
     onColorFilterChange?.(null);
     onParityFilterChange?.(null);
     onTimeFilterChange?.(null);
+    
+    setHasActiveFilters(false);
   };
 
   return (
@@ -143,7 +204,7 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
           <h3 className="text-sm font-medium text-white">Filtros de roleta</h3>
         </div>
         
-        {hasFilters && (
+        {hasActiveFilters && (
           <Button 
             onClick={handleClearAllFilters}
             variant="ghost" 
@@ -156,52 +217,61 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
         )}
       </div>
       
-      {/* Filtros em grid */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+      {/* Filtros em row com dropdowns */}
+      <div className="flex w-full space-x-2 bg-[#17191a] p-1">
         {/* Filtro por cor */}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Por cores</label>
-          <Select onValueChange={handleColorChange} value={selectedColor || 'todas'}>
-            <SelectTrigger className="w-full bg-[#111] border-gray-700 text-white h-9">
+        <div className="flex-1">
+          <div className="text-xs text-gray-400 mb-1 px-2">Por cores</div>
+          <Select value={selectedColor} onValueChange={handleColorChange}>
+            <SelectTrigger className="w-full bg-black border-none text-white h-10">
               <SelectValue placeholder="Todas" />
             </SelectTrigger>
-            <SelectContent className="bg-[#111] border-gray-700 text-white">
+            <SelectContent className="bg-[#111] border-gray-800 text-white">
               <SelectItem value="todas">Todas</SelectItem>
-              <SelectItem value="vermelho" className="flex items-center">
-                <span className="mr-2 w-2 h-2 rounded-full bg-red-600"></span> Vermelhos
+              <SelectItem value="vermelho">
+                <div className="flex items-center">
+                  <span className="mr-2 w-2 h-2 rounded-full bg-red-600"></span> Vermelhos
+                </div>
               </SelectItem>
-              <SelectItem value="preto" className="flex items-center">
-                <span className="mr-2 w-2 h-2 rounded-full bg-gray-900"></span> Pretos
+              <SelectItem value="preto">
+                <div className="flex items-center">
+                  <span className="mr-2 w-2 h-2 rounded-full bg-gray-900"></span> Pretos
+                </div>
               </SelectItem>
-              <SelectItem value="verde" className="flex items-center">
-                <span className="mr-2 w-2 h-2 rounded-full bg-green-600"></span> Zero
+              <SelectItem value="verde">
+                <div className="flex items-center">
+                  <span className="mr-2 w-2 h-2 rounded-full bg-green-600"></span> Zero
+                </div>
               </SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {/* Filtro por número */}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Por número</label>
-          <Input
-            value={numberFilter}
-            onChange={handleNumberChange}
-            placeholder="Ex: 7 (0-36)"
-            type="number"
-            min={0}
-            max={36}
-            className="w-full h-9 bg-[#111] border-gray-700 text-white"
-          />
+        <div className="flex-1">
+          <div className="text-xs text-gray-400 mb-1 px-2">Por número</div>
+          <Select value={selectedNumber} onValueChange={handleNumberChange}>
+            <SelectTrigger className="w-full bg-black border-none text-white h-10">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#111] border-gray-800 text-white max-h-[200px] overflow-y-auto">
+              {numberOptions.map(option => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Filtro por hora */}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Por paridade</label>
-          <Select onValueChange={handleParityChange} value={selectedParity || 'todas'}>
-            <SelectTrigger className="w-full bg-[#111] border-gray-700 text-white h-9">
+        {/* Filtro por paridade */}
+        <div className="flex-1">
+          <div className="text-xs text-gray-400 mb-1 px-2">Por paridade</div>
+          <Select value={selectedParity} onValueChange={handleParityChange}>
+            <SelectTrigger className="w-full bg-black border-none text-white h-10">
               <SelectValue placeholder="Todas" />
             </SelectTrigger>
-            <SelectContent className="bg-[#111] border-gray-700 text-white">
+            <SelectContent className="bg-[#111] border-gray-800 text-white">
               <SelectItem value="todas">Todas</SelectItem>
               <SelectItem value="par">Pares</SelectItem>
               <SelectItem value="impar">Ímpares</SelectItem>
@@ -210,14 +280,14 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
         </div>
 
         {/* Filtro por provedor */}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Por provedor</label>
-          <Select onValueChange={handleProviderChange} value={selectedProvider || 'all'}>
-            <SelectTrigger className="w-full bg-[#111] border-gray-700 text-white h-9">
+        <div className="flex-1">
+          <div className="text-xs text-gray-400 mb-1 px-2">Por provedor</div>
+          <Select value={selectedProvider} onValueChange={handleProviderChange}>
+            <SelectTrigger className="w-full bg-black border-none text-white h-10">
               <SelectValue placeholder="Todos" />
             </SelectTrigger>
-            <SelectContent className="bg-[#111] border-gray-700 text-white max-h-[200px] overflow-y-auto">
-              <SelectItem value="all">Todos</SelectItem>
+            <SelectContent className="bg-[#111] border-gray-800 text-white max-h-[200px] overflow-y-auto">
+              <SelectItem value="todos">Todos</SelectItem>
               {providers.map(provider => (
                 <SelectItem key={provider.id} value={provider.id}>
                   {provider.name}
@@ -228,16 +298,20 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
         </div>
 
         {/* Filtro por tempo */}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Por tempo (min)</label>
-          <Input
-            value={timeFilter}
-            onChange={handleTimeChange}
-            placeholder="Últimos X min"
-            type="number"
-            min={1}
-            className="w-full h-9 bg-[#111] border-gray-700 text-white"
-          />
+        <div className="flex-1">
+          <div className="text-xs text-gray-400 mb-1 px-2">Por tempo</div>
+          <Select value={selectedTime} onValueChange={handleTimeChange}>
+            <SelectTrigger className="w-full bg-black border-none text-white h-10">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#111] border-gray-800 text-white">
+              {timeOptions.map(option => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
     </div>

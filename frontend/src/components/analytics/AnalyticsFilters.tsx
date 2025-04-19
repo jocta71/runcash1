@@ -1,14 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Filter, Hash, ChevronDown } from 'lucide-react';
+import { Calendar, Clock, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import AnalyticsFilterRow from './AnalyticsFilterRow';
 
 interface AnalyticsFiltersProps {
   onQuantityChange: (quantity: number) => void;
@@ -50,38 +44,38 @@ const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
   const [endDate, setEndDate] = useState<string>('');
   const [startTime, setStartTime] = useState<string>('');
   const [endTime, setEndTime] = useState<string>('');
-  const [selectedColorOption, setSelectedColorOption] = useState<string>('todas');
-  const [selectedNumberOption, setSelectedNumberOption] = useState<string>('todos');
-  const [selectedHourOption, setSelectedHourOption] = useState<string>('todas');
-  const [selectedMinuteOption, setSelectedMinuteOption] = useState<string>('todos');
-  const [lastMinuteEnabled, setLastMinuteEnabled] = useState<boolean>(false);
-  
-  // Opções para os filtros
-  const colorOptions = [
-    { value: 'todas', label: 'Todas' },
-    { value: 'vermelhas', label: 'Vermelhas', color: 'bg-red-600' },
-    { value: 'pretas', label: 'Pretas', color: 'bg-black' },
-    { value: 'verdes', label: 'Zero', color: 'bg-green-600' },
-    { value: 'pretas+vermelhas', label: 'Pretas + Vermelhas', combined: ['bg-black', 'bg-red-600'] },
-    { value: 'pretas+verdes', label: 'Pretas + Zero', combined: ['bg-black', 'bg-green-600'] },
-    { value: 'vermelhas+verdes', label: 'Vermelhas + Zero', combined: ['bg-red-600', 'bg-green-600'] }
-  ];
-  
-  const numberOptions = [
-    { value: 'todos', label: 'Todos' },
-    // Você pode adicionar números específicos aqui se necessário
-  ];
-  
-  const hourOptions = [
-    { value: 'todas', label: 'Todas' },
-    // Você pode adicionar horas específicas aqui se necessário
-  ];
-  
-  const minuteOptions = [
-    { value: 'todos', label: 'Todos' },
-    // Você pode adicionar minutos específicos aqui se necessário
-  ];
-  
+
+  // Handlers para os filtros de dropdown
+  const handleColorFilterChange = (color: string) => {
+    if (color === 'todas') {
+      onColorFilterChange([]);
+    } else {
+      const colorValues = color.split('+');
+      onColorFilterChange(colorValues);
+    }
+  };
+
+  const handleNumberFilterChange = (number: string) => {
+    if (number === 'todos') {
+      onNumberFilterChange([]);
+    } else {
+      const numberValue = parseInt(number, 10);
+      onNumberFilterChange(!isNaN(numberValue) ? [numberValue] : []);
+    }
+  };
+
+  const handleHourFilterChange = (hour: string) => {
+    onHourFilterChange(hour === 'todas' ? [] : [hour]);
+  };
+
+  const handleMinuteFilterChange = (minute: string) => {
+    onMinuteFilterChange(minute === 'todos' ? [] : [minute]);
+  };
+
+  const handleLastMinuteFilterChange = (value: string) => {
+    onLastMinuteFilterChange(value === 'ativado');
+  };
+
   // Efeito para notificar mudanças
   useEffect(() => {
     // Converter quantity para número
@@ -95,32 +89,9 @@ const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
     onEndDateChange(endDate);
     onStartTimeChange(startTime);
     onEndTimeChange(endTime);
-    
-    // Converter seleções para o formato esperado pelos callbacks
-    if (selectedColorOption === 'todas') {
-      onColorFilterChange([]);
-    } else {
-      const colorValues = selectedColorOption.split('+');
-      onColorFilterChange(colorValues);
-    }
-    
-    if (selectedNumberOption === 'todos') {
-      onNumberFilterChange([]);
-    } else {
-      // Converte o número selecionado para um array com esse número
-      const numberValue = parseInt(selectedNumberOption, 10);
-      onNumberFilterChange(!isNaN(numberValue) ? [numberValue] : []);
-    }
-    
-    onHourFilterChange(selectedHourOption === 'todas' ? [] : [selectedHourOption]);
-    onMinuteFilterChange(selectedMinuteOption === 'todos' ? [] : [selectedMinuteOption]);
-    onLastMinuteFilterChange(lastMinuteEnabled);
-    
   }, [
     quantity, startDate, endDate, startTime, endTime,
-    selectedColorOption, selectedNumberOption, selectedHourOption, selectedMinuteOption, lastMinuteEnabled,
-    onQuantityChange, onStartDateChange, onEndDateChange, onStartTimeChange, onEndTimeChange,
-    onColorFilterChange, onNumberFilterChange, onHourFilterChange, onMinuteFilterChange, onLastMinuteFilterChange
+    onQuantityChange, onStartDateChange, onEndDateChange, onStartTimeChange, onEndTimeChange
   ]);
   
   // Limpar todos os filtros
@@ -130,12 +101,6 @@ const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
     setEndDate('');
     setStartTime('');
     setEndTime('');
-    setSelectedColorOption('todas');
-    setSelectedNumberOption('todos');
-    setSelectedHourOption('todas');
-    setSelectedMinuteOption('todos');
-    setLastMinuteEnabled(false);
-    
     onFilterClear();
   };
   
@@ -203,105 +168,14 @@ const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
         <div className="col-span-2"></div>
       </div>
       
-      {/* Segunda linha: Filtros de cores, números, horas e minutos */}
-      <div className="grid grid-cols-12 gap-4">
-        {/* Filtro por cores */}
-        <div className="col-span-3">
-          <label className="block text-sm text-gray-400 mb-1">Por cores</label>
-          <Select value={selectedColorOption} onValueChange={setSelectedColorOption}>
-            <SelectTrigger className="w-full bg-[#111] border-gray-700 text-white h-9">
-              <SelectValue placeholder="Todas" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#111] border-gray-700 text-white">
-              {colorOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  <div className="flex items-center">
-                    {option.combined ? (
-                      // Para opções combinadas, mostrar dois círculos
-                      <div className="flex mr-2">
-                        <span className={`w-2 h-2 rounded-full ${option.combined[0]} mr-1`}></span>
-                        <span className={`w-2 h-2 rounded-full ${option.combined[1]}`}></span>
-                      </div>
-                    ) : option.color ? (
-                      // Para opções com uma única cor
-                      <span className={`mr-2 w-2 h-2 rounded-full ${option.color}`}></span>
-                    ) : null}
-                    {option.label}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        {/* Filtro por número */}
-        <div className="col-span-3">
-          <label className="block text-sm text-gray-400 mb-1">Por número</label>
-          <Select value={selectedNumberOption} onValueChange={setSelectedNumberOption}>
-            <SelectTrigger className="w-full bg-[#111] border-gray-700 text-white h-9">
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#111] border-gray-700 text-white">
-              {numberOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        {/* Filtro por hora */}
-        <div className="col-span-2">
-          <label className="block text-sm text-gray-400 mb-1">Por hora</label>
-          <Select value={selectedHourOption} onValueChange={setSelectedHourOption}>
-            <SelectTrigger className="w-full bg-[#111] border-gray-700 text-white h-9">
-              <SelectValue placeholder="Todas" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#111] border-gray-700 text-white">
-              {hourOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        {/* Filtro por minuto */}
-        <div className="col-span-2">
-          <label className="block text-sm text-gray-400 mb-1">Por minuto</label>
-          <Select value={selectedMinuteOption} onValueChange={setSelectedMinuteOption}>
-            <SelectTrigger className="w-full bg-[#111] border-gray-700 text-white h-9">
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#111] border-gray-700 text-white">
-              {minuteOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        {/* Filtro pelo último minuto */}
-        <div className="col-span-2">
-          <label className="block text-sm text-gray-400 mb-1">Pelo último minuto</label>
-          <Select
-            value={lastMinuteEnabled ? "ativado" : "todos"}
-            onValueChange={(value) => setLastMinuteEnabled(value === "ativado")}
-          >
-            <SelectTrigger className="w-full bg-[#111] border-gray-700 text-white h-9">
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#111] border-gray-700 text-white">
-              <SelectItem value="todos">Todos</SelectItem>
-              <SelectItem value="ativado">Ativado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      {/* Segunda linha: Filtros de dropdown em linha */}
+      <AnalyticsFilterRow 
+        onColorFilterChange={handleColorFilterChange}
+        onNumberFilterChange={handleNumberFilterChange}
+        onHourFilterChange={handleHourFilterChange}
+        onMinuteFilterChange={handleMinuteFilterChange}
+        onLastMinuteFilterChange={handleLastMinuteFilterChange}
+      />
       
       {/* Terceira linha: Botões de ação */}
       <div className="flex justify-between pt-2 mt-4 border-t border-gray-700/30">
