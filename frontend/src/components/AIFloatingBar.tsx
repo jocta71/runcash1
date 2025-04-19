@@ -10,20 +10,43 @@ interface AIMessage {
   timestamp: Date;
 }
 
-// Componente de carregamento com leap-frog estilizado
+// Componente de carregamento com logo do rabbit
 const LoadingIndicator = () => {
   return (
-    <div className="flex flex-col items-center my-6 p-3 rounded-lg bg-black/10 backdrop-blur-sm border border-white/5">
+    <div className="flex flex-col items-center my-6 p-4 rounded-lg bg-black/20 backdrop-blur-sm border border-white/5">
       <div className="flex items-center space-x-2 mb-3">
         <Bot size={18} className="text-green-400" />
         <span className="text-green-400 text-sm">RunCash IA</span>
       </div>
-      <div className="leap-frog mb-2">
-        <div className="leap-frog__dot"></div>
-        <div className="leap-frog__dot"></div>
-        <div className="leap-frog__dot"></div>
+      
+      {/* Container do rabbit com animação */}
+      <div className="w-24 h-24 mb-4 relative flex items-center justify-center">
+        {/* Glow effect - camada externa */}
+        <div className="absolute inset-0 w-full h-full rounded-full bg-green-500/10 blur-xl animate-pulse"></div>
+        
+        {/* Camada intermediária - pulsar lento */}
+        <div className="absolute w-20 h-20 rounded-full border border-green-500/30 animate-ping opacity-20"></div>
+        
+        {/* Círculo de fundo */}
+        <div className="absolute w-16 h-16 rounded-full bg-gradient-to-br from-black/60 to-green-900/20 flex items-center justify-center border border-green-500/30"></div>
+        
+        {/* Logo do Rabbit com glow */}
+        <div className="absolute w-14 h-14 flex items-center justify-center animate-[spin_8s_linear_infinite]">
+          <div className="relative w-12 h-12 flex items-center justify-center">
+            <div className="absolute inset-0 blur-sm bg-green-400/20 rounded-full"></div>
+            <img 
+              src="/assets/icon-rabbit.svg" 
+              alt="Rabbit Logo" 
+              className="w-9 h-9 object-contain drop-shadow-[0_0_8px_rgba(34,197,94,0.7)]" 
+            />
+          </div>
+        </div>
       </div>
-      <div className="text-green-400/80 text-xs">Processando sua consulta...</div>
+      
+      <div className="text-green-400/90 text-xs font-light tracking-wide flex items-center gap-1">
+        <span className="animate-pulse">•</span>
+        <span>Processando sua consulta...</span>
+      </div>
     </div>
   );
 };
@@ -48,6 +71,19 @@ const AIFloatingBar: React.FC = () => {
     }
   }, [expanded]);
 
+  // Adicionar mensagem inicial quando o chat é aberto
+  useEffect(() => {
+    if (expanded && messages.length === 0) {
+      const welcomeMessage: AIMessage = {
+        id: Date.now(),
+        role: 'ai',
+        content: 'Olá! Estou pronto para analisar os dados da roleta. Minhas respostas serão breves: apenas números e no máximo 4 palavras.',
+        timestamp: new Date()
+      };
+      setMessages([welcomeMessage]);
+    }
+  }, [expanded, messages.length]);
+
   const sendMessageToGemini = async (query: string) => {
     try {
       // Buscar dados da roleta
@@ -56,10 +92,15 @@ const AIFloatingBar: React.FC = () => {
       // Usar o endpoint do backend para evitar problemas de CORS
       const apiUrl = '/api/ai/query';
       
+      // Adicionar instrução para respostas curtas
+      const promptWithInstructions = `${query} 
+      
+IMPORTANTE: Sua resposta deve ser extremamente curta. Use apenas números quando aplicável e no máximo 4 palavras. Não inclua explicações.`;
+      
       const response = await axios.post(
         apiUrl,
         {
-          query: query,
+          query: promptWithInstructions,
           rouletteData: roletaData
         },
         { 
@@ -285,9 +326,9 @@ const AIFloatingBar: React.FC = () => {
               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-inner">
                 <Bot size={14} className="text-white" />
               </div>
-              <h3 className="text-white font-medium text-sm">Descubra tendências & padrões lucrativos</h3>
+              <h3 className="text-white font-medium text-sm">Análises rápidas das roletas</h3>
             </div>
-            <p className="text-green-300/80 text-xs px-1">Pergunte ao RunCash IA sobre estratégias, números quentes e padrões de roleta</p>
+            <p className="text-green-300/80 text-xs px-1">Respostas curtas e diretas: apenas números e até 4 palavras</p>
           </div>
           <form onSubmit={(e) => { e.preventDefault(); toggleExpand(); }} className="relative flex items-center">
             <input
@@ -322,10 +363,10 @@ const AIFloatingBar: React.FC = () => {
               <Bot size={20} className="text-white" />
             </div>
             <div>
-              <h2 className="text-white font-semibold">RunCash Assistente</h2>
+              <h2 className="text-white font-semibold">Assistente Conciso</h2>
               <div className="flex items-center">
                 <span className="w-2 h-2 rounded-full bg-green-400 mr-2 animate-pulse"></span>
-                <p className="text-green-300/80 text-xs">IA Avançada</p>
+                <p className="text-green-300/80 text-xs">Respostas rápidas</p>
               </div>
             </div>
           </div>
@@ -354,22 +395,22 @@ const AIFloatingBar: React.FC = () => {
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400/10 to-emerald-600/10 flex items-center justify-center mb-4">
                 <MessageSquare size={24} className="text-green-400" />
               </div>
-              <h3 className="text-white font-medium text-lg mb-2">Como posso ajudar?</h3>
+              <h3 className="text-white font-medium text-lg mb-2">Análise Rápida</h3>
               <p className="text-gray-300/70 text-center text-sm max-w-md mb-4">
-                Pergunte sobre análises de roletas, tendências ou estratégias.
+                Receba respostas curtas e diretas: apenas números e até 4 palavras!
               </p>
               <div className="grid grid-cols-2 gap-2 w-full max-w-md">
                 <button 
                   onClick={() => setInput("Quais são os números quentes agora?")}
                   className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-green-300 hover:text-white text-left text-xs transition-all border border-white/5"
                 >
-                  Quais são os números quentes?
+                  Números quentes?
                 </button>
                 <button 
-                  onClick={() => setInput("Detectou algum padrão de cor nas últimas jogadas?")}
+                  onClick={() => setInput("Qual cor está predominando nas últimas rodadas?")}
                   className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-green-300 hover:text-white text-left text-xs transition-all border border-white/5"
                 >
-                  Há padrões de cor recentes?
+                  Cor predominante?
                 </button>
               </div>
             </div>
