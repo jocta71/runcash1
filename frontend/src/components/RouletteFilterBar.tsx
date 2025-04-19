@@ -194,21 +194,25 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
         />
         
         {/* Exibir contadores e botão de limpar todos */}
-        <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-700/30">
-          <div className="text-sm text-gray-400">
-            Mostrando <span className="text-vegas-gold font-medium">{filteredCount}</span> roletas
-          </div>
-          
-          {hasAnyFilters && (
+        <div className="flex flex-col flex-wrap mt-6 gap-3 lg:flex-row">
+          {renderSelectedFiltersSection()}
+          <div className="flex justify-end w-full">
             <Button
               variant="ghost"
-              size="sm"
-              onClick={clearAllFilters}
-              className="h-7 px-2 text-xs text-vegas-gold hover:text-white hover:bg-vegas-gold/10"
+              size="xxs"
+              onClick={() => {
+                onFiltersChange(getEmptySearchObject())
+                setSelectedProvider(null)
+                setSelectedSearchTerm("")
+                setSelectedNumber(null)
+                setSelectedColor(null)
+                setSelectedParity(null)
+                setSelectedTime(null)
+              }}
             >
-              Limpar todos os filtros
+              Limpar filtros
             </Button>
-          )}
+          </div>
         </div>
       </div>
     </div>
