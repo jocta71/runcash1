@@ -278,24 +278,30 @@ const AIFloatingBar: React.FC = () => {
   // A interface recolhida mostra apenas a barra de entrada
   if (!expanded) {
     return (
-      <div className="fixed bottom-4 left-0 right-0 flex flex-col items-center z-50">
-        <div className="mb-2 px-3 py-1 bg-gradient-to-r from-green-500/90 to-emerald-600/90 text-white text-sm rounded-full shadow-lg">
-          <span className="font-medium">Assistente RunCash IA</span>
-        </div>
-        <div className="w-[95%] max-w-xl bg-black/10 backdrop-blur-xl border border-white/10 rounded-full shadow-lg overflow-hidden">
+      <div className="fixed bottom-4 left-0 right-0 flex justify-center z-50">
+        <div className="w-[95%] max-w-xl bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl shadow-lg overflow-hidden p-3">
+          <div className="mb-2">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-inner">
+                <Bot size={14} className="text-white" />
+              </div>
+              <h3 className="text-white font-medium text-sm">Descubra tendências & padrões lucrativos</h3>
+            </div>
+            <p className="text-green-300/80 text-xs px-1">Pergunte ao RunCash IA sobre estratégias, números quentes e padrões de roleta</p>
+          </div>
           <form onSubmit={(e) => { e.preventDefault(); toggleExpand(); }} className="relative flex items-center">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Pergunte algo sobre as roletas..."
-              className="w-full bg-transparent border-0 focus:border-0 focus:ring-0 rounded-full px-5 py-3 text-white text-sm focus:outline-none"
+              placeholder="O que você quer saber sobre as roletas?"
+              className="w-full bg-white/5 border border-white/10 focus:border-green-500/50 rounded-full px-5 py-2.5 text-white text-sm focus:outline-none focus:ring-0 shadow-inner"
               onFocus={toggleExpand}
             />
             <button
               type="button"
               onClick={toggleExpand}
-              className="absolute right-2 p-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 text-white"
+              className="absolute right-2 p-1.5 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-lg hover:shadow-green-500/20 transition-all"
             >
               <Sparkles size={16} />
             </button>
