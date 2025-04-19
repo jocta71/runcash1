@@ -53,9 +53,6 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
           <Filter size={16} className="text-vegas-gold" />
           <h3 className="text-sm font-medium text-white">Filtros de roleta</h3>
         </div>
-        <div className="text-xs text-gray-400">
-          Clique para abrir filtros
-        </div>
       </div>
       
       {/* Informação de filtros ativos */}
