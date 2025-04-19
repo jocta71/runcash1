@@ -17,6 +17,16 @@ import globalRouletteDataService from '../services/GlobalRouletteDataService';
 import rouletteHistoryService from '../services/RouletteHistoryService';
 import { getLogger } from '../services/utils/logger';
 import { uniqueId } from 'lodash';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -29,6 +39,12 @@ interface RouletteSidePanelStatsProps {
   lastNumbers: number[];
   wins: number;
   losses: number;
+  providers?: RouletteProvider[];
+}
+
+export interface RouletteProvider {
+  id: string;
+  name: string;
 }
 
 // Modificar a interface para incluir timestamp
@@ -39,9 +55,6 @@ interface RouletteNumber {
 
 // Tipo para filtros de cor
 type ColorFilter = 'todos' | 'vermelho' | 'preto' | 'verde';
-type ParityFilter = 'todas' | 'par' | 'impar';
-type NumberFilter = number | null;
-type TimeFilter = number | null; // em minutos
 
 // Função para gerar números aleatórios para testes (apenas como último recurso)
 const generateFallbackNumbers = (count: number = 20): number[] => {
@@ -406,19 +419,25 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   roletaNome, 
   lastNumbers, 
   wins, 
-  losses 
+  losses,
+  providers = [] 
 }: RouletteSidePanelStatsProps) => {
   const [historicalNumbers, setHistoricalNumbers] = useState<RouletteNumber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [visibleNumbersCount, setVisibleNumbersCount] = useState(44); // Inicializar com 30 números visíveis
   const [colorFilter, setColorFilter] = useState<ColorFilter>('todos'); // Filtro de cor
-  const [parityFilter, setParityFilter] = useState<ParityFilter>('todas'); // Filtro de paridade
-  const [numberFilter, setNumberFilter] = useState<NumberFilter>(null); // Filtro de número
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>(null); // Filtro de tempo
-  const [showFilters, setShowFilters] = useState(false); // Controla a visibilidade dos filtros avançados
   const isInitialRequestDone = useRef(false);
   const subscriberId = useRef(uniqueId('roulette_stats_subscriber_'));
   
+  // Estados para os filtros avançados
+  const [hasActiveFilters, setHasActiveFilters] = useState(false);
+  const [selectedColor, setSelectedColor] = useState('todas');
+  const [selectedNumber, setSelectedNumber] = useState('todos');
+  const [selectedParity, setSelectedParity] = useState('todas');
+  const [selectedTime, setSelectedTime] = useState('todos');
+  const [selectedProvider, setSelectedProvider] = useState('todos');
+  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+
   // Função para processar os dados da roleta - otimizada para menos recálculos
   const handleApiData = useCallback(() => {
     // Obter os dados do serviço global - estes são os MESMOS dados que o RouletteCard usa
@@ -604,91 +623,19 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     setVisibleNumbersCount(30);
   };
 
-  // Função para filtrar números por paridade
-  const handleFilterByParity = (parity: ParityFilter) => {
-    setParityFilter(parity);
-    setVisibleNumbersCount(30);
-  };
-
-  // Função para filtrar por número específico
-  const handleFilterByNumber = (number: NumberFilter) => {
-    setNumberFilter(number);
-    setVisibleNumbersCount(30);
-  };
-
-  // Função para filtrar por tempo
-  const handleFilterByTime = (minutes: TimeFilter) => {
-    setTimeFilter(minutes);
-    setVisibleNumbersCount(30);
-  };
-
-  // Função para limpar todos os filtros
-  const handleClearAllFilters = () => {
-    setColorFilter('todos');
-    setParityFilter('todas');
-    setNumberFilter(null);
-    setTimeFilter(null);
-    setVisibleNumbersCount(44);
-  };
-
-  // Verificar se um número é par ou ímpar
-  const checkParity = (numero: number): ParityFilter => {
-    if (numero === 0) return 'todas'; // Zero não é considerado par nem ímpar
-    return numero % 2 === 0 ? 'par' : 'impar';
-  };
-
-  // Verificar se um número está dentro do filtro de tempo
-  const isWithinTimeFilter = (timestamp: string): boolean => {
-    if (!timeFilter) return true;
-    
-    const now = new Date();
-    const [hours, minutes] = timestamp.split(':').map(Number);
-    const eventTime = new Date();
-    eventTime.setHours(hours, minutes, 0, 0);
-    
-    // Se a hora do evento for maior que a hora atual, assumimos que é do dia anterior
-    if (eventTime > now) {
-      eventTime.setDate(eventTime.getDate() - 1);
-    }
-    
-    const diffMs = now.getTime() - eventTime.getTime();
-    const diffMinutes = Math.floor(diffMs / 60000);
-    
-    return diffMinutes <= timeFilter;
-  };
-
-  // Filtrar números com todos os filtros aplicados
+  // Filtrar números pela cor selecionada
   const filteredNumbers = useMemo(() => {
+    if (colorFilter === 'todos') return historicalNumbers;
+    
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    
     return historicalNumbers.filter(item => {
-      // Filtro de cor
-      const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-      let passesColorFilter = true;
-      
-      if (colorFilter === 'verde') passesColorFilter = item.numero === 0;
-      else if (colorFilter === 'vermelho') passesColorFilter = redNumbers.includes(item.numero);
-      else if (colorFilter === 'preto') passesColorFilter = item.numero !== 0 && !redNumbers.includes(item.numero);
-      
-      // Filtro de paridade
-      let passesParityFilter = true;
-      if (parityFilter !== 'todas') {
-        passesParityFilter = checkParity(item.numero) === parityFilter;
-      }
-      
-      // Filtro de número específico
-      let passesNumberFilter = true;
-      if (numberFilter !== null) {
-        passesNumberFilter = item.numero === numberFilter;
-      }
-      
-      // Filtro de tempo
-      let passesTimeFilter = true;
-      if (timeFilter !== null) {
-        passesTimeFilter = isWithinTimeFilter(item.timestamp);
-      }
-      
-      return passesColorFilter && passesParityFilter && passesNumberFilter && passesTimeFilter;
+      if (colorFilter === 'verde') return item.numero === 0;
+      if (colorFilter === 'vermelho') return redNumbers.includes(item.numero);
+      if (colorFilter === 'preto') return item.numero !== 0 && !redNumbers.includes(item.numero);
+      return true;
     });
-  }, [historicalNumbers, colorFilter, parityFilter, numberFilter, timeFilter]);
+  }, [historicalNumbers, colorFilter]);
 
   // Números a serem exibidos com filtro aplicado
   const visibleNumbers = filteredNumbers.slice(0, visibleNumbersCount);
@@ -699,6 +646,118 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const colorHourlyStats = generateColorHourlyStats(historicalNumbers.map(n => n.numero));
   
   const winRate = (wins / (wins + losses)) * 100;
+
+  // Opções para o filtro de números
+  const numberOptions = [
+    { value: 'todos', label: 'Todos' },
+    { value: '0', label: '0' },
+    ...Array.from({ length: 36 }, (_, i) => ({
+      value: String(i + 1),
+      label: String(i + 1)
+    }))
+  ];
+
+  // Opções para o filtro de tempo
+  const timeOptions = [
+    { value: 'todos', label: 'Todos' },
+    { value: '1', label: 'Último 1 min' },
+    { value: '5', label: 'Últimos 5 min' },
+    { value: '10', label: 'Últimos 10 min' },
+    { value: '30', label: 'Últimos 30 min' },
+    { value: '60', label: 'Última 1 hora' },
+  ];
+
+  // Handler para o filtro de cor
+  const handleColorChange = (value: string) => {
+    setSelectedColor(value);
+    let color: 'red' | 'black' | 'green' | null = null;
+    
+    switch (value) {
+      case 'vermelho':
+        color = 'red';
+        break;
+      case 'preto':
+        color = 'black';
+        break;
+      case 'verde':
+        color = 'green';
+        break;
+      case 'todas':
+      default:
+        color = null;
+    }
+    
+    // Atualizar também o filtro de cor simples para manter compatibilidade
+    setColorFilter(value as ColorFilter);
+    checkActiveFilters();
+  };
+
+  // Handler para o filtro de número
+  const handleNumberChange = (value: string) => {
+    setSelectedNumber(value);
+    
+    if (value === 'todos') {
+      // Número não selecionado
+    } else {
+      const num = parseInt(value, 10);
+      if (!isNaN(num)) {
+        // Número selecionado
+      }
+    }
+    
+    checkActiveFilters();
+  };
+
+  // Handler para o filtro de paridade
+  const handleParityChange = (value: string) => {
+    setSelectedParity(value);
+    checkActiveFilters();
+  };
+
+  // Handler para o filtro de tempo
+  const handleTimeChange = (value: string) => {
+    setSelectedTime(value);
+    checkActiveFilters();
+  };
+
+  // Handler para o filtro de provedor
+  const handleProviderChange = (value: string) => {
+    setSelectedProvider(value);
+    
+    if (value === 'todos') {
+      setSelectedProviders([]);
+    } else {
+      setSelectedProviders([value]);
+    }
+    
+    checkActiveFilters();
+  };
+
+  // Verificar se há filtros ativos
+  const checkActiveFilters = () => {
+    const hasFilters = 
+      selectedColor !== 'todas' || 
+      selectedNumber !== 'todos' || 
+      selectedParity !== 'todas' || 
+      selectedTime !== 'todos' || 
+      selectedProvider !== 'todos' ||
+      selectedProviders.length > 0;
+    
+    setHasActiveFilters(hasFilters);
+  };
+
+  // Limpar todos os filtros
+  const handleClearAllFilters = () => {
+    setSelectedColor('todas');
+    setSelectedNumber('todos');
+    setSelectedParity('todas');
+    setSelectedTime('todos');
+    setSelectedProvider('todos');
+    setSelectedProviders([]);
+    setColorFilter('todos');
+    
+    setHasActiveFilters(false);
+  };
 
   return (
     <div className="w-full rounded-lg overflow-y-auto max-h-screen">
@@ -715,225 +774,133 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         </p>
       </div>
       
+      {/* Nova seção de filtros avançados */}
+      <div className="space-y-4 p-5 border-b border-gray-800">
+        {/* Cabeçalho e botão limpar */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Filter size={16} className="text-vegas-gold" />
+            <h3 className="text-sm font-medium text-white">Filtros de roleta</h3>
+          </div>
+          
+          {hasActiveFilters && (
+            <Button 
+              onClick={handleClearAllFilters}
+              variant="ghost" 
+              size="sm"
+              className="h-7 px-2 text-xs text-gray-400 hover:text-white"
+            >
+              <X size={14} className="mr-1" />
+              Limpar filtros
+            </Button>
+          )}
+        </div>
+        
+        {/* Filtros em row com dropdowns */}
+        <div className="flex w-full space-x-2 bg-[#17191a] p-1">
+          {/* Filtro por cor */}
+          <div className="flex-1">
+            <div className="text-xs text-gray-400 mb-1 px-2">Por cores</div>
+            <Select value={selectedColor} onValueChange={handleColorChange}>
+              <SelectTrigger className="w-full bg-black border-none text-white h-10">
+                <SelectValue placeholder="Todas" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#111] border-gray-800 text-white">
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="vermelho">
+                  <div className="flex items-center">
+                    <span className="mr-2 w-2 h-2 rounded-full bg-red-600"></span> Vermelhos
+                  </div>
+                </SelectItem>
+                <SelectItem value="preto">
+                  <div className="flex items-center">
+                    <span className="mr-2 w-2 h-2 rounded-full bg-gray-900"></span> Pretos
+                  </div>
+                </SelectItem>
+                <SelectItem value="verde">
+                  <div className="flex items-center">
+                    <span className="mr-2 w-2 h-2 rounded-full bg-green-600"></span> Zero
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filtro por número */}
+          <div className="flex-1">
+            <div className="text-xs text-gray-400 mb-1 px-2">Por número</div>
+            <Select value={selectedNumber} onValueChange={handleNumberChange}>
+              <SelectTrigger className="w-full bg-black border-none text-white h-10">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#111] border-gray-800 text-white max-h-[200px] overflow-y-auto">
+                {numberOptions.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filtro por paridade */}
+          <div className="flex-1">
+            <div className="text-xs text-gray-400 mb-1 px-2">Por paridade</div>
+            <Select value={selectedParity} onValueChange={handleParityChange}>
+              <SelectTrigger className="w-full bg-black border-none text-white h-10">
+                <SelectValue placeholder="Todas" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#111] border-gray-800 text-white">
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="par">Pares</SelectItem>
+                <SelectItem value="impar">Ímpares</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filtro por provedor */}
+          <div className="flex-1">
+            <div className="text-xs text-gray-400 mb-1 px-2">Por provedor</div>
+            <Select value={selectedProvider} onValueChange={handleProviderChange}>
+              <SelectTrigger className="w-full bg-black border-none text-white h-10">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#111] border-gray-800 text-white max-h-[200px] overflow-y-auto">
+                <SelectItem value="todos">Todos</SelectItem>
+                {providers.map(provider => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filtro por tempo */}
+          <div className="flex-1">
+            <div className="text-xs text-gray-400 mb-1 px-2">Por tempo</div>
+            <Select value={selectedTime} onValueChange={handleTimeChange}>
+              <SelectTrigger className="w-full bg-black border-none text-white h-10">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#111] border-gray-800 text-white">
+                {timeOptions.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+      
       {isLoading ? (
         <div className="flex items-center justify-center p-16">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-700 border-t-vegas-green"></div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5">
-          {/* Seção de filtros avançados */}
-          <div className="md:col-span-2 p-5 rounded-xl border border-gray-700 bg-opacity-50">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Filter size={16} className="text-vegas-green" />
-                <h3 className="text-sm font-medium text-white">Filtros avançados</h3>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                {(colorFilter !== 'todos' || parityFilter !== 'todas' || numberFilter !== null || timeFilter !== null) && (
-                  <button 
-                    onClick={handleClearAllFilters}
-                    className="flex items-center gap-1 py-1 px-2 text-xs bg-black bg-opacity-50 text-gray-400 hover:text-white rounded-md transition-all duration-200"
-                  >
-                    <X size={12} /> Limpar filtros
-                  </button>
-                )}
-                
-                <button 
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="flex items-center gap-1 py-1 px-2 text-xs bg-vegas-green hover:bg-[#05C77F] text-black font-medium rounded-md transition-all duration-200"
-                >
-                  {showFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
-                </button>
-              </div>
-            </div>
-            
-            {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
-                {/* Filtro por número */}
-                <div>
-                  <div className="text-xs text-gray-400 mb-2">Por número</div>
-                  <div className="grid grid-cols-9 gap-1 max-h-[200px] overflow-y-auto p-2 bg-black bg-opacity-30 rounded-md">
-                    <button 
-                      onClick={() => handleFilterByNumber(null)}
-                      className={`w-8 h-8 text-xs rounded-md transition-all ${
-                        numberFilter === null 
-                          ? 'bg-vegas-green text-black font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      Todos
-                    </button>
-                    {[...Array(37)].map((_, i) => (
-                      <button 
-                        key={i} 
-                        onClick={() => handleFilterByNumber(i)}
-                        className={`w-8 h-8 text-xs rounded-md transition-all ${
-                          numberFilter === i 
-                            ? (i === 0 
-                                ? 'bg-vegas-green text-black font-medium' 
-                                : getRouletteNumberColor(i)) 
-                            : (i === 0 
-                                ? 'bg-vegas-green bg-opacity-20 text-white hover:bg-opacity-70' 
-                                : `bg-black bg-opacity-70 text-white hover:bg-opacity-50`)
-                        }`}
-                      >
-                        {i}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* Filtro por cores */}
-                <div>
-                  <div className="text-xs text-gray-400 mb-2">Por cores</div>
-                  <div className="flex flex-col space-y-2">
-                    <button
-                      onClick={() => handleFilterByColor('todos')}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        colorFilter === 'todos' 
-                          ? 'bg-vegas-green text-black font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      Todas as cores
-                    </button>
-                    <button
-                      onClick={() => handleFilterByColor('vermelho')}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        colorFilter === 'vermelho' 
-                          ? 'bg-[#FF1D46] text-white font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      <div className="flex items-center">
-                        <span className="mr-2 w-2 h-2 rounded-full bg-red-600"></span> Vermelhos
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => handleFilterByColor('preto')}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        colorFilter === 'preto' 
-                          ? 'bg-[#292524] text-white font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      <div className="flex items-center">
-                        <span className="mr-2 w-2 h-2 rounded-full bg-gray-900"></span> Pretos
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => handleFilterByColor('verde')}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        colorFilter === 'verde' 
-                          ? 'bg-vegas-green text-black font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      <div className="flex items-center">
-                        <span className="mr-2 w-2 h-2 rounded-full bg-green-600"></span> Zero
-                      </div>
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Filtro por paridade */}
-                <div>
-                  <div className="text-xs text-gray-400 mb-2">Por paridade</div>
-                  <div className="flex flex-col space-y-2">
-                    <button
-                      onClick={() => handleFilterByParity('todas')}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        parityFilter === 'todas' 
-                          ? 'bg-vegas-green text-black font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      Todas
-                    </button>
-                    <button
-                      onClick={() => handleFilterByParity('par')}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        parityFilter === 'par' 
-                          ? 'bg-vegas-green text-black font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      Pares
-                    </button>
-                    <button
-                      onClick={() => handleFilterByParity('impar')}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        parityFilter === 'impar' 
-                          ? 'bg-vegas-green text-black font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      Ímpares
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Filtro por tempo */}
-                <div>
-                  <div className="text-xs text-gray-400 mb-2">Por tempo</div>
-                  <div className="flex flex-col space-y-2">
-                    <button
-                      onClick={() => handleFilterByTime(null)}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        timeFilter === null 
-                          ? 'bg-vegas-green text-black font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      Todos
-                    </button>
-                    <button
-                      onClick={() => handleFilterByTime(1)}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        timeFilter === 1 
-                          ? 'bg-vegas-green text-black font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      Último 1 min
-                    </button>
-                    <button
-                      onClick={() => handleFilterByTime(5)}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        timeFilter === 5 
-                          ? 'bg-vegas-green text-black font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      Últimos 5 min
-                    </button>
-                    <button
-                      onClick={() => handleFilterByTime(30)}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        timeFilter === 30 
-                          ? 'bg-vegas-green text-black font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      Últimos 30 min
-                    </button>
-                    <button
-                      onClick={() => handleFilterByTime(60)}
-                      className={`px-3 py-2 text-xs rounded-md transition-all ${
-                        timeFilter === 60 
-                          ? 'bg-vegas-green text-black font-medium' 
-                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
-                      }`}
-                    >
-                      Última 1 hora
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Historical Numbers Section */}
           <div className="p-5 rounded-xl border border-gray-700 bg-opacity-50 md:col-span-2">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
