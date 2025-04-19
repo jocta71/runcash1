@@ -1,143 +1,59 @@
 .roulettes-page {
-  padding: 20px;
-  max-width: 1400px;
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 20px;
 }
 
 .roulettes-page h1 {
-  color: #eee;
-  margin-bottom: 1.5rem;
-}
-
-/* Estilos para os filtros */
-.roulette-filters {
-  background-color: rgba(0, 0, 0, 0.9);
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1.5rem;
-  border: 1px solid rgba(39, 174, 96, 0.2);
-  position: sticky;
-  top: 10px;
-  z-index: 100;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.provider-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.provider-filters button {
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
-}
-
-.provider-filters button.selected {
-  background-color: rgba(39, 174, 96, 0.8);
-  color: white;
-}
-
-.provider-filters button:not(.selected) {
-  background-color: rgba(64, 64, 64, 0.5);
-  color: #ccc;
-}
-
-.provider-filters button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-}
-
-/* Estilo para visualização em lista */
-.flex-col .roulette-card {
-  width: 100%;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 1rem;
-  gap: 1rem;
-}
-
-.flex-col .roulette-card .roulette-header {
-  flex: 0 0 250px;
-}
-
-.flex-col .roulette-card .latest-number {
-  flex: 0 0 100px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.flex-col .roulette-card .strategy-info {
-  flex: 1;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.flex-col .roulette-card .number-history {
-  flex: 0 0 350px;
-}
-
-/* Estilos responsivos */
-@media (max-width: 768px) {
-  .roulettes-page {
-    padding: 10px;
-  }
-  
-  .flex-col .roulette-card {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .flex-col .roulette-card .roulette-header,
-  .flex-col .roulette-card .latest-number,
-  .flex-col .roulette-card .strategy-info,
-  .flex-col .roulette-card .number-history {
-    width: 100%;
-    flex: auto;
-  }
-}
-
-/* Indicadores de loading e erro */
-.loading-indicator, 
-.error-message, 
-.no-roulettes,
-.no-roulettes-filtered {
-  padding: 1rem;
-  border-radius: 8px;
+  margin-bottom: 30px;
+  color: #2c3e50;
   text-align: center;
-  margin: 1rem 0;
 }
 
 .loading-indicator {
-  background-color: rgba(0, 0, 0, 0.4);
-  color: #ccc;
+  text-align: center;
+  padding: 40px;
+  font-size: 18px;
+  color: #7f8c8d;
 }
 
 .error-message {
-  background-color: rgba(231, 76, 60, 0.2);
-  border: 1px solid rgba(231, 76, 60, 0.5);
-  color: #e74c3c;
+  background-color: #ffdddd;
+  border-left: 4px solid #f44336;
+  color: #721c24;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 4px;
 }
 
-.no-roulettes, .no-roulettes-filtered {
-  background-color: rgba(0, 0, 0, 0.4);
-  color: #ccc;
-  padding: 2rem;
+.no-roulettes {
+  text-align: center;
+  padding: 40px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  color: #6c757d;
+  font-size: 18px;
 }
 
-/* Contador de resultados */
-.roulette-count {
-  font-size: 0.875rem;
-  color: #aaa;
-  margin-bottom: 1rem;
+.roulettes-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+  .roulettes-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  
+  .roulettes-page {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 576px) {
+  .roulettes-grid {
+    grid-template-columns: 1fr;
+  }
 } 

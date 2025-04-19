@@ -31,6 +31,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
+import RouletteFilterBar from '@/components/RouletteFilterBar';
 
 interface ChatMessage {
   id: string;
@@ -61,6 +62,7 @@ const Index = () => {
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
+  const [filteredRoulettes, setFilteredRoulettes] = useState<RouletteData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [knownRoulettes, setKnownRoulettes] = useState<RouletteData[]>([]);
   const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(false);
@@ -329,7 +331,12 @@ const Index = () => {
   }, [loadRouletteData, knownRoulettes]);
   
   // Simplificar para usar diretamente as roletas
-  const filteredRoulettes = roulettes;
+  // const filteredRoulettes = roulettes; // Remover esta linha
+  
+  // Efeito para inicializar o estado filteredRoulettes com todas as roletas
+  useEffect(() => {
+    setFilteredRoulettes(roulettes);
+  }, [roulettes]);
   
   const topRoulettes = useMemo(() => {
     return [...roulettes].sort((a, b) => {
@@ -341,19 +348,16 @@ const Index = () => {
 
   // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
-    if (!Array.isArray(roulettes) || roulettes.length === 0) {
+    if (!Array.isArray(filteredRoulettes) || filteredRoulettes.length === 0) {
       return (
         <div className="col-span-full text-center py-8">
-          <p className="text-muted-foreground">Nenhuma roleta disponível no momento.</p>
+          <p className="text-muted-foreground">Nenhuma roleta disponível com os filtros atuais.</p>
         </div>
       );
     }
 
     // Log para depuração
-    console.log(`[Index] Renderizando ${roulettes.length} roletas disponíveis`);
-
-    // Usar diretamente todas as roletas, sem filtro
-    let filteredRoulettes = roulettes;
+    console.log(`[Index] Renderizando ${filteredRoulettes.length} roletas disponíveis`);
     
     // Mais logs para depuração - mostrar o total de roletas
     console.log(`[Index] Exibindo todas as ${filteredRoulettes.length} roletas disponíveis`);
@@ -365,20 +369,31 @@ const Index = () => {
 
     return allRoulettes.map(roulette => {
       // Garantir que temos números válidos
-      const safeNumbers = Array.isArray(roulette.numero) 
-        ? roulette.numero
-            .filter(n => n !== null && n !== undefined) // Filtrar nulos e undefined primeiro
-            .map(n => {
-              if (n && typeof n === 'object' && n !== null && 'numero' in n) {
-                return n.numero;
-              }
-              return n;
-            })
-        : Array.isArray(roulette.lastNumbers)
-          ? roulette.lastNumbers
-          : Array.isArray(roulette.numeros)
-            ? roulette.numeros
-            : [];
+      let safeNumbers: number[] = [];
+      
+      // Tentar extrair números do campo numero
+      if (Array.isArray(roulette.numero)) {
+        safeNumbers = roulette.numero
+          .filter(item => item !== null && item !== undefined)
+          .map(item => {
+            // Aqui sabemos que item não é null ou undefined após o filtro
+            const nonNullItem = item as any; // Tratar como any para evitar erros de tipo
+            // Se for um objeto com a propriedade numero
+            if (typeof nonNullItem === 'object' && 'numero' in nonNullItem) {
+              return nonNullItem.numero;
+            }
+            // Se for um número diretamente
+            return nonNullItem;
+          });
+      } 
+      // Tentar extrair de lastNumbers se ainda estiver vazio
+      else if (Array.isArray(roulette.lastNumbers) && roulette.lastNumbers.length > 0) {
+        safeNumbers = roulette.lastNumbers;
+      } 
+      // Tentar extrair de numeros se ainda estiver vazio
+      else if (Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
+        safeNumbers = roulette.numeros;
+      }
       
       return (
         <div 
@@ -443,6 +458,11 @@ const Index = () => {
     );
   };
 
+  // Função para lidar com o filtro de roletas
+  const handleRouletteFilter = (filtered: RouletteData[]) => {
+    setFilteredRoulettes(filtered);
+  };
+
   return (
     <Layout preloadData={true}>
       <div className="container mx-auto px-4 pt-4 md:pt-8">
@@ -467,6 +487,13 @@ const Index = () => {
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Cards de roleta à esquerda */}
             <div className="w-full lg:w-1/2">
+              {/* Adicionar barra de filtro acima dos cards de roleta */}
+              <RouletteFilterBar 
+                roulettes={roulettes}
+                onFilter={handleRouletteFilter}
+                onRefresh={loadRouletteData}
+              />
+              
               <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
                 {renderRouletteCards()}
               </div>

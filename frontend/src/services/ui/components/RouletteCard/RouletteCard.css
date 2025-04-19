@@ -1,19 +1,20 @@
 .roulette-card {
-  background-color: rgba(0, 0, 0, 0.5);
-  border-radius: 8px;
-  overflow: visible;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
   padding: 16px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
-  border: 1px solid rgba(39, 174, 96, 0.2);
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  background-color: white;
+  transition: transform 0.2s, box-shadow 0.2s;
+  max-width: 400px;
+  width: 100%;
   position: relative;
+  overflow: visible !important;
 }
 
 .roulette-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  border-color: rgba(39, 174, 96, 0.4);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
 }
 
 /* Estado de carregamento */
@@ -70,36 +71,33 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .roulette-name {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #fff;
   margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #2c3e50;
 }
 
 .status-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 50px;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .status-badge.active {
-  background-color: rgba(46, 204, 113, 0.2);
-  color: #2ecc71;
+  background-color: #2ecc71;
+  color: white;
 }
 
 .status-badge.inactive {
-  background-color: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
+  background-color: #95a5a6;
+  color: white;
 }
 
 /* Área principal */
@@ -112,26 +110,22 @@
 /* Número mais recente */
 .latest-number {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 16px;
-  gap: 8px;
-}
-
-.number-label {
-  font-size: 0.9rem;
-  color: #ccc;
 }
 
 .number-display {
-  width: 40px;
-  height: 40px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
   display: flex;
   justify-content: center;
   align-items: center;
-  border-radius: 50%;
-  font-weight: 700;
-  font-size: 1.2rem;
   color: white;
+  font-size: 1.5rem;
+  font-weight: bold;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 5px;
 }
 
 .number-display.red {
@@ -148,8 +142,7 @@
 
 .timestamp {
   font-size: 0.8rem;
-  color: #bbb;
-  margin-left: 8px;
+  color: #7f8c8d;
 }
 
 .no-data {
@@ -169,101 +162,60 @@
 .strategy-info {
   display: flex;
   flex-direction: column;
-  margin-bottom: 16px;
-  gap: 8px;
+  justify-content: center;
 }
 
 .strategy-state {
-  font-size: 0.9rem;
-  color: #ddd;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
 }
 
-.strategy-state span {
-  font-weight: 600;
-}
-
-.strategy-state span.NEUTRAL,
-.strategy-state span.Neutro {
-  color: #3498db;
-}
-
-.strategy-state span.POSITIVE,
-.strategy-state span.Positivo {
-  color: #2ecc71;
-}
-
-.strategy-state span.NEGATIVE,
-.strategy-state span.Negativo {
-  color: #e74c3c;
-}
-
-/* Estatísticas */
 .stats-container {
   display: flex;
-  gap: 16px;
+  gap: 15px;
 }
 
 .stat {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
 }
 
-.stat .label {
-  font-size: 0.85rem;
-  color: #bbb;
+.label {
+  font-size: 0.8rem;
+  color: #7f8c8d;
+  margin-bottom: 2px;
 }
 
-.stat .value {
+.value {
   font-weight: 600;
-  font-size: 0.9rem;
+  color: #34495e;
 }
 
+/* Estados da estratégia */
+.value.neutral {
+  color: #3498db;
+}
+
+.value.alerta {
+  color: #f39c12;
+}
+
+.value.gatilho {
+  color: #e74c3c;
+}
+
+.value.buscando {
+  color: #9b59b6;
+}
+
+/* Estilos para vitórias/derrotas */
 .stat.wins .value {
-  color: #2ecc71;
+  color: #27ae60;
 }
 
 .stat.losses .value {
   color: #e74c3c;
-}
-
-/* Indicadores de carregamento e erro */
-.loading-indicator {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 150px;
-  color: #bbb;
-}
-
-.loading-indicator-small {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top: 2px solid #3498db;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-left: 8px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.error-message {
-  padding: 16px;
-  background-color: rgba(231, 76, 60, 0.2);
-  border: 1px solid rgba(231, 76, 60, 0.5);
-  color: #e74c3c;
-  border-radius: 4px;
-  text-align: center;
-}
-
-/* Badges de status */
-.status-container {
-  display: flex;
-  align-items: center;
 }
 
 /* Estilos para os dropdowns */
@@ -289,62 +241,4 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   max-height: 200px;
   overflow-y: auto;
-}
-
-/* Animação para novos números */
-.roulette-card.new-number {
-  animation: highlight-pulse 2s ease-out;
-}
-
-@keyframes highlight-pulse {
-  0% { box-shadow: 0 0 0 rgba(46, 204, 113, 0.7); }
-  50% { box-shadow: 0 0 20px rgba(46, 204, 113, 0.7); }
-  100% { box-shadow: 0 0 0 rgba(46, 204, 113, 0); }
-}
-
-/* Adaptações para visualização em lista */
-.flex-col .roulette-card {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  flex-wrap: wrap;
-  padding: 12px 16px;
-}
-
-.flex-col .roulette-header {
-  flex: 0 0 220px;
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.flex-col .latest-number {
-  flex: 0 0 180px;
-  margin-bottom: 0;
-}
-
-.flex-col .strategy-info {
-  flex: 0 0 180px;
-  margin-bottom: 0;
-}
-
-.flex-col .number-history {
-  flex: 1;
-  min-width: 280px;
-}
-
-/* Breakpoints responsivos */
-@media (max-width: 768px) {
-  .flex-col .roulette-card {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .flex-col .roulette-header,
-  .flex-col .latest-number,
-  .flex-col .strategy-info,
-  .flex-col .number-history {
-    width: 100%;
-    margin-bottom: 12px;
-  }
 } 
