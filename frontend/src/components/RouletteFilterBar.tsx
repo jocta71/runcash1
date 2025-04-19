@@ -5,6 +5,13 @@ import RouletteFilters, { RouletteProvider } from '@/components/RouletteFilters'
 import RouletteSearch from '@/components/RouletteSearch';
 import { RouletteData } from '@/types';
 import { extractProviders } from '@/utils/rouletteProviders';
+import { 
+  filterRoulettesBySearchTerm, 
+  filterRoulettesByNumber, 
+  filterRoulettesByColor,
+  filterRoulettesByParity,
+  filterRoulettesByTime
+} from '@/utils/rouletteFilters';
 
 interface RouletteFilterBarProps {
   roulettes: RouletteData[];
@@ -23,6 +30,10 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
   // Estados para os filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+  const [numberFilter, setNumberFilter] = useState<number | null>(null);
+  const [colorFilter, setColorFilter] = useState<'red' | 'black' | 'green' | null>(null);
+  const [parityFilter, setParityFilter] = useState<'even' | 'odd' | null>(null);
+  const [timeFilter, setTimeFilter] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Extrair provedores das roletas
@@ -37,11 +48,7 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
       
       // Aplicar filtro de pesquisa
       if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
-        filtered = filtered.filter(roulette => {
-          const name = (roulette.name || roulette.nome || '').toLowerCase();
-          return name.includes(term);
-        });
+        filtered = filterRoulettesBySearchTerm(filtered, searchTerm);
       }
       
       // Aplicar filtro de provedores
@@ -63,12 +70,42 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
         });
       }
       
+      // Aplicar filtro de número específico
+      if (numberFilter !== null) {
+        filtered = filterRoulettesByNumber(filtered, numberFilter);
+      }
+      
+      // Aplicar filtro de cor
+      if (colorFilter !== null) {
+        filtered = filterRoulettesByColor(filtered, colorFilter);
+      }
+      
+      // Aplicar filtro de paridade
+      if (parityFilter !== null) {
+        filtered = filterRoulettesByParity(filtered, parityFilter);
+      }
+      
+      // Aplicar filtro de tempo
+      if (timeFilter !== null) {
+        filtered = filterRoulettesByTime(filtered, timeFilter);
+      }
+      
       // Enviar os resultados filtrados
       onFilter(filtered);
     };
     
     applyFilters();
-  }, [roulettes, searchTerm, selectedProviders, providers, onFilter]);
+  }, [
+    roulettes, 
+    searchTerm, 
+    selectedProviders, 
+    numberFilter, 
+    colorFilter, 
+    parityFilter, 
+    timeFilter, 
+    providers, 
+    onFilter
+  ]);
   
   // Função para lidar com a seleção de um provedor
   const handleProviderSelect = (providerId: string) => {
@@ -86,6 +123,10 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
   const clearAllFilters = () => {
     setSearchTerm('');
     setSelectedProviders([]);
+    setNumberFilter(null);
+    setColorFilter(null);
+    setParityFilter(null);
+    setTimeFilter(null);
   };
   
   // Função para atualizar os dados
@@ -102,6 +143,13 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
       }, 2000);
     }
   };
+  
+  const hasAnyFilters = searchTerm.trim() || 
+                        selectedProviders.length > 0 || 
+                        numberFilter !== null || 
+                        colorFilter !== null || 
+                        parityFilter !== null || 
+                        timeFilter !== null;
   
   return (
     <div style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }} className="rounded-lg p-4 mb-6 border border-gray-700/50">
@@ -127,12 +175,16 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
           </Button>
         </div>
         
-        {/* Filtros de provedor (sempre visíveis) */}
+        {/* Filtros (sempre visíveis) */}
         <RouletteFilters
           providers={providers}
           selectedProviders={selectedProviders}
           onProviderSelect={handleProviderSelect}
           onClearFilters={() => setSelectedProviders([])}
+          onNumberFilterChange={setNumberFilter}
+          onColorFilterChange={setColorFilter}
+          onParityFilterChange={setParityFilter}
+          onTimeFilterChange={setTimeFilter}
         />
         
         {/* Exibir contadores */}
@@ -141,7 +193,7 @@ const RouletteFilterBar: React.FC<RouletteFilterBarProps> = ({
             Mostrando <span className="text-vegas-gold font-medium">{roulettes.length}</span> roletas
           </div>
           
-          {(selectedProviders.length > 0 || searchTerm.trim()) && (
+          {hasAnyFilters && (
             <Button
               variant="ghost"
               size="sm"
