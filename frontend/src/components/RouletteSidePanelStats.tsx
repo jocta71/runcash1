@@ -1,4 +1,4 @@
-import { ChartBar, BarChart, ArrowDown, ArrowUp, PercentIcon, ChevronDown } from "lucide-react";
+import { ChartBar, BarChart, ArrowDown, ArrowUp, PercentIcon, ChevronDown, Filter, X } from "lucide-react";
 import {
   ResponsiveContainer,
   BarChart as RechartsBarChart,
@@ -39,6 +39,9 @@ interface RouletteNumber {
 
 // Tipo para filtros de cor
 type ColorFilter = 'todos' | 'vermelho' | 'preto' | 'verde';
+type ParityFilter = 'todas' | 'par' | 'impar';
+type NumberFilter = number | null;
+type TimeFilter = number | null; // em minutos
 
 // Função para gerar números aleatórios para testes (apenas como último recurso)
 const generateFallbackNumbers = (count: number = 20): number[] => {
@@ -409,6 +412,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [visibleNumbersCount, setVisibleNumbersCount] = useState(44); // Inicializar com 30 números visíveis
   const [colorFilter, setColorFilter] = useState<ColorFilter>('todos'); // Filtro de cor
+  const [parityFilter, setParityFilter] = useState<ParityFilter>('todas'); // Filtro de paridade
+  const [numberFilter, setNumberFilter] = useState<NumberFilter>(null); // Filtro de número
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>(null); // Filtro de tempo
+  const [showFilters, setShowFilters] = useState(false); // Controla a visibilidade dos filtros avançados
   const isInitialRequestDone = useRef(false);
   const subscriberId = useRef(uniqueId('roulette_stats_subscriber_'));
   
@@ -597,19 +604,91 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     setVisibleNumbersCount(30);
   };
 
-  // Filtrar números pela cor selecionada
+  // Função para filtrar números por paridade
+  const handleFilterByParity = (parity: ParityFilter) => {
+    setParityFilter(parity);
+    setVisibleNumbersCount(30);
+  };
+
+  // Função para filtrar por número específico
+  const handleFilterByNumber = (number: NumberFilter) => {
+    setNumberFilter(number);
+    setVisibleNumbersCount(30);
+  };
+
+  // Função para filtrar por tempo
+  const handleFilterByTime = (minutes: TimeFilter) => {
+    setTimeFilter(minutes);
+    setVisibleNumbersCount(30);
+  };
+
+  // Função para limpar todos os filtros
+  const handleClearAllFilters = () => {
+    setColorFilter('todos');
+    setParityFilter('todas');
+    setNumberFilter(null);
+    setTimeFilter(null);
+    setVisibleNumbersCount(44);
+  };
+
+  // Verificar se um número é par ou ímpar
+  const checkParity = (numero: number): ParityFilter => {
+    if (numero === 0) return 'todas'; // Zero não é considerado par nem ímpar
+    return numero % 2 === 0 ? 'par' : 'impar';
+  };
+
+  // Verificar se um número está dentro do filtro de tempo
+  const isWithinTimeFilter = (timestamp: string): boolean => {
+    if (!timeFilter) return true;
+    
+    const now = new Date();
+    const [hours, minutes] = timestamp.split(':').map(Number);
+    const eventTime = new Date();
+    eventTime.setHours(hours, minutes, 0, 0);
+    
+    // Se a hora do evento for maior que a hora atual, assumimos que é do dia anterior
+    if (eventTime > now) {
+      eventTime.setDate(eventTime.getDate() - 1);
+    }
+    
+    const diffMs = now.getTime() - eventTime.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+    
+    return diffMinutes <= timeFilter;
+  };
+
+  // Filtrar números com todos os filtros aplicados
   const filteredNumbers = useMemo(() => {
-    if (colorFilter === 'todos') return historicalNumbers;
-    
-    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    
     return historicalNumbers.filter(item => {
-      if (colorFilter === 'verde') return item.numero === 0;
-      if (colorFilter === 'vermelho') return redNumbers.includes(item.numero);
-      if (colorFilter === 'preto') return item.numero !== 0 && !redNumbers.includes(item.numero);
-      return true;
+      // Filtro de cor
+      const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+      let passesColorFilter = true;
+      
+      if (colorFilter === 'verde') passesColorFilter = item.numero === 0;
+      else if (colorFilter === 'vermelho') passesColorFilter = redNumbers.includes(item.numero);
+      else if (colorFilter === 'preto') passesColorFilter = item.numero !== 0 && !redNumbers.includes(item.numero);
+      
+      // Filtro de paridade
+      let passesParityFilter = true;
+      if (parityFilter !== 'todas') {
+        passesParityFilter = checkParity(item.numero) === parityFilter;
+      }
+      
+      // Filtro de número específico
+      let passesNumberFilter = true;
+      if (numberFilter !== null) {
+        passesNumberFilter = item.numero === numberFilter;
+      }
+      
+      // Filtro de tempo
+      let passesTimeFilter = true;
+      if (timeFilter !== null) {
+        passesTimeFilter = isWithinTimeFilter(item.timestamp);
+      }
+      
+      return passesColorFilter && passesParityFilter && passesNumberFilter && passesTimeFilter;
     });
-  }, [historicalNumbers, colorFilter]);
+  }, [historicalNumbers, colorFilter, parityFilter, numberFilter, timeFilter]);
 
   // Números a serem exibidos com filtro aplicado
   const visibleNumbers = filteredNumbers.slice(0, visibleNumbersCount);
@@ -642,6 +721,219 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5">
+          {/* Seção de filtros avançados */}
+          <div className="md:col-span-2 p-5 rounded-xl border border-gray-700 bg-opacity-50">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Filter size={16} className="text-vegas-green" />
+                <h3 className="text-sm font-medium text-white">Filtros avançados</h3>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {(colorFilter !== 'todos' || parityFilter !== 'todas' || numberFilter !== null || timeFilter !== null) && (
+                  <button 
+                    onClick={handleClearAllFilters}
+                    className="flex items-center gap-1 py-1 px-2 text-xs bg-black bg-opacity-50 text-gray-400 hover:text-white rounded-md transition-all duration-200"
+                  >
+                    <X size={12} /> Limpar filtros
+                  </button>
+                )}
+                
+                <button 
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-1 py-1 px-2 text-xs bg-vegas-green hover:bg-[#05C77F] text-black font-medium rounded-md transition-all duration-200"
+                >
+                  {showFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
+                </button>
+              </div>
+            </div>
+            
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+                {/* Filtro por número */}
+                <div>
+                  <div className="text-xs text-gray-400 mb-2">Por número</div>
+                  <div className="grid grid-cols-9 gap-1 max-h-[200px] overflow-y-auto p-2 bg-black bg-opacity-30 rounded-md">
+                    <button 
+                      onClick={() => handleFilterByNumber(null)}
+                      className={`w-8 h-8 text-xs rounded-md transition-all ${
+                        numberFilter === null 
+                          ? 'bg-vegas-green text-black font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    {[...Array(37)].map((_, i) => (
+                      <button 
+                        key={i} 
+                        onClick={() => handleFilterByNumber(i)}
+                        className={`w-8 h-8 text-xs rounded-md transition-all ${
+                          numberFilter === i 
+                            ? (i === 0 
+                                ? 'bg-vegas-green text-black font-medium' 
+                                : getRouletteNumberColor(i)) 
+                            : (i === 0 
+                                ? 'bg-vegas-green bg-opacity-20 text-white hover:bg-opacity-70' 
+                                : `bg-black bg-opacity-70 text-white hover:bg-opacity-50`)
+                        }`}
+                      >
+                        {i}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Filtro por cores */}
+                <div>
+                  <div className="text-xs text-gray-400 mb-2">Por cores</div>
+                  <div className="flex flex-col space-y-2">
+                    <button
+                      onClick={() => handleFilterByColor('todos')}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        colorFilter === 'todos' 
+                          ? 'bg-vegas-green text-black font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      Todas as cores
+                    </button>
+                    <button
+                      onClick={() => handleFilterByColor('vermelho')}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        colorFilter === 'vermelho' 
+                          ? 'bg-[#FF1D46] text-white font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <span className="mr-2 w-2 h-2 rounded-full bg-red-600"></span> Vermelhos
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleFilterByColor('preto')}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        colorFilter === 'preto' 
+                          ? 'bg-[#292524] text-white font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <span className="mr-2 w-2 h-2 rounded-full bg-gray-900"></span> Pretos
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleFilterByColor('verde')}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        colorFilter === 'verde' 
+                          ? 'bg-vegas-green text-black font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <span className="mr-2 w-2 h-2 rounded-full bg-green-600"></span> Zero
+                      </div>
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Filtro por paridade */}
+                <div>
+                  <div className="text-xs text-gray-400 mb-2">Por paridade</div>
+                  <div className="flex flex-col space-y-2">
+                    <button
+                      onClick={() => handleFilterByParity('todas')}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        parityFilter === 'todas' 
+                          ? 'bg-vegas-green text-black font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      Todas
+                    </button>
+                    <button
+                      onClick={() => handleFilterByParity('par')}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        parityFilter === 'par' 
+                          ? 'bg-vegas-green text-black font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      Pares
+                    </button>
+                    <button
+                      onClick={() => handleFilterByParity('impar')}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        parityFilter === 'impar' 
+                          ? 'bg-vegas-green text-black font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      Ímpares
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Filtro por tempo */}
+                <div>
+                  <div className="text-xs text-gray-400 mb-2">Por tempo</div>
+                  <div className="flex flex-col space-y-2">
+                    <button
+                      onClick={() => handleFilterByTime(null)}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        timeFilter === null 
+                          ? 'bg-vegas-green text-black font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    <button
+                      onClick={() => handleFilterByTime(1)}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        timeFilter === 1 
+                          ? 'bg-vegas-green text-black font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      Último 1 min
+                    </button>
+                    <button
+                      onClick={() => handleFilterByTime(5)}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        timeFilter === 5 
+                          ? 'bg-vegas-green text-black font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      Últimos 5 min
+                    </button>
+                    <button
+                      onClick={() => handleFilterByTime(30)}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        timeFilter === 30 
+                          ? 'bg-vegas-green text-black font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      Últimos 30 min
+                    </button>
+                    <button
+                      onClick={() => handleFilterByTime(60)}
+                      className={`px-3 py-2 text-xs rounded-md transition-all ${
+                        timeFilter === 60 
+                          ? 'bg-vegas-green text-black font-medium' 
+                          : 'bg-black bg-opacity-70 text-white hover:bg-opacity-50'
+                      }`}
+                    >
+                      Última 1 hora
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Historical Numbers Section */}
           <div className="p-5 rounded-xl border border-gray-700 bg-opacity-50 md:col-span-2">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
@@ -651,53 +943,6 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   (Mostrando {visibleNumbers.length} de {filteredNumbers.length})
                 </span>
               </h3>
-              
-              {/* Filtros de cor */}
-              <div className="flex items-center space-x-3">
-                <span className="text-xs text-white">Filtrar:</span>
-                <div className="flex space-x-1.5">
-                  <button
-                    onClick={() => handleFilterByColor('todos')}
-                    className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
-                      colorFilter === 'todos' 
-                        ? 'bg-vegas-green text-black font-medium' 
-                        : 'bg-black bg-opacity-50 text-white hover:bg-opacity-70'
-                    }`}
-                  >
-                    Todos
-                  </button>
-                  <button
-                    onClick={() => handleFilterByColor('vermelho')}
-                    className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
-                      colorFilter === 'vermelho' 
-                        ? 'bg-[#FF1D46] text-white font-medium' 
-                        : 'bg-black bg-opacity-50 text-white hover:bg-opacity-70'
-                    }`}
-                  >
-                    Vermelho
-                  </button>
-                  <button
-                    onClick={() => handleFilterByColor('preto')}
-                    className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
-                      colorFilter === 'preto' 
-                        ? 'bg-[#292524] text-white font-medium' 
-                        : 'bg-black bg-opacity-50 text-white hover:bg-opacity-70'
-                    }`}
-                  >
-                    Preto
-                  </button>
-                  <button
-                    onClick={() => handleFilterByColor('verde')}
-                    className={`px-3 py-1.5 text-xs rounded-md transition-all duration-200 ${
-                      colorFilter === 'verde' 
-                        ? 'bg-vegas-green text-black font-medium' 
-                        : 'bg-black bg-opacity-50 text-white hover:bg-opacity-70'
-                    }`}
-                  >
-                    Zero
-                  </button>
-                </div>
-              </div>
             </div>
             
             {visibleNumbers.length > 0 ? (
