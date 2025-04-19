@@ -40,7 +40,9 @@ const TestPage: React.FC = () => {
   }, []);
   
   if (loading) {
-    return <div>Carregando dados...</div>;
+    return <div className="flex justify-center items-center h-screen">
+      <div className="animate-spin w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full"></div>
+    </div>;
   }
   
   if (error) {

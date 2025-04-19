@@ -120,7 +120,6 @@ const StatsTabContent = ({value, stats, isLoadingData, hasError, useExampleQuest
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Estatísticas Rápidas</CardTitle>
-            <CardDescription>Carregando dados...</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Skeleton className="h-4 w-full" />

@@ -189,12 +189,6 @@ export class EventService {
     const socketService = SocketService.getInstance();
     socketService.subscribe('*', this.handleSocketEvent);
     this.socketServiceSubscriptions.add('*');
-    
-    toast({
-      title: "Conexão de backup estabelecida",
-      description: "Usando Socket.IO como alternativa para receber atualizações",
-      variant: "default"
-    });
   }
   
   // Handler para eventos do SocketService

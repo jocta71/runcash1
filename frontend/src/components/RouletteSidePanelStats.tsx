@@ -629,7 +629,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         </h2>
         <p className="text-sm text-gray-400">
           {isLoading ? (
-            "Carregando dados históricos..."
+            ""
           ) : (
             `Análise detalhada dos últimos ${historicalNumbers.length} números e tendências`
           )}

@@ -79,9 +79,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#100f13] flex flex-col items-center justify-center text-white">
-        <Loader2 className="w-16 h-16 text-green-500 animate-spin mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Carregando dados</h2>
-        <p className="text-gray-400">Aguarde enquanto carregamos os dados da API...</p>
+        <Loader2 className="w-16 h-16 text-green-500 animate-spin" />
       </div>
     );
   }
