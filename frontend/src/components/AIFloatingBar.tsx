@@ -11,6 +11,23 @@ interface AIMessage {
   timestamp: Date;
 }
 
+// Componente de loader simples com estilo inspirado no cubo
+const SimpleLoader = () => (
+  <div className="flex items-center justify-center">
+    <div className="w-20 h-20 relative animate-spin">
+      <div className="w-full h-full rounded border-4 border-t-transparent border-green-500 absolute"></div>
+      <div className="w-full h-full rounded border-4 border-green-300 border-opacity-20 absolute"></div>
+      <div className="absolute inset-[5px] rounded-full bg-black/70 flex items-center justify-center">
+        <img 
+          src="/assets/icon-rabbit.svg" 
+          alt="Icon Rabbit" 
+          className="w-10 h-10 object-contain"
+        />
+      </div>
+    </div>
+  </div>
+);
+
 const AIFloatingBar: React.FC = () => {
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [input, setInput] = useState('');
@@ -262,14 +279,25 @@ const AIFloatingBar: React.FC = () => {
   if (!expanded) {
     return (
       <div className="fixed bottom-4 left-0 right-0 flex justify-center z-50">
-        <button 
-          onClick={toggleExpand}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full shadow-lg hover:shadow-xl hover:shadow-green-500/20 transform hover:scale-105 transition-all duration-300"
-          aria-label="Abrir assistente de IA"
-        >
-          <Sparkles size={20} className="animate-pulse" />
-          <span className="font-medium">Pergunte sobre padrões e tendências 💡</span>
-        </button>
+        <div className="w-[95%] max-w-xl bg-black/10 backdrop-blur-xl border border-white/10 rounded-full shadow-lg overflow-hidden">
+          <form onSubmit={(e) => { e.preventDefault(); toggleExpand(); }} className="relative flex items-center">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Pergunte algo sobre as roletas..."
+              className="w-full bg-transparent border-0 focus:border-0 focus:ring-0 rounded-full px-5 py-3 text-white text-sm focus:outline-none"
+              onFocus={toggleExpand}
+            />
+            <button
+              type="button"
+              onClick={toggleExpand}
+              className="absolute right-2 p-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 text-white"
+            >
+              <Sparkles size={16} />
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
@@ -372,7 +400,7 @@ const AIFloatingBar: React.FC = () => {
           )}
           {loading && (
             <div className="flex justify-start">
-              <div className="max-w-[85%] rounded-2xl p-4 shadow-md bg-white/10 backdrop-blur-md text-white border border-white/10 animate-pulse">
+              <div className="max-w-[85%] rounded-2xl p-4 shadow-md bg-white/10 backdrop-blur-md text-white border border-white/10">
                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
                   <div className="w-5 h-5 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center">
                     <Bot size={10} className="text-black/80" />
@@ -380,10 +408,7 @@ const AIFloatingBar: React.FC = () => {
                   <span className="text-xs font-medium text-green-400">Assistente</span>
                 </div>
                 <div className="flex flex-col items-center justify-center py-4">
-                  <CustomLoader />
-                  <span className="mt-3 text-center text-sm text-green-400">
-                    Analisando dados das roletas...
-                  </span>
+                  <SimpleLoader />
                 </div>
               </div>
             </div>
