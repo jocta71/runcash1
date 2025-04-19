@@ -59,10 +59,10 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
   const numberOptions = [
     { value: 'todos', label: 'Todos' },
     { value: '0', label: '0' },
-    { value: '1', label: '1' },
-    { value: '2', label: '2' },
-    { value: '3', label: '3' },
-    // ... outros números podem ser adicionados conforme necessário
+    ...Array.from({ length: 36 }, (_, i) => ({
+      value: String(i + 1),
+      label: String(i + 1)
+    }))
   ];
 
   // Opções para o filtro de tempo

@@ -36,9 +36,14 @@ const AnalyticsFilterRow: React.FC<AnalyticsFilterRowProps> = ({
     { value: 'brancos+vermelhos', label: 'Brancos + Vermelhos', combined: ['bg-white', 'bg-red-600'] }
   ];
 
+  // Gerar as opções de números de 0 a 36
   const numberOptions = [
-    { value: 'todos', label: 'Todos' }
-    // Você poderia adicionar opções de números aqui
+    { value: 'todos', label: 'Todos' },
+    { value: '0', label: '0' },
+    ...Array.from({ length: 36 }, (_, i) => ({
+      value: String(i + 1),
+      label: String(i + 1)
+    }))
   ];
 
   const hourOptions = [
@@ -92,7 +97,7 @@ const AnalyticsFilterRow: React.FC<AnalyticsFilterRowProps> = ({
           <SelectTrigger className="w-full bg-black border-none text-white h-10">
             <SelectValue placeholder="Todos" />
           </SelectTrigger>
-          <SelectContent className="bg-[#111] border-gray-800 text-white">
+          <SelectContent className="bg-[#111] border-gray-800 text-white max-h-[200px] overflow-y-auto">
             {numberOptions.map(option => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
