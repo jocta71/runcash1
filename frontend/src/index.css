@@ -315,3 +315,69 @@
     transform: rotatex(-30deg) rotatey(360deg);
   }
 }
+
+/* Animação leap-frog dos pontos no chat da IA - From Uiverse.io by G4b413l */
+.leap-frog {
+  --uib-size: 40px;
+  --uib-speed: 2s;
+  --uib-color: #3aff5e;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: var(--uib-size);
+  height: var(--uib-size);
+}
+
+.leap-frog__dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: 100%;
+}
+
+.leap-frog__dot::before {
+  content: '';
+  display: block;
+  height: 8.8px;
+  width: 8.8px;
+  border-radius: 50%;
+  background-color: var(--uib-color);
+  will-change: transform;
+}
+
+.leap-frog__dot:nth-child(1) {
+  animation: leapFrog var(--uib-speed) ease infinite;
+}
+
+.leap-frog__dot:nth-child(2) {
+  transform: translateX(16px);
+  animation: leapFrog var(--uib-speed) ease -1.333s infinite;
+}
+
+.leap-frog__dot:nth-child(3) {
+  transform: translateX(32px) rotate(0deg);
+  animation: leapFrog var(--uib-speed) ease -0.666s infinite;
+}
+
+@keyframes leapFrog {
+  0% {
+    transform: translateX(0) rotate(0deg);
+  }
+  33.333% {
+    transform: translateX(0) rotate(180deg);
+  }
+  66.666% {
+    transform: translateX(-16px) rotate(180deg);
+  }
+  99.999% {
+    transform: translateX(-32px) rotate(180deg);
+  }
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+}

@@ -13,22 +13,107 @@ interface AIMessage {
 // Componente de loader com cubo 3D (igual ao loading inicial)
 const CubeLoader = () => {
   return (
-    <div className="flex items-center justify-center">
-      <div style={{width: "150px", height: "150px", position: "relative", transformStyle: "preserve-3d", animation: "cube-rotate 4s linear infinite"}}>
-        <div style={{position: "absolute", inset: 0, background: "#222", transform: "rotatex(90deg) translatez(75px)", display: "flex", justifyContent: "center", alignItems: "center"}}>
-          <span style={{fontSize: "50px"}}>🐰</span>
-        </div>
-        <div style={{position: "absolute", inset: 0, transformStyle: "preserve-3d"}}>
-          <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(0deg) translatez(75px)"}}></span>
-          <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(90deg) translatez(75px)"}}></span>
-          <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(180deg) translatez(75px)"}}></span>
-          <span style={{position: "absolute", inset: 0, background: "linear-gradient(#151515, #3aff5e)", transform: "rotatey(270deg) translatez(75px)"}}></span>
-        </div>
-        <div style={{position: "absolute", inset: 0, background: "#222", transform: "rotatex(90deg) translatez(75px)"}}>
-          <div style={{content: "''", position: "absolute", background: "#3aff5e", inset: 0, transform: "translatez(-250px)", filter: "blur(30px)", boxShadow: "0 0 120px rgba(58, 134, 255, 0.2), 0 0 200px rgba(58, 134, 255, 0.4), 0 0 300px #00ff2f, 0 0 400px #51fd71, 0 0 500px #3aff5e"}}></div>
+    <>
+      <style>
+        {`
+        .glowing-cube-container {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .glowing-cube {
+          position: relative;
+          width: 80px;
+          height: 80px;
+          transform-style: preserve-3d;
+          transform: rotateX(30deg);
+          animation: animate 4s linear infinite;
+        }
+        
+        @keyframes animate {
+          0% {
+            transform: rotateX(45deg) rotateY(45deg);
+          }
+          50% {
+            transform: rotateX(45deg) rotateY(225deg);
+          }
+          100% {
+            transform: rotateX(45deg) rotateY(405deg);
+          }
+        }
+        
+        .glowing-cube div {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          transform-style: preserve-3d;
+        }
+        
+        .glowing-cube div span {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(#222, #3aff5e);
+          transform: rotateY(calc(90deg * var(--i))) translateZ(40px);
+        }
+        
+        .top {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 80px;
+          height: 80px;
+          background: #222;
+          transform: rotateX(90deg) translateZ(40px);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+        
+        .top::before {
+          content: '❤️';
+          position: absolute;
+          font-size: 2rem;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+        
+        .top::after {
+          content: '';
+          position: absolute;
+          width: 80px;
+          height: 80px;
+          background: #3aff5e;
+          transform: translateZ(-150px);
+          filter: blur(20px);
+          box-shadow: 0 0 120px rgba(58, 255, 94, 0.2),
+                      0 0 200px rgba(58, 255, 94, 0.4),
+                      0 0 300px rgba(58, 255, 94, 0.6),
+                      0 0 400px rgba(58, 255, 94, 0.8),
+                      0 0 500px rgb(58, 255, 94);
+        }
+      `}
+      </style>
+      <div className="glowing-cube-container">
+        <div className="glowing-cube">
+          <div>
+            <span style={{ "--i": 0 } as React.CSSProperties}></span>
+            <span style={{ "--i": 1 } as React.CSSProperties}></span>
+            <span style={{ "--i": 2 } as React.CSSProperties}></span>
+            <span style={{ "--i": 3 } as React.CSSProperties}></span>
+          </div>
+          <div className="top"></div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -184,16 +269,16 @@ const AIFloatingBar: React.FC = () => {
           redCount,
           blackCount,
           greenCount,
-          redPercentage: Number(((redCount / (recentNumbers.length || 1)) * 100).toFixed(2)),
-          blackPercentage: Number(((blackCount / (recentNumbers.length || 1)) * 100).toFixed(2)),
-          greenPercentage: Number(((greenCount / (recentNumbers.length || 1)) * 100).toFixed(2)),
+          redPercentage: Number(((redCount / (Number(recentNumbers.length) || 1)) * 100).toFixed(2)),
+          blackPercentage: Number(((blackCount / (Number(recentNumbers.length) || 1)) * 100).toFixed(2)),
+          greenPercentage: Number(((greenCount / (Number(recentNumbers.length) || 1)) * 100).toFixed(2)),
           evenCount,
           oddCount,
-          evenPercentage: Number(((evenCount / (recentNumbers.length || 1)) * 100).toFixed(2)),
-          oddPercentage: Number(((oddCount / (recentNumbers.length || 1)) * 100).toFixed(2)),
+          evenPercentage: Number(((evenCount / (Number(recentNumbers.length) || 1)) * 100).toFixed(2)),
+          oddPercentage: Number(((oddCount / (Number(recentNumbers.length) || 1)) * 100).toFixed(2)),
           dozenCounts,
           dozenPercentages: dozenCounts.map(count => 
-            Number(((count / (recentNumbers.length || 1)) * 100).toFixed(2))
+            Number(((count / (Number(recentNumbers.length) || 1)) * 100).toFixed(2))
           ),
           hotNumbers,
           coldNumbers
@@ -421,7 +506,12 @@ const AIFloatingBar: React.FC = () => {
                   <span className="text-xs font-medium text-green-400">Assistente</span>
                 </div>
                 <div className="flex flex-col items-center justify-center py-4">
-                  <CubeLoader />
+                  {/* From Uiverse.io by G4b413l */}
+                  <div className="leap-frog">
+                    <div className="leap-frog__dot"></div>
+                    <div className="leap-frog__dot"></div>
+                    <div className="leap-frog__dot"></div>
+                  </div>
                 </div>
               </div>
             </div>

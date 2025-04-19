@@ -137,28 +137,86 @@ if (rootElement) {
   rootElement.innerHTML = `
     <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #1a1a1a; color: #f0f0f0;">
       <div style="text-align: center;">
-        <div style="width: 150px; height: 150px; position: relative; transform-style: preserve-3d; animation: cube-rotate 4s linear infinite; margin: 0 auto;">
-          <div style="position: absolute; inset: 0; background: #222; transform: rotatex(90deg) translatez(75px); display: flex; justify-content: center; align-items: center;">
-            <span style="font-size: 50px;">🐰</span>
-          </div>
-          <div style="position: absolute; inset: 0; transform-style: preserve-3d;">
-            <span style="position: absolute; inset: 0; background: linear-gradient(#151515, #3aff5e); transform: rotatey(0deg) translatez(75px);"></span>
-            <span style="position: absolute; inset: 0; background: linear-gradient(#151515, #3aff5e); transform: rotatey(90deg) translatez(75px);"></span>
-            <span style="position: absolute; inset: 0; background: linear-gradient(#151515, #3aff5e); transform: rotatey(180deg) translatez(75px);"></span>
-            <span style="position: absolute; inset: 0; background: linear-gradient(#151515, #3aff5e); transform: rotatey(270deg) translatez(75px);"></span>
-          </div>
-          <div style="position: absolute; inset: 0; background: #222; transform: rotatex(90deg) translatez(75px);">
-            <div style="content: ''; position: absolute; background: #3aff5e; inset: 0; transform: translatez(-250px); filter: blur(30px); box-shadow: 0 0 120px rgba(58, 134, 255, 0.2), 0 0 200px rgba(58, 134, 255, 0.4), 0 0 300px #00ff2f, 0 0 400px #51fd71, 0 0 500px #3aff5e;"></div>
+        <!-- From Uiverse.io by vikas7754 -->
+        <div class="glowing-cube">
+          <div class="top"></div>
+          <div>
+            <span style="--i:0;"></span>
+            <span style="--i:1;"></span>
+            <span style="--i:2;"></span>
+            <span style="--i:3;"></span>
           </div>
         </div>
+        <style>
+          /* From Uiverse.io by vikas7754 */
+          .glowing-cube {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            transform-style: preserve-3d;
+            animation: cube-rotate 4s linear infinite;
+          }
+
+          @keyframes cube-rotate {
+            0% {
+              transform: rotatex(-30deg) rotatey(0deg);
+            }
+
+            100% {
+              transform: rotatex(-30deg) rotatey(360deg);
+            }
+          }
+
+          .glowing-cube div {
+            position: absolute;
+            inset: 0;
+            transform-style: preserve-3d;
+          }
+
+          .glowing-cube div span {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(#151515, #3aff5e);
+            transform: rotatey(calc(90deg * var(--i))) translatez(calc(150px / 2));
+          }
+
+          .glowing-cube .top {
+            position: absolute;
+            inset: 0;
+            background: #222;
+            transform: rotatex(90deg) translatez(calc(150px / 2));
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #ffffff;
+            font-size: 7rem;
+          }
+
+          .glowing-cube .top::before {
+            content: '❤';
+            position: absolute;
+            font-size: 7rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+          }
+
+          .glowing-cube .top::after {
+            content: '';
+            position: absolute;
+            background: #3aff5e;
+            inset: 0;
+            transform: translatez(calc(0px - calc(150px + 100px)));
+            filter: blur(30px);
+            box-shadow: 0 0 120px rgba(58, 134, 255, 0.2),
+              0 0 200px rgba(58, 134, 255, 0.4),
+              0 0 300px #00ff2f,
+              0 0 400px #51fd71,
+              0 0 500px #3aff5e;
+          }
+        </style>
       </div>
     </div>
-    <style>
-      @keyframes cube-rotate {
-        0% { transform: rotatex(-30deg) rotatey(0deg); }
-        100% { transform: rotatex(-30deg) rotatey(360deg); }
-      }
-    </style>
   `;
   
   // Aguardar um pequeno intervalo para dar tempo à conexão de ser estabelecida
