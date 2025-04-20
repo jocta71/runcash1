@@ -169,7 +169,7 @@ const AuthPage = () => {
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-2">
       {/* Lado esquerdo - Imagem de login */}
-      <div className="relative hidden md:block bg-gray-900" style={{ backgroundImage: "url('/login-imagem.png')", backgroundSize: "contain", backgroundPosition: "center", backgroundColor: "#0F172A" }}>
+      <div className="relative hidden md:block bg-gray-900" style={{ backgroundImage: "url('/login-imagem.png')", backgroundSize: "cover", backgroundPosition: "center" }}>
         <div className="absolute inset-0 bg-black bg-opacity-20" />
         <div className="absolute top-5 left-5 flex items-center gap-2 z-10">
           <img src="/img/logo.svg" alt="RunCash Logo" className="h-10" />
