@@ -1,4 +1,5 @@
 import { ChartBar, BarChart, ArrowDown, ArrowUp, PercentIcon, ChevronDown, Filter, X } from "lucide-react";
+import React from 'react';
 import {
   ResponsiveContainer,
   BarChart as RechartsBarChart,
@@ -1174,7 +1175,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </Card>
           
           {/* Roulette Heatmap Chart */}
-          <Card>
+          <Card className="md:col-span-2">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center">
                 <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
@@ -1186,129 +1187,173 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             </CardHeader>
             
             <CardContent>
-              <div className="h-[320px] relative">
-                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-                  {/* Círculo externo da roleta */}
-                  <div className="w-[260px] h-[260px] rounded-full relative border-4 border-[#463F30] bg-gradient-to-br from-[#1e1e20] to-[#121214] shadow-lg">
+              <div className="h-[450px] relative flex justify-center items-center p-4">
+                <div className="roulette-wheel relative w-[360px] h-[360px]">
+                  {/* Camada base da roleta (bowl) */}
+                  <div className="absolute w-full h-full rounded-full bg-gradient-to-br from-[#211f1e] to-[#312e2c] border-8 border-[#5e4e35] shadow-[0_0_20px_rgba(0,0,0,0.5)] overflow-hidden"></div>
+                  
+                  {/* Disco giratório da roleta */}
+                  <div className="absolute w-[94%] h-[94%] top-[3%] left-[3%] rounded-full bg-gradient-to-br from-[#8B4513] to-[#5e3a1e] border-4 border-[#463F30]">
                     {/* Setores da roleta */}
-                    {ROULETTE_NUMBERS.map((num, index) => {
-                      const angle = (index * (360 / ROULETTE_NUMBERS.length));
-                      const nextAngle = ((index + 1) * (360 / ROULETTE_NUMBERS.length));
-                      const arcAngle = nextAngle - angle;
-                      const midAngle = angle + (arcAngle / 2);
-                      const radMidAngle = midAngle * (Math.PI / 180);
-                      
-                      // Cor base do setor
-                      let baseColor;
-                      if (num === 0) {
-                        baseColor = "hsl(142.1, 70.6%, 45.3%)"; // Verde para zero
-                      } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
-                        baseColor = "hsl(0, 72.2%, 50.6%)"; // Vermelho
-                      } else {
-                        baseColor = "hsl(220, 14%, 20%)"; // Preto
-                      }
-                      
-                      // Encontrar a intensidade para este número
-                      const numData = rouletteHeatmap.find(item => item.number === num);
-                      const intensity = numData ? numData.intensity : 0;
-                      
-                      // Raio externo e interno para o setor
-                      const outerRadius = 130;
-                      const innerRadius = 85;
-                      
-                      // Ponto inicial e final do arco externo
-                      const startX = outerRadius * Math.cos((angle - 90) * (Math.PI / 180));
-                      const startY = outerRadius * Math.sin((angle - 90) * (Math.PI / 180));
-                      const endX = outerRadius * Math.cos((nextAngle - 90) * (Math.PI / 180));
-                      const endY = outerRadius * Math.sin((nextAngle - 90) * (Math.PI / 180));
-                      
-                      // Ponto inicial e final do arco interno
-                      const innerStartX = innerRadius * Math.cos((angle - 90) * (Math.PI / 180));
-                      const innerStartY = innerRadius * Math.sin((angle - 90) * (Math.PI / 180));
-                      const innerEndX = innerRadius * Math.cos((nextAngle - 90) * (Math.PI / 180));
-                      const innerEndY = innerRadius * Math.sin((nextAngle - 90) * (Math.PI / 180));
-                      
-                      // Flag que determina se o arco é maior que 180 graus
-                      const largeArcFlag = arcAngle > 180 ? 1 : 0;
-                      
-                      // Criando o caminho SVG para o setor
-                      const path = [
-                        `M ${130 + innerStartX} ${130 + innerStartY}`, // Mover para o ponto inicial interno
-                        `L ${130 + startX} ${130 + startY}`, // Linha até o ponto inicial externo
-                        `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${130 + endX} ${130 + endY}`, // Arco externo
-                        `L ${130 + innerEndX} ${130 + innerEndY}`, // Linha até o ponto final interno
-                        `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${130 + innerStartX} ${130 + innerStartY}`, // Arco interno
-                        'Z' // Fechar o caminho
-                      ].join(' ');
-                      
-                      // Calculando a posição do número
-                      const labelRadius = (innerRadius + outerRadius) / 2;
-                      const labelX = labelRadius * Math.cos(radMidAngle - (Math.PI / 2));
-                      const labelY = labelRadius * Math.sin(radMidAngle - (Math.PI / 2));
-                      
-                      // Calculando o brilho baseado na intensidade
-                      const glow = intensity > 0.2 
-                        ? `drop-shadow(0 0 ${5 + intensity * 10}px ${baseColor})`
-                        : 'none';
-                      
-                      // Escurecer ou clarear a cor base com base na intensidade
-                      const adjustedColor = num === 0
-                        ? `hsl(142.1, 70.6%, ${40 + (intensity * 35)}%)`  // Verde mais brilhante
-                        : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
-                          ? `hsl(0, 72.2%, ${40 + (intensity * 35)}%)`    // Vermelho mais brilhante
-                          : `hsl(220, 14%, ${15 + (intensity * 30)}%)`;   // Preto mais brilhante
-                      
-                      return (
-                        <React.Fragment key={`sector-${num}`}>
-                          {/* Setor da roleta */}
-                          <svg 
-                            width="260" 
-                            height="260" 
-                            viewBox="0 0 260 260" 
-                            className="absolute top-0 left-0"
-                            style={{ filter: glow }}
-                          >
-                            <path 
-                              d={path} 
-                              fill={adjustedColor}
-                              stroke="#463F30"
-                              strokeWidth="1"
-                            />
-                          </svg>
-                          
-                          {/* Número */}
-                          <div 
-                            className="absolute text-white text-xs font-bold transform -translate-x-1/2 -translate-y-1/2"
-                            style={{ 
-                              left: `calc(50% + ${labelX}px)`, 
-                              top: `calc(50% + ${labelY}px)`,
-                              textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-                              zIndex: 5
-                            }}
-                            title={`${num}: ${numData?.count || 0} ocorrências (${numData?.percentage.toFixed(1) || 0}%)`}
-                          >
-                            {num}
-                          </div>
-                        </React.Fragment>
-                      );
-                    })}
-                    
-                    {/* Centro da roleta */}
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[80px] h-[80px] rounded-full bg-gradient-to-br from-[#3a3a40] to-[#1a1a1e] border-4 border-[#463F30] flex items-center justify-center text-[hsl(213,31%,91%)] text-sm font-medium z-10 shadow-md">
-                      <span className="text-[hsl(142.1,70.6%,45.3%)]">Roleta</span>
+                    <div className="absolute w-full h-full left-0 top-0">
+                      <svg className="w-full h-full" viewBox="0 0 360 360">
+                        <g transform="translate(180, 180)">
+                          {ROULETTE_NUMBERS.map((num, index) => {
+                            const angle = (index * (360 / ROULETTE_NUMBERS.length));
+                            const startAngle = angle * (Math.PI / 180);
+                            const endAngle = ((angle + (360 / ROULETTE_NUMBERS.length)) % 360) * (Math.PI / 180);
+                            
+                            // Cor base do setor
+                            let baseColor;
+                            if (num === 0) {
+                              baseColor = "#059669"; // Verde para zero
+                            } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
+                              baseColor = "#dc2626"; // Vermelho
+                            } else {
+                              baseColor = "#1e1e1e"; // Preto
+                            }
+                            
+                            // Encontrar a intensidade para este número
+                            const numData = rouletteHeatmap.find(item => item.number === num);
+                            const intensity = numData ? numData.intensity : 0;
+                            
+                            // Ajustar a cor baseada na intensidade
+                            const adjustedColor = num === 0
+                              ? `hsl(142.1, 70.6%, ${40 + (intensity * 35)}%)`  // Verde mais brilhante
+                              : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
+                                ? `hsl(0, 85%, ${45 + (intensity * 30)}%)`    // Vermelho mais brilhante
+                                : `hsl(220, 14%, ${15 + (intensity * 30)}%)`;   // Preto mais brilhante
+                            
+                            // Calculando o arco
+                            const radius = 160;
+                            const innerRadius = 100;
+                            
+                            // Determinar se o arco é maior que 180 graus
+                            const largeArcFlag = 0; // Sempre menor que 180 para uma roleta
+                            
+                            // Calcular pontos para o arco
+                            const x1 = radius * Math.cos(startAngle);
+                            const y1 = radius * Math.sin(startAngle);
+                            const x2 = radius * Math.cos(endAngle);
+                            const y2 = radius * Math.sin(endAngle);
+                            
+                            const innerX1 = innerRadius * Math.cos(startAngle);
+                            const innerY1 = innerRadius * Math.sin(startAngle);
+                            const innerX2 = innerRadius * Math.cos(endAngle);
+                            const innerY2 = innerRadius * Math.sin(endAngle);
+                            
+                            // Caminho do setor
+                            const path = [
+                              `M ${innerX1} ${innerY1}`,
+                              `L ${x1} ${y1}`,
+                              `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+                              `L ${innerX2} ${innerY2}`,
+                              `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${innerX1} ${innerY1}`,
+                              'Z'
+                            ].join(' ');
+                            
+                            // Calcular a posição do número
+                            const textRadius = (radius + innerRadius) / 2;
+                            const midAngle = (startAngle + endAngle) / 2;
+                            const textX = textRadius * Math.cos(midAngle);
+                            const textY = textRadius * Math.sin(midAngle);
+                            
+                            // Calcular o efeito "glow" baseado na intensidade
+                            const glowSize = intensity > 0.3 ? intensity * 8 : 0;
+                            const glowOpacity = intensity > 0.3 ? intensity * 0.7 : 0;
+                            
+                            return (
+                              <g key={`sector-${num}`} className="transition-all duration-300">
+                                {/* Efeito glow */}
+                                {glowSize > 0 && (
+                                  <path
+                                    d={path}
+                                    fill={baseColor}
+                                    opacity={glowOpacity}
+                                    filter={`drop-shadow(0 0 ${glowSize}px ${baseColor})`}
+                                  />
+                                )}
+                                
+                                {/* Setor principal */}
+                                <path
+                                  d={path}
+                                  fill={adjustedColor}
+                                  stroke="#5e4e35"
+                                  strokeWidth="0.5"
+                                  className="transition-all duration-300"
+                                />
+                                
+                                {/* Linha divisória */}
+                                <line
+                                  x1="0"
+                                  y1="0"
+                                  x2={x1}
+                                  y2={y1}
+                                  stroke="#5e4e35"
+                                  strokeWidth="0.5"
+                                />
+                                
+                                {/* Número */}
+                                <text
+                                  x={textX}
+                                  y={textY}
+                                  fill="white"
+                                  fontSize="12"
+                                  fontWeight="bold"
+                                  textAnchor="middle"
+                                  dominantBaseline="middle"
+                                  style={{ 
+                                    textShadow: '0px 1px 1px rgba(0,0,0,0.8)', 
+                                    filter: glowSize > 0 ? `drop-shadow(0 0 ${glowSize/2}px white)` : 'none' 
+                                  }}
+                                >
+                                  {num}
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </g>
+                      </svg>
                     </div>
                     
-                    {/* Borda exterior decorativa */}
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[270px] h-[270px] rounded-full border-4 border-[#463F30] -z-10"></div>
-                    
-                    {/* Indicador de número atual */}
-                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-4 h-8 bg-[#F0D98E] border-2 border-[#463F30] rounded-b-lg z-20"></div>
+                    {/* Marcas decorativas na borda */}
+                    <div className="absolute w-full h-full">
+                      {Array.from({ length: 37 }).map((_, i) => {
+                        const angle = (i * (360 / 37)) * (Math.PI / 180);
+                        const radius = 175;
+                        const x = 180 + radius * Math.cos(angle);
+                        const y = 180 + radius * Math.sin(angle);
+                        
+                        return (
+                          <div
+                            key={`diamond-${i}`}
+                            className="absolute w-1.5 h-1.5 bg-[#F0D98E] rounded-full transform -translate-x-1/2 -translate-y-1/2"
+                            style={{ left: x, top: y }}
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
+                  
+                  {/* Centro da roleta */}
+                  <div className="absolute w-[25%] h-[25%] rounded-full top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gradient-to-br from-[#8B4513] to-[#5e3a1e] border-4 border-[#463F30] z-20 shadow-md flex items-center justify-center">
+                    <div className="w-[80%] h-[80%] rounded-full bg-[#F0D98E] flex items-center justify-center">
+                      <span className="text-[#5e3a1e] text-sm font-bold">Roleta</span>
+                    </div>
+                  </div>
+                  
+                  {/* Indicador de diamante */}
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/3 z-30">
+                    <div className="w-4 h-4 bg-[#F0D98E] border-2 border-[#5e4e35] rotate-45"></div>
+                  </div>
+                  
+                  {/* Bola da roleta */}
+                  <div className="absolute w-3 h-3 rounded-full bg-white z-30 shadow-[0_0_5px_#fff] top-[5%] left-1/2 transform -translate-x-1/2"></div>
                 </div>
               </div>
               
               {/* Legenda de regiões */}
-              <div className="mt-6 grid grid-cols-2 gap-2">
+              <div className="mt-4 grid grid-cols-2 gap-2">
                 {rouletteRegionData.map((region, index) => (
                   <div key={`region-${index}`} className="flex items-center">
                     <div className="w-3 h-3 mr-2 rounded-full bg-[hsl(142.1,70.6%,45.3%)]" 
