@@ -134,10 +134,10 @@ const AuthPage = () => {
         <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
           <div className="flex flex-col space-y-2 text-center">
             <h1 className="text-2xl font-semibold tracking-tight text-white">
-              Criar uma conta
+              Login
             </h1>
             <p className="text-sm text-gray-400">
-              Digite seu email abaixo para criar sua conta
+              Digite seu email abaixo para acessar sua conta
             </p>
           </div>
 
@@ -164,7 +164,7 @@ const AuthPage = () => {
               onClick={handleEmailSignIn}
               disabled={isLoading}
             >
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar com Email'}
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
             </Button>
             
             <div className="relative">
@@ -209,6 +209,13 @@ const AuthPage = () => {
             </a>
             .
           </p>
+          
+          <div className="text-center text-sm text-gray-400">
+            Não tem uma conta?{' '}
+            <a href="/register" className="text-vegas-green hover:underline font-medium">
+              Criar conta
+            </a>
+          </div>
         </div>
       </div>
     </div>
