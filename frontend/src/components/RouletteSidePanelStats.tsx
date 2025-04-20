@@ -190,13 +190,35 @@ export const getHotColdNumbers = (frequencyData: {number: number, frequency: num
   };
 };
 
+// Tema comum para os gráficos Recharts - Estilo Shadcn
+const chartTheme = {
+  backgroundColor: 'hsl(224 71% 4%)',
+  textColor: 'hsl(213 31% 91%)',
+  fontSize: 14,
+  // Cores do tema shadcn/ui
+  colors: {
+    primary: 'hsl(142.1 70.6% 45.3%)',
+    muted: 'hsl(215.4 16.3% 56.9%)',
+    background: 'hsl(224 71% 4%)',
+    foreground: 'hsl(213 31% 91%)',
+    accent: 'hsl(210 40% 96.1%)',
+    red: 'hsl(0 72.2% 50.6%)',
+    green: 'hsl(142.1 70.6% 45.3%)',
+    blue: 'hsl(217.2 91.2% 59.8%)',
+    destructive: 'hsl(0 62.8% 30.6%)',
+    border: 'hsl(216 34% 17%)',
+    card: 'hsl(224 71% 4%)',
+    cardForeground: 'hsl(213 31% 91%)',
+  }
+};
+
 // Generate pie chart data for number groups
 export const generateGroupDistribution = (numbers: number[]) => {
   const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
   const groups = [
-    { name: "Vermelhos", value: 0, color: "#ef4444" },
-    { name: "Pretos", value: 0, color: "#111827" },
-    { name: "Zero", value: 0, color: "#059669" },
+    { name: "Vermelhos", value: 0, color: "hsl(0 72.2% 50.6%)" },
+    { name: "Pretos", value: 0, color: "hsl(220 14% 20%)" },
+    { name: "Zero", value: 0, color: "hsl(142.1 70.6% 45.3%)" },
   ];
   
   numbers.forEach(num => {
@@ -220,7 +242,7 @@ export const generateGroupDistribution = (numbers: number[]) => {
 // Gerar dados de média de cores por hora
 export const generateColorHourlyStats = (numbers: number[]) => {
   const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-  const total = numbers.length;
+  const total = numbers.length || 1; // Evitar divisão por zero
   
   // Contar números por cor
   const redCount = numbers.filter(num => redNumbers.includes(num)).length;
@@ -228,47 +250,46 @@ export const generateColorHourlyStats = (numbers: number[]) => {
   const zeroCount = numbers.filter(num => num === 0).length;
   
   // Calcular média por hora (assumindo que temos dados de uma hora)
-  // Para um cenário real, usaríamos dados com timestamps
   const redAverage = parseFloat((redCount / (total / 60)).toFixed(2));
   const blackAverage = parseFloat((blackCount / (total / 60)).toFixed(2));
   const zeroAverage = parseFloat((zeroCount / (total / 60)).toFixed(2));
   
   return [
     {
-      name: "Média de vermelhos por hora",
+      name: "Vermelhos",
       value: redAverage,
-      color: "#ef4444",
+      color: "hsl(0 72.2% 50.6%)",
       total: redCount,
-      percentage: parseFloat(((redCount / total) * 100).toFixed(2))
+      percentage: parseFloat(((redCount / total) * 100).toFixed(1))
     },
     {
-      name: "Média de pretos por hora",
+      name: "Pretos",
       value: blackAverage,
-      color: "#111827",
+      color: "hsl(220 14% 20%)",
       total: blackCount,
-      percentage: parseFloat(((blackCount / total) * 100).toFixed(2))
+      percentage: parseFloat(((blackCount / total) * 100).toFixed(1))
     },
     {
-      name: "Média de brancos por hora",
+      name: "Zero",
       value: zeroAverage,
-      color: "#059669",
+      color: "hsl(142.1 70.6% 45.3%)",
       total: zeroCount,
-      percentage: parseFloat(((zeroCount / total) * 100).toFixed(2))
+      percentage: parseFloat(((zeroCount / total) * 100).toFixed(1))
     }
   ];
 };
 
 // Determine color for a roulette number
 export const getRouletteNumberColor = (num: number) => {
-  if (num === 0) return "bg-vegas-green text-black";
+  if (num === 0) return "bg-[hsl(142.1,70.6%,45.3%)] text-white";
   
   // Red numbers
   const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
   
   if (redNumbers.includes(num)) {
-    return "text-white bg-[#FF1D46]";
+    return "text-white bg-[hsl(0,72.2%,50.6%)]";
   } else {
-    return "text-white bg-[#292524]";
+    return "text-white bg-[hsl(220,14%,20%)]";
   }
 };
 
@@ -942,39 +963,39 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       
       {isLoading ? (
         <div className="flex items-center justify-center p-16">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-700 border-t-vegas-green"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-muted border-t-[hsl(142.1,70.6%,45.3%)]"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
           {/* Historical Numbers Section */}
-          <div className="p-5 rounded-xl border border-gray-700 bg-opacity-50 md:col-span-2">
+          <div className="p-6 rounded-lg border border-[hsl(216,34%,17%)] bg-[hsl(224,71%,4%)] md:col-span-2 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
-              <h3 className="text-white flex items-center text-base font-bold">
-                <BarChart className="mr-2 h-5 w-5 text-vegas-green" /> Histórico de Números 
-                <span className="ml-2 text-xs font-normal text-vegas-green">
+              <h3 className="text-[hsl(213,31%,91%)] flex items-center text-base font-medium">
+                <BarChart className="mr-2 h-5 w-5 text-[hsl(142.1,70.6%,45.3%)]" /> Histórico de Números 
+                <span className="ml-2 text-xs font-normal text-[hsl(215.4,16.3%,56.9%)]">
                   (Mostrando {visibleNumbers.length} de {filteredNumbers.length})
                 </span>
               </h3>
             </div>
             
             {visibleNumbers.length > 0 ? (
-              <div className="flex flex-wrap gap-2 p-4 border border-gray-700 rounded-xl bg-[#1a1a1a]">
+              <div className="flex flex-wrap gap-2 p-6 border border-[hsl(216,34%,17%)] rounded-lg bg-[hsl(224,71%,4%/0.8)]">
                 {visibleNumbers.map((n, idx) => (
                   <div 
                     key={idx} 
                     className="flex flex-col items-center mb-2 w-11"
                   >
-                    <div className={`w-9 h-9 flex items-center justify-center text-sm font-medium rounded-md border border-gray-700 ${getRouletteNumberColor(n.numero)} hover:scale-110 transition-transform duration-200`}>
+                    <div className={`w-9 h-9 flex items-center justify-center text-sm font-medium rounded-md border border-[hsl(216,34%,17%)] ${getRouletteNumberColor(n.numero)} hover:scale-110 transition-transform duration-200`}>
                       {n.numero}
                     </div>
-                    <div className="text-[9px] text-gray-400 mt-1">
+                    <div className="text-[9px] text-[hsl(215.4,16.3%,56.9%)] mt-1">
                       {n.timestamp}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="flex justify-center items-center h-[200px] rounded-xl text-gray-400 bg-[#1a1a1a]">
+              <div className="flex justify-center items-center h-[200px] rounded-lg text-[hsl(215.4,16.3%,56.9%)] bg-[hsl(224,71%,4%/0.8)]">
                 Nenhum número encontrado com o filtro selecionado
               </div>
             )}
@@ -983,7 +1004,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
               <div className="flex justify-center mt-5">
                 <button 
                   onClick={handleShowMore} 
-                  className="flex items-center gap-2 py-2.5 px-6 text-sm bg-vegas-green hover:bg-[#05C77F] text-black font-medium rounded-md transition-all duration-200 transform hover:-translate-y-0.5"
+                  className="flex items-center gap-2 py-2 px-4 text-sm bg-[hsl(142.1,70.6%,45.3%)] hover:bg-[hsl(142.1,70.6%,42%)] text-white font-medium rounded-md transition-all duration-200 transform hover:-translate-y-0.5"
                 >
                   Mostrar Mais {filteredNumbers.length - visibleNumbersCount} Números <ChevronDown className="h-4 w-4" />
                 </button>
@@ -992,46 +1013,48 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
 
           {/* Distribution Pie Chart */}
-          <div className="p-5 space-y-4 bg-[#1a1a1a] border border-gray-700 rounded-xl">
-            <h3 className="text-sm font-medium text-white flex items-center">
-              <ChartBar size={20} className="text-vegas-green mr-2" /> Distribuição por Cor
+          <div className="p-6 space-y-4 bg-[hsl(224,71%,4%)] border border-[hsl(216,34%,17%)] rounded-lg shadow-sm">
+            <h3 className="text-sm font-medium text-[hsl(213,31%,91%)] flex items-center">
+              <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> Distribuição por Cor
             </h3>
-            <div className="h-[220px] pt-2">
+            <div className="h-[220px] pt-4">
               {/* Adicionar legenda de cores na parte superior */}
-              <div className="flex justify-center space-x-4 mb-2">
+              <div className="flex justify-center space-x-5 mb-4">
                 {pieData.map((entry, index) => (
                   <div key={`color-legend-${index}`} className="flex items-center">
                     <div 
-                      className="w-4 h-4 mr-2 rounded-sm" 
+                      className="w-3 h-3 mr-2 rounded-sm" 
                       style={{ backgroundColor: entry.color }}
                     ></div>
-                    <span className="text-sm text-white">{entry.name}</span>
+                    <span className="text-sm text-[hsl(215.4,16.3%,56.9%)]">{entry.name}</span>
                   </div>
                 ))}
               </div>
-              <ResponsiveContainer width="100%" height="90%">
+              <ResponsiveContainer width="100%" height="85%">
                 <PieChart>
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="50%"
-                    outerRadius={80}
-                    innerRadius={40}
+                    outerRadius={75}
+                    innerRadius={45}
                     fill="white"
                     dataKey="value"
                     label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                     labelLine={false}
                   >
                     {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
+                      <Cell key={`cell-${index}`} fill={entry.color} stroke="hsl(224,71%,4%)" strokeWidth={2} />
                     ))}
                   </Pie>
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: 'rgba(26,26,26,0.95)', 
-                      borderColor: '#059669',
-                      borderRadius: '8px',
-                      fontSize: '13px'
+                      backgroundColor: 'hsl(224,71%,4%/0.95)', 
+                      borderColor: 'hsl(142.1,70.6%,45.3%)',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                      padding: '8px 12px'
                     }} 
                   />
                 </PieChart>
@@ -1040,46 +1063,49 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Win Rate Chart */}
-          <div className="p-5 space-y-4 bg-[#1a1a1a] border border-gray-700 rounded-xl">
-            <h3 className="text-sm font-medium text-white flex items-center">
-              <PercentIcon size={20} className="text-vegas-green mr-2" /> Taxa de Vitória
+          <div className="p-6 space-y-4 bg-[hsl(224,71%,4%)] border border-[hsl(216,34%,17%)] rounded-lg shadow-sm">
+            <h3 className="text-sm font-medium text-[hsl(213,31%,91%)] flex items-center">
+              <PercentIcon size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> Taxa de Vitória
             </h3>
-            <div className="h-[220px] pt-2">
+            <div className="h-[220px] pt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={[
-                      { name: "Vitórias", value: wins || 1, color: "#059669" },
-                      { name: "Derrotas", value: losses || 1, color: "#ef4444" }
+                      { name: "Vitórias", value: wins || 1, color: "hsl(142.1,70.6%,45.3%)" },
+                      { name: "Derrotas", value: losses || 1, color: "hsl(0,72.2%,50.6%)" }
                     ]}
                     cx="50%"
                     cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
+                    innerRadius={55}
+                    outerRadius={75}
                     fill="white"
-                    paddingAngle={5}
+                    paddingAngle={3}
                     dataKey="value"
                     label={false}
                     labelLine={false}
                   >
-                    <Cell key="wins" fill="#059669" stroke="transparent" />
-                    <Cell key="losses" fill="#ef4444" stroke="transparent" />
+                    <Cell key="wins" fill="hsl(142.1,70.6%,45.3%)" stroke="hsl(224,71%,4%)" strokeWidth={2} />
+                    <Cell key="losses" fill="hsl(0,72.2%,50.6%)" stroke="hsl(224,71%,4%)" strokeWidth={2} />
                   </Pie>
                   <Legend
                     verticalAlign="bottom"
-                    iconType="square"
+                    iconType="circle"
+                    iconSize={8}
                     layout="horizontal"
                     wrapperStyle={{
                       fontSize: '13px',
-                      fontWeight: 'bold'
+                      color: 'hsl(215.4,16.3%,56.9%)'
                     }}
                   />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: 'rgba(26,26,26,0.95)', 
-                      borderColor: '#059669',
-                      borderRadius: '8px',
-                      fontSize: '13px'
+                      backgroundColor: 'hsl(224,71%,4%/0.95)', 
+                      borderColor: 'hsl(142.1,70.6%,45.3%)',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                      padding: '8px 12px'
                     }} 
                   />
                 </PieChart>
@@ -1088,46 +1114,46 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
               {/* Texto centralizado com a taxa de vitória */}
               <div className="relative">
                 <div className="absolute top-[-140px] left-[50%] transform translate-x-[-50%] flex flex-col items-center">
-                  <div className="text-3xl font-bold text-white">{winRate.toFixed(0)}%</div>
-                  <div className="text-sm text-gray-300">Taxa de Vitória</div>
+                  <div className="text-3xl font-bold text-[hsl(213,31%,91%)]">{winRate.toFixed(0)}%</div>
+                  <div className="text-xs text-[hsl(215.4,16.3%,56.9%)]">Taxa de Vitória</div>
                 </div>
               </div>
             </div>
           </div>
           
           {/* Hot & Cold Numbers */}
-          <div className="p-5 space-y-4 md:col-span-2 bg-opacity-50 border border-gray-700 rounded-xl">
-            <h3 className="text-sm font-medium text-white flex items-center">
-              <ChartBar size={20} className="text-vegas-green mr-2" /> Números Quentes & Frios
+          <div className="p-6 space-y-4 md:col-span-2 bg-[hsl(224,71%,4%)] border border-[hsl(216,34%,17%)] rounded-lg shadow-sm">
+            <h3 className="text-sm font-medium text-[hsl(213,31%,91%)] flex items-center">
+              <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> Números Quentes & Frios
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl border border-gray-800 bg-[#1a1a1a]">
-                <h4 className="text-xs font-medium text-red-400 mb-3 flex items-center">
-                  <ArrowUp size={18} className="mr-2" /> Números Quentes
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-4 rounded-lg border border-[hsl(216,34%,17%)] bg-[hsl(224,71%,4%/0.8)]">
+                <h4 className="text-xs font-medium text-[hsl(0,72.2%,50.6%)] mb-4 flex items-center">
+                  <ArrowUp size={16} className="mr-2" /> Números Quentes
                 </h4>
                 <div className="flex flex-wrap gap-3">
                   {hot.map((item, i) => (
                     <div key={i} className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105">
-                      <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-gray-700`}>
+                      <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)]`}>
                         {item.number}
                       </div>
-                      <span className="text-vegas-green text-xs font-medium">({item.frequency}x)</span>
+                      <span className="text-[hsl(142.1,70.6%,45.3%)] text-xs font-medium">({item.frequency}x)</span>
                     </div>
                   ))}
                 </div>
               </div>
               
-              <div className="p-4 rounded-xl border border-gray-800 bg-[#1a1a1a]">
-                <h4 className="text-xs font-medium text-blue-400 mb-3 flex items-center">
-                  <ArrowDown size={18} className="mr-2" /> Números Frios
+              <div className="p-4 rounded-lg border border-[hsl(216,34%,17%)] bg-[hsl(224,71%,4%/0.8)]">
+                <h4 className="text-xs font-medium text-[hsl(217.2,91.2%,59.8%)] mb-4 flex items-center">
+                  <ArrowDown size={16} className="mr-2" /> Números Frios
                 </h4>
                 <div className="flex flex-wrap gap-3">
                   {cold.map((item, i) => (
                     <div key={i} className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105">
-                      <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-gray-700`}>
+                      <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)]`}>
                         {item.number}
                       </div>
-                      <span className="text-vegas-green text-xs font-medium">({item.frequency}x)</span>
+                      <span className="text-[hsl(142.1,70.6%,45.3%)] text-xs font-medium">({item.frequency}x)</span>
                     </div>
                   ))}
                 </div>
@@ -1136,43 +1162,45 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Frequency Chart */}
-          <div className="p-5 space-y-4 md:col-span-2 bg-[#1a1a1a] border border-gray-700 rounded-xl">
-            <h3 className="text-sm font-medium text-white flex items-center">
-              <ChartBar size={20} className="text-vegas-green mr-2" /> Frequência de Números
+          <div className="p-6 space-y-4 md:col-span-2 bg-[hsl(224,71%,4%)] border border-[hsl(216,34%,17%)] rounded-lg shadow-sm">
+            <h3 className="text-sm font-medium text-[hsl(213,31%,91%)] flex items-center">
+              <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> Frequência de Números
             </h3>
-            <div className="h-[220px]">
+            <div className="h-[240px]">
               <ResponsiveContainer width="100%" height="100%">
-                <RechartsBarChart data={frequencyData} margin={{ top: 10, right: 10, left: 10, bottom: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                <RechartsBarChart data={frequencyData} margin={{ top: 15, right: 15, left: 15, bottom: 35 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(216,34%,17%)" vertical={false} />
                   <XAxis 
                     dataKey="number" 
-                    stroke="#ccc" 
+                    stroke="hsl(215.4,16.3%,56.9%)" 
                     tick={{fontSize: 13}}
                     tickLine={false}
-                    axisLine={{stroke: '#333'}}
+                    axisLine={{stroke: 'hsl(216,34%,17%)'}}
                   />
                   <YAxis 
-                    stroke="#ccc" 
+                    stroke="hsl(215.4,16.3%,56.9%)" 
                     tick={{fontSize: 13}}
                     tickLine={false}
-                    axisLine={{stroke: '#333'}}
+                    axisLine={{stroke: 'hsl(216,34%,17%)'}}
                     width={30}
                   />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: 'rgba(26,26,26,0.95)', 
-                      borderColor: '#059669', 
-                      borderRadius: '8px',
-                      fontSize: '13px'
+                      backgroundColor: 'hsl(224,71%,4%/0.95)', 
+                      borderColor: 'hsl(142.1,70.6%,45.3%)', 
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                      padding: '8px 12px'
                     }} 
-                    labelStyle={{ color: 'white' }}
+                    labelStyle={{ color: 'hsl(213,31%,91%)' }}
                     cursor={{fill: 'rgba(255,255,255,0.05)'}}
                   />
                   <Bar 
                     dataKey="frequency" 
-                    fill="#059669"
+                    fill="hsl(142.1,70.6%,45.3%)"
                     radius={[4, 4, 0, 0]}
-                    animationDuration={1500}
+                    animationDuration={1200}
                   />
                 </RechartsBarChart>
               </ResponsiveContainer>
@@ -1180,28 +1208,32 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
           
           {/* Média de cores por hora */}
-          <div className="p-5 space-y-4 md:col-span-2 bg-[#1a1a1a] border border-gray-700 rounded-xl">
-            <h3 className="text-sm font-medium text-white flex items-center">
-              <ChartBar size={20} className="text-vegas-green mr-2" /> Média de cores por hora
+          <div className="p-6 space-y-4 md:col-span-2 bg-[hsl(224,71%,4%)] border border-[hsl(216,34%,17%)] rounded-lg shadow-sm">
+            <h3 className="text-sm font-medium text-[hsl(213,31%,91%)] flex items-center">
+              <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> Média de cores por hora
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               {colorHourlyStats.map((stat, index) => (
-                <div key={`color-stat-${index}`} className="bg-black bg-opacity-30 border border-gray-800 rounded-xl p-4 transition-shadow duration-200 hover:shadow-lg">
+                <div key={`color-stat-${index}`} 
+                  className="bg-[hsl(224,71%,4%/0.8)] border border-[hsl(216,34%,17%)] rounded-lg p-4 transition-all duration-200 hover:border-[hsl(142.1,70.6%,45.3%/0.5)] hover:shadow-md"
+                >
                   <div className="flex items-center">
                     <div 
-                      className="w-10 h-10 rounded-lg mr-3 flex items-center justify-center" 
-                      style={{ backgroundColor: stat.color === "#111827" ? "black" : stat.color }}
+                      className="w-10 h-10 rounded-md mr-3 flex items-center justify-center" 
+                      style={{ backgroundColor: stat.color }}
                     >
-                      <div className="w-6 h-6 rounded-full border-2 border-white"></div>
+                      <div className="w-5 h-5 rounded-full border-2 border-white"></div>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-white">{stat.name}</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Total de {stat.total} 
-                        <span className="bg-black bg-opacity-60 text-xs px-2 py-0.5 rounded-full ml-2 text-vegas-green">
+                      <p className="text-sm font-medium text-[hsl(213,31%,91%)]">{stat.name}</p>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <span className="text-xs text-[hsl(215.4,16.3%,56.9%)]">
+                          Total: {stat.total}
+                        </span>
+                        <span className="bg-[hsl(224,71%,4%)] text-xs px-2 py-0.5 rounded-md text-[hsl(142.1,70.6%,45.3%)] border border-[hsl(216,34%,17%)]">
                           {stat.percentage}%
                         </span>
-                      </p>
+                      </div>
                     </div>
                   </div>
                 </div>
