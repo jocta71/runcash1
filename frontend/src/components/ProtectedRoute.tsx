@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useAuthModal } from '@/context/AuthModalContext';
 import LoadingScreen from './LoadingScreen';
 
 interface ProtectedRouteProps {
@@ -9,10 +10,11 @@ interface ProtectedRouteProps {
 
 /**
  * Componente que protege rotas, verificando se o usuário está autenticado
- * Se não estiver autenticado, abre o modal de autenticação
+ * Em vez de redirecionar, abre o modal de autenticação
  */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, loading, checkAuth, requireAuth } = useAuth();
+  const { user, loading, checkAuth } = useAuth();
+  const { openAuthModal } = useAuthModal();
   const location = useLocation();
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -22,25 +24,29 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       const verifyAuth = async () => {
         await checkAuth();
         setAuthChecked(true);
-        
-        // Se após a verificação ainda não estiver autenticado, mostra o modal
-        if (!user) {
-          requireAuth();
-        }
       };
       
       verifyAuth();
     }
-  }, [user, authChecked, loading, checkAuth, requireAuth]);
+  }, [user, authChecked, loading, checkAuth]);
 
   // Mostrar tela de carregamento apenas durante a verificação inicial
   if (loading && !authChecked) {
     return <LoadingScreen />;
   }
 
-  // Se não estiver autenticado, ainda renderiza o children, mas o modal de auth será exibido
-  // pelo componente AuthModal no App.tsx
-  return <>{children}</>;
+  // Se não estiver autenticado, abrir o modal de login
+  useEffect(() => {
+    if (!user && authChecked) {
+      // Armazenar a rota atual para redirecionamento após o login
+      sessionStorage.setItem('authRedirectUrl', location.pathname);
+      openAuthModal('login');
+    }
+  }, [user, authChecked, location, openAuthModal]);
+
+  // Se estiver autenticado, mostrar o conteúdo da rota protegida
+  // Se não estiver autenticado, mostrar conteúdo vazio (modal será aberto via efeito)
+  return <>{user ? children : null}</>;
 };
 
 export default ProtectedRoute;

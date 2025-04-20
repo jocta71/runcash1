@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
@@ -14,16 +14,12 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   token: string | null;
-  signIn: (email: string, password: string) => Promise<{ error?: { message: any } }>;
-  signUp: (username: string, email: string, password: string) => Promise<{ error?: { message: any } }>;
+  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (username: string, email: string, password: string) => Promise<{ error: any }>;
   signOut: () => void;
   checkAuth: () => Promise<boolean>;
   setUser: (user: User) => void;
   setToken: (token: string) => void;
-  showAuthModal: boolean;
-  openAuthModal: () => void;
-  closeAuthModal: () => void;
-  requireAuth: () => boolean;
 }
 
 // Cookie options
@@ -44,14 +40,10 @@ const AuthContext = createContext<AuthContextType>({
   token: null,
   signIn: async () => ({ error: null }),
   signUp: async () => ({ error: null }),
-  signOut: async () => {},
+  signOut: () => {},
   checkAuth: async () => false,
   setUser: () => {},
-  setToken: () => {},
-  showAuthModal: false,
-  openAuthModal: () => {},
-  closeAuthModal: () => {},
-  requireAuth: () => false
+  setToken: () => {}
 });
 
 // API base URL
@@ -64,7 +56,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(Cookies.get(TOKEN_COOKIE_NAME) || null);
   const [loading, setLoading] = useState(true);
-  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Configuração global do axios para envio de cookies
   useEffect(() => {
@@ -296,25 +287,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     axios.get(`${API_URL}/auth/logout`).catch(() => {});
   };
 
-  // Função para exibir o modal de autenticação
-  const openAuthModal = useCallback(() => {
-    setShowAuthModal(true);
-  }, []);
-  
-  // Função para fechar o modal de autenticação
-  const closeAuthModal = useCallback(() => {
-    setShowAuthModal(false);
-  }, []);
-
-  // Função para verificar se o usuário está autenticado e, caso contrário, abrir o modal
-  const requireAuth = useCallback(() => {
-    if (!user) {
-      openAuthModal();
-      return false;
-    }
-    return true;
-  }, [user, openAuthModal]);
-
   // Valor do contexto
   const value = {
     user,
@@ -325,11 +297,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signOut,
     checkAuth,
     setUser,
-    setToken,
-    showAuthModal,
-    openAuthModal,
-    closeAuthModal,
-    requireAuth
+    setToken
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
