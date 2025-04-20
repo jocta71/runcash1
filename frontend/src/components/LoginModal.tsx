@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Loader2, LockIcon, MailIcon, UserIcon } from 'lucide-react';
+import { AlertCircle, Loader2, LockIcon, MailIcon, UserIcon, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogClose
 } from "@/components/ui/dialog";
 import axios from 'axios';
 
@@ -163,6 +164,12 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-4xl grid grid-cols-1 md:grid-cols-2 p-0 gap-0 overflow-hidden">
+        {/* Botão de fechar */}
+        <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-50">
+          <X className="h-5 w-5 text-white" />
+          <span className="sr-only">Fechar</span>
+        </DialogClose>
+
         {/* Lado esquerdo - Imagem */}
         <div className="relative hidden md:block">
           <div 
