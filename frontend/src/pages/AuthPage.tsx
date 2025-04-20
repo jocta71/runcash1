@@ -167,15 +167,26 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gray-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Elementos de fundo simulando a interface do site */}
-      <div className="absolute inset-0 z-0 opacity-15">
-        <div className="absolute top-0 left-0 right-0 h-16 bg-gray-800"></div>
-        <div className="absolute top-20 left-4 w-64 h-[calc(100vh-6rem)] bg-gray-800 rounded-lg"></div>
-        <div className="absolute top-20 left-72 right-4 h-64 bg-gray-800 rounded-lg"></div>
-        <div className="absolute top-[22rem] left-72 w-1/3 h-[calc(100vh-24rem)] bg-gray-800 rounded-lg"></div>
-        <div className="absolute top-[22rem] left-[calc(72rem+33.33%)] right-4 h-[calc(100vh-24rem)] bg-gray-800 rounded-lg"></div>
-        <div className="absolute top-16 left-0 w-full h-4 bg-vegas-green"></div>
+    <div className="min-h-screen w-full flex items-center justify-center p-4 relative overflow-hidden" 
+         style={{ 
+           backgroundImage: `
+             linear-gradient(to bottom, rgba(9, 14, 22, 0.8), rgba(9, 14, 22, 0.8)), 
+             url('/login-imagem.png')
+           `,
+           backgroundSize: 'cover',
+           backgroundPosition: 'center',
+           backgroundAttachment: 'fixed'
+         }}>
+      {/* Overlay para o efeito de site */}
+      <div className="absolute inset-0 z-0">
+        {/* Barra superior */}
+        <div className="absolute top-0 left-0 right-0 h-16 bg-gray-900 border-b border-gray-800"></div>
+        {/* Linha verde */}
+        <div className="absolute top-16 left-0 w-full h-1 bg-vegas-green"></div>
+        {/* Sidebar esquerda */}
+        <div className="absolute top-[4.25rem] left-4 w-64 bottom-4 bg-gray-900/60 rounded-lg border border-gray-800 backdrop-blur-md"></div>
+        {/* Área de conteúdo principal */}
+        <div className="absolute top-[4.25rem] left-72 right-4 bottom-4 bg-gray-900/40 rounded-lg border border-gray-800 backdrop-blur-sm"></div>
       </div>
       
       {/* Logo no canto superior esquerdo */}
@@ -196,7 +207,7 @@ const AuthPage = () => {
       </div>
 
       {/* Modal de autenticação */}
-      <div className="bg-gray-900 rounded-xl shadow-2xl overflow-hidden max-w-4xl w-full z-10 grid grid-cols-1 md:grid-cols-2 border border-gray-800">
+      <div className="bg-gray-900/80 backdrop-blur-lg rounded-xl shadow-2xl overflow-hidden max-w-4xl w-full z-20 grid grid-cols-1 md:grid-cols-2 border border-gray-800">
         {/* Lado esquerdo - Imagem */}
         <div className="relative hidden md:block">
           <div 
@@ -218,7 +229,7 @@ const AuthPage = () => {
         </div>
 
         {/* Lado direito - Formulário */}
-        <div className="p-6 md:p-8 bg-gray-900">
+        <div className="p-6 md:p-8 bg-gray-900/95 backdrop-blur-md">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 bg-gray-800/50">
               <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
