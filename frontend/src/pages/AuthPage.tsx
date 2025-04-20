@@ -167,19 +167,24 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="grid min-h-screen grid-cols-1 md:grid-cols-2">
-      {/* Lado esquerdo - Imagem de login */}
-      <div className="relative hidden md:block bg-gray-900" style={{ backgroundImage: "url('/assets/login-imagem.png')", backgroundSize: "contain", backgroundPosition: "center", backgroundColor: "#0F172A" }}>
-        <div className="absolute inset-0 bg-black bg-opacity-20" />
-        <div className="absolute top-5 left-5 flex items-center gap-2 z-10">
-          <img src="/img/logo.svg" alt="RunCash Logo" className="h-10" />
-          <span className="text-xl font-bold text-white">RunCash</span>
-        </div>
+    <div className="min-h-screen w-full" style={{ 
+      backgroundImage: "url('/login-imagem.png')", 
+      backgroundSize: "cover", 
+      backgroundPosition: "center",
+      backgroundColor: "#0F172A" 
+    }}>
+      {/* Overlay para escurecer o fundo */}
+      <div className="absolute inset-0 bg-black bg-opacity-50" />
+      
+      {/* Logo no canto superior esquerdo */}
+      <div className="absolute top-5 left-5 flex items-center gap-2 z-10">
+        <img src="/img/logo.svg" alt="RunCash Logo" className="h-10" />
+        <span className="text-xl font-bold text-white">RunCash</span>
       </div>
 
-      {/* Lado direito - Formulário de autenticação */}
-      <div className="flex items-center justify-center bg-gray-950 p-4 md:p-10">
-        <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
+      {/* Modal centralizado */}
+      <div className="relative flex items-center justify-center min-h-screen p-4">
+        <div className="bg-gray-900 border border-gray-800 rounded-lg shadow-xl backdrop-blur-sm bg-opacity-90 max-w-md w-full z-10 p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 bg-gray-900/50">
               <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
@@ -442,16 +447,15 @@ const AuthPage = () => {
             </TabsContent>
           </Tabs>
           
-          <p className="px-8 text-center text-sm text-gray-400">
+          <p className="text-center text-xs text-gray-400 mt-6">
             Ao clicar em continuar, você concorda com nossos{' '}
             <a href="#" className="text-vegas-green hover:underline">
-              Termos de Serviço
+              Termos
             </a>{' '}
             e{' '}
             <a href="#" className="text-vegas-green hover:underline">
-              Política de Privacidade
+              Privacidade
             </a>
-            .
           </p>
         </div>
       </div>
