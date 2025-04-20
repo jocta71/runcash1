@@ -3,12 +3,14 @@ const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
+const path = require('path');
 require('dotenv').config();
 
 // Importar roteadores
 const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
 const strategiesRouter = require('./routes/strategies');
 const authRouter = require('./routes/auth');
+const usersRouter = require('./routes/users');
 
 // Configuração MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -76,6 +78,10 @@ app.locals.db = db;
 app.use('/api/roulettes/history', rouletteHistoryRouter);
 app.use('/api/strategies', strategiesRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/users', usersRouter);
+
+// Servir arquivos estáticos da pasta public
+app.use(express.static(path.join(__dirname, '..', '..', 'public')));
 
 // Adicionar mapeamento de nomes para IDs de roletas conhecidas
 const NOME_PARA_ID = {

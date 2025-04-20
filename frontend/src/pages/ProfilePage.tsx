@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,6 +7,7 @@ import { Pencil, X } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/Layout';
+import UserService from '@/services/UserService';
 
 // Estendendo o tipo User para evitar erros de lint
 interface ExtendedUser {
@@ -37,6 +38,9 @@ const ProfilePage = () => {
     country: 'Brasil',
     language: 'Português',
   });
+
+  // Adicionar referência para o input de arquivo
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -101,30 +105,110 @@ const ProfilePage = () => {
   };
 
   const handleChangeAvatar = () => {
-    // In a real app, this would open a file picker
-    toast({
-      title: "Feature coming soon",
-      description: "Avatar upload functionality will be available soon."
-    });
+    // Abrir o seletor de arquivo quando clicar no botão
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      
+      try {
+        // Mostrar toast de carregamento
+        toast({
+          title: "Enviando imagem...",
+          description: "Aguarde enquanto fazemos o upload da sua foto de perfil.",
+        });
+        
+        // Fazer o upload do arquivo
+        const response = await UserService.uploadProfilePicture(file);
+        
+        // Atualizar o avatar localmente
+        setAvatar(response.data.profilePicture);
+        
+        // Mostrar mensagem de sucesso
+        toast({
+          title: "Imagem atualizada",
+          description: "Sua foto de perfil foi atualizada com sucesso.",
+          variant: "default"
+        });
+      } catch (error) {
+        console.error('Erro ao fazer upload:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível fazer o upload da imagem. Tente novamente mais tarde.",
+          variant: "destructive"
+        });
+      }
+    }
   };
 
-  const handleRemoveAvatar = () => {
-    setAvatar(null);
-    toast({
-      title: "Avatar removed",
-      description: "Your profile avatar has been removed."
-    });
+  const handleRemoveAvatar = async () => {
+    try {
+      // Mostrar toast de carregamento
+      toast({
+        title: "Removendo imagem...",
+        description: "Aguarde enquanto removemos sua foto de perfil.",
+      });
+      
+      // Chamar o serviço para remover a imagem
+      await UserService.removeProfilePicture();
+      
+      // Atualizar estado local
+      setAvatar(null);
+      
+      // Mostrar mensagem de sucesso
+      toast({
+        title: "Imagem removida",
+        description: "Sua foto de perfil foi removida com sucesso.",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Erro ao remover avatar:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível remover a imagem. Tente novamente mais tarde.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleSave = () => {
-    toast({
-      title: "Perfil atualizado",
-      description: "Suas informações de perfil foram salvas com sucesso.",
-      variant: "default"
-    });
-    
-    // Aqui você implementaria a lógica para salvar os dados no backend
-    console.log('Dados a serem salvos:', profileData);
+  const handleSave = async () => {
+    try {
+      // Mostrar toast de carregamento
+      toast({
+        title: "Salvando alterações...",
+        description: "Aguarde enquanto atualizamos seu perfil.",
+      });
+      
+      // Obter apenas os campos permitidos para atualização
+      const dataToUpdate = {
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        username: profileData.username
+      };
+      
+      // Chamar o serviço para atualizar o perfil
+      const response = await UserService.updateProfile(dataToUpdate);
+      
+      // Mostrar mensagem de sucesso
+      toast({
+        title: "Perfil atualizado",
+        description: "Suas informações de perfil foram salvas com sucesso.",
+        variant: "default"
+      });
+      
+      console.log('Perfil atualizado:', response);
+    } catch (error) {
+      console.error('Erro ao salvar perfil:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o perfil. Tente novamente mais tarde.",
+        variant: "destructive"
+      });
+    }
   };
 
   // Cast para o tipo estendido para acessar as propriedades adicionais
@@ -133,6 +217,15 @@ const ProfilePage = () => {
   return (
     <Layout>
       <div className="max-w-4xl mx-auto bg-[#1A191F] rounded-xl p-6 text-white shadow-lg">
+        {/* Input de arquivo oculto */}
+        <input 
+          type="file" 
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept="image/jpeg,image/png,image/jpg"
+          className="hidden"
+        />
+        
         <h1 className="text-2xl font-bold mb-6 text-vegas-gold">Meu Perfil</h1>
         
         <div className="mb-8 pb-6 border-b border-[#33333359]">

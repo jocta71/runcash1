@@ -2,22 +2,57 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 import { useLoginModal } from '@/context/LoginModalContext';
-import { LogOut, LogIn, UserPlus } from 'lucide-react';
-import { useEffect } from 'react';
+import { LogOut, LogIn, UserPlus, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import Cookies from 'js-cookie'; // Certifique-se de que js-cookie está instalado
 
 const NavbarAuth = () => {
-  const { user, signOut } = useAuth();
+  const { user, signOut, setUser } = useAuth();
   const { showLoginModal, resetModalClosed } = useLoginModal();
   const navigate = useNavigate();
+  // Estado para controlar a visibilidade do botão de depuração
+  const [showDebug] = useState(true); // Definir como false após resolver o problema
 
   // Log para depuração do estado de autenticação
   useEffect(() => {
     console.log('[NavbarAuth] Estado de autenticação:', user ? 'Autenticado' : 'Não autenticado');
+    if (user) {
+      console.log('[NavbarAuth] Detalhes do usuário:', user);
+    }
   }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
+  };
+
+  // Função para forçar a limpeza completa de dados
+  const forceCleanup = () => {
+    console.log('[NavbarAuth] Forçando limpeza completa de dados de autenticação');
+    
+    // Limpar cookies
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i];
+      const eqPos = cookie.indexOf('=');
+      const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+      document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+    }
+    
+    // Limpar js-cookie
+    Cookies.remove('token', { path: '/' });
+    
+    // Limpar localStorage
+    localStorage.clear();
+    
+    // Limpar sessionStorage
+    sessionStorage.clear();
+    
+    // Forçar estado a null
+    setUser(null);
+    
+    // Recarregar a página para garantir
+    window.location.reload();
   };
 
   const handleLoginClick = (activeTab = 'login') => {
@@ -36,6 +71,17 @@ const NavbarAuth = () => {
   if (user) {
     return (
       <div className="flex items-center gap-2">
+        {showDebug && (
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            onClick={forceCleanup}
+            className="text-xs sm:text-sm bg-red-500 text-white"
+          >
+            <RefreshCw className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Forçar Logout</span>
+          </Button>
+        )}
         <span className="text-sm hidden md:inline-block">
           {user.email?.split('@')[0]}
         </span>
@@ -55,6 +101,17 @@ const NavbarAuth = () => {
   // Caso contrário, mostrar botões de registro e login
   return (
     <div className="flex items-center gap-2">
+      {showDebug && (
+        <Button 
+          variant="destructive" 
+          size="sm" 
+          onClick={forceCleanup}
+          className="text-xs sm:text-sm bg-red-500 text-white"
+        >
+          <RefreshCw className="h-4 w-4 mr-1" />
+          <span className="hidden sm:inline">Limpar Dados</span>
+        </Button>
+      )}
       <Button 
         variant="outline" 
         size="sm" 

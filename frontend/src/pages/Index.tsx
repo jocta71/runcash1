@@ -33,6 +33,8 @@ import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import RouletteMiniStats from '@/components/RouletteMiniStats';
 import RouletteFilterBar from '@/components/RouletteFilterBar';
 import { extractProviders } from '@/utils/rouletteProviders';
+import { useAuth } from '@/context/AuthContext';
+import Cookies from 'js-cookie';
 
 interface ChatMessage {
   id: string;
@@ -56,6 +58,7 @@ interface KnownRoulette {
 }
 
 const Index = () => {
+  const { user, setUser } = useAuth();
   // Remover o estado de busca
   // const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -464,10 +467,53 @@ const Index = () => {
     setFilteredRoulettes(filtered);
   };
 
+  // Função para forçar limpeza completa dos dados de autenticação
+  const forceAuthCleanup = () => {
+    console.log('[Index] Forçando limpeza completa de dados de autenticação');
+    
+    // Limpar cookies
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i];
+      const eqPos = cookie.indexOf('=');
+      const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+      document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+    }
+    
+    // Limpar js-cookie
+    Cookies.remove('token', { path: '/' });
+    
+    // Limpar localStorage
+    localStorage.clear();
+    
+    // Limpar sessionStorage
+    sessionStorage.clear();
+    
+    // Forçar estado a null
+    setUser(null);
+    
+    // Recarregar a página para garantir
+    window.location.reload();
+  };
+
   return (
     <Layout preloadData={true}>
       <div className="container mx-auto px-4 pt-4 md:pt-8">
-        {/* Cabeçalho removido completamente */}
+        {/* Componente de depuração */}
+        <div className="bg-red-900/30 border-2 border-red-500 p-4 mb-6 rounded-lg">
+          <h2 className="text-xl font-bold text-white mb-2">Ferramentas de Depuração</h2>
+          <p className="text-sm text-gray-200 mb-4">
+            Status de autenticação: {user ? 'Autenticado como ' + user.email : 'Não autenticado'}
+          </p>
+          <div className="flex space-x-2">
+            <button 
+              onClick={forceAuthCleanup}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium"
+            >
+              Forçar Logout Total (Limpar Todos os Dados)
+            </button>
+          </div>
+        </div>
         
         {/* Mensagem de erro */}
         {error && (
