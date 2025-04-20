@@ -54,7 +54,7 @@ const RouletteFilters: React.FC<RouletteFiltersProps> = ({
       
       {/* Informação de filtros ativos */}
       {selectedProviders.length > 0 && (
-        <div className="bg-[#17191a] p-2 rounded-md">
+        <div className="bg-card p-2 rounded-md">
           <p className="text-xs text-gray-300">
             Filtros ativos: {selectedProviders.length} provedor(es)
           </p>
