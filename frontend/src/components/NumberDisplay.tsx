@@ -38,6 +38,11 @@ const NumberDisplay: React.FC<NumberDisplayProps> = ({
         getColorClass(number),
         highlight ? "ring-4 ring-yellow-400 ring-opacity-90 shadow-lg shadow-yellow-400/50 font-bold z-10 scale-110" : ""
       )}
+      style={{
+        transform: highlight ? 'scale(1.15)' : 'scale(1)',
+        transition: 'all 0.2s ease',
+        boxShadow: highlight ? '0 0 12px 2px rgba(255, 215, 0, 0.7)' : 'none'
+      }}
     >
       {number !== null ? number : '?'}
     </div>
