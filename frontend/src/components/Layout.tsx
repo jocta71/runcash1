@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import ChatUI from './ChatUI';
 import AIFloatingBar from './AIFloatingBar';
-import { Loader2, LogOut, Search, Wallet, Menu, MessageSquare } from 'lucide-react';
+import { Loader2, LogOut, Search, Wallet, Menu, MessageSquare, LogIn, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { useAuth } from '@/context/AuthContext';
@@ -12,6 +12,7 @@ import ProfileDropdown from './ProfileDropdown';
 import AnimatedInsights from './AnimatedInsights';
 import Footer from './Footer';
 import GlowingCubeLoader from './GlowingCubeLoader';
+import { useLoginModal } from '@/context/LoginModalContext';
 
 // Interface estendida para o usuário com firstName e lastName
 interface ExtendedUser {
@@ -31,6 +32,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   const { user, signOut } = useAuth();
+  const { showLoginModal, resetModalClosed } = useLoginModal();
   const [isLoading, setIsLoading] = useState(preloadData);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -76,6 +78,11 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
     preloadRouletteData();
   }, [preloadData]);
 
+  const handleLoginClick = () => {
+    resetModalClosed();
+    showLoginModal();
+  };
+
   // Renderizar tela de carregamento se estiver carregando
   if (isLoading) {
     return (
@@ -109,6 +116,94 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
       window.location.href = '/';
     }
   };
+
+  // Componente para exibir ações de usuário autenticado
+  const AuthenticatedActions = () => (
+    <>
+      {/* Informações do usuário */}
+      <div className="hidden lg:flex items-center bg-[#1A191F]/70 rounded-full px-3 py-1 text-white">
+        <span className="text-xs font-medium">Olá, {getDisplayName()}</span>
+      </div>
+      
+      <ProfileDropdown />
+      
+      <Button 
+        variant="outline" 
+        size="sm" 
+        onClick={handleSignOut}
+        className="h-8 text-red-500 border-red-500 hover:bg-red-500/10"
+      >
+        <LogOut size={14} className="mr-1" /> Sair
+      </Button>
+    </>
+  );
+
+  // Componente para exibir ações de usuário não autenticado
+  const UnauthenticatedActions = () => (
+    <>
+      <Button 
+        variant="outline" 
+        size="sm" 
+        onClick={handleLoginClick}
+        className="h-8 text-white border-white/20 hover:bg-white/10"
+      >
+        <UserPlus size={14} className="mr-1" /> Registrar
+      </Button>
+      
+      <Button 
+        variant="default" 
+        size="sm" 
+        onClick={handleLoginClick}
+        className="h-8 text-black bg-vegas-green hover:bg-vegas-green/90"
+      >
+        <LogIn size={14} className="mr-1" /> Entrar
+      </Button>
+    </>
+  );
+
+  // Componente para exibir ações de usuário autenticado em mobile
+  const MobileAuthenticatedActions = () => (
+    <div className="flex items-center gap-2">
+      {user && (
+        <div className="flex items-center bg-[#1A191F]/70 rounded-full px-3 py-1 text-white mr-2">
+          <span className="text-xs font-medium">Olá, {getDisplayName()}</span>
+        </div>
+      )}
+      <ProfileDropdown />
+      
+      <Button 
+        variant="outline" 
+        size="sm" 
+        onClick={handleSignOut}
+        className="h-8 text-red-500 border-red-500 hover:bg-red-500/10"
+      >
+        <LogOut size={14} className="mr-1" /> Sair
+      </Button>
+    </div>
+  );
+
+  // Componente para exibir ações de usuário não autenticado em mobile
+  const MobileUnauthenticatedActions = () => (
+    <div className="flex items-center gap-2">
+      <Button 
+        variant="outline" 
+        size="sm" 
+        onClick={handleLoginClick}
+        className="h-8 text-white border-white/20 hover:bg-white/10"
+      >
+        <UserPlus size={14} /> 
+      </Button>
+      
+      <Button 
+        variant="default" 
+        size="sm" 
+        onClick={handleLoginClick}
+        className="h-8 text-black bg-vegas-green hover:bg-vegas-green/90"
+      >
+        <LogIn size={14} /> 
+      </Button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex bg-vegas-black">
@@ -153,45 +248,15 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
               </Link>
             </Button>
             
-            {/* Informações do usuário */}
-            {user && (
-              <div className="hidden lg:flex items-center bg-[#1A191F]/70 rounded-full px-3 py-1 text-white">
-                <span className="text-xs font-medium">Olá, {getDisplayName()}</span>
-              </div>
-            )}
-            
-            <ProfileDropdown />
-            
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleSignOut}
-              className="h-8 text-red-500 border-red-500 hover:bg-red-500/10"
-            >
-              <LogOut size={14} className="mr-1" /> Sair
-            </Button>
+            {/* Ações de usuário com base no estado de autenticação */}
+            {user ? <AuthenticatedActions /> : <UnauthenticatedActions />}
           </div>
         </div>
         
         {/* Mobile User Info */}
         <div className="md:hidden flex justify-between items-center px-4 py-3">
-          <div className="flex items-center gap-2">
-            {user && (
-              <div className="flex items-center bg-[#1A191F]/70 rounded-full px-3 py-1 text-white mr-2">
-                <span className="text-xs font-medium">Olá, {getDisplayName()}</span>
-              </div>
-            )}
-            <ProfileDropdown />
-            
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleSignOut}
-              className="h-8 text-red-500 border-red-500 hover:bg-red-500/10"
-            >
-              <LogOut size={14} className="mr-1" /> Sair
-            </Button>
-          </div>
+          {/* Ações de usuário com base no estado de autenticação */}
+          {user ? <MobileAuthenticatedActions /> : <MobileUnauthenticatedActions />}
           
           <Button variant="default" size="sm" asChild className="h-8 text-white font-medium bg-gradient-to-b from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900">
             <Link to="/planos">

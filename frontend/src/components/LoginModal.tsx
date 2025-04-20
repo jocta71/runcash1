@@ -37,24 +37,6 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   // API URL
   const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
 
-  // Ouvinte de evento para mudar a aba com base no botão clicado no NavbarAuth
-  useEffect(() => {
-    const handleSetActiveTab = (event: CustomEvent) => {
-      const tab = event.detail;
-      if (tab === 'login' || tab === 'register') {
-        setActiveTab(tab);
-      }
-    };
-
-    // Adicionar o ouvinte de evento
-    window.addEventListener('set-login-tab', handleSetActiveTab as EventListener);
-
-    // Limpar o ouvinte quando o componente for desmontado
-    return () => {
-      window.removeEventListener('set-login-tab', handleSetActiveTab as EventListener);
-    };
-  }, []);
-
   // Verificar se auth Google está disponível
   useEffect(() => {
     const checkAuthStatus = async () => {
@@ -206,10 +188,10 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 bg-gray-800/50">
               <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
-                Entrar
+                Login
               </TabsTrigger>
               <TabsTrigger value="register" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
-                Registrar
+                Cadastro
               </TabsTrigger>
             </TabsList>
             
@@ -328,8 +310,8 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
             {/* Conteúdo da aba de Cadastro */}
             <TabsContent value="register" className="space-y-4 mt-4">
               <div className="flex flex-col space-y-2 text-center">
-                <h1 className="text-2xl font-semibold tracking-tight text-white">Crie sua conta</h1>
-                <p className="text-sm text-gray-400">Preencha seus dados para se registrar</p>
+                <h1 className="text-2xl font-semibold tracking-tight text-white">Criar uma conta</h1>
+                <p className="text-sm text-gray-400">Preencha seus dados para se cadastrar</p>
               </div>
 
               {errorMessage && activeTab === 'register' && (
@@ -409,7 +391,7 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
                   className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
                   disabled={isLoading}
                 >
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Registrar'}
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Criar Conta'}
                 </Button>
                 
                 <div className="relative">
