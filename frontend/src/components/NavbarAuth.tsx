@@ -6,12 +6,18 @@ import { LogOut, LogIn } from 'lucide-react';
 
 const NavbarAuth = () => {
   const { user, signOut } = useAuth();
-  const { showLoginModal } = useLoginModal();
+  const { showLoginModal, resetModalClosed } = useLoginModal();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
+  };
+
+  const handleLoginClick = () => {
+    // Resetar o estado de fechamento manual e mostrar o modal
+    resetModalClosed();
+    showLoginModal();
   };
 
   if (user) {
@@ -37,7 +43,7 @@ const NavbarAuth = () => {
     <Button 
       variant="outline" 
       size="sm" 
-      onClick={showLoginModal}
+      onClick={handleLoginClick}
       className="text-xs sm:text-sm"
     >
       <LogIn className="h-4 w-4 mr-1" />

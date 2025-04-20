@@ -18,6 +18,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAuth =
   const { user, loading, checkAuth } = useAuth();
   const { showLoginModal } = useLoginModal();
   const [authChecked, setAuthChecked] = useState(false);
+  // Flag para controlar se o modal já foi mostrado
+  const [modalShown, setModalShown] = useState(false);
 
   useEffect(() => {
     // Evitar verificações repetidas se já tiver um usuário ou já estiver verificado
@@ -31,15 +33,24 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAuth =
     }
   }, [user, authChecked, loading, checkAuth]);
 
+  // Efeito separado para controlar a exibição do modal de login
+  useEffect(() => {
+    // Só mostrar o modal se autenticação for requerida, usuário não estiver logado
+    // e o modal ainda não foi mostrado nesta sessão
+    if (requireAuth && !user && authChecked && !modalShown && !loading) {
+      showLoginModal();
+      setModalShown(true);
+    }
+    
+    // Resetar o flag quando o usuário mudar
+    if (user) {
+      setModalShown(false);
+    }
+  }, [requireAuth, user, authChecked, modalShown, loading, showLoginModal]);
+
   // Mostrar tela de carregamento apenas durante a verificação inicial
   if (loading && !authChecked) {
     return <LoadingScreen />;
-  }
-
-  // Se a autenticação for requerida e o usuário não estiver logado, mostrar o modal de login
-  if (requireAuth && !user) {
-    // Mostrar modal de login (sem redirecionar)
-    showLoginModal();
   }
 
   // Sempre mostrar o conteúdo da rota (o modal aparecerá sobre ele se necessário)
