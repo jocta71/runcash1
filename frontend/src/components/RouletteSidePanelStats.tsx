@@ -1248,9 +1248,15 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     {/* Setores da roleta */}
                     <div className="absolute top-0 left-0 w-full h-full">
                       {ROULETTE_NUMBERS.map((num, index) => {
-                        const angle = (index * (360 / ROULETTE_NUMBERS.length));
-                        const nextAngle = ((index + 1) * (360 / ROULETTE_NUMBERS.length));
-                        const arcAngle = nextAngle - angle;
+                        // Ajustar ângulo inicial para alinhar com a seta
+                        const angleOffset = 90; // Offset para alinhar com a seta no topo
+                        const totalElements = ROULETTE_NUMBERS.length;
+                        const segmentAngle = 360 / totalElements;
+                        
+                        // Calcular ângulos corretamente para o alinhamento
+                        const angle = (index * segmentAngle) + angleOffset;
+                        const nextAngle = ((index + 1) * segmentAngle) + angleOffset;
+                        const arcAngle = segmentAngle;
                         const midAngle = angle + (arcAngle / 2);
                         const radMidAngle = midAngle * (Math.PI / 180);
                         
@@ -1272,17 +1278,17 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                         const outerRadius = 130;
                         const innerRadius = 85;
                         
-                        // Ponto inicial e final do arco externo
-                        const startX = outerRadius * Math.cos((angle - 90) * (Math.PI / 180));
-                        const startY = outerRadius * Math.sin((angle - 90) * (Math.PI / 180));
-                        const endX = outerRadius * Math.cos((nextAngle - 90) * (Math.PI / 180));
-                        const endY = outerRadius * Math.sin((nextAngle - 90) * (Math.PI / 180));
+                        // Ponto inicial e final do arco externo (agora usando funções seno e cosseno corretamente)
+                        const startX = outerRadius * Math.cos((angle) * (Math.PI / 180));
+                        const startY = outerRadius * Math.sin((angle) * (Math.PI / 180));
+                        const endX = outerRadius * Math.cos((nextAngle) * (Math.PI / 180));
+                        const endY = outerRadius * Math.sin((nextAngle) * (Math.PI / 180));
                         
                         // Ponto inicial e final do arco interno
-                        const innerStartX = innerRadius * Math.cos((angle - 90) * (Math.PI / 180));
-                        const innerStartY = innerRadius * Math.sin((angle - 90) * (Math.PI / 180));
-                        const innerEndX = innerRadius * Math.cos((nextAngle - 90) * (Math.PI / 180));
-                        const innerEndY = innerRadius * Math.sin((nextAngle - 90) * (Math.PI / 180));
+                        const innerStartX = innerRadius * Math.cos((angle) * (Math.PI / 180));
+                        const innerStartY = innerRadius * Math.sin((angle) * (Math.PI / 180));
+                        const innerEndX = innerRadius * Math.cos((nextAngle) * (Math.PI / 180));
+                        const innerEndY = innerRadius * Math.sin((nextAngle) * (Math.PI / 180));
                         
                         // Flag que determina se o arco é maior que 180 graus
                         const largeArcFlag = arcAngle > 180 ? 1 : 0;
@@ -1297,10 +1303,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                           'Z' // Fechar o caminho
                         ].join(' ');
                         
-                        // Calculando a posição do número
-                        const labelRadius = (innerRadius + outerRadius) / 2;
-                        const labelX = labelRadius * Math.cos(radMidAngle - (Math.PI / 2));
-                        const labelY = labelRadius * Math.sin(radMidAngle - (Math.PI / 2));
+                        // Calculando a posição do número corrigida para o alinhamento
+                        const labelRadius = (innerRadius + outerRadius) / 2 - 5;
+                        const labelX = labelRadius * Math.cos(radMidAngle);
+                        const labelY = labelRadius * Math.sin(radMidAngle);
                         
                         // Calculando o brilho baseado na intensidade
                         const glow = intensity > 0.2 
@@ -1362,7 +1368,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     {/* Divisões entre setores (linhas douradas) */}
                     <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
                       {ROULETTE_NUMBERS.map((_, index) => {
-                        const angle = (index * (360 / ROULETTE_NUMBERS.length)) - 90;
+                        const angleOffset = 90; // Alinhado com o offset acima
+                        const segmentAngle = 360 / ROULETTE_NUMBERS.length;
+                        const angle = (index * segmentAngle) + angleOffset;
+                        
                         return (
                           <div 
                             key={`divider-${index}`}
@@ -1386,8 +1395,8 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     </div>
                   </div>
                   
-                  {/* Indicador de número atual (fixo, não gira) */}
-                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-4 h-10 z-30" 
+                  {/* Indicador de número atual (fixo, não gira) - Ajustado para melhor visibilidade */}
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-[-5px] w-4 h-10 z-30" 
                        style={{ filter: 'drop-shadow(0 0 4px rgba(255, 215, 0, 0.7))' }}>
                     <div className="w-full h-full relative">
                       <div className="absolute top-0 left-0 w-full h-4 bg-[#F0D98E]"></div>
