@@ -38,6 +38,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import NumberDisplay from './NumberDisplay';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -1102,7 +1103,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   onClick={handleShowMore} 
                   variant="ghost" 
                   size="sm"
-                  className="h-6 flex items-center gap-1 text-xs border border-[hsl(216,34%,17%)]"
+                  className="h-6 flex items-center gap-1 text-xs border border-border"
                 >
                   +{filteredNumbers.length - visibleNumbersCount} <ChevronDown className="h-3 w-3" />
                 </Button>
@@ -1112,20 +1113,41 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             <CardContent className="p-0 pb-1">
             {visibleNumbers.length > 0 ? (
                 <ScrollArea className="h-[300px]">
-                  <div className="flex flex-wrap p-1">
+                  <div className="flex flex-wrap p-3 gap-2">
                     {visibleNumbers.map((n, idx) => (
                       <div 
                         key={idx} 
-                        className="flex flex-col w-[26px] h-[36px] m-[1px]"
+                        className="flex flex-col items-center"
                       >
-                        <div className={`w-full h-[26px] flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(n.numero)} border-[1px] border-[#333]`}>
-                          {n.numero}
-                        </div>
-                        <div className="w-full h-[10px] text-[6px] leading-[10px] text-center text-[hsl(215.4,16.3%,56.9%)] overflow-hidden">
+                        <NumberDisplay
+                          number={n.numero}
+                          size="small"
+                          highlight={idx === 0} // Destacar o número mais recente
+                        />
+                        <div className="text-[8px] mt-0.5 text-center text-muted-foreground">
                           {n.timestamp}
                         </div>
                       </div>
                     ))}
+                  </div>
+                  
+                  {/* Separador e indicações de grupos de números */}
+                  <div className="px-3 py-1">
+                    <Separator className="my-2" />
+                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-[#FF1D46]"></div>
+                        <span>Vermelhos: {visibleNumbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n.numero)).length}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-[#292524]"></div>
+                        <span>Pretos: {visibleNumbers.filter(n => n.numero !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n.numero)).length}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        <span>Zero: {visibleNumbers.filter(n => n.numero === 0).length}</span>
+                      </div>
+                    </div>
                   </div>
                 </ScrollArea>
             ) : (
