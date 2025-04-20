@@ -40,7 +40,6 @@ interface RouletteSidePanelStatsProps {
   wins: number;
   losses: number;
   providers?: RouletteProvider[];
-  onTimeFilterChange?: (minutes: number | null) => void;
 }
 
 export interface RouletteProvider {
@@ -421,8 +420,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   lastNumbers, 
   wins, 
   losses,
-  providers = [],
-  onTimeFilterChange
+  providers = [] 
 }: RouletteSidePanelStatsProps) => {
   const [historicalNumbers, setHistoricalNumbers] = useState<RouletteNumber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -662,15 +660,11 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   // Opções para o filtro de tempo
   const timeOptions = [
     { value: 'todos', label: 'Todos' },
-    // Adicionar opções de minutos de 0 a 59
-    ...Array.from({ length: 60 }, (_, i) => {
-      // Formatar o minuto com dois dígitos (01, 02, etc)
-      const formattedMinute = i.toString().padStart(2, '0');
-      return {
-        value: String(i),
-        label: `${formattedMinute} min`
-      };
-    })
+    { value: '1', label: 'Último 1 min' },
+    { value: '5', label: 'Últimos 5 min' },
+    { value: '10', label: 'Últimos 10 min' },
+    { value: '30', label: 'Últimos 30 min' },
+    { value: '60', label: 'Última 1 hora' },
   ];
 
   // Handler para o filtro de cor
@@ -723,19 +717,6 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   // Handler para o filtro de tempo
   const handleTimeChange = (value: string) => {
     setSelectedTime(value);
-    
-    // Passa o minuto selecionado como número para o filtro
-    if (value === 'todos') {
-      // Se selecionou 'todos', não aplicar filtro
-      onTimeFilterChange?.(null);
-    } else {
-      // Converte o valor para número e passa para o filtro
-      const minute = parseInt(value, 10);
-      if (!isNaN(minute)) {
-        onTimeFilterChange?.(minute);
-      }
-    }
-    
     checkActiveFilters();
   };
 

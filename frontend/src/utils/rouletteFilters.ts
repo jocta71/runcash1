@@ -111,14 +111,41 @@ export function filterRoulettesByTime(
     return roulettes;
   }
   
+  const now = new Date();
+  const maxTimeDiff = minutes * 60 * 1000; // Converte minutos para milissegundos
+  
   return roulettes.filter(roulette => {
     if (!roulette.historico?.timestamps?.[0]) return false;
     
     const lastTimestamp = new Date(roulette.historico.timestamps[0]);
-    const minuteOfTimestamp = lastTimestamp.getMinutes();
+    const diffMs = now.getTime() - lastTimestamp.getTime();
     
-    // Filtra roletas que têm o minuto exato correspondente ao selecionado
-    return minuteOfTimestamp === minutes;
+    return diffMs <= maxTimeDiff;
+  });
+}
+
+/**
+ * Filtra roletas pelo minuto específico do timestamp (ex: "02", "05", "59")
+ * @param roulettes Lista de roletas
+ * @param minute Minuto específico para filtrar (string com 2 dígitos, ex: "02", "05", "59")
+ * @returns Lista de roletas filtradas
+ */
+export function filterRoulettesByMinute(
+  roulettes: RouletteData[],
+  minute: string | null
+): RouletteData[] {
+  if (!minute) {
+    return roulettes;
+  }
+  
+  return roulettes.filter(roulette => {
+    if (!roulette.historico?.timestamps?.[0]) return false;
+    
+    const lastTimestamp = new Date(roulette.historico.timestamps[0]);
+    // Extrai o minuto como string de 2 dígitos (ex: "02", "05", "59")
+    const timestampMinute = lastTimestamp.getMinutes().toString().padStart(2, '0');
+    
+    return timestampMinute === minute;
   });
 }
 
@@ -131,6 +158,7 @@ export function filterRoulettesByTime(
  * @param colorFilter Cor para filtrar
  * @param parityFilter Paridade para filtrar
  * @param timeFilter Tempo máximo em minutos desde o último número
+ * @param minuteFilter Minuto específico do timestamp (ex: "02", "05", "59")
  * @returns Lista de roletas filtradas
  */
 export function applyAllFilters(
@@ -140,7 +168,8 @@ export function applyAllFilters(
   numberFilter: number | null = null,
   colorFilter: 'red' | 'black' | 'green' | null = null,
   parityFilter: 'even' | 'odd' | null = null,
-  timeFilter: number | null = null
+  timeFilter: number | null = null,
+  minuteFilter: string | null = null
 ): RouletteData[] {
   // Se não há filtros ativos, retorna todas as roletas
   if (
@@ -149,7 +178,8 @@ export function applyAllFilters(
     numberFilter === null &&
     colorFilter === null &&
     parityFilter === null &&
-    timeFilter === null
+    timeFilter === null &&
+    minuteFilter === null
   ) {
     return roulettes;
   }
@@ -179,6 +209,10 @@ export function applyAllFilters(
   
   if (timeFilter !== null) {
     filtered = filterRoulettesByTime(filtered, timeFilter);
+  }
+  
+  if (minuteFilter !== null) {
+    filtered = filterRoulettesByMinute(filtered, minuteFilter);
   }
   
   return filtered;

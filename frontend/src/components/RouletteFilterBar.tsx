@@ -1,19 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCcw, X, Clock } from 'lucide-react';
+import { RefreshCcw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import RouletteSearch from '@/components/RouletteSearch';
 import { RouletteData } from '@/types';
 import { 
-  filterRoulettesBySearchTerm,
-  filterRoulettesByTime
+  filterRoulettesBySearchTerm
 } from '@/utils/rouletteFilters';
 import { extractProviders, filterRoulettesByProvider, RouletteProvider } from '@/utils/rouletteProviders';
 
@@ -36,22 +28,12 @@ const RouletteFilterBar = ({
 }: RouletteFilterBarProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
-  const [selectedMinute, setSelectedMinute] = useState<number | null>(null);
   const [filteredCount, setFilteredCount] = useState(roulettes.length);
 
   // Extrair provedores disponíveis dos dados de roletas
   const providers = useMemo(() => {
     return extractProviders(roulettes);
   }, [roulettes]);
-
-  // Opções de minutos para o filtro
-  const minuteOptions = useMemo(() => [
-    { value: 'todos', label: 'Todos' },
-    ...Array.from({ length: 60 }, (_, i) => ({
-      value: String(i),
-      label: i.toString().padStart(2, '0')
-    }))
-  ], []);
 
   // Aplicar filtros quando o termo de busca, provedores selecionados ou dados de roletas mudam
   useEffect(() => {
@@ -73,15 +55,10 @@ const RouletteFilterBar = ({
       filtered = filterRoulettesByProvider(filtered, selectedProviders);
     }
 
-    // Aplicar filtro por minuto específico se selecionado
-    if (selectedMinute !== null) {
-      filtered = filterRoulettesByTime(filtered, selectedMinute);
-    }
-
     // Atualizar a contagem e enviar os resultados filtrados
     setFilteredCount(filtered.length);
     onFilter(filtered);
-  }, [searchTerm, selectedProviders, selectedMinute, roulettes, onFilter]);
+  }, [searchTerm, selectedProviders, roulettes, onFilter]);
 
   // Alternar seleção de um provedor
   const handleProviderToggle = (providerId: string) => {
@@ -106,18 +83,6 @@ const RouletteFilterBar = ({
     return selectedProviders.includes(providerId);
   };
 
-  // Handler para mudança no filtro de minuto
-  const handleMinuteChange = (value: string) => {
-    if (value === 'todos') {
-      setSelectedMinute(null);
-    } else {
-      const minute = parseInt(value, 10);
-      if (!isNaN(minute)) {
-        setSelectedMinute(minute);
-      }
-    }
-  };
-
   // Número de provedores selecionados
   const selectedProvidersCount = selectedProviders.length;
 
@@ -140,29 +105,6 @@ const RouletteFilterBar = ({
             </button>
           )}
         </div>
-        
-        {/* Filtro por Minuto */}
-        <div className="w-[120px]">
-          <Select
-            value={selectedMinute === null ? 'todos' : String(selectedMinute)}
-            onValueChange={handleMinuteChange}
-          >
-            <SelectTrigger className="h-10 bg-background text-foreground border-input">
-              <div className="flex items-center">
-                <Clock size={16} className="mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Minuto" />
-              </div>
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px] overflow-y-auto">
-              {minuteOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        
         {onRefresh && (
           <Button
             variant="outline"

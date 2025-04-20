@@ -53,15 +53,10 @@ const AnalyticsFilterRow: React.FC<AnalyticsFilterRowProps> = ({
 
   const minuteOptions = [
     { value: 'todos', label: 'Todos' },
-    // Adicionar opções de minutos de 0 a 59
-    ...Array.from({ length: 60 }, (_, i) => {
-      // Formatar o minuto com dois dígitos (01, 02, etc)
-      const formattedMinute = i.toString().padStart(2, '0');
-      return {
-        value: String(i),
-        label: formattedMinute
-      };
-    })
+    ...Array.from({ length: 60 }, (_, i) => ({
+      value: i.toString().padStart(2, '0'),
+      label: i.toString().padStart(2, '0')
+    }))
   ];
 
   const lastMinuteOptions = [
@@ -139,7 +134,7 @@ const AnalyticsFilterRow: React.FC<AnalyticsFilterRowProps> = ({
           <SelectTrigger className="w-full bg-black border-none text-white h-10">
             <SelectValue placeholder="Todos" />
           </SelectTrigger>
-          <SelectContent className="bg-[#111] border-gray-800 text-white">
+          <SelectContent className="bg-[#111] border-gray-800 text-white max-h-[200px] overflow-y-auto">
             {minuteOptions.map(option => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
