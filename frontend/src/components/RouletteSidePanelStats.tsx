@@ -703,7 +703,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     { value: 'todos', label: 'Todos' },
     ...Array.from({ length: 60 }, (_, i) => ({
       value: String(i),
-      label: `Minuto ${i}`
+      label: String(i)
     }))
   ];
 
