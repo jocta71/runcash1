@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -8,9 +7,21 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import axios from 'axios';
 
-const AuthPage = () => {
+interface LoginModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -20,15 +31,14 @@ const AuthPage = () => {
   const [isGoogleAuthEnabled, setIsGoogleAuthEnabled] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [activeTab, setActiveTab] = useState('login');
-  const { signIn, signUp, user } = useAuth();
-  const navigate = useNavigate();
+  const { signIn, signUp } = useAuth();
   const { toast } = useToast();
   
   // API URL
   const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
 
+  // Verificar se auth Google está disponível
   useEffect(() => {
-    // Verificar se auth Google está disponível
     const checkAuthStatus = async () => {
       try {
         const response = await axios.get(`${API_URL}/auth/google/status`);
@@ -42,23 +52,7 @@ const AuthPage = () => {
     };
     
     checkAuthStatus();
-    
-    // Redirect to home if already logged in
-    if (user) {
-      navigate('/');
-    }
-    
-    // Verificar se há erro no URL (redirecionado do Google Auth)
-    const urlParams = new URLSearchParams(window.location.search);
-    const error = urlParams.get('error');
-    if (error === 'google_auth_disabled') {
-      toast({
-        title: "Autenticação Google desativada",
-        description: "Essa funcionalidade não está configurada no servidor.",
-        variant: "destructive"
-      });
-    }
-  }, [user, navigate, toast, API_URL]);
+  }, [API_URL]);
 
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +79,7 @@ const AuthPage = () => {
           title: "Login bem-sucedido",
           description: "Bem-vindo de volta!",
         });
-        navigate('/');
+        onClose();
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
@@ -130,7 +124,7 @@ const AuthPage = () => {
           title: "Conta criada com sucesso",
           description: "Você já pode usar sua conta para acessar o sistema.",
         });
-        navigate('/');
+        onClose();
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
@@ -167,36 +161,8 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gray-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Elementos de fundo simulando a interface do site */}
-      <div className="absolute inset-0 z-0 opacity-15">
-        <div className="absolute top-0 left-0 right-0 h-16 bg-gray-800"></div>
-        <div className="absolute top-20 left-4 w-64 h-[calc(100vh-6rem)] bg-gray-800 rounded-lg"></div>
-        <div className="absolute top-20 left-72 right-4 h-64 bg-gray-800 rounded-lg"></div>
-        <div className="absolute top-[22rem] left-72 w-1/3 h-[calc(100vh-24rem)] bg-gray-800 rounded-lg"></div>
-        <div className="absolute top-[22rem] left-[calc(72rem+33.33%)] right-4 h-[calc(100vh-24rem)] bg-gray-800 rounded-lg"></div>
-        <div className="absolute top-16 left-0 w-full h-4 bg-vegas-green"></div>
-      </div>
-      
-      {/* Logo no canto superior esquerdo */}
-      <div className="absolute top-5 left-5 flex items-center gap-2 z-10">
-        <img src="/img/logo.svg" alt="RunCash Logo" className="h-10" />
-        <span className="text-xl font-bold text-white">RunCash</span>
-      </div>
-      
-      {/* Botão de login no canto superior direito */}
-      <div className="absolute top-5 right-5 z-10">
-        <Button 
-          variant="ghost" 
-          className="text-white hover:text-vegas-green"
-          onClick={() => setActiveTab('login')}
-        >
-          Login
-        </Button>
-      </div>
-
-      {/* Modal de autenticação */}
-      <div className="bg-gray-900 rounded-xl shadow-2xl overflow-hidden max-w-4xl w-full z-10 grid grid-cols-1 md:grid-cols-2 border border-gray-800">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-4xl grid grid-cols-1 md:grid-cols-2 p-0 gap-0 overflow-hidden">
         {/* Lado esquerdo - Imagem */}
         <div className="relative hidden md:block">
           <div 
@@ -219,7 +185,7 @@ const AuthPage = () => {
 
         {/* Lado direito - Formulário */}
         <div className="p-6 md:p-8 bg-gray-900">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 bg-gray-800/50">
               <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
                 Login
@@ -227,8 +193,8 @@ const AuthPage = () => {
               <TabsTrigger value="register" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
                 Cadastro
               </TabsTrigger>
-          </TabsList>
-          
+            </TabsList>
+            
             {/* Conteúdo da aba de Login */}
             <TabsContent value="login" className="space-y-4 mt-4">
               <div className="flex flex-col space-y-2 text-center">
@@ -237,26 +203,26 @@ const AuthPage = () => {
               </div>
 
               {errorMessage && activeTab === 'login' && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{errorMessage}</AlertDescription>
-                  </Alert>
-                )}
-                
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
+              )}
+              
               <form onSubmit={handleManualLogin} className="space-y-4">
                 <div className="grid gap-2">
                   <Label htmlFor="email" className="text-white">Email</Label>
                   <div className="relative">
                     <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="email"
-                    type="email"
+                    <Input
+                      id="email"
+                      type="email"
                       placeholder="nome@exemplo.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                    required
-                  />
+                      required
+                    />
                   </div>
                 </div>
                 
@@ -269,15 +235,15 @@ const AuthPage = () => {
                   </div>
                   <div className="relative">
                     <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                    required
-                  />
+                      required
+                    />
                   </div>
                 </div>
                 
@@ -294,7 +260,7 @@ const AuthPage = () => {
                     <span className="w-full border-t border-gray-700" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-gray-950 px-2 text-gray-400">Ou continue com</span>
+                    <span className="bg-gray-900 px-2 text-gray-400">Ou continue com</span>
                   </div>
                 </div>
                 
@@ -338,9 +304,9 @@ const AuthPage = () => {
                     Login com Google está desativado no momento
                   </div>
                 )}
-            </form>
-          </TabsContent>
-          
+              </form>
+            </TabsContent>
+            
             {/* Conteúdo da aba de Cadastro */}
             <TabsContent value="register" className="space-y-4 mt-4">
               <div className="flex flex-col space-y-2 text-center">
@@ -349,26 +315,26 @@ const AuthPage = () => {
               </div>
 
               {errorMessage && activeTab === 'register' && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{errorMessage}</AlertDescription>
-                  </Alert>
-                )}
-                
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
+              )}
+              
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="grid gap-2">
                   <Label htmlFor="username" className="text-white">Nome de Usuário</Label>
                   <div className="relative">
                     <UserIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="username"
-                    type="text"
-                    placeholder="seunome"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    <Input
+                      id="username"
+                      type="text"
+                      placeholder="seunome"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
                       className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                    required
-                  />
+                      required
+                    />
                   </div>
                 </div>
                 
@@ -376,15 +342,15 @@ const AuthPage = () => {
                   <Label htmlFor="register-email" className="text-white">Email</Label>
                   <div className="relative">
                     <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="register-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    <Input
+                      id="register-email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                    required
-                  />
+                      required
+                    />
                   </div>
                 </div>
                 
@@ -392,15 +358,15 @@ const AuthPage = () => {
                   <Label htmlFor="register-password" className="text-white">Senha</Label>
                   <div className="relative">
                     <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="register-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    <Input
+                      id="register-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                    required
-                  />
+                      required
+                    />
                   </div>
                 </div>
                 
@@ -408,15 +374,15 @@ const AuthPage = () => {
                   <Label htmlFor="confirm-password" className="text-white">Confirmar Senha</Label>
                   <div className="relative">
                     <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
                       className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                    required
-                  />
+                      required
+                    />
                   </div>
                 </div>
                 
@@ -433,7 +399,7 @@ const AuthPage = () => {
                     <span className="w-full border-t border-gray-700" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-gray-950 px-2 text-gray-400">Ou inscreva-se com</span>
+                    <span className="bg-gray-900 px-2 text-gray-400">Ou inscreva-se com</span>
                   </div>
                 </div>
                 
@@ -477,9 +443,9 @@ const AuthPage = () => {
                     Login com Google está desativado no momento
                   </div>
                 )}
-            </form>
-          </TabsContent>
-        </Tabs>
+              </form>
+            </TabsContent>
+          </Tabs>
           
           <p className="text-center text-xs text-gray-400 mt-6">
             Ao clicar em continuar, você concorda com nossos{' '}
@@ -492,9 +458,9 @@ const AuthPage = () => {
             </a>
           </p>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
-export default AuthPage;
+export default LoginModal; 

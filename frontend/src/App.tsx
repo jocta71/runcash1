@@ -20,8 +20,7 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthPage from "./pages/AuthPage";
 import SoundManager from "./components/SoundManager";
-import { AuthModalProvider } from "./context/AuthModalContext";
-import AuthModalWrapper from "./components/AuthModalWrapper";
+import { LoginModalProvider } from "./context/LoginModalContext";
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -91,22 +90,16 @@ const App = () => {
         <ThemeProvider defaultTheme="system" storageKey="runcash-theme">
           <TooltipProvider>
             <AuthProvider>
-              <AuthModalProvider>
-                <SubscriptionProvider>
-                  <NotificationsProvider>
-                    <SoundManager>
-                      <BrowserRouter>
-                        <GoogleAuthHandler />
-                        <AuthModalWrapper />
+              <SubscriptionProvider>
+                <NotificationsProvider>
+                  <SoundManager>
+                    <BrowserRouter>
+                      <GoogleAuthHandler />
+                      <LoginModalProvider>
                         <Routes>
-                          {/* Rota pública de login - Acessível mesmo sem autenticação, mas redireciona para home */}
-                          <Route path="/login" element={
-                            <Suspense fallback={<LoadingScreen />}>
-                              <AuthPage />
-                            </Suspense>
-                          } />
+                          {/* Remover rota explícita de login e sempre usar o modal */}
                           
-                          {/* Redirecionamento para login se acessar diretamente a raiz sem autenticação */}
+                          {/* Páginas principais - Acessíveis mesmo sem login, mas mostram modal se necessário */}
                           <Route index element={
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
@@ -248,12 +241,12 @@ const App = () => {
                             </ProtectedRoute>
                           } />
                         </Routes>
-                        <Toaster />
-                      </BrowserRouter>
-                    </SoundManager>
-                  </NotificationsProvider>
-                </SubscriptionProvider>
-              </AuthModalProvider>
+                      </LoginModalProvider>
+                      <Toaster />
+                    </BrowserRouter>
+                  </SoundManager>
+                </NotificationsProvider>
+              </SubscriptionProvider>
             </AuthProvider>
           </TooltipProvider>
         </ThemeProvider>

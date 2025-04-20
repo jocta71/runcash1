@@ -1,12 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
-import { useAuthModal } from '@/context/AuthModalContext';
+import { useLoginModal } from '@/context/LoginModalContext';
 import { LogOut, LogIn } from 'lucide-react';
 
 const NavbarAuth = () => {
   const { user, signOut } = useAuth();
-  const { openAuthModal } = useAuthModal();
+  const { showLoginModal } = useLoginModal();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -36,9 +36,9 @@ const NavbarAuth = () => {
   return (
     <Button 
       variant="outline" 
-      size="sm"
+      size="sm" 
+      onClick={showLoginModal}
       className="text-xs sm:text-sm"
-      onClick={() => openAuthModal('login')}
     >
       <LogIn className="h-4 w-4 mr-1" />
       <span className="hidden sm:inline">Login</span>
