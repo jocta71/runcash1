@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SidePanelStats from './SidePanelStats';
 import ChartJsStats from './ChartJsStats';
 import D3ChartStats from './D3ChartStats';
@@ -7,9 +7,24 @@ import { X } from 'lucide-react';
 
 type ChartLibrary = 'recharts' | 'chartjs' | 'd3' | 'nivo';
 
+interface ColorData {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface FrequencyData {
+  number: string;
+  frequency: number;
+}
+
 interface ChartSelectorProps {
   roletaNome?: string;
-  data?: any;
+  data?: {
+    colorDistribution?: ColorData[];
+    frequencyData?: FrequencyData[];
+    [key: string]: any;
+  };
   wins?: number;
   losses?: number;
   onClose?: () => void;
@@ -22,7 +37,53 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({
   losses = 0,
   onClose
 }) => {
-  const [selectedLibrary, setSelectedLibrary] = useState<ChartLibrary>('recharts');
+  const [selectedLibrary, setSelectedLibrary] = useState<ChartLibrary>('nivo');
+  
+  // Dados padronizados para todos os componentes
+  const [standardizedData, setStandardizedData] = useState({
+    colorDistribution: [
+      { name: "Vermelhos", value: 50, color: "#ef4444" },
+      { name: "Pretos", value: 45, color: "#111827" },
+      { name: "Zero", value: 5, color: "#059669" },
+    ],
+    frequencyData: [
+      { number: "0", frequency: 5 },
+      { number: "1-9", frequency: 15 },
+      { number: "10-18", frequency: 20 },
+      { number: "19-27", frequency: 18 },
+      { number: "28-36", frequency: 12 },
+    ]
+  });
+
+  // Processa os dados recebidos para garantir formato padronizado
+  useEffect(() => {
+    console.log("Dados originais recebidos:", data);
+    
+    // Se temos dados válidos, vamos padronizá-los
+    if (data) {
+      const newData = {...standardizedData};
+      
+      // Verifica e normaliza colorDistribution
+      if (data.colorDistribution && Array.isArray(data.colorDistribution) && data.colorDistribution.length > 0) {
+        newData.colorDistribution = data.colorDistribution.map(item => ({
+          name: item.name || "Desconhecido",
+          value: typeof item.value === 'number' ? item.value : 0,
+          color: item.color || "#666666"
+        }));
+      }
+      
+      // Verifica e normaliza frequencyData
+      if (data.frequencyData && Array.isArray(data.frequencyData) && data.frequencyData.length > 0) {
+        newData.frequencyData = data.frequencyData.map(item => ({
+          number: item.number || "Desconhecido",
+          frequency: typeof item.frequency === 'number' ? item.frequency : 0
+        }));
+      }
+      
+      console.log("Dados padronizados:", newData);
+      setStandardizedData(newData);
+    }
+  }, [data]);
 
   const renderSelectedChart = () => {
     switch (selectedLibrary) {
@@ -30,7 +91,7 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({
         return (
           <SidePanelStats 
             roletaNome={roletaNome} 
-            data={data} 
+            data={standardizedData} 
             wins={wins} 
             losses={losses} 
           />
@@ -39,7 +100,7 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({
         return (
           <ChartJsStats 
             roletaNome={roletaNome} 
-            data={data} 
+            data={standardizedData} 
             wins={wins} 
             losses={losses} 
           />
@@ -48,7 +109,7 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({
         return (
           <D3ChartStats 
             roletaNome={roletaNome} 
-            data={data} 
+            data={standardizedData} 
             wins={wins} 
             losses={losses} 
           />
@@ -57,16 +118,16 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({
         return (
           <NivoChartStats 
             roletaNome={roletaNome} 
-            data={data} 
+            data={standardizedData} 
             wins={wins} 
             losses={losses} 
           />
         );
       default:
         return (
-          <SidePanelStats 
+          <NivoChartStats 
             roletaNome={roletaNome} 
-            data={data} 
+            data={standardizedData} 
             wins={wins} 
             losses={losses} 
           />

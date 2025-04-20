@@ -44,30 +44,54 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
 
   // Atualizar dados com base nas props
   useEffect(() => {
-    if (data?.colorDistribution) {
+    console.log("NivoChartStats recebeu props:", { data, wins, losses });
+    
+    if (data?.colorDistribution && Array.isArray(data.colorDistribution) && data.colorDistribution.length > 0) {
+      console.log("Atualizando colorDistribution com:", data.colorDistribution);
       setColorDistribution(data.colorDistribution);
+    } else {
+      console.log("Usando colorDistribution padrão");
     }
     
-    if (data?.frequencyData) {
+    if (data?.frequencyData && Array.isArray(data.frequencyData) && data.frequencyData.length > 0) {
+      console.log("Atualizando frequencyData com:", data.frequencyData);
       setFrequencyData(data.frequencyData);
+    } else {
+      console.log("Usando frequencyData padrão");
     }
   }, [data, wins, losses]);
 
-  // Formatar dados para Nivo Pie Chart
+  // Formatar dados para Nivo Pie Chart com validação
   const formatColorDataForNivo = () => {
+    // Garantir que colorDistribution tenha pelo menos um item
+    if (!colorDistribution || colorDistribution.length === 0) {
+      return [{ id: "Sem Dados", label: "Sem Dados", value: 100, color: "#666666" }];
+    }
+    
     return colorDistribution.map(item => ({
-      id: item.name,
-      label: item.name,
-      value: item.value,
-      color: item.color
+      id: item.name || "Desconhecido",
+      label: item.name || "Desconhecido",
+      value: item.value || 0,
+      color: item.color || "#666666"
     }));
   };
 
-  // Formatar dados para gráfico de taxa de vitória
+  // Formatar dados para gráfico de taxa de vitória com validação
   const formatWinRateDataForNivo = () => {
+    const safeWins = typeof wins === 'number' ? wins : 0;
+    const safeLosses = typeof losses === 'number' ? losses : 0;
+    
+    // Se ambos forem zero, mostrar um valor padrão
+    if (safeWins === 0 && safeLosses === 0) {
+      return [
+        { id: "Vitórias", label: "Vitórias", value: 1, color: "#059669" },
+        { id: "Derrotas", label: "Derrotas", value: 1, color: "#ef4444" }
+      ];
+    }
+    
     return [
-      { id: "Vitórias", label: "Vitórias", value: wins || 1, color: "#059669" },
-      { id: "Derrotas", label: "Derrotas", value: losses || 1, color: "#ef4444" }
+      { id: "Vitórias", label: "Vitórias", value: safeWins, color: "#059669" },
+      { id: "Derrotas", label: "Derrotas", value: safeLosses, color: "#ef4444" }
     ];
   };
 
@@ -81,52 +105,52 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
 
   // Tema comum para os gráficos Nivo
   const nivoTheme = {
-    background: 'transparent',
+    background: '#1a1a1a',
     textColor: '#ffffff',
-    fontSize: 12,
+    fontSize: 13,
     axis: {
       domain: {
         line: {
-          stroke: '#555555',
+          stroke: '#777777',
           strokeWidth: 1
         }
       },
       ticks: {
         line: {
-          stroke: '#555555',
+          stroke: '#777777',
           strokeWidth: 1
         },
         text: {
           fill: '#ffffff',
-          fontSize: 12
+          fontSize: 13
         }
       },
       legend: {
         text: {
           fill: '#ffffff',
-          fontSize: 12
+          fontSize: 13
         }
       }
     },
     grid: {
       line: {
-        stroke: '#333333',
+        stroke: '#444444',
         strokeWidth: 1
       }
     },
     legends: {
       text: {
         fill: '#ffffff',
-        fontSize: 12
+        fontSize: 13
       }
     },
     tooltip: {
       container: {
-        background: '#222222',
+        background: '#333333',
         color: '#ffffff',
-        fontSize: 12,
+        fontSize: 13,
         borderRadius: 4,
-        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.25)'
+        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.5)'
       }
     }
   };
@@ -147,11 +171,11 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5">
         {/* Distribuição por Cor */}
-        <div className="p-5 space-y-4 bg-opacity-80 bg-gray-900 border border-gray-700 rounded-xl">
+        <div className="p-5 space-y-4 bg-gray-900 border border-gray-700 rounded-xl">
           <h3 className="text-sm font-medium text-white flex items-center">
             <ChartBar size={20} className="text-green-500 mr-2" /> Distribuição por Cor
           </h3>
-          <div className="h-[260px] w-full">
+          <div className="h-[260px] w-full bg-[#1a1a1a] rounded-lg overflow-hidden">
             <ResponsivePie
               data={formatColorDataForNivo()}
               margin={{ top: 40, right: 40, bottom: 80, left: 40 }}
@@ -201,12 +225,12 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
         </div>
         
         {/* Taxa de Vitória */}
-        <div className="p-5 space-y-4 bg-opacity-80 bg-gray-900 border border-gray-700 rounded-xl">
+        <div className="p-5 space-y-4 bg-gray-900 border border-gray-700 rounded-xl">
           <h3 className="text-sm font-medium text-white flex items-center">
             <PercentIcon size={20} className="text-green-500 mr-2" /> Taxa de Vitória
           </h3>
           <div className="h-[260px] w-full">
-            <div className="relative h-full w-full">
+            <div className="relative h-full w-full bg-[#1a1a1a] rounded-lg overflow-hidden">
               <ResponsivePie
                 data={formatWinRateDataForNivo()}
                 margin={{ top: 40, right: 40, bottom: 80, left: 40 }}
@@ -263,11 +287,11 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
         </div>
         
         {/* Frequência por Número */}
-        <div className="col-span-1 md:col-span-2 p-5 space-y-4 bg-opacity-80 bg-gray-900 border border-gray-700 rounded-xl">
+        <div className="col-span-1 md:col-span-2 p-5 space-y-4 bg-gray-900 border border-gray-700 rounded-xl">
           <h3 className="text-sm font-medium text-white flex items-center">
             <BarChart size={20} className="text-green-500 mr-2" /> Frequência por Número
           </h3>
-          <div className="h-[260px] w-full">
+          <div className="h-[260px] w-full bg-[#1a1a1a] rounded-lg overflow-hidden">
             <ResponsiveBar
               data={formatFrequencyDataForNivo()}
               keys={['frequency']}
