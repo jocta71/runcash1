@@ -1235,38 +1235,91 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
               
               <div className="h-[320px] relative">
                 <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-                  {/* Container principal da roleta */}
-                  <div className="w-[280px] h-[280px] rounded-full bg-[#1a1a1a] relative border-2 border-[#333]">
-                    {/* Setores da roleta */}
+                  <div className="w-[280px] h-[280px] relative">
+                    {/* SVG principal para a roleta e gráfico de frequência */}
                     <svg width="280" height="280" viewBox="0 0 280 280">
                       <defs>
-                        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                          <feGaussianBlur stdDeviation="3" result="blur" />
-                          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                        </filter>
+                        <radialGradient id="frequencyGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                          <stop offset="0%" stopColor="#006600" stopOpacity="0.8" />
+                          <stop offset="100%" stopColor="#006600" stopOpacity="0.3" />
+                        </radialGradient>
                       </defs>
                       
-                      {/* Círculo de fundo */}
-                      <circle cx="140" cy="140" r="140" fill="#1a1a1a" />
+                      {/* Grid circular (eixos radiais) */}
+                      {Array.from({ length: 12 }).map((_, i) => {
+                        const angle = (i * 30) * (Math.PI / 180);
+                        const x2 = 140 + 130 * Math.cos(angle);
+                        const y2 = 140 + 130 * Math.sin(angle);
+                        return (
+                          <line 
+                            key={`grid-line-${i}`}
+                            x1="140" 
+                            y1="140" 
+                            x2={x2} 
+                            y2={y2} 
+                            stroke="#888888" 
+                            strokeWidth="0.5" 
+                            strokeDasharray="2,2"
+                            opacity="0.3"
+                          />
+                        );
+                      })}
                       
-                      {/* Renderizar os setores da roleta */}
+                      {/* Círculos concêntricos para o grid */}
+                      {[25, 50, 75, 100, 125].map((radius, i) => (
+                        <circle
+                          key={`grid-circle-${i}`}
+                          cx="140"
+                          cy="140"
+                          r={radius * 130 / 130}
+                          fill="none"
+                          stroke="#888888"
+                          strokeWidth="0.5"
+                          strokeDasharray="2,2"
+                          opacity="0.3"
+                        />
+                      ))}
+                      
+                      {/* Renderizar o gráfico de frequência como polígono preenchido */}
+                      {(() => {
+                        // Calcular valor máximo para normalização
+                        const maxValue = Math.max(...rouletteHeatmap.map(item => item.count), 1);
+                        const scaleFactor = 110 / maxValue; // 130 é o raio máximo, deixar margem
+                        
+                        // Calcular pontos do polígono
+                        const points = rouletteHeatmap.map((item, index) => {
+                          const angle = (index * (360 / ROULETTE_NUMBERS.length)) * (Math.PI / 180);
+                          const radius = item.count * scaleFactor;
+                          const x = 140 + radius * Math.cos(angle - Math.PI/2); // -90 graus para alinhar
+                          const y = 140 + radius * Math.sin(angle - Math.PI/2);
+                          return `${x},${y}`;
+                        });
+                        
+                        // Fechar o polígono
+                        points.push(points[0]);
+                        
+                        return (
+                          <polygon
+                            points={points.join(' ')}
+                            fill="url(#frequencyGradient)"
+                            stroke="#006600"
+                            strokeWidth="1"
+                            opacity="0.75"
+                          />
+                        );
+                      })()}
+                      
+                      {/* Anel externo com cores da roleta */}
                       {ROULETTE_NUMBERS.map((num, index) => {
                         const segmentAngle = 360 / ROULETTE_NUMBERS.length;
-                        const startAngle = index * segmentAngle;
-                        const endAngle = (index + 1) * segmentAngle;
+                        const startAngle = index * segmentAngle - 90; // -90 para alinhar com o topo
+                        const endAngle = (index + 1) * segmentAngle - 90;
                         
-                        // Converter ângulos para radianos
-                        const startRad = (startAngle - 90) * (Math.PI / 180);
-                        const endRad = (endAngle - 90) * (Math.PI / 180);
+                        // Converter para radianos
+                        const startRad = (startAngle) * (Math.PI / 180);
+                        const endRad = (endAngle) * (Math.PI / 180);
                         
-                        // Calcular pontos do arco
-                        const outerRadius = 139;
-                        const x1 = 140 + outerRadius * Math.cos(startRad);
-                        const y1 = 140 + outerRadius * Math.sin(startRad);
-                        const x2 = 140 + outerRadius * Math.cos(endRad);
-                        const y2 = 140 + outerRadius * Math.sin(endRad);
-                        
-                        // Determinar cor do setor
+                        // Determinar a cor (alternando entre vermelho e preto, zero é verde)
                         let color = "#000000"; // Preto (padrão)
                         if (num === 0) {
                           color = "#007f0e"; // Verde para zero
@@ -1274,105 +1327,125 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                           color = "#fe0000"; // Vermelho
                         }
                         
-                        // Verificar a intensidade com base nos dados do heatmap
-                        const numData = rouletteHeatmap.find(item => item.number === num);
-                        const intensity = numData ? numData.intensity : 0;
+                        // Calcular pontos do arco externo
+                        const outerRadius = 130;
+                        const innerRadius = 110;
+                        const x1 = 140 + outerRadius * Math.cos(startRad);
+                        const y1 = 140 + outerRadius * Math.sin(startRad);
+                        const x2 = 140 + outerRadius * Math.cos(endRad);
+                        const y2 = 140 + outerRadius * Math.sin(endRad);
+                        const x3 = 140 + innerRadius * Math.cos(endRad);
+                        const y3 = 140 + innerRadius * Math.sin(endRad);
+                        const x4 = 140 + innerRadius * Math.cos(startRad);
+                        const y4 = 140 + innerRadius * Math.sin(startRad);
                         
-                        // Ajustar brilho com base na intensidade
-                        let adjustedColor = color;
-                        if (intensity > 0.3) {
-                          // Aplicar brilho apenas para números com alta intensidade
-                          if (num === 0) {
-                            adjustedColor = `rgb(0, ${127 + Math.floor(intensity * 128)}, ${14 + Math.floor(intensity * 50)})`;
-                          } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
-                            adjustedColor = `rgb(${254}, ${Math.floor(intensity * 100)}, ${Math.floor(intensity * 100)})`;
-                          } else {
-                            adjustedColor = `rgb(${Math.floor(intensity * 100)}, ${Math.floor(intensity * 100)}, ${Math.floor(intensity * 100)})`;
-                          }
-                        }
-                        
-                        // Construir path do setor
-                        const largeArcFlag = endAngle - startAngle <= 180 ? 0 : 1;
-                        const path = [
-                          `M 140 140`,
-                          `L ${x1} ${y1}`,
-                          `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
-                          'Z'
-                        ].join(' ');
-                        
-                        // Calcular posição para o texto do número
-                        const midAngle = (startAngle + endAngle) / 2 - 90;
+                        // Calcular a posição do texto do número
+                        const midAngle = (startAngle + endAngle) / 2;
                         const midRad = midAngle * (Math.PI / 180);
-                        const textRadius = outerRadius * 0.75;
+                        const textRadius = 120;
                         const textX = 140 + textRadius * Math.cos(midRad);
                         const textY = 140 + textRadius * Math.sin(midRad);
                         
                         return (
-                          <g key={`sector-${num}`}>
-                            {/* Setor */}
-                            <path 
-                              d={path} 
-                              fill={adjustedColor}
+                          <g key={`roulette-segment-${num}`}>
+                            {/* Segmento da roleta */}
+                            <path
+                              d={`M ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 0 0 ${x4} ${y4} Z`}
+                              fill={color}
                               stroke="#333"
                               strokeWidth="0.5"
-                              className="transition-all duration-300"
-                              style={{
-                                filter: intensity > 0.3 ? `brightness(${1 + intensity})` : 'none'
-                              }}
                             />
                             
-                            {/* Número */}
-                            <text 
-                              x={textX} 
-                              y={textY} 
-                              fill="white"
-                              fontSize="12"
-                              fontWeight="bold"
-                              textAnchor="middle"
-                              dominantBaseline="middle"
-                              style={{
-                                textShadow: '1px 1px 2px black'
-                              }}
-                            >
-                              {num}
-                            </text>
+                            {/* Número rotacionado */}
+                            <g transform={`translate(${textX}, ${textY}) rotate(${-midAngle})`}>
+                              <text
+                                x="0"
+                                y="0"
+                                fill="white"
+                                fontSize="10"
+                                fontWeight="bold"
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                style={{ 
+                                  textShadow: '0px 1px 1px rgba(0,0,0,0.7)',
+                                  pointerEvents: 'none'
+                                }}
+                              >
+                                {num}
+                              </text>
+                            </g>
                           </g>
                         );
                       })}
                       
-                      {/* Círculo interno */}
+                      {/* Círculos interno e externo (bordas) */}
+                      <circle cx="140" cy="140" r="110" fill="none" stroke="black" strokeWidth="2" />
+                      <circle cx="140" cy="140" r="130" fill="none" stroke="black" strokeWidth="2" />
+                      
+                      {/* Círculo principal para o centro */}
                       <circle 
                         cx="140" 
                         cy="140" 
-                        r="50" 
+                        r="40" 
                         fill="#1a1a1a" 
-                        stroke="#333"
+                        stroke="#333" 
                         strokeWidth="1"
                       />
                       
-                      {/* Texto "Roleta" no centro */}
-                      <text 
-                        x="140" 
-                        y="140" 
+                      {/* Texto no centro */}
+                      <text
+                        x="140"
+                        y="140"
                         fill="#00c853"
-                        fontSize="14"
+                        fontSize="12"
                         fontWeight="bold"
                         textAnchor="middle"
                         dominantBaseline="middle"
                       >
                         Roleta
                       </text>
+                      
+                      {/* Marcador de escala y para valores de frequência */}
+                      <g transform="translate(20, 140)">
+                        {[0, 25, 50, 75, 100, 125].map((value, i) => (
+                          <g key={`y-label-${i}`}>
+                            <line 
+                              x1="-5" 
+                              y1={-value * 130 / 130} 
+                              x2="0" 
+                              y2={-value * 130 / 130} 
+                              stroke="#888" 
+                              strokeWidth="1" 
+                            />
+                            <text
+                              x="-8"
+                              y={-value * 130 / 130}
+                              fill="#888"
+                              fontSize="8"
+                              textAnchor="end"
+                              dominantBaseline="middle"
+                            >
+                              {value}
+                            </text>
+                          </g>
+                        ))}
+                      </g>
                     </svg>
                     
                     {/* Indicador de número no topo */}
-                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1 w-4 h-12 z-10">
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1 w-2 h-8 z-10">
                       <div className="w-full h-full flex flex-col items-center">
-                        <div className="w-4 h-4 bg-[#ffd700] rounded-full"></div>
-                        <div className="w-0 h-0 border-l-[8px] border-r-[8px] border-t-[12px] border-t-[#ffd700] border-l-transparent border-r-transparent"></div>
+                        <div className="w-2 h-6 bg-white"></div>
+                        <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-t-white border-l-transparent border-r-transparent"></div>
                       </div>
                     </div>
                   </div>
                 </div>
+              </div>
+              
+              {/* Legenda de estatísticas */}
+              <div className="mt-4 text-center text-sm text-gray-400">
+                <p>O gráfico mostra a frequência de cada número (área verde), com o máximo em {rouletteHeatmap.reduce((a, b) => a.count > b.count ? a : b).count} ocorrências.</p>
               </div>
               
               {/* Legenda de regiões */}
