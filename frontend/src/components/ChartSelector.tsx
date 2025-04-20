@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import SidePanelStats from './SidePanelStats';
-import ApexChartStats from './ApexChartStats';
-import VictoryChartStats from './VictoryChartStats';
+import ChartJsStats from './ChartJsStats';
+import D3ChartStats from './D3ChartStats';
+import NivoChartStats from './NivoChartStats';
 import { X } from 'lucide-react';
 
-type ChartLibrary = 'recharts' | 'apexcharts' | 'victory';
+type ChartLibrary = 'recharts' | 'chartjs' | 'd3' | 'nivo';
 
 interface ChartSelectorProps {
   roletaNome?: string;
@@ -34,18 +35,27 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({
             losses={losses} 
           />
         );
-      case 'apexcharts':
+      case 'chartjs':
         return (
-          <ApexChartStats 
+          <ChartJsStats 
             roletaNome={roletaNome} 
             data={data} 
             wins={wins} 
             losses={losses} 
           />
         );
-      case 'victory':
+      case 'd3':
         return (
-          <VictoryChartStats 
+          <D3ChartStats 
+            roletaNome={roletaNome} 
+            data={data} 
+            wins={wins} 
+            losses={losses} 
+          />
+        );
+      case 'nivo':
+        return (
+          <NivoChartStats 
             roletaNome={roletaNome} 
             data={data} 
             wins={wins} 
@@ -80,24 +90,34 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({
             Recharts
           </button>
           <button
-            onClick={() => setSelectedLibrary('apexcharts')}
+            onClick={() => setSelectedLibrary('chartjs')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              selectedLibrary === 'apexcharts'
+              selectedLibrary === 'chartjs'
                 ? 'bg-green-600 text-white'
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
             }`}
           >
-            ApexCharts
+            Chart.js
           </button>
           <button
-            onClick={() => setSelectedLibrary('victory')}
+            onClick={() => setSelectedLibrary('d3')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              selectedLibrary === 'victory'
+              selectedLibrary === 'd3'
                 ? 'bg-green-600 text-white'
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
             }`}
           >
-            Victory
+            D3.js
+          </button>
+          <button
+            onClick={() => setSelectedLibrary('nivo')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              selectedLibrary === 'nivo'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            }`}
+          >
+            Nivo
           </button>
         </div>
         
