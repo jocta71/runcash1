@@ -657,31 +657,13 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     
     // 4. Filtro por tempo/minuto
     if (selectedTime !== 'todos') {
-      const minutesFilter = parseInt(selectedTime, 10);
-      if (!isNaN(minutesFilter)) {
-        // Obter o minuto atual para comparar
-        const now = new Date();
-        
+      const minuteValue = parseInt(selectedTime, 10);
+      if (!isNaN(minuteValue)) {
         filtered = filtered.filter(item => {
-          // Extrair a hora e o minuto do timestamp
-          const [hours, minutes] = item.timestamp.split(':').map(Number);
-          
-          // Criar uma data com a hora e minuto do item para comparação
-          const itemDate = new Date();
-          itemDate.setHours(hours);
-          itemDate.setMinutes(minutes);
-          
-          // Se a hora do item for maior que a hora atual, provavelmente é do dia anterior
-          if (hours > now.getHours() || (hours === now.getHours() && minutes > now.getMinutes())) {
-            itemDate.setDate(itemDate.getDate() - 1);
-          }
-          
-          // Calcular a diferença em minutos
-          const diffMs = now.getTime() - itemDate.getTime();
-          const diffMinutes = Math.floor(diffMs / (1000 * 60));
-          
-          // Retornar true se estiver dentro do intervalo de tempo
-          return diffMinutes <= minutesFilter;
+          // Extrair minuto do timestamp
+          const minute = parseInt(item.timestamp.split(':')[1]);
+          // Verificar se o minuto do timestamp é igual ao valor selecionado
+          return minute === minuteValue;
         });
       }
     }
@@ -719,11 +701,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   // Opções para o filtro de tempo
   const timeOptions = [
     { value: 'todos', label: 'Todos' },
-    { value: '1', label: 'Último 1 min' },
-    { value: '5', label: 'Últimos 5 min' },
-    { value: '10', label: 'Últimos 10 min' },
-    { value: '30', label: 'Últimos 30 min' },
-    { value: '60', label: 'Última 1 hora' },
+    ...Array.from({ length: 60 }, (_, i) => ({
+      value: String(i),
+      label: `Minuto ${i}`
+    }))
   ];
 
   // Handler para o filtro de cor
@@ -937,12 +918,12 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
           {/* Filtro por tempo */}
           <div className="flex-1">
-            <div className="text-xs text-gray-400 mb-1 px-2">Por tempo</div>
+            <div className="text-xs text-gray-400 mb-1 px-2">Por minuto</div>
             <Select value={selectedTime} onValueChange={handleTimeChange}>
               <SelectTrigger className="w-full bg-black border-none text-white h-10">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111] border-gray-800 text-white">
+              <SelectContent className="bg-[#111] border-gray-800 text-white max-h-[200px] overflow-y-auto">
                 {timeOptions.map(option => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
