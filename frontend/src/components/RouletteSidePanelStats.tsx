@@ -1340,11 +1340,16 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                         const y4 = 140 + innerRadius * Math.sin(startRad);
                         
                         // Calcular a posição do texto do número
-                        const midAngle = (startAngle + endAngle) / 2;
-                        const midRad = midAngle * (Math.PI / 180);
-                        const textRadius = 120;
-                        const textX = 140 + textRadius * Math.cos(midRad);
-                        const textY = 140 + textRadius * Math.sin(midRad);
+                        const angle = startAngle + (endAngle - startAngle) / 2;
+                        const midAngle = angle * (180 / Math.PI);
+                        
+                        // Ajuste da posição do texto para ficar mais próximo da borda
+                        const centerX = 140; // Centro do círculo no eixo X
+                        const centerY = 140; // Centro do círculo no eixo Y
+                        const radius = 140; // Raio do círculo
+                        const textRadius = radius * 0.85; // Posição do texto mais próxima da borda
+                        const textX = centerX + Math.cos(angle) * textRadius;
+                        const textY = centerY + Math.sin(angle) * textRadius;
                         
                         return (
                           <g key={`roulette-segment-${num}`}>
@@ -1356,8 +1361,8 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                               strokeWidth="0.5"
                             />
                             
-                            {/* Número rotacionado */}
-                            <g transform={`translate(${textX}, ${textY}) rotate(${midAngle + 90})`}>
+                            {/* Nova implementação de orientação dos números */}
+                            <g transform={`translate(${textX}, ${textY})`}>
                               <text
                                 x="0"
                                 y="0"
@@ -1366,6 +1371,13 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                                 fontWeight="bold"
                                 textAnchor="middle"
                                 dominantBaseline="middle"
+                                transform={
+                                  // Ajustar a rotação baseada no quadrante onde o texto está
+                                  // para garantir que os números sempre fiquem na orientação correta
+                                  midAngle > 90 && midAngle < 270
+                                    ? `rotate(${midAngle + 180})`  // Inverte para quadrantes esquerdo e inferior
+                                    : `rotate(${midAngle})`       // Mantém normal para quadrantes superior e direito
+                                }
                                 style={{ 
                                   textShadow: '0px 1px 1px rgba(0,0,0,0.7)',
                                   pointerEvents: 'none'
