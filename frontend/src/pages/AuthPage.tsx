@@ -167,341 +167,384 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 relative overflow-hidden" 
-         style={{ 
-           backgroundImage: `
-             linear-gradient(to bottom, rgba(9, 14, 22, 0.8), rgba(9, 14, 22, 0.8)), 
-             url('/login-imagem.png')
-           `,
-           backgroundSize: 'cover',
-           backgroundPosition: 'center',
-           backgroundAttachment: 'fixed'
-         }}>
-      {/* Overlay para o efeito de site */}
-      <div className="absolute inset-0 z-0">
-        {/* Barra superior */}
-        <div className="absolute top-0 left-0 right-0 h-16 bg-gray-900 border-b border-gray-800"></div>
+    <div className="min-h-screen w-full relative overflow-hidden">
+      {/* Preview do site real como fundo */}
+      <div className="absolute inset-0 z-0 bg-gray-950">
+        {/* Cabeçalho do site */}
+        <header className="h-16 bg-gray-900 border-b border-gray-800 flex items-center px-4 justify-between">
+          <div className="flex items-center gap-2">
+            <img src="/img/logo.svg" alt="RunCash Logo" className="h-10" />
+            <span className="text-xl font-bold text-white">RunCash</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="w-9 h-9 rounded-full bg-gray-800"></div>
+            <div className="w-9 h-9 rounded-full bg-gray-800"></div>
+          </div>
+        </header>
+        
         {/* Linha verde */}
-        <div className="absolute top-16 left-0 w-full h-1 bg-vegas-green"></div>
-        {/* Sidebar esquerda */}
-        <div className="absolute top-[4.25rem] left-4 w-64 bottom-4 bg-gray-900/60 rounded-lg border border-gray-800 backdrop-blur-md"></div>
-        {/* Área de conteúdo principal */}
-        <div className="absolute top-[4.25rem] left-72 right-4 bottom-4 bg-gray-900/40 rounded-lg border border-gray-800 backdrop-blur-sm"></div>
-      </div>
-      
-      {/* Logo no canto superior esquerdo */}
-      <div className="absolute top-5 left-5 flex items-center gap-2 z-10">
-        <img src="/img/logo.svg" alt="RunCash Logo" className="h-10" />
-        <span className="text-xl font-bold text-white">RunCash</span>
-      </div>
-      
-      {/* Botão de login no canto superior direito */}
-      <div className="absolute top-5 right-5 z-10">
-        <Button 
-          variant="ghost" 
-          className="text-white hover:text-vegas-green"
-          onClick={() => setActiveTab('login')}
-        >
-          Login
-        </Button>
-      </div>
-
-      {/* Modal de autenticação */}
-      <div className="bg-gray-900/80 backdrop-blur-lg rounded-xl shadow-2xl overflow-hidden max-w-4xl w-full z-20 grid grid-cols-1 md:grid-cols-2 border border-gray-800">
-        {/* Lado esquerdo - Imagem */}
-        <div className="relative hidden md:block">
-          <div 
-            className="absolute inset-0 bg-cover bg-center" 
-            style={{ backgroundImage: "url('/login-imagem.png')" }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70 flex flex-col justify-between p-8">
-            <div>
-              <h2 className="text-white text-3xl font-bold drop-shadow-md">RunCash</h2>
-              <p className="text-gray-200 mt-2 drop-shadow-md max-w-xs">A maneira mais inteligente de acompanhar seus resultados</p>
+        <div className="h-1 w-full bg-vegas-green"></div>
+        
+        {/* Layout principal */}
+        <div className="flex h-[calc(100vh-4.25rem)]">
+          {/* Sidebar */}
+          <div className="w-64 p-3">
+            <div className="bg-gray-900 h-full rounded-lg border border-gray-800 p-4">
+              <div className="flex flex-col gap-3">
+                <div className="h-8 bg-gray-800 rounded-md w-full"></div>
+                <div className="h-8 bg-gray-800 rounded-md w-full"></div>
+                <div className="h-8 bg-gray-800 rounded-md w-full"></div>
+                <div className="h-8 bg-gray-800 rounded-md w-full"></div>
+              </div>
+              
+              {/* Área bloqueada - sidepanelstats */}
+              <div className="mt-6 relative">
+                <div className="bg-gray-800/40 rounded-lg h-60 p-3 flex flex-col gap-2">
+                  <div className="h-6 bg-gray-700/30 rounded w-2/3"></div>
+                  <div className="h-16 bg-gray-700/30 rounded"></div>
+                  <div className="h-16 bg-gray-700/30 rounded"></div>
+                  <div className="h-6 bg-gray-700/30 rounded w-1/2"></div>
+                </div>
+                {/* Sobreposição de bloqueio */}
+                <div className="absolute inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center rounded-lg">
+                  <LockIcon className="h-10 w-10 text-gray-600" />
+                </div>
+              </div>
             </div>
-            <div className="bg-black/30 p-4 rounded-lg backdrop-blur-sm">
-              <blockquote className="italic text-white drop-shadow-md text-sm">
-                "Esta plataforma revolucionou a maneira como eu analiso meus resultados e aumentou meus ganhos significativamente."
-              </blockquote>
-              <p className="text-gray-200 mt-2 font-semibold drop-shadow-md text-sm">João Silva</p>
+          </div>
+          
+          {/* Área principal - com roletas bloqueadas */}
+          <div className="flex-1 p-3">
+            <div className="bg-gray-900 h-full rounded-lg border border-gray-800 p-4 relative">
+              {/* Cabeçalho da área principal */}
+              <div className="flex justify-between items-center mb-6">
+                <div className="h-8 w-40 bg-gray-800 rounded-md"></div>
+                <div className="h-8 w-32 bg-gray-800 rounded-md"></div>
+              </div>
+              
+              {/* Área de roletas bloqueada */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[...Array(6)].map((_, index) => (
+                  <div key={index} className="bg-gray-800/30 rounded-lg h-48 relative">
+                    <div className="p-3">
+                      <div className="h-6 bg-gray-700/30 rounded w-1/2 mb-2"></div>
+                      <div className="flex gap-2 mb-4">
+                        <div className="h-8 w-8 bg-gray-700/30 rounded-full"></div>
+                        <div className="h-8 w-8 bg-gray-700/30 rounded-full"></div>
+                        <div className="h-8 w-8 bg-gray-700/30 rounded-full"></div>
+                      </div>
+                      <div className="h-20 bg-gray-700/30 rounded-lg"></div>
+                    </div>
+                    {/* Sobreposição de bloqueio */}
+                    <div className="absolute inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center rounded-lg">
+                      <LockIcon className="h-10 w-10 text-gray-600" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Lado direito - Formulário */}
-        <div className="p-6 md:p-8 bg-gray-900/95 backdrop-blur-md">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-gray-800/50">
-              <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
-                Login
-              </TabsTrigger>
-              <TabsTrigger value="register" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
-                Cadastro
-              </TabsTrigger>
-            </TabsList>
-            
-            {/* Conteúdo da aba de Login */}
-            <TabsContent value="login" className="space-y-4 mt-4">
-              <div className="flex flex-col space-y-2 text-center">
-                <h1 className="text-2xl font-semibold tracking-tight text-white">Entre na sua conta</h1>
-                <p className="text-sm text-gray-400">Digite suas credenciais para acessar</p>
+      </div>
+      
+      {/* Modal de autenticação flutuando sobre o site */}
+      <div className="relative min-h-screen w-full flex items-center justify-center p-4 z-10">
+        <div className="bg-gray-900/90 backdrop-blur-lg rounded-xl shadow-2xl overflow-hidden max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 border border-gray-800">
+          {/* Lado esquerdo - Imagem */}
+          <div className="relative hidden md:block">
+            <div 
+              className="absolute inset-0 bg-cover bg-center" 
+              style={{ backgroundImage: "url('/login-imagem.png')" }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70 flex flex-col justify-between p-8">
+              <div>
+                <h2 className="text-white text-3xl font-bold drop-shadow-md">RunCash</h2>
+                <p className="text-gray-200 mt-2 drop-shadow-md max-w-xs">A maneira mais inteligente de acompanhar seus resultados</p>
               </div>
-
-              {errorMessage && activeTab === 'login' && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{errorMessage}</AlertDescription>
-                </Alert>
-              )}
-              
-              <form onSubmit={handleManualLogin} className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="email" className="text-white">Email</Label>
-                  <div className="relative">
-                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="nome@exemplo.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-white">Senha</Label>
-                    <a href="#" className="text-xs text-vegas-green hover:underline">
-                      Esqueceu a senha?
-                    </a>
-                  </div>
-                  <div className="relative">
-                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <Button 
-                  type="submit" 
-                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
-                  disabled={isLoading}
-                >
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
-                </Button>
-                
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-gray-700" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-gray-950 px-2 text-gray-400">Ou continue com</span>
-                  </div>
-                </div>
-                
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
-                  disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
-                  onClick={handleGoogleLogin}
-                >
-                  {isCheckingAuth ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      className="w-5 h-5 mr-2"
-                    >
-                      <path
-                        fill="#EA4335"
-                        d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
-                      />
-                      <path
-                        fill="#4A90E2"
-                        d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
-                      />
-                    </svg>
-                  )}
-                  Continuar com Google
-                </Button>
-                {!isGoogleAuthEnabled && !isCheckingAuth && (
-                  <div className="text-center text-xs text-red-400 mt-2">
-                    Login com Google está desativado no momento
-                  </div>
-                )}
-              </form>
-            </TabsContent>
-            
-            {/* Conteúdo da aba de Cadastro */}
-            <TabsContent value="register" className="space-y-4 mt-4">
-              <div className="flex flex-col space-y-2 text-center">
-                <h1 className="text-2xl font-semibold tracking-tight text-white">Criar uma conta</h1>
-                <p className="text-sm text-gray-400">Preencha seus dados para se cadastrar</p>
+              <div className="bg-black/30 p-4 rounded-lg backdrop-blur-sm">
+                <blockquote className="italic text-white drop-shadow-md text-sm">
+                  "Esta plataforma revolucionou a maneira como eu analiso meus resultados e aumentou meus ganhos significativamente."
+                </blockquote>
+                <p className="text-gray-200 mt-2 font-semibold drop-shadow-md text-sm">João Silva</p>
               </div>
+            </div>
+          </div>
 
-              {errorMessage && activeTab === 'register' && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{errorMessage}</AlertDescription>
-                </Alert>
-              )}
+          {/* Lado direito - Formulário */}
+          <div className="p-6 md:p-8 bg-gray-900/95 backdrop-blur-md">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 bg-gray-800/50">
+                <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
+                  Login
+                </TabsTrigger>
+                <TabsTrigger value="register" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
+                  Cadastro
+                </TabsTrigger>
+              </TabsList>
               
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="username" className="text-white">Nome de Usuário</Label>
-                  <div className="relative">
-                    <UserIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="username"
-                      type="text"
-                      placeholder="seunome"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
+              {/* Conteúdo da aba de Login */}
+              <TabsContent value="login" className="space-y-4 mt-4">
+                <div className="flex flex-col space-y-2 text-center">
+                  <h1 className="text-2xl font-semibold tracking-tight text-white">Entre na sua conta</h1>
+                  <p className="text-sm text-gray-400">Digite suas credenciais para acessar</p>
                 </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="register-email" className="text-white">Email</Label>
-                  <div className="relative">
-                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="register-email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="register-password" className="text-white">Senha</Label>
-                  <div className="relative">
-                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="register-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="confirm-password" className="text-white">Confirmar Senha</Label>
-                  <div className="relative">
-                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="confirm-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <Button 
-                  type="submit" 
-                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
-                  disabled={isLoading}
-                >
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Criar Conta'}
-                </Button>
-                
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-gray-700" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-gray-950 px-2 text-gray-400">Ou inscreva-se com</span>
-                  </div>
-                </div>
-                
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
-                  disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
-                  onClick={handleGoogleLogin}
-                >
-                  {isCheckingAuth ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      className="w-5 h-5 mr-2"
-                    >
-                      <path
-                        fill="#EA4335"
-                        d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
-                      />
-                      <path
-                        fill="#4A90E2"
-                        d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
-                      />
-                    </svg>
-                  )}
-                  Google
-                </Button>
-                {!isGoogleAuthEnabled && !isCheckingAuth && (
-                  <div className="text-center text-xs text-red-400 mt-2">
-                    Login com Google está desativado no momento
-                  </div>
+
+                {errorMessage && activeTab === 'login' && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{errorMessage}</AlertDescription>
+                  </Alert>
                 )}
-              </form>
-            </TabsContent>
-          </Tabs>
-          
-          <p className="text-center text-xs text-gray-400 mt-6">
-            Ao clicar em continuar, você concorda com nossos{' '}
-            <a href="#" className="text-vegas-green hover:underline">
-              Termos
-            </a>{' '}
-            e{' '}
-            <a href="#" className="text-vegas-green hover:underline">
-              Privacidade
-            </a>
-          </p>
+                
+                <form onSubmit={handleManualLogin} className="space-y-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="email" className="text-white">Email</Label>
+                    <div className="relative">
+                      <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="nome@exemplo.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className="text-white">Senha</Label>
+                      <a href="#" className="text-xs text-vegas-green hover:underline">
+                        Esqueceu a senha?
+                      </a>
+                    </div>
+                    <div className="relative">
+                      <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
+                  </Button>
+                  
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-gray-700" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-gray-950 px-2 text-gray-400">Ou continue com</span>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
+                    disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
+                    onClick={handleGoogleLogin}
+                  >
+                    {isCheckingAuth ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        className="w-5 h-5 mr-2"
+                      >
+                        <path
+                          fill="#EA4335"
+                          d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
+                        />
+                        <path
+                          fill="#4A90E2"
+                          d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
+                        />
+                      </svg>
+                    )}
+                    Continuar com Google
+                  </Button>
+                  {!isGoogleAuthEnabled && !isCheckingAuth && (
+                    <div className="text-center text-xs text-red-400 mt-2">
+                      Login com Google está desativado no momento
+                    </div>
+                  )}
+                </form>
+              </TabsContent>
+              
+              {/* Conteúdo da aba de Cadastro */}
+              <TabsContent value="register" className="space-y-4 mt-4">
+                <div className="flex flex-col space-y-2 text-center">
+                  <h1 className="text-2xl font-semibold tracking-tight text-white">Criar uma conta</h1>
+                  <p className="text-sm text-gray-400">Preencha seus dados para se cadastrar</p>
+                </div>
+
+                {errorMessage && activeTab === 'register' && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{errorMessage}</AlertDescription>
+                  </Alert>
+                )}
+                
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="username" className="text-white">Nome de Usuário</Label>
+                    <div className="relative">
+                      <UserIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="username"
+                        type="text"
+                        placeholder="seunome"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <Label htmlFor="register-email" className="text-white">Email</Label>
+                    <div className="relative">
+                      <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="register-email"
+                        type="email"
+                        placeholder="seu@email.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <Label htmlFor="register-password" className="text-white">Senha</Label>
+                    <div className="relative">
+                      <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="register-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <Label htmlFor="confirm-password" className="text-white">Confirmar Senha</Label>
+                    <div className="relative">
+                      <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="confirm-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Criar Conta'}
+                  </Button>
+                  
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-gray-700" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-gray-950 px-2 text-gray-400">Ou inscreva-se com</span>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
+                    disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
+                    onClick={handleGoogleLogin}
+                  >
+                    {isCheckingAuth ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        className="w-5 h-5 mr-2"
+                      >
+                        <path
+                          fill="#EA4335"
+                          d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
+                        />
+                        <path
+                          fill="#4A90E2"
+                          d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
+                        />
+                      </svg>
+                    )}
+                    Google
+                  </Button>
+                  {!isGoogleAuthEnabled && !isCheckingAuth && (
+                    <div className="text-center text-xs text-red-400 mt-2">
+                      Login com Google está desativado no momento
+                    </div>
+                  )}
+                </form>
+              </TabsContent>
+            </Tabs>
+            
+            <p className="text-center text-xs text-gray-400 mt-6">
+              Ao clicar em continuar, você concorda com nossos{' '}
+              <a href="#" className="text-vegas-green hover:underline">
+                Termos
+              </a>{' '}
+              e{' '}
+              <a href="#" className="text-vegas-green hover:underline">
+                Privacidade
+              </a>
+            </p>
+          </div>
         </div>
       </div>
     </div>
