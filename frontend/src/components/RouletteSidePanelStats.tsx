@@ -27,6 +27,17 @@ import {
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -968,56 +979,68 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
           {/* Historical Numbers Section */}
-          <div className="p-6 rounded-lg border border-[hsl(216,34%,17%)] bg-[hsl(224,71%,4%)] md:col-span-2 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
-              <h3 className="text-[hsl(213,31%,91%)] flex items-center text-base font-medium">
-                <BarChart className="mr-2 h-5 w-5 text-[hsl(142.1,70.6%,45.3%)]" /> Histórico de Números 
-                <span className="ml-2 text-xs font-normal text-[hsl(215.4,16.3%,56.9%)]">
-                  (Mostrando {visibleNumbers.length} de {filteredNumbers.length})
-                </span>
-              </h3>
-            </div>
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium flex items-center">
+                <BarChart className="mr-2 h-5 w-5 text-[hsl(142.1,70.6%,45.3%)]" /> 
+                Histórico de Números
+              </CardTitle>
+              <CardDescription>
+                Mostrando {visibleNumbers.length} de {filteredNumbers.length} números
+              </CardDescription>
+            </CardHeader>
             
-            {visibleNumbers.length > 0 ? (
-              <div className="flex flex-wrap gap-2 p-6 border border-[hsl(216,34%,17%)] rounded-lg bg-[hsl(224,71%,4%/0.8)]">
-                {visibleNumbers.map((n, idx) => (
-                  <div 
-                    key={idx} 
-                    className="flex flex-col items-center mb-2 w-11"
-                  >
-                    <div className={`w-9 h-9 flex items-center justify-center text-sm font-medium rounded-md border border-[hsl(216,34%,17%)] ${getRouletteNumberColor(n.numero)} hover:scale-110 transition-transform duration-200`}>
-                      {n.numero}
+            <CardContent>
+              {visibleNumbers.length > 0 ? (
+                <div className="border border-[hsl(216,34%,17%)] rounded-lg bg-[hsl(224,71%,4%/0.8)] p-4">
+                  <ScrollArea className="max-h-[300px]">
+                    <div className="flex flex-wrap gap-2">
+                      {visibleNumbers.map((n, idx) => (
+                        <div 
+                          key={idx} 
+                          className="flex flex-col items-center mb-2 w-11"
+                        >
+                          <div className={`w-9 h-9 flex items-center justify-center text-sm font-medium rounded-md border border-[hsl(216,34%,17%)] ${getRouletteNumberColor(n.numero)} hover:scale-110 transition-transform duration-200`}>
+                            {n.numero}
+                          </div>
+                          <div className="text-[9px] text-[hsl(215.4,16.3%,56.9%)] mt-1">
+                            {n.timestamp}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-[9px] text-[hsl(215.4,16.3%,56.9%)] mt-1">
-                      {n.timestamp}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex justify-center items-center h-[200px] rounded-lg text-[hsl(215.4,16.3%,56.9%)] bg-[hsl(224,71%,4%/0.8)]">
-                Nenhum número encontrado com o filtro selecionado
-              </div>
-            )}
+                  </ScrollArea>
+                </div>
+              ) : (
+                <div className="flex justify-center items-center h-[200px] rounded-lg text-[hsl(215.4,16.3%,56.9%)] bg-[hsl(224,71%,4%/0.8)]">
+                  Nenhum número encontrado com o filtro selecionado
+                </div>
+              )}
+            </CardContent>
             
             {visibleNumbersCount < filteredNumbers.length && (
-              <div className="flex justify-center mt-5">
-                <button 
+              <CardFooter className="justify-center pt-2">
+                <Button 
                   onClick={handleShowMore} 
-                  className="flex items-center gap-2 py-2 px-4 text-sm bg-[hsl(142.1,70.6%,45.3%)] hover:bg-[hsl(142.1,70.6%,42%)] text-white font-medium rounded-md transition-all duration-200 transform hover:-translate-y-0.5"
+                  variant="secondary"
+                  className="flex items-center gap-2"
                 >
                   Mostrar Mais {filteredNumbers.length - visibleNumbersCount} Números <ChevronDown className="h-4 w-4" />
-                </button>
-              </div>
+                </Button>
+              </CardFooter>
             )}
-          </div>
+          </Card>
 
           {/* Distribution Pie Chart */}
-          <div className="p-6 space-y-4 bg-[hsl(224,71%,4%)] border border-[hsl(216,34%,17%)] rounded-lg shadow-sm">
-            <h3 className="text-sm font-medium text-[hsl(213,31%,91%)] flex items-center">
-              <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> Distribuição por Cor
-            </h3>
-            <div className="h-[220px] pt-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center">
+                <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
+                Distribuição por Cor
+              </CardTitle>
+            </CardHeader>
+            
+            <CardContent>
               {/* Adicionar legenda de cores na parte superior */}
               <div className="flex justify-center space-x-5 mb-4">
                 {pieData.map((entry, index) => (
@@ -1030,216 +1053,244 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   </div>
                 ))}
               </div>
-              <ResponsiveContainer width="100%" height="85%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={75}
-                    innerRadius={45}
-                    fill="white"
-                    dataKey="value"
-                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} stroke="hsl(224,71%,4%)" strokeWidth={2} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(224,71%,4%/0.95)', 
-                      borderColor: 'hsl(142.1,70.6%,45.3%)',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                      padding: '8px 12px'
-                    }} 
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={75}
+                      innerRadius={45}
+                      fill="white"
+                      dataKey="value"
+                      label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                      labelLine={false}
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="hsl(224,71%,4%)" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(224,71%,4%/0.95)', 
+                        borderColor: 'hsl(142.1,70.6%,45.3%)',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                        padding: '8px 12px'
+                      }} 
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
           
           {/* Win Rate Chart */}
-          <div className="p-6 space-y-4 bg-[hsl(224,71%,4%)] border border-[hsl(216,34%,17%)] rounded-lg shadow-sm">
-            <h3 className="text-sm font-medium text-[hsl(213,31%,91%)] flex items-center">
-              <PercentIcon size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> Taxa de Vitória
-            </h3>
-            <div className="h-[220px] pt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: "Vitórias", value: wins || 1, color: "hsl(142.1,70.6%,45.3%)" },
-                      { name: "Derrotas", value: losses || 1, color: "hsl(0,72.2%,50.6%)" }
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={75}
-                    fill="white"
-                    paddingAngle={3}
-                    dataKey="value"
-                    label={false}
-                    labelLine={false}
-                  >
-                    <Cell key="wins" fill="hsl(142.1,70.6%,45.3%)" stroke="hsl(224,71%,4%)" strokeWidth={2} />
-                    <Cell key="losses" fill="hsl(0,72.2%,50.6%)" stroke="hsl(224,71%,4%)" strokeWidth={2} />
-                  </Pie>
-                  <Legend
-                    verticalAlign="bottom"
-                    iconType="circle"
-                    iconSize={8}
-                    layout="horizontal"
-                    wrapperStyle={{
-                      fontSize: '13px',
-                      color: 'hsl(215.4,16.3%,56.9%)'
-                    }}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(224,71%,4%/0.95)', 
-                      borderColor: 'hsl(142.1,70.6%,45.3%)',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                      padding: '8px 12px'
-                    }} 
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              
-              {/* Texto centralizado com a taxa de vitória */}
-              <div className="relative">
-                <div className="absolute top-[-140px] left-[50%] transform translate-x-[-50%] flex flex-col items-center">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center">
+                <PercentIcon size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
+                Taxa de Vitória
+              </CardTitle>
+            </CardHeader>
+            
+            <CardContent>
+              <div className="h-[200px] relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Vitórias", value: wins || 1, color: "hsl(142.1,70.6%,45.3%)" },
+                        { name: "Derrotas", value: losses || 1, color: "hsl(0,72.2%,50.6%)" }
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={75}
+                      fill="white"
+                      paddingAngle={3}
+                      dataKey="value"
+                      label={false}
+                      labelLine={false}
+                    >
+                      <Cell key="wins" fill="hsl(142.1,70.6%,45.3%)" stroke="hsl(224,71%,4%)" strokeWidth={2} />
+                      <Cell key="losses" fill="hsl(0,72.2%,50.6%)" stroke="hsl(224,71%,4%)" strokeWidth={2} />
+                    </Pie>
+                    <Legend
+                      verticalAlign="bottom"
+                      iconType="circle"
+                      iconSize={8}
+                      layout="horizontal"
+                      wrapperStyle={{
+                        fontSize: '13px',
+                        color: 'hsl(215.4,16.3%,56.9%)'
+                      }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(224,71%,4%/0.95)', 
+                        borderColor: 'hsl(142.1,70.6%,45.3%)',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                        padding: '8px 12px'
+                      }} 
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                
+                {/* Texto centralizado com a taxa de vitória */}
+                <div className="absolute top-[40%] left-[50%] transform translate-x-[-50%] translate-y-[-50%] flex flex-col items-center">
                   <div className="text-3xl font-bold text-[hsl(213,31%,91%)]">{winRate.toFixed(0)}%</div>
                   <div className="text-xs text-[hsl(215.4,16.3%,56.9%)]">Taxa de Vitória</div>
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
           
           {/* Hot & Cold Numbers */}
-          <div className="p-6 space-y-4 md:col-span-2 bg-[hsl(224,71%,4%)] border border-[hsl(216,34%,17%)] rounded-lg shadow-sm">
-            <h3 className="text-sm font-medium text-[hsl(213,31%,91%)] flex items-center">
-              <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> Números Quentes & Frios
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-4 rounded-lg border border-[hsl(216,34%,17%)] bg-[hsl(224,71%,4%/0.8)]">
-                <h4 className="text-xs font-medium text-[hsl(0,72.2%,50.6%)] mb-4 flex items-center">
-                  <ArrowUp size={16} className="mr-2" /> Números Quentes
-                </h4>
-                <div className="flex flex-wrap gap-3">
-                  {hot.map((item, i) => (
-                    <div key={i} className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105">
-                      <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)]`}>
-                        {item.number}
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center">
+                <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
+                Números Quentes & Frios
+              </CardTitle>
+            </CardHeader>
+            
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-4 rounded-lg border border-[hsl(216,34%,17%)] bg-[hsl(224,71%,4%/0.8)]">
+                  <h4 className="text-xs font-medium text-[hsl(0,72.2%,50.6%)] mb-4 flex items-center">
+                    <ArrowUp size={16} className="mr-2" /> Números Quentes
+                  </h4>
+                  <div className="flex flex-wrap gap-3">
+                    {hot.map((item, i) => (
+                      <div key={i} className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105">
+                        <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)]`}>
+                          {item.number}
+                        </div>
+                        <Badge variant="secondary" className="text-[hsl(142.1,70.6%,45.3%)]">
+                          {item.frequency}x
+                        </Badge>
                       </div>
-                      <span className="text-[hsl(142.1,70.6%,45.3%)] text-xs font-medium">({item.frequency}x)</span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="p-4 rounded-lg border border-[hsl(216,34%,17%)] bg-[hsl(224,71%,4%/0.8)]">
+                  <h4 className="text-xs font-medium text-[hsl(217.2,91.2%,59.8%)] mb-4 flex items-center">
+                    <ArrowDown size={16} className="mr-2" /> Números Frios
+                  </h4>
+                  <div className="flex flex-wrap gap-3">
+                    {cold.map((item, i) => (
+                      <div key={i} className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105">
+                        <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)]`}>
+                          {item.number}
+                        </div>
+                        <Badge variant="secondary" className="text-[hsl(142.1,70.6%,45.3%)]">
+                          {item.frequency}x
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-              
-              <div className="p-4 rounded-lg border border-[hsl(216,34%,17%)] bg-[hsl(224,71%,4%/0.8)]">
-                <h4 className="text-xs font-medium text-[hsl(217.2,91.2%,59.8%)] mb-4 flex items-center">
-                  <ArrowDown size={16} className="mr-2" /> Números Frios
-                </h4>
-                <div className="flex flex-wrap gap-3">
-                  {cold.map((item, i) => (
-                    <div key={i} className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105">
-                      <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)]`}>
-                        {item.number}
-                      </div>
-                      <span className="text-[hsl(142.1,70.6%,45.3%)] text-xs font-medium">({item.frequency}x)</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
           
           {/* Frequency Chart */}
-          <div className="p-6 space-y-4 md:col-span-2 bg-[hsl(224,71%,4%)] border border-[hsl(216,34%,17%)] rounded-lg shadow-sm">
-            <h3 className="text-sm font-medium text-[hsl(213,31%,91%)] flex items-center">
-              <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> Frequência de Números
-            </h3>
-            <div className="h-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <RechartsBarChart data={frequencyData} margin={{ top: 15, right: 15, left: 15, bottom: 35 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(216,34%,17%)" vertical={false} />
-                  <XAxis 
-                    dataKey="number" 
-                    stroke="hsl(215.4,16.3%,56.9%)" 
-                    tick={{fontSize: 13}}
-                    tickLine={false}
-                    axisLine={{stroke: 'hsl(216,34%,17%)'}}
-                  />
-                  <YAxis 
-                    stroke="hsl(215.4,16.3%,56.9%)" 
-                    tick={{fontSize: 13}}
-                    tickLine={false}
-                    axisLine={{stroke: 'hsl(216,34%,17%)'}}
-                    width={30}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(224,71%,4%/0.95)', 
-                      borderColor: 'hsl(142.1,70.6%,45.3%)', 
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                      padding: '8px 12px'
-                    }} 
-                    labelStyle={{ color: 'hsl(213,31%,91%)' }}
-                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                  />
-                  <Bar 
-                    dataKey="frequency" 
-                    fill="hsl(142.1,70.6%,45.3%)"
-                    radius={[4, 4, 0, 0]}
-                    animationDuration={1200}
-                  />
-                </RechartsBarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center">
+                <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
+                Frequência de Números
+              </CardTitle>
+            </CardHeader>
+            
+            <CardContent>
+              <div className="h-[240px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBarChart data={frequencyData} margin={{ top: 15, right: 15, left: 15, bottom: 35 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(216,34%,17%)" vertical={false} />
+                    <XAxis 
+                      dataKey="number" 
+                      stroke="hsl(215.4,16.3%,56.9%)" 
+                      tick={{fontSize: 13}}
+                      tickLine={false}
+                      axisLine={{stroke: 'hsl(216,34%,17%)'}}
+                    />
+                    <YAxis 
+                      stroke="hsl(215.4,16.3%,56.9%)" 
+                      tick={{fontSize: 13}}
+                      tickLine={false}
+                      axisLine={{stroke: 'hsl(216,34%,17%)'}}
+                      width={30}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(224,71%,4%/0.95)', 
+                        borderColor: 'hsl(142.1,70.6%,45.3%)', 
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                        padding: '8px 12px'
+                      }} 
+                      labelStyle={{ color: 'hsl(213,31%,91%)' }}
+                      cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                    />
+                    <Bar 
+                      dataKey="frequency" 
+                      fill="hsl(142.1,70.6%,45.3%)"
+                      radius={[4, 4, 0, 0]}
+                      animationDuration={1200}
+                    />
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
           
           {/* Média de cores por hora */}
-          <div className="p-6 space-y-4 md:col-span-2 bg-[hsl(224,71%,4%)] border border-[hsl(216,34%,17%)] rounded-lg shadow-sm">
-            <h3 className="text-sm font-medium text-[hsl(213,31%,91%)] flex items-center">
-              <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> Média de cores por hora
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-              {colorHourlyStats.map((stat, index) => (
-                <div key={`color-stat-${index}`} 
-                  className="bg-[hsl(224,71%,4%/0.8)] border border-[hsl(216,34%,17%)] rounded-lg p-4 transition-all duration-200 hover:border-[hsl(142.1,70.6%,45.3%/0.5)] hover:shadow-md"
-                >
-                  <div className="flex items-center">
-                    <div 
-                      className="w-10 h-10 rounded-md mr-3 flex items-center justify-center" 
-                      style={{ backgroundColor: stat.color }}
-                    >
-                      <div className="w-5 h-5 rounded-full border-2 border-white"></div>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-[hsl(213,31%,91%)]">{stat.name}</p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <span className="text-xs text-[hsl(215.4,16.3%,56.9%)]">
-                          Total: {stat.total}
-                        </span>
-                        <span className="bg-[hsl(224,71%,4%)] text-xs px-2 py-0.5 rounded-md text-[hsl(142.1,70.6%,45.3%)] border border-[hsl(216,34%,17%)]">
-                          {stat.percentage}%
-                        </span>
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center">
+                <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
+                Média de cores por hora
+              </CardTitle>
+            </CardHeader>
+            
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                {colorHourlyStats.map((stat, index) => (
+                  <div key={`color-stat-${index}`} 
+                    className="border border-[hsl(216,34%,17%)] rounded-lg p-4 transition-all duration-200 hover:border-[hsl(142.1,70.6%,45.3%/0.5)] hover:shadow-md"
+                  >
+                    <div className="flex items-center">
+                      <div 
+                        className="w-10 h-10 rounded-md mr-3 flex items-center justify-center" 
+                        style={{ backgroundColor: stat.color }}
+                      >
+                        <div className="w-5 h-5 rounded-full border-2 border-white"></div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-[hsl(213,31%,91%)]">{stat.name}</p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-xs text-[hsl(215.4,16.3%,56.9%)]">
+                            Total: {stat.total}
+                          </span>
+                          <Badge variant="outline" className="text-[hsl(142.1,70.6%,45.3%)]">
+                            {stat.percentage}%
+                          </Badge>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
