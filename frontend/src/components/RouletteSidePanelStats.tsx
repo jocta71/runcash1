@@ -981,15 +981,15 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         </div>
         
         {/* Filtros em row com dropdowns */}
-        <div className="flex w-full space-x-2 bg-[#17191a] p-1">
+        <div className="flex w-full space-x-2 bg-card p-1">
           {/* Filtro por cor */}
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por cores</div>
             <Select value={selectedColor} onValueChange={handleColorChange}>
-              <SelectTrigger className="w-full bg-black border-none text-white h-10">
+              <SelectTrigger className="w-full bg-card border-none text-white h-10">
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111] border-gray-800 text-white">
+              <SelectContent className="bg-card border-border text-white">
                 <SelectItem value="todas">Todas</SelectItem>
                 <SelectItem value="vermelho">
                   <div className="flex items-center">
@@ -1014,10 +1014,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por número</div>
             <Select value={selectedNumber} onValueChange={handleNumberChange}>
-              <SelectTrigger className="w-full bg-black border-none text-white h-10">
+              <SelectTrigger className="w-full bg-card border-none text-white h-10">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111] border-gray-800 text-white max-h-[200px] overflow-y-auto">
+              <SelectContent className="bg-card border-border text-white max-h-[200px] overflow-y-auto">
                 {numberOptions.map(option => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
@@ -1031,10 +1031,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por paridade</div>
             <Select value={selectedParity} onValueChange={handleParityChange}>
-              <SelectTrigger className="w-full bg-black border-none text-white h-10">
+              <SelectTrigger className="w-full bg-card border-none text-white h-10">
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111] border-gray-800 text-white">
+              <SelectContent className="bg-card border-border text-white">
                 <SelectItem value="todas">Todas</SelectItem>
                 <SelectItem value="par">Pares</SelectItem>
                 <SelectItem value="impar">Ímpares</SelectItem>
@@ -1046,10 +1046,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por provedor</div>
             <Select value={selectedProvider} onValueChange={handleProviderChange}>
-              <SelectTrigger className="w-full bg-black border-none text-white h-10">
+              <SelectTrigger className="w-full bg-card border-none text-white h-10">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111] border-gray-800 text-white max-h-[200px] overflow-y-auto">
+              <SelectContent className="bg-card border-border text-white max-h-[200px] overflow-y-auto">
                 <SelectItem value="todos">Todos</SelectItem>
                 {providers.map(provider => (
                   <SelectItem key={provider.id} value={provider.id}>
@@ -1064,10 +1064,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por minuto</div>
             <Select value={selectedTime} onValueChange={handleTimeChange}>
-              <SelectTrigger className="w-full bg-black border-none text-white h-10">
+              <SelectTrigger className="w-full bg-card border-none text-white h-10">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111] border-gray-800 text-white max-h-[200px] overflow-y-auto">
+              <SelectContent className="bg-card border-border text-white max-h-[200px] overflow-y-auto">
                 {timeOptions.map(option => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
