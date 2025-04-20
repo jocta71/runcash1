@@ -168,20 +168,16 @@ const AuthPage = () => {
 
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-2">
-      {/* Lado esquerdo - Imagem de fundo */}
-      <div className="relative hidden md:block bg-gray-900 overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <img 
-            src="/img/login-imagem.png" 
-            alt="RunCash Mascote" 
-            className="w-full h-full object-cover"
-          />
-        </div>
-        <div className="absolute top-4 left-4 z-10">
-          <div className="flex items-center gap-2">
-            <img src="/img/logo.svg" alt="RunCash Logo" className="h-10" />
-            <span className="text-xl font-bold text-white">RunCash</span>
-          </div>
+      {/* Lado esquerdo - Imagem de login */}
+      <div className="relative hidden md:flex">
+        <img 
+          src="/img/login-imagem.png" 
+          alt="Login Image" 
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute top-5 left-5 flex items-center gap-2">
+          <img src="/img/logo.svg" alt="RunCash Logo" className="h-10" />
+          <span className="text-xl font-bold text-white">RunCash</span>
         </div>
       </div>
 
