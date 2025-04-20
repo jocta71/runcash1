@@ -20,6 +20,7 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthPage from "./pages/AuthPage";
 import SoundManager from "./components/SoundManager";
+import AuthModal from "./components/AuthModal";
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -94,21 +95,14 @@ const App = () => {
                   <SoundManager>
                     <BrowserRouter>
                       <GoogleAuthHandler />
+                      {/* Modal de autenticação - mostrado quando necessário */}
+                      <AuthModal />
                       <Routes>
-                        {/* Rota pública de login - Acessível mesmo sem autenticação */}
-                        <Route path="/login" element={
-                          <Suspense fallback={<LoadingScreen />}>
-                            <AuthPage />
-                          </Suspense>
-                        } />
-                        
-                        {/* Redirecionamento para login se acessar diretamente a raiz sem autenticação */}
+                        {/* Rota principal - acessível por todos, mas com conteúdo protegido */}
                         <Route index element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <Index />
-                            </Suspense>
-                          </ProtectedRoute>
+                          <Suspense fallback={<LoadingScreen />}>
+                            <Index />
+                          </Suspense>
                         } />
                         
                         {/* Todas as outras rotas são protegidas */}

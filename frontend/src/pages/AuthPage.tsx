@@ -10,7 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import axios from 'axios';
 
-const AuthPage = () => {
+interface AuthPageProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+const AuthPage = ({ isOpen = true, onClose }: AuthPageProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -43,9 +48,9 @@ const AuthPage = () => {
     
     checkAuthStatus();
     
-    // Redirect to home if already logged in
-    if (user) {
-      navigate('/');
+    // Fechar modal se o usuário estiver logado
+    if (user && onClose) {
+      onClose();
     }
     
     // Verificar se há erro no URL (redirecionado do Google Auth)
@@ -58,7 +63,7 @@ const AuthPage = () => {
         variant: "destructive"
       });
     }
-  }, [user, navigate, toast, API_URL]);
+  }, [user, navigate, toast, API_URL, onClose]);
 
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +90,7 @@ const AuthPage = () => {
           title: "Login bem-sucedido",
           description: "Bem-vindo de volta!",
         });
-        navigate('/');
+        if (onClose) onClose();
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
@@ -130,7 +135,7 @@ const AuthPage = () => {
           title: "Conta criada com sucesso",
           description: "Você já pode usar sua conta para acessar o sistema.",
         });
-        navigate('/');
+        if (onClose) onClose();
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
@@ -166,666 +171,309 @@ const AuthPage = () => {
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="min-h-screen w-full relative overflow-hidden">
-      {/* Site real como fundo - exatamente como na imagem */}
-      <div className="absolute inset-0 z-0 bg-[#111827]">
-        {/* Cabeçalho do site real */}
-        <header className="h-14 bg-[#0f172a] border-b border-gray-800 flex items-center px-4 justify-between">
-          <div className="flex items-center gap-2">
-            <img src="/img/logo.svg" alt="RunCash Logo" className="h-8" />
-            <span className="text-lg font-bold text-white">RunCash</span>
-          </div>
-
-          {/* Indicador da roleta em alta */}
-          <div className="flex-1 flex justify-center">
-            <div className="bg-[#0e151f] rounded-full px-3 py-1 text-xs flex items-center">
-              <span className="text-vegas-green mr-1">•</span>
-              <span className="text-gray-300">Roleta Brasileira em alta: 76% de vitórias hoje</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Overlay semitransparente com blur */}
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose}></div>
+      
+      {/* Modal de autenticação */}
+      <div className="bg-gray-900/90 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden max-w-4xl w-full z-10 grid grid-cols-1 md:grid-cols-2 border border-gray-800">
+        {/* Lado esquerdo - Imagem */}
+        <div className="relative hidden md:block">
+          <div 
+            className="absolute inset-0 bg-cover bg-center" 
+            style={{ backgroundImage: "url('/login-imagem.png')" }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70 flex flex-col justify-between p-8">
+            <div>
+              <h2 className="text-white text-3xl font-bold drop-shadow-md">RunCash</h2>
+              <p className="text-gray-200 mt-2 drop-shadow-md max-w-xs">A maneira mais inteligente de acompanhar seus resultados</p>
             </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button className="bg-[#6d28d9] text-white text-xs px-4 py-1.5 rounded-lg">
-              Planos
-            </button>
-            <div className="flex items-center gap-2">
-              <span className="text-white text-xs">Olá, Jacob 1D</span>
-              <div className="w-8 h-8 rounded-full bg-[#6d28d9] flex items-center justify-center text-white font-medium">J</div>
-            </div>
-            <button className="bg-red-600/90 text-white text-xs px-2 py-1 rounded">
-              Sair
-            </button>
-          </div>
-        </header>
-        
-        {/* Layout principal do site real */}
-        <div className="flex h-[calc(100vh-3.5rem)]">
-          {/* Menu lateral esquerdo */}
-          <div className="w-44 bg-[#0f172a] border-r border-gray-800">
-            <div className="py-3 px-2">
-              <div className="text-xs text-gray-500 font-medium px-3 mb-1">Jogos</div>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <rect width="24" height="24" fill="none"/>
-                    <path d="M2.5 6.5C2.5 4.01472 4.51472 2 7 2H17C19.4853 2 21.5 4.01472 21.5 6.5V12.5C21.5 14.9853 19.4853 17 17 17H7C4.51472 17 2.5 14.9853 2.5 12.5V6.5Z" stroke="currentColor"/>
-                    <path d="M8.5 22H15.5" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M12 17V22" stroke="currentColor" strokeLinecap="round"/>
-                  </svg>
-                  Slots
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor"/>
-                    <path d="M12 7V12L15 15" stroke="currentColor" strokeLinecap="round"/>
-                  </svg>
-                  Cassino Ao Vivo
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 5V3" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M7 7L5.5 5.5" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M5 12H3" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M7 17L5.5 18.5" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M12 19V21" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M17 17L18.5 18.5" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M19 12H21" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M17 7L18.5 5.5" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M16 12H18" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M8 12H6" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M10 10L8 8" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M10 14L8 16" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M14 14L16 16" stroke="currentColor" strokeLinecap="round"/>
-                    <path d="M14 10L16 8" stroke="currentColor" strokeLinecap="round"/>
-                  </svg>
-                  Favoritos
-                </div>
-              </div>
-              
-              <div className="text-xs text-gray-500 font-medium px-3 mb-1 mt-4">Análises</div>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-vegas-green bg-vegas-green/10 rounded">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="9" stroke="currentColor"/>
-                    <path d="M8 12L11 15L16 9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Roletas
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M3 9H21M7 3V5M17 3V5M6 13H8M6 17H8M12 13H14M12 17H14M18 13H20M18 17H20" stroke="currentColor" strokeLinecap="round"/>
-                    <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor"/>
-                  </svg>
-                  Histórico
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M5 21V5C5 3.89543 5.89543 3 7 3H17C18.1046 3 19 3.89543 19 5V21L12 17.5L5 21Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Análise Avançada
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M3 20C5.33579 17.5226 8.50702 16 12 16C15.493 16 18.6642 17.5226 21 20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M12 12C14.4853 12 16.5 9.98528 16.5 7.5C16.5 5.01472 14.4853 3 12 3C9.51472 3 7.5 5.01472 7.5 7.5C7.5 9.98528 9.51472 12 12 12Z" stroke="currentColor"/>
-                  </svg>
-                  Estratégias
-                </div>
-              </div>
-              
-              <div className="text-xs text-gray-500 font-medium px-3 mb-1 mt-4">Bônus</div>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M16 10V6C16 3.79086 14.2091 2 12 2C9.79086 2 8 3.79086 8 6V10" stroke="currentColor" strokeLinecap="round"/>
-                    <circle cx="6" cy="12" r="1" fill="currentColor"/>
-                    <circle cx="18" cy="12" r="1" fill="currentColor"/>
-                    <rect x="2" y="10" width="20" height="12" rx="2" stroke="currentColor"/>
-                  </svg>
-                  Código Promocional
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Área principal - com roletas e estatísticas reais */}
-          <div className="flex-1 bg-[#111827] overflow-hidden">
-            <div className="p-3 flex">
-              <div className="flex-1">
-                {/* Pesquisa e filtros */}
-                <div className="p-2">
-                  <div className="relative mb-4">
-                    <input type="text" placeholder="Pesquisar roletas..." className="w-full bg-[#0f172a] border border-gray-800 text-gray-300 py-2 px-4 rounded-md text-sm" />
-                    <button className="absolute right-1 top-1/2 -translate-y-1/2 bg-[#1e293b] p-1.5 rounded-md">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    </button>
-                  </div>
-                  
-                  <div className="mb-2 flex items-center">
-                    <div className="text-gray-400 text-sm mr-4">Provedores:</div>
-                    <div className="flex gap-2">
-                      <div className="text-xs px-2 py-1 bg-[#1e293b] text-white rounded-md">Evolution</div>
-                      <div className="text-xs px-2 py-1 bg-[#0f172a] text-gray-400 rounded-md">Outro</div>
-                      <div className="text-xs px-2 py-1 bg-[#0f172a] text-gray-400 rounded-md">Pragmatic Play</div>
-                    </div>
-                  </div>
-                  
-                  <div className="text-sm text-gray-400 mt-2">
-                    Mostrando 39 roletas
-                  </div>
-                  
-                  {/* Grid de roletas */}
-                  <div className="grid grid-cols-4 gap-3 mt-4">
-                    {/* Roleta American */}
-                    <div className="bg-[#0f172a] rounded-lg overflow-hidden border border-gray-800 relative">
-                      <div className="p-2 flex justify-between items-center">
-                        <div className="text-white text-sm font-medium">American Roulette</div>
-                        <div className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full">Online</div>
-                      </div>
-                      <div className="bg-[#0f172a] p-2">
-                        <div className="grid grid-cols-7 gap-0.5">
-                          {[2,3,2,3,2,3,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2].map((num, i) => (
-                            <div key={i} className="w-5 h-5 bg-black flex items-center justify-center text-white text-[9px]">{num}</div>
-                          ))}
-                        </div>
-                      </div>
-                      {/* Sobreposição de bloqueio */}
-                      <div className="absolute inset-0 bg-gray-900/75 backdrop-blur-sm flex flex-col items-center justify-center">
-                        <LockIcon className="h-7 w-7 text-vegas-green/40 mb-1" />
-                        <span className="text-xs text-gray-400">Login necessário</span>
-                      </div>
-                    </div>
-                    
-                    {/* Roleta Auto-Roleta */}
-                    <div className="bg-[#0f172a] rounded-lg overflow-hidden border border-gray-800 relative">
-                      <div className="p-2 flex justify-between items-center">
-                        <div className="text-white text-sm font-medium">Auto-Roleta V1</div>
-                        <div className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full">Online</div>
-                      </div>
-                      <div className="bg-[#0f172a] p-2">
-                        <div className="grid grid-cols-7 gap-0.5">
-                          {['33','11','10','2','4','35','17','13','6','14','2','30','23','6','4','0','16','33','5','21','36','4','18','24','8'].map((num, i) => (
-                            <div key={i} className={`w-5 h-5 ${parseInt(num) % 2 === 0 ? 'bg-black' : 'bg-red-600'} ${num === '0' ? 'bg-green-600' : ''} flex items-center justify-center text-white text-[9px]`}>{num}</div>
-                          ))}
-                        </div>
-                      </div>
-                      {/* Sobreposição de bloqueio */}
-                      <div className="absolute inset-0 bg-gray-900/75 backdrop-blur-sm flex flex-col items-center justify-center">
-                        <LockIcon className="h-7 w-7 text-vegas-green/40 mb-1" />
-                        <span className="text-xs text-gray-400">Login necessário</span>
-                      </div>
-                    </div>
-                    
-                    {/* Mais roletas */}
-                    {[...Array(6)].map((_, index) => (
-                      <div key={index} className="bg-[#0f172a] rounded-lg overflow-hidden border border-gray-800 relative">
-                        <div className="p-2 flex justify-between items-center">
-                          <div className="text-white text-sm font-medium">{['Brazilian Mega R', 'Bucharest Auto', 'Bucharest Roul', 'Dansk Roulette', 'Deutsches Roul', 'Dragonara Roul'][index % 6]}</div>
-                          <div className={`${index % 5 === 0 ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'} text-xs px-2 py-0.5 rounded-full`}>
-                            {index % 5 === 0 ? 'Offline' : 'Online'}
-                          </div>
-                        </div>
-                        <div className="bg-[#0f172a] p-2">
-                          <div className="grid grid-cols-7 gap-0.5">
-                            {Array(25).fill(0).map((_, i) => {
-                              const num = Math.floor(Math.random() * 36).toString();
-                              return (
-                                <div key={i} className={`w-5 h-5 ${parseInt(num) % 2 === 0 && num !== '0' ? 'bg-black' : 'bg-red-600'} ${num === '0' ? 'bg-green-600' : ''} flex items-center justify-center text-white text-[9px]`}>{num}</div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        {/* Sobreposição de bloqueio */}
-                        <div className="absolute inset-0 bg-gray-900/75 backdrop-blur-sm flex flex-col items-center justify-center">
-                          <LockIcon className="h-7 w-7 text-vegas-green/40 mb-1" />
-                          <span className="text-xs text-gray-400">Login necessário</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Painel lateral de estatísticas */}
-              <div className="w-96 p-3 border-l border-gray-800 bg-[#0f172a] relative">
-                <div className="text-vegas-green font-medium mb-4">Estatísticas da American Roulette</div>
-                
-                <div className="border-b border-gray-800 pb-4 mb-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none">
-                        <path d="M3 4.5H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M3 9.5H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M3 14.5H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M3 19.5H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      <div className="text-sm text-white">Filtros de roleta</div>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-5 gap-2 text-xs">
-                    <div>
-                      <div className="text-gray-400 mb-1">Por cores</div>
-                      <select className="w-full bg-[#1e293b] text-white p-1 rounded border border-gray-700">
-                        <option>Todos</option>
-                      </select>
-                    </div>
-                    <div>
-                      <div className="text-gray-400 mb-1">Por número</div>
-                      <select className="w-full bg-[#1e293b] text-white p-1 rounded border border-gray-700">
-                        <option>Todos</option>
-                      </select>
-                    </div>
-                    <div>
-                      <div className="text-gray-400 mb-1">Por paridade</div>
-                      <select className="w-full bg-[#1e293b] text-white p-1 rounded border border-gray-700">
-                        <option>Todos</option>
-                      </select>
-                    </div>
-                    <div>
-                      <div className="text-gray-400 mb-1">Por provedor</div>
-                      <select className="w-full bg-[#1e293b] text-white p-1 rounded border border-gray-700">
-                        <option>Todos</option>
-                      </select>
-                    </div>
-                    <div>
-                      <div className="text-gray-400 mb-1">Por minuto</div>
-                      <select className="w-full bg-[#1e293b] text-white p-1 rounded border border-gray-700">
-                        <option>Todos</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="border-b border-gray-800 pb-4 mb-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-sm text-white">Histórico de Números</div>
-                    <div className="text-xs text-gray-400">46 de 1124 resultados</div>
-                  </div>
-                  
-                  <div className="grid grid-cols-14 gap-1 mb-2">
-                    {Array(42).fill(0).map((_, i) => (
-                      <div key={i} className="w-6 h-6 bg-black flex items-center justify-center text-white text-xs">
-                        {Math.floor(Math.random() * 36)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-sm text-white">Distribuição por Cor</div>
-                </div>
-                <div className="h-48 bg-[#1e293b] rounded-lg border border-gray-800 relative overflow-hidden">
-                  <div className="absolute bottom-0 left-0 right-0 flex">
-                    <div className="w-3/5 bg-red-500 h-32"></div>
-                    <div className="w-1/3 bg-black h-24"></div>
-                    <div className="w-1/12 bg-green-500 h-10"></div>
-                  </div>
-                </div>
-                
-                {/* Sobreposição de bloqueio para estatísticas */}
-                <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-md flex flex-col items-center justify-center">
-                  <LockIcon className="h-12 w-12 text-vegas-green/40 mb-3" />
-                  <span className="text-lg text-gray-300 font-medium mb-1">Estatísticas Bloqueadas</span>
-                  <span className="text-sm text-gray-400 text-center max-w-xs">Faça login para ver estatísticas detalhadas e aumentar suas chances de ganhar</span>
-                </div>
-              </div>
-            </div>
-            
-            {/* Chat ao vivo na parte inferior */}
-            <div className="h-56 border-t border-gray-800 bg-[#0f172a] flex relative">
-              <div className="w-2/3 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-white text-sm">Chat ao vivo</span>
-                    <span className="bg-vegas-green/20 text-vegas-green text-xs px-2 py-0.5 rounded-full">128</span>
-                  </div>
-                  <button className="text-gray-400 hover:text-gray-300">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                      <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </button>
-                </div>
-                
-                <div className="bg-[#161f2e] rounded-lg h-36 overflow-hidden relative">
-                  <div className="absolute right-3 top-0 bottom-0 w-32 flex flex-col justify-center">
-                    <div className="text-center text-gray-300 text-xs mb-1">grana!</div>
-                    <div className="bg-[#0f172a] rounded-full w-full h-20 flex items-center justify-center overflow-hidden border border-gray-700">
-                      <div className="bg-red-600 absolute w-full h-full opacity-80"></div>
-                      <div className="relative z-10 flex flex-col items-center">
-                        <div className="text-white text-lg font-bold">36</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="w-1/3 p-3 border-l border-gray-800">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-white text-sm">Mapa de Calor da Roulette</span>
-                </div>
-                
-                <div className="bg-[#161f2e] rounded-lg h-36 overflow-hidden flex items-center justify-center">
-                  <div className="rounded-full w-28 h-28 border-8 border-gray-700 relative">
-                    <div className="absolute inset-0 rotate-12">
-                      <div className="absolute top-0 right-0 bottom-0 left-0 bg-gradient-to-br from-red-500 via-transparent to-black opacity-40"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Sobreposição de bloqueio para chat */}
-              <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-md flex flex-col items-center justify-center">
-                <LockIcon className="h-10 w-10 text-vegas-green/40 mb-2" />
-                <span className="text-sm text-gray-300 font-medium">Chat e análises em tempo real</span>
-                <span className="text-xs text-gray-400 text-center max-w-xs mt-1">Faça login para interagir com outros jogadores</span>
-              </div>
+            <div className="bg-black/30 p-4 rounded-lg backdrop-blur-sm">
+              <blockquote className="italic text-white drop-shadow-md text-sm">
+                "Esta plataforma revolucionou a maneira como eu analiso meus resultados e aumentou meus ganhos significativamente."
+              </blockquote>
+              <p className="text-gray-200 mt-2 font-semibold drop-shadow-md text-sm">João Silva</p>
             </div>
           </div>
         </div>
-      </div>
-      
-      {/* Modal de autenticação flutuando sobre o site real */}
-      <div className="relative min-h-screen w-full flex items-center justify-center p-4 z-10">
-        <div className="bg-gray-900/90 backdrop-blur-lg rounded-xl shadow-2xl overflow-hidden max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 border border-gray-800">
-          {/* Lado esquerdo - Imagem */}
-          <div className="relative hidden md:block">
-            <div 
-              className="absolute inset-0 bg-cover bg-center" 
-              style={{ backgroundImage: "url('/login-imagem.png')" }}
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70 flex flex-col justify-between p-8">
-              <div>
-                <h2 className="text-white text-3xl font-bold drop-shadow-md">RunCash</h2>
-                <p className="text-gray-200 mt-2 drop-shadow-md max-w-xs">A maneira mais inteligente de acompanhar seus resultados</p>
-              </div>
-              <div className="bg-black/30 p-4 rounded-lg backdrop-blur-sm">
-                <blockquote className="italic text-white drop-shadow-md text-sm">
-                  "Esta plataforma revolucionou a maneira como eu analiso meus resultados e aumentou meus ganhos significativamente."
-                </blockquote>
-                <p className="text-gray-200 mt-2 font-semibold drop-shadow-md text-sm">João Silva</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Lado direito - Formulário */}
-          <div className="p-6 md:p-8 bg-gray-900/95 backdrop-blur-md">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-gray-800/50">
-                <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
-                  Login
-                </TabsTrigger>
-                <TabsTrigger value="register" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
-                  Cadastro
-                </TabsTrigger>
-              </TabsList>
-              
-              {/* Conteúdo da aba de Login */}
-              <TabsContent value="login" className="space-y-4 mt-4">
-                <div className="flex flex-col space-y-2 text-center">
-                  <h1 className="text-2xl font-semibold tracking-tight text-white">Entre na sua conta</h1>
-                  <p className="text-sm text-gray-400">Digite suas credenciais para acessar</p>
-                </div>
+        {/* Lado direito - Formulário */}
+        <div className="p-6 md:p-8 bg-gray-900/80 backdrop-blur-md">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 bg-gray-800/50">
+              <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
+                Login
+              </TabsTrigger>
+              <TabsTrigger value="register" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
+                Cadastro
+              </TabsTrigger>
+          </TabsList>
+          
+            {/* Conteúdo da aba de Login */}
+            <TabsContent value="login" className="space-y-4 mt-4">
+              <div className="flex flex-col space-y-2 text-center">
+                <h1 className="text-2xl font-semibold tracking-tight text-white">Entre na sua conta</h1>
+                <p className="text-sm text-gray-400">Digite suas credenciais para acessar</p>
+              </div>
 
-                {errorMessage && activeTab === 'login' && (
+              {errorMessage && activeTab === 'login' && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>{errorMessage}</AlertDescription>
                   </Alert>
                 )}
                 
-                <form onSubmit={handleManualLogin} className="space-y-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="email" className="text-white">Email</Label>
-                    <div className="relative">
-                      <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="nome@exemplo.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-white">Senha</Label>
-                      <a href="#" className="text-xs text-vegas-green hover:underline">
-                        Esqueceu a senha?
-                      </a>
-                    </div>
-                    <div className="relative">
-                      <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
-                  </Button>
-                  
+              <form onSubmit={handleManualLogin} className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="email" className="text-white">Email</Label>
                   <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t border-gray-700" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-gray-950 px-2 text-gray-400">Ou continue com</span>
-                    </div>
+                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                      placeholder="nome@exemplo.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                    required
+                  />
                   </div>
-                  
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
-                    disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
-                    onClick={handleGoogleLogin}
-                  >
-                    {isCheckingAuth ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        className="w-5 h-5 mr-2"
-                      >
-                        <path
-                          fill="#EA4335"
-                          d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
-                        />
-                        <path
-                          fill="#34A853"
-                          d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
-                        />
-                        <path
-                          fill="#4A90E2"
-                          d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
-                        />
-                        <path
-                          fill="#FBBC05"
-                          d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
-                        />
-                      </svg>
-                    )}
-                    Continuar com Google
-                  </Button>
-                  {!isGoogleAuthEnabled && !isCheckingAuth && (
-                    <div className="text-center text-xs text-red-400 mt-2">
-                      Login com Google está desativado no momento
-                    </div>
-                  )}
-                </form>
-              </TabsContent>
-              
-              {/* Conteúdo da aba de Cadastro */}
-              <TabsContent value="register" className="space-y-4 mt-4">
-                <div className="flex flex-col space-y-2 text-center">
-                  <h1 className="text-2xl font-semibold tracking-tight text-white">Criar uma conta</h1>
-                  <p className="text-sm text-gray-400">Preencha seus dados para se cadastrar</p>
                 </div>
+                
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-white">Senha</Label>
+                    <a href="#" className="text-xs text-vegas-green hover:underline">
+                      Esqueceu a senha?
+                    </a>
+                  </div>
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                    required
+                  />
+                  </div>
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
+                  disabled={isLoading}
+                >
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
+                </Button>
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-gray-700" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-gray-900 px-2 text-gray-400">Ou continue com</span>
+                  </div>
+                </div>
+                
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
+                  disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
+                  onClick={handleGoogleLogin}
+                >
+                  {isCheckingAuth ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      className="w-5 h-5 mr-2"
+                    >
+                      <path
+                        fill="#EA4335"
+                        d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
+                      />
+                      <path
+                        fill="#4A90E2"
+                        d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
+                      />
+                    </svg>
+                  )}
+                  Continuar com Google
+                </Button>
+                {!isGoogleAuthEnabled && !isCheckingAuth && (
+                  <div className="text-center text-xs text-red-400 mt-2">
+                    Login com Google está desativado no momento
+                  </div>
+                )}
+            </form>
+          </TabsContent>
+          
+            {/* Conteúdo da aba de Cadastro */}
+            <TabsContent value="register" className="space-y-4 mt-4">
+              <div className="flex flex-col space-y-2 text-center">
+                <h1 className="text-2xl font-semibold tracking-tight text-white">Criar uma conta</h1>
+                <p className="text-sm text-gray-400">Preencha seus dados para se cadastrar</p>
+              </div>
 
-                {errorMessage && activeTab === 'register' && (
+              {errorMessage && activeTab === 'register' && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>{errorMessage}</AlertDescription>
                   </Alert>
                 )}
                 
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="username" className="text-white">Nome de Usuário</Label>
-                    <div className="relative">
-                      <UserIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="username"
-                        type="text"
-                        placeholder="seunome"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="register-email" className="text-white">Email</Label>
-                    <div className="relative">
-                      <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="register-email"
-                        type="email"
-                        placeholder="seu@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="register-password" className="text-white">Senha</Label>
-                    <div className="relative">
-                      <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="register-password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="confirm-password" className="text-white">Confirmar Senha</Label>
-                    <div className="relative">
-                      <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Criar Conta'}
-                  </Button>
-                  
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="username" className="text-white">Nome de Usuário</Label>
                   <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t border-gray-700" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-gray-950 px-2 text-gray-400">Ou inscreva-se com</span>
-                    </div>
+                    <UserIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="seunome"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                    required
+                  />
                   </div>
-                  
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
-                    disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
-                    onClick={handleGoogleLogin}
-                  >
-                    {isCheckingAuth ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        className="w-5 h-5 mr-2"
-                      >
-                        <path
-                          fill="#EA4335"
-                          d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
-                        />
-                        <path
-                          fill="#34A853"
-                          d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
-                        />
-                        <path
-                          fill="#4A90E2"
-                          d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
-                        />
-                        <path
-                          fill="#FBBC05"
-                          d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
-                        />
-                      </svg>
-                    )}
-                    Google
-                  </Button>
-                  {!isGoogleAuthEnabled && !isCheckingAuth && (
-                    <div className="text-center text-xs text-red-400 mt-2">
-                      Login com Google está desativado no momento
-                    </div>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="register-email" className="text-white">Email</Label>
+                  <div className="relative">
+                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="register-email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                    required
+                  />
+                  </div>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="register-password" className="text-white">Senha</Label>
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="register-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                    required
+                  />
+                  </div>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="confirm-password" className="text-white">Confirmar Senha</Label>
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                    required
+                  />
+                  </div>
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
+                  disabled={isLoading}
+                >
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Criar Conta'}
+                </Button>
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-gray-700" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-gray-900 px-2 text-gray-400">Ou inscreva-se com</span>
+                  </div>
+                </div>
+                
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
+                  disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
+                  onClick={handleGoogleLogin}
+                >
+                  {isCheckingAuth ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      className="w-5 h-5 mr-2"
+                    >
+                      <path
+                        fill="#EA4335"
+                        d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
+                      />
+                      <path
+                        fill="#4A90E2"
+                        d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
+                      />
+                    </svg>
                   )}
-                </form>
-              </TabsContent>
-            </Tabs>
-            
-            <p className="text-center text-xs text-gray-400 mt-6">
-              Ao clicar em continuar, você concorda com nossos{' '}
-              <a href="#" className="text-vegas-green hover:underline">
-                Termos
-              </a>{' '}
-              e{' '}
-              <a href="#" className="text-vegas-green hover:underline">
-                Privacidade
-              </a>
-            </p>
-          </div>
+                  Google
+                </Button>
+                {!isGoogleAuthEnabled && !isCheckingAuth && (
+                  <div className="text-center text-xs text-red-400 mt-2">
+                    Login com Google está desativado no momento
+                  </div>
+                )}
+            </form>
+          </TabsContent>
+        </Tabs>
+          
+          <p className="text-center text-xs text-gray-400 mt-6">
+            Ao clicar em continuar, você concorda com nossos{' '}
+            <a href="#" className="text-vegas-green hover:underline">
+              Termos
+            </a>{' '}
+            e{' '}
+            <a href="#" className="text-vegas-green hover:underline">
+              Privacidade
+            </a>
+          </p>
         </div>
       </div>
     </div>
