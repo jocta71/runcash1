@@ -30,7 +30,7 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 20% 98%;
 
-    --border: 229 20% 18%;
+    --border: 225 10% 20%;
     --input: 229 20% 18%;
     --ring: 120 100% 50%;
 
@@ -122,11 +122,11 @@
   }
   
   .mobile-sidebar-inner {
-    @apply w-3/4 max-w-xs h-full bg-[#131614] overflow-auto border-r border-[#33333359];
+    @apply w-3/4 max-w-xs h-full bg-[#131614] overflow-auto border-r border-border;
   }
   
   .mobile-header {
-    @apply fixed top-0 left-0 right-0 z-40 flex items-center justify-between p-4 h-16 bg-[#100f13] border-b border-[#33333359] md:hidden;
+    @apply fixed top-0 left-0 right-0 z-40 flex items-center justify-between p-4 h-16 bg-[#100f13] border-b border-border md:hidden;
   }
   
   .mobile-chat-toggle {

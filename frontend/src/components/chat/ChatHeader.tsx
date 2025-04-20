@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ArrowUpRight, Users } from 'lucide-react';
 import { useActiveUsers } from '@/hooks/use-active-users';
@@ -7,7 +6,7 @@ const ChatHeader = () => {
   const activeUsers = useActiveUsers(124);
   
   return (
-    <div className="bg-[#1A191F] p-3 border-b border-[#33333359]">
+    <div className="bg-[#1A191F] p-3 border-b border-border">
       <div className="flex justify-between items-center">
         <h3 className="text-white font-medium">Chat ao Vivo</h3>
         <div className="flex items-center gap-1 text-xs">
