@@ -201,7 +201,7 @@ const AuthPage = () => {
         <div className="relative hidden md:block">
           <div 
             className="absolute inset-0 bg-cover bg-center" 
-            style={{ backgroundImage: "url('/login-imagem.png')" }}
+            style={{ backgroundImage: "url('/img/login-imagem.png')" }}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70 flex flex-col justify-between p-8">
             <div>
