@@ -168,269 +168,360 @@ const AuthPage = () => {
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden">
-      {/* Site real como fundo */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-b from-gray-900 to-gray-950">
+      {/* Site real como fundo - exatamente como na imagem */}
+      <div className="absolute inset-0 z-0 bg-[#111827]">
         {/* Cabeçalho do site real */}
-        <header className="h-16 bg-gray-900 border-b border-gray-800 flex items-center px-4 justify-between">
+        <header className="h-14 bg-[#0f172a] border-b border-gray-800 flex items-center px-4 justify-between">
           <div className="flex items-center gap-2">
-            <img src="/img/logo.svg" alt="RunCash Logo" className="h-10" />
-            <span className="text-xl font-bold text-white">RunCash</span>
+            <img src="/img/logo.svg" alt="RunCash Logo" className="h-8" />
+            <span className="text-lg font-bold text-white">RunCash</span>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="w-9 h-9 rounded-full bg-vegas-green/20 flex items-center justify-center text-vegas-green font-bold">U</div>
-            <div className="h-9 w-9 flex items-center justify-center rounded-full bg-gray-800">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-              </svg>
+
+          {/* Indicador da roleta em alta */}
+          <div className="flex-1 flex justify-center">
+            <div className="bg-[#0e151f] rounded-full px-3 py-1 text-xs flex items-center">
+              <span className="text-vegas-green mr-1">•</span>
+              <span className="text-gray-300">Roleta Brasileira em alta: 76% de vitórias hoje</span>
             </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button className="bg-[#6d28d9] text-white text-xs px-4 py-1.5 rounded-lg">
+              Planos
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-white text-xs">Olá, Jacob 1D</span>
+              <div className="w-8 h-8 rounded-full bg-[#6d28d9] flex items-center justify-center text-white font-medium">J</div>
+            </div>
+            <button className="bg-red-600/90 text-white text-xs px-2 py-1 rounded">
+              Sair
+            </button>
           </div>
         </header>
         
-        {/* Linha verde */}
-        <div className="h-1 w-full bg-vegas-green"></div>
-        
         {/* Layout principal do site real */}
-        <div className="flex h-[calc(100vh-4.25rem)]">
-          {/* Sidebar com navegação real */}
-          <div className="w-64 p-3">
-            <div className="bg-gray-900 h-full rounded-lg border border-gray-800 p-4">
-              <div className="flex flex-col gap-3">
-                <div className="h-10 px-3 bg-vegas-green/10 border border-vegas-green/20 rounded-md flex items-center gap-2 text-sm text-vegas-green font-medium">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        <div className="flex h-[calc(100vh-3.5rem)]">
+          {/* Menu lateral esquerdo */}
+          <div className="w-44 bg-[#0f172a] border-r border-gray-800">
+            <div className="py-3 px-2">
+              <div className="text-xs text-gray-500 font-medium px-3 mb-1">Jogos</div>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <rect width="24" height="24" fill="none"/>
+                    <path d="M2.5 6.5C2.5 4.01472 4.51472 2 7 2H17C19.4853 2 21.5 4.01472 21.5 6.5V12.5C21.5 14.9853 19.4853 17 17 17H7C4.51472 17 2.5 14.9853 2.5 12.5V6.5Z" stroke="currentColor"/>
+                    <path d="M8.5 22H15.5" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M12 17V22" stroke="currentColor" strokeLinecap="round"/>
                   </svg>
-                  Dashboard
+                  Slots
                 </div>
-                <div className="h-10 px-3 bg-gray-800/50 rounded-md flex items-center gap-2 text-sm text-gray-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polyline points="12 6 12 12 16 14"></polyline>
+                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor"/>
+                    <path d="M12 7V12L15 15" stroke="currentColor" strokeLinecap="round"/>
                   </svg>
-                  Histórico
+                  Cassino Ao Vivo
                 </div>
-                <div className="h-10 px-3 bg-gray-800/50 rounded-md flex items-center gap-2 text-sm text-gray-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                    <line x1="8" y1="21" x2="16" y2="21"></line>
-                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 5V3" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M7 7L5.5 5.5" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M5 12H3" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M7 17L5.5 18.5" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M12 19V21" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M17 17L18.5 18.5" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M19 12H21" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M17 7L18.5 5.5" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M16 12H18" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M8 12H6" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M10 10L8 8" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M10 14L8 16" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M14 14L16 16" stroke="currentColor" strokeLinecap="round"/>
+                    <path d="M14 10L16 8" stroke="currentColor" strokeLinecap="round"/>
                   </svg>
-                  Configurações
+                  Favoritos
                 </div>
               </div>
               
-              {/* Estatísticas do usuário - versão real mas bloqueada */}
-              <div className="mt-6 relative">
-                <div className="bg-gray-800/80 rounded-lg p-4">
-                  <h3 className="text-vegas-green font-medium text-sm mb-4">Estatísticas do Usuário</h3>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-400">Jogos Totais</span>
-                        <span className="text-white">1,234</span>
-                      </div>
-                      <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                        <div className="h-full bg-vegas-green w-3/4 rounded-full"></div>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-400">Taxa de Vitória</span>
-                        <span className="text-white">68%</span>
-                      </div>
-                      <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                        <div className="h-full bg-vegas-green w-2/3 rounded-full"></div>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-2 mt-4">
-                      <div className="bg-gray-800 p-2 rounded-md">
-                        <div className="text-xs text-gray-400">Ganhos</div>
-                        <div className="text-green-400 font-medium">+R$ 2.450</div>
-                      </div>
-                      <div className="bg-gray-800 p-2 rounded-md">
-                        <div className="text-xs text-gray-400">Perdas</div>
-                        <div className="text-red-400 font-medium">-R$ 1.120</div>
-                      </div>
-                    </div>
-                  </div>
+              <div className="text-xs text-gray-500 font-medium px-3 mb-1 mt-4">Análises</div>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-vegas-green bg-vegas-green/10 rounded">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor"/>
+                    <path d="M8 12L11 15L16 9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Roletas
                 </div>
-                {/* Sobreposição de bloqueio */}
-                <div className="absolute inset-0 bg-gray-900/75 backdrop-blur-sm flex flex-col items-center justify-center rounded-lg">
-                  <LockIcon className="h-10 w-10 text-vegas-green/40 mb-2" />
-                  <span className="text-sm text-gray-400">Faça login para ver estatísticas</span>
+                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <path d="M3 9H21M7 3V5M17 3V5M6 13H8M6 17H8M12 13H14M12 17H14M18 13H20M18 17H20" stroke="currentColor" strokeLinecap="round"/>
+                    <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor"/>
+                  </svg>
+                  Histórico
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 21V5C5 3.89543 5.89543 3 7 3H17C18.1046 3 19 3.89543 19 5V21L12 17.5L5 21Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Análise Avançada
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <path d="M3 20C5.33579 17.5226 8.50702 16 12 16C15.493 16 18.6642 17.5226 21 20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M12 12C14.4853 12 16.5 9.98528 16.5 7.5C16.5 5.01472 14.4853 3 12 3C9.51472 3 7.5 5.01472 7.5 7.5C7.5 9.98528 9.51472 12 12 12Z" stroke="currentColor"/>
+                  </svg>
+                  Estratégias
+                </div>
+              </div>
+              
+              <div className="text-xs text-gray-500 font-medium px-3 mb-1 mt-4">Bônus</div>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 rounded">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <path d="M16 10V6C16 3.79086 14.2091 2 12 2C9.79086 2 8 3.79086 8 6V10" stroke="currentColor" strokeLinecap="round"/>
+                    <circle cx="6" cy="12" r="1" fill="currentColor"/>
+                    <circle cx="18" cy="12" r="1" fill="currentColor"/>
+                    <rect x="2" y="10" width="20" height="12" rx="2" stroke="currentColor"/>
+                  </svg>
+                  Código Promocional
                 </div>
               </div>
             </div>
           </div>
           
-          {/* Área principal - com roletas que parecem reais */}
-          <div className="flex-1 p-3">
-            <div className="bg-gray-900 h-full rounded-lg border border-gray-800 p-4 relative overflow-auto">
-              {/* Cabeçalho com filtros */}
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center space-x-4">
-                  <h2 className="text-white font-medium">Roletas Disponíveis</h2>
-                  <div className="h-8 px-3 bg-gray-800 rounded-md flex items-center gap-1 text-sm text-gray-400">
-                    <span>Filtrar</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                    </svg>
+          {/* Área principal - com roletas e estatísticas reais */}
+          <div className="flex-1 bg-[#111827] overflow-hidden">
+            <div className="p-3 flex">
+              <div className="flex-1">
+                {/* Pesquisa e filtros */}
+                <div className="p-2">
+                  <div className="relative mb-4">
+                    <input type="text" placeholder="Pesquisar roletas..." className="w-full bg-[#0f172a] border border-gray-800 text-gray-300 py-2 px-4 rounded-md text-sm" />
+                    <button className="absolute right-1 top-1/2 -translate-y-1/2 bg-[#1e293b] p-1.5 rounded-md">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </button>
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  <div className="h-8 w-36 bg-vegas-green/20 rounded-md flex items-center justify-center text-vegas-green text-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                      <polyline points="23 4 23 10 17 10"></polyline>
-                      <polyline points="1 20 1 14 7 14"></polyline>
-                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                    </svg>
-                    Atualizar Dados
+                  
+                  <div className="mb-2 flex items-center">
+                    <div className="text-gray-400 text-sm mr-4">Provedores:</div>
+                    <div className="flex gap-2">
+                      <div className="text-xs px-2 py-1 bg-[#1e293b] text-white rounded-md">Evolution</div>
+                      <div className="text-xs px-2 py-1 bg-[#0f172a] text-gray-400 rounded-md">Outro</div>
+                      <div className="text-xs px-2 py-1 bg-[#0f172a] text-gray-400 rounded-md">Pragmatic Play</div>
+                    </div>
+                  </div>
+                  
+                  <div className="text-sm text-gray-400 mt-2">
+                    Mostrando 39 roletas
+                  </div>
+                  
+                  {/* Grid de roletas */}
+                  <div className="grid grid-cols-4 gap-3 mt-4">
+                    {/* Roleta American */}
+                    <div className="bg-[#0f172a] rounded-lg overflow-hidden border border-gray-800 relative">
+                      <div className="p-2 flex justify-between items-center">
+                        <div className="text-white text-sm font-medium">American Roulette</div>
+                        <div className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full">Online</div>
+                      </div>
+                      <div className="bg-[#0f172a] p-2">
+                        <div className="grid grid-cols-7 gap-0.5">
+                          {[2,3,2,3,2,3,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2].map((num, i) => (
+                            <div key={i} className="w-5 h-5 bg-black flex items-center justify-center text-white text-[9px]">{num}</div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Sobreposição de bloqueio */}
+                      <div className="absolute inset-0 bg-gray-900/75 backdrop-blur-sm flex flex-col items-center justify-center">
+                        <LockIcon className="h-7 w-7 text-vegas-green/40 mb-1" />
+                        <span className="text-xs text-gray-400">Login necessário</span>
+                      </div>
+                    </div>
+                    
+                    {/* Roleta Auto-Roleta */}
+                    <div className="bg-[#0f172a] rounded-lg overflow-hidden border border-gray-800 relative">
+                      <div className="p-2 flex justify-between items-center">
+                        <div className="text-white text-sm font-medium">Auto-Roleta V1</div>
+                        <div className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full">Online</div>
+                      </div>
+                      <div className="bg-[#0f172a] p-2">
+                        <div className="grid grid-cols-7 gap-0.5">
+                          {['33','11','10','2','4','35','17','13','6','14','2','30','23','6','4','0','16','33','5','21','36','4','18','24','8'].map((num, i) => (
+                            <div key={i} className={`w-5 h-5 ${parseInt(num) % 2 === 0 ? 'bg-black' : 'bg-red-600'} ${num === '0' ? 'bg-green-600' : ''} flex items-center justify-center text-white text-[9px]`}>{num}</div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Sobreposição de bloqueio */}
+                      <div className="absolute inset-0 bg-gray-900/75 backdrop-blur-sm flex flex-col items-center justify-center">
+                        <LockIcon className="h-7 w-7 text-vegas-green/40 mb-1" />
+                        <span className="text-xs text-gray-400">Login necessário</span>
+                      </div>
+                    </div>
+                    
+                    {/* Mais roletas */}
+                    {[...Array(6)].map((_, index) => (
+                      <div key={index} className="bg-[#0f172a] rounded-lg overflow-hidden border border-gray-800 relative">
+                        <div className="p-2 flex justify-between items-center">
+                          <div className="text-white text-sm font-medium">{['Brazilian Mega R', 'Bucharest Auto', 'Bucharest Roul', 'Dansk Roulette', 'Deutsches Roul', 'Dragonara Roul'][index % 6]}</div>
+                          <div className={`${index % 5 === 0 ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'} text-xs px-2 py-0.5 rounded-full`}>
+                            {index % 5 === 0 ? 'Offline' : 'Online'}
+                          </div>
+                        </div>
+                        <div className="bg-[#0f172a] p-2">
+                          <div className="grid grid-cols-7 gap-0.5">
+                            {Array(25).fill(0).map((_, i) => {
+                              const num = Math.floor(Math.random() * 36).toString();
+                              return (
+                                <div key={i} className={`w-5 h-5 ${parseInt(num) % 2 === 0 && num !== '0' ? 'bg-black' : 'bg-red-600'} ${num === '0' ? 'bg-green-600' : ''} flex items-center justify-center text-white text-[9px]`}>{num}</div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        {/* Sobreposição de bloqueio */}
+                        <div className="absolute inset-0 bg-gray-900/75 backdrop-blur-sm flex flex-col items-center justify-center">
+                          <LockIcon className="h-7 w-7 text-vegas-green/40 mb-1" />
+                          <span className="text-xs text-gray-400">Login necessário</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
               
-              {/* Roletas que parecem reais */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
-                {/* Roleta 1 */}
-                <div className="bg-gray-800 rounded-lg border border-gray-700 relative overflow-hidden">
-                  <div className="flex justify-between items-center p-3 border-b border-gray-700">
-                    <h3 className="text-white font-medium">Roleta Europeia</h3>
-                    <div className="bg-green-600/20 text-green-400 text-xs px-2 py-1 rounded-full">
-                      Online
+              {/* Painel lateral de estatísticas */}
+              <div className="w-96 p-3 border-l border-gray-800 bg-[#0f172a] relative">
+                <div className="text-vegas-green font-medium mb-4">Estatísticas da American Roulette</div>
+                
+                <div className="border-b border-gray-800 pb-4 mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none">
+                        <path d="M3 4.5H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M3 9.5H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M3 14.5H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M3 19.5H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <div className="text-sm text-white">Filtros de roleta</div>
                     </div>
                   </div>
-                  <div className="p-3">
-                    <div className="flex space-x-2 mb-3">
-                      <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold">1</div>
-                      <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold">20</div>
-                      <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold">15</div>
-                      <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold">8</div>
+                  
+                  <div className="grid grid-cols-5 gap-2 text-xs">
+                    <div>
+                      <div className="text-gray-400 mb-1">Por cores</div>
+                      <select className="w-full bg-[#1e293b] text-white p-1 rounded border border-gray-700">
+                        <option>Todos</option>
+                      </select>
                     </div>
-                    <div className="bg-gray-700 p-2 rounded-md">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-400">Último giro:</span>
-                        <span className="text-white">Números ímpares</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-400">RTP Atual:</span>
-                        <span className="text-green-400">97.4%</span>
-                      </div>
+                    <div>
+                      <div className="text-gray-400 mb-1">Por número</div>
+                      <select className="w-full bg-[#1e293b] text-white p-1 rounded border border-gray-700">
+                        <option>Todos</option>
+                      </select>
                     </div>
-                  </div>
-                  {/* Sobreposição de bloqueio */}
-                  <div className="absolute inset-0 bg-gray-900/75 backdrop-blur-sm flex flex-col items-center justify-center">
-                    <LockIcon className="h-10 w-10 text-vegas-green/40 mb-2" />
-                    <span className="text-sm text-gray-400">Faça login para acessar</span>
+                    <div>
+                      <div className="text-gray-400 mb-1">Por paridade</div>
+                      <select className="w-full bg-[#1e293b] text-white p-1 rounded border border-gray-700">
+                        <option>Todos</option>
+                      </select>
+                    </div>
+                    <div>
+                      <div className="text-gray-400 mb-1">Por provedor</div>
+                      <select className="w-full bg-[#1e293b] text-white p-1 rounded border border-gray-700">
+                        <option>Todos</option>
+                      </select>
+                    </div>
+                    <div>
+                      <div className="text-gray-400 mb-1">Por minuto</div>
+                      <select className="w-full bg-[#1e293b] text-white p-1 rounded border border-gray-700">
+                        <option>Todos</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
                 
-                {/* Roleta 2 */}
-                <div className="bg-gray-800 rounded-lg border border-gray-700 relative overflow-hidden">
-                  <div className="flex justify-between items-center p-3 border-b border-gray-700">
-                    <h3 className="text-white font-medium">Roleta Americana</h3>
-                    <div className="bg-green-600/20 text-green-400 text-xs px-2 py-1 rounded-full">
-                      Online
-                    </div>
+                <div className="border-b border-gray-800 pb-4 mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm text-white">Histórico de Números</div>
+                    <div className="text-xs text-gray-400">46 de 1124 resultados</div>
                   </div>
-                  <div className="p-3">
-                    <div className="flex space-x-2 mb-3">
-                      <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold">26</div>
-                      <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold">10</div>
-                      <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold">3</div>
-                      <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold">0</div>
-                    </div>
-                    <div className="bg-gray-700 p-2 rounded-md">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-400">Último giro:</span>
-                        <span className="text-white">Zero</span>
+                  
+                  <div className="grid grid-cols-14 gap-1 mb-2">
+                    {Array(42).fill(0).map((_, i) => (
+                      <div key={i} className="w-6 h-6 bg-black flex items-center justify-center text-white text-xs">
+                        {Math.floor(Math.random() * 36)}
                       </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-400">RTP Atual:</span>
-                        <span className="text-yellow-400">94.8%</span>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Sobreposição de bloqueio */}
-                  <div className="absolute inset-0 bg-gray-900/75 backdrop-blur-sm flex flex-col items-center justify-center">
-                    <LockIcon className="h-10 w-10 text-vegas-green/40 mb-2" />
-                    <span className="text-sm text-gray-400">Faça login para acessar</span>
+                    ))}
                   </div>
                 </div>
                 
-                {/* Roleta 3 */}
-                <div className="bg-gray-800 rounded-lg border border-gray-700 relative overflow-hidden">
-                  <div className="flex justify-between items-center p-3 border-b border-gray-700">
-                    <h3 className="text-white font-medium">Lightning Roleta</h3>
-                    <div className="bg-red-600/20 text-red-400 text-xs px-2 py-1 rounded-full">
-                      Offline
-                    </div>
-                  </div>
-                  <div className="p-3">
-                    <div className="flex space-x-2 mb-3">
-                      <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold">36</div>
-                      <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold">11</div>
-                      <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold">19</div>
-                      <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold">22</div>
-                    </div>
-                    <div className="bg-gray-700 p-2 rounded-md">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-400">Último giro:</span>
-                        <span className="text-white">Vermelho</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-400">RTP Atual:</span>
-                        <span className="text-red-400">92.6%</span>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Sobreposição de bloqueio */}
-                  <div className="absolute inset-0 bg-gray-900/75 backdrop-blur-sm flex flex-col items-center justify-center">
-                    <LockIcon className="h-10 w-10 text-vegas-green/40 mb-2" />
-                    <span className="text-sm text-gray-400">Faça login para acessar</span>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-sm text-white">Distribuição por Cor</div>
+                </div>
+                <div className="h-48 bg-[#1e293b] rounded-lg border border-gray-800 relative overflow-hidden">
+                  <div className="absolute bottom-0 left-0 right-0 flex">
+                    <div className="w-3/5 bg-red-500 h-32"></div>
+                    <div className="w-1/3 bg-black h-24"></div>
+                    <div className="w-1/12 bg-green-500 h-10"></div>
                   </div>
                 </div>
                 
-                {/* Mais roletas... */}
-                {[...Array(3)].map((_, index) => (
-                  <div key={index} className="bg-gray-800 rounded-lg border border-gray-700 relative overflow-hidden">
-                    <div className="flex justify-between items-center p-3 border-b border-gray-700">
-                      <h3 className="text-white font-medium">{`Roleta ${index + 4}`}</h3>
-                      <div className="bg-green-600/20 text-green-400 text-xs px-2 py-1 rounded-full">
-                        Online
+                {/* Sobreposição de bloqueio para estatísticas */}
+                <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-md flex flex-col items-center justify-center">
+                  <LockIcon className="h-12 w-12 text-vegas-green/40 mb-3" />
+                  <span className="text-lg text-gray-300 font-medium mb-1">Estatísticas Bloqueadas</span>
+                  <span className="text-sm text-gray-400 text-center max-w-xs">Faça login para ver estatísticas detalhadas e aumentar suas chances de ganhar</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Chat ao vivo na parte inferior */}
+            <div className="h-56 border-t border-gray-800 bg-[#0f172a] flex relative">
+              <div className="w-2/3 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white text-sm">Chat ao vivo</span>
+                    <span className="bg-vegas-green/20 text-vegas-green text-xs px-2 py-0.5 rounded-full">128</span>
+                  </div>
+                  <button className="text-gray-400 hover:text-gray-300">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                      <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="bg-[#161f2e] rounded-lg h-36 overflow-hidden relative">
+                  <div className="absolute right-3 top-0 bottom-0 w-32 flex flex-col justify-center">
+                    <div className="text-center text-gray-300 text-xs mb-1">grana!</div>
+                    <div className="bg-[#0f172a] rounded-full w-full h-20 flex items-center justify-center overflow-hidden border border-gray-700">
+                      <div className="bg-red-600 absolute w-full h-full opacity-80"></div>
+                      <div className="relative z-10 flex flex-col items-center">
+                        <div className="text-white text-lg font-bold">36</div>
                       </div>
-                    </div>
-                    <div className="p-3">
-                      <div className="flex space-x-2 mb-3">
-                        {[...Array(4)].map((_, i) => (
-                          <div key={i} className={`w-8 h-8 rounded-full ${Math.random() > 0.5 ? 'bg-red-500' : 'bg-black'} flex items-center justify-center text-white text-xs font-bold`}>
-                            {Math.floor(Math.random() * 36) + 1}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="bg-gray-700 p-2 rounded-md">
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-gray-400">Último giro:</span>
-                          <span className="text-white">{Math.random() > 0.5 ? 'Vermelho' : 'Preto'}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-400">RTP Atual:</span>
-                          <span className={`${Math.random() > 0.7 ? 'text-green-400' : Math.random() > 0.4 ? 'text-yellow-400' : 'text-red-400'}`}>
-                            {(90 + Math.random() * 9).toFixed(1)}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Sobreposição de bloqueio */}
-                    <div className="absolute inset-0 bg-gray-900/75 backdrop-blur-sm flex flex-col items-center justify-center">
-                      <LockIcon className="h-10 w-10 text-vegas-green/40 mb-2" />
-                      <span className="text-sm text-gray-400">Faça login para acessar</span>
                     </div>
                   </div>
-                ))}
+                </div>
+              </div>
+              
+              <div className="w-1/3 p-3 border-l border-gray-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-white text-sm">Mapa de Calor da Roulette</span>
+                </div>
+                
+                <div className="bg-[#161f2e] rounded-lg h-36 overflow-hidden flex items-center justify-center">
+                  <div className="rounded-full w-28 h-28 border-8 border-gray-700 relative">
+                    <div className="absolute inset-0 rotate-12">
+                      <div className="absolute top-0 right-0 bottom-0 left-0 bg-gradient-to-br from-red-500 via-transparent to-black opacity-40"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Sobreposição de bloqueio para chat */}
+              <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-md flex flex-col items-center justify-center">
+                <LockIcon className="h-10 w-10 text-vegas-green/40 mb-2" />
+                <span className="text-sm text-gray-300 font-medium">Chat e análises em tempo real</span>
+                <span className="text-xs text-gray-400 text-center max-w-xs mt-1">Faça login para interagir com outros jogadores</span>
               </div>
             </div>
           </div>
