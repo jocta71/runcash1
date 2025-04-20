@@ -47,6 +47,7 @@ const RouletteSearch: React.FC<RouletteSearchProps> = ({
           className="pl-9 pr-9 h-10 bg-[rgb(19_22_20_/_var(--tw-bg-opacity,_1))] border-gray-700 text-white"
         />
         
+        
         {searchTerm && (
           <Button
             type="button"
