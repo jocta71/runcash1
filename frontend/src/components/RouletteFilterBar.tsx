@@ -2,21 +2,20 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCcw, X, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import RouletteSearch from '@/components/RouletteSearch';
-import { RouletteData } from '@/types';
 import { 
-  filterRoulettesBySearchTerm,
-  filterRoulettesByMinuteValue
-} from '@/utils/rouletteFilters';
-import { extractProviders, filterRoulettesByProvider, RouletteProvider } from '@/utils/rouletteProviders';
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Label } from '@/components/ui/label';
+} from '@/components/ui/select';
+import RouletteSearch from '@/components/RouletteSearch';
+import { RouletteData } from '@/types';
+import { 
+  filterRoulettesBySearchTerm,
+  filterRoulettesByTime
+} from '@/utils/rouletteFilters';
+import { extractProviders, filterRoulettesByProvider, RouletteProvider } from '@/utils/rouletteProviders';
 
 interface RouletteFilterBarProps {
   roulettes: RouletteData[];
@@ -45,6 +44,15 @@ const RouletteFilterBar = ({
     return extractProviders(roulettes);
   }, [roulettes]);
 
+  // Opções de minutos para o filtro
+  const minuteOptions = useMemo(() => [
+    { value: 'todos', label: 'Todos' },
+    ...Array.from({ length: 60 }, (_, i) => ({
+      value: String(i),
+      label: i.toString().padStart(2, '0')
+    }))
+  ], []);
+
   // Aplicar filtros quando o termo de busca, provedores selecionados ou dados de roletas mudam
   useEffect(() => {
     if (!roulettes || !Array.isArray(roulettes)) {
@@ -65,9 +73,9 @@ const RouletteFilterBar = ({
       filtered = filterRoulettesByProvider(filtered, selectedProviders);
     }
 
-    // Aplicar filtro de minuto se houver um minuto selecionado
+    // Aplicar filtro por minuto específico se selecionado
     if (selectedMinute !== null) {
-      filtered = filterRoulettesByMinuteValue(filtered, selectedMinute);
+      filtered = filterRoulettesByTime(filtered, selectedMinute);
     }
 
     // Atualizar a contagem e enviar os resultados filtrados
@@ -88,10 +96,9 @@ const RouletteFilterBar = ({
     });
   };
 
-  // Limpar todos os filtros (provedor e minuto)
-  const clearAllFilters = () => {
+  // Limpar todos os filtros de provedor
+  const clearProviderFilters = () => {
     setSelectedProviders([]);
-    setSelectedMinute(null);
   };
 
   // Verificar se um provedor está selecionado
@@ -99,16 +106,20 @@ const RouletteFilterBar = ({
     return selectedProviders.includes(providerId);
   };
 
+  // Handler para mudança no filtro de minuto
+  const handleMinuteChange = (value: string) => {
+    if (value === 'todos') {
+      setSelectedMinute(null);
+    } else {
+      const minute = parseInt(value, 10);
+      if (!isNaN(minute)) {
+        setSelectedMinute(minute);
+      }
+    }
+  };
+
   // Número de provedores selecionados
   const selectedProvidersCount = selectedProviders.length;
-
-  // Gerar opções de minutos (0-59)
-  const minuteOptions = useMemo(() => {
-    return Array.from({ length: 60 }, (_, i) => ({
-      value: i.toString(),
-      label: i < 10 ? `0${i}` : `${i}`,
-    }));
-  }, []);
 
   return (
     <div className="flex flex-col w-full gap-2 mb-4">
@@ -129,6 +140,29 @@ const RouletteFilterBar = ({
             </button>
           )}
         </div>
+        
+        {/* Filtro por Minuto */}
+        <div className="w-[120px]">
+          <Select
+            value={selectedMinute === null ? 'todos' : String(selectedMinute)}
+            onValueChange={handleMinuteChange}
+          >
+            <SelectTrigger className="h-10 bg-background text-foreground border-input">
+              <div className="flex items-center">
+                <Clock size={16} className="mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Minuto" />
+              </div>
+            </SelectTrigger>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              {minuteOptions.map(option => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
         {onRefresh && (
           <Button
             variant="outline"
@@ -145,40 +179,6 @@ const RouletteFilterBar = ({
         )}
       </div>
 
-      {/* Filtros de Minuto */}
-      <div className="flex flex-col gap-2 mt-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Filtro por Minuto:</span>
-          <Select 
-            value={selectedMinute !== null ? selectedMinute.toString() : ""}
-            onValueChange={(value) => setSelectedMinute(value ? parseInt(value) : null)}
-          >
-            <SelectTrigger className="w-[130px] h-8 text-xs">
-              <SelectValue placeholder="Selecionar minuto" />
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px] overflow-y-auto">
-              <SelectItem value="">Todos os minutos</SelectItem>
-              {minuteOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {(selectedMinute !== null || selectedProviders.length > 0) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={clearAllFilters}
-            >
-              <X size={14} className="mr-1" />
-              Limpar filtros
-            </Button>
-          )}
-        </div>
-      </div>
-
       {/* Filtros de Provedor como botões sempre visíveis */}
       <div className="flex flex-col gap-2 mt-1">
         <div className="flex items-center gap-2">
@@ -188,7 +188,7 @@ const RouletteFilterBar = ({
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={clearAllFilters}
+              onClick={clearProviderFilters}
             >
               <X size={14} className="mr-1" />
               Limpar filtros ({selectedProvidersCount})
@@ -216,11 +216,6 @@ const RouletteFilterBar = ({
 
       <div className="text-sm text-muted-foreground mt-1">
         Mostrando {filteredCount} roletas
-        {selectedMinute !== null && (
-          <span className="ml-1">
-            (Filtro por minuto: {selectedMinute < 10 ? `0${selectedMinute}` : selectedMinute})
-          </span>
-        )}
       </div>
     </div>
   );

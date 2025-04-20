@@ -52,8 +52,16 @@ const AnalyticsFilterRow: React.FC<AnalyticsFilterRowProps> = ({
   ];
 
   const minuteOptions = [
-    { value: 'todos', label: 'Todos' }
-    // Você poderia adicionar opções de minutos aqui
+    { value: 'todos', label: 'Todos' },
+    // Adicionar opções de minutos de 0 a 59
+    ...Array.from({ length: 60 }, (_, i) => {
+      // Formatar o minuto com dois dígitos (01, 02, etc)
+      const formattedMinute = i.toString().padStart(2, '0');
+      return {
+        value: String(i),
+        label: formattedMinute
+      };
+    })
   ];
 
   const lastMinuteOptions = [
