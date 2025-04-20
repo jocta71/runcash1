@@ -66,8 +66,8 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
   // Formatar dados para gráfico de taxa de vitória
   const formatWinRateDataForNivo = () => {
     return [
-      { id: "Vitórias", label: "Vitórias", value: wins, color: "#059669" },
-      { id: "Derrotas", label: "Derrotas", value: losses, color: "#ef4444" }
+      { id: "Vitórias", label: "Vitórias", value: wins || 1, color: "#059669" },
+      { id: "Derrotas", label: "Derrotas", value: losses || 1, color: "#ef4444" }
     ];
   };
 
@@ -82,7 +82,7 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
   // Tema comum para os gráficos Nivo
   const nivoTheme = {
     background: 'transparent',
-    textColor: '#cccccc',
+    textColor: '#ffffff',
     fontSize: 12,
     axis: {
       domain: {
@@ -97,13 +97,13 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
           strokeWidth: 1
         },
         text: {
-          fill: '#cccccc',
+          fill: '#ffffff',
           fontSize: 12
         }
       },
       legend: {
         text: {
-          fill: '#cccccc',
+          fill: '#ffffff',
           fontSize: 12
         }
       }
@@ -116,7 +116,7 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
     },
     legends: {
       text: {
-        fill: '#cccccc',
+        fill: '#ffffff',
         fontSize: 12
       }
     },
@@ -147,26 +147,36 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5">
         {/* Distribuição por Cor */}
-        <div className="p-5 space-y-4 bg-opacity-50 border border-gray-700 rounded-xl">
+        <div className="p-5 space-y-4 bg-opacity-80 bg-gray-900 border border-gray-700 rounded-xl">
           <h3 className="text-sm font-medium text-white flex items-center">
             <ChartBar size={20} className="text-green-500 mr-2" /> Distribuição por Cor
           </h3>
           <div className="h-[260px] w-full">
             <ResponsivePie
               data={formatColorDataForNivo()}
-              margin={{ top: 20, right: 20, bottom: 40, left: 20 }}
+              margin={{ top: 40, right: 40, bottom: 80, left: 40 }}
               innerRadius={0.5}
               padAngle={0.7}
               cornerRadius={3}
               activeOuterRadiusOffset={8}
               borderWidth={1}
               borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
-              arcLinkLabelsSkipAngle={10}
-              arcLinkLabelsTextColor="#cccccc"
-              arcLinkLabelsThickness={2}
-              arcLinkLabelsColor={{ from: 'color', modifiers: [] }}
               arcLabelsSkipAngle={10}
-              arcLabelsTextColor={{ from: 'color', modifiers: [['darker', 2]] }}
+              arcLabelsTextColor="#ffffff"
+              enableArcLabels={true}
+              arcLabelsComponent={({ datum }) => (
+                <text
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 800,
+                    fill: '#ffffff'
+                  }}
+                >
+                  {datum.label}: {datum.value}%
+                </text>
+              )}
               colors={{ datum: 'data.color' }}
               theme={nivoTheme}
               legends={[
@@ -175,11 +185,11 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
                   direction: 'row',
                   justify: false,
                   translateX: 0,
-                  translateY: 30,
+                  translateY: 56,
                   itemsSpacing: 0,
                   itemWidth: 80,
                   itemHeight: 20,
-                  itemTextColor: '#cccccc',
+                  itemTextColor: '#ffffff',
                   itemDirection: 'left-to-right',
                   itemOpacity: 1,
                   symbolSize: 12,
@@ -191,7 +201,7 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
         </div>
         
         {/* Taxa de Vitória */}
-        <div className="p-5 space-y-4 bg-opacity-50 border border-gray-700 rounded-xl">
+        <div className="p-5 space-y-4 bg-opacity-80 bg-gray-900 border border-gray-700 rounded-xl">
           <h3 className="text-sm font-medium text-white flex items-center">
             <PercentIcon size={20} className="text-green-500 mr-2" /> Taxa de Vitória
           </h3>
@@ -199,19 +209,29 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
             <div className="relative h-full w-full">
               <ResponsivePie
                 data={formatWinRateDataForNivo()}
-                margin={{ top: 20, right: 20, bottom: 40, left: 20 }}
+                margin={{ top: 40, right: 40, bottom: 80, left: 40 }}
                 innerRadius={0.6}
                 padAngle={0.7}
                 cornerRadius={3}
                 activeOuterRadiusOffset={8}
                 borderWidth={1}
                 borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
-                arcLinkLabelsSkipAngle={10}
-                arcLinkLabelsTextColor="#cccccc"
-                arcLinkLabelsThickness={2}
-                arcLinkLabelsColor={{ from: 'color', modifiers: [] }}
+                enableArcLabels={true}
                 arcLabelsSkipAngle={10}
                 arcLabelsTextColor="#ffffff"
+                arcLabelsComponent={({ datum }) => (
+                  <text
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      fill: '#ffffff'
+                    }}
+                  >
+                    {datum.label}: {datum.value}
+                  </text>
+                )}
                 colors={{ datum: 'data.color' }}
                 theme={nivoTheme}
                 legends={[
@@ -220,11 +240,11 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
                     direction: 'row',
                     justify: false,
                     translateX: 0,
-                    translateY: 30,
+                    translateY: 56,
                     itemsSpacing: 0,
                     itemWidth: 80,
                     itemHeight: 20,
-                    itemTextColor: '#cccccc',
+                    itemTextColor: '#ffffff',
                     itemDirection: 'left-to-right',
                     itemOpacity: 1,
                     symbolSize: 12,
@@ -243,7 +263,7 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
         </div>
         
         {/* Frequência por Número */}
-        <div className="col-span-1 md:col-span-2 p-5 space-y-4 bg-opacity-50 border border-gray-700 rounded-xl">
+        <div className="col-span-1 md:col-span-2 p-5 space-y-4 bg-opacity-80 bg-gray-900 border border-gray-700 rounded-xl">
           <h3 className="text-sm font-medium text-white flex items-center">
             <BarChart size={20} className="text-green-500 mr-2" /> Frequência por Número
           </h3>
@@ -280,9 +300,19 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
               labelSkipHeight={12}
               labelTextColor="#ffffff"
               animate={true}
-              motionStiffness={90}
-              motionDamping={15}
               theme={nivoTheme}
+              tooltip={({ id, value, color }) => (
+                <div
+                  style={{
+                    padding: 12,
+                    background: '#222222',
+                    color: '#ffffff',
+                    borderRadius: 4,
+                  }}
+                >
+                  <span style={{ fontWeight: 'bold' }}>Frequência:</span> {value}
+                </div>
+              )}
             />
           </div>
         </div>

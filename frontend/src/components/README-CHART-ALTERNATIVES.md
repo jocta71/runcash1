@@ -4,7 +4,7 @@ Este documento descreve as alternativas disponíveis para substituir os gráfico
 
 ## Problema Original
 
-Os gráficos no componente original `RouletteSidePanelStats.tsx` apresentam problemas de renderização, com proporções incorretas e bugs visuais. Por isso, foram implementadas três alternativas utilizando bibliotecas modernas de visualização de dados.
+Os gráficos no componente original `RouletteSidePanelStats.tsx` apresentam problemas de renderização, com proporções incorretas e bugs visuais. Por isso, foram implementadas quatro alternativas utilizando bibliotecas modernas de visualização de dados.
 
 ## Alternativas Disponíveis
 
@@ -56,6 +56,25 @@ Os gráficos no componente original `RouletteSidePanelStats.tsx` apresentam prob
 - Quando a interatividade rica é necessária
 - Visualizações com elementos dinâmicos
 
+### 4. Nivo Charts (Nova Implementação)
+
+**Arquivo:** `NivoChartStats.tsx`
+
+**Vantagens:**
+- Construído sobre D3.js com otimização para React
+- API declarativa e composable
+- Temas personalizados avançados
+- Excelente responsividade nativa
+- Suporte completo a TypeScript
+- Animações suaves e transições elegantes
+
+**Uso recomendado para:**
+- Visualizações de dados avançadas e personalizáveis
+- Quando é necessário equilíbrio entre facilidade e flexibilidade
+- Projetos que valorizam tipagem e segurança de tipos
+
+Para mais detalhes sobre a implementação Nivo, consulte o arquivo `README-NIVO-CHARTS.md`.
+
 ## Como Usar o Seletor de Gráficos
 
 O componente `ChartSelector.tsx` permite ao usuário alternar facilmente entre as diferentes implementações:
@@ -88,9 +107,9 @@ import ChartSelector from './components/ChartSelector';
 Para utilizar todas as alternativas, instale as seguintes dependências:
 
 ```bash
-npm install recharts victory react-apexcharts apexcharts
+npm install recharts victory react-apexcharts apexcharts @nivo/core @nivo/pie @nivo/bar
 # ou
-yarn add recharts victory react-apexcharts apexcharts
+yarn add recharts victory react-apexcharts apexcharts @nivo/core @nivo/pie @nivo/bar
 ```
 
 ## Formatos de Dados
@@ -119,6 +138,7 @@ const data = {
 - **Recharts**: Melhor para uso geral e datasets pequenos a médios.
 - **Victory**: Bom equilíbrio entre funcionalidade e performance.
 - **ApexCharts**: Mais pesado, mas oferece os recursos mais avançados.
+- **Nivo**: Equilibra bem a performance com recursos avançados.
 
 ## Problemas Conhecidos
 
@@ -137,3 +157,4 @@ Para mais informações sobre cada biblioteca:
 - [Recharts](https://recharts.org/)
 - [Victory](https://formidable.com/open-source/victory/)
 - [ApexCharts](https://apexcharts.com/) 
+- [Nivo](https://nivo.rocks/) 
