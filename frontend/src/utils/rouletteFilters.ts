@@ -125,6 +125,38 @@ export function filterRoulettesByTime(
 }
 
 /**
+ * Filtra roletas por valor específico do minuto no timestamp do último número
+ * @param roulettes Lista de roletas
+ * @param minute Valor específico do minuto para filtrar (0-59)
+ * @returns Lista de roletas filtradas
+ */
+export function filterRoulettesByMinuteValue(
+  roulettes: RouletteData[],
+  minute: number | null
+): RouletteData[] {
+  if (minute === null) {
+    return roulettes;
+  }
+  
+  // Garante que o minuto está no intervalo válido
+  const validMinute = Math.min(Math.max(minute, 0), 59);
+  
+  return roulettes.filter(roulette => {
+    // Verifica se há timestamps disponíveis
+    if (!roulette.historico?.timestamps?.length) return false;
+    
+    // Obtém o timestamp mais recente
+    const lastTimestamp = new Date(roulette.historico.timestamps[0]);
+    
+    // Extrai o valor do minuto (0-59)
+    const minuteValue = lastTimestamp.getMinutes();
+    
+    // Compara com o valor do minuto desejado
+    return minuteValue === validMinute;
+  });
+}
+
+/**
  * Combina múltiplos filtros para roletas
  * @param roulettes Lista de roletas
  * @param searchTerm Termo de pesquisa
@@ -133,6 +165,7 @@ export function filterRoulettesByTime(
  * @param colorFilter Cor para filtrar
  * @param parityFilter Paridade para filtrar
  * @param timeFilter Tempo máximo em minutos desde o último número
+ * @param minuteFilter Valor específico do minuto para filtrar (0-59)
  * @returns Lista de roletas filtradas
  */
 export function applyAllFilters(
@@ -142,7 +175,8 @@ export function applyAllFilters(
   numberFilter: number | null = null,
   colorFilter: 'red' | 'black' | 'green' | null = null,
   parityFilter: 'even' | 'odd' | null = null,
-  timeFilter: number | null = null
+  timeFilter: number | null = null,
+  minuteFilter: number | null = null
 ): RouletteData[] {
   // Se não há filtros ativos, retorna todas as roletas
   if (
@@ -151,7 +185,8 @@ export function applyAllFilters(
     numberFilter === null &&
     colorFilter === null &&
     parityFilter === null &&
-    timeFilter === null
+    timeFilter === null &&
+    minuteFilter === null
   ) {
     return roulettes;
   }
@@ -181,6 +216,10 @@ export function applyAllFilters(
   
   if (timeFilter !== null) {
     filtered = filterRoulettesByTime(filtered, timeFilter);
+  }
+  
+  if (minuteFilter !== null) {
+    filtered = filterRoulettesByMinuteValue(filtered, minuteFilter);
   }
   
   return filtered;
