@@ -986,7 +986,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por cores</div>
             <Select value={selectedColor} onValueChange={handleColorChange}>
-              <SelectTrigger className="w-full bg-card border-none text-white h-10">
+              <SelectTrigger className="w-full bg-card border border-border text-white h-10">
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border text-white">
@@ -1014,7 +1014,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por número</div>
             <Select value={selectedNumber} onValueChange={handleNumberChange}>
-              <SelectTrigger className="w-full bg-card border-none text-white h-10">
+              <SelectTrigger className="w-full bg-card border border-border text-white h-10">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border text-white max-h-[200px] overflow-y-auto">
@@ -1031,7 +1031,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por paridade</div>
             <Select value={selectedParity} onValueChange={handleParityChange}>
-              <SelectTrigger className="w-full bg-card border-none text-white h-10">
+              <SelectTrigger className="w-full bg-card border border-border text-white h-10">
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border text-white">
@@ -1046,7 +1046,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por provedor</div>
             <Select value={selectedProvider} onValueChange={handleProviderChange}>
-              <SelectTrigger className="w-full bg-card border-none text-white h-10">
+              <SelectTrigger className="w-full bg-card border border-border text-white h-10">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border text-white max-h-[200px] overflow-y-auto">
@@ -1064,7 +1064,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por minuto</div>
             <Select value={selectedTime} onValueChange={handleTimeChange}>
-              <SelectTrigger className="w-full bg-card border-none text-white h-10">
+              <SelectTrigger className="w-full bg-card border border-border text-white h-10">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border text-white max-h-[200px] overflow-y-auto">
