@@ -1357,7 +1357,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                             />
                             
                             {/* Número rotacionado */}
-                            <g transform={`translate(${textX}, ${textY}) rotate(${-midAngle})`}>
+                            <g transform={`translate(${textX}, ${textY}) rotate(${midAngle + 90})`}>
                               <text
                                 x="0"
                                 y="0"
