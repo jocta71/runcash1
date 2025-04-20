@@ -167,26 +167,60 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen w-full" style={{ 
-      backgroundImage: "url('/login-imagem.png')", 
-      backgroundSize: "cover", 
-      backgroundPosition: "center",
-      backgroundColor: "#0F172A" 
-    }}>
-      {/* Overlay para escurecer o fundo */}
-      <div className="absolute inset-0 bg-black bg-opacity-50" />
+    <div className="min-h-screen w-full bg-gray-950 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Elementos de fundo simulando a interface do site */}
+      <div className="absolute inset-0 z-0 opacity-15">
+        <div className="absolute top-0 left-0 right-0 h-16 bg-gray-800"></div>
+        <div className="absolute top-20 left-4 w-64 h-[calc(100vh-6rem)] bg-gray-800 rounded-lg"></div>
+        <div className="absolute top-20 left-72 right-4 h-64 bg-gray-800 rounded-lg"></div>
+        <div className="absolute top-[22rem] left-72 w-1/3 h-[calc(100vh-24rem)] bg-gray-800 rounded-lg"></div>
+        <div className="absolute top-[22rem] left-[calc(72rem+33.33%)] right-4 h-[calc(100vh-24rem)] bg-gray-800 rounded-lg"></div>
+        <div className="absolute top-16 left-0 w-full h-4 bg-vegas-green"></div>
+      </div>
       
       {/* Logo no canto superior esquerdo */}
       <div className="absolute top-5 left-5 flex items-center gap-2 z-10">
         <img src="/img/logo.svg" alt="RunCash Logo" className="h-10" />
         <span className="text-xl font-bold text-white">RunCash</span>
       </div>
+      
+      {/* Botão de login no canto superior direito */}
+      <div className="absolute top-5 right-5 z-10">
+        <Button 
+          variant="ghost" 
+          className="text-white hover:text-vegas-green"
+          onClick={() => setActiveTab('login')}
+        >
+          Login
+        </Button>
+      </div>
 
-      {/* Modal centralizado */}
-      <div className="relative flex items-center justify-center min-h-screen p-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-lg shadow-xl backdrop-blur-sm bg-opacity-90 max-w-md w-full z-10 p-6">
+      {/* Modal de autenticação */}
+      <div className="bg-gray-900 rounded-xl shadow-2xl overflow-hidden max-w-4xl w-full z-10 grid grid-cols-1 md:grid-cols-2 border border-gray-800">
+        {/* Lado esquerdo - Imagem */}
+        <div className="relative hidden md:block">
+          <div 
+            className="absolute inset-0 bg-cover bg-center" 
+            style={{ backgroundImage: "url('/login-imagem.png')" }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70 flex flex-col justify-between p-8">
+            <div>
+              <h2 className="text-white text-3xl font-bold drop-shadow-md">RunCash</h2>
+              <p className="text-gray-200 mt-2 drop-shadow-md max-w-xs">A maneira mais inteligente de acompanhar seus resultados</p>
+            </div>
+            <div className="bg-black/30 p-4 rounded-lg backdrop-blur-sm">
+              <blockquote className="italic text-white drop-shadow-md text-sm">
+                "Esta plataforma revolucionou a maneira como eu analiso meus resultados e aumentou meus ganhos significativamente."
+              </blockquote>
+              <p className="text-gray-200 mt-2 font-semibold drop-shadow-md text-sm">João Silva</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Lado direito - Formulário */}
+        <div className="p-6 md:p-8 bg-gray-900">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-gray-900/50">
+            <TabsList className="grid w-full grid-cols-2 bg-gray-800/50">
               <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
                 Login
               </TabsTrigger>
@@ -196,7 +230,7 @@ const AuthPage = () => {
             </TabsList>
             
             {/* Conteúdo da aba de Login */}
-            <TabsContent value="login" className="space-y-4">
+            <TabsContent value="login" className="space-y-4 mt-4">
               <div className="flex flex-col space-y-2 text-center">
                 <h1 className="text-2xl font-semibold tracking-tight text-white">Entre na sua conta</h1>
                 <p className="text-sm text-gray-400">Digite suas credenciais para acessar</p>
@@ -308,7 +342,7 @@ const AuthPage = () => {
             </TabsContent>
             
             {/* Conteúdo da aba de Cadastro */}
-            <TabsContent value="register" className="space-y-4">
+            <TabsContent value="register" className="space-y-4 mt-4">
               <div className="flex flex-col space-y-2 text-center">
                 <h1 className="text-2xl font-semibold tracking-tight text-white">Criar uma conta</h1>
                 <p className="text-sm text-gray-400">Preencha seus dados para se cadastrar</p>
