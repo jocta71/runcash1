@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Loader2, LockIcon, MailIcon } from 'lucide-react';
+import { AlertCircle, Loader2, LockIcon, MailIcon, UserIcon } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,12 +13,14 @@ import axios from 'axios';
 const AuthPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isGoogleAuthEnabled, setIsGoogleAuthEnabled] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [activeTab, setActiveTab] = useState('email');
-  const { signIn, user } = useAuth();
+  const [activeTab, setActiveTab] = useState('login');
+  const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -93,6 +95,51 @@ const AuthPage = () => {
     }
   };
 
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!username || username.length < 3) {
+      setErrorMessage('O nome de usuário deve ter pelo menos 3 caracteres.');
+      return;
+    }
+    
+    if (!email || !validateEmail(email)) {
+      setErrorMessage('Por favor, forneça um email válido.');
+      return;
+    }
+    
+    if (!password || password.length < 6) {
+      setErrorMessage('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      setErrorMessage('As senhas não coincidem.');
+      return;
+    }
+    
+    setIsLoading(true);
+    setErrorMessage('');
+    
+    try {
+      const { error } = await signUp(username, email, password);
+      if (error) {
+        setErrorMessage(error.message || 'Erro ao criar conta. Tente novamente.');
+      } else {
+        toast({
+          title: "Conta criada com sucesso",
+          description: "Você já pode usar sua conta para acessar o sistema.",
+        });
+        navigate('/');
+      }
+    } catch (err) {
+      setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
+      console.error("Signup error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Validar formato de email
   const validateEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -138,84 +185,85 @@ const AuthPage = () => {
       {/* Lado direito - Formulário de autenticação */}
       <div className="flex items-center justify-center bg-gray-950 p-4 md:p-10">
         <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-          <div className="flex flex-col space-y-2 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight text-white">Entre na sua conta</h1>
-            <p className="text-sm text-gray-400">Escolha como deseja fazer login</p>
-          </div>
-
-          <div className="flex flex-col space-y-4">
-            {errorMessage && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{errorMessage}</AlertDescription>
-              </Alert>
-            )}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 bg-gray-900/50">
+              <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
+                Login
+              </TabsTrigger>
+              <TabsTrigger value="register" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
+                Cadastro
+              </TabsTrigger>
+            </TabsList>
             
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-gray-900/50">
-                <TabsTrigger value="email" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
-                  Email/Senha
-                </TabsTrigger>
-                <TabsTrigger value="google" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
-                  Google
-                </TabsTrigger>
-              </TabsList>
+            {/* Conteúdo da aba de Login */}
+            <TabsContent value="login" className="space-y-4">
+              <div className="flex flex-col space-y-2 text-center">
+                <h1 className="text-2xl font-semibold tracking-tight text-white">Entre na sua conta</h1>
+                <p className="text-sm text-gray-400">Digite suas credenciais para acessar</p>
+              </div>
+
+              {errorMessage && activeTab === 'login' && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
+              )}
               
-              <TabsContent value="email" className="mt-4">
-                <form onSubmit={handleManualLogin}>
-                  <div className="flex flex-col space-y-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="email" className="text-white">Email</Label>
-                      <div className="relative">
-                        <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="nome@exemplo.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                          required
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="grid gap-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="password" className="text-white">Senha</Label>
-                        <a href="#" className="text-xs text-vegas-green hover:underline">
-                          Esqueceu a senha?
-                        </a>
-                      </div>
-                      <div className="relative">
-                        <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="password"
-                          type="password"
-                          placeholder="••••••••"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                          required
-                        />
-                      </div>
-                    </div>
-                    
-                    <Button 
-                      type="submit" 
-                      className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
-                    </Button>
+              <form onSubmit={handleManualLogin} className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="email" className="text-white">Email</Label>
+                  <div className="relative">
+                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="nome@exemplo.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
                   </div>
-                </form>
-              </TabsContent>
-              
-              <TabsContent value="google" className="mt-4">
-                <div className="text-center text-sm text-gray-400 mb-4">
-                  Faça login com sua conta Google de forma rápida e segura
                 </div>
+                
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-white">Senha</Label>
+                    <a href="#" className="text-xs text-vegas-green hover:underline">
+                      Esqueceu a senha?
+                    </a>
+                  </div>
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
+                  disabled={isLoading}
+                >
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
+                </Button>
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-gray-700" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-gray-950 px-2 text-gray-400">Ou continue com</span>
+                  </div>
+                </div>
+                
                 <Button 
                   type="button" 
                   variant="outline" 
@@ -256,9 +304,98 @@ const AuthPage = () => {
                     Login com Google está desativado no momento
                   </div>
                 )}
-              </TabsContent>
-            </Tabs>
-          </div>
+              </form>
+            </TabsContent>
+            
+            {/* Conteúdo da aba de Cadastro */}
+            <TabsContent value="register" className="space-y-4">
+              <div className="flex flex-col space-y-2 text-center">
+                <h1 className="text-2xl font-semibold tracking-tight text-white">Criar uma conta</h1>
+                <p className="text-sm text-gray-400">Preencha seus dados para se cadastrar</p>
+              </div>
+
+              {errorMessage && activeTab === 'register' && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
+              )}
+              
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="username" className="text-white">Nome de Usuário</Label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="username"
+                      type="text"
+                      placeholder="seunome"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="register-email" className="text-white">Email</Label>
+                  <div className="relative">
+                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="register-email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="register-password" className="text-white">Senha</Label>
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="register-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="confirm-password" className="text-white">Confirmar Senha</Label>
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
+                  disabled={isLoading}
+                >
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Criar Conta'}
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
           
           <p className="px-8 text-center text-sm text-gray-400">
             Ao clicar em continuar, você concorda com nossos{' '}
@@ -271,13 +408,6 @@ const AuthPage = () => {
             </a>
             .
           </p>
-          
-          <div className="text-center text-sm text-gray-400">
-            Não tem uma conta?{' '}
-            <a href="/register" className="text-vegas-green hover:underline font-medium">
-              Cadastre-se
-            </a>
-          </div>
         </div>
       </div>
     </div>
