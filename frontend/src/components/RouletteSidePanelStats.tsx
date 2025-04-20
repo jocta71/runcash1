@@ -68,6 +68,9 @@ interface RouletteNumber {
 // Tipo para filtros de cor
 type ColorFilter = 'todos' | 'vermelho' | 'preto' | 'verde';
 
+// Novo estado para controlar número selecionado
+type SelectedNumberState = number | null;
+
 // Ordem dos números em uma roleta de cassino europeia
 const ROULETTE_NUMBERS = [
   0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 
@@ -562,13 +565,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const isInitialRequestDone = useRef(false);
   const subscriberId = useRef(uniqueId('roulette_stats_subscriber_'));
   
-  // Estado para o número clicado (funcionalidade de destacar números iguais)
-  const [clickedNumber, setClickedNumber] = useState<number | null>(null);
-  
   // Estados para os filtros avançados
   const [hasActiveFilters, setHasActiveFilters] = useState(false);
   const [selectedColor, setSelectedColor] = useState('todas');
-  const [selectedNumber, setSelectedNumber] = useState('todos');
+  const [selectedNumber, setSelectedNumber] = useState<SelectedNumberState>(null);
   const [selectedParity, setSelectedParity] = useState('todas');
   const [selectedTime, setSelectedTime] = useState('todos');
   const [selectedProvider, setSelectedProvider] = useState('todos');
@@ -775,11 +775,8 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     }
     
     // 2. Filtro por número
-    if (selectedNumber !== 'todos') {
-      const num = parseInt(selectedNumber, 10);
-      if (!isNaN(num)) {
-        filtered = filtered.filter(item => item.numero === num);
-      }
+    if (selectedNumber !== null) {
+      filtered = filtered.filter(item => item.numero === selectedNumber);
     }
     
     // 3. Filtro por paridade
@@ -843,43 +840,67 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     }))
   ];
 
-  // Função para lidar com a mudança de filtro por cor
+  // Handler para o filtro de cor
   const handleColorChange = (value: string) => {
-    setSelectedColor(value);
-    updateFilters({ selectedColor: value });
+    setSelectedColor(value as ColorFilter);
+    let color: 'red' | 'black' | 'green' | null = null;
+    
+    switch (value) {
+      case 'vermelho':
+        color = 'red';
+        break;
+      case 'preto':
+        color = 'black';
+        break;
+      case 'verde':
+        color = 'green';
+        break;
+      case 'todas':
+      default:
+        color = null;
+    }
+    
+    // Atualizar também o filtro de cor simples para manter compatibilidade
+    setColorFilter(value as ColorFilter);
+    checkActiveFilters();
   };
 
-  // Função para lidar com a mudança de filtro por paridade
+  // Handler para o filtro de número
+  const handleNumberChange = (value: string) => {
+    setSelectedNumber(value === 'todos' ? null : parseInt(value, 10));
+    checkActiveFilters();
+  };
+
+  // Handler para o filtro de paridade
   const handleParityChange = (value: string) => {
     setSelectedParity(value);
-    updateFilters({ selectedParity: value });
+    checkActiveFilters();
   };
 
-  // Função para lidar com a mudança de filtro por tempo
+  // Handler para o filtro de tempo
   const handleTimeChange = (value: string) => {
     setSelectedTime(value);
-    updateFilters({ selectedTime: value });
+    checkActiveFilters();
   };
 
-  // Função para lidar com a mudança de filtro por provedor
+  // Handler para o filtro de provedor
   const handleProviderChange = (value: string) => {
     setSelectedProvider(value);
     
-    // Atualizar a lista de provedores selecionados
     if (value === 'todos') {
       setSelectedProviders([]);
     } else {
       setSelectedProviders([value]);
     }
     
-    updateFilters({ selectedProvider: value });
+    checkActiveFilters();
   };
 
   // Verificar se há filtros ativos
   const checkActiveFilters = () => {
     const hasFilters = 
       selectedColor !== 'todas' || 
-      selectedNumber !== 'todos' || 
+      selectedNumber !== null || 
       selectedParity !== 'todas' || 
       selectedTime !== 'todos' || 
       selectedProvider !== 'todos' ||
@@ -890,8 +911,8 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
   // Limpar todos os filtros
   const handleClearAllFilters = () => {
-    setSelectedColor('todas');
-    setSelectedNumber('todos');
+    setSelectedColor('todos');
+    setSelectedNumber(null);
     setSelectedParity('todas');
     setSelectedTime('todos');
     setSelectedProvider('todos');
@@ -913,9 +934,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     [historicalNumbers]
   );
 
-  // Função para lidar com o clique em um número
-  const handleNumberClick = (number: number) => {
-    setClickedNumber(prevSelected => prevSelected === number ? null : number);
+  // Função para alternar a seleção de número
+  const handleNumberSelection = (num: number) => {
+    // Se o número já está selecionado, limpa a seleção, senão seleciona o número
+    setSelectedNumber(prevNumber => prevNumber === num ? null : num);
   };
 
   return (
@@ -965,7 +987,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border text-white">
-                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="todos">Todas</SelectItem>
                 <SelectItem value="vermelho">
                   <div className="flex items-center">
                     <span className="mr-2 w-2 h-2 rounded-full bg-red-600"></span> Vermelhos
@@ -988,7 +1010,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           {/* Filtro por número */}
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por número</div>
-            <Select value={selectedNumber} onValueChange={handleNumberFilterChange}>
+            <Select value={selectedNumber === null ? 'todos' : String(selectedNumber)} onValueChange={handleNumberChange}>
               <SelectTrigger className="w-full bg-card border border-border text-white h-10">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
@@ -1070,33 +1092,18 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                 </CardTitle>
                 <CardDescription className="text-[10px] text-muted-foreground">
                   {visibleNumbers.length} de {filteredNumbers.length} números
-                  {clickedNumber !== null && (
-                    <span className="ml-2">• Destacando: {clickedNumber}</span>
-                  )}
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                {clickedNumber !== null && (
-                  <Button 
-                    onClick={() => setClickedNumber(null)} 
-                    variant="outline" 
-                    size="sm"
-                    className="h-6 flex items-center gap-1 text-xs border border-border"
-                  >
-                    <X className="h-3 w-3" /> Limpar
-                  </Button>
-                )}
-                {visibleNumbersCount < filteredNumbers.length && (
-                  <Button 
-                    onClick={handleShowMore} 
-                    variant="ghost" 
-                    size="sm"
-                    className="h-6 flex items-center gap-1 text-xs border border-border"
-                  >
-                    +{filteredNumbers.length - visibleNumbersCount} <ChevronDown className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
+              {visibleNumbersCount < filteredNumbers.length && (
+                <Button 
+                  onClick={handleShowMore} 
+                  variant="ghost" 
+                  size="sm"
+                  className="h-6 flex items-center gap-1 text-xs border border-border"
+                >
+                  +{filteredNumbers.length - visibleNumbersCount} <ChevronDown className="h-3 w-3" />
+                </Button>
+              )}
             </CardHeader>
             
             <CardContent className="p-0 pb-1">
@@ -1105,19 +1112,16 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   <div className="flex flex-wrap p-3 gap-2">
                     {visibleNumbers.map((n, idx) => (
                       <div 
-                        key={idx} 
-                        className="flex flex-col items-center"
+                        key={`${n.numero}-${idx}`} 
+                        className="relative cursor-pointer transition-transform hover:scale-110"
+                        onClick={() => handleNumberSelection(n.numero)}
                       >
-                        <NumberDisplay
-                          number={n.numero}
-                          size="small"
-                          highlight={idx === 0} // Destacar o número mais recente
-                          selected={clickedNumber !== null && n.numero === clickedNumber}
-                          onClick={handleNumberClick}
+                        <NumberDisplay 
+                          number={n.numero} 
+                          size="medium" 
+                          highlight={selectedNumber === n.numero}
                         />
-                        <div className="text-[8px] mt-0.5 text-center text-muted-foreground">
-                          {n.timestamp}
-                        </div>
+                        <div className="text-xs text-gray-400 text-center mt-1">{n.timestamp}</div>
                       </div>
                     ))}
                   </div>
@@ -1358,4 +1362,275 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                         const textY = 140 + textRadius * Math.sin(midRad);
                         
                         return (
-                          <g key={`
+                          <g key={`roulette-segment-${num}`}>
+                            {/* Segmento da roleta */}
+                            <path
+                              d={`M ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 0 0 ${x4} ${y4} Z`}
+                              fill={color}
+                              stroke="#333"
+                              strokeWidth="0.5"
+                            />
+                            
+                            {/* Número rotacionado */}
+                            <g transform={`translate(${textX}, ${textY}) rotate(${midAngle + 90})`}>
+                              <text
+                                x="0"
+                                y="0"
+                    fill="white"
+                                fontSize="10"
+                                fontWeight="bold"
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                style={{ 
+                                  textShadow: '0px 1px 1px rgba(0,0,0,0.7)',
+                                  pointerEvents: 'none'
+                                }}
+                              >
+                                {num}
+                              </text>
+                            </g>
+                          </g>
+                        );
+                      })}
+                      
+                      {/* Círculos interno e externo (bordas) */}
+                      <circle cx="140" cy="140" r="110" fill="none" stroke="black" strokeWidth="2" />
+                      <circle cx="140" cy="140" r="130" fill="none" stroke="black" strokeWidth="2" />
+                      
+                      {/* Círculo principal para o centro */}
+                      <circle 
+                        cx="140" 
+                        cy="140" 
+                        r="40" 
+                        fill="#1a1a1a" 
+                        stroke="#333" 
+                        strokeWidth="1"
+                      />
+                      
+                      {/* Texto no centro */}
+                      <text
+                        x="140"
+                        y="140"
+                        fill="#00c853"
+                        fontSize="12"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                      >
+                        Roleta
+                      </text>
+                      
+                      {/* Marcador de escala y para valores de frequência */}
+                      <g transform="translate(20, 140)">
+                        {[0, 25, 50, 75, 100, 125].map((value, i) => (
+                          <g key={`y-label-${i}`}>
+                            <line 
+                              x1="-5" 
+                              y1={-value * 130 / 130} 
+                              x2="0" 
+                              y2={-value * 130 / 130} 
+                              stroke="#888" 
+                              strokeWidth="1" 
+                            />
+                            <text
+                              x="-8"
+                              y={-value * 130 / 130}
+                              fill="#888"
+                              fontSize="8"
+                              textAnchor="end"
+                              dominantBaseline="middle"
+                            >
+                              {value}
+                            </text>
+                          </g>
+                        ))}
+                      </g>
+                    </svg>
+                    
+                    {/* Indicador de número no topo */}
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1 w-2 h-8 z-10">
+                      <div className="w-full h-full flex flex-col items-center">
+                        <div className="w-2 h-6 bg-white"></div>
+                        <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-t-white border-l-transparent border-r-transparent"></div>
+                      </div>
+                    </div>
+                  </div>
+            </div>
+          </div>
+              
+              {/* Legenda de estatísticas */}
+              <div className="mt-4 text-center text-sm text-gray-400">
+                <p>O gráfico mostra a frequência de cada número (área verde), com o máximo em {rouletteHeatmap.reduce((a, b) => a.count > b.count ? a : b).count} ocorrências.</p>
+              </div>
+              
+              {/* Legenda de regiões */}
+              <div className="mt-8 grid grid-cols-2 gap-3">
+                {rouletteRegionData.map((region, index) => (
+                  <div key={`region-${index}`} className="flex items-center bg-gradient-to-r from-transparent to-[hsla(224,71%,8%,0.4)] rounded p-2">
+                    <div className="w-4 h-4 mr-2 rounded-full" 
+                         style={{ 
+                           background: `radial-gradient(circle at center, hsl(142.1,70.6%,${45 + (region.percentage / 2)}%) 0%, hsl(142.1,70.6%,25%) 100%)`,
+                           boxShadow: `0 0 ${5 + (region.percentage / 15)}px hsl(142.1,70.6%,45.3%)`
+                         }}></div>
+                    <div>
+                      <span className="text-xs font-medium text-[hsl(213,31%,91%)]">
+                        {region.name}
+                      </span>
+                      <div className="text-[10px] text-[hsl(215.4,16.3%,66.9%)]">
+                        {region.count} números ({region.percentage.toFixed(1)}%)
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Hot & Cold Numbers */}
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center">
+                <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
+                Números Quentes & Frios
+              </CardTitle>
+            </CardHeader>
+            
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-4 rounded-lg border border-[hsl(216,34%,17%)] bg-[hsl(224,71%,4%/0.8)]">
+                  <h4 className="text-xs font-medium text-[hsl(0,72.2%,50.6%)] mb-4 flex items-center">
+                    <ArrowUp size={16} className="mr-2" /> Números Quentes
+                </h4>
+                <div className="flex flex-wrap gap-3">
+                  {hot.map((item, i) => (
+                    <div key={i} className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105">
+                        <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)]`}>
+                        {item.number}
+                      </div>
+                        <Badge variant="secondary" className="text-[hsl(142.1,70.6%,45.3%)]">
+                          {item.frequency}x
+                        </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+                <div className="p-4 rounded-lg border border-[hsl(216,34%,17%)] bg-[hsl(224,71%,4%/0.8)]">
+                  <h4 className="text-xs font-medium text-[hsl(217.2,91.2%,59.8%)] mb-4 flex items-center">
+                    <ArrowDown size={16} className="mr-2" /> Números Frios
+                </h4>
+                <div className="flex flex-wrap gap-3">
+                  {cold.map((item, i) => (
+                    <div key={i} className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105">
+                        <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)]`}>
+                        {item.number}
+                      </div>
+                        <Badge variant="secondary" className="text-[hsl(142.1,70.6%,45.3%)]">
+                          {item.frequency}x
+                        </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            </CardContent>
+          </Card>
+          
+          {/* Frequency Chart */}
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center">
+                <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
+                Frequência de Números
+              </CardTitle>
+            </CardHeader>
+            
+            <CardContent>
+              <div className="h-[240px]">
+              <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBarChart data={frequencyData} margin={{ top: 15, right: 15, left: 15, bottom: 35 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(216,34%,17%)" vertical={false} />
+                  <XAxis 
+                    dataKey="number" 
+                      stroke="hsl(215.4,16.3%,56.9%)" 
+                      tick={{fontSize: 13}}
+                    tickLine={false}
+                      axisLine={{stroke: 'hsl(216,34%,17%)'}}
+                  />
+                  <YAxis 
+                      stroke="hsl(215.4,16.3%,56.9%)" 
+                      tick={{fontSize: 13}}
+                    tickLine={false}
+                      axisLine={{stroke: 'hsl(216,34%,17%)'}}
+                    width={30}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                        backgroundColor: 'hsl(224,71%,4%/0.95)', 
+                        borderColor: 'hsl(142.1,70.6%,45.3%)', 
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                        padding: '8px 12px'
+                      }} 
+                      labelStyle={{ color: 'hsl(213,31%,91%)' }}
+                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                  />
+                  <Bar 
+                    dataKey="frequency" 
+                      fill="hsl(142.1,70.6%,45.3%)"
+                    radius={[4, 4, 0, 0]}
+                      animationDuration={1200}
+                  />
+                </RechartsBarChart>
+              </ResponsiveContainer>
+            </div>
+            </CardContent>
+          </Card>
+          
+          {/* Média de cores por hora */}
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center">
+                <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
+                Média de cores por hora
+              </CardTitle>
+            </CardHeader>
+            
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              {colorHourlyStats.map((stat, index) => (
+                  <div key={`color-stat-${index}`} 
+                    className="border border-[hsl(216,34%,17%)] rounded-lg p-4 transition-all duration-200 hover:border-[hsl(142.1,70.6%,45.3%/0.5)] hover:shadow-md"
+                  >
+                  <div className="flex items-center">
+                    <div 
+                        className="w-10 h-10 rounded-md mr-3 flex items-center justify-center" 
+                        style={{ backgroundColor: stat.color }}
+                    >
+                        <div className="w-5 h-5 rounded-full border-2 border-white"></div>
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-[hsl(213,31%,91%)]">{stat.name}</p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-xs text-[hsl(215.4,16.3%,56.9%)]">
+                            Total: {stat.total}
+                        </span>
+                          <Badge variant="outline" className="text-[hsl(142.1,70.6%,45.3%)]">
+                            {stat.percentage}%
+                          </Badge>
+                        </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default RouletteSidePanelStats; 

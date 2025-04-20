@@ -5,8 +5,6 @@ interface NumberDisplayProps {
   number: number | null;
   size?: 'small' | 'medium' | 'large';
   highlight?: boolean;
-  selected?: boolean;
-  onClick?: (number: number) => void;
 }
 
 const getColorClass = (number: number | null): string => {
@@ -23,9 +21,7 @@ const getColorClass = (number: number | null): string => {
 const NumberDisplay: React.FC<NumberDisplayProps> = ({ 
   number, 
   size = 'medium',
-  highlight = false,
-  selected = false,
-  onClick
+  highlight = false 
 }) => {
   // Definir classes de tamanho
   const sizeClasses = {
@@ -34,23 +30,14 @@ const NumberDisplay: React.FC<NumberDisplayProps> = ({
     large: 'w-16 h-16 text-2xl font-bold'
   };
 
-  const handleClick = () => {
-    if (number !== null && onClick) {
-      onClick(number);
-    }
-  };
-
   return (
     <div 
       className={cn(
         "flex items-center justify-center transition-all border border-gray-700 rounded-[4px]",
         sizeClasses[size],
         getColorClass(number),
-        highlight && "ring-2 ring-offset-2 ring-yellow-400 animate-pulse",
-        selected && "ring-2 ring-offset-1 ring-white border-yellow-400",
-        onClick && "cursor-pointer hover:scale-110 hover:opacity-90"
+        highlight ? "ring-4 ring-yellow-400 ring-opacity-90 shadow-lg shadow-yellow-400/50 font-bold z-10 scale-110" : ""
       )}
-      onClick={handleClick}
     >
       {number !== null ? number : '?'}
     </div>
