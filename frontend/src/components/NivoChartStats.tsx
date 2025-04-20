@@ -44,20 +44,12 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
 
   // Atualizar dados com base nas props
   useEffect(() => {
-    console.log("NivoChartStats recebeu props:", { data, wins, losses });
-    
     if (data?.colorDistribution && Array.isArray(data.colorDistribution) && data.colorDistribution.length > 0) {
-      console.log("Atualizando colorDistribution com:", data.colorDistribution);
       setColorDistribution(data.colorDistribution);
-    } else {
-      console.log("Usando colorDistribution padrão");
     }
     
     if (data?.frequencyData && Array.isArray(data.frequencyData) && data.frequencyData.length > 0) {
-      console.log("Atualizando frequencyData com:", data.frequencyData);
       setFrequencyData(data.frequencyData);
-    } else {
-      console.log("Usando frequencyData padrão");
     }
   }, [data, wins, losses]);
 
@@ -65,43 +57,88 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
   const formatColorDataForNivo = () => {
     // Garantir que colorDistribution tenha pelo menos um item
     if (!colorDistribution || colorDistribution.length === 0) {
-      return [{ id: "Sem Dados", label: "Sem Dados", value: 100, color: "#666666" }];
+      return [{ id: "Sem Dados", label: "Sem Dados", value: 100, color: "#666666", percentage: 100 }];
     }
     
-    // Garantir que os valores são números e somar para calcular porcentagens
+    // Calcular total para percentagens
     const total = colorDistribution.reduce((sum, item) => sum + (item.value || 0), 0);
     
-    // Retorna os dados no formato do Nivo com percentuais calculados
+    // Garantir que temos pelo menos um valor total para evitar divisão por zero
+    if (total <= 0) {
+      return [{ id: "Sem Dados", label: "Sem Dados", value: 100, color: "#666666", percentage: 100 }];
+    }
+    
+    // Retorna os dados formatados para Nivo
     return colorDistribution.map(item => {
-      const itemValue = item.value || 0;
-      const percentage = total > 0 ? Math.round((itemValue / total) * 100) : 0;
+      const itemValue = Math.max(1, item.value || 0); // Garantir valor mínimo de 1 para visualização
+      const percentage = Math.round((itemValue / total) * 100);
       
       return {
         id: item.name || "Desconhecido",
         label: item.name || "Desconhecido",
-        value: Math.max(1, itemValue), // Valor original (não percentual) para cálculos do Nivo
-        percentage, // Valor percentual para exibição no rótulo
+        value: itemValue,
+        percentage,
         color: item.color || "#666666"
       };
     });
   };
 
-  // Formatar dados para gráfico de taxa de vitória com validação
+  // Formatar dados de taxa de vitória para Nivo
   const formatWinRateDataForNivo = () => {
-    const safeWins = Math.max(1, typeof wins === 'number' ? wins : 1);
-    const safeLosses = Math.max(1, typeof losses === 'number' ? losses : 1);
+    // Interface para tipar corretamente o objeto winRate
+    interface WinRateData {
+      wins?: number;
+      losses?: number;
+    }
+    
+    // Validar dados
+    if (!winRate) {
+      return [
+        { id: "Sem Dados", label: "Sem Dados", value: 100, color: "#666666", percentage: 100 }
+      ];
+    }
+    
+    // Cast seguro para o tipo específico
+    const winRateData = winRate as WinRateData;
+    
+    // Verificar se tem propriedades wins e losses e se ambas são zero
+    if ((winRateData.wins === 0 || winRateData.wins === undefined) && 
+        (winRateData.losses === 0 || winRateData.losses === undefined)) {
+      return [
+        { id: "Sem Dados", label: "Sem Dados", value: 100, color: "#666666", percentage: 100 }
+      ];
+    }
+    
+    // Extrair os valores com segurança de tipo
+    const wins = winRateData.wins !== undefined ? Math.max(0, winRateData.wins) : 0;
+    const losses = winRateData.losses !== undefined ? Math.max(0, winRateData.losses) : 0;
+    const total = wins + losses;
+    
+    // Evitar divisão por zero
+    if (total === 0) {
+      return [
+        { id: "Sem Dados", label: "Sem Dados", value: 100, color: "#666666", percentage: 100 }
+      ];
+    }
+    
+    const winPercentage = Math.round((wins / total) * 100);
+    const lossPercentage = 100 - winPercentage;
     
     return [
-      { id: "Vitórias", label: "Vitórias", value: safeWins, color: "#059669" },
-      { id: "Derrotas", label: "Derrotas", value: safeLosses, color: "#ef4444" }
+      { id: "Vitórias", label: "Vitórias", value: wins, color: "#4caf50", percentage: winPercentage },
+      { id: "Derrotas", label: "Derrotas", value: losses, color: "#f44336", percentage: lossPercentage }
     ];
   };
 
   // Formatar dados para gráfico de barras
   const formatFrequencyDataForNivo = () => {
+    if (!frequencyData || frequencyData.length === 0) {
+      return [{ number: "Sem Dados", frequency: 0 }];
+    }
+    
     return frequencyData.map(item => ({
       number: item.number,
-      frequency: item.frequency
+      frequency: Math.max(0, item.frequency || 0) // Garantir valores não negativos
     }));
   };
 
@@ -109,7 +146,7 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
   const nivoTheme = {
     background: '#1a1a1a',
     textColor: '#ffffff',
-    fontSize: 13,
+    fontSize: 14,
     axis: {
       domain: {
         line: {
@@ -124,13 +161,14 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
         },
         text: {
           fill: '#ffffff',
-          fontSize: 13
+          fontSize: 14
         }
       },
       legend: {
         text: {
           fill: '#ffffff',
-          fontSize: 13
+          fontSize: 14,
+          fontWeight: 'bold'
         }
       }
     },
@@ -143,21 +181,21 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
     legends: {
       text: {
         fill: '#ffffff',
-        fontSize: 13
+        fontSize: 14
       }
     },
     tooltip: {
       container: {
         background: '#333333',
         color: '#ffffff',
-        fontSize: 13,
+        fontSize: 14,
         borderRadius: 4,
-        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.5)'
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.5)'
       }
     }
   };
 
-  // Calcular taxa de vitória em porcentagem
+  // Calcular taxa de vitória em porcentagem com validação
   const winRate = (wins + losses) > 0 
     ? Math.round((wins / (wins + losses)) * 100) 
     : 0;
@@ -179,14 +217,15 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
           </h3>
           <div className="h-[260px] w-full bg-[#1a1a1a] rounded-lg overflow-hidden">
             <div className="w-full h-full flex flex-col">
-              <div className="flex justify-center space-x-4 mt-2">
+              {/* Legenda superior melhorada */}
+              <div className="flex justify-center space-x-4 mt-2 mb-1">
                 {colorDistribution.map((item, index) => (
                   <div key={index} className="flex items-center">
                     <div 
                       className="w-4 h-4 mr-2 rounded-sm" 
                       style={{ backgroundColor: item.color }}
                     ></div>
-                    <span className="text-sm text-white">{item.name}</span>
+                    <span className="text-sm text-white font-medium">{item.name}</span>
                   </div>
                 ))}
               </div>
@@ -204,38 +243,27 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
                   arcLabelsSkipAngle={5}
                   arcLabelsTextColor="#ffffff"
                   arcLabelsRadiusOffset={0.6}
-                  arcLinkLabelsOffset={2}
-                  arcLinkLabelsSkipAngle={10}
-                  arcLinkLabelsTextColor="#ffffff"
-                  arcLinkLabelsDiagonalLength={5}
-                  arcLinkLabelsStraightLength={5}
-                  arcLinkLabelsThickness={2}
-                  arcLinkLabelsColor={{ from: 'color' }}
-                  arcLabelsComponent={({ datum }) => {
-                    // Acessar os dados diretamente da fonte original
-                    const item = colorDistribution.find(item => item.name === datum.id);
-                    const total = colorDistribution.reduce((sum, i) => sum + (i.value || 0), 0);
-                    const percentage = item && total > 0 
-                      ? Math.round(((item.value || 0) / total) * 100) 
-                      : 0;
-                    
-                    return (
-                      <text
-                        textAnchor="middle"
-                        dominantBaseline="central"
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 800,
-                          fill: '#ffffff'
-                        }}
-                      >
-                        {percentage}%
-                      </text>
-                    );
-                  }}
+                  enableArcLinkLabels={false}
                   colors={{ datum: 'data.color' }}
                   theme={nivoTheme}
                   legends={[]}
+                  arcLabelsComponent={({ datum }) => {
+                    return (
+                      <g>
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          style={{
+                            fontSize: 16,
+                            fontWeight: 'bold',
+                            fill: '#ffffff'
+                          }}
+                        >
+                          {datum.data.percentage}%
+                        </text>
+                      </g>
+                    );
+                  }}
                 />
               </div>
             </div>
@@ -251,7 +279,7 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
             <div className="relative h-full w-full bg-[#1a1a1a] rounded-lg overflow-hidden">
               <ResponsivePie
                 data={formatWinRateDataForNivo()}
-                margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+                margin={{ top: 30, right: 30, bottom: 50, left: 30 }}
                 innerRadius={0.6}
                 padAngle={0.7}
                 cornerRadius={3}
@@ -262,24 +290,22 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
                 enableArcLinkLabels={false}
                 colors={{ datum: 'data.color' }}
                 theme={nivoTheme}
-                legends={[]}
               />
               
-              {/* Texto centralizado com taxa de vitória e legendas */}
+              {/* Exibição centralizada da taxa de vitória */}
               <div className="absolute inset-0 flex items-center justify-center flex-col">
-                <div className="text-3xl font-bold text-white">{winRate}%</div>
-                <div className="text-sm text-gray-300">Taxa de Vitória</div>
+                <div className="text-4xl font-bold text-white">{winRate}%</div>
               </div>
               
-              {/* Legendas de vitórias e derrotas */}
-              <div className="absolute left-2 bottom-2 flex flex-col space-y-2">
+              {/* Legenda clara na parte inferior */}
+              <div className="absolute bottom-2 left-0 right-0 flex justify-center space-x-8">
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-[#059669] mr-2 rounded-sm"></div>
-                  <span className="text-sm text-white">Vitórias: {wins}</span>
+                  <span className="text-sm text-white font-medium">Vitórias: {wins}</span>
                 </div>
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-[#ef4444] mr-2 rounded-sm"></div>
-                  <span className="text-sm text-white">Derrotas: {losses}</span>
+                  <span className="text-sm text-white font-medium">Derrotas: {losses}</span>
                 </div>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import { ChartBar, BarChart, ArrowDown, ArrowUp, PercentIcon, ChevronDown, Filter, X } from "lucide-react";
-import React from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Fragment } from 'react';
 import {
   ResponsiveContainer,
   BarChart as RechartsBarChart,
@@ -13,7 +13,6 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import globalRouletteDataService from '../services/GlobalRouletteDataService';
 import rouletteHistoryService from '../services/RouletteHistoryService';
 import { getLogger } from '../services/utils/logger';
@@ -524,6 +523,27 @@ export const processApiData = (apiRoulette: any, currentNumbers: RouletteNumber[
   }
   
   return currentNumbers;
+};
+
+// Adicionar estilos CSS para a animação da roleta
+const rouletteStyles = {
+  table: {
+    rotateAnimation: `
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `,
+    rotateSlow: {
+      animation: 'spin 60s linear infinite',
+    },
+    pocketOuter: {
+      background: 'radial-gradient(circle at center, #463F30 0%, #2c2416 100%)'
+    },
+    borderGold: {
+      background: 'linear-gradient(to bottom, #ffd700, #b8860b)'
+    }
+  }
 };
 
 // Modificando o componente para integrar lastNumbers aos dados históricos
@@ -1078,31 +1098,31 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             </CardHeader>
             
             <CardContent>
-              {visibleNumbers.length > 0 ? (
+            {visibleNumbers.length > 0 ? (
                 <div className="border border-[hsl(216,34%,17%)] rounded-lg bg-[hsl(224,71%,4%/0.8)] p-4">
                   <ScrollArea className="max-h-[300px]">
                     <div className="flex flex-wrap gap-2">
-                      {visibleNumbers.map((n, idx) => (
-                        <div 
-                          key={idx} 
-                          className="flex flex-col items-center mb-2 w-11"
-                        >
+                {visibleNumbers.map((n, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex flex-col items-center mb-2 w-11"
+                  >
                           <div className={`w-9 h-9 flex items-center justify-center text-sm font-medium rounded-md border border-[hsl(216,34%,17%)] ${getRouletteNumberColor(n.numero)} hover:scale-110 transition-transform duration-200`}>
-                            {n.numero}
-                          </div>
+                      {n.numero}
+                    </div>
                           <div className="text-[9px] text-[hsl(215.4,16.3%,56.9%)] mt-1">
-                            {n.timestamp}
-                          </div>
-                        </div>
-                      ))}
+                      {n.timestamp}
+                    </div>
+                  </div>
+                ))}
                     </div>
                   </ScrollArea>
-                </div>
-              ) : (
+              </div>
+            ) : (
                 <div className="flex justify-center items-center h-[200px] rounded-lg text-[hsl(215.4,16.3%,56.9%)] bg-[hsl(224,71%,4%/0.8)]">
-                  Nenhum número encontrado com o filtro selecionado
-                </div>
-              )}
+                Nenhum número encontrado com o filtro selecionado
+              </div>
+            )}
             </CardContent>
             
             {visibleNumbersCount < filteredNumbers.length && (
@@ -1141,41 +1161,41 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                 ))}
               </div>
               <div className="h-[200px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
                       outerRadius={75}
                       innerRadius={45}
-                      fill="white"
-                      dataKey="value"
+                    fill="white"
+                    dataKey="value"
                       label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                      labelLine={false}
-                    >
-                      {pieData.map((entry, index) => (
+                    labelLine={false}
+                  >
+                    {pieData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} stroke="hsl(224,71%,4%)" strokeWidth={2} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ 
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
                         backgroundColor: 'hsl(224,71%,4%/0.95)', 
                         borderColor: 'hsl(142.1,70.6%,45.3%)',
                         borderRadius: '6px',
                         fontSize: '13px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
                         padding: '8px 12px'
-                      }} 
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+                    }} 
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
             </CardContent>
           </Card>
           
           {/* Roulette Heatmap Chart */}
-          <Card className="md:col-span-2">
+          <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center">
                 <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
@@ -1187,180 +1207,213 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             </CardHeader>
             
             <CardContent>
-              <div className="h-[450px] relative flex justify-center items-center p-4">
-                <div className="roulette-wheel relative w-[360px] h-[360px]">
-                  {/* Camada base da roleta (bowl) */}
-                  <div className="absolute w-full h-full rounded-full bg-gradient-to-br from-[#211f1e] to-[#312e2c] border-8 border-[#5e4e35] shadow-[0_0_20px_rgba(0,0,0,0.5)] overflow-hidden"></div>
+              <style>
+                {`
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
                   
-                  {/* Disco giratório da roleta */}
-                  <div className="absolute w-[94%] h-[94%] top-[3%] left-[3%] rounded-full bg-gradient-to-br from-[#8B4513] to-[#5e3a1e] border-4 border-[#463F30]">
+                  .roulette-spin {
+                    animation: spin 120s linear infinite;
+                  }
+                  
+                  .roulette-spin:hover {
+                    animation-play-state: paused;
+                  }
+                  
+                  .pocket {
+                    transition: filter 0.3s ease;
+                  }
+                  
+                  .pocket:hover {
+                    filter: brightness(1.5) !important;
+                    z-index: 10;
+                  }
+                `}
+              </style>
+              
+              <div className="h-[320px] relative">
+                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+                  {/* Borda dourada externa */}
+                  <div className="w-[280px] h-[280px] rounded-full bg-gradient-to-b from-[#ffd700] to-[#b8860b] absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
+                  
+                  {/* Círculo externo da roleta com rotação */}
+                  <div className="w-[260px] h-[260px] rounded-full relative roulette-spin" 
+                       style={{ 
+                         boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)', 
+                         border: '4px solid #463F30',
+                         background: 'radial-gradient(circle at center, #1e1e20 0%, #121214 100%)'
+                       }}>
                     {/* Setores da roleta */}
-                    <div className="absolute w-full h-full left-0 top-0">
-                      <svg className="w-full h-full" viewBox="0 0 360 360">
-                        <g transform="translate(180, 180)">
-                          {ROULETTE_NUMBERS.map((num, index) => {
-                            const angle = (index * (360 / ROULETTE_NUMBERS.length));
-                            const startAngle = angle * (Math.PI / 180);
-                            const endAngle = ((angle + (360 / ROULETTE_NUMBERS.length)) % 360) * (Math.PI / 180);
-                            
-                            // Cor base do setor
-                            let baseColor;
-                            if (num === 0) {
-                              baseColor = "#059669"; // Verde para zero
-                            } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
-                              baseColor = "#dc2626"; // Vermelho
-                            } else {
-                              baseColor = "#1e1e1e"; // Preto
-                            }
-                            
-                            // Encontrar a intensidade para este número
-                            const numData = rouletteHeatmap.find(item => item.number === num);
-                            const intensity = numData ? numData.intensity : 0;
-                            
-                            // Ajustar a cor baseada na intensidade
-                            const adjustedColor = num === 0
-                              ? `hsl(142.1, 70.6%, ${40 + (intensity * 35)}%)`  // Verde mais brilhante
-                              : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
-                                ? `hsl(0, 85%, ${45 + (intensity * 30)}%)`    // Vermelho mais brilhante
-                                : `hsl(220, 14%, ${15 + (intensity * 30)}%)`;   // Preto mais brilhante
-                            
-                            // Calculando o arco
-                            const radius = 160;
-                            const innerRadius = 100;
-                            
-                            // Determinar se o arco é maior que 180 graus
-                            const largeArcFlag = 0; // Sempre menor que 180 para uma roleta
-                            
-                            // Calcular pontos para o arco
-                            const x1 = radius * Math.cos(startAngle);
-                            const y1 = radius * Math.sin(startAngle);
-                            const x2 = radius * Math.cos(endAngle);
-                            const y2 = radius * Math.sin(endAngle);
-                            
-                            const innerX1 = innerRadius * Math.cos(startAngle);
-                            const innerY1 = innerRadius * Math.sin(startAngle);
-                            const innerX2 = innerRadius * Math.cos(endAngle);
-                            const innerY2 = innerRadius * Math.sin(endAngle);
-                            
-                            // Caminho do setor
-                            const path = [
-                              `M ${innerX1} ${innerY1}`,
-                              `L ${x1} ${y1}`,
-                              `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
-                              `L ${innerX2} ${innerY2}`,
-                              `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${innerX1} ${innerY1}`,
-                              'Z'
-                            ].join(' ');
-                            
-                            // Calcular a posição do número
-                            const textRadius = (radius + innerRadius) / 2;
-                            const midAngle = (startAngle + endAngle) / 2;
-                            const textX = textRadius * Math.cos(midAngle);
-                            const textY = textRadius * Math.sin(midAngle);
-                            
-                            // Calcular o efeito "glow" baseado na intensidade
-                            const glowSize = intensity > 0.3 ? intensity * 8 : 0;
-                            const glowOpacity = intensity > 0.3 ? intensity * 0.7 : 0;
-                            
-                            return (
-                              <g key={`sector-${num}`} className="transition-all duration-300">
-                                {/* Efeito glow */}
-                                {glowSize > 0 && (
-                                  <path
-                                    d={path}
-                                    fill={baseColor}
-                                    opacity={glowOpacity}
-                                    filter={`drop-shadow(0 0 ${glowSize}px ${baseColor})`}
-                                  />
-                                )}
-                                
-                                {/* Setor principal */}
-                                <path
-                                  d={path}
-                                  fill={adjustedColor}
-                                  stroke="#5e4e35"
-                                  strokeWidth="0.5"
-                                  className="transition-all duration-300"
-                                />
-                                
-                                {/* Linha divisória */}
-                                <line
-                                  x1="0"
-                                  y1="0"
-                                  x2={x1}
-                                  y2={y1}
-                                  stroke="#5e4e35"
-                                  strokeWidth="0.5"
-                                />
-                                
-                                {/* Número */}
-                                <text
-                                  x={textX}
-                                  y={textY}
-                                  fill="white"
-                                  fontSize="12"
-                                  fontWeight="bold"
-                                  textAnchor="middle"
-                                  dominantBaseline="middle"
-                                  style={{ 
-                                    textShadow: '0px 1px 1px rgba(0,0,0,0.8)', 
-                                    filter: glowSize > 0 ? `drop-shadow(0 0 ${glowSize/2}px white)` : 'none' 
-                                  }}
-                                >
-                                  {num}
-                                </text>
-                              </g>
-                            );
-                          })}
-                        </g>
-                      </svg>
-                    </div>
-                    
-                    {/* Marcas decorativas na borda */}
-                    <div className="absolute w-full h-full">
-                      {Array.from({ length: 37 }).map((_, i) => {
-                        const angle = (i * (360 / 37)) * (Math.PI / 180);
-                        const radius = 175;
-                        const x = 180 + radius * Math.cos(angle);
-                        const y = 180 + radius * Math.sin(angle);
+                    <div className="absolute top-0 left-0 w-full h-full">
+                      {ROULETTE_NUMBERS.map((num, index) => {
+                        const angle = (index * (360 / ROULETTE_NUMBERS.length));
+                        const nextAngle = ((index + 1) * (360 / ROULETTE_NUMBERS.length));
+                        const arcAngle = nextAngle - angle;
+                        const midAngle = angle + (arcAngle / 2);
+                        const radMidAngle = midAngle * (Math.PI / 180);
+                        
+                        // Cor base do setor
+                        let baseColor;
+                        if (num === 0) {
+                          baseColor = "hsl(142.1, 70.6%, 45.3%)"; // Verde para zero
+                        } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
+                          baseColor = "hsl(0, 72.2%, 50.6%)"; // Vermelho
+                        } else {
+                          baseColor = "hsl(220, 14%, 20%)"; // Preto
+                        }
+                        
+                        // Encontrar a intensidade para este número
+                        const numData = rouletteHeatmap.find(item => item.number === num);
+                        const intensity = numData ? numData.intensity : 0;
+                        
+                        // Raio externo e interno para o setor
+                        const outerRadius = 130;
+                        const innerRadius = 85;
+                        
+                        // Ponto inicial e final do arco externo
+                        const startX = outerRadius * Math.cos((angle - 90) * (Math.PI / 180));
+                        const startY = outerRadius * Math.sin((angle - 90) * (Math.PI / 180));
+                        const endX = outerRadius * Math.cos((nextAngle - 90) * (Math.PI / 180));
+                        const endY = outerRadius * Math.sin((nextAngle - 90) * (Math.PI / 180));
+                        
+                        // Ponto inicial e final do arco interno
+                        const innerStartX = innerRadius * Math.cos((angle - 90) * (Math.PI / 180));
+                        const innerStartY = innerRadius * Math.sin((angle - 90) * (Math.PI / 180));
+                        const innerEndX = innerRadius * Math.cos((nextAngle - 90) * (Math.PI / 180));
+                        const innerEndY = innerRadius * Math.sin((nextAngle - 90) * (Math.PI / 180));
+                        
+                        // Flag que determina se o arco é maior que 180 graus
+                        const largeArcFlag = arcAngle > 180 ? 1 : 0;
+                        
+                        // Criando o caminho SVG para o setor
+                        const path = [
+                          `M ${130 + innerStartX} ${130 + innerStartY}`, // Mover para o ponto inicial interno
+                          `L ${130 + startX} ${130 + startY}`, // Linha até o ponto inicial externo
+                          `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${130 + endX} ${130 + endY}`, // Arco externo
+                          `L ${130 + innerEndX} ${130 + innerEndY}`, // Linha até o ponto final interno
+                          `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${130 + innerStartX} ${130 + innerStartY}`, // Arco interno
+                          'Z' // Fechar o caminho
+                        ].join(' ');
+                        
+                        // Calculando a posição do número
+                        const labelRadius = (innerRadius + outerRadius) / 2;
+                        const labelX = labelRadius * Math.cos(radMidAngle - (Math.PI / 2));
+                        const labelY = labelRadius * Math.sin(radMidAngle - (Math.PI / 2));
+                        
+                        // Calculando o brilho baseado na intensidade
+                        const glow = intensity > 0.2 
+                          ? `drop-shadow(0 0 ${5 + intensity * 10}px ${baseColor})`
+                          : 'none';
+                        
+                        // Escurecer ou clarear a cor base com base na intensidade
+                        const adjustedColor = num === 0
+                          ? `hsl(142.1, 70.6%, ${40 + (intensity * 35)}%)`  // Verde mais brilhante
+                          : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
+                            ? `hsl(0, 72.2%, ${40 + (intensity * 35)}%)`    // Vermelho mais brilhante
+                            : `hsl(220, 14%, ${15 + (intensity * 30)}%)`;   // Preto mais brilhante
                         
                         return (
-                          <div
-                            key={`diamond-${i}`}
-                            className="absolute w-1.5 h-1.5 bg-[#F0D98E] rounded-full transform -translate-x-1/2 -translate-y-1/2"
-                            style={{ left: x, top: y }}
-                          />
+                          <Fragment key={`sector-${num}`}>
+                            {/* Setor da roleta */}
+                            <svg 
+                              width="260" 
+                              height="260" 
+                              viewBox="0 0 260 260" 
+                              className="absolute top-0 left-0 pocket"
+                              style={{ 
+                                filter: glow,
+                                transition: 'all 0.3s ease'
+                              }}
+                            >
+                              <defs>
+                                <linearGradient id={`gradientPocket${num}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                                  <stop offset="0%" stopColor={adjustedColor} stopOpacity="0.9"/>
+                                  <stop offset="100%" stopColor={adjustedColor} stopOpacity="1"/>
+                                </linearGradient>
+                              </defs>
+                              <path 
+                                d={path} 
+                                fill={`url(#gradientPocket${num})`}
+                                stroke="#463F30"
+                                strokeWidth="1"
+                              />
+                            </svg>
+                            
+                            {/* Número */}
+                            <div 
+                              className="absolute text-white text-xs font-bold transform -translate-x-1/2 -translate-y-1/2"
+                              style={{ 
+                                left: `calc(50% + ${labelX}px)`, 
+                                top: `calc(50% + ${labelY}px)`,
+                                textShadow: '0 1px 2px rgba(0,0,0,0.8), 0 0 5px rgba(0,0,0,0.5)',
+                                zIndex: 5
+                              }}
+                              title={`${num}: ${numData?.count || 0} ocorrências (${numData?.percentage.toFixed(1) || 0}%)`}
+                            >
+                              {num}
+                            </div>
+                          </Fragment>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Divisões entre setores (linhas douradas) */}
+                    <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                      {ROULETTE_NUMBERS.map((_, index) => {
+                        const angle = (index * (360 / ROULETTE_NUMBERS.length)) - 90;
+                        return (
+                          <div 
+                            key={`divider-${index}`}
+                            className="absolute top-1/2 left-1/2 w-[130px] h-[1px] bg-[#7c6d48]"
+                            style={{ 
+                              transform: `rotate(${angle}deg)`,
+                              transformOrigin: 'left center',
+                              opacity: 0.8
+                            }}
+                          ></div>
                         );
                       })}
                     </div>
                   </div>
                   
-                  {/* Centro da roleta */}
-                  <div className="absolute w-[25%] h-[25%] rounded-full top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gradient-to-br from-[#8B4513] to-[#5e3a1e] border-4 border-[#463F30] z-20 shadow-md flex items-center justify-center">
-                    <div className="w-[80%] h-[80%] rounded-full bg-[#F0D98E] flex items-center justify-center">
-                      <span className="text-[#5e3a1e] text-sm font-bold">Roleta</span>
+                  {/* Centro da roleta (fixo, não gira) */}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[90px] h-[90px] rounded-full bg-gradient-to-br from-[#303035] to-[#1a1a1e] border-4 border-[#463F30] flex items-center justify-center z-20 shadow-lg" 
+                       style={{ background: 'linear-gradient(145deg, #303035, #1a1a1e)' }}>
+                    <div className="w-[70px] h-[70px] rounded-full bg-gradient-to-br from-[#1e1e24] to-[#0a0a0c] flex items-center justify-center">
+                      <span className="text-[hsl(142.1,70.6%,45.3%)] text-sm font-medium">Roleta</span>
                     </div>
                   </div>
                   
-                  {/* Indicador de diamante */}
-                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/3 z-30">
-                    <div className="w-4 h-4 bg-[#F0D98E] border-2 border-[#5e4e35] rotate-45"></div>
+                  {/* Indicador de número atual (fixo, não gira) */}
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-4 h-10 z-30" 
+                       style={{ filter: 'drop-shadow(0 0 4px rgba(255, 215, 0, 0.7))' }}>
+                    <div className="w-full h-full relative">
+                      <div className="absolute top-0 left-0 w-full h-4 bg-[#F0D98E]"></div>
+                      <div className="absolute top-4 left-0 w-full h-0 border-l-[10px] border-r-[10px] border-t-[10px] border-t-[#F0D98E] border-l-transparent border-r-transparent"></div>
+                    </div>
                   </div>
-                  
-                  {/* Bola da roleta */}
-                  <div className="absolute w-3 h-3 rounded-full bg-white z-30 shadow-[0_0_5px_#fff] top-[5%] left-1/2 transform -translate-x-1/2"></div>
                 </div>
               </div>
               
               {/* Legenda de regiões */}
-              <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="mt-8 grid grid-cols-2 gap-3">
                 {rouletteRegionData.map((region, index) => (
-                  <div key={`region-${index}`} className="flex items-center">
-                    <div className="w-3 h-3 mr-2 rounded-full bg-[hsl(142.1,70.6%,45.3%)]" 
-                         style={{ opacity: 0.3 + (region.percentage / 100) * 0.7 }}></div>
-                    <span className="text-xs text-[hsl(215.4,16.3%,56.9%)]">
-                      {region.name}: {region.count} ({region.percentage.toFixed(1)}%)
-                    </span>
+                  <div key={`region-${index}`} className="flex items-center bg-gradient-to-r from-transparent to-[hsla(224,71%,8%,0.4)] rounded p-2">
+                    <div className="w-4 h-4 mr-2 rounded-full" 
+                         style={{ 
+                           background: `radial-gradient(circle at center, hsl(142.1,70.6%,${45 + (region.percentage / 2)}%) 0%, hsl(142.1,70.6%,25%) 100%)`,
+                           boxShadow: `0 0 ${5 + (region.percentage / 15)}px hsl(142.1,70.6%,45.3%)`
+                         }}></div>
+                    <div>
+                      <span className="text-xs font-medium text-[hsl(213,31%,91%)]">
+                        {region.name}
+                      </span>
+                      <div className="text-[10px] text-[hsl(215.4,16.3%,66.9%)]">
+                        {region.count} números ({region.percentage.toFixed(1)}%)
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1428,25 +1481,25 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             
             <CardContent>
               <div className="h-[240px]">
-                <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%">
                   <RechartsBarChart data={frequencyData} margin={{ top: 15, right: 15, left: 15, bottom: 35 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(216,34%,17%)" vertical={false} />
-                    <XAxis 
-                      dataKey="number" 
+                  <XAxis 
+                    dataKey="number" 
                       stroke="hsl(215.4,16.3%,56.9%)" 
                       tick={{fontSize: 13}}
-                      tickLine={false}
+                    tickLine={false}
                       axisLine={{stroke: 'hsl(216,34%,17%)'}}
-                    />
-                    <YAxis 
+                  />
+                  <YAxis 
                       stroke="hsl(215.4,16.3%,56.9%)" 
                       tick={{fontSize: 13}}
-                      tickLine={false}
+                    tickLine={false}
                       axisLine={{stroke: 'hsl(216,34%,17%)'}}
-                      width={30}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
+                    width={30}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
                         backgroundColor: 'hsl(224,71%,4%/0.95)', 
                         borderColor: 'hsl(142.1,70.6%,45.3%)', 
                         borderRadius: '6px',
@@ -1455,17 +1508,17 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                         padding: '8px 12px'
                       }} 
                       labelStyle={{ color: 'hsl(213,31%,91%)' }}
-                      cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                    />
-                    <Bar 
-                      dataKey="frequency" 
+                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                  />
+                  <Bar 
+                    dataKey="frequency" 
                       fill="hsl(142.1,70.6%,45.3%)"
-                      radius={[4, 4, 0, 0]}
+                    radius={[4, 4, 0, 0]}
                       animationDuration={1200}
-                    />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </div>
+                  />
+                </RechartsBarChart>
+              </ResponsiveContainer>
+            </div>
             </CardContent>
           </Card>
           
@@ -1480,32 +1533,32 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                {colorHourlyStats.map((stat, index) => (
+              {colorHourlyStats.map((stat, index) => (
                   <div key={`color-stat-${index}`} 
                     className="border border-[hsl(216,34%,17%)] rounded-lg p-4 transition-all duration-200 hover:border-[hsl(142.1,70.6%,45.3%/0.5)] hover:shadow-md"
                   >
-                    <div className="flex items-center">
-                      <div 
+                  <div className="flex items-center">
+                    <div 
                         className="w-10 h-10 rounded-md mr-3 flex items-center justify-center" 
                         style={{ backgroundColor: stat.color }}
-                      >
+                    >
                         <div className="w-5 h-5 rounded-full border-2 border-white"></div>
-                      </div>
-                      <div>
+                    </div>
+                    <div>
                         <p className="text-sm font-medium text-[hsl(213,31%,91%)]">{stat.name}</p>
                         <div className="flex items-center space-x-2 mt-1">
                           <span className="text-xs text-[hsl(215.4,16.3%,56.9%)]">
                             Total: {stat.total}
-                          </span>
+                        </span>
                           <Badge variant="outline" className="text-[hsl(142.1,70.6%,45.3%)]">
                             {stat.percentage}%
                           </Badge>
                         </div>
-                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+            </div>
             </CardContent>
           </Card>
         </div>
