@@ -625,17 +625,76 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
   // Filtrar números pela cor selecionada
   const filteredNumbers = useMemo(() => {
-    if (colorFilter === 'todos') return historicalNumbers;
-    
+    let filtered = [...historicalNumbers];
     const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
     
-    return historicalNumbers.filter(item => {
-      if (colorFilter === 'verde') return item.numero === 0;
-      if (colorFilter === 'vermelho') return redNumbers.includes(item.numero);
-      if (colorFilter === 'preto') return item.numero !== 0 && !redNumbers.includes(item.numero);
-      return true;
-    });
-  }, [historicalNumbers, colorFilter]);
+    // 1. Filtro por cor
+    if (selectedColor !== 'todas') {
+      filtered = filtered.filter(item => {
+        if (selectedColor === 'verde') return item.numero === 0;
+        if (selectedColor === 'vermelho') return redNumbers.includes(item.numero);
+        if (selectedColor === 'preto') return item.numero !== 0 && !redNumbers.includes(item.numero);
+        return true;
+      });
+    }
+    
+    // 2. Filtro por número
+    if (selectedNumber !== 'todos') {
+      const num = parseInt(selectedNumber, 10);
+      if (!isNaN(num)) {
+        filtered = filtered.filter(item => item.numero === num);
+      }
+    }
+    
+    // 3. Filtro por paridade
+    if (selectedParity !== 'todas') {
+      filtered = filtered.filter(item => {
+        if (item.numero === 0) return false; // Zero não é par nem ímpar
+        const isPar = item.numero % 2 === 0;
+        return selectedParity === 'par' ? isPar : !isPar;
+      });
+    }
+    
+    // 4. Filtro por tempo/minuto
+    if (selectedTime !== 'todos') {
+      const minutesFilter = parseInt(selectedTime, 10);
+      if (!isNaN(minutesFilter)) {
+        // Obter o minuto atual para comparar
+        const now = new Date();
+        
+        filtered = filtered.filter(item => {
+          // Extrair a hora e o minuto do timestamp
+          const [hours, minutes] = item.timestamp.split(':').map(Number);
+          
+          // Criar uma data com a hora e minuto do item para comparação
+          const itemDate = new Date();
+          itemDate.setHours(hours);
+          itemDate.setMinutes(minutes);
+          
+          // Se a hora do item for maior que a hora atual, provavelmente é do dia anterior
+          if (hours > now.getHours() || (hours === now.getHours() && minutes > now.getMinutes())) {
+            itemDate.setDate(itemDate.getDate() - 1);
+          }
+          
+          // Calcular a diferença em minutos
+          const diffMs = now.getTime() - itemDate.getTime();
+          const diffMinutes = Math.floor(diffMs / (1000 * 60));
+          
+          // Retornar true se estiver dentro do intervalo de tempo
+          return diffMinutes <= minutesFilter;
+        });
+      }
+    }
+    
+    // 5. Filtro por provedor
+    if (selectedProviders.length > 0) {
+      // O filtro de provedor provavelmente depende de uma outra lógica
+      // que relaciona o nome da roleta com o provedor
+      // Este é apenas um placeholder
+    }
+    
+    return filtered;
+  }, [historicalNumbers, selectedColor, selectedNumber, selectedParity, selectedTime, selectedProviders]);
 
   // Números a serem exibidos com filtro aplicado
   const visibleNumbers = filteredNumbers.slice(0, visibleNumbersCount);

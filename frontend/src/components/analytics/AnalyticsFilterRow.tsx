@@ -52,11 +52,8 @@ const AnalyticsFilterRow: React.FC<AnalyticsFilterRowProps> = ({
   ];
 
   const minuteOptions = [
-    { value: 'todos', label: 'Todos' },
-    ...Array.from({ length: 60 }, (_, i) => ({
-      value: i.toString().padStart(2, '0'),
-      label: i.toString().padStart(2, '0')
-    }))
+    { value: 'todos', label: 'Todos' }
+    // Você poderia adicionar opções de minutos aqui
   ];
 
   const lastMinuteOptions = [
@@ -134,7 +131,7 @@ const AnalyticsFilterRow: React.FC<AnalyticsFilterRowProps> = ({
           <SelectTrigger className="w-full bg-black border-none text-white h-10">
             <SelectValue placeholder="Todos" />
           </SelectTrigger>
-          <SelectContent className="bg-[#111] border-gray-800 text-white max-h-[200px] overflow-y-auto">
+          <SelectContent className="bg-[#111] border-gray-800 text-white">
             {minuteOptions.map(option => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
