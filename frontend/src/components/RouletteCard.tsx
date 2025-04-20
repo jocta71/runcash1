@@ -354,7 +354,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     <Card 
       ref={cardRef}
       className={cn(
-        "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ", 
+        "relative overflow-visible transition-all duration-300 backdrop-filter border ", 
         "hover:border-vegas-green/50",
         isNewNumber ? "border-vegas-green animate-pulse" : "",
         isDetailView ? "w-full" : "w-full"
@@ -395,7 +395,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         </div>
         
         {/* Números recentes */}
-        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/50" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
+        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/50">
           {recentNumbers.length > 0 ? (
             recentNumbers.slice(0, 20).map((num, idx) => (
             <NumberDisplay 
@@ -420,7 +420,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
       {/* Toast de notificação */}
       {toastVisible && (
-        <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
+        <div className="fixed bottom-4 right-4 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
           {toastMessage}
         </div>
       )}

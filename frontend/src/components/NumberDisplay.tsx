@@ -15,7 +15,7 @@ const getColorClass = (number: number | null): string => {
   const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
   return numerosVermelhos.includes(number) 
     ? 'bg-[#FF1D46] text-white' 
-    : 'bg-[#292524] text-white';
+    : 'border-2 border-white/20 text-white bg-transparent';
 };
 
 const NumberDisplay: React.FC<NumberDisplayProps> = ({ 
