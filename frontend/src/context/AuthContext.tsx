@@ -54,23 +54,61 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/a
  */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(Cookies.get(TOKEN_COOKIE_NAME) || null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Flag para evitar logins automáticos indesejados
+  const [forceNoAutoLogin] = useState(true);
+
+  // Log de debug para entender o fluxo de autenticação
+  const logAuthFlow = (message: string) => {
+    console.log(`[AUTH] ${message}`);
+  };
+
+  // Limpar todos os dados de autenticação do cliente
+  const clearAuthData = () => {
+    logAuthFlow("Limpando todos os dados de autenticação");
+    
+    // Limpar cookies com várias opções para garantir remoção
+    Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
+    Cookies.remove(TOKEN_COOKIE_NAME);
+    
+    // Limpar localStorage
+    localStorage.removeItem('auth_token_backup');
+    
+    // Limpar estados
+    setToken(null);
+    setUser(null);
+  };
 
   // Configuração global do axios para envio de cookies
   useEffect(() => {
     // Configurar axios para sempre enviar credenciais (cookies)
     axios.defaults.withCredentials = true;
+    
+    logAuthFlow("Axios configurado para enviar credenciais");
   }, []);
 
   // Verificar autenticação ao carregar
   useEffect(() => {
     const checkAuthOnLoad = async () => {
+      logAuthFlow("Iniciando verificação de autenticação");
+      
+      // Se forçar sem auto-login, remover qualquer dado de autenticação existente
+      if (forceNoAutoLogin) {
+        logAuthFlow("Modo sem auto-login ativado - removendo dados de autenticação existentes");
+        clearAuthData();
+        setLoading(false);
+        return false;
+      }
+      
       // Verificar se há um token do Google Auth na URL
       const urlParams = new URLSearchParams(window.location.search);
       const googleToken = urlParams.get('google_token');
       
       if (googleToken) {
+        logAuthFlow("Token Google encontrado na URL");
+        
         // Salvar o token e limpar a URL
         saveToken(googleToken);
         
@@ -83,13 +121,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           
           if (response.data.success) {
+            logAuthFlow("Usuário autenticado via Google com sucesso");
             setUser(response.data.data);
             
             // Limpar o token da URL
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         } catch (error) {
-          console.error('Erro ao carregar usuário após login do Google:', error);
+          logAuthFlow(`Erro ao carregar usuário após login do Google: ${error}`);
+          clearAuthData();
         }
         
         setLoading(false);
@@ -99,10 +139,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Verificação normal de autenticação
       const authResult = await checkAuth();
       setLoading(false);
+      return authResult;
     };
     
     checkAuthOnLoad();
-  }, []);
+  }, [forceNoAutoLogin]);
 
   // Configurar interceptor do axios para incluir o token em requisições autenticadas
   useEffect(() => {
@@ -125,11 +166,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Verificar se o usuário está autenticado
   const checkAuth = async (): Promise<boolean> => {
+    logAuthFlow("Verificando autenticação");
+    
+    // Se forçar sem auto-login, sempre retornar falso
+    if (forceNoAutoLogin) {
+      logAuthFlow("Modo sem auto-login ativado - ignorando verificação de autenticação");
+      return false;
+    }
+    
     // Verificar primeiro no cookie (mais rápido)
     const storedToken = Cookies.get(TOKEN_COOKIE_NAME);
     
     // Se token encontrado, verificar com API
     if (storedToken) {
+      logAuthFlow("Token encontrado no cookie, verificando com API");
       return verifyTokenWithApi(storedToken);
     }
     
@@ -138,16 +188,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Se encontrou no localStorage mas não no cookie, restaurar no cookie e verificar
     if (backupToken) {
+      logAuthFlow("Token encontrado apenas no localStorage, restaurando e verificando");
       saveToken(backupToken);
       return verifyTokenWithApi(backupToken);
     }
     
     // Nenhum token encontrado
+    logAuthFlow("Nenhum token encontrado, usuário não está autenticado");
     return false;
   };
 
   // Função para verificar o token com a API
   const verifyTokenWithApi = async (token: string): Promise<boolean> => {
+    logAuthFlow("Verificando token com a API");
+    
+    // Se forçar sem auto-login, sempre retornar falso
+    if (forceNoAutoLogin) {
+      logAuthFlow("Modo sem auto-login ativado - ignorando verificação de token");
+      return false;
+    }
+    
     try {
       const response = await axios.get(`${API_URL}/auth/me`, {
         headers: {
@@ -156,29 +216,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       if (response.data.success) {
+        logAuthFlow("Token verificado com sucesso, usuário autenticado");
         setUser(response.data.data);
         setToken(token);
         return true;
       } else {
         // Token inválido - limpar tudo
-        Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
-        localStorage.removeItem('auth_token_backup');
-        setToken(null);
-        setUser(null);
+        logAuthFlow("Token inválido retornado pela API, limpando dados de autenticação");
+        clearAuthData();
         return false;
       }
     } catch (error) {
       // Erro na verificação - limpar tudo
-      Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
-      localStorage.removeItem('auth_token_backup');
-      setToken(null);
-      setUser(null);
+      logAuthFlow(`Erro na verificação de token: ${error}`);
+      clearAuthData();
       return false;
     }
   };
 
   // Função auxiliar para salvar token
   const saveToken = (newToken: string) => {
+    // Se forçar sem auto-login, não salvar token
+    if (forceNoAutoLogin) {
+      logAuthFlow("Modo sem auto-login ativado - não salvando token");
+      return;
+    }
+    
+    logAuthFlow("Salvando novo token");
+    
     // Verificar ambiente atual para ajustar configurações
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     
@@ -201,6 +266,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Login
   const signIn = async (email: string, password: string) => {
+    logAuthFlow(`Tentando login para: ${email}`);
+    
     try {
       const response = await axios.post(
         `${API_URL}/auth/login`, 
@@ -209,6 +276,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (response.data.success) {
         const { token, user } = response.data;
+        
+        logAuthFlow("Login bem-sucedido");
         
         // Se o backend já configurou um cookie HttpOnly, não precisamos configurar 
         // nosso próprio cookie, apenas atualizar o estado
@@ -221,9 +290,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(user);
         return { error: null };
       } else {
+        logAuthFlow(`Falha no login: ${response.data.error}`);
         return { error: { message: response.data.error || 'Erro ao fazer login' } };
       }
     } catch (error: any) {
+      logAuthFlow(`Erro durante login: ${error.message}`);
       return { 
         error: { 
           message: error.response?.data?.error || 'Erro ao conectar ao servidor' 
@@ -234,6 +305,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Cadastro
   const signUp = async (username: string, email: string, password: string) => {
+    logAuthFlow(`Tentando cadastro para: ${email}`);
+    
     try {
       const response = await axios.post(
         `${API_URL}/auth/register`, 
@@ -248,6 +321,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.data.success) {
         const { token, user } = response.data;
         
+        logAuthFlow("Cadastro bem-sucedido");
+        
         // Se o backend já configurou um cookie HttpOnly, não precisamos configurar 
         // nosso próprio cookie, apenas atualizar o estado
         if (!response.headers['x-auth-cookie-set']) {
@@ -259,9 +334,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(user);
         return { error: null };
       } else {
+        logAuthFlow(`Falha no cadastro: ${response.data.error}`);
         return { error: { message: response.data.error || 'Erro ao criar conta' } };
       }
     } catch (error: any) {
+      logAuthFlow(`Erro durante cadastro: ${error.message}`);
       return { 
         error: { 
           message: error.response?.data?.error || 'Erro ao conectar ao servidor' 
@@ -272,19 +349,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Logout
   const signOut = () => {
-    // Limpar cookie com várias opções para garantir remoção
-    Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
-    Cookies.remove(TOKEN_COOKIE_NAME);
+    logAuthFlow("Realizando logout");
     
-    // Limpar localStorage
-    localStorage.removeItem('auth_token_backup');
-    
-    // Limpar estados
-    setToken(null);
-    setUser(null);
+    // Limpar todo o estado de autenticação
+    clearAuthData();
     
     // Chamar logout na API para limpar também cookies HttpOnly
-    axios.get(`${API_URL}/auth/logout`).catch(() => {});
+    axios.get(`${API_URL}/auth/logout`).catch((error) => {
+      logAuthFlow(`Erro ao chamar logout na API: ${error}`);
+    });
   };
 
   // Valor do contexto

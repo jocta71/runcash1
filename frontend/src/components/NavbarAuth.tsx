@@ -3,11 +3,17 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 import { useLoginModal } from '@/context/LoginModalContext';
 import { LogOut, LogIn } from 'lucide-react';
+import { useEffect } from 'react';
 
 const NavbarAuth = () => {
   const { user, signOut } = useAuth();
   const { showLoginModal, resetModalClosed } = useLoginModal();
   const navigate = useNavigate();
+
+  // Log para depuração do estado de autenticação
+  useEffect(() => {
+    console.log('[NavbarAuth] Estado de autenticação:', user ? 'Autenticado' : 'Não autenticado');
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -20,6 +26,7 @@ const NavbarAuth = () => {
     showLoginModal();
   };
 
+  // Se houver um usuário autenticado, mostrar informações do usuário e botão de sair
   if (user) {
     return (
       <div className="flex items-center gap-2">
@@ -39,6 +46,7 @@ const NavbarAuth = () => {
     );
   }
 
+  // Caso contrário, mostrar botão de login
   return (
     <Button 
       variant="outline" 

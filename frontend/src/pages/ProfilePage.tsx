@@ -148,8 +148,8 @@ const ProfilePage = () => {
             </div>
             
             <div>
-              <h2 className="text-xl font-semibold mb-1">{user?.username || 'Usuário'}</h2>
-              <p className="text-gray-400 text-sm">{user?.email || 'email@exemplo.com'}</p>
+              <h2 className="text-xl font-semibold mb-1">{user?.username || 'Não autenticado'}</h2>
+              <p className="text-gray-400 text-sm">{user?.email || 'Faça login para ver suas informações'}</p>
               <p className="text-gray-400 text-sm mt-1">ID: {user?.id || 'N/A'}</p>
               {user?.isAdmin && <p className="text-[#ffad33] text-sm mt-1">Administrador</p>}
             </div>
