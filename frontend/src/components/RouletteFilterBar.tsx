@@ -91,7 +91,7 @@ const RouletteFilterBar = ({
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Input
-            className="pr-10"
+            className="pr-10 bg-[rgb(19_22_20_/_var(--tw-bg-opacity,_1))]"
             placeholder="Pesquisar roletas..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

@@ -44,7 +44,7 @@ const RouletteSearch: React.FC<RouletteSearchProps> = ({
           placeholder="Pesquisar roletas..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9 pr-9 h-10 bg-[#131614] border-gray-700 text-white"
+          className="pl-9 pr-9 h-10 bg-[rgb(19_22_20_/_var(--tw-bg-opacity,_1))] border-gray-700 text-white"
         />
         
         {searchTerm && (
