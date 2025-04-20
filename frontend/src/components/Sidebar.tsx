@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CircleDollarSign, Rocket, Heart, Gift, Ticket, Trophy, Users, BarChart3, Scale, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package, Beaker, Brain, Bot } from 'lucide-react';
+import { Heart, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 interface SidebarProps {
@@ -31,8 +31,6 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   };
   
   const otherOptions = [
-    { id: 'stats', label: 'Estatísticas', icon: BarChart3, path: '/estatisticas' },
-    { id: 'fair-game', label: 'Jogo Justo', icon: Scale, path: '/jogo-justo' },
     { id: 'support', label: 'Suporte', icon: LifeBuoy, path: '/suporte' },
   ];
   
@@ -83,72 +81,6 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
                 <Heart size={18} className="text-white" />
               </div>
               <span className="truncate">Favoritos</span>
-            </div>
-          </div>
-        </div>
-        
-        <div>
-          <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Análises</h3>
-          <div className="space-y-1">
-            <div className="menu-item" onClick={() => navigate('/roulettes')}>
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <BarChart3 size={18} className="text-white" />
-              </div>
-              <span className="truncate">Roletas</span>
-            </div>
-            
-            <div className="menu-item" onClick={() => navigate('/history')}>
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <Ticket size={18} className="text-white" />
-              </div>
-              <span className="truncate">Histórico</span>
-            </div>
-            
-            <div className="menu-item" onClick={() => navigate('/analysis')}>
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <Beaker size={18} className="text-white" />
-              </div>
-              <span className="truncate">Análise Avançada</span>
-            </div>
-            
-            <div className="menu-item" onClick={() => navigate('/strategies')}>
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <Rocket size={18} className="text-white" />
-              </div>
-              <span className="truncate">Estratégias</span>
-            </div>
-          </div>
-        </div>
-        
-        <div>
-          <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Bônus</h3>
-          <div className="space-y-1">
-            <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <Gift size={18} className="bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-text text-transparent" />
-              </div>
-              <span className="truncate">Código Promocional</span>
-            </div>
-            
-            <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <Trophy size={18} className="text-white" />
-              </div>
-              <span className="truncate">Programa de Fidelidade</span>
-            </div>
-            
-            <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <Users size={18} className="text-white" />
-              </div>
-              <span className="truncate">Programa de Indicação</span>
-            </div>
-            
-            <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <CircleDollarSign size={18} className="text-white" />
-              </div>
-              <span className="truncate">Loteria</span>
             </div>
           </div>
         </div>

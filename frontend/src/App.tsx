@@ -3,13 +3,10 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
-import { RouletteAnalysisPage } from '@/pages/RouletteAnalysisPage';
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import SocketService from '@/services/SocketAdapter';
 import LoadingScreen from './components/LoadingScreen';
-import RoulettesPage from './pages/Roulettes';
 import './App.css';
-import RouletteHistoryPage from './pages/RouletteHistoryPage';
 import { ThemeProvider } from './components/theme-provider';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
@@ -24,11 +21,8 @@ import { LoginModalProvider } from "./context/LoginModalContext";
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
-const StrategiesPage = lazy(() => import("@/pages/StrategiesPage"));
-const StrategyFormPage = lazy(() => import("@/pages/StrategyFormPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
-const SeedPage = lazy(() => import("@/pages/SeedPage"));
 const PlansPage = lazy(() => import("@/pages/PlansPage"));
 const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
 const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
@@ -108,46 +102,7 @@ const App = () => {
                             </ProtectedRoute>
                           } />
                           
-                          {/* Todas as outras rotas são protegidas */}
-                          <Route path="/roulettes" element={
-                            <ProtectedRoute>
-                              <Suspense fallback={<LoadingScreen />}>
-                                <RoulettesPage />
-                              </Suspense>
-                            </ProtectedRoute>
-                          } />
-                          
-                          <Route path="/history" element={
-                            <ProtectedRoute>
-                              <Suspense fallback={<LoadingScreen />}>
-                                <RouletteHistoryPage />
-                              </Suspense>
-                            </ProtectedRoute>
-                          } />
-                          
-                          <Route path="/analysis" element={
-                            <ProtectedRoute>
-                              <Suspense fallback={<LoadingScreen />}>
-                                <RouletteAnalysisPage />
-                              </Suspense>
-                            </ProtectedRoute>
-                          } />
-                          
-                          <Route path="/strategies" element={
-                            <ProtectedRoute>
-                              <Suspense fallback={<LoadingScreen />}>
-                                <StrategiesPage />
-                              </Suspense>
-                            </ProtectedRoute>
-                          } />
-                          
-                          <Route path="/strategy/:id" element={
-                            <ProtectedRoute>
-                              <Suspense fallback={<LoadingScreen />}>
-                                <StrategyFormPage />
-                              </Suspense>
-                            </ProtectedRoute>
-                          } />
+                          {/* Removidas as rotas: /roulettes, /history, /analysis, /strategies, /strategy/:id */}
                           
                           <Route path="/profile" element={
                             <ProtectedRoute>
