@@ -67,6 +67,20 @@ interface RouletteNumber {
 // Tipo para filtros de cor
 type ColorFilter = 'todos' | 'vermelho' | 'preto' | 'verde';
 
+// Ordem dos números em uma roleta de cassino europeia
+const ROULETTE_NUMBERS = [
+  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 
+  24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+];
+
+// Mapear regiões da roleta
+const ROULETTE_REGIONS = [
+  { name: "Região 1 (0-9)", numbers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
+  { name: "Região 2 (10-19)", numbers: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19] },
+  { name: "Região 3 (20-29)", numbers: [20, 21, 22, 23, 24, 25, 26, 27, 28, 29] },
+  { name: "Região 4 (30-36)", numbers: [30, 31, 32, 33, 34, 35, 36] },
+];
+
 // Função para gerar números aleatórios para testes (apenas como último recurso)
 const generateFallbackNumbers = (count: number = 20): number[] => {
   logger.warn(`Não serão gerados números aleatórios`);
@@ -288,6 +302,66 @@ export const generateColorHourlyStats = (numbers: number[]) => {
       percentage: parseFloat(((zeroCount / total) * 100).toFixed(1))
     }
   ];
+};
+
+// Função para gerar dados de frequência por região da roleta
+export const generateRouletteRegionData = (numbers: number[]) => {
+  const regionFrequency = ROULETTE_REGIONS.map(region => {
+    const count = numbers.filter(num => region.numbers.includes(num)).length;
+    return {
+      name: region.name,
+      count,
+      percentage: numbers.length > 0 ? (count / numbers.length) * 100 : 0
+    };
+  });
+
+  return regionFrequency;
+};
+
+// Função para gerar heatmap da roleta
+export const generateRouletteHeatmap = (numbers: number[]) => {
+  // Inicializar contagem para cada número da roleta
+  const frequency: Record<number, number> = {};
+  ROULETTE_NUMBERS.forEach(num => {
+    frequency[num] = 0;
+  });
+  
+  // Contar ocorrências
+  numbers.forEach(num => {
+    if (frequency[num] !== undefined) {
+      frequency[num]++;
+    }
+  });
+  
+  // Encontrar o valor máximo para normalização
+  const maxFrequency = Math.max(...Object.values(frequency), 1);
+  
+  // Criar dados para a visualização
+  return ROULETTE_NUMBERS.map(num => {
+    const count = frequency[num] || 0;
+    const intensity = maxFrequency > 0 ? count / maxFrequency : 0;
+    
+    // Determinar cor para o número
+    let color;
+    if (num === 0) {
+      // Verde para zero
+      color = `hsl(142.1, 70.6%, ${45 + (intensity * 30)}%)`;
+    } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
+      // Vermelho com intensidade baseada na frequência
+      color = `hsl(0, 72.2%, ${50 + (intensity * 30)}%)`;
+    } else {
+      // Preto com intensidade baseada na frequência
+      color = `hsl(220, 14%, ${20 + (intensity * 20)}%)`;
+    }
+    
+    return {
+      number: num,
+      count,
+      percentage: numbers.length > 0 ? (count / numbers.length) * 100 : 0,
+      intensity,
+      color
+    };
+  });
 };
 
 // Determine color for a roulette number
@@ -836,6 +910,18 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     setHasActiveFilters(false);
   };
 
+  // Gerar dados de heatmap da roleta baseado no histórico
+  const rouletteHeatmap = useMemo(() => 
+    generateRouletteHeatmap(historicalNumbers.map(n => n.numero)), 
+    [historicalNumbers]
+  );
+  
+  // Gerar dados de regiões da roleta
+  const rouletteRegionData = useMemo(() => 
+    generateRouletteRegionData(historicalNumbers.map(n => n.numero)), 
+    [historicalNumbers]
+  );
+
   return (
     <div className="w-full rounded-lg overflow-y-auto max-h-screen">
       <div className="p-5 border-b border-gray-800 bg-opacity-40">
@@ -1087,65 +1173,69 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             </CardContent>
           </Card>
           
-          {/* Win Rate Chart */}
+          {/* Roulette Heatmap Chart */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center">
-                <PercentIcon size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
-                Taxa de Vitória
+                <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
+                Mapa de Calor da Roleta
               </CardTitle>
+              <CardDescription>
+                Distribuição de frequência na roleta
+              </CardDescription>
             </CardHeader>
             
             <CardContent>
-              <div className="h-[200px] relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: "Vitórias", value: wins || 1, color: "hsl(142.1,70.6%,45.3%)" },
-                        { name: "Derrotas", value: losses || 1, color: "hsl(0,72.2%,50.6%)" }
-                      ]}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={75}
-                      fill="white"
-                      paddingAngle={3}
-                      dataKey="value"
-                      label={false}
-                      labelLine={false}
-                    >
-                      <Cell key="wins" fill="hsl(142.1,70.6%,45.3%)" stroke="hsl(224,71%,4%)" strokeWidth={2} />
-                      <Cell key="losses" fill="hsl(0,72.2%,50.6%)" stroke="hsl(224,71%,4%)" strokeWidth={2} />
-                    </Pie>
-                    <Legend
-                      verticalAlign="bottom"
-                      iconType="circle"
-                      iconSize={8}
-                      layout="horizontal"
-                      wrapperStyle={{
-                        fontSize: '13px',
-                        color: 'hsl(215.4,16.3%,56.9%)'
-                      }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(224,71%,4%/0.95)', 
-                        borderColor: 'hsl(142.1,70.6%,45.3%)',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                        padding: '8px 12px'
-                      }} 
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                
-                {/* Texto centralizado com a taxa de vitória */}
-                <div className="absolute top-[40%] left-[50%] transform translate-x-[-50%] translate-y-[-50%] flex flex-col items-center">
-                  <div className="text-3xl font-bold text-[hsl(213,31%,91%)]">{winRate.toFixed(0)}%</div>
-                  <div className="text-xs text-[hsl(215.4,16.3%,56.9%)]">Taxa de Vitória</div>
+              <div className="h-[280px] relative">
+                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+                  {/* Círculo central */}
+                  <div className="w-[220px] h-[220px] rounded-full bg-[hsl(224,71%,8%)] border-2 border-[hsl(216,34%,22%)] relative">
+                    {/* Números da roleta */}
+                    {rouletteHeatmap.map((item, index) => {
+                      // Calcular a posição de cada número em torno do círculo
+                      const angle = (index * (360 / ROULETTE_NUMBERS.length)) * (Math.PI / 180);
+                      // Raio um pouco menor que o tamanho do círculo para manter espaço
+                      const radius = 95;
+                      const x = radius * Math.cos(angle);
+                      const y = radius * Math.sin(angle);
+                      
+                      return (
+                        <div 
+                          key={`roulette-${item.number}`}
+                          className="absolute w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200"
+                          style={{ 
+                            left: `calc(50% + ${x}px)`, 
+                            top: `calc(50% + ${y}px)`,
+                            backgroundColor: item.color,
+                            boxShadow: item.intensity > 0.5 ? `0 0 ${10 + (item.intensity * 10)}px ${item.intensity * 5}px ${item.color}` : 'none',
+                            zIndex: Math.floor(item.intensity * 10)
+                          }}
+                          title={`${item.number}: ${item.count} ocorrências (${item.percentage.toFixed(1)}%)`}
+                        >
+                          {item.number}
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Centro da roleta */}
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-[hsl(224,71%,12%)] border border-[hsl(216,34%,25%)] flex items-center justify-center text-[hsl(213,31%,91%)] text-sm font-medium">
+                      Roleta
+                    </div>
+                  </div>
                 </div>
+              </div>
+              
+              {/* Legenda de regiões */}
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {rouletteRegionData.map((region, index) => (
+                  <div key={`region-${index}`} className="flex items-center">
+                    <div className="w-3 h-3 mr-2 rounded-sm bg-[hsl(142.1,70.6%,45.3%)]" 
+                         style={{ opacity: 0.3 + (region.percentage / 100) * 0.7 }}></div>
+                    <span className="text-xs text-[hsl(215.4,16.3%,56.9%)]">
+                      {region.name}: {region.count} ({region.percentage.toFixed(1)}%)
+                    </span>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
