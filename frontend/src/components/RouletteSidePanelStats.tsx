@@ -38,42 +38,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { motion } from "framer-motion";
-import { ResponsivePie } from "@nivo/pie";
-import { ResponsiveBar } from "@nivo/bar";
-import { getMostCommonNumber, getMostCommonColor } from "../util/statsUtil";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ResponsiveHeatMap } from "@nivo/heatmap";
-import {
-  HOUR_RANGES,
-  ColorStats,
-  HeatMapData,
-  GroupStatsData,
-  RouletteNumber,
-  RouletteSidePanelStatsProps,
-  ColorData,
-  RouletteHeatmapData,
-  HourlyGroupStatsData
-} from "../types/roulette";
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
 
 // Atualizar o POLLING_INTERVAL para 4 segundos
 const POLLING_INTERVAL = 4000; // 4 segundos (mesmo intervalo do RouletteCard)
-
-// Constantes para cores da roleta
-export const ROULETTE_COLORS = {
-  RED: "#D10000", // Vermelho mais vibrante
-  BLACK: "#101010", // Preto mais intenso
-  GREEN: "#00a32e", // Verde mais vibrante para o zero
-  RED_BG: "bg-[#D10000]", // Classes Tailwind
-  BLACK_BG: "bg-[#101010]",
-  GREEN_BG: "bg-[#00a32e]",
-  RED_TEXT: "text-[#D10000]",
-  BLACK_TEXT: "text-[#101010]",
-  GREEN_TEXT: "text-[#00a32e]",
-};
 
 interface RouletteSidePanelStatsProps {
   roletaNome: string;
@@ -88,14 +58,20 @@ export interface RouletteProvider {
   name: string;
 }
 
-// Definir os números da roleta
-export const ROULETTE_NUMBERS = [
-  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 
-  5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
-];
+// Modificar a interface para incluir timestamp
+interface RouletteNumber {
+  numero: number;
+  timestamp: string;
+}
 
-// Números vermelhos da roleta
-export const RED_NUMBERS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+// Tipo para filtros de cor
+type ColorFilter = 'todos' | 'vermelho' | 'preto' | 'verde';
+
+// Ordem dos números em uma roleta de cassino europeia
+const ROULETTE_NUMBERS = [
+  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 
+  24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+];
 
 // Mapear regiões da roleta
 const ROULETTE_REGIONS = [
@@ -261,25 +237,26 @@ const chartTheme = {
   }
 };
 
-// Função para gerar dados de distribuição por grupo
+// Generate pie chart data for number groups
 export const generateGroupDistribution = (numbers: number[]) => {
+  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
   const groups = [
-    { name: "Vermelhos", value: 0, color: ROULETTE_COLORS.RED },
-    { name: "Pretos", value: 0, color: ROULETTE_COLORS.BLACK },
-    { name: "Zero", value: 0, color: ROULETTE_COLORS.GREEN },
+    { name: "Vermelhos", value: 0, color: "hsl(0 72.2% 50.6%)" },
+    { name: "Pretos", value: 0, color: "hsl(220 14% 20%)" },
+    { name: "Zero", value: 0, color: "hsl(142.1 70.6% 45.3%)" },
   ];
   
-  numbers.forEach((num) => {
+  numbers.forEach(num => {
     if (num === 0) {
-      groups[2].value++;
-    } else if (RED_NUMBERS.includes(num)) {
-      groups[0].value++;
+      groups[2].value += 1;
+    } else if (redNumbers.includes(num)) {
+      groups[0].value += 1;
     } else {
-      groups[1].value++;
+      groups[1].value += 1;
     }
   });
   
-  // Garantir que grupos vazios tenham pelo menos valor 1 para visualização
+  // Garantir que grupos vazios tenham pelo menos valor 1 para exibição
   groups.forEach(group => {
     if (group.value === 0) group.value = 1;
   });
@@ -287,143 +264,44 @@ export const generateGroupDistribution = (numbers: number[]) => {
   return groups;
 };
 
-// Função para gerar estatísticas por cor por hora
-export const generateColorHourlyStats = (numbers: RouletteNumber[], hourRange: string) => {
+// Gerar dados de média de cores por hora
+export const generateColorHourlyStats = (numbers: number[]) => {
   const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-  const hourlyData: { [key: string]: { red: number, black: number, green: number } } = {};
+  const total = numbers.length || 1; // Evitar divisão por zero
   
-  // Inicializar objeto para cada hora no intervalo
-  const [start, end] = hourRange.split('-').map(h => parseInt(h, 10));
-  for (let hour = start; hour <= end; hour++) {
-    hourlyData[`${hour}h`] = { red: 0, black: 0, green: 0 };
-  }
+  // Contar números por cor
+  const redCount = numbers.filter(num => redNumbers.includes(num)).length;
+  const blackCount = numbers.filter(num => num !== 0 && !redNumbers.includes(num)).length;
+  const zeroCount = numbers.filter(num => num === 0).length;
   
-  // Contar ocorrências por cor e hora
-  numbers.forEach(item => {
-    const hour = new Date(item.timestamp).getHours();
-    if (hour >= start && hour <= end) {
-      const hourKey = `${hour}h`;
-      
-      if (item.numero === 0) {
-        hourlyData[hourKey].green++;
-      } else if (redNumbers.includes(item.numero)) {
-        hourlyData[hourKey].red++;
-      } else {
-        hourlyData[hourKey].black++;
-      }
+  // Calcular média por hora (assumindo que temos dados de uma hora)
+  const redAverage = parseFloat((redCount / (total / 60)).toFixed(2));
+  const blackAverage = parseFloat((blackCount / (total / 60)).toFixed(2));
+  const zeroAverage = parseFloat((zeroCount / (total / 60)).toFixed(2));
+  
+  return [
+    {
+      name: "Vermelhos",
+      value: redAverage,
+      color: "hsl(0 72.2% 50.6%)",
+      total: redCount,
+      percentage: parseFloat(((redCount / total) * 100).toFixed(1))
+    },
+    {
+      name: "Pretos",
+      value: blackAverage,
+      color: "hsl(220 14% 20%)",
+      total: blackCount,
+      percentage: parseFloat(((blackCount / total) * 100).toFixed(1))
+    },
+    {
+      name: "Zero",
+      value: zeroAverage,
+      color: "hsl(142.1 70.6% 45.3%)",
+      total: zeroCount,
+      percentage: parseFloat(((zeroCount / total) * 100).toFixed(1))
     }
-  });
-  
-  // Transformar dados para formato de gráfico
-  return Object.entries(hourlyData).map(([hour, counts]) => ({
-    hour,
-    Vermelhos: counts.red,
-    Pretos: counts.black,
-    Zero: counts.green,
-    // Adicionar propriedades para compatibilidade com código existente
-    name: hour,
-    color: "",
-    total: counts.red + counts.black + counts.green,
-    percentage: 0
-  }));
-};
-
-// Função para gerar roda da roleta
-export const generateRouletteWheel = (numbers: { numero: number; timestamp: string }[], size = 300) => {
-  const center = size / 2;
-  const radius = size / 2 - 10;
-  
-  // Contagem de frequência dos números
-  const frequency: Record<number, number> = {};
-  ROULETTE_NUMBERS.forEach(num => {
-    frequency[num] = 0;
-  });
-  
-  // Contar a frequência de cada número
-  numbers.forEach(({ numero }) => {
-    if (frequency[numero] !== undefined) {
-      frequency[numero]++;
-    }
-  });
-  
-  // Encontrar a frequência máxima para normalização
-  const maxFreq = Math.max(...Object.values(frequency));
-  
-  // Gerar segmentos da roleta
-  const segments = ROULETTE_NUMBERS.map((num, index) => {
-    // Ângulo para cada segmento
-    const totalSegments = ROULETTE_NUMBERS.length;
-    const anglePerSegment = (2 * Math.PI) / totalSegments;
-    const startAngle = index * anglePerSegment - Math.PI / 2; // começa do topo
-    const endAngle = startAngle + anglePerSegment;
-    
-    // Coordenadas para o caminho do segmento
-    const x1 = center + radius * Math.cos(startAngle);
-    const y1 = center + radius * Math.sin(startAngle);
-    const x2 = center + radius * Math.cos(endAngle);
-    const y2 = center + radius * Math.sin(endAngle);
-    
-    // Determinar a cor base do número
-    let baseColor;
-    if (num === 0) {
-      baseColor = ROULETTE_COLORS.GREEN;
-    } else if (RED_NUMBERS.includes(num)) {
-      baseColor = ROULETTE_COLORS.RED;
-    } else {
-      baseColor = ROULETTE_COLORS.BLACK;
-    }
-    
-    // Ajustar a intensidade da cor com base na frequência
-    let color = baseColor;
-    if (maxFreq > 0) {
-      const normalizedFreq = frequency[num] / maxFreq;
-      // Se for zero, deixar mais claro; se for o máximo, deixar original
-      if (normalizedFreq < 0.3) {
-        // Criar uma versão mais clara da cor para números menos frequentes
-        const hex = baseColor.replace('#', '');
-        const r = parseInt(hex.substr(0, 2), 16);
-        const g = parseInt(hex.substr(2, 2), 16);
-        const b = parseInt(hex.substr(4, 2), 16);
-        
-        // Clarear a cor
-        const lightenFactor = 0.7;
-        const newR = Math.floor(r + (255 - r) * lightenFactor);
-        const newG = Math.floor(g + (255 - g) * lightenFactor);
-        const newB = Math.floor(b + (255 - b) * lightenFactor);
-        
-        color = `rgba(${newR}, ${newG}, ${newB}, 0.8)`;
-      }
-    }
-    
-    // Caminho SVG para o segmento (arco)
-    const largeArcFlag = anglePerSegment > Math.PI ? 1 : 0;
-    const path = `
-      M ${center} ${center}
-      L ${x1} ${y1}
-      A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}
-      Z
-    `;
-    
-    // Posição do texto (número) no segmento
-    const textAngle = startAngle + anglePerSegment / 2;
-    const textRadius = radius * 0.75; // um pouco para dentro
-    const textX = center + textRadius * Math.cos(textAngle);
-    const textY = center + textRadius * Math.sin(textAngle);
-    
-    return {
-      num,
-      path,
-      color,
-      frequency: frequency[num],
-      text: {
-        x: textX,
-        y: textY,
-        content: `${num}`
-      }
-    };
-  });
-  
-  return { segments, center, radius };
+  ];
 };
 
 // Função para gerar dados de frequência por região da roleta
@@ -466,38 +344,14 @@ export const generateRouletteHeatmap = (numbers: number[]) => {
     // Determinar cor para o número
     let color;
     if (num === 0) {
-      // Verde para zero - manter a variação de intensidade
-      const hslValues = ROULETTE_COLORS.GREEN.match(/hsl\((\d+\.?\d*),\s*(\d+\.?\d*)%,\s*(\d+\.?\d*)%\)/);
-      if (hslValues) {
-        const h = parseFloat(hslValues[1]);
-        const s = parseFloat(hslValues[2]);
-        const l = parseFloat(hslValues[3]) + (intensity * 30); // Aumentar lightness com intensidade
-        color = `hsl(${h}, ${s}%, ${l}%)`;
-      } else {
-        color = ROULETTE_COLORS.GREEN;
-      }
+      // Verde para zero
+      color = `hsl(142.1, 70.6%, ${45 + (intensity * 30)}%)`;
     } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
       // Vermelho com intensidade baseada na frequência
-      const hslValues = ROULETTE_COLORS.RED.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
-      if (hslValues) {
-        const h = parseFloat(hslValues[1]);
-        const s = parseFloat(hslValues[2]);
-        const l = parseFloat(hslValues[3]) + (intensity * 30); // Aumentar lightness com intensidade
-        color = `hsl(${h}, ${s}%, ${l}%)`;
-      } else {
-        color = ROULETTE_COLORS.RED;
-      }
+      color = `hsl(0, 72.2%, ${50 + (intensity * 30)}%)`;
     } else {
       // Preto com intensidade baseada na frequência
-      const hslValues = ROULETTE_COLORS.BLACK.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
-      if (hslValues) {
-        const h = parseFloat(hslValues[1]);
-        const s = parseFloat(hslValues[2]);
-        const l = parseFloat(hslValues[3]) + (intensity * 20); // Aumentar lightness com intensidade
-        color = `hsl(${h}, ${s}%, ${l}%)`;
-      } else {
-        color = ROULETTE_COLORS.BLACK;
-      }
+      color = `hsl(220, 14%, ${20 + (intensity * 20)}%)`;
     }
     
     return {
@@ -510,14 +364,17 @@ export const generateRouletteHeatmap = (numbers: number[]) => {
   });
 };
 
-// Função para obter a cor de um número da roleta
+// Determine color for a roulette number
 export const getRouletteNumberColor = (num: number) => {
-  if (num === 0) return `${ROULETTE_COLORS.GREEN_BG} text-white`;
+  if (num === 0) return "bg-[hsl(142.1,70.6%,45.3%)] text-white";
   
-  if (RED_NUMBERS.includes(num)) {
-    return `text-white ${ROULETTE_COLORS.RED_BG}`;
+  // Red numbers
+  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  
+  if (redNumbers.includes(num)) {
+    return "text-white bg-[hsl(0,72.2%,50.6%)]";
   } else {
-    return `text-white ${ROULETTE_COLORS.BLACK_BG}`;
+    return "text-white bg-[hsl(220,14%,20%)]";
   }
 };
 
@@ -959,7 +816,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const frequencyData = generateFrequencyData(historicalNumbers.map(n => n.numero));
   const { hot, cold } = getHotColdNumbers(frequencyData);
   const pieData = generateGroupDistribution(historicalNumbers.map(n => n.numero));
-  const colorHourlyStats = generateColorHourlyStats(historicalNumbers, selectedTime);
+  const colorHourlyStats = generateColorHourlyStats(historicalNumbers.map(n => n.numero));
   
   const winRate = (wins / (wins + losses)) * 100;
 
@@ -1136,17 +993,17 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                 <SelectItem value="todas">Todas</SelectItem>
                 <SelectItem value="vermelho">
                   <div className="flex items-center">
-                    <span className="mr-2 w-2 h-2 rounded-full" style={{ backgroundColor: ROULETTE_COLORS.RED }}></span> Vermelhos
+                    <span className="mr-2 w-2 h-2 rounded-full bg-red-600"></span> Vermelhos
                   </div>
                 </SelectItem>
                 <SelectItem value="preto">
                   <div className="flex items-center">
-                    <span className="mr-2 w-2 h-2 rounded-full" style={{ backgroundColor: ROULETTE_COLORS.BLACK }}></span> Pretos
+                    <span className="mr-2 w-2 h-2 rounded-full bg-gray-900"></span> Pretos
                   </div>
                 </SelectItem>
                 <SelectItem value="verde">
                   <div className="flex items-center">
-                    <span className="mr-2 w-2 h-2 rounded-full" style={{ backgroundColor: ROULETTE_COLORS.GREEN }}></span> Zero
+                    <span className="mr-2 w-2 h-2 rounded-full bg-green-600"></span> Zero
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -1462,17 +1319,12 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                         const startRad = (startAngle) * (Math.PI / 180);
                         const endRad = (endAngle) * (Math.PI / 180);
                         
-                        // Determinar cor para o número
-                        let color;
+                        // Determinar a cor (alternando entre vermelho e preto, zero é verde)
+                        let color = "hsl(220,14%,20%)"; // Preto (padrão)
                         if (num === 0) {
-                          // Verde para zero
-                          color = ROULETTE_COLORS.GREEN;
+                          color = "hsl(142.1,70.6%,45.3%)"; // Verde para zero
                         } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
-                          // Vermelho
-                          color = ROULETTE_COLORS.RED;
-                        } else {
-                          // Preto
-                          color = ROULETTE_COLORS.BLACK;
+                          color = "hsl(0,72.2%,50.6%)"; // Vermelho
                         }
                         
                         // Calcular pontos do arco externo
