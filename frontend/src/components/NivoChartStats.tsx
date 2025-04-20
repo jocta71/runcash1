@@ -68,26 +68,28 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
       return [{ id: "Sem Dados", label: "Sem Dados", value: 100, color: "#666666" }];
     }
     
-    return colorDistribution.map(item => ({
-      id: item.name || "Desconhecido",
-      label: item.name || "Desconhecido",
-      value: item.value || 0,
-      color: item.color || "#666666"
-    }));
+    // Garantir que os valores são números e somar para calcular porcentagens
+    const total = colorDistribution.reduce((sum, item) => sum + (item.value || 0), 0);
+    
+    // Retorna os dados no formato do Nivo com percentuais calculados
+    return colorDistribution.map(item => {
+      const itemValue = item.value || 0;
+      const percentage = total > 0 ? Math.round((itemValue / total) * 100) : 0;
+      
+      return {
+        id: item.name || "Desconhecido",
+        label: item.name || "Desconhecido",
+        value: Math.max(1, itemValue), // Valor original (não percentual) para cálculos do Nivo
+        percentage, // Valor percentual para exibição no rótulo
+        color: item.color || "#666666"
+      };
+    });
   };
 
   // Formatar dados para gráfico de taxa de vitória com validação
   const formatWinRateDataForNivo = () => {
-    const safeWins = typeof wins === 'number' ? wins : 0;
-    const safeLosses = typeof losses === 'number' ? losses : 0;
-    
-    // Se ambos forem zero, mostrar um valor padrão
-    if (safeWins === 0 && safeLosses === 0) {
-      return [
-        { id: "Vitórias", label: "Vitórias", value: 1, color: "#059669" },
-        { id: "Derrotas", label: "Derrotas", value: 1, color: "#ef4444" }
-      ];
-    }
+    const safeWins = Math.max(1, typeof wins === 'number' ? wins : 1);
+    const safeLosses = Math.max(1, typeof losses === 'number' ? losses : 1);
     
     return [
       { id: "Vitórias", label: "Vitórias", value: safeWins, color: "#059669" },
@@ -176,51 +178,67 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
             <ChartBar size={20} className="text-green-500 mr-2" /> Distribuição por Cor
           </h3>
           <div className="h-[260px] w-full bg-[#1a1a1a] rounded-lg overflow-hidden">
-            <ResponsivePie
-              data={formatColorDataForNivo()}
-              margin={{ top: 40, right: 40, bottom: 80, left: 40 }}
-              innerRadius={0.5}
-              padAngle={0.7}
-              cornerRadius={3}
-              activeOuterRadiusOffset={8}
-              borderWidth={1}
-              borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
-              arcLabelsSkipAngle={10}
-              arcLabelsTextColor="#ffffff"
-              enableArcLabels={true}
-              arcLabelsComponent={({ datum }) => (
-                <text
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 800,
-                    fill: '#ffffff'
+            <div className="w-full h-full flex flex-col">
+              <div className="flex justify-center space-x-4 mt-2">
+                {colorDistribution.map((item, index) => (
+                  <div key={index} className="flex items-center">
+                    <div 
+                      className="w-4 h-4 mr-2 rounded-sm" 
+                      style={{ backgroundColor: item.color }}
+                    ></div>
+                    <span className="text-sm text-white">{item.name}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex-1">
+                <ResponsivePie
+                  data={formatColorDataForNivo()}
+                  margin={{ top: 10, right: 40, bottom: 40, left: 40 }}
+                  innerRadius={0.5}
+                  padAngle={0.7}
+                  cornerRadius={3}
+                  activeOuterRadiusOffset={8}
+                  borderWidth={1}
+                  borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
+                  enableArcLabels={true}
+                  arcLabelsSkipAngle={5}
+                  arcLabelsTextColor="#ffffff"
+                  arcLabelsRadiusOffset={0.6}
+                  arcLinkLabelsOffset={2}
+                  arcLinkLabelsSkipAngle={10}
+                  arcLinkLabelsTextColor="#ffffff"
+                  arcLinkLabelsDiagonalLength={5}
+                  arcLinkLabelsStraightLength={5}
+                  arcLinkLabelsThickness={2}
+                  arcLinkLabelsColor={{ from: 'color' }}
+                  arcLabelsComponent={({ datum }) => {
+                    // Acessar os dados diretamente da fonte original
+                    const item = colorDistribution.find(item => item.name === datum.id);
+                    const total = colorDistribution.reduce((sum, i) => sum + (i.value || 0), 0);
+                    const percentage = item && total > 0 
+                      ? Math.round(((item.value || 0) / total) * 100) 
+                      : 0;
+                    
+                    return (
+                      <text
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 800,
+                          fill: '#ffffff'
+                        }}
+                      >
+                        {percentage}%
+                      </text>
+                    );
                   }}
-                >
-                  {datum.label}: {datum.value}%
-                </text>
-              )}
-              colors={{ datum: 'data.color' }}
-              theme={nivoTheme}
-              legends={[
-                {
-                  anchor: 'bottom',
-                  direction: 'row',
-                  justify: false,
-                  translateX: 0,
-                  translateY: 56,
-                  itemsSpacing: 0,
-                  itemWidth: 80,
-                  itemHeight: 20,
-                  itemTextColor: '#ffffff',
-                  itemDirection: 'left-to-right',
-                  itemOpacity: 1,
-                  symbolSize: 12,
-                  symbolShape: 'circle'
-                }
-              ]}
-            />
+                  colors={{ datum: 'data.color' }}
+                  theme={nivoTheme}
+                  legends={[]}
+                />
+              </div>
+            </div>
           </div>
         </div>
         
@@ -233,54 +251,36 @@ const NivoChartStats: React.FC<NivoChartStatsProps> = ({
             <div className="relative h-full w-full bg-[#1a1a1a] rounded-lg overflow-hidden">
               <ResponsivePie
                 data={formatWinRateDataForNivo()}
-                margin={{ top: 40, right: 40, bottom: 80, left: 40 }}
+                margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
                 innerRadius={0.6}
                 padAngle={0.7}
                 cornerRadius={3}
                 activeOuterRadiusOffset={8}
                 borderWidth={1}
                 borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
-                enableArcLabels={true}
-                arcLabelsSkipAngle={10}
-                arcLabelsTextColor="#ffffff"
-                arcLabelsComponent={({ datum }) => (
-                  <text
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 800,
-                      fill: '#ffffff'
-                    }}
-                  >
-                    {datum.label}: {datum.value}
-                  </text>
-                )}
+                enableArcLabels={false}
+                enableArcLinkLabels={false}
                 colors={{ datum: 'data.color' }}
                 theme={nivoTheme}
-                legends={[
-                  {
-                    anchor: 'bottom',
-                    direction: 'row',
-                    justify: false,
-                    translateX: 0,
-                    translateY: 56,
-                    itemsSpacing: 0,
-                    itemWidth: 80,
-                    itemHeight: 20,
-                    itemTextColor: '#ffffff',
-                    itemDirection: 'left-to-right',
-                    itemOpacity: 1,
-                    symbolSize: 12,
-                    symbolShape: 'circle'
-                  }
-                ]}
+                legends={[]}
               />
               
-              {/* Texto centralizado com taxa de vitória */}
+              {/* Texto centralizado com taxa de vitória e legendas */}
               <div className="absolute inset-0 flex items-center justify-center flex-col">
                 <div className="text-3xl font-bold text-white">{winRate}%</div>
-                <div className="text-xs text-gray-400">Taxa de Vitória</div>
+                <div className="text-sm text-gray-300">Taxa de Vitória</div>
+              </div>
+              
+              {/* Legendas de vitórias e derrotas */}
+              <div className="absolute left-2 bottom-2 flex flex-col space-y-2">
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-[#059669] mr-2 rounded-sm"></div>
+                  <span className="text-sm text-white">Vitórias: {wins}</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-[#ef4444] mr-2 rounded-sm"></div>
+                  <span className="text-sm text-white">Derrotas: {losses}</span>
+                </div>
               </div>
             </div>
           </div>
