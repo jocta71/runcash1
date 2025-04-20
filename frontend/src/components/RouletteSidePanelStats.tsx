@@ -1508,7 +1508,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105 cursor-pointer"
                     onClick={() => handleNumberSelection(item.number)}
                   >
-                    <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)] ${highlightedNumber === item.number ? 'ring-2 ring-yellow-400 shadow-lg' : ''}`}>
+                    <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)] ${highlightedNumber === item.number ? 'ring-2 ring-[hsl(142.1,70.6%,45.3%)] shadow-lg shadow-[hsl(142.1,70.6%,45.3%)]/50' : ''}`}>
                       {item.number}
                     </div>
                     <Badge variant="secondary" className="text-[hsl(142.1,70.6%,45.3%)]">
@@ -1525,7 +1525,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                     className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105 cursor-pointer"
                     onClick={() => handleNumberSelection(item.number)}
                   >
-                    <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)] ${highlightedNumber === item.number ? 'ring-2 ring-yellow-400 shadow-lg' : ''}`}>
+                    <div className={`w-8 h-8 rounded-md ${getRouletteNumberColor(item.number)} flex items-center justify-center text-xs font-medium border border-[hsl(216,34%,17%)] ${highlightedNumber === item.number ? 'ring-2 ring-[hsl(142.1,70.6%,45.3%)] shadow-lg shadow-[hsl(142.1,70.6%,45.3%)]/50' : ''}`}>
                       {item.number}
                     </div>
                     <Badge variant="secondary" className="text-[hsl(142.1,70.6%,45.3%)]">
