@@ -146,7 +146,7 @@ const RouletteFilterBar = ({
               className={`h-8 text-xs ${
                 isProviderSelected(provider.id) 
                   ? "bg-amber-500 hover:bg-amber-600 text-black" 
-                  : "bg-background hover:bg-muted"
+                  : "bg-[rgb(19_22_20_/_var(--tw-bg-opacity,_1))] hover:bg-muted"
               }`}
               onClick={() => handleProviderToggle(provider.id)}
             >
