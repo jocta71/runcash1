@@ -945,7 +945,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
   return (
     <div className="w-full rounded-lg overflow-y-auto max-h-screen">
-      <div className="p-5 border-b border-gray-800 bg-opacity-40">
+      <div className="p-5 border-b border-border bg-opacity-40">
         <h2 className="text-white flex items-center text-xl font-bold mb-3">
           <BarChart className="mr-3 text-vegas-green h-6 w-6" /> Estatísticas da {roletaNome}
         </h2>
@@ -959,7 +959,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       </div>
       
       {/* Nova seção de filtros avançados */}
-      <div className="space-y-4 p-5 border-b border-gray-800">
+      <div className="space-y-4 p-5 border-b border-gray-800 bg-card/50 rounded-md border border-border mx-4 mt-4">
         {/* Cabeçalho e botão limpar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -970,9 +970,9 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           {hasActiveFilters && (
             <Button 
               onClick={handleClearAllFilters}
-              variant="ghost" 
+              variant="outline" 
               size="sm"
-              className="h-7 px-2 text-xs text-gray-400 hover:text-white"
+              className="h-7 px-3 text-xs border border-border bg-card hover:bg-card/80 hover:text-white"
             >
               <X size={14} className="mr-1" />
               Limpar filtros
@@ -981,7 +981,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         </div>
         
         {/* Filtros em row com dropdowns */}
-        <div className="flex w-full space-x-2 bg-card p-1">
+        <div className="flex w-full space-x-2 bg-card p-1 border border-border rounded-md">
           {/* Filtro por cor */}
           <div className="flex-1">
             <div className="text-xs text-gray-400 mb-1 px-2">Por cores</div>
