@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, LockIcon, MailIcon, UserIcon } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
+import { Label } from '@/components/ui/label';
 import axios from 'axios';
 
 const AuthPage = () => {
@@ -164,21 +165,31 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
-      <Card className="w-full max-w-md shadow-xl border-gray-800">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold flex justify-center">
-            <img src="/img/logo.svg" alt="RunCash Logo" className="h-14" />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 p-4">
+      <div className="flex flex-col items-center space-y-4 mb-6">
+        <img src="/img/logo.svg" alt="RunCash Logo" className="h-14" />
+        <h1 className="text-2xl font-bold tracking-tight text-white">
+          RunCash
+        </h1>
+        <p className="text-sm text-gray-400">
+          Entre na plataforma para começar a jornada
+        </p>
+      </div>
+
+      <Card className="w-full max-w-md shadow-xl border-gray-800 bg-gray-800/50 backdrop-blur-sm">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-white">
+            {activeTab === 'login' ? 'Entre na sua conta' : 'Crie sua conta'}
           </CardTitle>
-          <CardDescription>
-            {activeTab === 'login' ? 'Faça login para continuar' : 'Crie sua conta'}
+          <CardDescription className="text-gray-400">
+            {activeTab === 'login' ? 'Digite suas credenciais abaixo' : 'Preencha seus dados para se cadastrar'}
           </CardDescription>
         </CardHeader>
         
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-2 mb-4 mx-4">
-            <TabsTrigger value="login">Login</TabsTrigger>
-            <TabsTrigger value="register">Cadastro</TabsTrigger>
+          <TabsList className="grid grid-cols-2 mb-4 mx-4 bg-gray-900/50">
+            <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">Login</TabsTrigger>
+            <TabsTrigger value="register" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">Cadastro</TabsTrigger>
           </TabsList>
           
           {/* Login Form */}
@@ -192,47 +203,66 @@ const AuthPage = () => {
                   </Alert>
                 )}
                 
-                <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium">
-                    Email
-                  </label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+                <div className="grid gap-2">
+                  <Label htmlFor="email" className="text-white">Email</Label>
+                  <div className="relative">
+                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
+                <div className="grid gap-2">
                   <div className="flex items-center justify-between">
-                    <label htmlFor="password" className="text-sm font-medium">
-                      Senha
-                    </label>
+                    <Label htmlFor="password" className="text-white">Senha</Label>
+                    <a href="#" className="text-xs text-vegas-green hover:underline">
+                      Esqueceu a senha?
+                    </a>
                   </div>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
                 </div>
               </CardContent>
               
               <CardFooter className="flex flex-col space-y-4">
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
+                  disabled={isLoading}
+                >
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
                 </Button>
                 
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-gray-700" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-gray-800 px-2 text-gray-400">Ou continue com</span>
+                  </div>
+                </div>
                 
                 <Button 
                   type="button" 
                   variant="outline" 
-                  className="w-full"
+                  className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
                   disabled={isCheckingGoogleAuth}
                   onClick={handleGoogleLogin}
                 >
@@ -262,7 +292,7 @@ const AuthPage = () => {
                       />
                     </svg>
                   )}
-                  Continuar com Google
+                  Google
                 </Button>
               </CardFooter>
             </form>
@@ -279,72 +309,120 @@ const AuthPage = () => {
                   </Alert>
                 )}
                 
-                <div className="space-y-2">
-                  <label htmlFor="username" className="text-sm font-medium">
-                    Nome de Usuário
-                  </label>
-                  <Input
-                    id="username"
-                    type="text"
-                    placeholder="seunome"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                  />
+                <div className="grid gap-2">
+                  <Label htmlFor="username" className="text-white">Nome de Usuário</Label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="username"
+                      type="text"
+                      placeholder="seunome"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <label htmlFor="register-email" className="text-sm font-medium">
-                    Email
-                  </label>
-                  <Input
-                    id="register-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+                <div className="grid gap-2">
+                  <Label htmlFor="register-email" className="text-white">Email</Label>
+                  <div className="relative">
+                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="register-email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <label htmlFor="register-password" className="text-sm font-medium">
-                    Senha
-                  </label>
-                  <Input
-                    id="register-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
+                <div className="grid gap-2">
+                  <Label htmlFor="register-password" className="text-white">Senha</Label>
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="register-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <label htmlFor="confirm-password" className="text-sm font-medium">
-                    Confirmar Senha
-                  </label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                  />
+                <div className="grid gap-2">
+                  <Label htmlFor="confirm-password" className="text-white">Confirmar Senha</Label>
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
                 </div>
               </CardContent>
               
               <CardFooter className="flex flex-col space-y-4">
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
+                  disabled={isLoading}
+                >
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Criar Conta'}
                 </Button>
               </CardFooter>
             </form>
           </TabsContent>
         </Tabs>
+        
+        <div className="p-6 pt-0 text-center text-sm text-gray-400">
+          {activeTab === 'login' ? (
+            <>
+              Não tem uma conta?{' '}
+              <button 
+                onClick={() => setActiveTab('register')}
+                className="text-vegas-green hover:underline font-medium"
+              >
+                Cadastre-se
+              </button>
+            </>
+          ) : (
+            <>
+              Já tem uma conta?{' '}
+              <button 
+                onClick={() => setActiveTab('login')}
+                className="text-vegas-green hover:underline font-medium"
+              >
+                Faça login
+              </button>
+            </>
+          )}
+        </div>
       </Card>
+      
+      <p className="mt-4 text-center text-sm text-gray-400">
+        Ao continuar, você concorda com nossos{' '}
+        <a href="#" className="text-vegas-green hover:underline">
+          Termos de Serviço
+        </a>{' '}
+        e{' '}
+        <a href="#" className="text-vegas-green hover:underline">
+          Política de Privacidade
+        </a>
+        .
+      </p>
     </div>
   );
 };
