@@ -1235,172 +1235,141 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
               
               <div className="h-[320px] relative">
                 <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-                  {/* Borda dourada externa */}
-                  <div className="w-[280px] h-[280px] rounded-full bg-gradient-to-b from-[#ffd700] to-[#b8860b] absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
-                  
-                  {/* Círculo externo da roleta com rotação */}
-                  <div className="w-[260px] h-[260px] rounded-full relative roulette-spin" 
-                       style={{ 
-                         boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)', 
-                         border: '4px solid #463F30',
-                         background: 'radial-gradient(circle at center, #1e1e20 0%, #121214 100%)'
-                       }}>
+                  {/* Container principal da roleta */}
+                  <div className="w-[280px] h-[280px] rounded-full bg-[#1a1a1a] relative border-2 border-[#333]">
                     {/* Setores da roleta */}
-                    <div className="absolute top-0 left-0 w-full h-full">
+                    <svg width="280" height="280" viewBox="0 0 280 280">
+                      <defs>
+                        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                          <feGaussianBlur stdDeviation="3" result="blur" />
+                          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                        </filter>
+                      </defs>
+                      
+                      {/* Círculo de fundo */}
+                      <circle cx="140" cy="140" r="140" fill="#1a1a1a" />
+                      
+                      {/* Renderizar os setores da roleta */}
                       {ROULETTE_NUMBERS.map((num, index) => {
-                        // Ajustar ângulo inicial para alinhar com a seta
-                        const angleOffset = 90; // Offset para alinhar com a seta no topo
-                        const totalElements = ROULETTE_NUMBERS.length;
-                        const segmentAngle = 360 / totalElements;
+                        const segmentAngle = 360 / ROULETTE_NUMBERS.length;
+                        const startAngle = index * segmentAngle;
+                        const endAngle = (index + 1) * segmentAngle;
                         
-                        // Calcular ângulos corretamente para o alinhamento
-                        const angle = (index * segmentAngle) + angleOffset;
-                        const nextAngle = ((index + 1) * segmentAngle) + angleOffset;
-                        const arcAngle = segmentAngle;
-                        const midAngle = angle + (arcAngle / 2);
-                        const radMidAngle = midAngle * (Math.PI / 180);
+                        // Converter ângulos para radianos
+                        const startRad = (startAngle - 90) * (Math.PI / 180);
+                        const endRad = (endAngle - 90) * (Math.PI / 180);
                         
-                        // Cor base do setor
-                        let baseColor;
+                        // Calcular pontos do arco
+                        const outerRadius = 139;
+                        const x1 = 140 + outerRadius * Math.cos(startRad);
+                        const y1 = 140 + outerRadius * Math.sin(startRad);
+                        const x2 = 140 + outerRadius * Math.cos(endRad);
+                        const y2 = 140 + outerRadius * Math.sin(endRad);
+                        
+                        // Determinar cor do setor
+                        let color = "#000000"; // Preto (padrão)
                         if (num === 0) {
-                          baseColor = "hsl(142.1, 70.6%, 45.3%)"; // Verde para zero
+                          color = "#007f0e"; // Verde para zero
                         } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
-                          baseColor = "hsl(0, 72.2%, 50.6%)"; // Vermelho
-                        } else {
-                          baseColor = "hsl(220, 14%, 20%)"; // Preto
+                          color = "#fe0000"; // Vermelho
                         }
                         
-                        // Encontrar a intensidade para este número
+                        // Verificar a intensidade com base nos dados do heatmap
                         const numData = rouletteHeatmap.find(item => item.number === num);
                         const intensity = numData ? numData.intensity : 0;
                         
-                        // Raio externo e interno para o setor
-                        const outerRadius = 130;
-                        const innerRadius = 85;
+                        // Ajustar brilho com base na intensidade
+                        let adjustedColor = color;
+                        if (intensity > 0.3) {
+                          // Aplicar brilho apenas para números com alta intensidade
+                          if (num === 0) {
+                            adjustedColor = `rgb(0, ${127 + Math.floor(intensity * 128)}, ${14 + Math.floor(intensity * 50)})`;
+                          } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
+                            adjustedColor = `rgb(${254}, ${Math.floor(intensity * 100)}, ${Math.floor(intensity * 100)})`;
+                          } else {
+                            adjustedColor = `rgb(${Math.floor(intensity * 100)}, ${Math.floor(intensity * 100)}, ${Math.floor(intensity * 100)})`;
+                          }
+                        }
                         
-                        // Ponto inicial e final do arco externo (agora usando funções seno e cosseno corretamente)
-                        const startX = outerRadius * Math.cos((angle) * (Math.PI / 180));
-                        const startY = outerRadius * Math.sin((angle) * (Math.PI / 180));
-                        const endX = outerRadius * Math.cos((nextAngle) * (Math.PI / 180));
-                        const endY = outerRadius * Math.sin((nextAngle) * (Math.PI / 180));
-                        
-                        // Ponto inicial e final do arco interno
-                        const innerStartX = innerRadius * Math.cos((angle) * (Math.PI / 180));
-                        const innerStartY = innerRadius * Math.sin((angle) * (Math.PI / 180));
-                        const innerEndX = innerRadius * Math.cos((nextAngle) * (Math.PI / 180));
-                        const innerEndY = innerRadius * Math.sin((nextAngle) * (Math.PI / 180));
-                        
-                        // Flag que determina se o arco é maior que 180 graus
-                        const largeArcFlag = arcAngle > 180 ? 1 : 0;
-                        
-                        // Criando o caminho SVG para o setor
+                        // Construir path do setor
+                        const largeArcFlag = endAngle - startAngle <= 180 ? 0 : 1;
                         const path = [
-                          `M ${130 + innerStartX} ${130 + innerStartY}`, // Mover para o ponto inicial interno
-                          `L ${130 + startX} ${130 + startY}`, // Linha até o ponto inicial externo
-                          `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${130 + endX} ${130 + endY}`, // Arco externo
-                          `L ${130 + innerEndX} ${130 + innerEndY}`, // Linha até o ponto final interno
-                          `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${130 + innerStartX} ${130 + innerStartY}`, // Arco interno
-                          'Z' // Fechar o caminho
+                          `M 140 140`,
+                          `L ${x1} ${y1}`,
+                          `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+                          'Z'
                         ].join(' ');
                         
-                        // Calculando a posição do número corrigida para o alinhamento
-                        const labelRadius = (innerRadius + outerRadius) / 2 - 5;
-                        const labelX = labelRadius * Math.cos(radMidAngle);
-                        const labelY = labelRadius * Math.sin(radMidAngle);
-                        
-                        // Calculando o brilho baseado na intensidade
-                        const glow = intensity > 0.2 
-                          ? `drop-shadow(0 0 ${5 + intensity * 10}px ${baseColor})`
-                          : 'none';
-                        
-                        // Escurecer ou clarear a cor base com base na intensidade
-                        const adjustedColor = num === 0
-                          ? `hsl(142.1, 70.6%, ${40 + (intensity * 35)}%)`  // Verde mais brilhante
-                          : [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)
-                            ? `hsl(0, 72.2%, ${40 + (intensity * 35)}%)`    // Vermelho mais brilhante
-                            : `hsl(220, 14%, ${15 + (intensity * 30)}%)`;   // Preto mais brilhante
+                        // Calcular posição para o texto do número
+                        const midAngle = (startAngle + endAngle) / 2 - 90;
+                        const midRad = midAngle * (Math.PI / 180);
+                        const textRadius = outerRadius * 0.75;
+                        const textX = 140 + textRadius * Math.cos(midRad);
+                        const textY = 140 + textRadius * Math.sin(midRad);
                         
                         return (
-                          <Fragment key={`sector-${num}`}>
-                            {/* Setor da roleta */}
-                            <svg 
-                              width="260" 
-                              height="260" 
-                              viewBox="0 0 260 260" 
-                              className="absolute top-0 left-0 pocket"
-                              style={{ 
-                                filter: glow,
-                                transition: 'all 0.3s ease'
+                          <g key={`sector-${num}`}>
+                            {/* Setor */}
+                            <path 
+                              d={path} 
+                              fill={adjustedColor}
+                              stroke="#333"
+                              strokeWidth="0.5"
+                              className="transition-all duration-300"
+                              style={{
+                                filter: intensity > 0.3 ? `brightness(${1 + intensity})` : 'none'
                               }}
-                            >
-                              <defs>
-                                <linearGradient id={`gradientPocket${num}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                                  <stop offset="0%" stopColor={adjustedColor} stopOpacity="0.9"/>
-                                  <stop offset="100%" stopColor={adjustedColor} stopOpacity="1"/>
-                                </linearGradient>
-                              </defs>
-                              <path 
-                                d={path} 
-                                fill={`url(#gradientPocket${num})`}
-                                stroke="#463F30"
-                                strokeWidth="1"
-                              />
-                            </svg>
+                            />
                             
                             {/* Número */}
-                            <div 
-                              className="absolute text-white text-xs font-bold transform -translate-x-1/2 -translate-y-1/2"
-                              style={{ 
-                                left: `calc(50% + ${labelX}px)`, 
-                                top: `calc(50% + ${labelY}px)`,
-                                textShadow: '0 1px 2px rgba(0,0,0,0.8), 0 0 5px rgba(0,0,0,0.5)',
-                                zIndex: 5
+                            <text 
+                              x={textX} 
+                              y={textY} 
+                              fill="white"
+                              fontSize="12"
+                              fontWeight="bold"
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              style={{
+                                textShadow: '1px 1px 2px black'
                               }}
-                              title={`${num}: ${numData?.count || 0} ocorrências (${numData?.percentage.toFixed(1) || 0}%)`}
                             >
                               {num}
-                            </div>
-                          </Fragment>
+                            </text>
+                          </g>
                         );
                       })}
-                    </div>
+                      
+                      {/* Círculo interno */}
+                      <circle 
+                        cx="140" 
+                        cy="140" 
+                        r="50" 
+                        fill="#1a1a1a" 
+                        stroke="#333"
+                        strokeWidth="1"
+                      />
+                      
+                      {/* Texto "Roleta" no centro */}
+                      <text 
+                        x="140" 
+                        y="140" 
+                        fill="#00c853"
+                        fontSize="14"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                      >
+                        Roleta
+                      </text>
+                    </svg>
                     
-                    {/* Divisões entre setores (linhas douradas) */}
-                    <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-                      {ROULETTE_NUMBERS.map((_, index) => {
-                        const angleOffset = 90; // Alinhado com o offset acima
-                        const segmentAngle = 360 / ROULETTE_NUMBERS.length;
-                        const angle = (index * segmentAngle) + angleOffset;
-                        
-                        return (
-                          <div 
-                            key={`divider-${index}`}
-                            className="absolute top-1/2 left-1/2 w-[130px] h-[1px] bg-[#7c6d48]"
-                            style={{ 
-                              transform: `rotate(${angle}deg)`,
-                              transformOrigin: 'left center',
-                              opacity: 0.8
-                            }}
-                          ></div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  
-                  {/* Centro da roleta (fixo, não gira) */}
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[90px] h-[90px] rounded-full bg-gradient-to-br from-[#303035] to-[#1a1a1e] border-4 border-[#463F30] flex items-center justify-center z-20 shadow-lg" 
-                       style={{ background: 'linear-gradient(145deg, #303035, #1a1a1e)' }}>
-                    <div className="w-[70px] h-[70px] rounded-full bg-gradient-to-br from-[#1e1e24] to-[#0a0a0c] flex items-center justify-center">
-                      <span className="text-[hsl(142.1,70.6%,45.3%)] text-sm font-medium">Roleta</span>
-                    </div>
-                  </div>
-                  
-                  {/* Indicador de número atual (fixo, não gira) - Ajustado para melhor visibilidade */}
-                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-[-5px] w-4 h-10 z-30" 
-                       style={{ filter: 'drop-shadow(0 0 4px rgba(255, 215, 0, 0.7))' }}>
-                    <div className="w-full h-full relative">
-                      <div className="absolute top-0 left-0 w-full h-4 bg-[#F0D98E]"></div>
-                      <div className="absolute top-4 left-0 w-full h-0 border-l-[10px] border-r-[10px] border-t-[10px] border-t-[#F0D98E] border-l-transparent border-r-transparent"></div>
+                    {/* Indicador de número no topo */}
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1 w-4 h-12 z-10">
+                      <div className="w-full h-full flex flex-col items-center">
+                        <div className="w-4 h-4 bg-[#ffd700] rounded-full"></div>
+                        <div className="w-0 h-0 border-l-[8px] border-r-[8px] border-t-[12px] border-t-[#ffd700] border-l-transparent border-r-transparent"></div>
+                      </div>
                     </div>
                   </div>
                 </div>
