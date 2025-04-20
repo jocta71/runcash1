@@ -1087,55 +1087,53 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
           {/* Historical Numbers Section */}
           <Card className="md:col-span-2">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-medium flex items-center">
-                <BarChart className="mr-2 h-5 w-5 text-[hsl(142.1,70.6%,45.3%)]" /> 
-                Histórico de Números
-              </CardTitle>
-              <CardDescription>
-                Mostrando {visibleNumbers.length} de {filteredNumbers.length} números
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent>
-            {visibleNumbers.length > 0 ? (
-                <div className="border border-[hsl(216,34%,17%)] rounded-lg bg-[hsl(224,71%,4%/0.8)] p-4">
-                  <ScrollArea className="max-h-[300px]">
-                    <div className="flex flex-wrap gap-2">
-                {visibleNumbers.map((n, idx) => (
-                  <div 
-                    key={idx} 
-                    className="flex flex-col items-center mb-2 w-11"
-                  >
-                          <div className={`w-9 h-9 flex items-center justify-center text-sm font-medium rounded-md border border-[hsl(216,34%,17%)] ${getRouletteNumberColor(n.numero)} hover:scale-110 transition-transform duration-200`}>
-                      {n.numero}
-                    </div>
-                          <div className="text-[9px] text-[hsl(215.4,16.3%,56.9%)] mt-1">
-                      {n.timestamp}
-                    </div>
-                  </div>
-                ))}
-                    </div>
-                  </ScrollArea>
+            <CardHeader className="p-2 pb-0 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-medium flex items-center">
+                  <BarChart className="mr-1 h-4 w-4 text-[hsl(142.1,70.6%,45.3%)]" /> 
+                  Histórico de Números
+                </CardTitle>
+                <CardDescription className="text-[10px] text-muted-foreground">
+                  {visibleNumbers.length} de {filteredNumbers.length} números
+                </CardDescription>
               </div>
-            ) : (
-                <div className="flex justify-center items-center h-[200px] rounded-lg text-[hsl(215.4,16.3%,56.9%)] bg-[hsl(224,71%,4%/0.8)]">
-                Nenhum número encontrado com o filtro selecionado
-              </div>
-            )}
-            </CardContent>
-            
-            {visibleNumbersCount < filteredNumbers.length && (
-              <CardFooter className="justify-center pt-2">
+              {visibleNumbersCount < filteredNumbers.length && (
                 <Button 
                   onClick={handleShowMore} 
-                  variant="secondary"
-                  className="flex items-center gap-2"
+                  variant="ghost" 
+                  size="sm"
+                  className="h-6 flex items-center gap-1 text-xs border border-[hsl(216,34%,17%)]"
                 >
-                  Mostrar Mais {filteredNumbers.length - visibleNumbersCount} Números <ChevronDown className="h-4 w-4" />
+                  +{filteredNumbers.length - visibleNumbersCount} <ChevronDown className="h-3 w-3" />
                 </Button>
-              </CardFooter>
+              )}
+            </CardHeader>
+            
+            <CardContent className="p-0 pb-1">
+            {visibleNumbers.length > 0 ? (
+                <ScrollArea className="h-[300px]">
+                  <div className="flex flex-wrap p-1">
+                    {visibleNumbers.map((n, idx) => (
+                      <div 
+                        key={idx} 
+                        className="flex flex-col w-[26px] h-[36px] m-[1px]"
+                      >
+                        <div className={`w-full h-[26px] flex items-center justify-center text-xs font-medium ${getRouletteNumberColor(n.numero)} border-[1px] border-[#333]`}>
+                          {n.numero}
+                        </div>
+                        <div className="w-full h-[10px] text-[6px] leading-[10px] text-center text-[hsl(215.4,16.3%,56.9%)] overflow-hidden">
+                          {n.timestamp}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+            ) : (
+                <div className="flex justify-center items-center h-[300px] text-[hsl(215.4,16.3%,56.9%)]">
+                  Nenhum número encontrado
+                </div>
             )}
+            </CardContent>
           </Card>
 
           {/* Distribution Pie Chart */}
