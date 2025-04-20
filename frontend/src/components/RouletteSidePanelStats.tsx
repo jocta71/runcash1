@@ -1541,3 +1541,5 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     </div>
   );
 };
+
+export default RouletteSidePanelStats;
