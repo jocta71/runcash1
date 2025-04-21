@@ -65,7 +65,7 @@ const ProfileSubscription = () => {
   }, [currentSubscription?.id]);
   
   // Atualizar dados da assinatura
-  const refreshSubscriptionData = async () => {
+  const refreshSubscriptionData = async (forceRefresh = false) => {
     setIsRefreshing(true);
     try {
       await loadUserSubscription();
@@ -244,8 +244,12 @@ const ProfileSubscription = () => {
   // Tela de carregamento
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-vegas-gold" />
+      <div className="flex flex-col items-center justify-center h-64 bg-vegas-black/30 rounded-lg border border-gray-700 p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-vegas-gold mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Carregando dados da assinatura...</h2>
+        <p className="text-center text-gray-400 mb-6 max-w-md">
+          Estamos buscando as informações mais recentes da sua assinatura. Isso pode levar alguns instantes.
+        </p>
       </div>
     );
   }
@@ -269,7 +273,7 @@ const ProfileSubscription = () => {
         <CardFooter>
           <Button 
             className="w-full"
-            onClick={refreshSubscriptionData}
+            onClick={() => refreshSubscriptionData(true)}
             disabled={isRefreshing}
           >
             {isRefreshing ? (
@@ -325,7 +329,7 @@ const ProfileSubscription = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={refreshSubscriptionData}
+            onClick={() => refreshSubscriptionData(true)}
             disabled={isRefreshing}
             className="h-8 w-8"
           >

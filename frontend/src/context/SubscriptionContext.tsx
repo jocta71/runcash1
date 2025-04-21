@@ -87,7 +87,7 @@ interface SubscriptionContextType {
   hasFeatureAccess: (featureId: string) => boolean;
   upgradePlan: (planId: string) => Promise<void>;
   cancelSubscription: () => Promise<void>;
-  loadUserSubscription: () => Promise<void>;
+  loadUserSubscription: (forceRefresh?: boolean) => Promise<void>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -101,7 +101,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [error, setError] = useState<string | null>(null);
 
   // Carregar assinatura do usuário
-  const loadUserSubscription = async (): Promise<void> => {
+  const loadUserSubscription = async (forceRefresh = false): Promise<void> => {
     if (!user) {
       setCurrentSubscription(null);
       setCurrentPlan(null);
@@ -112,52 +112,83 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setLoading(true);
     setError(null);
 
-    try {
-      // Buscar assinatura ativa do usuário
-      const response = await axios.get(`${API_URL}/api/payment/get-subscription`, {
-        params: { userId: user.id }
-      });
+    let retryCount = 0;
+    const maxRetries = forceRefresh ? 3 : 1;
+    let lastError = null;
 
-      if (response.data) {
-        // Converter dados da API para o formato UserSubscription
-        const subscriptionData: UserSubscription = {
-          id: response.data.id,
-          userId: response.data.user_id,
-          planId: response.data.plan_id,
-          planType: getPlanTypeFromId(response.data.plan_id),
-          startDate: new Date(response.data.start_date),
-          endDate: response.data.end_date ? new Date(response.data.end_date) : null,
-          status: response.data.status,
-          paymentMethod: response.data.payment_method,
-          paymentProvider: response.data.payment_provider,
-          nextBillingDate: response.data.next_billing_date ? new Date(response.data.next_billing_date) : null
-        };
+    while (retryCount < maxRetries) {
+      try {
+        // Adicionar um parâmetro de timestamp para evitar cache
+        const cacheKey = forceRefresh ? `&_t=${Date.now()}` : '';
+        
+        // Buscar assinatura ativa do usuário
+        const response = await axios.get(`${API_URL}/api/payment/get-subscription?userId=${user.id}${cacheKey}`);
 
-        setCurrentSubscription(subscriptionData);
+        if (response.data) {
+          // Converter dados da API para o formato UserSubscription
+          const subscriptionData: UserSubscription = {
+            id: response.data.id,
+            userId: response.data.user_id,
+            planId: response.data.plan_id,
+            planType: getPlanTypeFromId(response.data.plan_id),
+            startDate: new Date(response.data.start_date),
+            endDate: response.data.end_date ? new Date(response.data.end_date) : null,
+            status: response.data.status,
+            paymentMethod: response.data.payment_method,
+            paymentProvider: response.data.payment_provider,
+            nextBillingDate: response.data.next_billing_date ? new Date(response.data.next_billing_date) : null
+          };
 
-        // Buscar plano correspondente na lista de planos disponíveis
-        const plan = availablePlans.find(p => p.id === subscriptionData.planId) || null;
-        setCurrentPlan(plan);
-      } else {
-        // Sem assinatura ativa, definir como plano gratuito
-        setCurrentSubscription(null);
-        const freePlan = availablePlans.find(p => p.id === 'free') || null;
-        setCurrentPlan(freePlan);
+          console.log('[SubscriptionContext] Assinatura carregada:', subscriptionData);
+          setCurrentSubscription(subscriptionData);
+
+          // Buscar plano correspondente na lista de planos disponíveis
+          const plan = availablePlans.find(p => p.id === subscriptionData.planId) || null;
+          setCurrentPlan(plan);
+          // Sucesso! Sair do loop
+          break;
+        } else {
+          // Sem assinatura ativa, definir como plano gratuito
+          console.log('[SubscriptionContext] Nenhuma assinatura encontrada');
+          setCurrentSubscription(null);
+          const freePlan = availablePlans.find(p => p.id === 'free') || null;
+          setCurrentPlan(freePlan);
+          // Também sair do loop, pois não é um erro
+          break;
+        }
+      } catch (err: any) {
+        console.error(`[SubscriptionContext] Erro ao carregar assinatura (tentativa ${retryCount + 1}):`, err);
+        lastError = err;
+        
+        // Se o erro for 404, significa que não há assinatura (não é realmente um erro)
+        if (err.response && err.response.status === 404) {
+          console.log('[SubscriptionContext] Erro 404 - Nenhuma assinatura encontrada');
+          setCurrentSubscription(null);
+          const freePlan = availablePlans.find(p => p.id === 'free') || null;
+          setCurrentPlan(freePlan);
+          // Sair do loop, pois é uma situação esperada
+          break;
+        }
+
+        // Se não for 404, incrementar contagem de retry
+        retryCount++;
+        
+        // Se não atingimos o número máximo de retries, aguardar antes de tentar novamente
+        if (retryCount < maxRetries) {
+          const retryDelay = 1000 * retryCount; // Aumentar o tempo de espera a cada tentativa
+          console.log(`[SubscriptionContext] Aguardando ${retryDelay}ms antes de tentar novamente...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
       }
-    } catch (err: any) {
-      console.error('Erro ao carregar assinatura:', err);
-      
-      // Se o erro for 404, significa que não há assinatura (não é realmente um erro)
-      if (err.response && err.response.status === 404) {
-        setCurrentSubscription(null);
-        const freePlan = availablePlans.find(p => p.id === 'free') || null;
-        setCurrentPlan(freePlan);
-      } else {
-        setError('Não foi possível carregar informações da sua assinatura. Tente novamente mais tarde.');
-      }
-    } finally {
-      setLoading(false);
     }
+
+    // Se todas as tentativas falharam e não é um erro 404, mostrar mensagem de erro
+    if (retryCount === maxRetries && lastError) {
+      console.error('[SubscriptionContext] Todas as tentativas falharam');
+      setError('Não foi possível carregar informações da sua assinatura. Tente novamente mais tarde.');
+    }
+
+    setLoading(false);
   };
 
   // Função auxiliar para determinar o tipo de plano a partir do ID
