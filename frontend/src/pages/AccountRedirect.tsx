@@ -80,90 +80,86 @@ const AccountRedirect = () => {
     if (authChecked && user && user.id) {
       const loadSubscriptionAndRedirect = async () => {
         try {
-          console.log('[AccountRedirect] Usuário autenticado:', user.id);
-          setLoadingMessage('Atualizando dados da assinatura...');
+          setIsLoading(true);
+          setLoadingMessage('Carregando dados da sua assinatura...');
           
-          // Verificar se temos informações na URL relevantes para depuração
-          if (sessionIdFromUrl) {
-            console.log(`[AccountRedirect] Session ID da URL: ${sessionIdFromUrl}`);
-          }
-          
-          // Sincronizar o usuário com o Asaas se necessário
-          if (!user.asaasCustomerId) {
-            console.log('[AccountRedirect] Usuário não possui asaasCustomerId, sincronizando...');
-            setLoadingMessage('Sincronizando dados com o sistema de pagamentos...');
+          // Se tiver um customerId na URL, verificar se precisa sincronizar
+          if (userIdFromUrl && !user.asaasCustomerId) {
+            console.log('[AccountRedirect] Usuário não possui um ID no Asaas, tentando sincronizar...');
+            setLoadingMessage('Sincronizando dados do seu pagamento...');
+            
             try {
-              const syncResult = await syncUserWithAsaas();
-              if (!syncResult) {
-                console.error('[AccountRedirect] Falha ao sincronizar usuário com Asaas');
-                setLoadingMessage('Não foi possível sincronizar seus dados de pagamento.');
-                setHasError(true);
-                setIsLoading(false);
-                
-                // Mesmo com erro, redirecionar após um tempo maior
-                setTimeout(() => {
-                  navigate('/billing', { replace: true });
-                }, 3000);
-                return;
+              const syncSuccess = await syncUserWithAsaas();
+              if (!syncSuccess) {
+                console.warn('[AccountRedirect] Sincronização com Asaas não retornou sucesso');
+                setLoadingMessage('Houve um problema com a sincronização de dados, mas continuaremos o processo...');
+              } else {
+                console.log('[AccountRedirect] Sincronização com Asaas bem-sucedida');
               }
-              console.log('[AccountRedirect] Sincronização com Asaas bem-sucedida');
             } catch (syncError) {
               console.error('[AccountRedirect] Erro ao sincronizar com Asaas:', syncError);
-              setLoadingMessage('Houve um problema com a sincronização de dados.');
-              setHasError(true);
-              setIsLoading(false);
-              
-              // Mesmo com erro, redirecionar após um tempo maior
-              setTimeout(() => {
-                navigate('/billing', { replace: true });
-              }, 3000);
-              return;
+              setLoadingMessage('Houve um problema com a sincronização de dados, mas continuaremos o processo...');
             }
           }
           
           // Tentar carregar os dados da assinatura várias vezes
           // para garantir que a API tenha tempo de registrar a assinatura
           let subscriptionLoaded = false;
+          let numAttempts = 5; // Aumentando o número de tentativas para casos difíceis
           
-          for (let i = 0; i < 5; i++) {
+          for (let i = 0; i < numAttempts; i++) {
             try {
-              console.log(`[AccountRedirect] Tentativa ${i+1} de carregar dados da assinatura para usuário ${user.id}`);
+              console.log(`[AccountRedirect] Tentativa ${i+1} de ${numAttempts} para carregar dados da assinatura para usuário ${user.id}`);
+              
+              // Mostrar mensagem adequada para o usuário
+              if (i > 0) {
+                setLoadingMessage(`Verificando dados da assinatura (tentativa ${i+1}/${numAttempts})...`);
+              }
+              
               await loadUserSubscription(true); // Forçar recarregamento
               subscriptionLoaded = true;
+              console.log('[AccountRedirect] Dados da assinatura carregados com sucesso');
               break;
             } catch (err) {
               console.error(`[AccountRedirect] Erro na tentativa ${i+1}:`, err);
               // Aguardar um período maior entre as tentativas
-              if (i < 4) {
-                const waitTime = 1000 * (i + 1); // Aumentar o tempo a cada tentativa
+              if (i < numAttempts - 1) {
+                const waitTime = 1500 * (i + 1); // Aumentar o tempo a cada tentativa e usar um tempo maior
                 console.log(`[AccountRedirect] Aguardando ${waitTime}ms antes da próxima tentativa`);
                 await new Promise(resolve => setTimeout(resolve, waitTime));
               }
             }
           }
           
+          // Verificar se conseguimos carregar a assinatura
+          if (!subscriptionLoaded) {
+            console.warn('[AccountRedirect] Não foi possível carregar a assinatura após várias tentativas');
+            setLoadingMessage('Não conseguimos verificar sua assinatura agora, mas você pode tentar novamente mais tarde.');
+          } else {
+            setLoadingMessage('Pagamento confirmado!');
+          }
+          
           // Indicar sucesso mesmo se não conseguir carregar a assinatura
           // já que pode ser um erro temporário que será resolvido quando
           // o usuário acessar a página de assinatura
           setIsSuccess(true);
-          setLoadingMessage('Pagamento confirmado!');
           setIsLoading(false);
           
           // Aguardar um momento para que o usuário veja a mensagem de sucesso
           setTimeout(() => {
             // Redirecionar para a página de assinatura
             navigate('/billing', { replace: true });
-          }, 1500);
+          }, 2000); // Aumentar o tempo para dar ao usuário mais tempo para ler a mensagem
         } catch (error) {
           console.error('[AccountRedirect] Erro ao carregar dados da assinatura:', error);
-          setLoadingMessage('Houve um problema ao atualizar seus dados.');
+          setLoadingMessage('Houve um problema ao atualizar seus dados, mas não se preocupe - sua assinatura pode já estar ativa.');
           setHasError(true);
           setIsLoading(false);
           
           // Mesmo com erro, redirecionar após um tempo
           setTimeout(() => {
             navigate('/billing', { replace: true });
-          }, 3000);
+          }, 4000); // Tempo maior para mensagens de erro
         }
       };
 

@@ -9,7 +9,7 @@ import './App.css';
 import { ThemeProvider } from './components/theme-provider';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import { NotificationsProvider } from "./context/NotificationsContext";
 import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -46,10 +46,17 @@ const createQueryClient = () => new QueryClient({
 // Componente de redirecionamento para /minha-conta
 const MinhaContaRedirect = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   
   useEffect(() => {
-    navigate('/billing', { replace: true });
-  }, [navigate]);
+    // Só redirecionar após a verificação de autenticação
+    if (!loading) {
+      // Se o usuário está autenticado, redirecionar para /billing
+      // Caso contrário, o ProtectedRoute já lidará com o login
+      navigate('/billing', { replace: true });
+      console.log('[MinhaContaRedirect] Redirecionando para /billing');
+    }
+  }, [navigate, loading, user]);
   
   return <LoadingScreen />;
 };
@@ -57,10 +64,17 @@ const MinhaContaRedirect = () => {
 // Componente de redirecionamento para /minha-conta/assinatura
 const MinhaContaAssinaturaRedirect = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   
   useEffect(() => {
-    navigate('/billing', { replace: true });
-  }, [navigate]);
+    // Só redirecionar após a verificação de autenticação
+    if (!loading) {
+      // Se o usuário está autenticado, redirecionar para /billing
+      // Caso contrário, o ProtectedRoute já lidará com o login
+      navigate('/billing', { replace: true });
+      console.log('[MinhaContaAssinaturaRedirect] Redirecionando para /billing');
+    }
+  }, [navigate, loading, user]);
   
   return <LoadingScreen />;
 };
@@ -68,10 +82,17 @@ const MinhaContaAssinaturaRedirect = () => {
 // Componente de redirecionamento para /account
 const AccountRouteRedirect = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   
   useEffect(() => {
-    navigate('/billing', { replace: true });
-  }, [navigate]);
+    // Só redirecionar após a verificação de autenticação
+    if (!loading) {
+      // Se o usuário está autenticado, redirecionar para /billing
+      // Caso contrário, o ProtectedRoute já lidará com o login
+      navigate('/billing', { replace: true });
+      console.log('[AccountRouteRedirect] Redirecionando para /billing');
+    }
+  }, [navigate, loading, user]);
   
   return <LoadingScreen />;
 };
@@ -164,9 +185,11 @@ const App = () => {
                           
                           {/* Redirecionamento da rota /account (usada após pagamento) */}
                           <Route path="/account" element={
-                            <Suspense fallback={<LoadingScreen />}>
-                              <AccountRouteRedirect />
-                            </Suspense>
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <AccountRouteRedirect />
+                              </Suspense>
+                            </ProtectedRoute>
                           } />
                           
                           <Route path="/billing" element={

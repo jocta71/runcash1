@@ -444,10 +444,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logAuthFlow(`Sincronizando usuário ${user.id} com Asaas`);
     
     try {
-      // Usar diretamente o endpoint local, sem depender do API_URL que pode estar redirecionando para o Railway
-      const response = await axios.post(`/api/asaas-api?path=sync-user-customer`, {
+      // Verificar se o usuário já tem um Asaas Customer ID
+      if (user.asaasCustomerId) {
+        logAuthFlow(`Usuário já possui um Asaas Customer ID: ${user.asaasCustomerId}`);
+        
+        try {
+          // Verificar se o ID do cliente é válido com uma chamada para validar
+          const verifyResponse = await axios.get(`/api/asaas-api`, {
+            params: { 
+              path: 'find-customer',
+              customerId: user.asaasCustomerId 
+            }
+          });
+          
+          if (verifyResponse.data.success) {
+            logAuthFlow('Asaas Customer ID já existente é válido');
+            return true;
+          } else {
+            logAuthFlow('Asaas Customer ID existente inválido, será criado um novo');
+          }
+        } catch (verifyError) {
+          logAuthFlow(`Erro ao verificar Customer ID existente: ${verifyError}`);
+          // Continuar para criar um novo
+        }
+      }
+      
+      // Usar uma API unificada para simplificar as chamadas
+      const response = await axios.post(`/api/asaas-api`, {
+        path: 'sync-user-customer',
         userId: user.id,
-        email: user.email
+        email: user.email,
+        name: user.username
       });
       
       if (response.data.success) {
@@ -469,6 +496,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       logAuthFlow(`Erro durante sincronização: ${error.message}`);
       console.error("Erro detalhado na sincronização:", error);
+      
+      // Tentar chamada alternativa ao endpoint específico
+      try {
+        logAuthFlow("Tentando endpoint específico de sincronização");
+        const altResponse = await axios.post(`/api/sync-user-customer`, {
+          userId: user.id,
+          email: user.email
+        });
+        
+        if (altResponse.data.success) {
+          const { asaasCustomerId } = altResponse.data;
+          
+          // Atualizar o usuário com o ID do cliente Asaas
+          const updatedUser = {
+            ...user,
+            asaasCustomerId
+          };
+          
+          setUser(updatedUser);
+          logAuthFlow(`Sincronização alternativa bem-sucedida. Customer ID: ${asaasCustomerId}`);
+          return true;
+        }
+      } catch (altError) {
+        logAuthFlow(`Erro na tentativa alternativa de sincronização: ${altError}`);
+      }
+      
       return false;
     }
   };
