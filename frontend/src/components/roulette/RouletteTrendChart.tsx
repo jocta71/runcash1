@@ -1,14 +1,10 @@
 import React from 'react';
 import {
-  LineChart,
-  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
   CartesianGrid,
-  Legend,
-  ReferenceLine,
   Area,
   AreaChart
 } from 'recharts';

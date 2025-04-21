@@ -1,37 +1,27 @@
-import { ChartBar, BarChart, ArrowDown, ArrowUp, PercentIcon, ChevronDown, Filter, X } from "lucide-react";
-import React, { useState, useEffect, useRef, useMemo, useCallback, Fragment } from 'react';
+import { ChartBar, BarChart, ChevronDown, Filter, X } from "lucide-react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   ResponsiveContainer,
-  BarChart as RechartsBarChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
   Tooltip,
-  Bar,
   PieChart,
   Pie,
   Cell,
-  Legend,
 } from "recharts";
 import globalRouletteDataService from '../services/GlobalRouletteDataService';
-import rouletteHistoryService from '../services/RouletteHistoryService';
 import { getLogger } from '../services/utils/logger';
 import { uniqueId } from 'lodash';
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";

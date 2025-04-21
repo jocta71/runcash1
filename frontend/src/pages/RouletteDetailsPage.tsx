@@ -4,8 +4,6 @@ import { ChartBar, ArrowLeft, TrendingUp, BarChart, ArrowDown, ArrowUp, PercentI
 import { Button } from '@/components/ui/button';
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
   BarChart as RechartsBarChart,
   CartesianGrid,
   XAxis,

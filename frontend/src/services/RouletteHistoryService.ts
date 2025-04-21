@@ -1,6 +1,4 @@
 import { getLogger } from './utils/logger';
-import { fetchWithCorsSupport } from '../utils/api-helpers';
-import globalRouletteDataService from './GlobalRouletteDataService';
 
 export interface RouletteHistoricalNumber {
   rouletteName: string;

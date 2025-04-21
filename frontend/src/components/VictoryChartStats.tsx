@@ -6,8 +6,6 @@ import {
   VictoryTheme,
   VictoryAxis,
   VictoryTooltip,
-  VictoryLabel,
-  VictoryLegend,
   VictoryContainer
 } from 'victory';
 import { ChartBar, BarChart, PercentIcon } from "lucide-react";

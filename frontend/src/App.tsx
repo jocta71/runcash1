@@ -1,10 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
-import { useState, useEffect, lazy, Suspense, useRef } from "react";
-import SocketService from '@/services/SocketAdapter';
+import { useEffect, lazy, Suspense, useRef } from "react";
 import LoadingScreen from './components/LoadingScreen';
 import './App.css';
 import { ThemeProvider } from './components/theme-provider';
@@ -12,10 +11,8 @@ import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
 import { AuthProvider } from "./context/AuthContext";
 import { NotificationsProvider } from "./context/NotificationsContext";
-import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom';
 import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
-import AuthPage from "./pages/AuthPage";
 import SoundManager from "./components/SoundManager";
 import { LoginModalProvider } from "./context/LoginModalContext";
 

@@ -1,4 +1,3 @@
-import rouletteHistoryService from './RouletteHistoryService';
 import { getLogger } from './utils/logger';
 
 const logger = getLogger('RouletteHistoryStats');

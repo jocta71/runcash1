@@ -9,18 +9,14 @@ import {
   mapToCanonicalRouletteId,
   ROLETAS_CANONICAS,
   fetchRouletteNumbersById,
-  fetchRoulettes,
   fetchRoulettesWithRealNumbers
 } from '@/integrations/api/rouletteService';
-import { toast } from '@/components/ui/use-toast';
 import SocketService from '@/services/SocketService';
 import axios from 'axios';
 import config from '@/config/env';
-import FetchService from '@/services/FetchService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
 import { getLogger } from '@/services/utils/logger';
 import RouletteFeedService from '@/services/RouletteFeedService';
-import { useQuery } from '@tanstack/react-query';
 
 // Logger específico para este componente
 const logger = getLogger('RouletteData');
@@ -70,7 +66,7 @@ const rouletteDataCache: Map<string, RouletteNumber[]> = new Map();
 const rouletteStrategyCache: Map<string, RouletteStrategy> = new Map();
 
 // Flag global para controlar a inicialização única do sistema
-let SYSTEM_INITIALIZED = false;
+const SYSTEM_INITIALIZED = false;
 
 // Interface para definir a estrutura dos dados da roleta
 export interface RouletteDataSummary {

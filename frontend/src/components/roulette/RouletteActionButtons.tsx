@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dices, Play, Database, RefreshCw } from 'lucide-react';
+import { Dices, Play, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface RouletteActionButtonsProps {

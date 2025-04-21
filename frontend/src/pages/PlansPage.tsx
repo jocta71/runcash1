@@ -1,17 +1,11 @@
 import { useState } from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { PlanType } from '@/types/plans';
-import { Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+
+
 import { useAuth } from '@/context/AuthContext';
-import { PaymentForm } from '@/components/PaymentForm';
 import { useNavigate } from 'react-router-dom';
 
 const PlansPage = () => {

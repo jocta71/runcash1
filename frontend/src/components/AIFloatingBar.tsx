@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Send, X, RotateCcw, Loader2, Bot, ChevronUp, MessageSquare, Sparkles } from 'lucide-react';
+import { Send, X, RotateCcw, MessageSquare, Sparkles } from 'lucide-react';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 
 interface AIMessage {
@@ -142,9 +142,9 @@ const AIFloatingBar: React.FC = () => {
       
       // Identificar tendências
       const trends = [];
-      let colorStreak = { color: null, count: 0 };
-      let parityStreak = { parity: null, count: 0 };
-      let dozenStreak = { dozen: null, count: 0 };
+      const colorStreak = { color: null, count: 0 };
+      const parityStreak = { parity: null, count: 0 };
+      const dozenStreak = { dozen: null, count: 0 };
       
       // Tendências de cor
       for (let i = 0; i < Math.min(10, recentNumbers.length); i++) {

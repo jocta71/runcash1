@@ -4,7 +4,6 @@ import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import { RouletteData } from '@/integrations/api/rouletteService';
 // import axios from 'axios'; // Removido - não precisamos mais de requisições diretas
 import { Loader2 } from 'lucide-react';
-import SocketService from '@/services/SocketService';
 import EventService from '@/services/EventService';
 import RouletteFeedService from '@/services/RouletteFeedService';
 // Remover a importação do initializeRouletteSystem pois vamos usar o service diretamente

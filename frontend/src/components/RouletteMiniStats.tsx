@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
-import { BarChart3, RefreshCw } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import RouletteSidePanelStats from './RouletteSidePanelStats';
 
 interface RouletteMiniStatsProps {

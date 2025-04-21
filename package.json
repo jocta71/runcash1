@@ -2,17 +2,35 @@
   "name": "runcashh1",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "test": "echo \"No tests configured\"",
     "dev": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
     "build:dev": "cd frontend && npm run build:dev",
-    "preview": "cd frontend && npm run preview"
+    "preview": "cd frontend && npm run preview",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "find-unused-files": "ts-unused-exports tsconfig.json",
+    "find-orphans": "madge --extensions ts,tsx,js,jsx --orphans ./frontend/src",
+    "dependency-graph": "madge --extensions ts,tsx,js,jsx --image dependency-graph.svg ./frontend/src",
+    "find-circular": "madge --extensions ts,tsx,js,jsx --circular ./frontend/src"
   },
   "dependencies": {
     "axios": "^1.8.4",
     "dotenv": "^16.5.0",
     "lucide-react": "^0.501.0",
     "mongodb": "^6.15.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.4.0",
+    "@typescript-eslint/parser": "^7.4.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.6",
+    "eslint-plugin-unused-imports": "^3.1.0",
+    "madge": "^6.1.0",
+    "ts-unused-exports": "^11.0.1",
+    "typescript-eslint": "^7.0.2"
   }
 }

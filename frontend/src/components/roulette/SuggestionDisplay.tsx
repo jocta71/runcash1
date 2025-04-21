@@ -1,7 +1,5 @@
 import React from 'react';
-import { WandSparkles, Eye, EyeOff, Target, AlertTriangle, Info } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import RouletteNumber from './RouletteNumber';
+import { Eye, EyeOff, Target } from 'lucide-react';
 
 interface SuggestionDisplayProps {
   suggestion: string | number[];

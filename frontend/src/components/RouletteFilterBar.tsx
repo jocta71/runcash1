@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCcw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import RouletteSearch from '@/components/RouletteSearch';
 import { RouletteData } from '@/types';
 import { 
   filterRoulettesBySearchTerm

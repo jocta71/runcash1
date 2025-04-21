@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { CreditCard, Check, ExternalLink } from 'lucide-react';
+import { CreditCard, ExternalLink } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";

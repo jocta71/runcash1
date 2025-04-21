@@ -1,9 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import EventService from '@/services/EventService';
 import RouletteFeedService from '@/services/RouletteFeedService';
-import { cn } from '@/lib/utils';
-import { RouletteNumberEvent } from '@/types';
 
 interface RouletteNumbersProps {
   tableId: string;

@@ -1,8 +1,4 @@
-import { toast } from '@/components/ui/use-toast';
-import config from '@/config/env';
 import { getRequiredEnvVar, isProduction } from '../config/env';
-import { mapToCanonicalRouletteId, ROLETAS_CANONICAS } from '../integrations/api/rouletteService';
-import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo

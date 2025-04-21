@@ -10,8 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   Home,
   Settings,
-  CreditCard,
-  User
+  CreditCard
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";

@@ -8,7 +8,7 @@ import { getLogger } from './services/utils/logger'
 import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
-import globalRouletteDataService, { GlobalRouletteDataService } from './services/GlobalRouletteDataService'
+import globalRouletteDataService from './services/GlobalRouletteDataService'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {

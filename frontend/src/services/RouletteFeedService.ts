@@ -1,7 +1,5 @@
-import config from '@/config/env';
 import EventService from './EventService';
 import { getLogger } from './utils/logger';
-import { HistoryData } from './SocketService';
 import globalRouletteDataService from './GlobalRouletteDataService';
 
 // Criar uma única instância do logger
@@ -23,7 +21,7 @@ const MIN_SUCCESS_STREAK_FOR_NORMALIZATION = 3; // Sucessos consecutivos para no
 
 // Controle global para evitar requisições concorrentes de diferentes instâncias
 let GLOBAL_IS_FETCHING = false;
-let GLOBAL_LAST_REQUEST_TIME = 0;
+const GLOBAL_LAST_REQUEST_TIME = 0;
 const GLOBAL_PENDING_REQUESTS = new Set<string>();
 const GLOBAL_REQUEST_LOCK_TIME = 10000; // Tempo máximo que uma requisição pode travar o sistema
 let GLOBAL_SYSTEM_HEALTH = true; // Flag global para indicar saúde do sistema

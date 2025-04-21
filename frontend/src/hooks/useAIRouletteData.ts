@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
 
 // Interface para definir a estrutura dos dados da roleta
 export interface RouletteDataSummary {

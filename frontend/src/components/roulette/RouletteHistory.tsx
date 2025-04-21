@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import EventService from '@/services/EventService';
-import { RouletteNumberEvent } from '@/types';
 import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 
 interface RouletteHistoryProps {

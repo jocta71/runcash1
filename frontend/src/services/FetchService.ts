@@ -8,7 +8,6 @@ import { RouletteNumberEvent } from './EventService';
 import { RequestThrottler } from './utils/requestThrottler';
 import { getLogger } from './utils/logger';
 import config from '@/config/env';
-import { getCachedUUID, cacheUUID } from '@/lib/localStorage';
 import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 
 const logger = getLogger('FetchService');

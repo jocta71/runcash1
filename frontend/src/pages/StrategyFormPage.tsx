@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Loader2, ArrowLeft, Save } from 'lucide-react';
-import StrategyService, { Strategy } from '@/services/StrategyService';
+import StrategyService from '@/services/StrategyService';
 
 // Interface para as configurações de regras
 interface StrategyRules {

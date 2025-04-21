@@ -1,5 +1,4 @@
 import axios from 'axios';
-import config from '@/config/env';
 import EventService from './EventService';
 
 // Tipo para configuração do adaptador

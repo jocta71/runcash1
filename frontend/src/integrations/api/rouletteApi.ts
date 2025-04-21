@@ -1,4 +1,3 @@
-import axios from 'axios';
 // Removendo a importação do mapeamento canônico que pode estar filtrando roletas
 // import { mapToCanonicalRouletteId } from './rouletteService';
 

@@ -324,7 +324,7 @@ export const RouletteRepository = {
         this.addNewNumberToRoulette(numericId, data);
         
         // Extrair o ID da roleta do evento
-        let eventRouletaId = data.roleta_id || data.roulette_id;
+        const eventRouletaId = data.roleta_id || data.roulette_id;
         if (eventRouletaId && eventRouletaId !== numericId) {
           logger.debug(`⚠️ ID da roleta no evento (${eventRouletaId}) é diferente do ID assinado (${numericId})`);
           

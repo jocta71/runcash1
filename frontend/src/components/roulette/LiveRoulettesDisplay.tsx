@@ -1,12 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import RouletteCard from '@/components/RouletteCard';
 import { RouletteData } from '@/integrations/api/rouletteService';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import LastNumbersBar from './LastNumbersBar';
 import EventService from '@/services/EventService';
-import CasinoAPIAdapter from '@/services/CasinoAPIAdapter';
-import RouletteMiniStats from '@/components/RouletteMiniStats';
-import RouletteStatsModal from '@/components/RouletteStatsModal';
 import RouletteStatsInline from './RouletteStatsInline';
 
 // Componente de estatísticas inline 

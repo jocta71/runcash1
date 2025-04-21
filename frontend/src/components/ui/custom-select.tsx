@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Input } from './input';
 import { ChevronsUpDown } from 'lucide-react';
 
 interface CustomSelectProps {

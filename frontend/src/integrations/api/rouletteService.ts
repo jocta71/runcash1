@@ -1,6 +1,4 @@
 import axios from 'axios';
-import { getRequiredEnvVar, getEnvVar } from '../../config/env';
-import { filterAllowedRoulettes, isRouletteAllowed, ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 
 // Tipos para a API
 export interface RouletteData {

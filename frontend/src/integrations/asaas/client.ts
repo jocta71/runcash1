@@ -212,9 +212,12 @@ export const findAsaasPayment = async (paymentId: string): Promise<any> => {
  */
 interface PixQrCodeResponse {
   success: boolean;
-  qrCodeImage: string;
-  qrCodeText: string;
-  expirationDate?: string;
+  qrCode: {
+    encodedImage: string;
+    payload: string;
+    expirationDate?: string;
+  };
+  payment: any;
 }
 
 /**
@@ -238,9 +241,9 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
     }
     
     return {
-      qrCodeImage: response.data.qrCodeImage,
-      qrCodeText: response.data.qrCodeText,
-      expirationDate: response.data.expirationDate
+      qrCodeImage: response.data.qrCode.encodedImage,
+      qrCodeText: response.data.qrCode.payload,
+      expirationDate: response.data.qrCode.expirationDate
     };
   } catch (error) {
     console.error('Erro ao buscar QR code PIX no Asaas:', error);
@@ -271,7 +274,7 @@ export const checkPaymentStatus = (
 ): (() => void) => {
   let timeoutId: number | null = null;
   let intervalId: number | null = null;
-  let startTime = Date.now();
+  const startTime = Date.now();
   
   const stopChecking = () => {
     if (intervalId !== null) {
