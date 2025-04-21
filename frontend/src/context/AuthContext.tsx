@@ -482,6 +482,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     }
     
+    // Função para sanitizar o nome do usuário e garantir que seja válido para o Asaas
+    const sanitizeName = (name?: string): string => {
+      // Se o nome não existir, usar o email
+      if (!name) {
+        return user.email.split('@')[0];
+      }
+      
+      // Verificar se o nome contém caracteres estranhos ou padrão suspeito
+      const invalidPattern = /^(.)\1{5,}$/; // Detecta padrões como "aaaaaaa" ou "fffffff"
+      const specialCharsPattern = /[^a-zA-Z0-9\s\-_.áàâãéèêíìîóòôõúùûçÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÇ]/g;
+      
+      if (invalidPattern.test(name) || name.length < 3 || name.length > 60) {
+        logAuthFlow(`Nome inválido detectado: "${name}". Usando parte do email.`);
+        return user.email.split('@')[0];
+      }
+      
+      // Remover caracteres especiais e limitar o tamanho
+      return name.replace(specialCharsPattern, ' ').trim().substring(0, 60);
+    };
+    
+    // Obter um nome sanitizado para envio
+    const sanitizedName = sanitizeName(user.username);
+    logAuthFlow(`Nome sanitizado para sincronização: "${sanitizedName}"`);
+    
     // Contadores para limitar tentativas
     let attemptsLeft = 2;
     
@@ -496,7 +520,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           path: 'sync-user-customer',
           userId: user.id,
           email: user.email,
-          name: user.username || user.email.split('@')[0] // Usar parte do email como nome se username não existir
+          name: sanitizedName // Usar o nome sanitizado
         }, {
           timeout: 8000 // Aumentar timeout para 8 segundos
         });
@@ -532,7 +556,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             logAuthFlow("Tentando endpoint específico de sincronização como fallback");
             const altResponse = await axios.post(`/api/sync-user-customer`, {
               userId: user.id,
-              email: user.email
+              email: user.email,
+              name: sanitizedName // Usar o nome sanitizado também no fallback
             }, {
               timeout: 8000 // Aumentar timeout para 8 segundos
             });

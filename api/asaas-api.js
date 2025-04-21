@@ -764,7 +764,30 @@ async function handleSyncUserCustomer(req, res) {
     }
 
     // Cria um novo cliente no Asaas
-    const name = user.username || email.split('@')[0];
+    const sanitizeName = (inputName) => {
+      if (!inputName || inputName.length < 3) {
+        return email.split('@')[0]; // Usa parte do email como fallback
+      }
+      
+      // Detecta padrões repetitivos como "aaaaaaa" ou "ffffff"
+      const invalidPattern = /^(.)\1{5,}$/;
+      if (invalidPattern.test(inputName)) {
+        console.log(`Nome inválido detectado: "${inputName}". Usando parte do email.`);
+        return email.split('@')[0];
+      }
+      
+      // Remove caracteres especiais e limita o tamanho (Asaas aceita até 60 caracteres)
+      const specialCharsPattern = /[^a-zA-Z0-9\s\-_.áàâãéèêíìîóòôõúùûçÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÇ]/g;
+      return (inputName || '')
+        .replace(specialCharsPattern, ' ')
+        .trim()
+        .substring(0, 60) || email.split('@')[0];
+    };
+
+    // Obter nome do request body ou do usuário, e sanitizar
+    const name = sanitizeName(req.body.name || user.username);
+    console.log(`Nome sanitizado para uso no Asaas: "${name}"`);
+
     const customerPayload = {
       name,
       email,
@@ -773,42 +796,50 @@ async function handleSyncUserCustomer(req, res) {
 
     console.log('Criando cliente no Asaas:', customerPayload);
 
-    const createCustomerResponse = await apiClient.post(`/customers`, customerPayload);
+    try {
+      const createCustomerResponse = await apiClient.post(`/customers`, customerPayload);
 
-    if (createCustomerResponse.status !== 200) {
-      console.log('Falha na criação do cliente no Asaas', createCustomerResponse.data);
+      if (createCustomerResponse.status !== 200) {
+        console.log('Falha na criação do cliente no Asaas', createCustomerResponse.data);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Falha ao criar o cliente no Asaas' 
+        });
+      }
+
+      const asaasCustomerId = createCustomerResponse.data.id;
+      console.log(`Cliente criado no Asaas com ID: ${asaasCustomerId}`);
+
+      // Tenta atualizar o usuário com o ID do cliente Asaas, se o MongoDB estiver disponível
+      if (db) {
+        try {
+          await db.collection('users').updateOne(
+            { _id: new ObjectId(userId) },
+            { $set: { asaasCustomerId } }
+          );
+          console.log(`Usuário ${userId} atualizado no MongoDB com asaasCustomerId`);
+        } catch (updateError) {
+          console.error('Erro ao atualizar usuário no MongoDB:', updateError.message);
+          console.error(updateError.stack);
+          // Continuamos mesmo sem conseguir atualizar o MongoDB
+        }
+      } else {
+        console.log('Pulando atualização no MongoDB pois a conexão não está disponível');
+      }
+
+      // Retorna o resultado
+      return res.status(200).json({
+        success: true,
+        asaasCustomerId,
+        message: 'Cliente criado no Asaas com sucesso'
+      });
+    } catch (asaasError) {
+      console.error('Erro na API do Asaas:', asaasError.response?.data || asaasError.message);
       return res.status(500).json({ 
         success: false, 
-        error: 'Falha ao criar o cliente no Asaas' 
+        error: `Erro na API do Asaas: ${asaasError.response?.data?.errors?.description || asaasError.message}` 
       });
     }
-
-    const asaasCustomerId = createCustomerResponse.data.id;
-    console.log(`Cliente criado no Asaas com ID: ${asaasCustomerId}`);
-
-    // Tenta atualizar o usuário com o ID do cliente Asaas, se o MongoDB estiver disponível
-    if (db) {
-      try {
-        await db.collection('users').updateOne(
-          { _id: new ObjectId(userId) },
-          { $set: { asaasCustomerId } }
-        );
-        console.log(`Usuário ${userId} atualizado no MongoDB com asaasCustomerId`);
-      } catch (updateError) {
-        console.error('Erro ao atualizar usuário no MongoDB:', updateError.message);
-        console.error(updateError.stack);
-        // Continuamos mesmo sem conseguir atualizar o MongoDB
-      }
-    } else {
-      console.log('Pulando atualização no MongoDB pois a conexão não está disponível');
-    }
-
-    // Retorna o resultado
-    return res.status(200).json({
-      success: true,
-      asaasCustomerId,
-      message: 'Cliente criado no Asaas com sucesso'
-    });
   } catch (error) {
     console.error('Erro ao sincronizar usuário com Asaas:', error);
     return res.status(500).json({ 
