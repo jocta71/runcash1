@@ -1,4 +1,4 @@
-// Endpoint para atualização de dados de cliente no Asaas
+// Endpoint de atualização de cliente Asaas
 const axios = require('axios');
 
 module.exports = async (req, res) => {
@@ -24,19 +24,11 @@ module.exports = async (req, res) => {
   try {
     const { customerId, name, email, cpfCnpj, mobilePhone } = req.body;
 
-    // Validar campos obrigatórios
+    // Validar campo obrigatório customerId
     if (!customerId) {
       return res.status(400).json({ 
         success: false,
         error: 'Campo obrigatório: customerId' 
-      });
-    }
-
-    // Verificar se há campos para atualizar
-    if (!name && !email && !cpfCnpj && !mobilePhone) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Nenhum campo para atualizar foi fornecido' 
       });
     }
 
@@ -63,6 +55,8 @@ module.exports = async (req, res) => {
       }
     });
 
+    console.log(`Atualizando cliente ${customerId} com novos dados`);
+    
     // Preparar dados para atualização
     const updateData = {};
     if (name) updateData.name = name;
@@ -71,8 +65,6 @@ module.exports = async (req, res) => {
     if (mobilePhone) updateData.mobilePhone = mobilePhone;
     
     // Chamar API para atualizar
-    console.log(`Atualizando cliente Asaas ID: ${customerId}`, updateData);
-    
     const updateResponse = await apiClient.post(`/customers/${customerId}`, updateData);
     const updatedCustomer = updateResponse.data;
     
@@ -85,15 +77,14 @@ module.exports = async (req, res) => {
       customer: updatedCustomer,
       message: 'Cliente atualizado com sucesso'
     });
-    
   } catch (error) {
-    console.error('Erro ao atualizar cliente:', error.message);
+    console.error('Erro ao processar solicitação:', error.message);
     
     // Verificar se o erro é da API do Asaas
     if (error.response && error.response.data) {
       return res.status(error.response.status || 500).json({
         success: false,
-        error: 'Erro na API do Asaas ao atualizar cliente',
+        error: 'Erro na API do Asaas',
         details: error.response.data
       });
     }

@@ -118,7 +118,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
       // Se o usuário não tiver um ID de cliente no Asaas, criar um novo
       if (!customerId) {
         console.log('Criando novo cliente no Asaas...');
-        // Criar ou recuperar cliente no Asaas
+        // Criar ou recuperar cliente no Asaas com o CPF
         customerId = await createAsaasCustomer({
           name: formData.name,
           email: formData.email,
@@ -129,10 +129,9 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         
         console.log('Cliente criado/recuperado com ID:', customerId);
       } else {
-        console.log('Usando customerId existente:', customerId);
-        
-        // Atualizar o cliente existente com o CPF
         console.log('Atualizando cliente existente com CPF...');
+        
+        // Garantir que o cliente tenha o CPF antes de criar a assinatura
         const updated = await updateAsaasCustomer(customerId, {
           cpfCnpj: cpfClean,
           name: formData.name,
@@ -142,7 +141,10 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         if (updated) {
           console.log('Cliente atualizado com sucesso');
         } else {
-          console.warn('Falha ao atualizar cliente, tentando prosseguir com a assinatura mesmo assim');
+          console.warn('Não foi possível atualizar o cliente com o CPF');
+          setError("Não foi possível atualizar o registro do cliente. Por favor, tente novamente.");
+          setIsLoading(false);
+          return;
         }
       }
       
@@ -179,6 +181,8 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
           setError("Serviço de pagamento indisponível no momento. Por favor, tente novamente mais tarde.");
         } else if (error.message.includes('Network Error')) {
           setError("Erro de conexão. Verifique sua internet e tente novamente.");
+        } else if (error.message.includes('CPF ou CNPJ')) {
+          setError("É necessário preencher um CPF válido para prosseguir com a assinatura.");
         } else {
           setError(`Erro ao processar assinatura: ${error.message}`);
         }
