@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useLoginModal } from '@/context/LoginModalContext';
-import { useSessionExpiration } from '@/hooks/useSessionExpiration';
-import { AUTH_MESSAGES } from '@/constants/auth-messages';
 import LoadingScreen from './LoadingScreen';
 import { useLocation } from 'react-router-dom';
 
@@ -12,7 +10,6 @@ interface ProtectedRouteProps {
   modalOptions?: {
     redirectAfterLogin?: string;
     message?: string;
-    context?: 'payment' | 'subscription' | 'account' | 'generic';
   };
 }
 
@@ -28,7 +25,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, loading, checkAuth } = useAuth();
   const { showLoginModal } = useLoginModal();
-  const { handleSessionExpired } = useSessionExpiration();
   const location = useLocation();
   const [authChecked, setAuthChecked] = useState(false);
   // Flag para controlar se o modal já foi mostrado
@@ -39,26 +35,31 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     message?: string; 
     redirectAfterLogin?: string;
     showLoginModal?: boolean;
-    context?: 'payment' | 'subscription' | 'account' | 'generic';
   } | undefined;
 
   // Efeito para verificar se há parâmetros no estado da navegação para mostrar modal de login
   useEffect(() => {
     if (locationState?.showLoginModal && !modalShown && !user) {
       console.log('[ProtectedRoute] Mostrando modal de login a partir de estado de navegação');
+      const options: Record<string, string> = {};
       
       if (locationState.redirectAfterLogin) {
-        const context = locationState.context || 'generic';
-        const message = locationState.message || AUTH_MESSAGES.SESSION_EXPIRED;
-        
-        handleSessionExpired(locationState.redirectAfterLogin, context);
+        options.redirectAfterLogin = locationState.redirectAfterLogin;
+      }
+      
+      if (locationState.message) {
+        options.message = locationState.message;
+      }
+      
+      if (Object.keys(options).length > 0) {
+        showLoginModal(options);
       } else {
-        handleSessionExpired();
+        showLoginModal();
       }
       
       setModalShown(true);
     }
-  }, [locationState, modalShown, user, handleSessionExpired]);
+  }, [locationState, modalShown, user, showLoginModal]);
 
   useEffect(() => {
     // Evitar verificações repetidas se já tiver um usuário ou já estiver verificado
@@ -77,12 +78,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     // Só mostrar o modal se autenticação for requerida, usuário não estiver logado
     // e o modal ainda não foi mostrado nesta sessão
     if (requireAuth && !user && authChecked && !modalShown && !loading) {
-      // Determinar o contexto da expiração de sessão
-      const context = modalOptions?.context || locationState?.context || 'generic';
-      const redirectPath = modalOptions?.redirectAfterLogin || locationState?.redirectAfterLogin || location.pathname;
+      // Combinar opções do componente com opções da location state
+      const combinedOptions = {
+        redirectAfterLogin: modalOptions?.redirectAfterLogin || locationState?.redirectAfterLogin || location.pathname,
+        message: modalOptions?.message || locationState?.message
+      };
       
-      // Usar o hook para mostrar o modal com as mensagens adequadas
-      handleSessionExpired(redirectPath, context);
+      // Só incluir mensagem e redirecionamento se realmente existirem
+      const loginOptions: Record<string, string> = {};
+      if (combinedOptions.redirectAfterLogin) {
+        loginOptions.redirectAfterLogin = combinedOptions.redirectAfterLogin;
+      }
+      if (combinedOptions.message) {
+        loginOptions.message = combinedOptions.message;
+      }
+      
+      showLoginModal(Object.keys(loginOptions).length > 0 ? loginOptions : undefined);
       setModalShown(true);
     }
     
@@ -90,7 +101,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     if (user) {
       setModalShown(false);
     }
-  }, [requireAuth, user, authChecked, modalShown, loading, handleSessionExpired, modalOptions, locationState, location.pathname]);
+  }, [requireAuth, user, authChecked, modalShown, loading, showLoginModal, modalOptions, locationState, location.pathname]);
 
   // Mostrar tela de carregamento apenas durante a verificação inicial
   if (loading && !authChecked) {
