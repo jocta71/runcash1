@@ -318,7 +318,8 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       // Chamar API para atualizar o usuário no banco de dados
       const updateResponse = await axios.post(`${API_URL}/api/update-user`, {
-        asaasCustomerId: customerId
+        asaasCustomerId: customerId,
+        userId: userData.id // Enviar userId explicitamente para o caso do JWT falhar
       });
       
       if (updateResponse.data.success) {
@@ -339,6 +340,15 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     } catch (error) {
       console.error('[SubscriptionContext] Erro ao atualizar asaasCustomerId do usuário:', error);
+      // Mesmo com erro na API, atualizar localmente
+      if (setUser && typeof setUser === 'function') {
+        setUser({
+          ...userData,
+          asaasCustomerId: customerId
+        });
+        console.log('[SubscriptionContext] Usuário atualizado apenas localmente devido a erro na API');
+        return true;
+      }
       return false;
     }
   };
