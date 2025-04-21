@@ -68,7 +68,15 @@ const PaymentSuccessPage: React.FC = () => {
           if (authStatus === 'authenticated') {
             navigate('/account');
           } else {
-            navigate('/login', { state: { message: 'Por favor, faça login para acessar sua conta e ver sua assinatura.' } });
+            // Em vez de navegar para /login (que não existe), navegar para
+            // a página inicial e mostrar o modal de login
+            navigate('/', { 
+              state: { 
+                showLoginModal: true,
+                message: 'Por favor, faça login para acessar sua conta e ver sua assinatura.',
+                redirectAfterLogin: '/account'
+              } 
+            });
           }
           return 0;
         }
@@ -77,7 +85,7 @@ const PaymentSuccessPage: React.FC = () => {
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [navigate, authChecked, authStatus, isPaused]);
+  }, [navigate, authChecked, authStatus, isPaused, showLoginModal]);
   
   // Mostrar informações de depuração (visível apenas em ambiente de desenvolvimento)
   const showDebugInfo = process.env.NODE_ENV === 'development';
@@ -119,7 +127,7 @@ const PaymentSuccessPage: React.FC = () => {
                   ? `Você será redirecionado para sua conta em ${countdown} segundos...`
                   : isPaused
                     ? 'Por favor, faça login para continuar.'
-                    : 'Você será redirecionado para a página de login em ' + countdown + ' segundos...'}
+                    : 'Você será redirecionado para a página inicial em ' + countdown + ' segundos...'}
               </p>
               
               <div className="flex justify-center gap-4">

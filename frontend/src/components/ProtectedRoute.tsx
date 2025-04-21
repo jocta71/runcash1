@@ -34,7 +34,32 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const locationState = location.state as { 
     message?: string; 
     redirectAfterLogin?: string;
+    showLoginModal?: boolean;
   } | undefined;
+
+  // Efeito para verificar se há parâmetros no estado da navegação para mostrar modal de login
+  useEffect(() => {
+    if (locationState?.showLoginModal && !modalShown && !user) {
+      console.log('[ProtectedRoute] Mostrando modal de login a partir de estado de navegação');
+      const options: Record<string, string> = {};
+      
+      if (locationState.redirectAfterLogin) {
+        options.redirectAfterLogin = locationState.redirectAfterLogin;
+      }
+      
+      if (locationState.message) {
+        options.message = locationState.message;
+      }
+      
+      if (Object.keys(options).length > 0) {
+        showLoginModal(options);
+      } else {
+        showLoginModal();
+      }
+      
+      setModalShown(true);
+    }
+  }, [locationState, modalShown, user, showLoginModal]);
 
   useEffect(() => {
     // Evitar verificações repetidas se já tiver um usuário ou já estiver verificado

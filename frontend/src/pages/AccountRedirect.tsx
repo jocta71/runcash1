@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { useAuth } from '@/context/AuthContext';
+import { useLoginModal } from '@/context/LoginModalContext';
 
 /**
  * Componente de redirecionamento para a rota /account
@@ -14,6 +15,7 @@ const AccountRedirect = () => {
   const location = useLocation();
   const { user, loading: authLoading, checkAuth, setUser } = useAuth();
   const { loadUserSubscription } = useSubscription();
+  const { showLoginModal } = useLoginModal();
   const [isLoading, setIsLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState('Processando pagamento...');
   const [isSuccess, setIsSuccess] = useState(false);
@@ -24,6 +26,28 @@ const AccountRedirect = () => {
   const queryParams = new URLSearchParams(location.search);
   const userIdFromUrl = queryParams.get('userId');
   const sessionIdFromUrl = queryParams.get('session_id');
+
+  // Função para mostrar modal de login em vez de redirecionar para página de login
+  const handleShowLoginModal = (redirectPath = '/minha-conta/assinatura', message = 'Sessão expirada. Por favor, faça login novamente.') => {
+    // Opção 1: Mostrar o modal diretamente (se estivermos em uma página que possa exibi-lo)
+    showLoginModal({
+      redirectAfterLogin: redirectPath,
+      message: message
+    });
+    
+    // Opção 2: Redirecionar para página inicial com parâmetros para mostrar o modal
+    // (Comentado porque vamos tentar primeiro a opção 1)
+    /*
+    navigate('/', { 
+      replace: true,
+      state: { 
+        showLoginModal: true,
+        message: message,
+        redirectAfterLogin: redirectPath
+      }
+    });
+    */
+  };
 
   // Primeiro efeito: verificar autenticação
   useEffect(() => {
@@ -44,17 +68,14 @@ const AccountRedirect = () => {
             console.log('[AccountRedirect] Tentando restaurar sessão a partir do userId...');
             
             // Aqui poderia ser implementada a lógica para restaurar a sessão com o backend
-            // Por enquanto, apenas redirecionamos para login com mensagem informativa
+            // Por enquanto, apenas exibimos o modal de login com mensagem informativa
             setHasError(true);
-            setLoadingMessage('Sessão expirada. Redirecionando para login...');
+            setLoadingMessage('Sessão expirada. Por favor, faça login novamente.');
             setTimeout(() => {
-              navigate('/login', { 
-                replace: true,
-                state: { 
-                  message: 'Sua sessão expirou durante o processamento do pagamento. Por favor, faça login novamente para ver sua assinatura.',
-                  redirectAfterLogin: '/minha-conta/assinatura'
-                }
-              });
+              handleShowLoginModal(
+                '/minha-conta/assinatura',
+                'Sua sessão expirou durante o processamento do pagamento. Por favor, faça login novamente para ver sua assinatura.'
+              );
             }, 2000);
             return;
           }
@@ -62,16 +83,11 @@ const AccountRedirect = () => {
           setAuthChecked(true);
           
           if (!isAuthenticated) {
-            console.log('[AccountRedirect] Verificação de autenticação falhou. Redirecionando para login...');
+            console.log('[AccountRedirect] Verificação de autenticação falhou. Mostrando modal de login...');
             setHasError(true);
-            setLoadingMessage('Sessão expirada. Redirecionando para login...');
+            setLoadingMessage('Sessão expirada. Por favor, faça login novamente.');
             setTimeout(() => {
-              navigate('/login', { 
-                replace: true,
-                state: { 
-                  redirectAfterLogin: '/minha-conta/assinatura'
-                }
-              });
+              handleShowLoginModal('/minha-conta/assinatura');
             }, 2000);
           } else {
             console.log('[AccountRedirect] Verificação de autenticação bem-sucedida.');
@@ -79,16 +95,16 @@ const AccountRedirect = () => {
         } catch (error) {
           console.error('[AccountRedirect] Erro ao verificar autenticação:', error);
           setHasError(true);
-          setLoadingMessage('Problema de autenticação. Redirecionando...');
+          setLoadingMessage('Problema de autenticação. Por favor, tente fazer login novamente.');
           setTimeout(() => {
-            navigate('/login', { replace: true });
+            handleShowLoginModal();
           }, 2000);
         }
       };
       
       verifyAuth();
     }
-  }, [authLoading, authChecked, checkAuth, navigate, userIdFromUrl]);
+  }, [authLoading, authChecked, checkAuth, navigate, userIdFromUrl, showLoginModal]);
 
   // Segundo efeito: carregar assinatura e redirecionar
   useEffect(() => {
@@ -155,17 +171,12 @@ const AccountRedirect = () => {
       // Se a autenticação foi verificada mas não encontrou usuário válido
       console.log('[AccountRedirect] Autenticação verificada, mas usuário inválido.');
       setHasError(true);
-      setLoadingMessage('Sessão expirada. Redirecionando para login...');
+      setLoadingMessage('Sessão expirada. Por favor, faça login novamente.');
       setTimeout(() => {
-        navigate('/login', { 
-          replace: true,
-          state: { 
-            redirectAfterLogin: '/minha-conta/assinatura' 
-          }
-        });
+        handleShowLoginModal('/minha-conta/assinatura');
       }, 2000);
     }
-  }, [authChecked, user, loadUserSubscription, navigate, sessionIdFromUrl]);
+  }, [authChecked, user, loadUserSubscription, navigate, sessionIdFromUrl, showLoginModal]);
 
   // Mostrar informações de depuração (visível apenas em ambiente de desenvolvimento)
   const showDebugInfo = process.env.NODE_ENV === 'development';
