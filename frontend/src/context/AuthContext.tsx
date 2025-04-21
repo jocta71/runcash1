@@ -444,7 +444,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logAuthFlow(`Sincronizando usuário ${user.id} com Asaas`);
     
     try {
-      const response = await axios.post(`${API_URL}/api/asaas-api?path=sync-user-customer`, {
+      // Usar diretamente o endpoint local, sem depender do API_URL que pode estar redirecionando para o Railway
+      const response = await axios.post(`/api/asaas-api?path=sync-user-customer`, {
         userId: user.id,
         email: user.email
       });
@@ -467,6 +468,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error: any) {
       logAuthFlow(`Erro durante sincronização: ${error.message}`);
+      console.error("Erro detalhado na sincronização:", error);
       return false;
     }
   };

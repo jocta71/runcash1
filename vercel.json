@@ -7,6 +7,10 @@
       "memory": 1024,
       "maxDuration": 10
     },
+    "api/asaas-diagnostics.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
     "api/webhook-manager.js": {
       "memory": 1024,
       "maxDuration": 10
@@ -24,6 +28,10 @@
     {
       "source": "/api/asaas-api",
       "destination": "/api/asaas-api.js"
+    },
+    {
+      "source": "/api/asaas-diagnostics",
+      "destination": "/api/asaas-diagnostics.js"
     },
     {
       "source": "/api/asaas-webhook",

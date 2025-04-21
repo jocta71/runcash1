@@ -5,6 +5,31 @@ const axios = require('axios');
 const { MongoClient, ObjectId } = require('mongodb');
 const { connectToDatabase } = require('../config/mongodb');
 
+// Função auxiliar para conectar ao MongoDB
+const connectToDatabase = async () => {
+  try {
+    console.log('Conectando ao MongoDB...');
+    
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI não configurado no ambiente');
+    }
+    
+    const client = new MongoClient(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    
+    await client.connect();
+    const db = client.db(process.env.MONGODB_DB_NAME || 'runcash');
+    
+    console.log('Conexão com MongoDB estabelecida!');
+    return { client, db };
+  } catch (error) {
+    console.error('Erro ao conectar ao MongoDB:', error);
+    throw error;
+  }
+};
+
 module.exports = async (req, res) => {
   // Configuração de CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -152,8 +177,6 @@ function getAsaasConfig() {
 
 // 1. Criar cliente no Asaas
 async function handleCreateCustomer(req, res) {
-  let client;
-  
   try {
     console.log('==== Iniciando criação/busca de cliente no Asaas ====');
     console.log('Método da requisição:', req.method);
@@ -186,154 +209,74 @@ async function handleCreateCustomer(req, res) {
     }
 
     // Verificar configuração do Asaas
+    const { apiClient, API_URL } = getAsaasConfig();
+    console.log('Conexão com Asaas configurada - URL:', API_URL);
+
+    // Verificar se o cliente já existe pelo CPF/CNPJ
+    console.log(`Buscando cliente pelo CPF/CNPJ: ${cpfCnpj}`);
     try {
-      const { apiClient, API_URL } = getAsaasConfig();
-      console.log('Conexão com Asaas configurada - URL:', API_URL);
+      const searchResponse = await apiClient.get('/customers', {
+        params: { cpfCnpj }
+      });
+      
+      console.log('Resposta da busca por CPF/CNPJ:', JSON.stringify(searchResponse.data));
 
-      // Verificar se o cliente já existe pelo CPF/CNPJ
-      try {
-        console.log(`Buscando cliente pelo CPF/CNPJ: ${cpfCnpj}`);
-        const searchResponse = await apiClient.get('/customers', {
-          params: { cpfCnpj }
-        });
+      // Se já existir um cliente com este CPF/CNPJ, retorná-lo
+      if (searchResponse.data.data && searchResponse.data.data.length > 0) {
+        const existingCustomer = searchResponse.data.data[0];
+        console.log(`Cliente já existe, ID: ${existingCustomer.id}`);
+
+        // Opcionalmente, atualizar dados do cliente se necessário
+        console.log('Atualizando dados do cliente existente');
+        const updateData = { name, email };
+        if (phoneNumber) updateData.mobilePhone = phoneNumber;
         
-        console.log('Resposta da busca por CPF/CNPJ:', JSON.stringify(searchResponse.data));
+        const updateResponse = await apiClient.post(`/customers/${existingCustomer.id}`, updateData);
+        console.log('Resposta da atualização do cliente:', JSON.stringify(updateResponse.data));
 
-        // Se já existir um cliente com este CPF/CNPJ, retorná-lo
-        if (searchResponse.data.data && searchResponse.data.data.length > 0) {
-          const existingCustomer = searchResponse.data.data[0];
-          console.log(`Cliente já existe, ID: ${existingCustomer.id}`);
-
-          // Opcionalmente, atualizar dados do cliente se necessário
-          console.log('Atualizando dados do cliente existente');
-          const updateData = { name, email };
-          if (phoneNumber) updateData.mobilePhone = phoneNumber;
-          
-          const updateResponse = await apiClient.post(`/customers/${existingCustomer.id}`, updateData);
-          console.log('Resposta da atualização do cliente:', JSON.stringify(updateResponse.data));
-
-          // Conectar ao MongoDB e registrar o cliente se necessário
-          if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
-            try {
-              console.log('Conectando ao MongoDB...');
-              client = new MongoClient(process.env.MONGODB_URI, {
-                useNewUrlParser: true,
-                useUnifiedTopology: true
-              });
-              await client.connect();
-              console.log('Conexão com MongoDB estabelecida!');
-              
-              const db = client.db(process.env.MONGODB_DB_NAME || 'runcash');
-              
-              // Verificar se o cliente já existe no MongoDB
-              const existingDbCustomer = await db.collection('customers').findOne({ asaas_id: existingCustomer.id });
-              
-              if (!existingDbCustomer) {
-                // Registrar o cliente no MongoDB
-                console.log('Registrando cliente no MongoDB');
-                await db.collection('customers').insertOne({
-                  asaas_id: existingCustomer.id,
-                  user_id: userId,
-                  name,
-                  email,
-                  cpfCnpj,
-                  createdAt: new Date()
-                });
-                console.log('Cliente registrado no MongoDB com sucesso');
-              } else {
-                console.log('Cliente já existe no MongoDB');
-              }
-            } catch (dbError) {
-              console.error('Erro detalhado ao acessar MongoDB:', dbError);
-              console.error('Stack trace:', dbError.stack);
-              // Continuar mesmo com erro no MongoDB
-            }
-          }
-
-          return res.status(200).json({
-            success: true,
-            data: {
-              customerId: existingCustomer.id
-            },
-            message: 'Cliente recuperado e atualizado com sucesso'
-          });
-        }
-      } catch (searchError) {
-        console.error('Erro detalhado ao buscar cliente:', searchError);
-        console.error('Resposta do erro:', searchError.response?.data);
-        console.error('Stack trace:', searchError.stack);
-        // Continuar para criar novo cliente
+        return res.status(200).json({
+          success: true,
+          data: {
+            customerId: existingCustomer.id
+          },
+          message: 'Cliente recuperado e atualizado com sucesso'
+        });
       }
-
-      // Criar novo cliente
-      console.log('Cliente não encontrado. Criando novo cliente no Asaas');
-      const customerData = {
-        name,
-        email,
-        cpfCnpj,
-        notificationDisabled: false
-      };
-      
-      // Adicionar telefone se fornecido
-      if (phoneNumber) {
-        customerData.mobilePhone = phoneNumber;
-      }
-      
-      console.log('Dados para criação do cliente:', JSON.stringify(customerData));
-
-      const createResponse = await apiClient.post('/customers', customerData);
-      console.log('Resposta da criação do cliente:', JSON.stringify(createResponse.data));
-      
-      const newCustomer = createResponse.data;
-      console.log(`Novo cliente criado, ID: ${newCustomer.id}`);
-
-      // Conectar ao MongoDB e registrar o novo cliente
-      if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
-        try {
-          console.log('Conectando ao MongoDB para registrar novo cliente...');
-          client = new MongoClient(process.env.MONGODB_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-          });
-          await client.connect();
-          console.log('Conexão com MongoDB estabelecida!');
-          
-          const db = client.db(process.env.MONGODB_DB_NAME || 'runcash');
-          
-          console.log('Inserindo novo cliente no MongoDB');
-          await db.collection('customers').insertOne({
-            asaas_id: newCustomer.id,
-            user_id: userId,
-            name,
-            email,
-            cpfCnpj,
-            createdAt: new Date()
-          });
-          console.log('Cliente inserido no MongoDB com sucesso');
-        } catch (dbError) {
-          console.error('Erro detalhado ao acessar MongoDB:', dbError);
-          console.error('Stack trace:', dbError.stack);
-          // Continuar mesmo com erro no MongoDB
-        }
-      }
-
-      console.log('Retornando resposta de sucesso');
-      return res.status(200).json({
-        success: true,
-        data: {
-          customerId: newCustomer.id
-        },
-        message: 'Cliente criado com sucesso'
-      });
-    } catch (configError) {
-      console.error('Erro na configuração da API Asaas:', configError);
-      console.error('Stack trace:', configError.stack);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro na configuração da API Asaas',
-        message: configError.message
-      });
+    } catch (searchError) {
+      console.error('Erro ao buscar cliente:', searchError.message);
+      // Se não for possível buscar, continua para criar um novo
     }
+
+    // Criar novo cliente
+    console.log('Cliente não encontrado. Criando novo cliente no Asaas');
+    const customerData = {
+      name,
+      email,
+      cpfCnpj,
+      notificationDisabled: false
+    };
+    
+    // Adicionar telefone se fornecido
+    if (phoneNumber) {
+      customerData.mobilePhone = phoneNumber;
+    }
+    
+    console.log('Dados para criação do cliente:', JSON.stringify(customerData));
+
+    const createResponse = await apiClient.post('/customers', customerData);
+    console.log('Resposta da criação do cliente:', JSON.stringify(createResponse.data));
+    
+    const newCustomer = createResponse.data;
+    console.log(`Novo cliente criado, ID: ${newCustomer.id}`);
+
+    console.log('Retornando resposta de sucesso');
+    return res.status(200).json({
+      success: true,
+      data: {
+        customerId: newCustomer.id
+      },
+      message: 'Cliente criado com sucesso'
+    });
   } catch (error) {
     console.error('Erro ao processar solicitação create-customer:', error.message);
     console.error('Stack trace completo:', error.stack);
@@ -353,16 +296,6 @@ async function handleCreateCustomer(req, res) {
       error: 'Erro ao processar solicitação',
       message: error.message
     });
-  } finally {
-    // Fechar a conexão com o MongoDB
-    if (client) {
-      try {
-        console.log('Fechando conexão com MongoDB');
-        await client.close();
-      } catch (closeError) {
-        console.error('Erro ao fechar conexão com MongoDB:', closeError);
-      }
-    }
   }
 }
 
