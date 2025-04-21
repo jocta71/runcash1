@@ -4,7 +4,8 @@ import { CheckCircle } from 'react-bootstrap-icons';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from '@/context/AuthContext';
-import { useLoginModal } from '@/context/LoginModalContext';
+import { useSessionExpiration } from '@/hooks/useSessionExpiration';
+import { AUTH_MESSAGES } from '@/constants/auth-messages';
 
 /**
  * Página de sucesso após confirmação do pagamento
@@ -13,7 +14,7 @@ const PaymentSuccessPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, checkAuth } = useAuth();
-  const { showLoginModal } = useLoginModal();
+  const { handleSessionExpired } = useSessionExpiration();
   const queryParams = new URLSearchParams(location.search);
   const planId = queryParams.get('plan');
   const sessionId = queryParams.get('session_id');
@@ -40,10 +41,7 @@ const PaymentSuccessPage: React.FC = () => {
           
           // Como alternativa, podemos mostrar o modal de login com redirecionamento
           setIsPaused(true); // Pausa o countdown
-          showLoginModal({
-            redirectAfterLogin: '/account',
-            message: 'Por favor, faça login para acessar sua conta e verificar sua assinatura.'
-          });
+          handleSessionExpired('/account', 'payment');
         }
       } catch (error) {
         console.error('[PaymentSuccess] Erro ao verificar autenticação:', error);
@@ -54,7 +52,7 @@ const PaymentSuccessPage: React.FC = () => {
     };
     
     verifyAuth();
-  }, [checkAuth, userId, showLoginModal]);
+  }, [checkAuth, userId, handleSessionExpired]);
   
   // Redirecionar automaticamente após 5 segundos
   useEffect(() => {
@@ -73,8 +71,9 @@ const PaymentSuccessPage: React.FC = () => {
             navigate('/', { 
               state: { 
                 showLoginModal: true,
-                message: 'Por favor, faça login para acessar sua conta e ver sua assinatura.',
-                redirectAfterLogin: '/account'
+                message: AUTH_MESSAGES.LOGIN_TO_VIEW_SUBSCRIPTION,
+                redirectAfterLogin: '/account',
+                context: 'subscription'
               } 
             });
           }
@@ -85,17 +84,14 @@ const PaymentSuccessPage: React.FC = () => {
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [navigate, authChecked, authStatus, isPaused, showLoginModal]);
+  }, [navigate, authChecked, authStatus, isPaused, handleSessionExpired]);
   
   // Mostrar informações de depuração (visível apenas em ambiente de desenvolvimento)
   const showDebugInfo = process.env.NODE_ENV === 'development';
   
   const handleManualLogin = () => {
     // Mostrar modal de login com redirecionamento para a página da conta
-    showLoginModal({
-      redirectAfterLogin: '/account',
-      message: 'Por favor, faça login para acessar sua conta e verificar sua assinatura.'
-    });
+    handleSessionExpired('/account', 'subscription');
   };
   
   return (
@@ -126,7 +122,7 @@ const PaymentSuccessPage: React.FC = () => {
                 {authStatus === 'authenticated' 
                   ? `Você será redirecionado para sua conta em ${countdown} segundos...`
                   : isPaused
-                    ? 'Por favor, faça login para continuar.'
+                    ? AUTH_MESSAGES.LOGIN_REQUIRED
                     : 'Você será redirecionado para a página inicial em ' + countdown + ' segundos...'}
               </p>
               
