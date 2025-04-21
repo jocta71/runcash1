@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { createAsaasSubscription } from '@/integrations/asaas/client';
+import { createAsaasCustomer, createAsaasSubscription } from '@/integrations/asaas/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Função para formatar CPF
@@ -113,21 +113,31 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
     setIsLoading(true);
     
     try {
-      // Verificar se o usuário já possui ID de cliente no Asaas
-      if (!user.asaasCustomerId) {
-        setError("Não foi possível identificar seu registro no sistema de pagamentos. Por favor, entre em contato com o suporte.");
-        setIsLoading(false);
-        return;
+      let customerId = user.asaasCustomerId;
+      
+      // Se o usuário não tiver um ID de cliente no Asaas, criar um novo
+      if (!customerId) {
+        console.log('Criando novo cliente no Asaas...');
+        // Criar ou recuperar cliente no Asaas
+        customerId = await createAsaasCustomer({
+          name: formData.name,
+          email: formData.email,
+          cpfCnpj: cpfClean,
+          mobilePhone: formData.phone.replace(/\D/g, ''),
+          userId: user.id
+        });
+        
+        console.log('Cliente criado/recuperado com ID:', customerId);
+      } else {
+        console.log('Usando customerId existente:', customerId);
       }
       
-      console.log('Usando customerId existente:', user.asaasCustomerId);
-      
-      // Criar assinatura diretamente usando o ID do cliente já existente
+      // Criar assinatura
       console.log('Criando assinatura para o cliente...');
       const subscription = await createAsaasSubscription(
         planId, 
         user.id,
-        user.asaasCustomerId,
+        customerId,
         'PIX'
       );
       
@@ -142,7 +152,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         onPaymentSuccess();
       } else if (subscription.paymentId) {
         // Para qualquer plano pago, sempre redirecionar para página de pagamento PIX
-        window.location.href = `/pagamento?planId=${planId}&customerId=${user.asaasCustomerId}&paymentId=${subscription.paymentId}`;
+        window.location.href = `/pagamento?planId=${planId}&customerId=${customerId}&paymentId=${subscription.paymentId}`;
       } else {
         setError("Não foi possível obter as informações de pagamento. Por favor, tente novamente.");
       }
