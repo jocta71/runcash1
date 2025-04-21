@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { createAsaasCustomer, createAsaasSubscription } from '@/integrations/asaas/client';
+import { createAsaasCustomer, createAsaasSubscription, updateAsaasCustomer } from '@/integrations/asaas/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Função para formatar CPF
@@ -130,6 +130,20 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         console.log('Cliente criado/recuperado com ID:', customerId);
       } else {
         console.log('Usando customerId existente:', customerId);
+        
+        // Atualizar o cliente existente com o CPF
+        console.log('Atualizando cliente existente com CPF...');
+        const updated = await updateAsaasCustomer(customerId, {
+          cpfCnpj: cpfClean,
+          name: formData.name,
+          mobilePhone: formData.phone.replace(/\D/g, '')
+        });
+        
+        if (updated) {
+          console.log('Cliente atualizado com sucesso');
+        } else {
+          console.warn('Falha ao atualizar cliente, tentando prosseguir com a assinatura mesmo assim');
+        }
       }
       
       // Criar assinatura
