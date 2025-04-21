@@ -295,7 +295,7 @@ const ProfilePage = () => {
                     </Badge>
                   )}
                   <Link 
-                    to="/minha-conta/assinatura" 
+                    to="/billing" 
                     className="flex items-center text-sm text-vegas-gold hover:underline"
                   >
                     {hasActivePlan ? 'Gerenciar assinatura' : 'Ver planos disponíveis'}

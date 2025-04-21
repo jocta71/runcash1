@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
@@ -42,6 +42,28 @@ const createQueryClient = () => new QueryClient({
     },
   },
 });
+
+// Componente de redirecionamento para /minha-conta
+const MinhaContaRedirect = () => {
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    navigate('/billing', { replace: true });
+  }, [navigate]);
+  
+  return <LoadingScreen />;
+};
+
+// Componente de redirecionamento para /minha-conta/assinatura
+const MinhaContaAssinaturaRedirect = () => {
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    navigate('/billing', { replace: true });
+  }, [navigate]);
+  
+  return <LoadingScreen />;
+};
 
 // Componente principal da aplicação
 const App = () => {
@@ -111,22 +133,29 @@ const App = () => {
                             </ProtectedRoute>
                           } />
                           
-                          {/* Página de detalhes da assinatura */}
+                          {/* Página de detalhes da assinatura - agora redirecionando para /billing */}
                           <Route path="/minha-conta/assinatura" element={
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
-                                <ProfileSubscription />
+                                <MinhaContaAssinaturaRedirect />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Rota para /minha-conta que redireciona para /minha-conta/assinatura */}
+                          <Route path="/minha-conta" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <MinhaContaRedirect />
                               </Suspense>
                             </ProtectedRoute>
                           } />
                           
                           {/* Redirecionamento da rota /account (usada após pagamento) */}
                           <Route path="/account" element={
-                            <ProtectedRoute>
-                              <Suspense fallback={<LoadingScreen />}>
-                                <AccountRedirect />
-                              </Suspense>
-                            </ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <AccountRedirect />
+                            </Suspense>
                           } />
                           
                           <Route path="/billing" element={
