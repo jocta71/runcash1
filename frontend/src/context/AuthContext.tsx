@@ -125,12 +125,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           });
           
-          if (response.data.success) {
+          // Log da resposta completa para debug
+          logAuthFlow(`Resposta da API /auth/me (Google): ${JSON.stringify(response.data)}`);
+          
+          // Tenta diferentes estruturas possíveis da resposta
+          let userData = null;
+          
+          if (response.data.data) {
+            // Estrutura esperada: { success: true, data: { ... } }
+            userData = response.data.data;
+            logAuthFlow("Usando dados do usuário de response.data.data");
+          } else if (response.data.user) {
+            // Estrutura alternativa: { success: true, user: { ... } }
+            userData = response.data.user;
+            logAuthFlow("Usando dados do usuário de response.data.user");
+          } else if (response.data.id) {
+            // O próprio objeto de resposta pode ser o usuário
+            userData = response.data;
+            logAuthFlow("Usando dados do usuário diretamente de response.data");
+          }
+          
+          if (userData && userData.id) {
             logAuthFlow("Usuário autenticado via Google com sucesso");
-            setUser(response.data.data);
+            setUser(userData);
             
             // Limpar o token da URL
             window.history.replaceState({}, document.title, window.location.pathname);
+          } else {
+            logAuthFlow("Resposta da API não contém dados válidos do usuário (Google)");
+            clearAuthData();
           }
         } catch (error) {
           logAuthFlow(`Erro ao carregar usuário após login do Google: ${error}`);
@@ -225,12 +248,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
       
-      if (response.data.success) {
-        const userData = response.data.data;
-        logAuthFlow(`Token verificado com sucesso, usuário autenticado: ${userData.id}`);
-        setUser(userData);
-        setToken(token);
-        return true;
+      // Log da resposta completa para debug
+      logAuthFlow(`Resposta da API /auth/me: ${JSON.stringify(response.data)}`);
+      
+      if (response.data) {
+        // Tenta diferentes estruturas possíveis da resposta
+        let userData = null;
+        
+        if (response.data.data) {
+          // Estrutura esperada: { success: true, data: { ... } }
+          userData = response.data.data;
+          logAuthFlow("Usando dados do usuário de response.data.data");
+        } else if (response.data.user) {
+          // Estrutura alternativa: { success: true, user: { ... } }
+          userData = response.data.user;
+          logAuthFlow("Usando dados do usuário de response.data.user");
+        } else if (response.data.id) {
+          // O próprio objeto de resposta pode ser o usuário
+          userData = response.data;
+          logAuthFlow("Usando dados do usuário diretamente de response.data");
+        }
+        
+        if (userData && userData.id) {
+          logAuthFlow(`Token verificado com sucesso, usuário autenticado: ${userData.id}`);
+          setUser(userData);
+          setToken(token);
+          return true;
+        } else {
+          // Não conseguiu extrair dados válidos do usuário
+          logAuthFlow("Resposta da API não contém dados válidos do usuário");
+          logAuthFlow(`Estrutura da resposta: ${JSON.stringify(response.data)}`);
+          clearAuthData();
+          return false;
+        }
       } else {
         // Token inválido - limpar tudo
         logAuthFlow("Token inválido retornado pela API, limpando dados de autenticação");
