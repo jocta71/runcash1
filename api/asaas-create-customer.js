@@ -14,6 +14,11 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
+  // Capturar ID do cliente da URL se for uma atualização
+  const urlParts = req.url.split('/');
+  const customerId = urlParts.length > 2 ? urlParts[2].split('?')[0] : null;
+  const isUpdate = customerId || (req.body && req.body.update === true);
+
   // Apenas aceitar solicitações POST ou GET
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Método não permitido' });
@@ -94,8 +99,8 @@ module.exports = async (req, res) => {
   try {
     const { name, email, cpfCnpj, mobilePhone, userId, externalReference } = req.body;
 
-    // Validar campos obrigatórios - agora exigindo apenas name e email
-    if (!name || !email) {
+    // Para atualização, verificar apenas os campos que estão sendo atualizados
+    if (!isUpdate && (!name || !email)) {
       return res.status(400).json({ 
         success: false,
         error: 'Campos obrigatórios: name, email' 
@@ -125,7 +130,52 @@ module.exports = async (req, res) => {
       }
     });
 
-    // Verificar se o cliente já existe pelo email
+    // CASO DE ATUALIZAÇÃO: atualizar cliente existente
+    if (isUpdate && customerId) {
+      console.log(`Atualizando cliente ${customerId} com novos dados`);
+      
+      // Preparar dados para atualização
+      const updateData = {};
+      if (name) updateData.name = name;
+      if (email) updateData.email = email;
+      if (cpfCnpj) updateData.cpfCnpj = cpfCnpj;
+      if (mobilePhone) updateData.mobilePhone = mobilePhone;
+      
+      // Chamar API para atualizar
+      try {
+        const updateResponse = await apiClient.post(`/customers/${customerId}`, updateData);
+        const updatedCustomer = updateResponse.data;
+        
+        console.log(`Cliente ${customerId} atualizado com sucesso`);
+        
+        return res.status(200).json({
+          success: true,
+          id: updatedCustomer.id,
+          customerId: updatedCustomer.id,
+          customer: updatedCustomer,
+          message: 'Cliente atualizado com sucesso'
+        });
+      } catch (updateError) {
+        console.error(`Erro ao atualizar cliente ${customerId}:`, updateError.message);
+        
+        // Verificar se o erro é da API do Asaas
+        if (updateError.response && updateError.response.data) {
+          return res.status(updateError.response.status || 500).json({
+            success: false,
+            error: 'Erro na API do Asaas ao atualizar cliente',
+            details: updateError.response.data
+          });
+        }
+        
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao atualizar cliente',
+          message: updateError.message
+        });
+      }
+    }
+
+    // CASO DE CRIAÇÃO: verificar se o cliente já existe pelo email
     try {
       console.log(`Buscando cliente pelo email: ${email}`);
       const searchResponse = await apiClient.get('/customers', {
