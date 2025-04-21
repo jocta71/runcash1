@@ -3,7 +3,6 @@ import { Plan, PlanType, UserSubscription } from '@/types/plans';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
 import { API_URL } from '@/config/constants';
-import { AsaasService } from '@/services/asaasService';
 
 // Lista de planos disponíveis
 export const availablePlans: Plan[] = [
@@ -113,46 +112,48 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setLoading(true);
     setError(null);
 
-    // Se o usuário não tem um ID de cliente Asaas, tentar criar um
-    if (!user.asaasCustomerId) {
-      try {
-        console.log('[SubscriptionContext] Usuário sem ID de cliente Asaas, tentando criar...');
-        const asaasResult = await AsaasService.ensureCustomerExists(user);
-        if (!asaasResult.success) {
-          console.error('[SubscriptionContext] Não foi possível criar cliente Asaas para o usuário');
-          setError('Não foi possível vincular sua conta ao serviço de pagamentos. Por favor, contate o suporte.');
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        console.error('[SubscriptionContext] Erro ao criar cliente Asaas:', error);
-        setError('Erro ao comunicar com o serviço de pagamentos. Por favor, tente novamente mais tarde.');
-        setLoading(false);
-        return;
-      }
-    }
-
-    // Certifique-se de que temos um customerId válido
-    if (!user.asaasCustomerId) {
-      console.error('[SubscriptionContext] Usuário ainda sem ID de cliente Asaas após tentativa de criação');
-      setError('Não foi possível obter suas informações de assinatura. Por favor, contate o suporte.');
-      setLoading(false);
-      return;
-    }
-
     let retryCount = 0;
     const maxRetries = forceRefresh ? 3 : 1;
     let lastError = null;
 
     while (retryCount < maxRetries) {
       try {
-        console.log(`[SubscriptionContext] Buscando assinaturas para cliente Asaas: ${user.asaasCustomerId}`);
+        // Adicionar um parâmetro de timestamp para evitar cache
+        const cacheKey = forceRefresh ? `&_t=${Date.now()}` : '';
         
-        // Usar o serviço Asaas para buscar assinaturas
-        const result = await AsaasService.getCustomerSubscriptions(user.asaasCustomerId);
+        // Verificar se temos o ID do cliente Asaas
+        if (!user.asaasCustomerId) {
+          console.log('[SubscriptionContext] Usuário não tem ID de cliente Asaas, tentando buscar ou criar');
+          try {
+            // Buscar ou criar cliente Asaas para este usuário
+            await createOrFindAsaasCustomer();
+          } catch (error) {
+            console.error('[SubscriptionContext] Erro ao vincular usuário ao cliente Asaas:', error);
+            setCurrentSubscription(null);
+            const freePlan = availablePlans.find(p => p.id === 'free') || null;
+            setCurrentPlan(freePlan);
+            setLoading(false);
+            setError('Não foi possível identificar seu cliente no Asaas. Por favor, entre em contato com o suporte.');
+            return;
+          }
+        }
+        
+        // Se ainda não temos ID do cliente Asaas (busca falhou), usar plano gratuito
+        if (!user.asaasCustomerId) {
+          console.log('[SubscriptionContext] Não foi possível obter ID do cliente Asaas, usando plano gratuito');
+          setCurrentSubscription(null);
+          const freePlan = availablePlans.find(p => p.id === 'free') || null;
+          setCurrentPlan(freePlan);
+          setLoading(false);
+          return;
+        }
+        
+        // Buscar assinatura ativa do usuário usando o ID do cliente Asaas
+        console.log(`[SubscriptionContext] Buscando assinatura com customerId: ${user.asaasCustomerId}`);
+        const response = await axios.get(`${API_URL}/api/asaas-find-subscription?customerId=${user.asaasCustomerId}${cacheKey}`);
 
-        if (result.success && result.subscriptions && result.subscriptions.length > 0) {
-          const subscriptionData = result.subscriptions[0];
+        if (response.data && response.data.success && response.data.subscriptions && response.data.subscriptions.length > 0) {
+          const subscriptionData = response.data.subscriptions[0];
           // Converter dados da API para o formato UserSubscription
           const formattedSubscription: UserSubscription = {
             id: subscriptionData.id,
@@ -231,6 +232,65 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     setLoading(false);
+  };
+
+  // Função para criar ou recuperar cliente no Asaas para o usuário atual
+  const createOrFindAsaasCustomer = async (): Promise<void> => {
+    if (!user) return;
+    
+    try {
+      // Primeiro tentar buscar cliente pelo email
+      console.log(`[SubscriptionContext] Buscando cliente no Asaas pelo email: ${user.email}`);
+      const findResponse = await axios.get(`${API_URL}/api/asaas-find-customer`, {
+        params: { email: user.email }
+      });
+      
+      if (findResponse.data.success) {
+        // Cliente encontrado, vincular ao usuário
+        const customerId = findResponse.data.customer.id;
+        console.log(`[SubscriptionContext] Cliente encontrado no Asaas, ID: ${customerId}, vinculando ao usuário`);
+        
+        await axios.post(`${API_URL}/api/user-link-asaas`, {
+          userId: user.id,
+          asaasCustomerId: customerId
+        });
+        
+        // Atualizar objeto do usuário em memória
+        user.asaasCustomerId = customerId;
+        return;
+      }
+    } catch (findError) {
+      // Cliente não encontrado, prosseguir para criar um novo
+      console.log(`[SubscriptionContext] Cliente não encontrado no Asaas por email, criando novo`);
+    }
+    
+    // Criar novo cliente no Asaas
+    try {
+      console.log(`[SubscriptionContext] Criando novo cliente no Asaas para: ${user.email}`);
+      const createResponse = await axios.post(`${API_URL}/api/asaas-create-customer`, {
+        name: user.username,
+        email: user.email,
+        userId: user.id
+        // cpfCnpj seria ideal, mas não temos nesse momento
+      });
+      
+      if (createResponse.data.success) {
+        const customerId = createResponse.data.data.customerId;
+        console.log(`[SubscriptionContext] Cliente criado no Asaas, ID: ${customerId}`);
+        
+        // Atualizar usuário no banco com o ID do cliente
+        await axios.post(`${API_URL}/api/user-link-asaas`, {
+          userId: user.id,
+          asaasCustomerId: customerId
+        });
+        
+        // Atualizar objeto do usuário em memória
+        user.asaasCustomerId = customerId;
+      }
+    } catch (createError) {
+      console.error(`[SubscriptionContext] Erro ao criar cliente no Asaas:`, createError);
+      throw createError;
+    }
   };
 
   // Função auxiliar para determinar o tipo de plano a partir do ID

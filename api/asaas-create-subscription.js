@@ -16,20 +16,14 @@ module.exports = async (req, res) => {
 
   // Apenas aceitar solicitações POST
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método não permitido' });
+    return res.status(405).json({ 
+      success: false,
+      error: 'Método não permitido' 
+    });
   }
 
-  let client;
-  
   try {
-    const { 
-      customerId, 
-      planId, 
-      userId, 
-      billingType = 'PIX',
-      cycle = 'MONTHLY',
-      value,
-      description,
+    const { planId, userId, customerId, paymentMethod = 'PIX', 
       // Dados de cartão de crédito (opcional)
       holderName,
       cardNumber,
@@ -41,17 +35,202 @@ module.exports = async (req, res) => {
       holderCpfCnpj,
       holderPostalCode,
       holderAddressNumber,
-      holderPhone
+      holderPhone,
+      // Outros parâmetros
+      value
     } = req.body;
 
     // Validar campos obrigatórios
-    if (!customerId || !planId) {
+    if (!planId) {
       return res.status(400).json({ 
         success: false,
-        error: 'Campos obrigatórios: customerId, planId' 
+        error: 'ID do plano não informado' 
       });
     }
 
+    // Precisamos de pelo menos o userId ou customerId direto
+    if (!userId && !customerId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'ID do usuário ou ID do cliente Asaas não informado' 
+      });
+    }
+
+    // Configuração da API do Asaas
+    const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
+    const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
+    const API_URL = ASAAS_ENVIRONMENT === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
+
+    if (!ASAAS_API_KEY) {
+      return res.status(500).json({ 
+        success: false,
+        error: 'Chave de API do Asaas não configurada' 
+      });
+    }
+
+    // Configuração do cliente HTTP
+    const apiClient = axios.create({
+      baseURL: API_URL,
+      headers: {
+        'access_token': ASAAS_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Determinar o ID do cliente Asaas a ser usado
+    let asaasCustomerId = customerId;
+    
+    // Se não temos o ID do cliente Asaas, mas temos o ID do usuário, precisamos buscar ou criar o cliente
+    if (!asaasCustomerId && userId) {
+      let mongoClient;
+      
+      // Primeiro verificar no MongoDB se já tem relação
+      if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
+        try {
+          mongoClient = new MongoClient(process.env.MONGODB_URI);
+          await mongoClient.connect();
+          const db = mongoClient.db(process.env.MONGODB_DB_NAME || 'runcash');
+          
+          // Buscar usuário para verificar se já tem asaasCustomerId
+          const user = await db.collection('users').findOne({ _id: userId });
+          
+          if (user && user.asaasCustomerId) {
+            console.log(`Usuário ${userId} já tem cliente Asaas: ${user.asaasCustomerId}`);
+            asaasCustomerId = user.asaasCustomerId;
+          } else {
+            // Buscar na coleção de customers
+            const customerRelation = await db.collection('customers').findOne({ user_id: userId });
+            
+            if (customerRelation && customerRelation.asaas_id) {
+              console.log(`Encontrada relação usuario-cliente: ${userId} -> ${customerRelation.asaas_id}`);
+              asaasCustomerId = customerRelation.asaas_id;
+              
+              // Atualizar o usuário com esta informação para futuras consultas
+              await db.collection('users').updateOne(
+                { _id: userId },
+                { $set: { asaasCustomerId: customerRelation.asaas_id } }
+              );
+            }
+          }
+          
+        } catch (dbError) {
+          console.error('Erro ao acessar MongoDB:', dbError.message);
+          // Continuar com outras formas de obter o cliente
+        } finally {
+          if (mongoClient) {
+            await mongoClient.close();
+          }
+        }
+      }
+      
+      // Se ainda não temos o ID do cliente, tentar buscar na API do Asaas
+      if (!asaasCustomerId) {
+        try {
+          // Para isso, precisamos saber o email do usuário
+          let userEmail;
+          
+          // Buscar email do usuário no MongoDB
+          if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
+            try {
+              mongoClient = new MongoClient(process.env.MONGODB_URI);
+              await mongoClient.connect();
+              const db = mongoClient.db(process.env.MONGODB_DB_NAME || 'runcash');
+              
+              const user = await db.collection('users').findOne({ _id: userId });
+              
+              if (user && user.email) {
+                userEmail = user.email;
+              }
+            } catch (dbError) {
+              console.error('Erro ao buscar email do usuário:', dbError.message);
+            } finally {
+              if (mongoClient) {
+                await mongoClient.close();
+              }
+            }
+          }
+          
+          if (!userEmail) {
+            return res.status(400).json({ 
+              success: false,
+              error: 'Não foi possível determinar o email do usuário para buscar cliente Asaas' 
+            });
+          }
+          
+          // Buscar cliente pelo email
+          console.log(`Buscando cliente no Asaas pelo email: ${userEmail}`);
+          const searchResponse = await apiClient.get('/customers', {
+            params: { email: userEmail }
+          });
+
+          // Se já existir um cliente com este email, usá-lo
+          if (searchResponse.data.data && searchResponse.data.data.length > 0) {
+            asaasCustomerId = searchResponse.data.data[0].id;
+            console.log(`Cliente encontrado no Asaas, ID: ${asaasCustomerId}`);
+            
+            // Registrar a relação no MongoDB
+            if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
+              try {
+                mongoClient = new MongoClient(process.env.MONGODB_URI);
+                await mongoClient.connect();
+                const db = mongoClient.db(process.env.MONGODB_DB_NAME || 'runcash');
+                
+                // Atualizar o usuário com esta informação
+                await db.collection('users').updateOne(
+                  { _id: userId },
+                  { $set: { asaasCustomerId } }
+                );
+                
+                // Registrar também na coleção de customers
+                await db.collection('customers').updateOne(
+                  { user_id: userId },
+                  { 
+                    $set: { 
+                      asaas_id: asaasCustomerId,
+                      updatedAt: new Date()
+                    },
+                    $setOnInsert: {
+                      createdAt: new Date()
+                    }
+                  },
+                  { upsert: true }
+                );
+              } catch (dbError) {
+                console.error('Erro ao registrar relação usuário-cliente:', dbError.message);
+              } finally {
+                if (mongoClient) {
+                  await mongoClient.close();
+                }
+              }
+            }
+          } else {
+            return res.status(400).json({ 
+              success: false,
+              error: 'Cliente não encontrado no Asaas e não temos informações suficientes para criar' 
+            });
+          }
+        } catch (searchError) {
+          console.error('Erro ao buscar cliente:', searchError.message);
+          return res.status(500).json({ 
+            success: false,
+            error: 'Erro ao buscar cliente no Asaas' 
+          });
+        }
+      }
+    }
+    
+    if (!asaasCustomerId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Não foi possível determinar o ID do cliente Asaas' 
+      });
+    }
+
+    // Obter valor do plano
+    let planValue;
+    
     // Tabela de valores oficiais para cada plano (único local confiável de preços)
     const OFFICIAL_PLAN_PRICES = {
       'basic': 19.90,
@@ -75,20 +254,20 @@ module.exports = async (req, res) => {
     }
     
     // Obter o valor oficial para este plano
-    const officialPrice = OFFICIAL_PLAN_PRICES[planKey];
+    planValue = OFFICIAL_PLAN_PRICES[planKey];
     
     // Valor recebido do cliente
     const clientValue = parseFloat(value);
     
     // Sempre usar o valor oficial, mas registrar se um valor diferente foi enviado
     if (!clientValue || clientValue <= 0) {
-      console.log(`Valor não fornecido ou inválido. Usando valor oficial ${officialPrice} para o plano ${planId}`);
-    } else if (clientValue !== officialPrice) {
-      console.warn(`ALERTA DE SEGURANÇA: Cliente tentou definir valor ${clientValue} para plano ${planId}. Usando valor oficial ${officialPrice}`);
+      console.log(`Valor não fornecido ou inválido. Usando valor oficial ${planValue} para o plano ${planId}`);
+    } else if (clientValue !== planValue) {
+      console.warn(`ALERTA DE SEGURANÇA: Cliente tentou definir valor ${clientValue} para plano ${planId}. Usando valor oficial ${planValue}`);
     }
     
     // Sempre usar o valor oficial, independente do que foi enviado
-    const subscriptionValue = officialPrice;
+    const subscriptionValue = planValue;
 
     // Configuração da API do Asaas
     const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
@@ -120,15 +299,15 @@ module.exports = async (req, res) => {
       planId,
       valueFromClient: value,
       valueUsed: subscriptionValue,
-      billingType,
-      cycle
+      billingType: paymentMethod,
+      cycle: 'MONTHLY'
     });
 
     // Construir o payload da assinatura
     const subscriptionData = {
-      customer: customerId,
-      billingType,
-      cycle,
+      customer: asaasCustomerId,
+      billingType: paymentMethod,
+      cycle: 'MONTHLY',
       value: subscriptionValue, // Usar sempre o valor oficial
       nextDueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Amanhã
       description: description || `Assinatura RunCash - Plano ${planId}`,
@@ -142,7 +321,7 @@ module.exports = async (req, res) => {
     };
 
     // Adicionar dados de cartão de crédito se for pagamento com cartão
-    if (billingType === 'CREDIT_CARD' && holderName && cardNumber && expiryMonth && expiryYear && ccv) {
+    if (paymentMethod === 'CREDIT_CARD' && holderName && cardNumber && expiryMonth && expiryYear && ccv) {
       subscriptionData.creditCard = {
         holderName,
         number: cardNumber,
@@ -183,7 +362,7 @@ module.exports = async (req, res) => {
     let qrCode = null;
     let redirectUrl = null;
 
-    if (billingType === 'PIX') {
+    if (paymentMethod === 'PIX') {
       try {
         console.log(`Buscando pagamento para assinatura ${subscription.id}...`);
         
@@ -272,7 +451,7 @@ module.exports = async (req, res) => {
           response: pixError.response?.data
         });
       }
-    } else if (billingType === 'CREDIT_CARD') {
+    } else if (paymentMethod === 'CREDIT_CARD') {
       // Para cartão de crédito, só precisamos do ID do pagamento
       try {
         const paymentsResponse = await apiClient.get(`/payments`, {
@@ -290,9 +469,9 @@ module.exports = async (req, res) => {
     // Registrar no MongoDB
     if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
       try {
-        client = new MongoClient(process.env.MONGODB_URI);
-        await client.connect();
-        const db = client.db(process.env.MONGODB_DB_NAME || 'runcash');
+        mongoClient = new MongoClient(process.env.MONGODB_URI);
+        await mongoClient.connect();
+        const db = mongoClient.db(process.env.MONGODB_DB_NAME || 'runcash');
         
         await db.collection('subscriptions').insertOne({
           subscription_id: subscription.id,
@@ -301,7 +480,7 @@ module.exports = async (req, res) => {
           plan_id: planId,
           payment_id: paymentId,
           status: subscription.status,
-          billing_type: billingType,
+          billing_type: paymentMethod,
           value: subscriptionValue, // Usar o valor oficial
           created_at: new Date()
         });
@@ -340,10 +519,5 @@ module.exports = async (req, res) => {
       error: 'Erro ao processar solicitação',
       message: error.message
     });
-  } finally {
-    // Fechar a conexão com o MongoDB
-    if (client) {
-      await client.close();
-    }
   }
 }; 
