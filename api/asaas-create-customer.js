@@ -14,10 +14,9 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Capturar ID do cliente da URL se for uma atualização
-  const urlParts = req.url.split('/');
-  const customerId = urlParts.length > 2 ? urlParts[2].split('?')[0] : null;
-  const isUpdate = customerId || (req.body && req.body.update === true);
+  // Verificar se é uma atualização pelo corpo da requisição
+  const customerId = req.body && req.body.customerId;
+  const isUpdate = req.body && req.body.update === true && customerId;
 
   // Apenas aceitar solicitações POST ou GET
   if (req.method !== 'POST' && req.method !== 'GET') {
@@ -131,7 +130,7 @@ module.exports = async (req, res) => {
     });
 
     // CASO DE ATUALIZAÇÃO: atualizar cliente existente
-    if (isUpdate && customerId) {
+    if (isUpdate) {
       console.log(`Atualizando cliente ${customerId} com novos dados`);
       
       // Preparar dados para atualização
