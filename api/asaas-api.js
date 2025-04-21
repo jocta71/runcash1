@@ -3,7 +3,7 @@
 
 const axios = require('axios');
 const { MongoClient, ObjectId } = require('mongodb');
-const { connectToDatabase } = require('../config/mongodb');
+const { connectToDatabase } = require('./config/mongodb');
 
 // Função auxiliar para conectar ao MongoDB
 // Removida para evitar duplicação, usando a importada de ../config/mongodb
