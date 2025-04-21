@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { createAsaasCustomer, createAsaasSubscription } from '@/integrations/asaas/client';
+import { createAsaasSubscription } from '@/integrations/asaas/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Função para formatar CPF
@@ -113,24 +113,21 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
     setIsLoading(true);
     
     try {
-      console.log('Iniciando criação de cliente no Asaas...');
-      // Passo 1: Criar ou recuperar cliente no Asaas
-      const customerId = await createAsaasCustomer({
-        name: formData.name,
-        email: formData.email,
-        cpfCnpj: cpfClean,
-        mobilePhone: formData.phone.replace(/\D/g, ''),
-        userId: user.id
-      });
+      // Verificar se o usuário já possui ID de cliente no Asaas
+      if (!user.asaasCustomerId) {
+        setError("Não foi possível identificar seu registro no sistema de pagamentos. Por favor, entre em contato com o suporte.");
+        setIsLoading(false);
+        return;
+      }
       
-      console.log('Cliente criado/recuperado com ID:', customerId);
+      console.log('Usando customerId existente:', user.asaasCustomerId);
       
-      // Passo 2: Criar assinatura
+      // Criar assinatura diretamente usando o ID do cliente já existente
       console.log('Criando assinatura para o cliente...');
       const subscription = await createAsaasSubscription(
         planId, 
         user.id,
-        customerId,
+        user.asaasCustomerId,
         'PIX'
       );
       
@@ -145,7 +142,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         onPaymentSuccess();
       } else if (subscription.paymentId) {
         // Para qualquer plano pago, sempre redirecionar para página de pagamento PIX
-        window.location.href = `/pagamento?planId=${planId}&customerId=${customerId}&paymentId=${subscription.paymentId}`;
+        window.location.href = `/pagamento?planId=${planId}&customerId=${user.asaasCustomerId}&paymentId=${subscription.paymentId}`;
       } else {
         setError("Não foi possível obter as informações de pagamento. Por favor, tente novamente.");
       }
@@ -253,20 +250,19 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
           />
         </div>
         
-        <div className="pt-2 flex space-x-3">
-          <Button
-            type="button"
+        <div className="flex space-x-4 pt-4">
+          <Button 
+            type="button" 
             variant="outline"
             onClick={onCancel}
-            className="flex-1"
+            className="flex-1 bg-transparent border-gray-700 text-gray-300 hover:bg-gray-800"
             disabled={isLoading}
           >
             Cancelar
           </Button>
-          
-          <Button
-            type="submit"
-            className="flex-1 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+          <Button 
+            type="submit" 
+            className="flex-1 bg-vegas-gold hover:bg-vegas-gold/90 text-black"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -275,7 +271,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
                 Processando...
               </>
             ) : (
-              'Continuar para pagamento'
+              'Prosseguir para Pagamento'
             )}
           </Button>
         </div>
