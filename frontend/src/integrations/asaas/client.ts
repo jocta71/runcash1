@@ -170,7 +170,7 @@ interface PaymentResponse {
 }
 
 /**
- * Busca detalhes de um pagamento no Asaas
+ * Busca informações de um pagamento no Asaas
  * @param paymentId ID do pagamento no Asaas
  * @param force Se true, força atualização ignorando cache
  */
@@ -180,7 +180,7 @@ export const findAsaasPayment = async (paymentId: string, force: boolean = false
     
     // Adicionar parâmetro de cache buster quando força atualização
     const cacheBuster = force ? `&_t=${Date.now()}` : '';
-    const response = await api.get<PaymentResponse>(`api/asaas-find-payment?paymentId=${paymentId}${cacheBuster}`);
+    const response = await api.get<PaymentResponse>(`api/asaas-api?path=find-payment&paymentId=${paymentId}${cacheBuster}`);
     
     console.log('Resposta da API de busca de pagamento:', response.data);
     
@@ -225,7 +225,7 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
   try {
     console.log(`Buscando QR code PIX: paymentId=${paymentId}`);
     
-    const response = await api.get<PixQrCodeResponse>(`api/asaas-pix-qrcode?paymentId=${paymentId}`);
+    const response = await api.get<PixQrCodeResponse>(`api/asaas-api?path=pix-qrcode&paymentId=${paymentId}`);
     
     console.log('Resposta da API de QR code PIX:', response.data);
     

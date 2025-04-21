@@ -37,6 +37,12 @@ module.exports = async (req, res) => {
         return await handleCancelSubscription(req, res);
       case 'sync-user-customer':
         return await handleSyncUserCustomer(req, res);
+      case 'find-payment':
+        return await handleFindPayment(req, res);
+      case 'regenerate-pix-code':
+        return await handleRegeneratePixCode(req, res);
+      case 'pix-qrcode':
+        return await handlePixQrCode(req, res);
       default:
         return res.status(404).json({ 
           success: false, 
@@ -773,6 +779,340 @@ async function handleSyncUserCustomer(req, res) {
     return res.status(500).json({ 
       success: false, 
       error: `Erro interno: ${error.message}` 
+    });
+  }
+}
+
+async function handleFindPayment(req, res) {
+  try {
+    // Apenas aceitar solicitações GET
+    if (req.method !== 'GET') {
+      return res.status(405).json({ error: 'Método não permitido' });
+    }
+    
+    const { paymentId, subscriptionId, customerId, _t } = req.query;
+    
+    // Verificar se é uma requisição forçada (com cache buster)
+    const forceUpdate = !!_t;
+    if (forceUpdate) {
+      console.log(`Requisição forçada detectada (timestamp: ${_t})`);
+    }
+
+    // Validar campos obrigatórios
+    if (!paymentId && !subscriptionId && !customerId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'É necessário informar paymentId, subscriptionId ou customerId' 
+      });
+    }
+
+    const { apiClient } = getAsaasConfig();
+    
+    // Modificar cliente HTTP para adicionar controle de cache se necessário
+    if (forceUpdate) {
+      apiClient.defaults.headers['Cache-Control'] = 'no-cache, no-store';
+    }
+
+    let paymentsData = [];
+    let qrCode = null;
+
+    // Buscar pagamento específico ou lista de pagamentos
+    if (paymentId) {
+      console.log(`Buscando pagamento específico: ${paymentId} ${forceUpdate ? '(força atualização)' : ''}`);
+      
+      // Obter parâmetros de URL para verificação forçada
+      const params = forceUpdate ? { nocache: Date.now() } : {};
+      const paymentResponse = await apiClient.get(`/payments/${paymentId}`, { params });
+      paymentsData = [paymentResponse.data];
+      
+      // Se o pagamento for PIX, buscar QR Code
+      if (paymentResponse.data.billingType === 'PIX') {
+        try {
+          const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`, { params });
+          qrCode = {
+            encodedImage: pixResponse.data.encodedImage,
+            payload: pixResponse.data.payload
+          };
+        } catch (pixError) {
+          console.error('Erro ao obter QR Code PIX:', pixError.message);
+        }
+      }
+    } else if (subscriptionId) {
+      console.log(`Buscando pagamentos da assinatura: ${subscriptionId}`);
+      const paymentsResponse = await apiClient.get('/payments', {
+        params: { subscription: subscriptionId, ...(forceUpdate ? { nocache: Date.now() } : {}) }
+      });
+      paymentsData = paymentsResponse.data.data || [];
+    } else if (customerId) {
+      console.log(`Buscando pagamentos do cliente: ${customerId}`);
+      const paymentsResponse = await apiClient.get('/payments', {
+        params: { customer: customerId, ...(forceUpdate ? { nocache: Date.now() } : {}) }
+      });
+      paymentsData = paymentsResponse.data.data || [];
+    }
+
+    // Formatar resposta
+    const formattedPayments = paymentsData.map(payment => ({
+      id: payment.id,
+      status: payment.status,
+      value: payment.value,
+      netValue: payment.netValue,
+      billingType: payment.billingType,
+      dueDate: payment.dueDate,
+      paymentDate: payment.paymentDate,
+      description: payment.description,
+      invoiceUrl: payment.invoiceUrl,
+      externalReference: payment.externalReference,
+      subscription: payment.subscription,
+      customer: payment.customer
+    }));
+
+    return res.status(200).json({
+      success: true,
+      payment: formattedPayments[0] || null, // Retornar o primeiro pagamento ou null
+      payments: formattedPayments,
+      qrCode: qrCode
+    });
+  } catch (error) {
+    console.error('Erro ao buscar pagamento:', error.message);
+    
+    // Verificar se o erro é da API do Asaas
+    if (error.response && error.response.data) {
+      return res.status(error.response.status || 500).json({
+        success: false,
+        error: 'Erro na API do Asaas',
+        details: error.response.data
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao buscar pagamento',
+      message: error.message
+    });
+  }
+}
+
+async function handleRegeneratePixCode(req, res) {
+  try {
+    // Aceitar solicitações GET (para uso direto) e POST (para chamadas de API)
+    if (req.method !== 'GET' && req.method !== 'POST') {
+      return res.status(405).json({ 
+        success: false,
+        error: 'Método não permitido' 
+      });
+    }
+    
+    // Obter paymentId ou subscriptionId da query ou body
+    let paymentId = null;
+    let subscriptionId = null;
+    
+    if (req.method === 'GET') {
+      paymentId = req.query.paymentId;
+      subscriptionId = req.query.subscriptionId;
+    } else {
+      paymentId = req.body.paymentId;
+      subscriptionId = req.body.subscriptionId;
+    }
+
+    // Precisamos de pelo menos um dos IDs
+    if (!paymentId && !subscriptionId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'É necessário informar paymentId ou subscriptionId' 
+      });
+    }
+
+    const { apiClient } = getAsaasConfig();
+
+    // Se temos apenas o subscriptionId, precisamos buscar o paymentId
+    if (!paymentId && subscriptionId) {
+      console.log(`Buscando pagamento para assinatura ${subscriptionId}...`);
+      
+      try {
+        const paymentsResponse = await apiClient.get('/payments', {
+          params: { subscription: subscriptionId }
+        });
+        
+        if (paymentsResponse.data.data && paymentsResponse.data.data.length > 0) {
+          // Pegar o pagamento mais recente
+          paymentId = paymentsResponse.data.data[0].id;
+          console.log(`Pagamento encontrado: ${paymentId}`);
+        } else {
+          return res.status(404).json({
+            success: false,
+            error: 'Nenhum pagamento encontrado para esta assinatura'
+          });
+        }
+      } catch (searchError) {
+        console.error('Erro ao buscar pagamento:', searchError.message);
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao buscar pagamento',
+          details: searchError.message
+        });
+      }
+    }
+
+    // Agora que temos o paymentId, buscar informações do pagamento
+    console.log(`Verificando se o pagamento ${paymentId} é do tipo PIX...`);
+    
+    let payment;
+    try {
+      const paymentResponse = await apiClient.get(`/payments/${paymentId}`);
+      payment = paymentResponse.data;
+      
+      if (payment.billingType !== 'PIX') {
+        return res.status(400).json({
+          success: false,
+          error: 'Este pagamento não é do tipo PIX'
+        });
+      }
+      
+      if (payment.status === 'RECEIVED' || payment.status === 'CONFIRMED') {
+        return res.status(400).json({
+          success: false,
+          error: 'Este pagamento já foi confirmado'
+        });
+      }
+      
+      console.log(`Pagamento PIX válido. Status: ${payment.status}`);
+    } catch (paymentError) {
+      console.error('Erro ao verificar pagamento:', paymentError.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao verificar pagamento',
+        details: paymentError.message
+      });
+    }
+    
+    // Gerar QR Code PIX
+    console.log(`Gerando QR Code PIX para o pagamento ${paymentId}...`);
+    
+    try {
+      const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`);
+      
+      console.log('QR Code PIX gerado com sucesso!');
+      
+      // Retornar QR Code e informações do pagamento
+      return res.status(200).json({
+        success: true,
+        payment: {
+          id: payment.id,
+          value: payment.value,
+          status: payment.status,
+          dueDate: payment.dueDate,
+          description: payment.description
+        },
+        qrCode: {
+          encodedImage: pixResponse.data.encodedImage,
+          payload: pixResponse.data.payload,
+          expirationDate: pixResponse.data.expirationDate
+        }
+      });
+    } catch (pixError) {
+      console.error('Erro ao gerar QR Code PIX:', pixError.message);
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao gerar QR Code PIX',
+        details: pixError.message
+      });
+    }
+  } catch (error) {
+    console.error('Erro inesperado:', error.message);
+    
+    return res.status(500).json({
+      success: false,
+      error: 'Erro inesperado',
+      message: error.message
+    });
+  }
+}
+
+async function handlePixQrCode(req, res) {
+  try {
+    // Aceitar solicitações GET e POST
+    if (req.method !== 'GET' && req.method !== 'POST') {
+      return res.status(405).json({ 
+        success: false,
+        error: 'Método não permitido' 
+      });
+    }
+    
+    // Obter ID do pagamento da query (GET) ou body (POST)
+    let paymentId;
+    
+    if (req.method === 'GET') {
+      paymentId = req.query.paymentId;
+    } else {
+      paymentId = req.body.paymentId;
+    }
+
+    // Validar campos obrigatórios
+    if (!paymentId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Campo obrigatório: paymentId' 
+      });
+    }
+
+    const { apiClient } = getAsaasConfig();
+
+    // Verificar se o pagamento existe e é do tipo PIX
+    console.log(`Verificando pagamento: ${paymentId}`);
+    const paymentResponse = await apiClient.get(`/payments/${paymentId}`);
+    const payment = paymentResponse.data;
+    
+    if (payment.billingType !== 'PIX') {
+      return res.status(400).json({
+        success: false,
+        error: 'O pagamento não é do tipo PIX'
+      });
+    }
+    
+    // Gerar QR code PIX
+    console.log(`Gerando QR code PIX para o pagamento: ${paymentId}`);
+    const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`);
+    
+    // Extrair dados do QR code
+    const qrCode = {
+      encodedImage: pixResponse.data.encodedImage,
+      payload: pixResponse.data.payload,
+      expirationDate: pixResponse.data.expirationDate
+    };
+    
+    // Informações adicionais do pagamento
+    const paymentInfo = {
+      id: payment.id,
+      value: payment.value,
+      status: payment.status,
+      dueDate: payment.dueDate,
+      description: payment.description
+    };
+    
+    // Retornar resposta com QR code e dados do pagamento
+    return res.status(200).json({
+      success: true,
+      qrCode,
+      payment: paymentInfo
+    });
+  } catch (error) {
+    console.error('Erro ao gerar QR code PIX:', error.message);
+    
+    // Verificar se o erro é da API do Asaas
+    if (error.response && error.response.data) {
+      return res.status(error.response.status || 500).json({
+        success: false,
+        error: 'Erro na API do Asaas',
+        details: error.response.data
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao gerar QR code PIX',
+      message: error.message
     });
   }
 } 

@@ -645,7 +645,7 @@ const HTML = `
           
           logOperation(\`Verificando pagamento: \${paymentId}\`);
           
-          const response = await fetch(\`/api/asaas-find-payment?paymentId=\${paymentId}\`);
+          const response = await fetch(\`/api/asaas-api?path=find-payment&paymentId=\${paymentId}\`);
           const result = await response.json();
           
           if (result.success) {

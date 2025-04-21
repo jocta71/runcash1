@@ -3,15 +3,19 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "functions": {
+    "api/asaas-api.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/webhook-manager.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
     "api/asaas-create-customer.js": {
       "memory": 1024,
       "maxDuration": 10
     },
     "api/asaas-create-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/webhook-manager.js": {
       "memory": 1024,
       "maxDuration": 10
     },
@@ -45,6 +49,10 @@
     }
   },
   "rewrites": [
+    {
+      "source": "/api/asaas-api",
+      "destination": "/api/asaas-api.js"
+    },
     {
       "source": "/api/asaas-webhook",
       "destination": "/api/webhook-manager.js"
@@ -90,7 +98,7 @@
       "destination": "/api/ai/query.js"
     },
     {
-      "source": "/api/((?!asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|ai/query|test-page).*)",
+      "source": "/api/((?!asaas-api|asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|ai/query|test-page).*)",
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
     },
     {
