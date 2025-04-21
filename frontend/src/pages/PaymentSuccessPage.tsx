@@ -41,7 +41,7 @@ const PaymentSuccessPage: React.FC = () => {
           // Como alternativa, podemos mostrar o modal de login com redirecionamento
           setIsPaused(true); // Pausa o countdown
           showLoginModal({
-            redirectAfterLogin: '/account',
+            redirectAfterLogin: '/billing',
             message: 'Por favor, faça login para acessar sua conta e verificar sua assinatura.'
           });
         }
@@ -66,7 +66,7 @@ const PaymentSuccessPage: React.FC = () => {
           clearInterval(timer);
           // Redirecionar para a página adequada com base no estado de autenticação
           if (authStatus === 'authenticated') {
-            navigate('/account');
+            navigate('/billing');
           } else {
             // Em vez de navegar para /login (que não existe), navegar para
             // a página inicial e mostrar o modal de login
@@ -74,7 +74,7 @@ const PaymentSuccessPage: React.FC = () => {
               state: { 
                 showLoginModal: true,
                 message: 'Por favor, faça login para acessar sua conta e ver sua assinatura.',
-                redirectAfterLogin: '/account'
+                redirectAfterLogin: '/billing'
               } 
             });
           }
@@ -93,7 +93,7 @@ const PaymentSuccessPage: React.FC = () => {
   const handleManualLogin = () => {
     // Mostrar modal de login com redirecionamento para a página da conta
     showLoginModal({
-      redirectAfterLogin: '/account',
+      redirectAfterLogin: '/billing',
       message: 'Por favor, faça login para acessar sua conta e verificar sua assinatura.'
     });
   };
@@ -134,7 +134,7 @@ const PaymentSuccessPage: React.FC = () => {
                 {authStatus === 'authenticated' ? (
                   <Button 
                     variant="default" 
-                    onClick={() => navigate('/account')}
+                    onClick={() => navigate('/billing')}
                   >
                     Ir para minha conta
                   </Button>

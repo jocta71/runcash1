@@ -22,7 +22,7 @@ const AsaasPaymentPage: React.FC = () => {
   const queryParams = new URLSearchParams(location.search);
   const planId = queryParams.get('planId');
   const customerId = queryParams.get('customerId');
-  const returnUrl = queryParams.get('returnUrl') || '/account';
+  const returnUrl = queryParams.get('returnUrl') || '/billing';
   const paymentMethod = queryParams.get('paymentMethod') || 'PIX';
   
   // Estados

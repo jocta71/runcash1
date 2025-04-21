@@ -65,6 +65,17 @@ const MinhaContaAssinaturaRedirect = () => {
   return <LoadingScreen />;
 };
 
+// Componente de redirecionamento para /account
+const AccountRouteRedirect = () => {
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    navigate('/billing', { replace: true });
+  }, [navigate]);
+  
+  return <LoadingScreen />;
+};
+
 // Componente principal da aplicação
 const App = () => {
   // Criar uma única instância do QueryClient com useRef para mantê-la durante re-renders
@@ -154,7 +165,7 @@ const App = () => {
                           {/* Redirecionamento da rota /account (usada após pagamento) */}
                           <Route path="/account" element={
                             <Suspense fallback={<LoadingScreen />}>
-                              <AccountRedirect />
+                              <AccountRouteRedirect />
                             </Suspense>
                           } />
                           
