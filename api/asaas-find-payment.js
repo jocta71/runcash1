@@ -19,7 +19,13 @@ module.exports = async (req, res) => {
   }
   
   try {
-    const { paymentId, subscriptionId, customerId } = req.query;
+    const { paymentId, subscriptionId, customerId, _t } = req.query;
+    
+    // Verificar se é uma requisição forçada (com cache buster)
+    const forceUpdate = !!_t;
+    if (forceUpdate) {
+      console.log(`Requisição forçada detectada (timestamp: ${_t})`);
+    }
 
     // Validar campos obrigatórios
     if (!paymentId && !subscriptionId && !customerId) {
@@ -48,7 +54,9 @@ module.exports = async (req, res) => {
       baseURL: API_URL,
       headers: {
         'access_token': ASAAS_API_KEY,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        // Adicionar cabeçalho para invalidar cache quando necessário
+        'Cache-Control': forceUpdate ? 'no-cache, no-store' : undefined
       }
     });
 
@@ -57,14 +65,17 @@ module.exports = async (req, res) => {
 
     // Buscar pagamento específico ou lista de pagamentos
     if (paymentId) {
-      console.log(`Buscando pagamento específico: ${paymentId}`);
-      const paymentResponse = await apiClient.get(`/payments/${paymentId}`);
+      console.log(`Buscando pagamento específico: ${paymentId} ${forceUpdate ? '(força atualização)' : ''}`);
+      
+      // Obter parâmetros de URL para verificação forçada
+      const params = forceUpdate ? { nocache: Date.now() } : {};
+      const paymentResponse = await apiClient.get(`/payments/${paymentId}`, { params });
       paymentsData = [paymentResponse.data];
       
       // Se o pagamento for PIX, buscar QR Code
       if (paymentResponse.data.billingType === 'PIX') {
         try {
-          const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`);
+          const pixResponse = await apiClient.get(`/payments/${paymentId}/pixQrCode`, { params });
           qrCode = {
             encodedImage: pixResponse.data.encodedImage,
             payload: pixResponse.data.payload
@@ -76,13 +87,13 @@ module.exports = async (req, res) => {
     } else if (subscriptionId) {
       console.log(`Buscando pagamentos da assinatura: ${subscriptionId}`);
       const paymentsResponse = await apiClient.get('/payments', {
-        params: { subscription: subscriptionId }
+        params: { subscription: subscriptionId, ...(forceUpdate ? { nocache: Date.now() } : {}) }
       });
       paymentsData = paymentsResponse.data.data || [];
     } else if (customerId) {
       console.log(`Buscando pagamentos do cliente: ${customerId}`);
       const paymentsResponse = await apiClient.get('/payments', {
-        params: { customer: customerId }
+        params: { customer: customerId, ...(forceUpdate ? { nocache: Date.now() } : {}) }
       });
       paymentsData = paymentsResponse.data.data || [];
     }
@@ -105,6 +116,7 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      payment: formattedPayments[0] || null, // Retornar o primeiro pagamento ou null
       payments: formattedPayments,
       qrCode: qrCode
     });

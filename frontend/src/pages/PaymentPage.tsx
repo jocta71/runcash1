@@ -105,15 +105,33 @@ const PaymentPage = () => {
     }
   };
 
-  const checkPaymentStatus = async () => {
+  const checkPaymentStatus = async (force: boolean = false) => {
     if (!paymentId) return;
     
     try {
-      console.log('Verificando status do pagamento:', paymentId);
-      const payment = await findAsaasPayment(paymentId);
+      console.log('Verificando status do pagamento:', paymentId, force ? '(verificação forçada)' : '');
+      
+      // Se for verificação forçada, mostrar indicador de carregamento
+      if (force) {
+        setPixLoading(true);
+      }
+      
+      // Buscar o status atualizado do pagamento (com parâmetro para forçar atualização)
+      const payment = await findAsaasPayment(paymentId, force);
       
       console.log('Status do pagamento:', payment.status, 'Dados completos:', payment);
       setPaymentStatus(payment.status);
+      
+      // Sempre desativar o indicador de carregamento após verificação forçada
+      if (force) {
+        setPixLoading(false);
+        
+        // Mostrar status atual ao usuário
+        toast({
+          title: `Status do pagamento: ${payment.status}`,
+          description: getPaymentStatusDescription(payment.status),
+        });
+      }
       
       // Se o pagamento foi confirmado
       if (payment && (
@@ -163,6 +181,38 @@ const PaymentPage = () => {
       }
     } catch (error) {
       console.error('Erro ao verificar status do pagamento:', error);
+      
+      // Se for verificação forçada, desabilitar carregamento e mostrar erro
+      if (force) {
+        setPixLoading(false);
+        toast({
+          variant: "destructive",
+          title: "Erro na verificação",
+          description: "Não foi possível verificar o status do pagamento. Tente novamente.",
+        });
+      }
+    }
+  };
+
+  // Função helper para obter descrição do status de pagamento
+  const getPaymentStatusDescription = (status: string): string => {
+    switch (status) {
+      case 'RECEIVED':
+      case 'CONFIRMED':
+      case 'AVAILABLE':
+      case 'BILLING_AVAILABLE':
+        return 'Pagamento confirmado com sucesso!';
+      case 'PENDING':
+        return 'Pagamento pendente. Aguardando confirmação do banco.';
+      case 'OVERDUE':
+        return 'Pagamento expirado. Por favor, gere um novo QR code.';
+      case 'CANCELED':
+        return 'Pagamento cancelado.';
+      case 'REFUNDED':
+      case 'REFUND_REQUESTED':
+        return 'Pagamento estornado ou em processo de estorno.';
+      default:
+        return `Status do pagamento: ${status}`;
     }
   };
 
@@ -256,6 +306,52 @@ const PaymentPage = () => {
                         Copiar
                       </Button>
                     </div>
+                  </div>
+                  
+                  {/* Botão para verificação manual do pagamento */}
+                  <div className="w-full max-w-lg mx-auto mt-6">
+                    <Button 
+                      onClick={() => {
+                        toast({
+                          title: "Verificando pagamento...",
+                          description: "Aguarde enquanto verificamos o status do seu pagamento."
+                        });
+                        checkPaymentStatus(true); // Passar true para forçar verificação completa
+                      }}
+                      className="w-full bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+                    >
+                      Já realizei o pagamento
+                    </Button>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Clique no botão acima se você já realizou o pagamento, mas a página não atualizou.
+                    </p>
+                  </div>
+                  
+                  {/* Opções adicionais para problemas de sincronização */}
+                  <div className="w-full max-w-lg mx-auto mt-4 flex gap-3">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => window.location.reload()}
+                      className="flex-1"
+                    >
+                      Recarregar página
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        const confirmRedirect = window.confirm(
+                          'Tem certeza que deseja avançar para a página de sucesso? ' +
+                          'Faça isso apenas se você já confirmou o pagamento no sistema administrativo.'
+                        );
+                        if (confirmRedirect) {
+                          navigate('/payment-success');
+                        }
+                      }}
+                      className="flex-1"
+                    >
+                      Pagamento confirmado
+                    </Button>
                   </div>
                   
                   {expirationDate && (

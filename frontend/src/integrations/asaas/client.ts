@@ -182,12 +182,15 @@ interface PaymentResponse {
 /**
  * Busca detalhes de um pagamento no Asaas
  * @param paymentId ID do pagamento no Asaas
+ * @param force Se true, força atualização ignorando cache
  */
-export const findAsaasPayment = async (paymentId: string): Promise<any> => {
+export const findAsaasPayment = async (paymentId: string, force: boolean = false): Promise<any> => {
   try {
-    console.log(`Buscando pagamento: paymentId=${paymentId}`);
+    console.log(`Buscando pagamento: paymentId=${paymentId}${force ? ' (forçado)' : ''}`);
     
-    const response = await api.get<PaymentResponse>(`api/asaas-find-payment?paymentId=${paymentId}`);
+    // Adicionar parâmetro de cache buster quando força atualização
+    const cacheBuster = force ? `&_t=${Date.now()}` : '';
+    const response = await api.get<PaymentResponse>(`api/asaas-find-payment?paymentId=${paymentId}${cacheBuster}`);
     
     console.log('Resposta da API de busca de pagamento:', response.data);
     
