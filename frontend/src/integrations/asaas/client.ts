@@ -477,11 +477,9 @@ export const updateAsaasCustomer = async (
   try {
     console.log(`Atualizando cliente ${customerId} no Asaas:`, userData);
     
-    // Usar o mesmo endpoint, passando customerId e a flag update no corpo
-    const response = await api.post<ApiResponse<any>>('api/asaas-create-customer', {
+    const response = await api.post<ApiResponse<any>>(`api/asaas-create-customer/${customerId}`, {
       ...userData,
-      customerId, // Enviar o ID no corpo da requisição
-      update: true // Flag para indicar que é uma atualização
+      update: true
     });
     
     console.log('Resposta da API de atualização de cliente:', response.data);
