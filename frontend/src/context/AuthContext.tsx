@@ -57,8 +57,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Flag para evitar logins automáticos indesejados
-  const [forceNoAutoLogin] = useState(true);
+  // Flag para evitar logins automáticos indesejados - alterando para false para permitir persistência de login
+  const [forceNoAutoLogin] = useState(false);
 
   // Log de debug para entender o fluxo de autenticação
   const logAuthFlow = (message: string) => {
