@@ -295,13 +295,19 @@ export const checkPaymentStatus = (
         return;
       }
       
+      console.log(`Verificando status do pagamento ${paymentId}...`);
       const payment = await findAsaasPayment(paymentId);
+      console.log(`Status atual do pagamento: ${payment.status}`, payment);
       
-      if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
+      // Verificar se o pagamento foi confirmado (usando statusList mais completa)
+      if (['CONFIRMED', 'RECEIVED', 'AVAILABLE', 'BILLING_AVAILABLE'].includes(payment.status)) {
+        console.log(`Pagamento ${paymentId} confirmado!`);
         stopChecking();
         onSuccess(payment);
-      } else if (payment.status === 'REFUNDED' || payment.status === 'REFUND_REQUESTED' || 
-                payment.status === 'OVERDUE' || payment.status === 'CANCELED') {
+      } 
+      // Verificar se o pagamento teve problema
+      else if (['REFUNDED', 'REFUND_REQUESTED', 'OVERDUE', 'CANCELED'].includes(payment.status)) {
+        console.log(`Pagamento ${paymentId} com problema: ${payment.status}`);
         stopChecking();
         onError(new Error(`Pagamento ${payment.status}: ${payment.status === 'OVERDUE' ? 'Expirado' : 'Cancelado ou reembolsado'}`));
       }
@@ -316,17 +322,21 @@ export const checkPaymentStatus = (
     }
   };
   
-  // Inicia o polling
-  intervalId = window.setInterval(checkStatus, interval);
-  
-  // Define o timeout
-  timeoutId = window.setTimeout(() => {
-    stopChecking();
-    onError(new Error('Tempo limite excedido para verificação de pagamento'));
-  }, timeout);
-  
-  // Executa uma verificação imediata
-  checkStatus();
+  // Atrasar a primeira verificação em 3 segundos para dar tempo ao Asaas processar
+  console.log(`Agendando verificação do pagamento ${paymentId} para iniciar em 3 segundos...`);
+  setTimeout(() => {
+    // Inicia o polling após o atraso inicial
+    console.log(`Iniciando verificação periódica do pagamento ${paymentId}...`);
+    checkStatus(); // Verificação inicial
+    
+    intervalId = window.setInterval(checkStatus, interval);
+    
+    // Define o timeout
+    timeoutId = window.setTimeout(() => {
+      stopChecking();
+      onError(new Error('Tempo limite excedido para verificação de pagamento'));
+    }, timeout);
+  }, 3000);
   
   // Retorna função para cancelar o monitoramento
   return stopChecking;

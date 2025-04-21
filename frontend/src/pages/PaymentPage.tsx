@@ -60,9 +60,10 @@ const PaymentPage = () => {
       loadPixQrCode();
       
       // Configurar verificação periódica do status do pagamento
+      // Aumentar intervalo para 5 segundos para reduzir carga no servidor
       const interval = setInterval(() => {
         checkPaymentStatus();
-      }, 10000); // Verificar a cada 10 segundos
+      }, 5000); // Verificar a cada 5 segundos
       
       setCheckingInterval(interval);
       
@@ -82,7 +83,15 @@ const PaymentPage = () => {
     setPixError(null);
     
     try {
+      console.log('Carregando QR code PIX para o pagamento:', paymentId);
       const pixData = await getAsaasPixQrCode(paymentId);
+      
+      if (!pixData.qrCodeImage || !pixData.qrCodeText) {
+        setPixError('QR Code PIX não disponível. Tente novamente em alguns segundos.');
+        // Tentar novamente após 3 segundos
+        setTimeout(() => loadPixQrCode(), 3000);
+        return;
+      }
       
       setQrCodeImage(pixData.qrCodeImage);
       setQrCodeText(pixData.qrCodeText);
@@ -91,7 +100,7 @@ const PaymentPage = () => {
       setPixLoading(false);
     } catch (error) {
       setPixLoading(false);
-      setPixError('Não foi possível carregar o QR Code PIX. Tente novamente.');
+      setPixError('Não foi possível carregar o QR Code PIX. Tente recarregar a página.');
       console.error('Erro ao carregar QR Code PIX:', error);
     }
   };
@@ -100,12 +109,21 @@ const PaymentPage = () => {
     if (!paymentId) return;
     
     try {
+      console.log('Verificando status do pagamento:', paymentId);
       const payment = await findAsaasPayment(paymentId);
       
+      console.log('Status do pagamento:', payment.status, 'Dados completos:', payment);
       setPaymentStatus(payment.status);
       
       // Se o pagamento foi confirmado
-      if (payment && (payment.status === 'RECEIVED' || payment.status === 'CONFIRMED')) {
+      if (payment && (
+        payment.status === 'RECEIVED' || 
+        payment.status === 'CONFIRMED' || 
+        payment.status === 'AVAILABLE' ||
+        payment.status === 'BILLING_AVAILABLE'
+      )) {
+        console.log('Pagamento confirmado!', payment);
+        
         // Parar o checking
         if (checkingInterval) {
           clearInterval(checkingInterval);
@@ -122,6 +140,26 @@ const PaymentPage = () => {
         setTimeout(() => {
           navigate('/payment-success');
         }, 2000);
+      } else if (payment && (
+        payment.status === 'OVERDUE' || 
+        payment.status === 'CANCELED' || 
+        payment.status === 'REFUNDED' ||
+        payment.status === 'REFUND_REQUESTED'
+      )) {
+        console.log('Pagamento com problema:', payment.status);
+        
+        // Parar o checking
+        if (checkingInterval) {
+          clearInterval(checkingInterval);
+          setCheckingInterval(null);
+        }
+        
+        // Mostrar alerta de problema
+        setPixError(`Pagamento ${
+          payment.status === 'OVERDUE' ? 'expirado' : 
+          payment.status === 'CANCELED' ? 'cancelado' : 
+          'estornado ou em processo de estorno'
+        }. Por favor, tente novamente.`);
       }
     } catch (error) {
       console.error('Erro ao verificar status do pagamento:', error);

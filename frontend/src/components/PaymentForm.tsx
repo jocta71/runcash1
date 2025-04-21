@@ -136,15 +136,15 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
       
       console.log('Assinatura criada:', subscription);
       
-      // Se for plano gratuito ou assinatura já ativa, concluir diretamente
-      if (planId === 'free' || subscription.status === 'ACTIVE') {
+      // Se for plano gratuito, concluir diretamente
+      if (planId === 'free') {
         toast({
           title: "Plano ativado com sucesso!",
           description: "Seu plano foi ativado com sucesso.",
         });
         onPaymentSuccess();
       } else if (subscription.paymentId) {
-        // Se tiver paymentId, redirecionar para página de pagamento PIX
+        // Para qualquer plano pago, sempre redirecionar para página de pagamento PIX
         window.location.href = `/pagamento?planId=${planId}&customerId=${customerId}&paymentId=${subscription.paymentId}`;
       } else {
         setError("Não foi possível obter as informações de pagamento. Por favor, tente novamente.");
