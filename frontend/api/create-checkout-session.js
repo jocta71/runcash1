@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     
     // Se for plano gratuito, retornar URL especial
     if (planId === 'free') {
-      return res.json({ url: '/payment-success?free=true' });
+      return res.json({ url: `/payment-success?free=true&userId=${userId}&plan=${planId}` });
     }
     
     // Criar checkout session
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
         },
       ],
       mode: 'subscription',
-      success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&userId=${userId}&plan=${planId}`,
       cancel_url: `${req.headers.origin}/plans`,
       metadata: {
         userId,

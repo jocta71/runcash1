@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { useAuth } from '@/context/AuthContext';
@@ -11,14 +11,19 @@ import { useAuth } from '@/context/AuthContext';
  */
 const AccountRedirect = () => {
   const navigate = useNavigate();
-  const { user, loading: authLoading, checkAuth } = useAuth();
+  const location = useLocation();
+  const { user, loading: authLoading, checkAuth, setUser } = useAuth();
   const { loadUserSubscription } = useSubscription();
   const [isLoading, setIsLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState('Processando pagamento...');
   const [isSuccess, setIsSuccess] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [retries, setRetries] = useState(0);
   const [authChecked, setAuthChecked] = useState(false);
+  
+  // Verificar se temos um userId na URL
+  const queryParams = new URLSearchParams(location.search);
+  const userIdFromUrl = queryParams.get('userId');
+  const sessionIdFromUrl = queryParams.get('session_id');
 
   // Primeiro efeito: verificar autenticação
   useEffect(() => {
@@ -31,6 +36,29 @@ const AccountRedirect = () => {
         try {
           // Forçar verificação de autenticação
           const isAuthenticated = await checkAuth();
+          
+          // Se temos um userId na URL e autenticação falhou, podemos tentar 
+          // restaurar a sessão a partir desse ID (precisaria de implementação no backend)
+          if (!isAuthenticated && userIdFromUrl) {
+            console.log(`[AccountRedirect] Autenticação falhou, mas temos userId=${userIdFromUrl} na URL`);
+            console.log('[AccountRedirect] Tentando restaurar sessão a partir do userId...');
+            
+            // Aqui poderia ser implementada a lógica para restaurar a sessão com o backend
+            // Por enquanto, apenas redirecionamos para login com mensagem informativa
+            setHasError(true);
+            setLoadingMessage('Sessão expirada. Redirecionando para login...');
+            setTimeout(() => {
+              navigate('/login', { 
+                replace: true,
+                state: { 
+                  message: 'Sua sessão expirou durante o processamento do pagamento. Por favor, faça login novamente para ver sua assinatura.',
+                  redirectAfterLogin: '/minha-conta/assinatura'
+                }
+              });
+            }, 2000);
+            return;
+          }
+          
           setAuthChecked(true);
           
           if (!isAuthenticated) {
@@ -38,7 +66,12 @@ const AccountRedirect = () => {
             setHasError(true);
             setLoadingMessage('Sessão expirada. Redirecionando para login...');
             setTimeout(() => {
-              navigate('/login', { replace: true });
+              navigate('/login', { 
+                replace: true,
+                state: { 
+                  redirectAfterLogin: '/minha-conta/assinatura'
+                }
+              });
             }, 2000);
           } else {
             console.log('[AccountRedirect] Verificação de autenticação bem-sucedida.');
@@ -55,7 +88,7 @@ const AccountRedirect = () => {
       
       verifyAuth();
     }
-  }, [authLoading, authChecked, checkAuth, navigate]);
+  }, [authLoading, authChecked, checkAuth, navigate, userIdFromUrl]);
 
   // Segundo efeito: carregar assinatura e redirecionar
   useEffect(() => {
@@ -65,6 +98,11 @@ const AccountRedirect = () => {
         try {
           console.log('[AccountRedirect] Usuário autenticado:', user.id);
           setLoadingMessage('Atualizando dados da assinatura...');
+          
+          // Verificar se temos informações na URL relevantes para depuração
+          if (sessionIdFromUrl) {
+            console.log(`[AccountRedirect] Session ID da URL: ${sessionIdFromUrl}`);
+          }
           
           // Tentar carregar os dados da assinatura várias vezes
           // para garantir que a API tenha tempo de registrar a assinatura
@@ -119,10 +157,18 @@ const AccountRedirect = () => {
       setHasError(true);
       setLoadingMessage('Sessão expirada. Redirecionando para login...');
       setTimeout(() => {
-        navigate('/login', { replace: true });
+        navigate('/login', { 
+          replace: true,
+          state: { 
+            redirectAfterLogin: '/minha-conta/assinatura' 
+          }
+        });
       }, 2000);
     }
-  }, [authChecked, user, loadUserSubscription, navigate]);
+  }, [authChecked, user, loadUserSubscription, navigate, sessionIdFromUrl]);
+
+  // Mostrar informações de depuração (visível apenas em ambiente de desenvolvimento)
+  const showDebugInfo = process.env.NODE_ENV === 'development';
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#0e0e10] text-white">
@@ -145,6 +191,15 @@ const AccountRedirect = () => {
       {!isLoading && (
         <div className="mt-6 text-sm text-gray-500">
           Redirecionando para sua assinatura...
+        </div>
+      )}
+      
+      {showDebugInfo && userIdFromUrl && (
+        <div className="mt-8 p-3 border border-gray-800 rounded max-w-md">
+          <h3 className="text-sm font-bold mb-2">Informações de Depuração:</h3>
+          <p className="text-xs text-gray-400">User ID da URL: {userIdFromUrl}</p>
+          {sessionIdFromUrl && <p className="text-xs text-gray-400">Session ID: {sessionIdFromUrl}</p>}
+          <p className="text-xs text-gray-400">Estado de autenticação: {user ? 'Autenticado' : 'Não autenticado'}</p>
         </div>
       )}
     </div>

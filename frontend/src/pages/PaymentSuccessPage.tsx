@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { CheckCircle } from 'react-bootstrap-icons';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from '@/context/AuthContext';
+import { useLoginModal } from '@/context/LoginModalContext';
 
 /**
  * Página de sucesso após confirmação do pagamento
@@ -10,18 +12,64 @@ import { Card, CardContent } from "@/components/ui/card";
 const PaymentSuccessPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, checkAuth } = useAuth();
+  const { showLoginModal } = useLoginModal();
   const queryParams = new URLSearchParams(location.search);
   const planId = queryParams.get('plan');
+  const sessionId = queryParams.get('session_id');
+  const userId = queryParams.get('userId');
   
   const [countdown, setCountdown] = useState<number>(5);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
+  const [isPaused, setIsPaused] = useState(false);
+  
+  // Verificar autenticação primeiro
+  useEffect(() => {
+    const verifyAuth = async () => {
+      console.log('[PaymentSuccess] Verificando autenticação...');
+      
+      try {
+        const isAuthenticated = await checkAuth();
+        setAuthStatus(isAuthenticated ? 'authenticated' : 'unauthenticated');
+        
+        // Se o usuário não está autenticado mas temos um userId na URL,
+        // podemos tentar forçar a autenticação no backend informando isso
+        if (!isAuthenticated && userId) {
+          console.log(`[PaymentSuccess] Tentativa de restaurar sessão para userId=${userId}`);
+          
+          // Como alternativa, podemos mostrar o modal de login com redirecionamento
+          setIsPaused(true); // Pausa o countdown
+          showLoginModal({
+            redirectAfterLogin: '/account',
+            message: 'Por favor, faça login para acessar sua conta e verificar sua assinatura.'
+          });
+        }
+      } catch (error) {
+        console.error('[PaymentSuccess] Erro ao verificar autenticação:', error);
+        setAuthStatus('unauthenticated');
+      } finally {
+        setAuthChecked(true);
+      }
+    };
+    
+    verifyAuth();
+  }, [checkAuth, userId, showLoginModal]);
   
   // Redirecionar automaticamente após 5 segundos
   useEffect(() => {
+    if (!authChecked || isPaused) return;
+    
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          navigate('/account');
+          // Redirecionar para a página adequada com base no estado de autenticação
+          if (authStatus === 'authenticated') {
+            navigate('/account');
+          } else {
+            navigate('/login', { state: { message: 'Por favor, faça login para acessar sua conta e ver sua assinatura.' } });
+          }
           return 0;
         }
         return prev - 1;
@@ -29,7 +77,18 @@ const PaymentSuccessPage: React.FC = () => {
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [navigate]);
+  }, [navigate, authChecked, authStatus, isPaused]);
+  
+  // Mostrar informações de depuração (visível apenas em ambiente de desenvolvimento)
+  const showDebugInfo = process.env.NODE_ENV === 'development';
+  
+  const handleManualLogin = () => {
+    // Mostrar modal de login com redirecionamento para a página da conta
+    showLoginModal({
+      redirectAfterLogin: '/account',
+      message: 'Por favor, faça login para acessar sua conta e verificar sua assinatura.'
+    });
+  };
   
   return (
     <div className="container my-5">
@@ -56,16 +115,29 @@ const PaymentSuccessPage: React.FC = () => {
               </p>
               
               <p className="text-muted mb-4 text-gray-500">
-                Você será redirecionado para sua conta em {countdown} segundos...
+                {authStatus === 'authenticated' 
+                  ? `Você será redirecionado para sua conta em ${countdown} segundos...`
+                  : isPaused
+                    ? 'Por favor, faça login para continuar.'
+                    : 'Você será redirecionado para a página de login em ' + countdown + ' segundos...'}
               </p>
               
               <div className="flex justify-center gap-4">
-                <Button 
-                  variant="default" 
-                  onClick={() => navigate('/account')}
-                >
-                  Ir para minha conta
-                </Button>
+                {authStatus === 'authenticated' ? (
+                  <Button 
+                    variant="default" 
+                    onClick={() => navigate('/account')}
+                  >
+                    Ir para minha conta
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="default" 
+                    onClick={handleManualLogin}
+                  >
+                    Fazer login
+                  </Button>
+                )}
                 
                 <Button 
                   variant="outline"
@@ -74,6 +146,15 @@ const PaymentSuccessPage: React.FC = () => {
                   Voltar ao início
                 </Button>
               </div>
+              
+              {showDebugInfo && (
+                <div className="mt-5 text-left text-xs text-gray-500 border-t pt-3">
+                  <p><strong>Debug:</strong> {sessionId ? 'Session ID: ' + sessionId : 'Sem Session ID'}</p>
+                  <p>Auth Status: {authStatus}</p>
+                  <p>User ID: {user?.id || userId || 'Não disponível'}</p>
+                  <p>Countdown pausado: {isPaused ? 'Sim' : 'Não'}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

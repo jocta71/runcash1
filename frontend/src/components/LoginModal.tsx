@@ -12,19 +12,23 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
+  redirectAfterLogin?: string;
+  message?: string;
 }
 
-const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
+const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModalProps) => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState(message || '');
   const [isGoogleAuthEnabled, setIsGoogleAuthEnabled] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [activeTab, setActiveTab] = useState('login');
@@ -50,6 +54,13 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
     
     checkAuthStatus();
   }, [API_URL]);
+
+  // Atualizar mensagem de erro quando ela for passada como prop
+  useEffect(() => {
+    if (message) {
+      setErrorMessage(message);
+    }
+  }, [message]);
 
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +88,14 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
           description: "Bem-vindo de volta!",
         });
         onClose();
+        
+        // Se houver uma URL de redirecionamento, navegar para lá após login bem-sucedido
+        if (redirectAfterLogin) {
+          console.log(`[LoginModal] Redirecionando para: ${redirectAfterLogin}`);
+          setTimeout(() => {
+            navigate(redirectAfterLogin);
+          }, 500);
+        }
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
@@ -122,6 +141,14 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
           description: "Você já pode usar sua conta para acessar o sistema.",
         });
         onClose();
+        
+        // Se houver uma URL de redirecionamento, navegar para lá após cadastro bem-sucedido
+        if (redirectAfterLogin) {
+          console.log(`[LoginModal] Redirecionando para: ${redirectAfterLogin}`);
+          setTimeout(() => {
+            navigate(redirectAfterLogin);
+          }, 500);
+        }
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
@@ -145,6 +172,11 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
       
       // Armazenar a informação que o login via Google foi iniciado
       localStorage.setItem('googleAuthInProgress', 'true');
+      
+      // Armazenar o redirecionamento, se existir
+      if (redirectAfterLogin) {
+        localStorage.setItem('redirectAfterGoogleLogin', redirectAfterLogin);
+      }
       
       // Redirecionar para a URL de autenticação Google
       window.location.href = `${API_URL}/auth/google`;
@@ -196,7 +228,10 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
             <TabsContent value="login" className="space-y-4 mt-4">
               <div className="flex flex-col space-y-2 text-center">
                 <h1 className="text-2xl font-semibold tracking-tight text-white">Entre na sua conta</h1>
-                <p className="text-sm text-gray-400">Digite suas credenciais para acessar</p>
+                <p className="text-sm text-gray-400">
+                  Digite suas credenciais para acessar
+                  {redirectAfterLogin && ' e continuar'}
+                </p>
               </div>
 
               {errorMessage && activeTab === 'login' && (
@@ -308,7 +343,10 @@ const LoginModal = ({ isOpen, onClose }: LoginModalProps) => {
             <TabsContent value="register" className="space-y-4 mt-4">
               <div className="flex flex-col space-y-2 text-center">
                 <h1 className="text-2xl font-semibold tracking-tight text-white">Criar uma conta</h1>
-                <p className="text-sm text-gray-400">Preencha seus dados para se cadastrar</p>
+                <p className="text-sm text-gray-400">
+                  Preencha seus dados para se cadastrar
+                  {redirectAfterLogin && ' e continuar'}
+                </p>
               </div>
 
               {errorMessage && activeTab === 'register' && (

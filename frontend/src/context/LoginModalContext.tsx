@@ -3,7 +3,7 @@ import LoginModal from '@/components/LoginModal';
 import { useAuth } from './AuthContext';
 
 type LoginModalContextType = {
-  showLoginModal: () => void;
+  showLoginModal: (options?: { redirectAfterLogin?: string; message?: string }) => void;
   hideLoginModal: () => void;
   isModalOpen: boolean;
   resetModalClosed: () => void;
@@ -19,16 +19,28 @@ const LoginModalContext = createContext<LoginModalContextType>({
 export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [manuallyClosedByUser, setManuallyClosedByUser] = useState(false);
+  const [redirectAfterLogin, setRedirectAfterLogin] = useState<string | undefined>(undefined);
+  const [message, setMessage] = useState<string | undefined>(undefined);
   const { user } = useAuth();
 
   useEffect(() => {
     if (user) {
       setManuallyClosedByUser(false);
+      setRedirectAfterLogin(undefined);
+      setMessage(undefined);
     }
   }, [user]);
 
-  const showLoginModal = () => {
+  const showLoginModal = (options?: { redirectAfterLogin?: string; message?: string }) => {
     if (!user && !manuallyClosedByUser) {
+      if (options?.redirectAfterLogin) {
+        setRedirectAfterLogin(options.redirectAfterLogin);
+      }
+      
+      if (options?.message) {
+        setMessage(options.message);
+      }
+      
       setIsModalOpen(true);
     }
   };
@@ -40,6 +52,8 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const resetModalClosed = () => {
     setManuallyClosedByUser(false);
+    setRedirectAfterLogin(undefined);
+    setMessage(undefined);
   };
 
   return (
@@ -52,7 +66,12 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }}
     >
       {children}
-      <LoginModal isOpen={isModalOpen} onClose={hideLoginModal} />
+      <LoginModal 
+        isOpen={isModalOpen} 
+        onClose={hideLoginModal} 
+        redirectAfterLogin={redirectAfterLogin}
+        message={message}
+      />
     </LoginModalContext.Provider>
   );
 };
