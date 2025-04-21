@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Plan, PlanType, UserSubscription } from '@/types/plans';
+import { useAuth } from './AuthContext';
+import axios from 'axios';
+import { API_URL } from '@/config/constants';
 
 // Lista de planos disponíveis
 export const availablePlans: Plan[] = [
@@ -80,6 +83,7 @@ interface SubscriptionContextType {
   currentPlan: Plan | null;
   availablePlans: Plan[];
   loading: boolean;
+  error: string | null;
   hasFeatureAccess: (featureId: string) => boolean;
   upgradePlan: (planId: string) => Promise<void>;
   cancelSubscription: () => Promise<void>;
@@ -88,49 +92,132 @@ interface SubscriptionContextType {
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
-// Versão mock do SubscriptionProvider que sempre fornece acesso premium
+// Provedor de assinatura que busca os dados reais da API
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Sempre usar o plano premium como padrão
-  const premiumPlan = availablePlans.find(plan => plan.id === 'premium') || availablePlans[3];
-  
-  // Estado inicial com plano premium
-  const [currentSubscription] = useState<UserSubscription | null>({
-    id: 'mock-subscription',
-    userId: 'mock-user',
-    planId: 'premium',
-    planType: PlanType.PREMIUM,
-    startDate: new Date(),
-    endDate: null,
-    status: 'active',
-    paymentMethod: 'mock',
-    paymentProvider: 'manual',
-    nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-  });
-  
-  const [currentPlan] = useState<Plan | null>(premiumPlan);
-  const [loading] = useState(false);
+  const { user } = useAuth();
+  const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Função mock para carregar assinatura (não faz nada)
+  // Carregar assinatura do usuário
   const loadUserSubscription = async (): Promise<void> => {
-    // Não faz nada, já que o estado inicial já inclui o plano premium
-    return Promise.resolve();
+    if (!user) {
+      setCurrentSubscription(null);
+      setCurrentPlan(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Buscar assinatura ativa do usuário
+      const response = await axios.get(`${API_URL}/api/payment/get-subscription`, {
+        params: { userId: user.id }
+      });
+
+      if (response.data) {
+        // Converter dados da API para o formato UserSubscription
+        const subscriptionData: UserSubscription = {
+          id: response.data.id,
+          userId: response.data.user_id,
+          planId: response.data.plan_id,
+          planType: getPlanTypeFromId(response.data.plan_id),
+          startDate: new Date(response.data.start_date),
+          endDate: response.data.end_date ? new Date(response.data.end_date) : null,
+          status: response.data.status,
+          paymentMethod: response.data.payment_method,
+          paymentProvider: response.data.payment_provider,
+          nextBillingDate: response.data.next_billing_date ? new Date(response.data.next_billing_date) : null
+        };
+
+        setCurrentSubscription(subscriptionData);
+
+        // Buscar plano correspondente na lista de planos disponíveis
+        const plan = availablePlans.find(p => p.id === subscriptionData.planId) || null;
+        setCurrentPlan(plan);
+      } else {
+        // Sem assinatura ativa, definir como plano gratuito
+        setCurrentSubscription(null);
+        const freePlan = availablePlans.find(p => p.id === 'free') || null;
+        setCurrentPlan(freePlan);
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar assinatura:', err);
+      
+      // Se o erro for 404, significa que não há assinatura (não é realmente um erro)
+      if (err.response && err.response.status === 404) {
+        setCurrentSubscription(null);
+        const freePlan = availablePlans.find(p => p.id === 'free') || null;
+        setCurrentPlan(freePlan);
+      } else {
+        setError('Não foi possível carregar informações da sua assinatura. Tente novamente mais tarde.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Sempre retorna true para qualquer recurso
+  // Função auxiliar para determinar o tipo de plano a partir do ID
+  const getPlanTypeFromId = (planId: string): PlanType => {
+    switch (planId) {
+      case 'basic': return PlanType.BASIC;
+      case 'pro': return PlanType.PRO;
+      case 'premium': return PlanType.PREMIUM;
+      default: return PlanType.FREE;
+    }
+  };
+
+  // Verificar se o usuário tem acesso a um recurso específico
   const hasFeatureAccess = (featureId: string): boolean => {
-    return true;
+    if (!currentPlan) return false;
+    
+    // Se o plano atual permite este recurso
+    return currentPlan.allowedFeatures.includes(featureId);
   };
 
-  // Funções mock para upgrade e cancelamento (não fazem nada)
+  // Atualizar plano do usuário
   const upgradePlan = async (planId: string): Promise<void> => {
-    console.log(`Upgrade para o plano ${planId} simulado com sucesso`);
-    return Promise.resolve();
+    if (!user) {
+      throw new Error('Você precisa estar logado para alterar seu plano');
+    }
+
+    try {
+      // Aqui redirecionaria para a página de pagamento
+      // Esta função seria chamada a partir da página de planos
+      // e o redirecionamento já acontece lá
+      console.log(`Iniciando upgrade para o plano ${planId}`);
+    } catch (err: any) {
+      console.error('Erro ao iniciar upgrade de plano:', err);
+      throw new Error('Não foi possível iniciar o processo de upgrade. Tente novamente mais tarde.');
+    }
   };
 
+  // Cancelar assinatura atual
   const cancelSubscription = async (): Promise<void> => {
-    console.log('Cancelamento de assinatura simulado com sucesso');
-    return Promise.resolve();
+    if (!user || !currentSubscription) {
+      throw new Error('Você não possui uma assinatura ativa para cancelar');
+    }
+
+    try {
+      await axios.post(`${API_URL}/api/asaas-cancel-subscription`, {
+        subscriptionId: currentSubscription.id
+      });
+
+      // Atualizar estado local após cancelamento
+      await loadUserSubscription();
+    } catch (err: any) {
+      console.error('Erro ao cancelar assinatura:', err);
+      throw new Error('Não foi possível cancelar sua assinatura. Tente novamente mais tarde.');
+    }
   };
+
+  // Carregar assinatura quando o usuário mudar
+  useEffect(() => {
+    loadUserSubscription();
+  }, [user?.id]);
 
   return (
     <SubscriptionContext.Provider
@@ -139,6 +226,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         currentPlan,
         availablePlans,
         loading,
+        error,
         hasFeatureAccess,
         upgradePlan,
         cancelSubscription,

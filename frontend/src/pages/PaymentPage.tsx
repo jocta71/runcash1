@@ -308,52 +308,6 @@ const PaymentPage = () => {
                     </div>
                   </div>
                   
-                  {/* Botão para verificação manual do pagamento */}
-                  <div className="w-full max-w-lg mx-auto mt-6">
-                    <Button 
-                      onClick={() => {
-                        toast({
-                          title: "Verificando pagamento...",
-                          description: "Aguarde enquanto verificamos o status do seu pagamento."
-                        });
-                        checkPaymentStatus(true); // Passar true para forçar verificação completa
-                      }}
-                      className="w-full bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-                    >
-                      Já realizei o pagamento
-                    </Button>
-                    <p className="text-sm text-gray-400 mt-2">
-                      Clique no botão acima se você já realizou o pagamento, mas a página não atualizou.
-                    </p>
-                  </div>
-                  
-                  {/* Opções adicionais para problemas de sincronização */}
-                  <div className="w-full max-w-lg mx-auto mt-4 flex gap-3">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => window.location.reload()}
-                      className="flex-1"
-                    >
-                      Recarregar página
-                    </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        const confirmRedirect = window.confirm(
-                          'Tem certeza que deseja avançar para a página de sucesso? ' +
-                          'Faça isso apenas se você já confirmou o pagamento no sistema administrativo.'
-                        );
-                        if (confirmRedirect) {
-                          navigate('/payment-success');
-                        }
-                      }}
-                      className="flex-1"
-                    >
-                      Pagamento confirmado
-                    </Button>
-                  </div>
-                  
                   {expirationDate && (
                     <Alert className="max-w-lg">
                       <AlertTitle>Atenção</AlertTitle>

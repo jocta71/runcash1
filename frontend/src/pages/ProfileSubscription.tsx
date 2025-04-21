@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -6,14 +6,87 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Loader2, CreditCard, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { Loader2, CreditCard, AlertTriangle, CheckCircle2, Clock, CalendarIcon, RefreshCw, ArrowRight } from 'lucide-react';
+import axios from 'axios';
+import { API_URL } from '@/config/constants';
+import { useAuth } from '@/context/AuthContext';
+import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
+
+// Interface para pagamento
+interface Payment {
+  id: string;
+  status: string;
+  value: number;
+  dueDate: string;
+  paymentDate?: string;
+  billingType: string;
+  invoiceUrl?: string;
+}
 
 const ProfileSubscription = () => {
-  const { currentSubscription, currentPlan, loading, cancelSubscription } = useSubscription();
+  const { currentSubscription, currentPlan, loading, cancelSubscription, error, loadUserSubscription } = useSubscription();
+  const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [isCanceling, setIsCanceling] = useState(false);
   
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  
+  // Obter histórico de pagamentos
+  const fetchPaymentHistory = async () => {
+    if (!user || !currentSubscription) return;
+    
+    setLoadingPayments(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/asaas-find-subscription`, {
+        params: { 
+          subscriptionId: currentSubscription.id 
+        }
+      });
+      
+      if (response.data.success && response.data.payments) {
+        setPayments(response.data.payments);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar histórico de pagamentos:", error);
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+  
+  // Carregar histórico de pagamentos quando a assinatura mudar
+  useEffect(() => {
+    if (currentSubscription) {
+      fetchPaymentHistory();
+    }
+  }, [currentSubscription?.id]);
+  
+  // Atualizar dados da assinatura
+  const refreshSubscriptionData = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadUserSubscription();
+      await fetchPaymentHistory();
+      toast({
+        title: "Dados atualizados",
+        description: "Informações de assinatura atualizadas com sucesso.",
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar dados:", error);
+      toast({
+        title: "Erro ao atualizar",
+        description: "Não foi possível atualizar os dados. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+  
+  // Função para cancelar assinatura
   const handleCancelSubscription = async () => {
     try {
       setIsCanceling(true);
@@ -44,46 +117,173 @@ const ProfileSubscription = () => {
     });
   };
   
-  // Determinar badge de status
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Badge className="bg-green-500 hover:bg-green-600">Ativa</Badge>;
-      case 'trial':
-        return <Badge className="bg-blue-500 hover:bg-blue-600">Período de Teste</Badge>;
-      case 'canceled':
-        return <Badge className="bg-gray-500 hover:bg-gray-600">Cancelada</Badge>;
-      case 'overdue':
-        return <Badge className="bg-red-500 hover:bg-red-600">Pagamento Atrasado</Badge>;
-      default:
-        return <Badge className="bg-gray-500 hover:bg-gray-600">{status}</Badge>;
-    }
+  // Formatar valor monetário
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { 
+      style: 'currency', 
+      currency: 'BRL' 
+    }).format(value);
   };
   
-  // Determinar ícone de status
+  // Obter ícone para o status da assinatura
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'active':
-        return <CheckCircle2 className="h-10 w-10 text-green-500" />;
-      case 'trial':
-        return <Clock className="h-10 w-10 text-blue-500" />;
+      case 'ativo':
+      case 'confirmed':
+        return <CheckCircle2 className="h-6 w-6 text-green-500" />;
       case 'canceled':
-        return <AlertTriangle className="h-10 w-10 text-gray-500" />;
-      case 'overdue':
-        return <AlertTriangle className="h-10 w-10 text-red-500" />;
+      case 'cancelado':
+        return <AlertTriangle className="h-6 w-6 text-red-500" />;
+      case 'pending':
+      case 'pendente':
+        return <Clock className="h-6 w-6 text-yellow-500" />;
       default:
-        return <CreditCard className="h-10 w-10 text-gray-400" />;
+        return <AlertTriangle className="h-6 w-6 text-gray-500" />;
     }
   };
   
+  // Obter badge para o status da assinatura
+  const getStatusBadge = (status: string) => {
+    let variant: "default" | "destructive" | "outline" | "secondary" = "default";
+    let label = status;
+    
+    switch (status?.toLowerCase()) {
+      case 'active':
+      case 'ativo':
+      case 'confirmed':
+        variant = "secondary";
+        label = "Ativo";
+        break;
+      case 'canceled':
+      case 'cancelado':
+        variant = "destructive";
+        label = "Cancelado";
+        break;
+      case 'pending':
+      case 'pendente':
+        variant = "outline";
+        label = "Pendente";
+        break;
+      default:
+        variant = "outline";
+        label = status || "Desconhecido";
+    }
+    
+    return <Badge variant={variant}>{label}</Badge>;
+  };
+  
+  // Obter badge para o status do pagamento
+  const getPaymentStatusBadge = (status: string) => {
+    let variant: "default" | "destructive" | "outline" | "secondary" = "default";
+    let label = status;
+    
+    switch (status?.toLowerCase()) {
+      case 'confirmed':
+      case 'received':
+        variant = "secondary";
+        label = "Confirmado";
+        break;
+      case 'overdue':
+        variant = "destructive";
+        label = "Vencido";
+        break;
+      case 'pending':
+        variant = "outline";
+        label = "Pendente";
+        break;
+      case 'refunded':
+        variant = "secondary";
+        label = "Reembolsado";
+        break;
+      case 'canceled':
+        variant = "destructive";
+        label = "Cancelado";
+        break;
+      default:
+        variant = "outline";
+        label = status || "Desconhecido";
+    }
+    
+    return <Badge variant={variant}>{label}</Badge>;
+  };
+  
+  // Obter label para método de pagamento
+  const getPaymentMethodLabel = (method: string) => {
+    switch (method?.toUpperCase()) {
+      case 'CREDIT_CARD':
+        return 'Cartão de Crédito';
+      case 'PIX':
+        return 'PIX';
+      case 'BOLETO':
+        return 'Boleto';
+      default:
+        return method || 'Desconhecido';
+    }
+  };
+  
+  // Calcular progresso do ciclo atual (em termos de dias)
+  const calculateCycleProgress = () => {
+    if (!currentSubscription?.startDate || !currentSubscription?.nextBillingDate) {
+      return 0;
+    }
+    
+    const now = new Date();
+    const start = new Date(currentSubscription.startDate);
+    const end = new Date(currentSubscription.nextBillingDate);
+    
+    // Se já passou da data de renovação
+    if (now > end) return 100;
+    
+    const totalDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const daysElapsed = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    
+    return Math.min(Math.max(Math.floor((daysElapsed / totalDays) * 100), 0), 100);
+  };
+  
+  // Tela de carregamento
   if (loading) {
     return (
-      <div className="flex justify-center items-center p-8">
+      <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-vegas-gold" />
       </div>
     );
   }
   
+  // Tela de erro
+  if (error) {
+    return (
+      <Card className="border-gray-700 bg-vegas-black/30">
+        <CardHeader>
+          <CardTitle>Erro ao carregar assinatura</CardTitle>
+          <CardDescription>
+            Não foi possível obter os dados da sua assinatura
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center py-8">
+          <AlertTriangle className="h-16 w-16 text-red-500 mb-4" />
+          <p className="text-center text-gray-400 mb-6">
+            {error}
+          </p>
+        </CardContent>
+        <CardFooter>
+          <Button 
+            className="w-full"
+            onClick={refreshSubscriptionData}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Atualizando...</>
+            ) : (
+              <><RefreshCw className="mr-2 h-4 w-4" /> Tentar novamente</>
+            )}
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+  
+  // Tela para usuário sem assinatura
   if (!currentSubscription) {
     return (
       <Card className="border-gray-700 bg-vegas-black/30">
@@ -111,116 +311,203 @@ const ProfileSubscription = () => {
     );
   }
   
+  // Tela principal de assinatura
   return (
-    <Card className="border-gray-700 bg-vegas-black/30">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle>Sua Assinatura</CardTitle>
-          <CardDescription>
-            Detalhes da sua assinatura atual
-          </CardDescription>
-        </div>
-        {getStatusIcon(currentSubscription.status)}
-      </CardHeader>
-      
-      <CardContent className="space-y-4">
-        <div className="flex flex-col md:flex-row md:justify-between gap-4">
+    <div className="space-y-6">
+      <Card className="border-gray-700 bg-vegas-black/30">
+        <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <h3 className="font-medium text-gray-400 mb-1">Plano</h3>
-            <p className="text-xl font-bold">{currentPlan?.name || 'Desconhecido'}</p>
+            <CardTitle>Sua Assinatura</CardTitle>
+            <CardDescription>
+              Detalhes da sua assinatura atual
+            </CardDescription>
           </div>
-          <div>
-            <h3 className="font-medium text-gray-400 mb-1">Status</h3>
-            <div>{getStatusBadge(currentSubscription.status)}</div>
-          </div>
-        </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={refreshSubscriptionData}
+            disabled={isRefreshing}
+            className="h-8 w-8"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
+        </CardHeader>
         
-        <div className="flex flex-col md:flex-row md:justify-between gap-4 pt-2">
-          <div>
-            <h3 className="font-medium text-gray-400 mb-1">Data de início</h3>
-            <p>{formatDate(currentSubscription.startDate)}</p>
-          </div>
-          {currentSubscription.nextBillingDate && (
-            <div>
-              <h3 className="font-medium text-gray-400 mb-1">Próxima cobrança</h3>
-              <p>{formatDate(currentSubscription.nextBillingDate)}</p>
+        <CardContent className="space-y-6">
+          {/* Cabeçalho com plano e status */}
+          <div className="flex flex-col md:flex-row md:justify-between gap-4 items-start md:items-center">
+            <div className="flex items-center space-x-3">
+              <div className="rounded-full bg-vegas-gold/10 p-3">
+                <CreditCard className="h-6 w-6 text-vegas-gold" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">{currentPlan?.name || 'Plano Desconhecido'}</h3>
+                <p className="text-sm text-gray-400">{formatCurrency(currentPlan?.price || 0)}/mês</p>
+              </div>
             </div>
-          )}
-        </div>
-        
-        {currentSubscription.paymentMethod && (
-          <div className="pt-2">
-            <h3 className="font-medium text-gray-400 mb-1">Forma de pagamento</h3>
-            <p className="flex items-center">
-              <CreditCard className="h-4 w-4 mr-2" />
-              {currentSubscription.paymentMethod}
-            </p>
+            
+            <div className="flex items-center space-x-2">
+              {getStatusIcon(currentSubscription.status)}
+              <div>
+                <div className="font-semibold">Status</div>
+                <div>{getStatusBadge(currentSubscription.status)}</div>
+              </div>
+            </div>
           </div>
-        )}
-        
-        {/* Exibir recursos do plano atual */}
-        {currentPlan && (
-          <div className="pt-4 mt-2 border-t border-gray-700">
-            <h3 className="font-medium mb-2">Recursos incluídos:</h3>
-            <ul className="space-y-1">
-              {currentPlan.features.map((feature, index) => (
-                <li key={index} className="text-sm text-gray-300 flex items-start">
-                  <span className="text-vegas-gold mr-2">✓</span> {feature}
+          
+          <Separator className="bg-gray-800" />
+          
+          {/* Progresso do ciclo */}
+          <div>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-gray-400">Progresso do ciclo atual</span>
+              <span className="text-sm font-medium">{calculateCycleProgress()}%</span>
+            </div>
+            <Progress value={calculateCycleProgress()} className="h-2" />
+          </div>
+          
+          {/* Detalhes da assinatura */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h3 className="font-medium text-gray-400 mb-1">Data de início</h3>
+              <p className="flex items-center">
+                <CalendarIcon className="h-4 w-4 mr-2 text-vegas-gold" />
+                {formatDate(currentSubscription.startDate)}
+              </p>
+            </div>
+            
+            {currentSubscription.nextBillingDate && (
+              <div>
+                <h3 className="font-medium text-gray-400 mb-1">Próxima cobrança</h3>
+                <p className="flex items-center">
+                  <CalendarIcon className="h-4 w-4 mr-2 text-vegas-gold" />
+                  {formatDate(currentSubscription.nextBillingDate)}
+                </p>
+              </div>
+            )}
+            
+            {currentSubscription.paymentMethod && (
+              <div>
+                <h3 className="font-medium text-gray-400 mb-1">Forma de pagamento</h3>
+                <p className="flex items-center">
+                  <CreditCard className="h-4 w-4 mr-2 text-vegas-gold" />
+                  {getPaymentMethodLabel(currentSubscription.paymentMethod)}
+                </p>
+              </div>
+            )}
+          </div>
+          
+          {/* Recursos do plano */}
+          <div>
+            <h3 className="font-medium text-gray-400 mb-2">Recursos incluídos</h3>
+            <ul className="space-y-2">
+              {currentPlan?.features.map((feature, index) => (
+                <li key={index} className="flex items-start">
+                  <CheckCircle2 className="h-4 w-4 mr-2 text-green-500 mt-0.5" />
+                  <span>{feature}</span>
                 </li>
               ))}
             </ul>
           </div>
-        )}
-      </CardContent>
-      
-      <CardFooter className="flex flex-col sm:flex-row gap-3">
-        <Button 
-          className="flex-1 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-          onClick={() => navigate('/planos')}
-        >
-          Mudar de plano
-        </Button>
+        </CardContent>
         
-        {currentSubscription.status === 'active' && (
+        <CardFooter className="flex flex-col sm:flex-row gap-2">
+          <Button 
+            variant="outline" 
+            className="w-full sm:w-auto"
+            onClick={() => navigate('/planos')}
+          >
+            Gerenciar plano
+          </Button>
+          
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button 
-                variant="outline" 
-                className="flex-1 border-red-600 text-red-600 hover:bg-red-600/10"
-                disabled={isCanceling}
+                variant="destructive" 
+                className="w-full sm:w-auto"
+                disabled={isCanceling || currentSubscription.status?.toLowerCase() === 'canceled'}
               >
                 {isCanceling ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Cancelando...
-                  </>
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cancelando...</>
                 ) : (
                   "Cancelar assinatura"
                 )}
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent className="bg-vegas-black border-gray-700">
+            <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+                <AlertDialogTitle>Cancelar assinatura?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Ao cancelar sua assinatura, você perderá acesso a todos os recursos premium 
-                  quando o período atual terminar. Essa ação não pode ser desfeita.
+                  Ao cancelar sua assinatura, você ainda terá acesso aos recursos premium até o final do período pago.
+                  Após esse período, seu acesso será limitado às funcionalidades gratuitas.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel className="border-gray-700 bg-transparent">Voltar</AlertDialogCancel>
-                <AlertDialogAction 
-                  className="bg-red-600 hover:bg-red-700"
-                  onClick={handleCancelSubscription}
-                >
+                <AlertDialogCancel>Voltar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleCancelSubscription}>
                   Confirmar cancelamento
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        )}
-      </CardFooter>
-    </Card>
+        </CardFooter>
+      </Card>
+      
+      {/* Histórico de pagamentos */}
+      <Card className="border-gray-700 bg-vegas-black/30">
+        <CardHeader>
+          <CardTitle>Histórico de Pagamentos</CardTitle>
+          <CardDescription>
+            Seus pagamentos recentes
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent>
+          {loadingPayments ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-vegas-gold" />
+            </div>
+          ) : payments.length > 0 ? (
+            <div className="space-y-4">
+              {payments.map((payment) => (
+                <div key={payment.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-900/30 rounded-lg">
+                  <div className="space-y-1 mb-2 sm:mb-0">
+                    <div className="flex items-center space-x-2">
+                      <h4 className="font-medium">{formatCurrency(payment.value)}</h4>
+                      {getPaymentStatusBadge(payment.status)}
+                    </div>
+                    <p className="text-sm text-gray-400">
+                      Vencimento: {formatDate(payment.dueDate)}
+                      {payment.paymentDate && ` • Pago em: ${formatDate(payment.paymentDate)}`}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Método: {getPaymentMethodLabel(payment.billingType)}
+                    </p>
+                  </div>
+                  
+                  {payment.invoiceUrl && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="mt-2 sm:mt-0"
+                      onClick={() => window.open(payment.invoiceUrl, '_blank')}
+                    >
+                      <ArrowRight className="h-4 w-4 mr-1" />
+                      {payment.billingType?.toUpperCase() === 'PIX' ? 'Ver QR Code' : 'Ver fatura'}
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              <Clock className="h-12 w-12 mx-auto mb-3 text-gray-500" />
+              <p>Nenhum pagamento encontrado</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
