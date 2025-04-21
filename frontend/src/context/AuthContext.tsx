@@ -22,10 +22,10 @@ interface AuthContextType {
   setToken: (token: string) => void;
 }
 
-// Cookie options
+// Cookie options - opções atualizadas para melhor compatibilidade entre navegadores
 const COOKIE_OPTIONS = {
   secure: window.location.protocol === "https:", // Usar secure apenas em HTTPS
-  sameSite: window.location.protocol === "https:" ? 'none' as const : 'lax' as const, // Usar 'lax' quando não for HTTPS
+  sameSite: 'lax' as const, // Padrão mais seguro e compatível
   path: '/',         // Disponível em todo o site
   expires: 30,       // Expiração em 30 dias
 };
@@ -94,6 +94,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const checkAuthOnLoad = async () => {
       logAuthFlow("Iniciando verificação de autenticação");
       
+      // Verificação de ambiente para logs
+      const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      logAuthFlow(`Ambiente: ${isLocalhost ? 'Desenvolvimento local' : 'Produção'}`);
+      logAuthFlow(`Protocolo: ${window.location.protocol}`);
+      
       // Se forçar sem auto-login, remover qualquer dado de autenticação existente
       if (forceNoAutoLogin) {
         logAuthFlow("Modo sem auto-login ativado - removendo dados de autenticação existentes");
@@ -152,6 +157,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (config) => {
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
+          // Log para debug quando o token é aplicado em requisições
+          if (config.url?.includes('/api/')) {
+            logAuthFlow(`Token aplicado para requisição: ${config.url}`);
+          }
         }
         return config;
       },
@@ -209,6 +218,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     try {
+      logAuthFlow(`Chamando API /auth/me com token: ${token.substring(0, 15)}...`);
       const response = await axios.get(`${API_URL}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`
@@ -216,8 +226,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       if (response.data.success) {
-        logAuthFlow("Token verificado com sucesso, usuário autenticado");
-        setUser(response.data.data);
+        const userData = response.data.data;
+        logAuthFlow(`Token verificado com sucesso, usuário autenticado: ${userData.id}`);
+        setUser(userData);
         setToken(token);
         return true;
       } else {
@@ -242,24 +253,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     
-    logAuthFlow("Salvando novo token");
+    logAuthFlow(`Salvando novo token: ${newToken.substring(0, 15)}...`);
     
-    // Verificar ambiente atual para ajustar configurações
+    // Detectar ambiente para logs
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     
-    // Configurar opções específicas do ambiente
+    // Usar opções de cookie atualizadas
     const cookieOptions = {
       ...COOKIE_OPTIONS,
-      // Em ambiente de desenvolvimento local sem HTTPS, desabilitar secure e usar sameSite lax
       secure: isLocalhost ? false : COOKIE_OPTIONS.secure,
-      sameSite: isLocalhost ? 'lax' as const : COOKIE_OPTIONS.sameSite
     };
     
+    logAuthFlow(`Configuração de cookies: secure=${cookieOptions.secure}, sameSite=${cookieOptions.sameSite}`);
+    
     // Salvar no cookie do lado cliente
-    Cookies.set(TOKEN_COOKIE_NAME, newToken, cookieOptions);
+    try {
+      Cookies.set(TOKEN_COOKIE_NAME, newToken, cookieOptions);
+      logAuthFlow("Token salvo em cookie com sucesso");
+    } catch (e) {
+      logAuthFlow(`Erro ao salvar cookie: ${e}`);
+    }
     
     // Salvar também no localStorage como fallback
-    localStorage.setItem('auth_token_backup', newToken);
+    try {
+      localStorage.setItem('auth_token_backup', newToken);
+      logAuthFlow("Token de backup salvo em localStorage");
+    } catch (e) {
+      logAuthFlow(`Erro ao salvar em localStorage: ${e}`);
+    }
     
     setToken(newToken);
   };

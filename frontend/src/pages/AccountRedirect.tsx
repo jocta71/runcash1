@@ -11,97 +11,118 @@ import { useAuth } from '@/context/AuthContext';
  */
 const AccountRedirect = () => {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, checkAuth } = useAuth();
   const { loadUserSubscription } = useSubscription();
   const [isLoading, setIsLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState('Processando pagamento...');
   const [isSuccess, setIsSuccess] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [retries, setRetries] = useState(0);
+  const [authChecked, setAuthChecked] = useState(false);
 
+  // Primeiro efeito: verificar autenticação
   useEffect(() => {
-    // Função para carregar os dados de assinatura e redirecionar
-    const loadSubscriptionAndRedirect = async () => {
-      try {
-        // Verificar se o usuário está autenticado e tem ID válido
-        if (!user || !user.id) {
-          console.log('[AccountRedirect] Usuário não autenticado ou ID inválido. Aguardando autenticação...');
-          setLoadingMessage('Verificando autenticação...');
+    // Só iniciar se não estiver carregando e ainda não tiver verificado
+    if (!authLoading && !authChecked) {
+      const verifyAuth = async () => {
+        console.log('[AccountRedirect] Verificando autenticação explicitamente...');
+        setLoadingMessage('Verificando sua conta...');
+        
+        try {
+          // Forçar verificação de autenticação
+          const isAuthenticated = await checkAuth();
+          setAuthChecked(true);
           
-          // Se já tentamos várias vezes e ainda não temos o usuário, podemos redirecionar para login
-          if (retries > 5) {
-            console.log('[AccountRedirect] Muitas tentativas sem autenticação. Redirecionando para login...');
+          if (!isAuthenticated) {
+            console.log('[AccountRedirect] Verificação de autenticação falhou. Redirecionando para login...');
             setHasError(true);
-            setLoadingMessage('Sessão expirada ou inválida. Redirecionando...');
+            setLoadingMessage('Sessão expirada. Redirecionando para login...');
             setTimeout(() => {
               navigate('/login', { replace: true });
             }, 2000);
-            return;
+          } else {
+            console.log('[AccountRedirect] Verificação de autenticação bem-sucedida.');
           }
-          
-          // Incrementar contagem de tentativas e tentar novamente após um intervalo
-          setRetries(prev => prev + 1);
+        } catch (error) {
+          console.error('[AccountRedirect] Erro ao verificar autenticação:', error);
+          setHasError(true);
+          setLoadingMessage('Problema de autenticação. Redirecionando...');
           setTimeout(() => {
-            loadSubscriptionAndRedirect();
-          }, 1000);
-          return;
+            navigate('/login', { replace: true });
+          }, 2000);
         }
+      };
+      
+      verifyAuth();
+    }
+  }, [authLoading, authChecked, checkAuth, navigate]);
 
-        console.log('[AccountRedirect] Usuário autenticado:', user.id);
-        setLoadingMessage('Atualizando dados da assinatura...');
-        setRetries(0); // Resetar contagem de tentativas já que o usuário está autenticado
-        
-        // Tentar carregar os dados da assinatura várias vezes
-        // para garantir que a API tenha tempo de registrar a assinatura
-        let subscriptionLoaded = false;
-        
-        for (let i = 0; i < 5; i++) {
-          try {
-            console.log(`[AccountRedirect] Tentativa ${i+1} de carregar dados da assinatura para usuário ${user.id}`);
-            await loadUserSubscription(true); // Forçar recarregamento
-            subscriptionLoaded = true;
-            break;
-          } catch (err) {
-            console.error(`[AccountRedirect] Erro na tentativa ${i+1}:`, err);
-            // Aguardar um período maior entre as tentativas
-            if (i < 4) {
-              const waitTime = 1000 * (i + 1); // Aumentar o tempo a cada tentativa
-              console.log(`[AccountRedirect] Aguardando ${waitTime}ms antes da próxima tentativa`);
-              await new Promise(resolve => setTimeout(resolve, waitTime));
+  // Segundo efeito: carregar assinatura e redirecionar
+  useEffect(() => {
+    // Só prosseguir se a autenticação já foi verificada e o usuário existe
+    if (authChecked && user && user.id) {
+      const loadSubscriptionAndRedirect = async () => {
+        try {
+          console.log('[AccountRedirect] Usuário autenticado:', user.id);
+          setLoadingMessage('Atualizando dados da assinatura...');
+          
+          // Tentar carregar os dados da assinatura várias vezes
+          // para garantir que a API tenha tempo de registrar a assinatura
+          let subscriptionLoaded = false;
+          
+          for (let i = 0; i < 5; i++) {
+            try {
+              console.log(`[AccountRedirect] Tentativa ${i+1} de carregar dados da assinatura para usuário ${user.id}`);
+              await loadUserSubscription(true); // Forçar recarregamento
+              subscriptionLoaded = true;
+              break;
+            } catch (err) {
+              console.error(`[AccountRedirect] Erro na tentativa ${i+1}:`, err);
+              // Aguardar um período maior entre as tentativas
+              if (i < 4) {
+                const waitTime = 1000 * (i + 1); // Aumentar o tempo a cada tentativa
+                console.log(`[AccountRedirect] Aguardando ${waitTime}ms antes da próxima tentativa`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+              }
             }
           }
+          
+          // Indicar sucesso mesmo se não conseguir carregar a assinatura
+          // já que pode ser um erro temporário que será resolvido quando
+          // o usuário acessar a página de assinatura
+          setIsSuccess(true);
+          setLoadingMessage('Pagamento confirmado!');
+          setIsLoading(false);
+          
+          // Aguardar um momento para que o usuário veja a mensagem de sucesso
+          setTimeout(() => {
+            // Redirecionar para a página de assinatura
+            navigate('/minha-conta/assinatura', { replace: true });
+          }, 1500);
+        } catch (error) {
+          console.error('[AccountRedirect] Erro ao carregar dados da assinatura:', error);
+          setLoadingMessage('Houve um problema ao atualizar seus dados.');
+          setHasError(true);
+          setIsLoading(false);
+          
+          // Mesmo com erro, redirecionar após um tempo
+          setTimeout(() => {
+            navigate('/minha-conta/assinatura', { replace: true });
+          }, 3000);
         }
-        
-        // Indicar sucesso mesmo se não conseguir carregar a assinatura
-        // já que pode ser um erro temporário que será resolvido quando
-        // o usuário acessar a página de assinatura
-        setIsSuccess(true);
-        setLoadingMessage('Pagamento confirmado!');
-        setIsLoading(false);
-        
-        // Aguardar um momento para que o usuário veja a mensagem de sucesso
-        setTimeout(() => {
-          // Redirecionar para a página de assinatura
-          navigate('/minha-conta/assinatura', { replace: true });
-        }, 1500);
-      } catch (error) {
-        console.error('Erro ao carregar dados da assinatura:', error);
-        setLoadingMessage('Houve um problema ao atualizar seus dados.');
-        setHasError(true);
-        setIsLoading(false);
-        
-        // Mesmo com erro, redirecionar após um tempo
-        setTimeout(() => {
-          navigate('/minha-conta/assinatura', { replace: true });
-        }, 3000);
-      }
-    };
+      };
 
-    // Só iniciar o processo se a autenticação já tiver sido carregada
-    if (!authLoading) {
       loadSubscriptionAndRedirect();
+    } else if (authChecked && (!user || !user.id)) {
+      // Se a autenticação foi verificada mas não encontrou usuário válido
+      console.log('[AccountRedirect] Autenticação verificada, mas usuário inválido.');
+      setHasError(true);
+      setLoadingMessage('Sessão expirada. Redirecionando para login...');
+      setTimeout(() => {
+        navigate('/login', { replace: true });
+      }, 2000);
     }
-  }, [navigate, loadUserSubscription, user, authLoading]);
+  }, [authChecked, user, loadUserSubscription, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#0e0e10] text-white">
