@@ -20,8 +20,9 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Extrair o caminho da requisição
-  const path = req.query.path || '';
+  // Extrair o caminho da requisição (do query parameter ou do body)
+  // Modificação: Verificar tanto req.query quanto req.body para o parâmetro 'path'
+  const path = req.query.path || (req.body && req.body.path) || '';
 
   console.log(`=== API Asaas - Rota acessada: ${path} ===`);
   console.log('Método:', req.method);
