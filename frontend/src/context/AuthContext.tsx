@@ -444,7 +444,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logAuthFlow(`Sincronizando usuário ${user.id} com Asaas`);
     
     try {
-      const response = await axios.post(`${API_URL}/sync-user-customer`, {
+      const response = await axios.post(`${API_URL}/api/asaas-api?path=sync-user-customer`, {
         userId: user.id,
         email: user.email
       });

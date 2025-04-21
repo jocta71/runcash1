@@ -41,8 +41,9 @@ const ProfileSubscription = () => {
     
     setLoadingPayments(true);
     try {
-      const response = await axios.get(`${API_URL}/api/asaas-find-subscription`, {
+      const response = await axios.get(`${API_URL}/api/asaas-api`, {
         params: { 
+          path: 'find-subscription',
           subscriptionId: currentSubscription.id 
         }
       });

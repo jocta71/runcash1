@@ -152,7 +152,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const cacheKey = forceRefresh ? `&_t=${Date.now()}` : '';
         
         // Buscar assinatura ativa do usuário usando o ID do cliente no Asaas
-        const response = await axios.get(`${API_URL}/api/asaas-find-subscription?customerId=${user.asaasCustomerId}${cacheKey}`);
+        const response = await axios.get(`${API_URL}/api/asaas-api?path=find-subscription&customerId=${user.asaasCustomerId}${cacheKey}`);
 
         if (response.data && response.data.success && response.data.subscriptions && response.data.subscriptions.length > 0) {
           const subscriptionData = response.data.subscriptions[0];
@@ -278,7 +278,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     try {
-      await axios.post(`${API_URL}/api/asaas-cancel-subscription`, {
+      await axios.post(`${API_URL}/api/asaas-api?path=cancel-subscription`, {
         subscriptionId: currentSubscription.id
       });
 
