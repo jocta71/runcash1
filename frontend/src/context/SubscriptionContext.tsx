@@ -123,9 +123,14 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       try {
         // Tentar sincronizar o usuário com o Asaas
         const syncResult = await syncUserWithAsaas();
+        
+        // Se a sincronização falhar, podemos continuar com o plano gratuito,
+        // mas sem apresentar mensagens de erro para o usuário (para não bloquear a experiência)
         if (!syncResult) {
-          console.error('[SubscriptionContext] Falha ao sincronizar usuário com Asaas');
-          setError('Não foi possível sincronizar seu usuário com o sistema de pagamentos.');
+          console.warn('[SubscriptionContext] Falha ao sincronizar usuário com Asaas, continuando com plano gratuito');
+          setCurrentSubscription(null);
+          const freePlan = availablePlans.find(p => p.id === 'free') || null;
+          setCurrentPlan(freePlan);
           setLoading(false);
           return;
         }
@@ -141,7 +146,10 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
       } catch (syncError) {
         console.error('[SubscriptionContext] Erro ao sincronizar com Asaas:', syncError);
-        setError('Não foi possível sincronizar seu usuário com o sistema de pagamentos.');
+        // Definir plano gratuito em vez de mostrar erro para o usuário
+        setCurrentSubscription(null);
+        const freePlan = availablePlans.find(p => p.id === 'free') || null;
+        setCurrentPlan(freePlan);
         setLoading(false);
         return;
       }
@@ -173,17 +181,28 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
               path: 'find-subscription',
               customerId: user.asaasCustomerId,
               _t: forceRefresh ? Date.now() : undefined
-            }
+            },
+            timeout: 10000 // Aumentar timeout para 10 segundos
           });
-        } catch (apiError) {
-          console.error(`[SubscriptionContext] Erro na API unificada, tentando endpoint específico:`, apiError);
+        } catch (apiError: any) {
+          console.error(`[SubscriptionContext] Erro na API unificada (${apiError.response?.status || 'desconhecido'}): ${apiError.message}`, apiError);
           // Se falhar, tentar a URL antiga
-          response = await axios.get(`${API_URL}/api/asaas-find-subscription?customerId=${user.asaasCustomerId}${cacheKey}`);
+          response = await axios.get(`${API_URL}/api/asaas-find-subscription`, {
+            params: {
+              customerId: user.asaasCustomerId,
+              _t: forceRefresh ? Date.now() : undefined
+            },
+            timeout: 8000 // Timeout de 8 segundos para o endpoint alternativo
+          });
         }
 
-        if (response.data && response.data.success && response.data.subscriptions && response.data.subscriptions.length > 0) {
+        if (response?.data?.success && response.data.subscriptions && response.data.subscriptions.length > 0) {
           const subscriptionData = response.data.subscriptions[0];
           console.log(`[SubscriptionContext] Assinatura encontrada:`, subscriptionData);
+          
+          // Verificar se a assinatura está em um estado válido para considerar ativa
+          const validStatuses = ['ACTIVE', 'ATIVO', 'active', 'ativo'];
+          const isActive = validStatuses.includes(subscriptionData.status?.toUpperCase());
           
           // Converter dados da API para o formato UserSubscription
           const formattedSubscription: UserSubscription = {
@@ -200,6 +219,16 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
           };
 
           console.log('[SubscriptionContext] Assinatura formatada:', formattedSubscription);
+          
+          // Se a assinatura não estiver ativa, configurar o plano gratuito
+          if (!isActive) {
+            console.log(`[SubscriptionContext] Assinatura encontrada mas não está ativa (status: ${subscriptionData.status})`);
+            setCurrentSubscription(null);
+            const freePlan = availablePlans.find(p => p.id === 'free') || null;
+            setCurrentPlan(freePlan);
+            setLoading(false);
+            break;
+          }
           
           // Determinar o plano com base no valor da assinatura
           let planId = 'free';
@@ -246,6 +275,17 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
           // Sair do loop, pois é uma situação esperada
           break;
         }
+        
+        // Se for erro de servidor (500), pode ser um problema temporário, então vamos continuar com plano gratuito
+        if (err.response && err.response.status >= 500) {
+          console.log(`[SubscriptionContext] Erro ${err.response.status} - Erro de servidor, definindo plano gratuito temporariamente`);
+          setCurrentSubscription(null);
+          const freePlan = availablePlans.find(p => p.id === 'free') || null;
+          setCurrentPlan(freePlan);
+          // Definir uma mensagem de erro mais amigável
+          setError('Estamos com problemas temporários para verificar sua assinatura. Por favor, tente novamente mais tarde.');
+          break;
+        }
 
         // Se não for 404, incrementar contagem de retry
         retryCount++;
@@ -253,16 +293,20 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         // Se não atingimos o número máximo de retries, aguardar antes de tentar novamente
         if (retryCount < maxRetries) {
           const retryDelay = 1000 * retryCount; // Aumentar o tempo de espera a cada tentativa
-          console.log(`[SubscriptionContext] Aguardando ${retryDelay}ms antes de tentar novamente...`);
+          console.log(`[SubscriptionContext] Aguardando ${retryDelay}ms antes da próxima tentativa...`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
     }
 
-    // Se todas as tentativas falharam e não é um erro 404, mostrar mensagem de erro
+    // Se todas as tentativas falharam e não é um erro 404 ou 500, mostrar mensagem de erro
     if (retryCount === maxRetries && lastError) {
       console.error('[SubscriptionContext] Todas as tentativas falharam');
-      setError('Não foi possível carregar informações da sua assinatura. Tente novamente mais tarde.');
+      // Mesmo com erro, definir plano gratuito temporariamente
+      setCurrentSubscription(null);
+      const freePlan = availablePlans.find(p => p.id === 'free') || null;
+      setCurrentPlan(freePlan);
+      setError('Não foi possível verificar sua assinatura no momento. Você está temporariamente com acesso ao plano gratuito.');
     }
 
     setLoading(false);
