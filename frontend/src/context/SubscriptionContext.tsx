@@ -122,28 +122,43 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const cacheKey = forceRefresh ? `&_t=${Date.now()}` : '';
         
         // Buscar assinatura ativa do usuário
-        const response = await axios.get(`${API_URL}/api/payment/get-subscription?userId=${user.id}${cacheKey}`);
+        const response = await axios.get(`${API_URL}/api/asaas-find-subscription?customerId=${user.id}${cacheKey}`);
 
-        if (response.data) {
+        if (response.data && response.data.success && response.data.subscriptions && response.data.subscriptions.length > 0) {
+          const subscriptionData = response.data.subscriptions[0];
           // Converter dados da API para o formato UserSubscription
-          const subscriptionData: UserSubscription = {
-            id: response.data.id,
-            userId: response.data.user_id,
-            planId: response.data.plan_id,
-            planType: getPlanTypeFromId(response.data.plan_id),
-            startDate: new Date(response.data.start_date),
-            endDate: response.data.end_date ? new Date(response.data.end_date) : null,
-            status: response.data.status,
-            paymentMethod: response.data.payment_method,
-            paymentProvider: response.data.payment_provider,
-            nextBillingDate: response.data.next_billing_date ? new Date(response.data.next_billing_date) : null
+          const formattedSubscription: UserSubscription = {
+            id: subscriptionData.id,
+            userId: user.id,
+            planId: 'premium', // Valor temporário, depois será baseado no valor ou descrição
+            planType: getPlanTypeFromId('premium'), // Valor temporário
+            startDate: new Date(subscriptionData.createdDate),
+            endDate: null,
+            status: subscriptionData.status,
+            paymentMethod: subscriptionData.billingType,
+            paymentProvider: 'ASAAS',
+            nextBillingDate: subscriptionData.nextDueDate ? new Date(subscriptionData.nextDueDate) : null
           };
 
-          console.log('[SubscriptionContext] Assinatura carregada:', subscriptionData);
-          setCurrentSubscription(subscriptionData);
+          console.log('[SubscriptionContext] Assinatura carregada:', formattedSubscription);
+          setCurrentSubscription(formattedSubscription);
 
           // Buscar plano correspondente na lista de planos disponíveis
-          const plan = availablePlans.find(p => p.id === subscriptionData.planId) || null;
+          // Aqui podemos determinar o plano com base no valor ou descrição da assinatura
+          let planId = 'free';
+          if (subscriptionData.value >= 99) {
+            planId = 'premium';
+          } else if (subscriptionData.value >= 49) {
+            planId = 'pro';
+          } else if (subscriptionData.value >= 19) {
+            planId = 'basic';
+          }
+          
+          // Atualizar o planId na assinatura
+          formattedSubscription.planId = planId;
+          formattedSubscription.planType = getPlanTypeFromId(planId);
+          
+          const plan = availablePlans.find(p => p.id === planId) || null;
           setCurrentPlan(plan);
           // Sucesso! Sair do loop
           break;

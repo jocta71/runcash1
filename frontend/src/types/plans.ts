@@ -23,9 +23,9 @@ export interface UserSubscription {
   planType: PlanType;
   startDate: Date;
   endDate: Date | null;
-  status: 'active' | 'canceled' | 'past_due' | 'trial';
+  status: string;
   paymentMethod?: string;
-  paymentProvider?: 'stripe' | 'manual';
+  paymentProvider?: 'stripe' | 'manual' | 'ASAAS';
   paymentId?: string;
-  nextBillingDate?: Date;
+  nextBillingDate?: Date | null;
 } 
