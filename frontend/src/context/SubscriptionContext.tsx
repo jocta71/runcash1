@@ -94,7 +94,7 @@ const SubscriptionContext = createContext<SubscriptionContextType | undefined>(u
 
 // Provedor de assinatura que busca os dados reais da API
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, syncUserWithAsaas } = useAuth();
   const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null);
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -116,13 +116,43 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const maxRetries = forceRefresh ? 3 : 1;
     let lastError = null;
 
+    // Verificar se o usuário tem um ID do Asaas
+    if (!user.asaasCustomerId) {
+      console.log('[SubscriptionContext] Usuário não possui asaasCustomerId, tentando sincronizar com Asaas...');
+      try {
+        // Tentar sincronizar o usuário com o Asaas
+        const syncResult = await syncUserWithAsaas();
+        if (!syncResult) {
+          console.error('[SubscriptionContext] Falha ao sincronizar usuário com Asaas');
+          setError('Não foi possível sincronizar seu usuário com o sistema de pagamentos.');
+          setLoading(false);
+          return;
+        }
+      } catch (syncError) {
+        console.error('[SubscriptionContext] Erro ao sincronizar com Asaas:', syncError);
+        setError('Não foi possível sincronizar seu usuário com o sistema de pagamentos.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Se mesmo após a tentativa de sincronização ainda não há ID do Asaas, continuar com plano gratuito
+    if (!user.asaasCustomerId) {
+      console.log('[SubscriptionContext] Usuário sem asaasCustomerId após sincronização, definindo plano gratuito');
+      setCurrentSubscription(null);
+      const freePlan = availablePlans.find(p => p.id === 'free') || null;
+      setCurrentPlan(freePlan);
+      setLoading(false);
+      return;
+    }
+
     while (retryCount < maxRetries) {
       try {
         // Adicionar um parâmetro de timestamp para evitar cache
         const cacheKey = forceRefresh ? `&_t=${Date.now()}` : '';
         
-        // Buscar assinatura ativa do usuário
-        const response = await axios.get(`${API_URL}/api/asaas-find-subscription?customerId=${user.id}${cacheKey}`);
+        // Buscar assinatura ativa do usuário usando o ID do cliente no Asaas
+        const response = await axios.get(`${API_URL}/api/asaas-find-subscription?customerId=${user.asaasCustomerId}${cacheKey}`);
 
         if (response.data && response.data.success && response.data.subscriptions && response.data.subscriptions.length > 0) {
           const subscriptionData = response.data.subscriptions[0];

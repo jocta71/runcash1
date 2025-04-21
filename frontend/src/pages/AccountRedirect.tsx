@@ -13,7 +13,7 @@ import { useLoginModal } from '@/context/LoginModalContext';
 const AccountRedirect = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, loading: authLoading, checkAuth, setUser } = useAuth();
+  const { user, loading: authLoading, checkAuth, syncUserWithAsaas } = useAuth();
   const { loadUserSubscription } = useSubscription();
   const { showLoginModal } = useLoginModal();
   const [isLoading, setIsLoading] = useState(true);
@@ -88,6 +88,39 @@ const AccountRedirect = () => {
             console.log(`[AccountRedirect] Session ID da URL: ${sessionIdFromUrl}`);
           }
           
+          // Sincronizar o usuário com o Asaas se necessário
+          if (!user.asaasCustomerId) {
+            console.log('[AccountRedirect] Usuário não possui asaasCustomerId, sincronizando...');
+            setLoadingMessage('Sincronizando dados com o sistema de pagamentos...');
+            try {
+              const syncResult = await syncUserWithAsaas();
+              if (!syncResult) {
+                console.error('[AccountRedirect] Falha ao sincronizar usuário com Asaas');
+                setLoadingMessage('Não foi possível sincronizar seus dados de pagamento.');
+                setHasError(true);
+                setIsLoading(false);
+                
+                // Mesmo com erro, redirecionar após um tempo maior
+                setTimeout(() => {
+                  navigate('/billing', { replace: true });
+                }, 3000);
+                return;
+              }
+              console.log('[AccountRedirect] Sincronização com Asaas bem-sucedida');
+            } catch (syncError) {
+              console.error('[AccountRedirect] Erro ao sincronizar com Asaas:', syncError);
+              setLoadingMessage('Houve um problema com a sincronização de dados.');
+              setHasError(true);
+              setIsLoading(false);
+              
+              // Mesmo com erro, redirecionar após um tempo maior
+              setTimeout(() => {
+                navigate('/billing', { replace: true });
+              }, 3000);
+              return;
+            }
+          }
+          
           // Tentar carregar os dados da assinatura várias vezes
           // para garantir que a API tenha tempo de registrar a assinatura
           let subscriptionLoaded = false;
@@ -136,7 +169,7 @@ const AccountRedirect = () => {
 
       loadSubscriptionAndRedirect();
     }
-  }, [authChecked, user, loadUserSubscription, navigate, sessionIdFromUrl]);
+  }, [authChecked, user, loadUserSubscription, navigate, sessionIdFromUrl, syncUserWithAsaas]);
 
   // Mostrar informações de depuração (visível apenas em ambiente de desenvolvimento)
   const showDebugInfo = process.env.NODE_ENV === 'development';
@@ -171,6 +204,7 @@ const AccountRedirect = () => {
           <p className="text-xs text-gray-400">User ID da URL: {userIdFromUrl}</p>
           {sessionIdFromUrl && <p className="text-xs text-gray-400">Session ID: {sessionIdFromUrl}</p>}
           <p className="text-xs text-gray-400">Estado de autenticação: {user ? 'Autenticado' : 'Não autenticado'}</p>
+          <p className="text-xs text-gray-400">Asaas Customer ID: {user?.asaasCustomerId || 'Não disponível'}</p>
         </div>
       )}
     </div>

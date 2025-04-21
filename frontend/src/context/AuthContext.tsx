@@ -8,6 +8,7 @@ interface User {
   email: string;
   isAdmin: boolean;
   profilePicture?: string;
+  asaasCustomerId?: string; // ID do cliente no sistema Asaas
 }
 
 interface AuthContextType {
@@ -20,6 +21,7 @@ interface AuthContextType {
   checkAuth: () => Promise<boolean>;
   setUser: (user: User) => void;
   setToken: (token: string) => void;
+  syncUserWithAsaas: () => Promise<boolean>;
 }
 
 // Cookie options - opções atualizadas para melhor compatibilidade entre navegadores
@@ -43,7 +45,8 @@ const AuthContext = createContext<AuthContextType>({
   signOut: () => {},
   checkAuth: async () => false,
   setUser: () => {},
-  setToken: () => {}
+  setToken: () => {},
+  syncUserWithAsaas: async () => false
 });
 
 // API base URL
@@ -431,6 +434,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  // Sincroniza o usuário atual com um cliente no Asaas
+  const syncUserWithAsaas = async (): Promise<boolean> => {
+    if (!user) {
+      logAuthFlow("Não é possível sincronizar: usuário não está autenticado");
+      return false;
+    }
+
+    logAuthFlow(`Sincronizando usuário ${user.id} com Asaas`);
+    
+    try {
+      const response = await axios.post(`${API_URL}/sync-user-customer`, {
+        userId: user.id,
+        email: user.email
+      });
+      
+      if (response.data.success) {
+        const { asaasCustomerId } = response.data;
+        
+        // Atualizar o usuário com o ID do cliente Asaas
+        const updatedUser = {
+          ...user,
+          asaasCustomerId
+        };
+        
+        setUser(updatedUser);
+        logAuthFlow(`Sincronização com Asaas bem-sucedida. Customer ID: ${asaasCustomerId}`);
+        return true;
+      } else {
+        logAuthFlow(`Falha na sincronização: ${response.data.error}`);
+        return false;
+      }
+    } catch (error: any) {
+      logAuthFlow(`Erro durante sincronização: ${error.message}`);
+      return false;
+    }
+  };
+
   // Valor do contexto
   const value = {
     user,
@@ -441,7 +481,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signOut,
     checkAuth,
     setUser,
-    setToken
+    setToken,
+    syncUserWithAsaas
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
