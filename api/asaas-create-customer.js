@@ -22,13 +22,13 @@ module.exports = async (req, res) => {
   let client;
   
   try {
-    const { name, email, cpfCnpj, mobilePhone, userId } = req.body;
+    const { name, email, cpfCnpj, mobilePhone, userId, externalReference } = req.body;
 
-    // Validar campos obrigatórios
-    if (!name || !email || !cpfCnpj) {
+    // Validar campos obrigatórios - agora exigindo apenas name e email
+    if (!name || !email) {
       return res.status(400).json({ 
         success: false,
-        error: 'Campos obrigatórios: name, email, cpfCnpj' 
+        error: 'Campos obrigatórios: name, email' 
       });
     }
 
@@ -55,24 +55,35 @@ module.exports = async (req, res) => {
       }
     });
 
-    // Verificar se o cliente já existe pelo CPF/CNPJ
+    // Verificar se o cliente já existe pelo email
     try {
-      console.log(`Buscando cliente pelo CPF/CNPJ: ${cpfCnpj}`);
+      console.log(`Buscando cliente pelo email: ${email}`);
       const searchResponse = await apiClient.get('/customers', {
-        params: { cpfCnpj }
+        params: { email }
       });
 
-      // Se já existir um cliente com este CPF/CNPJ, retorná-lo
+      // Se já existir um cliente com este email, retorná-lo
       if (searchResponse.data.data && searchResponse.data.data.length > 0) {
         const existingCustomer = searchResponse.data.data[0];
         console.log(`Cliente já existe, ID: ${existingCustomer.id}`);
 
         // Opcionalmente, atualizar dados do cliente se necessário
-        await apiClient.post(`/customers/${existingCustomer.id}`, {
+        const updateData = {
           name,
-          email,
           mobilePhone
-        });
+        };
+        
+        // Adicionar externalReference se foi fornecido
+        if (externalReference) {
+          updateData.externalReference = externalReference;
+        }
+        
+        // Adicionar cpfCnpj apenas se foi fornecido
+        if (cpfCnpj) {
+          updateData.cpfCnpj = cpfCnpj;
+        }
+        
+        await apiClient.post(`/customers/${existingCustomer.id}`, updateData);
 
         // Conectar ao MongoDB e registrar o cliente se necessário
         if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
@@ -103,9 +114,8 @@ module.exports = async (req, res) => {
 
         return res.status(200).json({
           success: true,
-          data: {
-            customerId: existingCustomer.id
-          },
+          id: existingCustomer.id,
+          customerId: existingCustomer.id,
           message: 'Cliente recuperado e atualizado com sucesso'
         });
       }
@@ -119,10 +129,13 @@ module.exports = async (req, res) => {
     const customerData = {
       name,
       email,
-      cpfCnpj,
-      mobilePhone,
       notificationDisabled: false
     };
+    
+    // Adicionar campos opcionais se foram fornecidos
+    if (cpfCnpj) customerData.cpfCnpj = cpfCnpj;
+    if (mobilePhone) customerData.mobilePhone = mobilePhone;
+    if (externalReference) customerData.externalReference = externalReference;
 
     const createResponse = await apiClient.post('/customers', customerData);
     const newCustomer = createResponse.data;
@@ -151,9 +164,8 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: {
-        customerId: newCustomer.id
-      },
+      id: newCustomer.id,
+      customerId: newCustomer.id,
       message: 'Cliente criado com sucesso'
     });
   } catch (error) {

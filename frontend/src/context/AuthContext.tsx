@@ -8,7 +8,7 @@ interface User {
   email: string;
   isAdmin: boolean;
   profilePicture?: string;
-  asaasCustomerId?: string; // ID do cliente no sistema Asaas
+  asaasCustomerId?: string; // ID do cliente no Asaas
 }
 
 interface AuthContextType {
@@ -360,18 +360,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         setUser(user);
-        
-        // Verificar e vincular cliente Asaas se necessário
-        if (!user.asaasCustomerId) {
-          try {
-            logAuthFlow("Verificando cliente Asaas para usuário existente");
-            await createOrLinkAsaasCustomer(user);
-          } catch (asaasError) {
-            logAuthFlow(`Erro ao verificar cliente Asaas: ${asaasError}`);
-            // Não falhar o login por causa disso
-          }
-        }
-        
         return { error: null };
       } else {
         logAuthFlow(`Falha no login: ${response.data.error}`);
@@ -416,16 +404,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         setUser(user);
-        
-        // Criar ou recuperar cliente no Asaas
-        try {
-          logAuthFlow("Criando ou recuperando cliente no Asaas");
-          await createOrLinkAsaasCustomer(user);
-        } catch (asaasError) {
-          logAuthFlow(`Erro ao criar/vincular cliente Asaas: ${asaasError}`);
-          // Não falhar o registro por causa disso
-        }
-        
         return { error: null };
       } else {
         logAuthFlow(`Falha no cadastro: ${response.data.error}`);
@@ -438,76 +416,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           message: error.response?.data?.error || 'Erro ao conectar ao servidor' 
         } 
       };
-    }
-  };
-
-  // Função para criar ou vincular cliente no Asaas
-  const createOrLinkAsaasCustomer = async (user: User) => {
-    // Se já tem um customerId, não é necessário criar
-    if (user.asaasCustomerId) {
-      logAuthFlow(`Usuário já possui ID de cliente Asaas: ${user.asaasCustomerId}`);
-      return;
-    }
-    
-    try {
-      // Primeiro tentar buscar cliente pelo email
-      logAuthFlow(`Buscando cliente no Asaas pelo email: ${user.email}`);
-      const findResponse = await axios.get(`${API_URL}/api/asaas-find-customer`, {
-        params: { email: user.email }
-      });
-      
-      if (findResponse.data.success) {
-        // Cliente encontrado, vincular ao usuário
-        const customerId = findResponse.data.customer.id;
-        logAuthFlow(`Cliente encontrado no Asaas, ID: ${customerId}, vinculando ao usuário`);
-        
-        await axios.post(`${API_URL}/api/user-link-asaas`, {
-          userId: user.id,
-          asaasCustomerId: customerId
-        });
-        
-        // Atualizar objeto do usuário em memória
-        setUser({
-          ...user,
-          asaasCustomerId: customerId
-        });
-        
-        return;
-      }
-    } catch (findError) {
-      // Cliente não encontrado, prosseguir para criar um novo
-      logAuthFlow(`Cliente não encontrado no Asaas por email, criando novo`);
-    }
-    
-    // Criar novo cliente no Asaas
-    try {
-      logAuthFlow(`Criando novo cliente no Asaas para: ${user.email}`);
-      const createResponse = await axios.post(`${API_URL}/api/asaas-create-customer`, {
-        name: user.username,
-        email: user.email,
-        userId: user.id
-        // cpfCnpj seria ideal, mas não temos nesse momento
-      });
-      
-      if (createResponse.data.success) {
-        const customerId = createResponse.data.data.customerId;
-        logAuthFlow(`Cliente criado no Asaas, ID: ${customerId}`);
-        
-        // Atualizar usuário no banco com o ID do cliente
-        await axios.post(`${API_URL}/api/user-link-asaas`, {
-          userId: user.id,
-          asaasCustomerId: customerId
-        });
-        
-        // Atualizar objeto do usuário em memória
-        setUser({
-          ...user,
-          asaasCustomerId: customerId
-        });
-      }
-    } catch (createError) {
-      logAuthFlow(`Erro ao criar cliente no Asaas: ${createError}`);
-      throw createError;
     }
   };
 
