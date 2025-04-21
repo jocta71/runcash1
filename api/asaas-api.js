@@ -100,10 +100,19 @@ function getAsaasConfig() {
     const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
     const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
     
+    console.log(`Ambiente Asaas: ${ASAAS_ENVIRONMENT}`);
+    console.log(`API Key configurada: ${ASAAS_API_KEY ? 'Sim' : 'Não'}`);
+    
     // Verificar se a chave está definida
     if (!ASAAS_API_KEY) {
       console.error('ERRO CRÍTICO: Chave de API do Asaas não configurada no ambiente');
       throw new Error('Chave de API do Asaas não configurada');
+    }
+    
+    // Verificar se a chave parece válida (formato básico)
+    if (ASAAS_API_KEY.length < 20) {
+      console.error('ERRO CRÍTICO: Chave de API do Asaas parece inválida (muito curta)');
+      throw new Error('Chave de API do Asaas parece inválida');
     }
     
     // Log do ambiente
@@ -767,13 +776,33 @@ async function handleSyncUserCustomer(req, res) {
     // Cria um novo cliente no Asaas
     const sanitizeName = (inputName) => {
       if (!inputName || inputName.length < 3) {
+        console.log(`Nome muito curto ou vazio: "${inputName}". Usando parte do email.`);
         return email.split('@')[0]; // Usa parte do email como fallback
       }
       
       // Detecta padrões repetitivos como "aaaaaaa" ou "ffffff"
       const invalidPattern = /^(.)\1{5,}$/;
       if (invalidPattern.test(inputName)) {
-        console.log(`Nome inválido detectado: "${inputName}". Usando parte do email.`);
+        console.log(`Nome com padrão repetitivo detectado: "${inputName}". Usando parte do email.`);
+        return email.split('@')[0];
+      }
+      
+      // Verifica se o nome tem muitas letras repetidas consecutivas (como 'ttttttttttaaaaaaa')
+      const repeatedCharsPattern = /(.)\1{4,}/;
+      if (repeatedCharsPattern.test(inputName)) {
+        console.log(`Nome com muitos caracteres repetidos detectado: "${inputName}". Tentando usar nome do usuário.`);
+        // Tenta usar o nome de usuário se disponível, ou o nome normalizado, ou parte do email como último recurso
+        if (user.username && user.username.length >= 3 && !repeatedCharsPattern.test(user.username)) {
+          return user.username;
+        }
+        
+        // Normaliza o nome para evitar repetições excessivas
+        const normalizedName = inputName.replace(repeatedCharsPattern, '$1$1$1');
+        if (normalizedName.length >= 3) {
+          console.log(`Nome normalizado: "${normalizedName}"`);
+          return normalizedName;
+        }
+        
         return email.split('@')[0];
       }
       
@@ -798,13 +827,16 @@ async function handleSyncUserCustomer(req, res) {
     console.log('Criando cliente no Asaas:', customerPayload);
 
     try {
+      console.log('Enviando requisição para criar cliente no Asaas:', customerPayload);
       const createCustomerResponse = await apiClient.post(`/customers`, customerPayload);
+      console.log('Resposta da API Asaas (criar cliente):', JSON.stringify(createCustomerResponse.data));
 
-      if (createCustomerResponse.status !== 200) {
-        console.log('Falha na criação do cliente no Asaas', createCustomerResponse.data);
+      if (createCustomerResponse.status !== 200 || !createCustomerResponse.data || !createCustomerResponse.data.id) {
+        console.log('Falha na criação do cliente no Asaas', JSON.stringify(createCustomerResponse.data || 'Sem dados na resposta'));
         return res.status(500).json({ 
           success: false, 
-          error: 'Falha ao criar o cliente no Asaas' 
+          error: 'Falha ao criar o cliente no Asaas',
+          details: createCustomerResponse.data || 'Resposta sem dados'
         });
       }
 
@@ -835,10 +867,30 @@ async function handleSyncUserCustomer(req, res) {
         message: 'Cliente criado no Asaas com sucesso'
       });
     } catch (asaasError) {
-      console.error('Erro na API do Asaas:', asaasError.response?.data || asaasError.message);
+      console.error('Erro na API do Asaas:');
+      console.error('Mensagem:', asaasError.message);
+      console.error('Dados da resposta:', JSON.stringify(asaasError.response?.data || {}));
+      
+      // Verificar erros específicos do Asaas
+      let errorMessage = 'Erro ao comunicar com API do Asaas';
+      
+      if (asaasError.response?.data?.errors?.description) {
+        errorMessage = `Erro do Asaas: ${asaasError.response.data.errors.description}`;
+      } else if (asaasError.response?.data?.errors) {
+        // Verificar se há erros nos campos
+        const fieldErrors = Object.entries(asaasError.response.data.errors)
+          .map(([field, error]) => `${field}: ${error}`)
+          .join(', ');
+        
+        if (fieldErrors) {
+          errorMessage = `Erros de validação: ${fieldErrors}`;
+        }
+      }
+      
       return res.status(500).json({ 
         success: false, 
-        error: `Erro na API do Asaas: ${asaasError.response?.data?.errors?.description || asaasError.message}` 
+        error: errorMessage,
+        details: asaasError.response?.data || asaasError.message
       });
     }
   } catch (error) {
