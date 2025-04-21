@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
+import { AsaasService } from '@/services/asaasService';
 
 interface User {
   id: string;
@@ -21,7 +22,6 @@ interface AuthContextType {
   checkAuth: () => Promise<boolean>;
   setUser: (user: User) => void;
   setToken: (token: string) => void;
-  syncUserWithAsaas: () => Promise<boolean>;
 }
 
 // Cookie options - opções atualizadas para melhor compatibilidade entre navegadores
@@ -45,8 +45,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: () => {},
   checkAuth: async () => false,
   setUser: () => {},
-  setToken: () => {},
-  syncUserWithAsaas: async () => false
+  setToken: () => {}
 });
 
 // API base URL
@@ -245,13 +244,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       logAuthFlow(`Chamando API /auth/me com token: ${token.substring(0, 15)}...`);
-      
-      // Adicionar timeout para evitar chamadas que ficam pendentes por muito tempo
       const response = await axios.get(`${API_URL}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`
-        },
-        timeout: 10000 // 10 segundos de timeout
+        }
       });
       
       // Log da resposta completa para debug
@@ -277,8 +273,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (userData && userData.id) {
           logAuthFlow(`Token verificado com sucesso, usuário autenticado: ${userData.id}`);
+          
+          // Atualizar estado de autenticação
           setUser(userData);
           setToken(token);
+          
+          // Verificar/Sincronizar com Asaas (não bloquear o login em caso de falha)
+          try {
+            const asaasResult = await AsaasService.ensureCustomerExists(userData);
+            if (asaasResult.success && asaasResult.customerId) {
+              // Se o ID do cliente mudou ou é novo, atualizar o usuário
+              if (!userData.asaasCustomerId || userData.asaasCustomerId !== asaasResult.customerId) {
+                logAuthFlow(`Atualizando usuário com ID de cliente Asaas: ${asaasResult.customerId}`);
+                
+                // Atualizar no backend
+                await axios.post(`${API_URL}/api/auth-update-user`, {
+                  userId: userData.id,
+                  asaasCustomerId: asaasResult.customerId
+                }, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                // Atualizar localmente
+                setUser({
+                  ...userData,
+                  asaasCustomerId: asaasResult.customerId
+                });
+              }
+            }
+          } catch (asaasError) {
+            console.error('[Auth] Erro ao sincronizar com Asaas durante verificação:', asaasError);
+            // Não impedir a autenticação por falha na sincronização com Asaas
+          }
+          
           return true;
         } else {
           // Não conseguiu extrair dados válidos do usuário
@@ -293,38 +320,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearAuthData();
         return false;
       }
-    } catch (error: any) {
-      // Erro na verificação
-      const statusCode = error.response?.status;
-      logAuthFlow(`Erro na verificação de token (status: ${statusCode}): ${error.message}`);
-      
-      // Se for erro 500 (servidor), tentar novamente uma vez após curto delay
-      if (statusCode >= 500) {
-        logAuthFlow("Erro de servidor, tentando novamente após 1 segundo");
-        try {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          const retryResponse = await axios.get(`${API_URL}/auth/me`, {
-            headers: {
-              Authorization: `Bearer ${token}`
-            },
-            timeout: 10000
-          });
-          
-          if (retryResponse.data && (retryResponse.data.data || retryResponse.data.user || retryResponse.data.id)) {
-            const userData = retryResponse.data.data || retryResponse.data.user || retryResponse.data;
-            if (userData && userData.id) {
-              logAuthFlow(`Retry bem-sucedido, usuário autenticado: ${userData.id}`);
-              setUser(userData);
-              setToken(token);
-              return true;
-            }
-          }
-        } catch (retryError) {
-          logAuthFlow(`Erro também na segunda tentativa: ${retryError}`);
-        }
-      }
-      
+    } catch (error) {
+      // Erro na verificação - limpar tudo
+      logAuthFlow(`Erro na verificação de token: ${error}`);
       clearAuthData();
       return false;
     }
@@ -393,7 +391,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setToken(token);
         }
         
+        // Armazenar usuário no estado
         setUser(user);
+
+        // Verificar se o usuário tem um cliente Asaas, e criar se necessário
+        try {
+          const asaasResult = await AsaasService.ensureCustomerExists(user);
+          if (asaasResult.success && asaasResult.customerId) {
+            // Se o ID do cliente mudou ou é novo, atualizar o usuário no backend
+            if (!user.asaasCustomerId || user.asaasCustomerId !== asaasResult.customerId) {
+              logAuthFlow(`Atualizando usuário com novo ID de cliente Asaas: ${asaasResult.customerId}`);
+              // Atualizar no backend
+              await axios.post(`${API_URL}/api/auth-update-user`, {
+                userId: user.id,
+                asaasCustomerId: asaasResult.customerId
+              }, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              
+              // Atualizar localmente
+              setUser({
+                ...user,
+                asaasCustomerId: asaasResult.customerId
+              });
+            }
+          }
+        } catch (asaasError) {
+          console.error('[Auth] Erro ao sincronizar com Asaas:', asaasError);
+          // Não impedir o login por falha na sincronização com Asaas
+        }
+        
         return { error: null };
       } else {
         logAuthFlow(`Falha no login: ${response.data.error}`);
@@ -466,137 +493,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  // Sincroniza o usuário atual com um cliente no Asaas
-  const syncUserWithAsaas = async (): Promise<boolean> => {
-    if (!user) {
-      logAuthFlow("Não é possível sincronizar: usuário não está autenticado");
-      return false;
-    }
-
-    logAuthFlow(`Sincronizando usuário ${user.id} com Asaas`);
-    
-    // Se o usuário já tiver um ID no Asaas, consideramos como sincronizado
-    // mesmo sem verificação, para evitar falhas na jornada quando o servidor estiver instável
-    if (user.asaasCustomerId) {
-      logAuthFlow(`Usuário já possui um Asaas Customer ID: ${user.asaasCustomerId}. Considerando como válido.`);
-      return true;
-    }
-    
-    // Função para sanitizar o nome do usuário e garantir que seja válido para o Asaas
-    const sanitizeName = (name?: string): string => {
-      // Se o nome não existir, usar o email
-      if (!name) {
-        return user.email.split('@')[0];
-      }
-      
-      // Verificar se o nome contém caracteres estranhos ou padrão suspeito
-      const invalidPattern = /^(.)\1{5,}$/; // Detecta padrões como "aaaaaaa" ou "fffffff"
-      const specialCharsPattern = /[^a-zA-Z0-9\s\-_.áàâãéèêíìîóòôõúùûçÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÇ]/g;
-      
-      if (invalidPattern.test(name) || name.length < 3 || name.length > 60) {
-        logAuthFlow(`Nome inválido detectado: "${name}". Usando parte do email.`);
-        return user.email.split('@')[0];
-      }
-      
-      // Remover caracteres especiais e limitar o tamanho
-      return name.replace(specialCharsPattern, ' ').trim().substring(0, 60);
-    };
-    
-    // Obter um nome sanitizado para envio
-    const sanitizedName = sanitizeName(user.username);
-    logAuthFlow(`Nome sanitizado para sincronização: "${sanitizedName}"`);
-    
-    // Contadores para limitar tentativas
-    let attemptsLeft = 2;
-    
-    while (attemptsLeft > 0) {
-      attemptsLeft--;
-      
-      try {
-        // Usar uma API unificada para simplificar as chamadas
-        logAuthFlow(`Tentando sincronizar via API unificada (tentativas restantes: ${attemptsLeft})`);
-        
-        const response = await axios.post(`/api/asaas-api`, {
-          path: 'sync-user-customer',
-          userId: user.id,
-          email: user.email,
-          name: sanitizedName // Usar o nome sanitizado
-        }, {
-          timeout: 8000 // Aumentar timeout para 8 segundos
-        });
-        
-        if (response.data.success && response.data.asaasCustomerId) {
-          const { asaasCustomerId } = response.data;
-          
-          // Atualizar o usuário com o ID do cliente Asaas
-          const updatedUser = {
-            ...user,
-            asaasCustomerId
-          };
-          
-          setUser(updatedUser);
-          logAuthFlow(`Sincronização com Asaas bem-sucedida. Customer ID: ${asaasCustomerId}`);
-          return true;
-        } else {
-          logAuthFlow(`Resposta da API sem erro, mas sem sucesso ou customerId: ${JSON.stringify(response.data)}`);
-          
-          // Se é a última tentativa, vamos para o endpoint alternativo
-          if (attemptsLeft === 0) {
-            throw new Error("API retornou com sucesso mas sem dados esperados");
-          }
-        }
-      } catch (error: any) {
-        const statusCode = error.response?.status;
-        logAuthFlow(`Erro durante sincronização com API unificada (status: ${statusCode}): ${error.message}`);
-        console.error("Detalhes do erro na sincronização:", error);
-        
-        // Se for a última tentativa, tentar o endpoint específico
-        if (attemptsLeft === 0) {
-          try {
-            logAuthFlow("Tentando endpoint específico de sincronização como fallback");
-            const altResponse = await axios.post(`/api/sync-user-customer`, {
-              userId: user.id,
-              email: user.email,
-              name: sanitizedName // Usar o nome sanitizado também no fallback
-            }, {
-              timeout: 8000 // Aumentar timeout para 8 segundos
-            });
-            
-            if (altResponse.data.success && altResponse.data.asaasCustomerId) {
-              const { asaasCustomerId } = altResponse.data;
-              
-              // Atualizar o usuário com o ID do cliente Asaas
-              const updatedUser = {
-                ...user,
-                asaasCustomerId
-              };
-              
-              setUser(updatedUser);
-              logAuthFlow(`Sincronização alternativa bem-sucedida. Customer ID: ${asaasCustomerId}`);
-              return true;
-            }
-          } catch (altError: any) {
-            const altStatusCode = altError.response?.status;
-            logAuthFlow(`Erro na tentativa alternativa de sincronização (status: ${altStatusCode}): ${altError.message}`);
-          }
-        }
-        
-        // Aguardar antes da próxima tentativa
-        if (attemptsLeft > 0) {
-          const waitTime = 1000;
-          logAuthFlow(`Aguardando ${waitTime}ms antes da próxima tentativa...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
-      }
-    }
-    
-    // Se chegamos aqui, todas as tentativas falharam, mas vamos permitir
-    // que o usuário continue a navegação para evitar bloqueios completos
-    logAuthFlow("Sincronização falhou, mas permitindo continuar com o fluxo da aplicação");
-    
-    return false;
-  };
-
   // Valor do contexto
   const value = {
     user,
@@ -607,8 +503,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signOut,
     checkAuth,
     setUser,
-    setToken,
-    syncUserWithAsaas
+    setToken
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

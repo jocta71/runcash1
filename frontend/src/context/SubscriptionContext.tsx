@@ -3,6 +3,7 @@ import { Plan, PlanType, UserSubscription } from '@/types/plans';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
 import { API_URL } from '@/config/constants';
+import { AsaasService } from '@/services/asaasService';
 
 // Lista de planos disponíveis
 export const availablePlans: Plan[] = [
@@ -94,7 +95,7 @@ const SubscriptionContext = createContext<SubscriptionContextType | undefined>(u
 
 // Provedor de assinatura que busca os dados reais da API
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, syncUserWithAsaas } = useAuth();
+  const { user } = useAuth();
   const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null);
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -109,101 +110,49 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return;
     }
 
-    console.log(`[SubscriptionContext] Carregando assinatura para usuário ${user.id} (forceRefresh: ${forceRefresh})`);
     setLoading(true);
     setError(null);
 
-    let retryCount = 0;
-    const maxRetries = forceRefresh ? 3 : 1;
-    let lastError = null;
-
-    // Verificar se o usuário tem um ID do Asaas
+    // Se o usuário não tem um ID de cliente Asaas, tentar criar um
     if (!user.asaasCustomerId) {
-      console.log('[SubscriptionContext] Usuário não possui asaasCustomerId, tentando sincronizar com Asaas...');
       try {
-        // Tentar sincronizar o usuário com o Asaas
-        const syncResult = await syncUserWithAsaas();
-        
-        // Se a sincronização falhar, podemos continuar com o plano gratuito,
-        // mas sem apresentar mensagens de erro para o usuário (para não bloquear a experiência)
-        if (!syncResult) {
-          console.warn('[SubscriptionContext] Falha ao sincronizar usuário com Asaas, continuando com plano gratuito');
-          setCurrentSubscription(null);
-          const freePlan = availablePlans.find(p => p.id === 'free') || null;
-          setCurrentPlan(freePlan);
+        console.log('[SubscriptionContext] Usuário sem ID de cliente Asaas, tentando criar...');
+        const asaasResult = await AsaasService.ensureCustomerExists(user);
+        if (!asaasResult.success) {
+          console.error('[SubscriptionContext] Não foi possível criar cliente Asaas para o usuário');
+          setError('Não foi possível vincular sua conta ao serviço de pagamentos. Por favor, contate o suporte.');
           setLoading(false);
           return;
         }
-        
-        // Verificar novamente após a sincronização
-        if (!user.asaasCustomerId) {
-          console.log('[SubscriptionContext] Usuário ainda sem asaasCustomerId após sincronização, definindo plano gratuito');
-          setCurrentSubscription(null);
-          const freePlan = availablePlans.find(p => p.id === 'free') || null;
-          setCurrentPlan(freePlan);
-          setLoading(false);
-          return;
-        }
-      } catch (syncError) {
-        console.error('[SubscriptionContext] Erro ao sincronizar com Asaas:', syncError);
-        // Definir plano gratuito em vez de mostrar erro para o usuário
-        setCurrentSubscription(null);
-        const freePlan = availablePlans.find(p => p.id === 'free') || null;
-        setCurrentPlan(freePlan);
+      } catch (error) {
+        console.error('[SubscriptionContext] Erro ao criar cliente Asaas:', error);
+        setError('Erro ao comunicar com o serviço de pagamentos. Por favor, tente novamente mais tarde.');
         setLoading(false);
         return;
       }
     }
 
-    // Se mesmo após a tentativa de sincronização ainda não há ID do Asaas, continuar com plano gratuito
+    // Certifique-se de que temos um customerId válido
     if (!user.asaasCustomerId) {
-      console.log('[SubscriptionContext] Usuário sem asaasCustomerId após sincronização, definindo plano gratuito');
-      setCurrentSubscription(null);
-      const freePlan = availablePlans.find(p => p.id === 'free') || null;
-      setCurrentPlan(freePlan);
+      console.error('[SubscriptionContext] Usuário ainda sem ID de cliente Asaas após tentativa de criação');
+      setError('Não foi possível obter suas informações de assinatura. Por favor, contate o suporte.');
       setLoading(false);
       return;
     }
 
+    let retryCount = 0;
+    const maxRetries = forceRefresh ? 3 : 1;
+    let lastError = null;
+
     while (retryCount < maxRetries) {
       try {
-        // Adicionar um parâmetro de timestamp para evitar cache
-        const cacheKey = forceRefresh ? `&_t=${Date.now()}` : '';
+        console.log(`[SubscriptionContext] Buscando assinaturas para cliente Asaas: ${user.asaasCustomerId}`);
         
-        console.log(`[SubscriptionContext] Buscando assinatura para customerId ${user.asaasCustomerId} (tentativa ${retryCount + 1})`);
-        
-        // Tentar alternativa de API unificada primeiro
-        let response;
-        try {
-          // Buscar assinatura ativa do usuário usando o ID do cliente no Asaas - API unificada
-          response = await axios.get(`${API_URL}/api/asaas-api`, {
-            params: {
-              path: 'find-subscription',
-              customerId: user.asaasCustomerId,
-              _t: forceRefresh ? Date.now() : undefined
-            },
-            timeout: 10000 // Aumentar timeout para 10 segundos
-          });
-        } catch (apiError: any) {
-          console.error(`[SubscriptionContext] Erro na API unificada (${apiError.response?.status || 'desconhecido'}): ${apiError.message}`, apiError);
-          // Se falhar, tentar a URL antiga
-          response = await axios.get(`${API_URL}/api/asaas-find-subscription`, {
-            params: {
-              customerId: user.asaasCustomerId,
-              _t: forceRefresh ? Date.now() : undefined
-            },
-            timeout: 8000 // Timeout de 8 segundos para o endpoint alternativo
-          });
-        }
+        // Usar o serviço Asaas para buscar assinaturas
+        const result = await AsaasService.getCustomerSubscriptions(user.asaasCustomerId);
 
-        if (response?.data?.success && response.data.subscriptions && response.data.subscriptions.length > 0) {
-          const subscriptionData = response.data.subscriptions[0];
-          console.log(`[SubscriptionContext] Assinatura encontrada:`, subscriptionData);
-          
-          // Verificar se a assinatura está em um estado válido para considerar ativa
-          const validStatuses = ['ACTIVE', 'ATIVO', 'active', 'ativo'];
-          const isActive = validStatuses.includes(subscriptionData.status?.toUpperCase());
-          
+        if (result.success && result.subscriptions && result.subscriptions.length > 0) {
+          const subscriptionData = result.subscriptions[0];
           // Converter dados da API para o formato UserSubscription
           const formattedSubscription: UserSubscription = {
             id: subscriptionData.id,
@@ -218,19 +167,11 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
             nextBillingDate: subscriptionData.nextDueDate ? new Date(subscriptionData.nextDueDate) : null
           };
 
-          console.log('[SubscriptionContext] Assinatura formatada:', formattedSubscription);
-          
-          // Se a assinatura não estiver ativa, configurar o plano gratuito
-          if (!isActive) {
-            console.log(`[SubscriptionContext] Assinatura encontrada mas não está ativa (status: ${subscriptionData.status})`);
-            setCurrentSubscription(null);
-            const freePlan = availablePlans.find(p => p.id === 'free') || null;
-            setCurrentPlan(freePlan);
-            setLoading(false);
-            break;
-          }
-          
-          // Determinar o plano com base no valor da assinatura
+          console.log('[SubscriptionContext] Assinatura carregada:', formattedSubscription);
+          setCurrentSubscription(formattedSubscription);
+
+          // Buscar plano correspondente na lista de planos disponíveis
+          // Aqui podemos determinar o plano com base no valor ou descrição da assinatura
           let planId = 'free';
           if (subscriptionData.value >= 99) {
             planId = 'premium';
@@ -245,17 +186,12 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
           formattedSubscription.planType = getPlanTypeFromId(planId);
           
           const plan = availablePlans.find(p => p.id === planId) || null;
-          if (!plan) {
-            console.warn(`[SubscriptionContext] Plano não encontrado para ID: ${planId}`);
-          }
-          
-          setCurrentSubscription(formattedSubscription);
           setCurrentPlan(plan);
           // Sucesso! Sair do loop
           break;
         } else {
           // Sem assinatura ativa, definir como plano gratuito
-          console.log('[SubscriptionContext] Nenhuma assinatura encontrada, definindo plano gratuito');
+          console.log('[SubscriptionContext] Nenhuma assinatura encontrada');
           setCurrentSubscription(null);
           const freePlan = availablePlans.find(p => p.id === 'free') || null;
           setCurrentPlan(freePlan);
@@ -268,22 +204,11 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
         // Se o erro for 404, significa que não há assinatura (não é realmente um erro)
         if (err.response && err.response.status === 404) {
-          console.log('[SubscriptionContext] Erro 404 - Nenhuma assinatura encontrada, definindo plano gratuito');
+          console.log('[SubscriptionContext] Erro 404 - Nenhuma assinatura encontrada');
           setCurrentSubscription(null);
           const freePlan = availablePlans.find(p => p.id === 'free') || null;
           setCurrentPlan(freePlan);
           // Sair do loop, pois é uma situação esperada
-          break;
-        }
-        
-        // Se for erro de servidor (500), pode ser um problema temporário, então vamos continuar com plano gratuito
-        if (err.response && err.response.status >= 500) {
-          console.log(`[SubscriptionContext] Erro ${err.response.status} - Erro de servidor, definindo plano gratuito temporariamente`);
-          setCurrentSubscription(null);
-          const freePlan = availablePlans.find(p => p.id === 'free') || null;
-          setCurrentPlan(freePlan);
-          // Definir uma mensagem de erro mais amigável
-          setError('Estamos com problemas temporários para verificar sua assinatura. Por favor, tente novamente mais tarde.');
           break;
         }
 
@@ -293,20 +218,16 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         // Se não atingimos o número máximo de retries, aguardar antes de tentar novamente
         if (retryCount < maxRetries) {
           const retryDelay = 1000 * retryCount; // Aumentar o tempo de espera a cada tentativa
-          console.log(`[SubscriptionContext] Aguardando ${retryDelay}ms antes da próxima tentativa...`);
+          console.log(`[SubscriptionContext] Aguardando ${retryDelay}ms antes de tentar novamente...`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
     }
 
-    // Se todas as tentativas falharam e não é um erro 404 ou 500, mostrar mensagem de erro
+    // Se todas as tentativas falharam e não é um erro 404, mostrar mensagem de erro
     if (retryCount === maxRetries && lastError) {
       console.error('[SubscriptionContext] Todas as tentativas falharam');
-      // Mesmo com erro, definir plano gratuito temporariamente
-      setCurrentSubscription(null);
-      const freePlan = availablePlans.find(p => p.id === 'free') || null;
-      setCurrentPlan(freePlan);
-      setError('Não foi possível verificar sua assinatura no momento. Você está temporariamente com acesso ao plano gratuito.');
+      setError('Não foi possível carregar informações da sua assinatura. Tente novamente mais tarde.');
     }
 
     setLoading(false);
@@ -354,7 +275,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     try {
-      await axios.post(`${API_URL}/api/asaas-api?path=cancel-subscription`, {
+      await axios.post(`${API_URL}/api/asaas-cancel-subscription`, {
         subscriptionId: currentSubscription.id
       });
 

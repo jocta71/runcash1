@@ -3,15 +3,35 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "functions": {
-    "api/asaas-api.js": {
+    "api/asaas-create-customer.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-diagnostics.js": {
+    "api/asaas-create-subscription.js": {
       "memory": 1024,
       "maxDuration": 10
     },
     "api/webhook-manager.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-find-payment.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-pix-qrcode.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-find-subscription.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-cancel-subscription.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-find-customer.js": {
       "memory": 1024,
       "maxDuration": 10
     },
@@ -26,14 +46,6 @@
   },
   "rewrites": [
     {
-      "source": "/api/asaas-api",
-      "destination": "/api/asaas-api.js"
-    },
-    {
-      "source": "/api/asaas-diagnostics",
-      "destination": "/api/asaas-diagnostics.js"
-    },
-    {
       "source": "/api/asaas-webhook",
       "destination": "/api/webhook-manager.js"
     },
@@ -47,38 +59,38 @@
     },
     {
       "source": "/api/asaas-create-customer",
-      "destination": "/api/asaas-api.js?path=create-customer"
+      "destination": "/api/asaas-create-customer.js"
     },
     {
       "source": "/api/asaas-create-subscription",
-      "destination": "/api/asaas-api.js?path=create-subscription"
+      "destination": "/api/asaas-create-subscription.js"
     },
     {
       "source": "/api/asaas-find-payment",
-      "destination": "/api/asaas-api.js?path=find-payment"
+      "destination": "/api/asaas-find-payment.js"
     },
     {
       "source": "/api/asaas-pix-qrcode",
-      "destination": "/api/asaas-api.js?path=pix-qrcode"
+      "destination": "/api/asaas-pix-qrcode.js"
     },
     {
       "source": "/api/asaas-find-subscription",
-      "destination": "/api/asaas-api.js?path=find-subscription"
+      "destination": "/api/asaas-find-subscription.js"
     },
     {
       "source": "/api/asaas-cancel-subscription",
-      "destination": "/api/asaas-api.js?path=cancel-subscription"
+      "destination": "/api/asaas-cancel-subscription.js"
     },
     {
       "source": "/api/asaas-find-customer",
-      "destination": "/api/asaas-api.js?path=find-customer"
+      "destination": "/api/asaas-find-customer.js"
     },
     {
       "source": "/api/ai/query",
       "destination": "/api/ai/query.js"
     },
     {
-      "source": "/api/((?!asaas-api|asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|ai/query|test-page).*)",
+      "source": "/api/((?!asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|ai/query|test-page).*)",
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
     },
     {

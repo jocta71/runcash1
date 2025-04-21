@@ -33,14 +33,8 @@ api.interceptors.response.use(
  */
 interface ApiResponse<T> {
   success: boolean;
-  error?: string;
-  message?: string;
   data?: T;
-  // Propriedades adicionais para endpoints específicos
-  customer?: any;
-  subscriptions?: any[];
-  payments?: any[];
-  subscription?: any;
+  error?: string;
 }
 
 /**
@@ -57,7 +51,7 @@ export const createAsaasCustomer = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const response = await api.post<ApiResponse<{ customerId: string }>>('api/asaas-api?path=create-customer', {
+    const response = await api.post<ApiResponse<{ customerId: string }>>('api/asaas-create-customer', {
       name: userData.name,
       email: userData.email,
       cpfCnpj: userData.cpfCnpj,
@@ -140,20 +134,36 @@ export const createAsaasSubscription = async (
       }
     }
     
-    // Chamada à API unificada
-    const response = await api.post<ApiResponse<SubscriptionResponse>>('api/asaas-api?path=create-subscription', payload);
+    console.log('Enviando payload para criação de assinatura:', {
+      ...payload,
+      cardNumber: payload.cardNumber ? `****${payload.cardNumber.slice(-4)}` : undefined,
+      ccv: payload.ccv ? '***' : undefined,
+      holderCpfCnpj: payload.holderCpfCnpj ? `****${payload.holderCpfCnpj.slice(-4)}` : undefined
+    });
+    
+    const response = await api.post<ApiResponse<SubscriptionResponse>>('api/asaas-create-subscription', payload);
     
     console.log('Resposta da API de criação de assinatura:', response.data);
     
-    if (!response.data?.success) {
-      throw new Error(response.data?.error || 'Falha ao criar assinatura');
+    if (!response.data?.data?.subscriptionId) {
+      throw new Error('ID de assinatura não recebido');
     }
     
-    return response.data.data;
+    return {
+      subscriptionId: response.data.data.subscriptionId,
+      paymentId: response.data.data.paymentId || '',
+      redirectUrl: response.data.data.redirectUrl,
+      status: response.data.data.status || 'PENDING'
+    };
   } catch (error) {
     console.error('Erro ao criar assinatura no Asaas:', error);
     
     if (error instanceof AxiosError) {
+      console.error('Detalhes do erro:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
       throw new Error(`Falha ao criar assinatura: ${error.response?.data?.error || error.message}`);
     }
     
@@ -170,7 +180,7 @@ interface PaymentResponse {
 }
 
 /**
- * Busca informações de um pagamento no Asaas
+ * Busca detalhes de um pagamento no Asaas
  * @param paymentId ID do pagamento no Asaas
  * @param force Se true, força atualização ignorando cache
  */
@@ -180,7 +190,7 @@ export const findAsaasPayment = async (paymentId: string, force: boolean = false
     
     // Adicionar parâmetro de cache buster quando força atualização
     const cacheBuster = force ? `&_t=${Date.now()}` : '';
-    const response = await api.get<PaymentResponse>(`api/asaas-api?path=find-payment&paymentId=${paymentId}${cacheBuster}`);
+    const response = await api.get<PaymentResponse>(`api/asaas-find-payment?paymentId=${paymentId}${cacheBuster}`);
     
     console.log('Resposta da API de busca de pagamento:', response.data);
     
@@ -225,7 +235,7 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
   try {
     console.log(`Buscando QR code PIX: paymentId=${paymentId}`);
     
-    const response = await api.get<PixQrCodeResponse>(`api/asaas-api?path=pix-qrcode&paymentId=${paymentId}`);
+    const response = await api.get<PixQrCodeResponse>(`api/asaas-pix-qrcode?paymentId=${paymentId}`);
     
     console.log('Resposta da API de QR code PIX:', response.data);
     
@@ -343,7 +353,7 @@ export const findAsaasSubscription = async (subscriptionId: string): Promise<any
   try {
     console.log(`Buscando assinatura: subscriptionId=${subscriptionId}`);
     
-    const response = await api.get<ApiResponse<any>>(`api/asaas-api?path=find-subscription&subscriptionId=${subscriptionId}`);
+    const response = await api.get<ApiResponse<any>>(`api/asaas-find-subscription?subscriptionId=${subscriptionId}`);
     
     console.log('Resposta da API de busca de assinatura:', response.data);
     
@@ -370,17 +380,25 @@ export const findAsaasSubscription = async (subscriptionId: string): Promise<any
  * Cancela uma assinatura no Asaas
  * @param subscriptionId ID da assinatura no Asaas
  */
-export const cancelAsaasSubscription = async (subscriptionId: string): Promise<boolean> => {
+export const cancelAsaasSubscription = async (subscriptionId: string): Promise<any> => {
   try {
-    console.log(`Cancelando assinatura: ${subscriptionId}`);
+    console.log(`Cancelando assinatura: subscriptionId=${subscriptionId}`);
     
-    const response = await api.post<ApiResponse<any>>('api/asaas-api?path=cancel-subscription', {
+    const response = await api.post<ApiResponse<any>>('api/asaas-cancel-subscription', {
       subscriptionId
     });
     
     console.log('Resposta da API de cancelamento de assinatura:', response.data);
     
-    return response.data?.success || false;
+    if (!response.data?.success) {
+      throw new Error('Falha ao cancelar assinatura');
+    }
+    
+    return {
+      success: true,
+      message: response.data.message,
+      details: response.data.details
+    };
   } catch (error) {
     console.error('Erro ao cancelar assinatura no Asaas:', error);
     
@@ -410,16 +428,16 @@ export const findAsaasCustomer = async (
     
     console.log(`Buscando cliente: ${customerId || cpfCnpj || email}`);
     
-    let queryParams = 'path=find-customer';
+    let queryParams = '';
     if (customerId) {
-      queryParams += `&customerId=${customerId}`;
+      queryParams = `customerId=${customerId}`;
     } else if (cpfCnpj) {
-      queryParams += `&cpfCnpj=${cpfCnpj}`;
+      queryParams = `cpfCnpj=${cpfCnpj}`;
     } else if (email) {
-      queryParams += `&email=${encodeURIComponent(email)}`;
+      queryParams = `email=${encodeURIComponent(email)}`;
     }
     
-    const response = await api.get<ApiResponse<any>>(`api/asaas-api?${queryParams}`);
+    const response = await api.get<ApiResponse<any>>(`api/asaas-find-customer?${queryParams}`);
     
     console.log('Resposta da API de busca de cliente:', response.data);
     
