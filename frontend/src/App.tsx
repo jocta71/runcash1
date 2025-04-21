@@ -19,6 +19,8 @@ import { LoginModalProvider } from "./context/LoginModalContext";
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
+const ProfileSubscription = lazy(() => import("@/pages/ProfileSubscription"));
+const AccountRedirect = lazy(() => import("@/pages/AccountRedirect"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const PlansPage = lazy(() => import("@/pages/PlansPage"));
 const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
@@ -105,6 +107,24 @@ const App = () => {
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
                                 <ProfilePage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Página de detalhes da assinatura */}
+                          <Route path="/minha-conta/assinatura" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <ProfileSubscription />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Redirecionamento da rota /account (usada após pagamento) */}
+                          <Route path="/account" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <AccountRedirect />
                               </Suspense>
                             </ProtectedRoute>
                           } />
