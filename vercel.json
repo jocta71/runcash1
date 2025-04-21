@@ -11,34 +11,6 @@
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-create-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-create-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-payment.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-pix-qrcode.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-cancel-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
     "api/ai/query.js": {
       "memory": 1024,
       "maxDuration": 30
@@ -67,31 +39,31 @@
     },
     {
       "source": "/api/asaas-create-customer",
-      "destination": "/api/asaas-create-customer.js"
+      "destination": "/api/asaas-api.js?path=create-customer"
     },
     {
       "source": "/api/asaas-create-subscription",
-      "destination": "/api/asaas-create-subscription.js"
+      "destination": "/api/asaas-api.js?path=create-subscription"
     },
     {
       "source": "/api/asaas-find-payment",
-      "destination": "/api/asaas-find-payment.js"
+      "destination": "/api/asaas-api.js?path=find-payment"
     },
     {
       "source": "/api/asaas-pix-qrcode",
-      "destination": "/api/asaas-pix-qrcode.js"
+      "destination": "/api/asaas-api.js?path=pix-qrcode"
     },
     {
       "source": "/api/asaas-find-subscription",
-      "destination": "/api/asaas-find-subscription.js"
+      "destination": "/api/asaas-api.js?path=find-subscription"
     },
     {
       "source": "/api/asaas-cancel-subscription",
-      "destination": "/api/asaas-cancel-subscription.js"
+      "destination": "/api/asaas-api.js?path=cancel-subscription"
     },
     {
       "source": "/api/asaas-find-customer",
-      "destination": "/api/asaas-find-customer.js"
+      "destination": "/api/asaas-api.js?path=find-customer"
     },
     {
       "source": "/api/ai/query",

@@ -384,7 +384,7 @@ const HTML = `
           
           logOperation(\`Criando cliente: \${data.name} (\${data.email})\`);
           
-          const response = await fetch('/api/asaas-create-customer', {
+          const response = await fetch('/api/asaas-api?path=create-customer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -439,7 +439,7 @@ const HTML = `
             logOperation(\`Buscando cliente pelo email: \${email}\`);
           }
           
-          const response = await fetch(\`/api/asaas-find-customer?\${queryParams}\`);
+          const response = await fetch(\`/api/asaas-api?path=find-customer&\${queryParams}\`);
           const result = await response.json();
           
           if (result.success) {
@@ -500,7 +500,7 @@ const HTML = `
           
           logOperation(\`Criando assinatura: \${planId} (\${paymentMethod}) para cliente \${customerId}\`);
           
-          const response = await fetch('/api/asaas-create-subscription', {
+          const response = await fetch('/api/asaas-api?path=create-subscription', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -571,7 +571,7 @@ const HTML = `
           
           logOperation(\`Consultando assinatura: \${subscriptionId}\`);
           
-          const response = await fetch(\`/api/asaas-find-subscription?subscriptionId=\${subscriptionId}\`);
+          const response = await fetch(\`/api/asaas-api?path=find-subscription&subscriptionId=\${subscriptionId}\`);
           const result = await response.json();
           
           if (result.success) {
@@ -607,7 +607,7 @@ const HTML = `
           
           logOperation(\`Cancelando assinatura: \${subscriptionId}\`);
           
-          const response = await fetch('/api/asaas-cancel-subscription', {
+          const response = await fetch('/api/asaas-api?path=cancel-subscription', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ subscriptionId })

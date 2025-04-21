@@ -343,7 +343,7 @@ export const findAsaasSubscription = async (subscriptionId: string): Promise<any
   try {
     console.log(`Buscando assinatura: subscriptionId=${subscriptionId}`);
     
-    const response = await api.get<ApiResponse<any>>(`api/asaas-find-subscription?subscriptionId=${subscriptionId}`);
+    const response = await api.get<ApiResponse<any>>(`api/asaas-api?path=find-subscription&subscriptionId=${subscriptionId}`);
     
     console.log('Resposta da API de busca de assinatura:', response.data);
     
