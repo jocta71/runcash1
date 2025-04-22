@@ -79,29 +79,43 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModal
     setErrorMessage('');
     
     try {
+      console.log('[LoginModal] Iniciando processo de login');
       const { error } = await signIn(email, password);
+      
       if (error) {
         setErrorMessage(error.message || 'Erro ao fazer login. Tente novamente.');
       } else {
+        // Garantir que o token seja persistido antes de continuar
+        console.log('[LoginModal] Login bem-sucedido, persistindo sessão');
+        
         toast({
           title: "Login bem-sucedido",
           description: "Bem-vindo de volta!",
         });
         
+        // Atraso para garantir que os cookies sejam definidos
+        // O setTimeout também evita problemas com redirecionamentos muito rápidos
         setTimeout(() => {
+          // Primeiro fechar o modal
           onClose();
           
+          // Se houver uma URL de redirecionamento, navegar para lá
           if (redirectAfterLogin) {
             console.log(`[LoginModal] Redirecionando para: ${redirectAfterLogin}`);
+            
+            // Atraso adicional para redirecionamento
             setTimeout(() => {
-              navigate(redirectAfterLogin);
+              // Usar navigate com state para indicar que é um redirecionamento pós-login
+              navigate(redirectAfterLogin, {
+                state: { fromLogin: true, timestamp: Date.now() }
+              });
             }, 300);
           }
-        }, 500);
+        }, 800);
       }
     } catch (err) {
+      console.error('[LoginModal] Erro durante login:', err);
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
-      console.error("Login error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -134,27 +148,41 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModal
     setErrorMessage('');
     
     try {
+      console.log('[LoginModal] Iniciando processo de cadastro');
       const { error } = await signUp(username, email, password);
+      
       if (error) {
         setErrorMessage(error.message || 'Erro ao criar conta. Tente novamente.');
       } else {
+        console.log('[LoginModal] Cadastro bem-sucedido, persistindo sessão');
+        
         toast({
           title: "Conta criada com sucesso",
           description: "Você já pode usar sua conta para acessar o sistema.",
         });
-        onClose();
         
-        // Se houver uma URL de redirecionamento, navegar para lá após cadastro bem-sucedido
-        if (redirectAfterLogin) {
-          console.log(`[LoginModal] Redirecionando para: ${redirectAfterLogin}`);
-          setTimeout(() => {
-            navigate(redirectAfterLogin);
-          }, 500);
-        }
+        // Atraso para garantir que os cookies sejam definidos
+        setTimeout(() => {
+          // Primeiro fechar o modal
+          onClose();
+          
+          // Se houver uma URL de redirecionamento, navegar para lá após cadastro bem-sucedido
+          if (redirectAfterLogin) {
+            console.log(`[LoginModal] Redirecionando para: ${redirectAfterLogin}`);
+            
+            // Atraso adicional para redirecionamento
+            setTimeout(() => {
+              // Usar navigate com state para indicar que é um redirecionamento pós-signup
+              navigate(redirectAfterLogin, {
+                state: { fromSignup: true, timestamp: Date.now() }
+              });
+            }, 300);
+          }
+        }, 800);
       }
     } catch (err) {
+      console.error('[LoginModal] Erro durante cadastro:', err);
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
-      console.error("Signup error:", err);
     } finally {
       setIsLoading(false);
     }

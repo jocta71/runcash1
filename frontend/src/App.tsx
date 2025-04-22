@@ -79,7 +79,7 @@ const AccountRouteRedirect = () => {
 // Componente para gerenciar o estado de autenticação e modal de login
 const AuthStateManager = () => {
   const location = useLocation();
-  const { user, checkAuth } = useAuth();
+  const { user, checkAuth, token } = useAuth();
   const { showLoginModal } = useLoginModal();
   
   useEffect(() => {
@@ -99,19 +99,47 @@ const AuthStateManager = () => {
     
     // Verificar autenticação ao navegar entre páginas
     const verifyAuthOnNavigation = async () => {
-      // Verificar apenas se estiver vindo da página de sucesso de pagamento ou similares
+      // Verificar sempre em páginas críticas, especialmente pagamento
       const isPaymentRelatedPath = 
         location.pathname.includes('payment-success') || 
-        location.pathname.includes('pagamento/sucesso');
+        location.pathname.includes('pagamento/sucesso') ||
+        location.pathname.includes('pagamento') ||
+        location.pathname.includes('payment');
         
-      if (isPaymentRelatedPath || !user) {
+      const hasPaymentParams = 
+        location.search.includes('planId') || 
+        location.search.includes('paymentId') ||
+        location.search.includes('customerId');
+        
+      if (isPaymentRelatedPath || hasPaymentParams || !user) {
         console.log('[AuthStateManager] Verificando autenticação após navegação');
-        await checkAuth();
+        console.log(`[AuthStateManager] Path: ${location.pathname}, Params: ${location.search}`);
+        console.log(`[AuthStateManager] Token disponível: ${token ? 'Sim' : 'Não'}`);
+        
+        // Tentativa robusta de verificação de autenticação
+        try {
+          const isAuthenticated = await checkAuth();
+          console.log(`[AuthStateManager] Status de autenticação: ${isAuthenticated ? 'Autenticado' : 'Não autenticado'}`);
+          
+          // Se não autenticado em página de pagamento com customerId, tentar mostrar login
+          if (!isAuthenticated && 
+              isPaymentRelatedPath && 
+              location.search.includes('customerId')) {
+            
+            console.log('[AuthStateManager] Mostrando modal de login para página de pagamento');
+            showLoginModal({
+              redirectAfterLogin: location.pathname + location.search,
+              message: 'Por favor, faça login para continuar com o pagamento.'
+            });
+          }
+        } catch (error) {
+          console.error('[AuthStateManager] Erro ao verificar autenticação:', error);
+        }
       }
     };
     
     verifyAuthOnNavigation();
-  }, [location, showLoginModal, checkAuth, user]);
+  }, [location, showLoginModal, checkAuth, user, token]);
   
   return null; // Este componente não renderiza nada
 };
