@@ -126,7 +126,9 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         planId, 
         user.id,
         user.asaasCustomerId,
-        'PIX'
+        'PIX',
+        null, // creditCard
+        { cpfCnpj: cpfClean, email: formData.email } // Incluir CPF e email do usuário
       );
       
       console.log('Assinatura criada:', subscription);

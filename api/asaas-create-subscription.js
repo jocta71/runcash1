@@ -141,6 +141,14 @@ module.exports = async (req, res) => {
       notifyPaymentCreatedImmediately: true
     };
 
+    // Adicionar CPF/CNPJ do cliente, se fornecido
+    if (holderCpfCnpj) {
+      subscriptionData.customer = {
+        id: customerId,
+        cpfCnpj: holderCpfCnpj
+      };
+    }
+
     // Adicionar dados de cartão de crédito se for pagamento com cartão
     if (billingType === 'CREDIT_CARD' && holderName && cardNumber && expiryMonth && expiryYear && ccv) {
       subscriptionData.creditCard = {

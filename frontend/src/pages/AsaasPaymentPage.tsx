@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { createAsaasSubscription, findAsaasPayment } from '../integrations/asaas/client';
+import { createAsaasSubscription, findAsaasPayment, findAsaasCustomer } from '../integrations/asaas/client';
 import PaymentPixModal from '../components/PaymentPixModal';
 import { PaymentStatusChecker } from '../components/PaymentStatusChecker';
-import { Alert, Button, Card, Container, Row, Col, Spinner } from 'react-bootstrap';
+import { Alert, Button, Card, Container, Row, Col, Spinner, Form } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 
 /**
@@ -33,23 +33,66 @@ const AsaasPaymentPage: React.FC = () => {
   const [showPixModal, setShowPixModal] = useState<boolean>(false);
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   const [isVerifyingStatus, setIsVerifyingStatus] = useState<boolean>(false);
+  const [cpf, setCpf] = useState<string>('');
+  const [showCpfForm, setShowCpfForm] = useState<boolean>(false);
+  const [customerData, setCustomerData] = useState<any>(null);
 
   // Efeito para iniciar o processo de pagamento quando a página carrega
   useEffect(() => {
-    if (planId && user) {
+    if (planId && user && customerId) {
       // Verificar se temos customerId, seja da URL ou do perfil do usuário
       const effectiveCustomerId = customerId || user.asaasCustomerId;
       
       if (effectiveCustomerId) {
-        createPayment(effectiveCustomerId);
+        // Buscar dados do cliente no Asaas para verificar se tem CPF
+        loadCustomerData(effectiveCustomerId);
       } else {
         setError('ID do cliente Asaas não encontrado. Por favor, entre em contato com o suporte.');
       }
     }
   }, [planId, customerId, user]);
 
+  // Função para carregar dados do cliente
+  const loadCustomerData = async (customerId: string) => {
+    try {
+      setIsLoading(true);
+      // Verificar se o findAsaasCustomer está disponível
+      if (typeof findAsaasCustomer === 'function') {
+        const customerResponse = await findAsaasCustomer({ customerId });
+        const customerInfo = customerResponse.customer;
+        setCustomerData(customerInfo);
+        
+        // Se o cliente não tem CPF, mostrar formulário
+        if (!customerInfo.cpfCnpj) {
+          setShowCpfForm(true);
+        } else {
+          // Se já tem CPF, criar a assinatura
+          await createPayment(customerId, customerInfo.cpfCnpj);
+        }
+      } else {
+        // Se a função não estiver disponível, tentar criar sem o CPF
+        await createPayment(customerId);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados do cliente:', error);
+      setShowCpfForm(true); // Mostrar formulário em caso de erro
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Função para submeter o formulário de CPF
+  const handleCpfSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (cpf && cpf.length >= 11 && customerId) {
+      createPayment(customerId, cpf.replace(/\D/g, ''));
+    } else {
+      setError('Por favor, insira um CPF válido.');
+    }
+  };
+
   // Função para criar o pagamento/assinatura
-  const createPayment = async (effectiveCustomerId: string = customerId || '') => {
+  const createPayment = async (effectiveCustomerId: string = customerId || '', cpfCnpj?: string) => {
     if (!planId || !effectiveCustomerId || !user) {
       setError('Dados incompletos para iniciar o pagamento. Verifique se você está logado e tente novamente.');
       return;
@@ -64,7 +107,9 @@ const AsaasPaymentPage: React.FC = () => {
         planId, 
         user.id, 
         effectiveCustomerId, 
-        paymentMethod
+        paymentMethod,
+        null, // creditCard
+        cpfCnpj ? { cpfCnpj } : undefined // Incluir CPF se disponível
       );
       
       // Se for assinatura gratuita, redirecionar diretamente
@@ -91,7 +136,11 @@ const AsaasPaymentPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Erro ao criar pagamento:', error);
-      setError(error instanceof Error ? error.message : 'Ocorreu um erro ao processar o pagamento.');
+      if (error instanceof Error && error.message.includes('CPF ou CNPJ do cliente')) {
+        setShowCpfForm(true); // Mostrar formulário de CPF se o erro for relacionado
+      } else {
+        setError(error instanceof Error ? error.message : 'Ocorreu um erro ao processar o pagamento.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -163,6 +212,41 @@ const AsaasPaymentPage: React.FC = () => {
                     </Button>
                   </div>
                 </Alert>
+              )}
+              
+              {/* Formulário para inserir CPF quando necessário */}
+              {showCpfForm && (
+                <div className="mb-4">
+                  <Alert variant="info">
+                    É necessário informar seu CPF para continuar com o pagamento.
+                  </Alert>
+                  <Form onSubmit={handleCpfSubmit}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>CPF</Form.Label>
+                      <Form.Control 
+                        type="text" 
+                        placeholder="Digite seu CPF (apenas números)" 
+                        value={cpf}
+                        onChange={(e) => setCpf(e.target.value)}
+                        maxLength={14}
+                        required
+                      />
+                      <Form.Text className="text-muted">
+                        Seu CPF é necessário para processamento do pagamento.
+                      </Form.Text>
+                    </Form.Group>
+                    <div className="d-grid">
+                      <Button type="submit" variant="primary">
+                        {isLoading ? (
+                          <>
+                            <Spinner animation="border" size="sm" className="me-2" />
+                            Processando...
+                          </>
+                        ) : 'Continuar'}
+                      </Button>
+                    </div>
+                  </Form>
+                </div>
               )}
               
               {paymentId && !showPixModal && (
