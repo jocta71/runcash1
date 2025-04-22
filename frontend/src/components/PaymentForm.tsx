@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { createAsaasSubscription, updateAsaasCustomer } from '@/integrations/asaas/client';
+import { createAsaasCustomer, createAsaasSubscription } from '@/integrations/asaas/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Função para formatar CPF
@@ -98,11 +98,6 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
       return;
     }
     
-    if (!user.asaasCustomerId) {
-      setError("Não foi possível encontrar seu cadastro no sistema de pagamento. Por favor, contate o suporte.");
-      return;
-    }
-    
     if (!formData.name || !formData.email || !formData.cpf) {
       setError("Por favor, preencha todos os campos obrigatórios.");
       return;
@@ -118,23 +113,20 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
     setIsLoading(true);
     
     try {
-      // Usar diretamente o ID do cliente Asaas que já está no objeto user
-      const customerId = user.asaasCustomerId;
-      
-      // Primeiro, atualizar os dados do cliente, especialmente o CPF
-      console.log('Atualizando dados do cliente com CPF antes de criar assinatura');
-      const updateSuccess = await updateAsaasCustomer(customerId, {
+      console.log('Iniciando criação de cliente no Asaas...');
+      // Passo 1: Criar ou recuperar cliente no Asaas
+      const customerId = await createAsaasCustomer({
         name: formData.name,
         email: formData.email,
         cpfCnpj: cpfClean,
-        mobilePhone: formData.phone.replace(/\D/g, '')
+        mobilePhone: formData.phone.replace(/\D/g, ''),
+        userId: user.id
       });
       
-      if (!updateSuccess) {
-        console.warn('Aviso: Não foi possível atualizar dados do cliente, mas continuando com a criação da assinatura');
-      }
+      console.log('Cliente criado/recuperado com ID:', customerId);
       
-      console.log('Criando assinatura para o cliente ID:', customerId);
+      // Passo 2: Criar assinatura
+      console.log('Criando assinatura para o cliente...');
       const subscription = await createAsaasSubscription(
         planId, 
         user.id,
@@ -261,12 +253,12 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
           />
         </div>
         
-        <div className="flex gap-4 pt-2">
+        <div className="pt-2 flex space-x-3">
           <Button
             type="button"
-            onClick={onCancel}
             variant="outline"
-            className="w-full border-gray-700 text-white hover:bg-vegas-black/50"
+            onClick={onCancel}
+            className="flex-1"
             disabled={isLoading}
           >
             Cancelar
@@ -274,7 +266,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
           
           <Button
             type="submit"
-            className="w-full bg-vegas-gold text-black hover:bg-vegas-gold/80"
+            className="flex-1 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -283,18 +275,11 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
                 Processando...
               </>
             ) : (
-              'Continuar'
+              'Continuar para pagamento'
             )}
           </Button>
         </div>
       </form>
-      
-      <div className="mt-6 text-xs text-gray-400">
-        <p>* Campos obrigatórios</p>
-        <p className="mt-2">
-          Ao continuar, você concorda com os Termos de Serviço e Política de Privacidade.
-        </p>
-      </div>
     </div>
   );
 }; 

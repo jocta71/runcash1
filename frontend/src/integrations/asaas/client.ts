@@ -458,40 +458,4 @@ export const findAsaasCustomer = async (
     
     throw new Error('Falha ao buscar cliente no Asaas');
   }
-};
-
-/**
- * Atualiza os dados de um cliente existente no Asaas
- * @param customerId ID do cliente no Asaas
- * @param userData Dados atualizados do usuário (nome, email, cpf, telefone)
- */
-export const updateAsaasCustomer = async (
-  customerId: string,
-  userData: {
-    name?: string;
-    email?: string;
-    cpfCnpj?: string;
-    mobilePhone?: string;
-  }
-): Promise<boolean> => {
-  try {
-    console.log('Atualizando dados do cliente no Asaas:', customerId, userData);
-    
-    const response = await api.post<ApiResponse<{ success: boolean }>>('api/asaas-create-customer?action=update', {
-      customerId,
-      ...userData
-    });
-    
-    console.log('Resposta da API de atualização de cliente:', response.data);
-    
-    return response.data?.success || false;
-  } catch (error) {
-    console.error('Erro ao atualizar cliente no Asaas:', error);
-    
-    if (error instanceof AxiosError) {
-      throw new Error(`Falha ao atualizar cliente: ${error.response?.data?.error || error.message}`);
-    }
-    
-    throw new Error('Falha ao atualizar cliente no Asaas');
-  }
 }; 

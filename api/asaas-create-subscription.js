@@ -26,6 +26,7 @@ module.exports = async (req, res) => {
       customerId, 
       planId, 
       userId, 
+      cpfCnpj, // Adicionado para atualização do CPF
       billingType = 'PIX',
       cycle = 'MONTHLY',
       value,
@@ -123,6 +124,20 @@ module.exports = async (req, res) => {
       billingType,
       cycle
     });
+
+    // Atualizar o CPF do cliente se fornecido
+    if (cpfCnpj) {
+      try {
+        console.log(`Atualizando CPF/CNPJ do cliente ${customerId}: ${cpfCnpj}`);
+        await apiClient.post(`/customers/${customerId}`, {
+          cpfCnpj
+        });
+        console.log('CPF/CNPJ atualizado com sucesso');
+      } catch (updateError) {
+        console.error('Erro ao atualizar CPF/CNPJ do cliente:', updateError.message);
+        // Continuar mesmo com erro na atualização do CPF
+      }
+    }
 
     // Construir o payload da assinatura
     const subscriptionData = {

@@ -136,12 +136,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
               console.log('[SubscriptionContext] Cliente Asaas criado/recuperado com sucesso:', customerResponse.data);
               
               // Obter o ID do cliente
-              const customerId = customerResponse.data.data?.customerId;
-              
-              if (!customerId) {
-                console.error('[SubscriptionContext] Resposta da API não contém customerId:', customerResponse.data);
-                throw new Error('ID de cliente Asaas não recebido');
-              }
+              const customerId = customerResponse.data.id || customerResponse.data.customerId;
               
               // Atualizar o usuário com o ID do cliente Asaas
               await updateUserAsaasId(customerId, user);
