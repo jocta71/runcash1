@@ -114,6 +114,30 @@ module.exports = async (req, res) => {
       }
     });
 
+    // Se foi fornecido CPF/CNPJ, atualizar o cliente antes de criar a assinatura
+    if (holderCpfCnpj) {
+      try {
+        console.log(`Verificando cliente ${customerId} e atualizando CPF/CNPJ se necessário...`);
+        // Verificar dados atuais do cliente
+        const customerResponse = await apiClient.get(`/customers/${customerId}`);
+        const customerData = customerResponse.data;
+        
+        // Atualizar o cliente com o CPF/CNPJ se não estiver definido
+        if (!customerData.cpfCnpj) {
+          console.log(`Cliente ${customerId} não possui CPF/CNPJ. Atualizando com: ${holderCpfCnpj}`);
+          await apiClient.post(`/customers/${customerId}`, {
+            cpfCnpj: holderCpfCnpj
+          });
+          console.log(`Cliente ${customerId} atualizado com CPF/CNPJ: ${holderCpfCnpj}`);
+        } else {
+          console.log(`Cliente ${customerId} já possui CPF/CNPJ: ${customerData.cpfCnpj}`);
+        }
+      } catch (customerError) {
+        console.error(`Erro ao atualizar cliente com CPF/CNPJ:`, customerError.message);
+        // Continuar mesmo em caso de erro - a API de assinatura tentará criar a assinatura
+      }
+    }
+
     // Log para depuração dos dados recebidos
     console.log('Dados recebidos para criação de assinatura:', {
       customerId,
@@ -140,14 +164,6 @@ module.exports = async (req, res) => {
       },
       notifyPaymentCreatedImmediately: true
     };
-
-    // Adicionar CPF/CNPJ do cliente, se fornecido
-    if (holderCpfCnpj) {
-      subscriptionData.customer = {
-        id: customerId,
-        cpfCnpj: holderCpfCnpj
-      };
-    }
 
     // Adicionar dados de cartão de crédito se for pagamento com cartão
     if (billingType === 'CREDIT_CARD' && holderName && cardNumber && expiryMonth && expiryYear && ccv) {
@@ -336,10 +352,28 @@ module.exports = async (req, res) => {
     
     // Verificar se o erro é da API do Asaas
     if (error.response && error.response.data) {
+      console.error('Detalhes do erro da API do Asaas:', {
+        status: error.response.status,
+        data: JSON.stringify(error.response.data),
+        url: error.response.config?.url,
+        method: error.response.config?.method
+      });
+      
+      // Verificar se o erro está relacionado ao CPF/CNPJ do cliente
+      const errors = error.response.data.errors || [];
+      const hasCpfCnpjError = errors.some(err => 
+        err.description && err.description.includes('CPF ou CNPJ do cliente')
+      );
+      
+      if (hasCpfCnpjError) {
+        console.error('Erro relacionado a CPF/CNPJ do cliente. Cliente precisa ser atualizado com CPF válido.');
+      }
+      
       return res.status(error.response.status || 500).json({
         success: false,
         error: 'Erro na API do Asaas',
-        details: error.response.data
+        details: error.response.data,
+        requiresCpfCnpj: hasCpfCnpjError
       });
     }
 

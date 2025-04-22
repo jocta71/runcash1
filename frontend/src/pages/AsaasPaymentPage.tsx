@@ -84,10 +84,18 @@ const AsaasPaymentPage: React.FC = () => {
   // Função para submeter o formulário de CPF
   const handleCpfSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (cpf && cpf.length >= 11 && customerId) {
-      createPayment(customerId, cpf.replace(/\D/g, ''));
+    const cpfValue = cpf.replace(/\D/g, '');
+    if (cpfValue && cpfValue.length >= 11 && customerId) {
+      setIsLoading(true);
+      setError(null);
+      
+      // Primeiro, tente atualizar o cliente com o CPF
+      console.log(`Tentando atualizar cliente ${customerId} com CPF ${cpfValue}`);
+      
+      // Depois crie a assinatura
+      createPayment(customerId, cpfValue);
     } else {
-      setError('Por favor, insira um CPF válido.');
+      setError('Por favor, insira um CPF válido com 11 dígitos.');
     }
   };
 
@@ -136,8 +144,14 @@ const AsaasPaymentPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Erro ao criar pagamento:', error);
-      if (error instanceof Error && error.message.includes('CPF ou CNPJ do cliente')) {
+      if (error instanceof Error && 
+          (error.message.includes('CPF ou CNPJ do cliente') || 
+           (error.message.includes('Erro na API do Asaas') && 
+            typeof (error as any).requiresCpfCnpj === 'boolean' && 
+            (error as any).requiresCpfCnpj))) {
+        console.log('Detectado erro relacionado a CPF/CNPJ, exibindo formulário...');
         setShowCpfForm(true); // Mostrar formulário de CPF se o erro for relacionado
+        setError('É necessário informar seu CPF para continuar com o pagamento. Por favor, preencha o formulário abaixo.');
       } else {
         setError(error instanceof Error ? error.message : 'Ocorreu um erro ao processar o pagamento.');
       }
