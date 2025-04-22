@@ -92,7 +92,10 @@ const AsaasTestPage: React.FC = () => {
         planId,
         user?.id || 'test-user',
         customerId,
-        paymentMethod
+        paymentMethod,
+        undefined, // creditCard
+        undefined, // creditCardHolderInfo
+        cpf.replace(/\D/g, '') // Passar CPF limpo se estiver disponível
       );
       
       setSubscriptionResult(result);

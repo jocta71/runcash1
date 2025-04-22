@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { createAsaasCustomer, createAsaasSubscription } from '@/integrations/asaas/client';
+import { createAsaasSubscription } from '@/integrations/asaas/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import axios from 'axios';
 
 // Função para formatar CPF
 const formatCPF = (value: string) => {
@@ -110,28 +111,24 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
       return;
     }
     
+    if (!user.asaasCustomerId) {
+      setError("Não foi possível identificar seu cadastro de cliente. Por favor, tente novamente ou entre em contato com o suporte.");
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
-      console.log('Iniciando criação de cliente no Asaas...');
-      // Passo 1: Criar ou recuperar cliente no Asaas
-      const customerId = await createAsaasCustomer({
-        name: formData.name,
-        email: formData.email,
-        cpfCnpj: cpfClean,
-        mobilePhone: formData.phone.replace(/\D/g, ''),
-        userId: user.id
-      });
-      
-      console.log('Cliente criado/recuperado com ID:', customerId);
-      
-      // Passo 2: Criar assinatura
+      // Criar assinatura passando o CPF para atualização
       console.log('Criando assinatura para o cliente...');
       const subscription = await createAsaasSubscription(
         planId, 
         user.id,
-        customerId,
-        'PIX'
+        user.asaasCustomerId,
+        'PIX',
+        undefined,
+        undefined,
+        cpfClean // Passar o CPF para atualização
       );
       
       console.log('Assinatura criada:', subscription);
@@ -145,7 +142,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         onPaymentSuccess();
       } else if (subscription.paymentId) {
         // Para qualquer plano pago, sempre redirecionar para página de pagamento PIX
-        window.location.href = `/pagamento?planId=${planId}&customerId=${customerId}&paymentId=${subscription.paymentId}`;
+        window.location.href = `/pagamento?planId=${planId}&customerId=${user.asaasCustomerId}&paymentId=${subscription.paymentId}`;
       } else {
         setError("Não foi possível obter as informações de pagamento. Por favor, tente novamente.");
       }

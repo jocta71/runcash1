@@ -93,6 +93,9 @@ interface SubscriptionResponse {
  * @param userId ID do usuário no seu sistema
  * @param customerId ID do cliente no Asaas
  * @param paymentMethod Método de pagamento (PIX, CREDIT_CARD, etc)
+ * @param creditCard Dados do cartão de crédito (opcional)
+ * @param creditCardHolderInfo Dados do titular do cartão (opcional)
+ * @param cpfCnpj CPF/CNPJ do cliente (opcional) - Será atualizado antes de criar a assinatura
  */
 export const createAsaasSubscription = async (
   planId: string,
@@ -100,7 +103,8 @@ export const createAsaasSubscription = async (
   customerId: string,
   paymentMethod: string = 'PIX',
   creditCard?: any,
-  creditCardHolderInfo?: any
+  creditCardHolderInfo?: any,
+  cpfCnpj?: string
 ): Promise<SubscriptionResponse> => {
   try {
     console.log(`Criando assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
@@ -115,6 +119,12 @@ export const createAsaasSubscription = async (
       value: creditCard?.value || 0,
       description: `Assinatura RunCash - Plano ${planId}`
     };
+
+    // Adicionar CPF/CNPJ se fornecido para atualização
+    if (cpfCnpj) {
+      payload.cpfCnpj = cpfCnpj;
+      console.log('CPF/CNPJ fornecido para atualização:', cpfCnpj);
+    }
     
     // Adicionar dados de cartão se for pagamento com cartão
     if (paymentMethod === 'CREDIT_CARD' && creditCard) {
@@ -138,7 +148,8 @@ export const createAsaasSubscription = async (
       ...payload,
       cardNumber: payload.cardNumber ? `****${payload.cardNumber.slice(-4)}` : undefined,
       ccv: payload.ccv ? '***' : undefined,
-      holderCpfCnpj: payload.holderCpfCnpj ? `****${payload.holderCpfCnpj.slice(-4)}` : undefined
+      holderCpfCnpj: payload.holderCpfCnpj ? `****${payload.holderCpfCnpj.slice(-4)}` : undefined,
+      cpfCnpj: payload.cpfCnpj ? `****${payload.cpfCnpj.slice(-4)}` : undefined
     });
     
     const response = await api.post<ApiResponse<SubscriptionResponse>>('api/asaas-create-subscription', payload);

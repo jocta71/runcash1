@@ -24,6 +24,7 @@ const AsaasPaymentPage: React.FC = () => {
   const customerId = queryParams.get('customerId');
   const returnUrl = queryParams.get('returnUrl') || '/billing';
   const paymentMethod = queryParams.get('paymentMethod') || 'PIX';
+  const cpfCnpj = queryParams.get('cpf');
   
   // Estados
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -57,7 +58,10 @@ const AsaasPaymentPage: React.FC = () => {
         planId, 
         user.id, 
         customerId, 
-        paymentMethod
+        paymentMethod,
+        undefined, // creditCard
+        undefined, // creditCardHolderInfo
+        cpfCnpj    // CPF/CNPJ para atualizar o cliente
       );
       
       // Se for assinatura gratuita, redirecionar diretamente
