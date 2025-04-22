@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { createAsaasSubscription } from '@/integrations/asaas/client';
+import { createAsaasSubscription, updateAsaasCustomer } from '@/integrations/asaas/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Função para formatar CPF
@@ -120,6 +120,19 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
     try {
       // Usar diretamente o ID do cliente Asaas que já está no objeto user
       const customerId = user.asaasCustomerId;
+      
+      // Primeiro, atualizar os dados do cliente, especialmente o CPF
+      console.log('Atualizando dados do cliente com CPF antes de criar assinatura');
+      const updateSuccess = await updateAsaasCustomer(customerId, {
+        name: formData.name,
+        email: formData.email,
+        cpfCnpj: cpfClean,
+        mobilePhone: formData.phone.replace(/\D/g, '')
+      });
+      
+      if (!updateSuccess) {
+        console.warn('Aviso: Não foi possível atualizar dados do cliente, mas continuando com a criação da assinatura');
+      }
       
       console.log('Criando assinatura para o cliente ID:', customerId);
       const subscription = await createAsaasSubscription(
