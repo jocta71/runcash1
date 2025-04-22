@@ -106,7 +106,9 @@ module.exports = async (req, res) => {
 
         return res.status(200).json({
           success: true,
-          id: updatedCustomer.id,
+          data: {
+            customerId: updatedCustomer.id
+          },
           message: 'Cliente atualizado com sucesso'
         });
       } catch (updateError) {
@@ -198,8 +200,9 @@ module.exports = async (req, res) => {
 
           return res.status(200).json({
             success: true,
-            id: existingCustomer.id,
-            customerId: existingCustomer.id,
+            data: {
+              customerId: existingCustomer.id
+            },
             message: 'Cliente recuperado e atualizado com sucesso'
           });
         }
@@ -248,8 +251,9 @@ module.exports = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        id: newCustomer.id,
-        customerId: newCustomer.id,
+        data: {
+          customerId: newCustomer.id
+        },
         message: 'Cliente criado com sucesso'
       });
     }
