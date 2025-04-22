@@ -36,6 +36,10 @@ const AsaasPaymentPage: React.FC = () => {
   const [cpf, setCpf] = useState<string>('');
   const [showCpfForm, setShowCpfForm] = useState<boolean>(false);
   const [customerData, setCustomerData] = useState<any>(null);
+  const [loadingCpf, setLoadingCpf] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [hasCpf, setHasCpf] = useState<boolean>(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
 
   // Efeito para iniciar o processo de pagamento quando a página carrega
   useEffect(() => {
@@ -82,20 +86,59 @@ const AsaasPaymentPage: React.FC = () => {
   };
 
   // Função para submeter o formulário de CPF
-  const handleCpfSubmit = (e: React.FormEvent) => {
+  const handleCpfSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cpfValue = cpf.replace(/\D/g, '');
-    if (cpfValue && cpfValue.length >= 11 && customerId) {
-      setIsLoading(true);
-      setError(null);
+    setLoadingCpf(true);
+    setErrorMessage('');
+    
+    try {
+      // Garantir que o CPF esteja limpo
+      const cleanedCpf = cpf.replace(/[^\d]/g, '');
       
-      // Primeiro, tente atualizar o cliente com o CPF
-      console.log(`Tentando atualizar cliente ${customerId} com CPF ${cpfValue}`);
+      if (cleanedCpf.length !== 11) {
+        throw new Error('O CPF deve conter 11 dígitos');
+      }
       
-      // Depois crie a assinatura
-      createPayment(customerId, cpfValue);
-    } else {
-      setError('Por favor, insira um CPF válido com 11 dígitos.');
+      console.log(`Tentando atualizar cliente ${customerId} com CPF: ${cleanedCpf}`);
+      
+      // Atualizar o cliente com o CPF
+      const response = await fetch('/api/update-customer-cpf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId,
+          cpfCnpj: cleanedCpf
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao atualizar CPF');
+      }
+      
+      console.log('CPF atualizado com sucesso:', data);
+      
+      // Verificar se o cliente foi atualizado com sucesso
+      if (data.success) {
+        setHasCpf(true);
+        setShowCpfForm(false);
+        setSuccessMessage('CPF registrado com sucesso! Continuando com o pagamento...');
+        
+        // Tentar criar o pagamento novamente
+        setTimeout(() => {
+          createPayment();
+        }, 1000);
+      } else {
+        throw new Error(data.error || 'Erro ao atualizar CPF no Asaas');
+      }
+    } catch (error) {
+      console.error('Erro ao enviar CPF:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Erro ao registrar CPF. Tente novamente.');
+    } finally {
+      setLoadingCpf(false);
     }
   };
 
@@ -251,7 +294,7 @@ const AsaasPaymentPage: React.FC = () => {
                     </Form.Group>
                     <div className="d-grid">
                       <Button type="submit" variant="primary">
-                        {isLoading ? (
+                        {loadingCpf ? (
                           <>
                             <Spinner animation="border" size="sm" className="me-2" />
                             Processando...
