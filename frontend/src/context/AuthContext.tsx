@@ -26,7 +26,7 @@ interface AuthContextType {
 // Cookie options - opções atualizadas para melhor compatibilidade entre navegadores
 const COOKIE_OPTIONS = {
   secure: window.location.protocol === "https:", // Usar secure apenas em HTTPS
-  sameSite: 'lax' as const, // Padrão mais seguro e compatível
+  sameSite: 'strict' as const, // Alterado para strict para maior segurança
   path: '/',         // Disponível em todo o site
   expires: 30,       // Expiração em 30 dias
 };
@@ -249,91 +249,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
       
-      // Log da resposta completa para debug
-      logAuthFlow(`Resposta da API /auth/me: ${JSON.stringify(response.data)}`);
+      // Verificar formato da resposta e extrair dados do usuário
+      let userData = null;
+      if (response.data.data) {
+        userData = response.data.data;
+        logAuthFlow("Usando dados do usuário de response.data.data");
+      } else if (response.data.user) {
+        userData = response.data.user;
+        logAuthFlow("Usando dados do usuário de response.data.user");
+      } else if (response.data.id) {
+        userData = response.data;
+        logAuthFlow("Usando dados do usuário diretamente de response.data");
+      }
       
-      if (response.data) {
-        // Tenta diferentes estruturas possíveis da resposta
-        let userData = null;
-        
-        if (response.data.data) {
-          // Estrutura esperada: { success: true, data: { ... } }
-          userData = response.data.data;
-          logAuthFlow("Usando dados do usuário de response.data.data");
-        } else if (response.data.user) {
-          // Estrutura alternativa: { success: true, user: { ... } }
-          userData = response.data.user;
-          logAuthFlow("Usando dados do usuário de response.data.user");
-        } else if (response.data.id) {
-          // O próprio objeto de resposta pode ser o usuário
-          userData = response.data;
-          logAuthFlow("Usando dados do usuário diretamente de response.data");
-        }
-        
-        if (userData && userData.id) {
-          logAuthFlow(`Token verificado com sucesso, usuário autenticado: ${userData.id}`);
-          setUser(userData);
-          setToken(token);
-          return true;
-        } else {
-          // Não conseguiu extrair dados válidos do usuário
-          logAuthFlow("Resposta da API não contém dados válidos do usuário");
-          logAuthFlow(`Estrutura da resposta: ${JSON.stringify(response.data)}`);
-          clearAuthData();
-          return false;
-        }
+      if (userData && userData.id) {
+        logAuthFlow("Usuário autenticado com sucesso via API");
+        setUser(userData);
+        setToken(token); // Garantir que o token seja definido
+        return true;
       } else {
-        // Token inválido - limpar tudo
-        logAuthFlow("Token inválido retornado pela API, limpando dados de autenticação");
+        logAuthFlow("Resposta da API não contém dados válidos do usuário");
         clearAuthData();
         return false;
       }
     } catch (error) {
-      // Erro na verificação - limpar tudo
-      logAuthFlow(`Erro na verificação de token: ${error}`);
+      logAuthFlow(`Erro ao verificar token: ${error}`);
       clearAuthData();
       return false;
     }
   };
 
-  // Função auxiliar para salvar token
+  // Salvar o token em cookie e localStorage (backup)
   const saveToken = (newToken: string) => {
-    // Se forçar sem auto-login, não salvar token
-    if (forceNoAutoLogin) {
-      logAuthFlow("Modo sem auto-login ativado - não salvando token");
-      return;
-    }
+    logAuthFlow(`Salvando token: ${newToken.substring(0, 15)}...`);
     
-    logAuthFlow(`Salvando novo token: ${newToken.substring(0, 15)}...`);
+    // Definir nos estados
+    setToken(newToken);
     
-    // Detectar ambiente para logs
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    
-    // Usar opções de cookie atualizadas
-    const cookieOptions = {
-      ...COOKIE_OPTIONS,
-      secure: isLocalhost ? false : COOKIE_OPTIONS.secure,
-    };
-    
-    logAuthFlow(`Configuração de cookies: secure=${cookieOptions.secure}, sameSite=${cookieOptions.sameSite}`);
-    
-    // Salvar no cookie do lado cliente
+    // Armazenar no cookie
     try {
-      Cookies.set(TOKEN_COOKIE_NAME, newToken, cookieOptions);
-      logAuthFlow("Token salvo em cookie com sucesso");
-    } catch (e) {
-      logAuthFlow(`Erro ao salvar cookie: ${e}`);
+      Cookies.set(TOKEN_COOKIE_NAME, newToken, {
+        ...COOKIE_OPTIONS,
+        // Definir o domínio automaticamente (remove para funcionar em qualquer domínio)
+        domain: undefined
+      });
+      logAuthFlow("Token salvo no cookie com sucesso");
+    } catch (error) {
+      logAuthFlow(`Erro ao salvar token no cookie: ${error}`);
     }
-    
-    // Salvar também no localStorage como fallback
+
+    // Armazenar no localStorage como backup
     try {
       localStorage.setItem('auth_token_backup', newToken);
-      logAuthFlow("Token de backup salvo em localStorage");
-    } catch (e) {
-      logAuthFlow(`Erro ao salvar em localStorage: ${e}`);
+      logAuthFlow("Token de backup salvo no localStorage com sucesso");
+      
+      // Adicionar timestamp para verificar validade do backup
+      localStorage.setItem('auth_token_timestamp', Date.now().toString());
+    } catch (error) {
+      logAuthFlow(`Erro ao salvar token de backup: ${error}`);
     }
-    
-    setToken(newToken);
   };
 
   // Login

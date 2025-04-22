@@ -87,15 +87,17 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModal
           title: "Login bem-sucedido",
           description: "Bem-vindo de volta!",
         });
-        onClose();
         
-        // Se houver uma URL de redirecionamento, navegar para lá após login bem-sucedido
-        if (redirectAfterLogin) {
-          console.log(`[LoginModal] Redirecionando para: ${redirectAfterLogin}`);
-          setTimeout(() => {
-            navigate(redirectAfterLogin);
-          }, 500);
-        }
+        setTimeout(() => {
+          onClose();
+          
+          if (redirectAfterLogin) {
+            console.log(`[LoginModal] Redirecionando para: ${redirectAfterLogin}`);
+            setTimeout(() => {
+              navigate(redirectAfterLogin);
+            }, 300);
+          }
+        }, 500);
       }
     } catch (err) {
       setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');

@@ -12,7 +12,7 @@ import { useLoginModal } from '@/context/LoginModalContext';
 const PaymentSuccessPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, checkAuth } = useAuth();
+  const { user, checkAuth, token } = useAuth();
   const { showLoginModal } = useLoginModal();
   const queryParams = new URLSearchParams(location.search);
   const planId = queryParams.get('plan');
@@ -24,25 +24,34 @@ const PaymentSuccessPage: React.FC = () => {
   const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'unauthenticated'>('checking');
   const [isPaused, setIsPaused] = useState(false);
   
-  // Verificar autenticação primeiro
+  // Verificar autenticação ao montar o componente
   useEffect(() => {
     const verifyAuth = async () => {
       console.log('[PaymentSuccess] Verificando autenticação...');
+      console.log('[PaymentSuccess] Token atual:', token ? `${token.substring(0, 15)}...` : 'Nenhum');
       
       try {
+        // Verificar se há token no localStorage (fallback)
+        const backupToken = localStorage.getItem('auth_token_backup');
+        if (!token && backupToken) {
+          console.log('[PaymentSuccess] Encontrado token de backup no localStorage');
+        }
+        
+        // Verificar autenticação
         const isAuthenticated = await checkAuth();
+        console.log('[PaymentSuccess] Resultado da verificação:', isAuthenticated ? 'Autenticado' : 'Não autenticado');
+        
         setAuthStatus(isAuthenticated ? 'authenticated' : 'unauthenticated');
         
-        // Se o usuário não está autenticado mas temos um userId na URL,
-        // podemos tentar forçar a autenticação no backend informando isso
+        // Se não estiver autenticado mas temos userId, tente recuperar a sessão
         if (!isAuthenticated && userId) {
           console.log(`[PaymentSuccess] Tentativa de restaurar sessão para userId=${userId}`);
           
-          // Como alternativa, podemos mostrar o modal de login com redirecionamento
-          setIsPaused(true); // Pausa o countdown
+          // Mostrar modal de login com mensagem específica
+          setIsPaused(true); // Pausa a contagem regressiva
           showLoginModal({
             redirectAfterLogin: '/billing',
-            message: 'Por favor, faça login para acessar sua conta e verificar sua assinatura.'
+            message: 'Por favor, faça login novamente para acessar sua conta e verificar sua assinatura.'
           });
         }
       } catch (error) {
@@ -54,7 +63,7 @@ const PaymentSuccessPage: React.FC = () => {
     };
     
     verifyAuth();
-  }, [checkAuth, userId, showLoginModal]);
+  }, [checkAuth, userId, showLoginModal, token]);
   
   // Redirecionar automaticamente após 5 segundos
   useEffect(() => {
@@ -68,8 +77,7 @@ const PaymentSuccessPage: React.FC = () => {
           if (authStatus === 'authenticated') {
             navigate('/billing');
           } else {
-            // Em vez de navegar para /login (que não existe), navegar para
-            // a página inicial e mostrar o modal de login
+            // Navegar para a página inicial preservando o state para mostrar o modal de login
             navigate('/', { 
               state: { 
                 showLoginModal: true,
@@ -85,7 +93,7 @@ const PaymentSuccessPage: React.FC = () => {
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [navigate, authChecked, authStatus, isPaused, showLoginModal]);
+  }, [navigate, authChecked, authStatus, isPaused]);
   
   // Mostrar informações de depuração (visível apenas em ambiente de desenvolvimento)
   const showDebugInfo = process.env.NODE_ENV === 'development';
@@ -161,6 +169,8 @@ const PaymentSuccessPage: React.FC = () => {
                   <p>Auth Status: {authStatus}</p>
                   <p>User ID: {user?.id || userId || 'Não disponível'}</p>
                   <p>Countdown pausado: {isPaused ? 'Sim' : 'Não'}</p>
+                  <p>Token disponível: {token ? 'Sim' : 'Não'}</p>
+                  <p>Token backup: {localStorage.getItem('auth_token_backup') ? 'Sim' : 'Não'}</p>
                 </div>
               )}
             </CardContent>

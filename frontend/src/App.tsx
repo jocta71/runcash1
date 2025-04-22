@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, useNavigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useNavigate, useLocation } from "react-router-dom";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
@@ -9,12 +9,12 @@ import './App.css';
 import { ThemeProvider } from './components/theme-provider';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorPage from './pages/ErrorPage';
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import { NotificationsProvider } from "./context/NotificationsContext";
 import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import SoundManager from "./components/SoundManager";
-import { LoginModalProvider } from "./context/LoginModalContext";
+import { LoginModalProvider, useLoginModal } from "./context/LoginModalContext";
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -76,6 +76,46 @@ const AccountRouteRedirect = () => {
   return <LoadingScreen />;
 };
 
+// Componente para gerenciar o estado de autenticação e modal de login
+const AuthStateManager = () => {
+  const location = useLocation();
+  const { user, checkAuth } = useAuth();
+  const { showLoginModal } = useLoginModal();
+  
+  useEffect(() => {
+    // Verificar se há um state na navegação que solicita o modal de login
+    if (location.state && location.state.showLoginModal) {
+      console.log('[AuthStateManager] Solicitação para mostrar modal de login via state');
+      
+      // Mostrar o modal de login com os parâmetros passados no state
+      showLoginModal({
+        redirectAfterLogin: location.state.redirectAfterLogin,
+        message: location.state.message || 'Por favor, faça login para continuar.'
+      });
+      
+      // Limpar o state para evitar que o modal apareça novamente em navegações futuras
+      window.history.replaceState({}, document.title, location.pathname);
+    }
+    
+    // Verificar autenticação ao navegar entre páginas
+    const verifyAuthOnNavigation = async () => {
+      // Verificar apenas se estiver vindo da página de sucesso de pagamento ou similares
+      const isPaymentRelatedPath = 
+        location.pathname.includes('payment-success') || 
+        location.pathname.includes('pagamento/sucesso');
+        
+      if (isPaymentRelatedPath || !user) {
+        console.log('[AuthStateManager] Verificando autenticação após navegação');
+        await checkAuth();
+      }
+    };
+    
+    verifyAuthOnNavigation();
+  }, [location, showLoginModal, checkAuth, user]);
+  
+  return null; // Este componente não renderiza nada
+};
+
 // Componente principal da aplicação
 const App = () => {
   // Criar uma única instância do QueryClient com useRef para mantê-la durante re-renders
@@ -122,6 +162,7 @@ const App = () => {
                     <BrowserRouter>
                       <GoogleAuthHandler />
                       <LoginModalProvider>
+                        <AuthStateManager />
                         <Routes>
                           {/* Remover rota explícita de login e sempre usar o modal */}
                           
