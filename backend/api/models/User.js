@@ -41,6 +41,10 @@ const UserSchema = new mongoose.Schema({
   profilePicture: {
     type: String
   },
+  asaasCustomerId: {
+    type: String,
+    sparse: true
+  },
   isAdmin: {
     type: Boolean,
     default: false

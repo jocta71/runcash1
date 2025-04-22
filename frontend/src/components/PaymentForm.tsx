@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { createAsaasCustomer, createAsaasSubscription, updateAsaasCustomer } from '@/integrations/asaas/client';
+import { createAsaasCustomer, createAsaasSubscription } from '@/integrations/asaas/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Função para formatar CPF
@@ -113,40 +113,19 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
     setIsLoading(true);
     
     try {
-      let customerId = user.asaasCustomerId;
+      console.log('Iniciando criação de cliente no Asaas...');
+      // Passo 1: Criar ou recuperar cliente no Asaas
+      const customerId = await createAsaasCustomer({
+        name: formData.name,
+        email: formData.email,
+        cpfCnpj: cpfClean,
+        mobilePhone: formData.phone.replace(/\D/g, ''),
+        userId: user.id
+      });
       
-      // Se o usuário não tiver um ID de cliente no Asaas, criar um novo
-      if (!customerId) {
-        console.log('Criando novo cliente no Asaas...');
-        // Criar ou recuperar cliente no Asaas
-        customerId = await createAsaasCustomer({
-          name: formData.name,
-          email: formData.email,
-          cpfCnpj: cpfClean,
-          mobilePhone: formData.phone.replace(/\D/g, ''),
-          userId: user.id
-        });
-        
-        console.log('Cliente criado/recuperado com ID:', customerId);
-      } else {
-        console.log('Usando customerId existente:', customerId);
-        
-        // Atualizar o cliente existente com o CPF
-        console.log('Atualizando cliente existente com CPF...');
-        const updated = await updateAsaasCustomer(customerId, {
-          cpfCnpj: cpfClean,
-          name: formData.name,
-          mobilePhone: formData.phone.replace(/\D/g, '')
-        });
-        
-        if (updated) {
-          console.log('Cliente atualizado com sucesso');
-        } else {
-          console.warn('Falha ao atualizar cliente, tentando prosseguir com a assinatura mesmo assim');
-        }
-      }
+      console.log('Cliente criado/recuperado com ID:', customerId);
       
-      // Criar assinatura
+      // Passo 2: Criar assinatura
       console.log('Criando assinatura para o cliente...');
       const subscription = await createAsaasSubscription(
         planId, 
@@ -274,19 +253,20 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
           />
         </div>
         
-        <div className="flex space-x-4 pt-4">
-          <Button 
-            type="button" 
+        <div className="pt-2 flex space-x-3">
+          <Button
+            type="button"
             variant="outline"
             onClick={onCancel}
-            className="flex-1 bg-transparent border-gray-700 text-gray-300 hover:bg-gray-800"
+            className="flex-1"
             disabled={isLoading}
           >
             Cancelar
           </Button>
-          <Button 
-            type="submit" 
-            className="flex-1 bg-vegas-gold hover:bg-vegas-gold/90 text-black"
+          
+          <Button
+            type="submit"
+            className="flex-1 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -295,7 +275,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
                 Processando...
               </>
             ) : (
-              'Prosseguir para Pagamento'
+              'Continuar para pagamento'
             )}
           </Button>
         </div>
