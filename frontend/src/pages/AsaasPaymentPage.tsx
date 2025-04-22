@@ -102,8 +102,8 @@ const AsaasPaymentPage: React.FC = () => {
       console.log(`Tentando atualizar cliente ${customerId} com CPF: ${cleanedCpf}`);
       
       // Atualizar o cliente com o CPF
-      const response = await fetch('/api/update-customer-cpf', {
-        method: 'POST',
+      const response = await fetch('/api/asaas-create-subscription', {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
