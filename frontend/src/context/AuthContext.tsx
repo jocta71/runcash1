@@ -409,33 +409,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Verificar formato da resposta e extrair dados do usuário com tratamento de erro mais robusto
         let userData = null;
         
-        // Tratar diferentes formatos possíveis da resposta com melhor log de debug
+        // Tratamento específico para o formato da rota /auth/me
+        // Esta rota retorna { success: true, data: { user object } }
         try {
           if (response.data && typeof response.data === 'object') {
             logAuthFlow("Analisando formato da resposta...");
             
+            // Formato principal da API /auth/me: { success: true, data: { user } }
             if (response.data.success === true && response.data.data && typeof response.data.data === 'object') {
-              userData = response.data.data;
-              logAuthFlow("Formato detectado: { success: true, data: {...} }");
-            } else if (response.data.user && typeof response.data.user === 'object') {
-              userData = response.data.user;
-              logAuthFlow("Formato detectado: { user: {...} }");
-            } else if (response.data.id || response.data._id) {
-              userData = response.data;
-              logAuthFlow("Formato detectado: userObject direto");
-            } else if (response.data.success === true) {
-              // Verificar se o próprio objeto data pode conter os dados do usuário
-              if (response.data.data && 
-                  (response.data.data.id || response.data.data._id || 
-                   response.data.data.email || response.data.data.username)) {
+              // Verificar se data contém os campos esperados de um usuário
+              if (response.data.data._id || response.data.data.id || 
+                  response.data.data.email || response.data.data.username) {
                 userData = response.data.data;
-                logAuthFlow("Formato detectado: { success: true, data: {...} } com dados do usuário");
+                logAuthFlow("Formato detectado: { success: true, data: user object }");
               }
+            } 
+            // Formato alternativo: { user: user object }
+            else if (response.data.user && typeof response.data.user === 'object') {
+              userData = response.data.user;
+              logAuthFlow("Formato detectado: { user: user object }");
+            } 
+            // Formato direto: user object
+            else if (response.data._id || response.data.id || 
+                     response.data.email || response.data.username) {
+              userData = response.data;
+              logAuthFlow("Formato detectado: user object direto");
             }
             
             // Log dos dados extraídos para debug
             if (userData) {
-              logAuthFlow(`Dados do usuário extraídos: ID=${userData.id || userData._id}, Email=${userData.email}`);
+              logAuthFlow(`Dados do usuário extraídos: ID=${userData._id || userData.id}, Email=${userData.email}`);
             } else {
               logAuthFlow("Não foi possível extrair dados do usuário da resposta");
               logAuthFlow(`Estrutura da resposta: ${Object.keys(response.data).join(', ')}`);
@@ -449,14 +452,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         // Verificar se temos um objeto userData válido com ID
-        if (userData && (userData.id || userData._id)) {
+        if (userData && (userData._id || userData.id)) {
           logAuthFlow(`Usuário autenticado com sucesso via API: ${userData.username || userData.email}`);
-          setUser(userData);
+          
+          // Normalizar o ID do usuário (alguns endpoints usam _id, outros id)
+          const normalizedUser = {
+            ...userData,
+            id: userData.id || userData._id
+          };
+          
+          setUser(normalizedUser);
           setToken(token); // Garantir que o token seja definido
           
           // Armazenar cache do usuário
           try {
-            localStorage.setItem('auth_user_cache', JSON.stringify(userData));
+            localStorage.setItem('auth_user_cache', JSON.stringify(normalizedUser));
             logAuthFlow("Cache do usuário salvo no localStorage");
           } catch (e) {
             logAuthFlow(`Erro ao salvar cache do usuário: ${e}`);
@@ -464,29 +474,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           return true;
         } else {
-          // Se a resposta tiver sucesso=true mas não conseguimos extrair dados formatados,
-          // vamos tentar extrair diretamente da estrutura data
-          if (response.data && response.data.success === true && response.data.data) {
-            try {
-              logAuthFlow("Tentando extrair usuário diretamente da estrutura data");
-              const directUserData = response.data.data;
-              
-              // Verificar se parece ser dados de usuário válidos
-              if (directUserData._id || directUserData.id || directUserData.email || directUserData.username) {
-                logAuthFlow("Dados de usuário encontrados na estrutura data");
-                setUser(directUserData);
-                setToken(token);
-                
-                // Armazenar cache
-                localStorage.setItem('auth_user_cache', JSON.stringify(directUserData));
-                logAuthFlow("Cache do usuário salvo no localStorage (extração direta)");
-                
-                return true;
-              }
-            } catch (directError) {
-              logAuthFlow(`Erro ao tentar extração direta: ${directError}`);
-            }
-          }
+          // Se a API retornou sucesso mas não conseguimos extrair o usuário,
+          // manter o token válido (token só é inválido se API retornar 401/403)
+          logAuthFlow("Resposta da API bem-sucedida, mas formato não reconhecido. Mantendo token.");
           
           // Verificar se já temos usuário em memória
           if (user) {
@@ -508,7 +498,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           
           // Token é válido mesmo sem usuário
-          logAuthFlow("Token válido, mas não foi possível determinar usuário");
           return true;
         }
       } else {
