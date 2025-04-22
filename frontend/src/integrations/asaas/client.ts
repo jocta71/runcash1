@@ -164,23 +164,6 @@ export const createAsaasSubscription = async (
         data: error.response?.data,
         message: error.message
       });
-      
-      // Verificar se o erro está relacionado ao CPF/CNPJ do cliente
-      const responseData = error.response?.data as any;
-      if (responseData?.details?.errors) {
-        const errors = responseData.details.errors;
-        const hasCpfCnpjError = errors.some((err: any) => 
-          err.description && err.description.includes('CPF ou CNPJ do cliente')
-        );
-        
-        if (hasCpfCnpjError) {
-          // Criar um erro específico para CPF/CNPJ
-          const err = new Error(`Falha ao criar assinatura: É necessário informar o CPF/CNPJ do cliente`);
-          (err as any).requiresCpfCnpj = true;
-          throw err;
-        }
-      }
-      
       throw new Error(`Falha ao criar assinatura: ${error.response?.data?.error || error.message}`);
     }
     

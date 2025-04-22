@@ -99,7 +99,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
     }
     
     if (!user.asaasCustomerId) {
-      setError("Não foi encontrado um ID de cliente Asaas associado a sua conta. Por favor, entre em contato com o suporte.");
+      setError("Não foi possível encontrar seu cadastro no sistema de pagamento. Por favor, contate o suporte.");
       return;
     }
     
@@ -118,17 +118,15 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
     setIsLoading(true);
     
     try {
-      console.log('Usando cliente Asaas já existente:', user.asaasCustomerId);
+      // Usar diretamente o ID do cliente Asaas que já está no objeto user
+      const customerId = user.asaasCustomerId;
       
-      // Criar assinatura diretamente com o customerId já existente
-      console.log('Criando assinatura para o cliente...');
+      console.log('Criando assinatura para o cliente ID:', customerId);
       const subscription = await createAsaasSubscription(
         planId, 
         user.id,
-        user.asaasCustomerId,
-        'PIX',
-        null, // creditCard
-        { cpfCnpj: cpfClean, email: formData.email } // Incluir CPF e email do usuário
+        customerId,
+        'PIX'
       );
       
       console.log('Assinatura criada:', subscription);
@@ -142,7 +140,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         onPaymentSuccess();
       } else if (subscription.paymentId) {
         // Para qualquer plano pago, sempre redirecionar para página de pagamento PIX
-        window.location.href = `/pagamento?planId=${planId}&customerId=${user.asaasCustomerId}&paymentId=${subscription.paymentId}`;
+        window.location.href = `/pagamento?planId=${planId}&customerId=${customerId}&paymentId=${subscription.paymentId}`;
       } else {
         setError("Não foi possível obter as informações de pagamento. Por favor, tente novamente.");
       }
@@ -250,12 +248,12 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
           />
         </div>
         
-        <div className="pt-2 flex space-x-3">
+        <div className="flex gap-4 pt-2">
           <Button
             type="button"
-            variant="outline"
             onClick={onCancel}
-            className="flex-1"
+            variant="outline"
+            className="w-full border-gray-700 text-white hover:bg-vegas-black/50"
             disabled={isLoading}
           >
             Cancelar
@@ -263,7 +261,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
           
           <Button
             type="submit"
-            className="flex-1 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+            className="w-full bg-vegas-gold text-black hover:bg-vegas-gold/80"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -272,11 +270,18 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
                 Processando...
               </>
             ) : (
-              'Continuar para pagamento'
+              'Continuar'
             )}
           </Button>
         </div>
       </form>
+      
+      <div className="mt-6 text-xs text-gray-400">
+        <p>* Campos obrigatórios</p>
+        <p className="mt-2">
+          Ao continuar, você concorda com os Termos de Serviço e Política de Privacidade.
+        </p>
+      </div>
     </div>
   );
 }; 
