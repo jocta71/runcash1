@@ -477,7 +477,7 @@ export const updateAsaasCustomer = async (
   try {
     console.log('Atualizando dados do cliente no Asaas:', customerId, userData);
     
-    const response = await api.post<ApiResponse<{ success: boolean }>>('api/asaas-update-customer', {
+    const response = await api.post<ApiResponse<{ success: boolean }>>('api/asaas-create-customer?action=update', {
       customerId,
       ...userData
     });
