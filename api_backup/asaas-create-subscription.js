@@ -310,19 +310,31 @@ module.exports = async (req, res) => {
         await client.connect();
         const db = client.db(process.env.MONGODB_DB_NAME || 'runcash');
         
+        // Log do status retornado pelo Asaas para depuração
+        console.log(`Status da assinatura retornado pelo Asaas: ${subscription.status}`);
+        
+        // Forçar status inicial como "pending" independente do retorno da API
         await db.collection('subscriptions').insertOne({
           subscription_id: subscription.id,
           user_id: userId,
           customer_id: customerId,
           plan_id: planId,
           payment_id: paymentId,
-          status: subscription.status,
+          status: "pending", // Forçando o status inicial como pending
+          original_asaas_status: subscription.status, // Mantendo o status original para referência
           billing_type: billingType,
           value: subscriptionValue, // Usar o valor oficial
-          created_at: new Date()
+          created_at: new Date(),
+          status_history: [
+            {
+              status: "pending",
+              timestamp: new Date(),
+              source: "initial_creation"
+            }
+          ]
         });
         
-        console.log('Assinatura registrada no MongoDB');
+        console.log('Assinatura registrada no MongoDB com status inicial "pending"');
       } catch (dbError) {
         console.error('Erro ao registrar assinatura no MongoDB:', dbError.message);
       }
@@ -334,7 +346,8 @@ module.exports = async (req, res) => {
       data: {
         subscriptionId: subscription.id,
         paymentId,
-        status: subscription.status,
+        status: "pending", // Informando ao cliente o status correto
+        asaasStatus: subscription.status, // Apenas para informação
         qrCode,
         redirectUrl
       }
