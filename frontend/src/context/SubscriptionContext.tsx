@@ -208,6 +208,26 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Função auxiliar para processar a resposta de assinatura
   const processSubscriptionResponse = (data: any) => {
     const subscriptionData = data.subscriptions[0];
+    
+    // Verificar se há status de pagamento pendente
+    const hasPendingPayment = data.payments && 
+      data.payments.some(payment => 
+        payment.status?.toLowerCase() === 'pending' || 
+        payment.status?.toLowerCase() === 'pendente'
+      );
+    
+    // Normalizar o status da assinatura (priorizar pagamento pendente)
+    let normalizedStatus = subscriptionData.status;
+    
+    // Se o status vindo do backend for "pending", ou se houver pagamento pendente,
+    // garantir que o status exibido seja "pending"
+    if (hasPendingPayment || 
+        subscriptionData.status?.toLowerCase() === 'pending' || 
+        subscriptionData.status?.toLowerCase() === 'pendente') {
+      normalizedStatus = 'pending';
+      console.log('[SubscriptionContext] Status normalizado para "pending" devido a pagamento pendente');
+    }
+    
     // Converter dados da API para o formato UserSubscription
     const formattedSubscription: UserSubscription = {
       id: subscriptionData.id,
@@ -216,7 +236,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       planType: getPlanTypeFromId('premium'), // Valor temporário
       startDate: new Date(subscriptionData.createdDate),
       endDate: null,
-      status: subscriptionData.status,
+      status: normalizedStatus,
       paymentMethod: subscriptionData.billingType,
       paymentProvider: 'ASAAS',
       nextBillingDate: subscriptionData.nextDueDate ? new Date(subscriptionData.nextDueDate) : null

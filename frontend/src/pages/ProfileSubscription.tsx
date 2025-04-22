@@ -173,6 +173,38 @@ const ProfileSubscription = () => {
     return <Badge variant={variant}>{label}</Badge>;
   };
   
+  // Verificar status real da assinatura, considerando pagamentos pendentes
+  const getEffectiveStatus = (): { status: string, badge: React.ReactNode, message?: string } => {
+    // Se não temos informações sobre pagamentos, usar o status da assinatura
+    if (!payments || payments.length === 0) {
+      return { 
+        status: currentSubscription.status,
+        badge: getStatusBadge(currentSubscription.status)
+      };
+    }
+    
+    // Verificar se existem pagamentos pendentes (ignorar pagamentos já confirmados)
+    const pendingPayments = payments.filter(p => 
+      p.status.toLowerCase() === 'pending' || 
+      p.status.toLowerCase() === 'pendente'
+    );
+    
+    // Se há pagamentos pendentes, mostrar status como pendente independente do status da assinatura
+    if (pendingPayments.length > 0) {
+      return {
+        status: 'pending',
+        badge: <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/50">Pagamento Pendente</Badge>,
+        message: "Sua assinatura será ativada após a confirmação do pagamento"
+      };
+    }
+    
+    // Caso contrário, retornar status normal
+    return { 
+      status: currentSubscription.status,
+      badge: getStatusBadge(currentSubscription.status)
+    };
+  };
+  
   // Obter badge para o status do pagamento
   const getPaymentStatusBadge = (status: string) => {
     let variant: "default" | "destructive" | "outline" | "secondary" = "default";
@@ -351,13 +383,39 @@ const ProfileSubscription = () => {
             </div>
             
             <div className="flex items-center space-x-2">
-              {getStatusIcon(currentSubscription.status)}
+              {getStatusIcon(getEffectiveStatus().status)}
               <div>
                 <div className="font-semibold">Status</div>
-                <div>{getStatusBadge(currentSubscription.status)}</div>
+                <div>{getEffectiveStatus().badge}</div>
               </div>
             </div>
           </div>
+          
+          {/* Alerta de pagamento pendente */}
+          {getEffectiveStatus().status === 'pending' && (
+            <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-start">
+              <AlertTriangle className="h-5 w-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-yellow-500">
+                  Aguardando confirmação de pagamento
+                </p>
+                <p className="text-sm text-yellow-500/80 mt-1">
+                  {getEffectiveStatus().message || "Sua assinatura será ativada assim que o pagamento for confirmado. Isso pode levar alguns minutos."}
+                </p>
+                {payments?.[0]?.invoiceUrl && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="mt-2 border-yellow-500/30 hover:bg-yellow-500/20 text-yellow-500"
+                    onClick={() => window.open(payments[0].invoiceUrl, '_blank')}
+                  >
+                    <ArrowRight className="h-4 w-4 mr-1" />
+                    {payments[0].billingType?.toUpperCase() === 'PIX' ? 'Realizar Pagamento' : 'Ver fatura'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           
           <Separator className="bg-gray-800" />
           

@@ -291,7 +291,10 @@ const ProfilePage = () => {
                        currentSubscription.status?.toLowerCase() === 'ativo' || 
                        currentSubscription.status?.toLowerCase() === 'confirmed' 
                         ? 'Ativo' 
-                        : currentSubscription.status}
+                        : currentSubscription.status?.toLowerCase() === 'pending' ||
+                          currentSubscription.status?.toLowerCase() === 'pendente'
+                          ? 'Pendente'
+                          : currentSubscription.status}
                     </Badge>
                   )}
                   <Link 
