@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createAsaasSubscription, findAsaasPayment } from '../integrations/asaas/client';
 import PaymentPixModal from '../components/PaymentPixModal';
-import PaymentStatusChecker from '../components/PaymentStatusChecker';
+import { PaymentStatusChecker } from '../components/PaymentStatusChecker';
 import { Alert, Button, Card, Container, Row, Col, Spinner } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 
@@ -21,7 +21,7 @@ const AsaasPaymentPage: React.FC = () => {
   // Obter parâmetros da URL
   const queryParams = new URLSearchParams(location.search);
   const planId = queryParams.get('planId');
-  const customerId = queryParams.get('customerId');
+  const customerId = queryParams.get('customerId') || user?.asaasCustomerId || null;
   const returnUrl = queryParams.get('returnUrl') || '/billing';
   const paymentMethod = queryParams.get('paymentMethod') || 'PIX';
   
@@ -36,14 +36,21 @@ const AsaasPaymentPage: React.FC = () => {
 
   // Efeito para iniciar o processo de pagamento quando a página carrega
   useEffect(() => {
-    if (planId && customerId && user) {
-      createPayment();
+    if (planId && user) {
+      // Verificar se temos customerId, seja da URL ou do perfil do usuário
+      const effectiveCustomerId = customerId || user.asaasCustomerId;
+      
+      if (effectiveCustomerId) {
+        createPayment(effectiveCustomerId);
+      } else {
+        setError('ID do cliente Asaas não encontrado. Por favor, entre em contato com o suporte.');
+      }
     }
   }, [planId, customerId, user]);
 
   // Função para criar o pagamento/assinatura
-  const createPayment = async () => {
-    if (!planId || !customerId || !user) {
+  const createPayment = async (effectiveCustomerId: string = customerId || '') => {
+    if (!planId || !effectiveCustomerId || !user) {
       setError('Dados incompletos para iniciar o pagamento. Verifique se você está logado e tente novamente.');
       return;
     }
@@ -56,7 +63,7 @@ const AsaasPaymentPage: React.FC = () => {
       const result = await createAsaasSubscription(
         planId, 
         user.id, 
-        customerId, 
+        effectiveCustomerId, 
         paymentMethod
       );
       
@@ -256,7 +263,6 @@ const AsaasPaymentPage: React.FC = () => {
           <PaymentStatusChecker
             paymentId={paymentId}
             onPaymentConfirmed={handlePaymentSuccess}
-            checkInterval={15000}
           />
         </div>
       )}

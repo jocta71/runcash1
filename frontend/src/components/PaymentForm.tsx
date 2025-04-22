@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { createAsaasCustomer, createAsaasSubscription } from '@/integrations/asaas/client';
+import { createAsaasSubscription } from '@/integrations/asaas/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Função para formatar CPF
@@ -98,6 +98,11 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
       return;
     }
     
+    if (!user.asaasCustomerId) {
+      setError("Não foi encontrado um ID de cliente Asaas associado a sua conta. Por favor, entre em contato com o suporte.");
+      return;
+    }
+    
     if (!formData.name || !formData.email || !formData.cpf) {
       setError("Por favor, preencha todos os campos obrigatórios.");
       return;
@@ -113,24 +118,14 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
     setIsLoading(true);
     
     try {
-      console.log('Iniciando criação de cliente no Asaas...');
-      // Passo 1: Criar ou recuperar cliente no Asaas
-      const customerId = await createAsaasCustomer({
-        name: formData.name,
-        email: formData.email,
-        cpfCnpj: cpfClean,
-        mobilePhone: formData.phone.replace(/\D/g, ''),
-        userId: user.id
-      });
+      console.log('Usando cliente Asaas já existente:', user.asaasCustomerId);
       
-      console.log('Cliente criado/recuperado com ID:', customerId);
-      
-      // Passo 2: Criar assinatura
+      // Criar assinatura diretamente com o customerId já existente
       console.log('Criando assinatura para o cliente...');
       const subscription = await createAsaasSubscription(
         planId, 
         user.id,
-        customerId,
+        user.asaasCustomerId,
         'PIX'
       );
       
@@ -145,7 +140,7 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
         onPaymentSuccess();
       } else if (subscription.paymentId) {
         // Para qualquer plano pago, sempre redirecionar para página de pagamento PIX
-        window.location.href = `/pagamento?planId=${planId}&customerId=${customerId}&paymentId=${subscription.paymentId}`;
+        window.location.href = `/pagamento?planId=${planId}&customerId=${user.asaasCustomerId}&paymentId=${subscription.paymentId}`;
       } else {
         setError("Não foi possível obter as informações de pagamento. Por favor, tente novamente.");
       }

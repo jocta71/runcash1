@@ -4,7 +4,6 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 const passport = require('../config/passport');
-const axios = require('axios');
 
 // Verificar se as credenciais do Google estão disponíveis
 const isGoogleAuthEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
@@ -31,62 +30,6 @@ router.post('/register', async (req, res) => {
       email,
       password
     });
-
-    // Criar cliente no Asaas
-    try {
-      const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
-      const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
-      const API_URL = ASAAS_ENVIRONMENT === 'production'
-        ? 'https://api.asaas.com/v3'
-        : 'https://sandbox.asaas.com/api/v3';
-
-      if (ASAAS_API_KEY) {
-        // Verificar se o cliente já existe pelo email
-        const apiClient = axios.create({
-          baseURL: API_URL,
-          headers: {
-            'access_token': ASAAS_API_KEY,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        // Buscar cliente existente
-        const searchResponse = await apiClient.get('/customers', {
-          params: { email }
-        });
-
-        let asaasCustomerId;
-
-        // Se já existir um cliente com este email, usar o ID existente
-        if (searchResponse.data.data && searchResponse.data.data.length > 0) {
-          const existingCustomer = searchResponse.data.data[0];
-          asaasCustomerId = existingCustomer.id;
-          console.log(`[Auth] Cliente Asaas já existe, ID: ${asaasCustomerId}`);
-        } else {
-          // Criar novo cliente
-          const customerData = {
-            name: username,
-            email,
-            notificationDisabled: false,
-            externalReference: user._id.toString()
-          };
-
-          const createResponse = await apiClient.post('/customers', customerData);
-          asaasCustomerId = createResponse.data.id;
-          console.log(`[Auth] Novo cliente Asaas criado, ID: ${asaasCustomerId}`);
-        }
-
-        // Atualizar o usuário com o ID do cliente Asaas
-        if (asaasCustomerId) {
-          user.asaasCustomerId = asaasCustomerId;
-          await user.save();
-          console.log(`[Auth] Usuário atualizado com asaasCustomerId: ${asaasCustomerId}`);
-        }
-      }
-    } catch (asaasError) {
-      console.error('[Auth] Erro ao criar cliente no Asaas:', asaasError.message);
-      // Continuar mesmo com erro no Asaas, para não impedir o registro
-    }
 
     // Gerar token JWT
     sendTokenResponse(user, 201, res, useCookies);
