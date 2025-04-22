@@ -26,9 +26,9 @@ interface AuthContextType {
 // Configuração robusta de cookies
 const COOKIE_OPTIONS = {
   secure: window.location.protocol === "https:", // Usar secure apenas em HTTPS
-  sameSite: 'strict' as const, // Mais seguro contra CSRF
-  path: '/',                   // Disponível em todo o site
-  expires: 30,                 // Expiração em 30 dias
+  sameSite: 'lax' as const,     // Modificado para lax para melhor compatibilidade
+  path: '/',                    // Disponível em todo o site
+  expires: 30,                  // Expiração em 30 dias
 };
 
 // Nome do cookie - deve corresponder ao nome esperado pelo backend
@@ -272,6 +272,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     try {
+      // Se já temos usuário e token em memória, considerar autenticado sem verificar API
+      if (user && token) {
+        logAuthFlow("Usuário já autenticado em memória, pulando verificação com API");
+        return true;
+      }
+      
       // Verificar primeiro no cookie (mais rápido)
       const storedToken = Cookies.get(TOKEN_COOKIE_NAME);
       
@@ -279,6 +285,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (storedToken) {
         logAuthFlow("Token encontrado no cookie, verificando com API");
         try {
+          // Definir o token no estado antes mesmo de verificar com a API
+          if (!token) {
+            logAuthFlow("Definindo token do cookie no estado");
+            setToken(storedToken);
+          }
+          
           const isValid = await verifyTokenWithApi(storedToken);
           if (isValid) return true;
         } catch (error) {
@@ -290,17 +302,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             
             // Verificar se temos usuário em cache
             const cachedUser = localStorage.getItem('auth_user_cache');
-            if (cachedUser && user) {
-              logAuthFlow("Usando dados de usuário em cache");
-              // Manter usuário atual e token
-              return true;
+            if (cachedUser) {
+              try {
+                const userData = JSON.parse(cachedUser);
+                setUser(userData);
+                logAuthFlow("Usando dados de usuário em cache com o token do cookie");
+                return true;
+              } catch (e) {
+                logAuthFlow(`Erro ao analisar cache do usuário: ${e}`);
+              }
             }
+            
+            // Mesmo sem cache de usuário, manter o token em caso de erro de rede
+            return true;
           }
         }
       }
       
       // Se não encontrar no cookie ou verificação falhou, tentar no localStorage (fallback)
       const backupToken = localStorage.getItem('auth_token_backup');
+      
+      // Se já definimos o token no estado, mas não conseguimos verificar com a API,
+      // vamos confiar no token em caso de erro de rede
+      if (token && backupToken && token === backupToken) {
+        logAuthFlow("Confiando no token já definido, possível erro temporário de rede");
+        return true;
+      }
       
       // Verificar validade do timestamp (opcional)
       const timestamp = localStorage.getItem('auth_token_timestamp');
@@ -368,77 +395,86 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
       
-      // Log da resposta completa para melhor diagnóstico
-      logAuthFlow(`Resposta da API /auth/me: ${JSON.stringify(response.data)}`);
-      
-      // Verificar formato da resposta e extrair dados do usuário com tratamento de erro mais robusto
-      let userData = null;
-      
-      // Tratar diferentes formatos possíveis da resposta
-      try {
-        if (response.data && typeof response.data === 'object') {
-          if (response.data.data && response.data.data.id) {
-            userData = response.data.data;
-            logAuthFlow("Usando dados do usuário de response.data.data");
-          } else if (response.data.user && response.data.user.id) {
-            userData = response.data.user;
-            logAuthFlow("Usando dados do usuário de response.data.user");
-          } else if (response.data.id) {
-            userData = response.data;
-            logAuthFlow("Usando dados do usuário diretamente de response.data");
-          } else if (response.status === 200 || response.data.success) {
-            // Se a resposta for bem-sucedida mas não conseguimos extrair os dados,
-            // vamos confiar que o token é válido e manter o usuário logado
-            logAuthFlow("Resposta da API bem-sucedida, mas formato não reconhecido. Mantendo token.");
-            setToken(token);
+      // Qualquer resposta 2xx é considerada sucesso
+      if (response.status >= 200 && response.status < 300) {
+        logAuthFlow(`Resposta bem-sucedida da API: ${response.status}`);
+        
+        // Log da resposta completa para melhor diagnóstico
+        try {
+          logAuthFlow(`Resposta da API /auth/me: ${JSON.stringify(response.data)}`);
+        } catch (e) {
+          logAuthFlow(`Não foi possível logar a resposta completa: ${e}`);
+        }
+        
+        // Verificar formato da resposta e extrair dados do usuário com tratamento de erro mais robusto
+        let userData = null;
+        
+        // Tratar diferentes formatos possíveis da resposta
+        try {
+          if (response.data && typeof response.data === 'object') {
+            if (response.data.data && response.data.data.id) {
+              userData = response.data.data;
+              logAuthFlow("Usando dados do usuário de response.data.data");
+            } else if (response.data.user && response.data.user.id) {
+              userData = response.data.user;
+              logAuthFlow("Usando dados do usuário de response.data.user");
+            } else if (response.data.id) {
+              userData = response.data;
+              logAuthFlow("Usando dados do usuário diretamente de response.data");
+            } else if (response.status === 200 || response.data.success) {
+              // Se a resposta for bem-sucedida mas não conseguimos extrair os dados,
+              // vamos confiar que o token é válido e manter o usuário logado
+              logAuthFlow("Resposta da API bem-sucedida, mas formato não reconhecido. Mantendo token.");
+              setToken(token);
+              return true;
+            }
+          }
+        } catch (parseError) {
+          logAuthFlow(`Erro ao analisar resposta: ${parseError}`);
+        }
+        
+        if (userData && userData.id) {
+          logAuthFlow("Usuário autenticado com sucesso via API");
+          setUser(userData);
+          setToken(token); // Garantir que o token seja definido
+          
+          // Armazenar cache do usuário
+          try {
+            localStorage.setItem('auth_user_cache', JSON.stringify(userData));
+          } catch (e) {
+            logAuthFlow(`Erro ao salvar cache do usuário: ${e}`);
+          }
+          
+          return true;
+        } else {
+          // Se a resposta foi bem-sucedida mas não conseguimos extrair os dados do usuário,
+          // vamos considerar o token como válido e manter o usuário logado
+          logAuthFlow("Token válido, mas não foi possível extrair dados do usuário. Mantendo sessão.");
+          setToken(token);
+          
+          // Verificar se já temos usuário em memória
+          if (user) {
+            logAuthFlow("Mantendo dados de usuário já existentes em memória");
             return true;
           }
-        }
-      } catch (parseError) {
-        logAuthFlow(`Erro ao analisar resposta: ${parseError}`);
-      }
-      
-      if (userData && userData.id) {
-        logAuthFlow("Usuário autenticado com sucesso via API");
-        setUser(userData);
-        setToken(token); // Garantir que o token seja definido
-        
-        // Armazenar cache do usuário
-        try {
-          localStorage.setItem('auth_user_cache', JSON.stringify(userData));
-        } catch (e) {
-          logAuthFlow(`Erro ao salvar cache do usuário: ${e}`);
-        }
-        
-        return true;
-      } else if (response.status === 200) {
-        // Se a resposta for 200 OK mas não conseguimos extrair os dados,
-        // vamos considerar o token como válido e manter o usuário logado
-        logAuthFlow("Token válido, mas não foi possível extrair dados do usuário. Mantendo sessão.");
-        setToken(token);
-        
-        // Verificar se já temos usuário em memória
-        if (user) {
-          logAuthFlow("Mantendo dados de usuário já existentes em memória");
+          
+          // Verificar se temos usuário em cache
+          const cachedUser = localStorage.getItem('auth_user_cache');
+          if (cachedUser) {
+            try {
+              const userData = JSON.parse(cachedUser);
+              setUser(userData);
+              logAuthFlow("Usando dados de usuário em cache");
+              return true;
+            } catch (e) {
+              logAuthFlow(`Erro ao analisar cache do usuário: ${e}`);
+            }
+          }
+          
           return true;
         }
-        
-        // Verificar se temos usuário em cache
-        const cachedUser = localStorage.getItem('auth_user_cache');
-        if (cachedUser) {
-          try {
-            const userData = JSON.parse(cachedUser);
-            setUser(userData);
-            logAuthFlow("Usando dados de usuário em cache");
-            return true;
-          } catch (e) {
-            logAuthFlow(`Erro ao analisar cache do usuário: ${e}`);
-          }
-        }
-        
-        return true;
       } else {
-        logAuthFlow("Resposta da API não confirma validade do token");
+        logAuthFlow(`Resposta da API não confirma validade do token: ${response.status}`);
         return false;
       }
     } catch (error) {
@@ -457,9 +493,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       
-      // Para outros erros de servidor, não limpar a autenticação ainda
+      // Para outros erros de servidor, não invalidar token automaticamente
       logAuthFlow(`Erro ao verificar token: ${error}`);
-      return false;
+      return true; // Manter usuário logado em caso de erros não específicos
     }
   };
 
@@ -478,6 +514,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         domain: undefined
       });
       logAuthFlow("Token salvo no cookie com sucesso");
+      
+      // Adicionar cookie alternativo com configurações diferentes para maior compatibilidade
+      Cookies.set(`${TOKEN_COOKIE_NAME}_alt`, newToken, {
+        path: '/',
+        expires: 30, 
+        sameSite: 'none',
+        secure: true
+      });
+      logAuthFlow("Token alternativo salvo no cookie com sucesso");
     } catch (error) {
       logAuthFlow(`Erro ao salvar token no cookie: ${error}`);
     }

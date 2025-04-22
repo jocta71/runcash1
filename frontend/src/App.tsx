@@ -3,7 +3,7 @@ import { BrowserRouter, Route, Routes, useNavigate, useLocation } from "react-ro
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
-import { useEffect, lazy, Suspense, useRef } from "react";
+import { useEffect, lazy, Suspense, useRef, useState } from "react";
 import LoadingScreen from './components/LoadingScreen';
 import './App.css';
 import { ThemeProvider } from './components/theme-provider';
@@ -81,6 +81,20 @@ const AuthStateManager = () => {
   const location = useLocation();
   const { user, checkAuth, token } = useAuth();
   const { showLoginModal } = useLoginModal();
+  const [checkedOnMount, setCheckedOnMount] = useState(false);
+  
+  // Verificar autenticação uma vez ao montar o componente
+  useEffect(() => {
+    const initialAuthCheck = async () => {
+      if (!checkedOnMount) {
+        console.log('[AuthStateManager] Verificação inicial de autenticação');
+        await checkAuth();
+        setCheckedOnMount(true);
+      }
+    };
+    
+    initialAuthCheck();
+  }, [checkAuth, checkedOnMount]);
   
   useEffect(() => {
     // Verificar se há um state na navegação que solicita o modal de login
@@ -110,7 +124,14 @@ const AuthStateManager = () => {
         location.search.includes('planId') || 
         location.search.includes('paymentId') ||
         location.search.includes('customerId');
+      
+      // Se já temos usuário e token e não estamos em página de pagamento, não verificar novamente
+      if (user && token && !isPaymentRelatedPath && !hasPaymentParams) {
+        console.log('[AuthStateManager] Usuário já autenticado, pulando verificação');
+        return;
+      }
         
+      // Verificação de autenticação apenas quando necessário
       if (isPaymentRelatedPath || hasPaymentParams || !user) {
         console.log('[AuthStateManager] Verificando autenticação após navegação');
         console.log(`[AuthStateManager] Path: ${location.pathname}, Params: ${location.search}`);
@@ -138,7 +159,12 @@ const AuthStateManager = () => {
       }
     };
     
-    verifyAuthOnNavigation();
+    // Pequeno atraso para garantir que qualquer atualização de estado seja processada primeiro
+    const timeoutId = setTimeout(() => {
+      verifyAuthOnNavigation();
+    }, 50);
+    
+    return () => clearTimeout(timeoutId);
   }, [location, showLoginModal, checkAuth, user, token]);
   
   return null; // Este componente não renderiza nada
