@@ -1,11 +1,14 @@
 const { MongoClient } = require('mongodb');
 const axios = require('axios');
+const crypto = require('crypto');
 
 // Configurações da API Asaas
 const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
 const API_BASE_URL = ASAAS_ENVIRONMENT === 'production' 
   ? 'https://www.asaas.com/api/v3'
   : 'https://sandbox.asaas.com/api/v3';
+const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
+const WEBHOOK_SECRET_KEY = process.env.ASAAS_WEBHOOK_SECRET || ASAAS_API_KEY; // Usar a API key como fallback
 
 console.log(`[WEBHOOK] Usando Asaas em ambiente: ${ASAAS_ENVIRONMENT}`);
 
@@ -14,7 +17,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-Asaas-Signature');
 
   // Responder a requisições preflight OPTIONS imediatamente
   if (req.method === 'OPTIONS') {
@@ -36,6 +39,27 @@ module.exports = async (req, res) => {
   let client;
 
   try {
+    // Verificar a assinatura do webhook
+    const signature = req.headers['x-asaas-signature'] || req.headers['X-Asaas-Signature'];
+    const payload = JSON.stringify(req.body);
+    
+    // Se a validação estiver habilitada e houver uma assinatura
+    if (WEBHOOK_SECRET_KEY && signature) {
+      console.log('[WEBHOOK] Verificando assinatura do webhook');
+      const isValid = verifyWebhookSignature(payload, signature, WEBHOOK_SECRET_KEY);
+      
+      if (!isValid) {
+        console.error('[WEBHOOK] Assinatura inválida!');
+        return res.status(401).json({ 
+          error: 'Assinatura inválida',
+          message: 'A assinatura fornecida não corresponde ao payload'
+        });
+      }
+      console.log('[WEBHOOK] Assinatura válida');
+    } else {
+      console.warn('[WEBHOOK] Sem validação de assinatura. Considere habilitar essa segurança.');
+    }
+
     const webhookData = req.body;
     console.log('Evento recebido do Asaas:', webhookData);
     
@@ -49,6 +73,7 @@ module.exports = async (req, res) => {
       provider: 'asaas',
       event_type: webhookData.event,
       payload: webhookData,
+      has_valid_signature: !!signature,
       created_at: new Date()
     });
     
@@ -76,6 +101,16 @@ module.exports = async (req, res) => {
     if (!subscriptionData) {
         console.error('Assinatura não encontrada no banco de dados:', subscriptionId);
       return res.status(404).json({ error: 'Assinatura não encontrada', subscription_id: subscriptionId });
+    }
+    
+    // Verificar se o evento permite a transição de estado atual
+    if (!isValidStateTransition(subscriptionData.status, eventType)) {
+      console.warn(`Transição de estado inválida: ${subscriptionData.status} -> ${eventType}`);
+      return res.status(400).json({ 
+        error: 'Transição de estado inválida',
+        current: subscriptionData.status,
+        requested: eventType
+      });
     }
     
     // Processar eventos
@@ -156,3 +191,48 @@ module.exports = async (req, res) => {
     }
   }
 }; 
+
+/**
+ * Verifica a assinatura do webhook do Asaas
+ * @param {string} payload - O payload do webhook em formato JSON
+ * @param {string} signature - A assinatura fornecida no cabeçalho
+ * @param {string} secretKey - A chave secreta para verificação
+ * @returns {boolean} - Verdadeiro se a assinatura for válida
+ */
+function verifyWebhookSignature(payload, signature, secretKey) {
+  try {
+    const hmac = crypto.createHmac('sha256', secretKey);
+    const calculatedSignature = hmac.update(payload).digest('hex');
+    return crypto.timingSafeEqual(
+      Buffer.from(calculatedSignature, 'hex'),
+      Buffer.from(signature, 'hex')
+    );
+  } catch (error) {
+    console.error('Erro ao verificar assinatura:', error);
+    return false;
+  }
+}
+
+/**
+ * Verifica se a transição de estado é válida
+ * @param {string} currentStatus - O status atual da assinatura
+ * @param {string} eventType - O tipo de evento recebido
+ * @returns {boolean} - Verdadeiro se a transição for válida
+ */
+function isValidStateTransition(currentStatus, eventType) {
+  // Definir transições válidas
+  const validTransitions = {
+    'pending': ['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED', 'PAYMENT_OVERDUE', 'PAYMENT_DELETED', 'PAYMENT_REFUNDED'],
+    'active': ['PAYMENT_OVERDUE', 'PAYMENT_DELETED', 'PAYMENT_REFUNDED', 'SUBSCRIPTION_CANCELLED'],
+    'overdue': ['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED', 'PAYMENT_DELETED', 'PAYMENT_REFUNDED', 'SUBSCRIPTION_CANCELLED'],
+    'canceled': [] // Nenhuma transição válida a partir de cancelado
+  };
+  
+  // Se não temos regras para o status atual, permitir por padrão
+  if (!validTransitions[currentStatus]) {
+    return true;
+  }
+  
+  // Verificar se o evento está na lista de transições válidas
+  return validTransitions[currentStatus].includes(eventType);
+} 

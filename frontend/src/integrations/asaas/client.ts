@@ -3,29 +3,26 @@
  */
 
 import axios, { AxiosError } from 'axios';
+import { getAuthToken } from '../../utils/auth';
 
-// Configuração base do axios
+// Cliente HTTP configurado para APIs protegidas
 const api = axios.create({
-  baseURL: '/',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// Interceptor para tratamento de erros
-api.interceptors.response.use(
-  response => response,
-  (error: AxiosError) => {
-    console.error('Erro na requisição:', {
-      status: error.response?.status,
-      data: error.response?.data,
-      config: {
-        url: error.config?.url,
-        method: error.config?.method
-      }
-    });
-    return Promise.reject(error);
-  }
+// Interceptor para adicionar o token de autenticação
+api.interceptors.request.use(
+  (config) => {
+    const token = getAuthToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
 );
 
 /**
@@ -33,8 +30,9 @@ api.interceptors.response.use(
  */
 interface ApiResponse<T> {
   success: boolean;
-  data?: T;
+  data: T;
   error?: string;
+  message?: string;
 }
 
 /**
@@ -51,11 +49,27 @@ export const createAsaasCustomer = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const response = await api.post<ApiResponse<{ customerId: string }>>('api/asaas-create-customer', {
+    // Validar dados obrigatórios
+    if (!userData.name || !userData.email || !userData.cpfCnpj) {
+      throw new Error('Nome, email e CPF/CNPJ são obrigatórios');
+    }
+    
+    // Validar formato do CPF/CNPJ
+    const cpfCnpjClean = userData.cpfCnpj.replace(/[^\d]/g, '');
+    if (![11, 14].includes(cpfCnpjClean.length)) {
+      throw new Error('CPF/CNPJ com formato inválido');
+    }
+    
+    // Validar formato do email
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userData.email)) {
+      throw new Error('Email com formato inválido');
+    }
+    
+    const response = await api.post<ApiResponse<{ customerId: string }>>('/api/payment/customer', {
       name: userData.name,
       email: userData.email,
-      cpfCnpj: userData.cpfCnpj,
-      phone: userData.mobilePhone,
+      cpfCnpj: cpfCnpjClean,
+      mobilePhone: userData.mobilePhone,
       userId: userData.userId
     });
     
@@ -82,9 +96,9 @@ export const createAsaasCustomer = async (userData: {
  */
 interface SubscriptionResponse {
   subscriptionId: string;
-  paymentId: string;
+  paymentId?: string;
   redirectUrl?: string;
-  status: string;
+  status?: string;
 }
 
 /**
@@ -115,9 +129,6 @@ export const createAsaasSubscription = async (
       userId,
       customerId,
       billingType: paymentMethod, // CREDIT_CARD, PIX, etc
-      cycle: 'MONTHLY',
-      value: creditCard?.value || 0,
-      description: `Assinatura RunCash - Plano ${planId}`
     };
 
     // Adicionar CPF/CNPJ se fornecido para atualização
@@ -152,7 +163,7 @@ export const createAsaasSubscription = async (
       cpfCnpj: payload.cpfCnpj ? `****${payload.cpfCnpj.slice(-4)}` : undefined
     });
     
-    const response = await api.post<ApiResponse<SubscriptionResponse>>('api/asaas-create-subscription', payload);
+    const response = await api.post<ApiResponse<SubscriptionResponse>>('/api/payment/subscription', payload);
     
     console.log('Resposta da API de criação de assinatura:', response.data);
     
@@ -199,9 +210,15 @@ export const findAsaasPayment = async (paymentId: string, force: boolean = false
   try {
     console.log(`Buscando pagamento: paymentId=${paymentId}${force ? ' (forçado)' : ''}`);
     
-    // Adicionar parâmetro de cache buster quando força atualização
-    const cacheBuster = force ? `&_t=${Date.now()}` : '';
-    const response = await api.get<PaymentResponse>(`api/asaas-find-payment?paymentId=${paymentId}${cacheBuster}`);
+    // Adicionar timestamp para burlar cache se necessário
+    const timestamp = Date.now();
+    
+    const response = await api.get<ApiResponse<{payments: any[], qrCode: any}>>('/api/payment/payment', { 
+      params: { 
+        paymentId,
+        _t: timestamp 
+      } 
+    });
     
     console.log('Resposta da API de busca de pagamento:', response.data);
     
@@ -209,7 +226,17 @@ export const findAsaasPayment = async (paymentId: string, force: boolean = false
       throw new Error('Falha ao buscar pagamento');
     }
     
-    return response.data.payment;
+    if (!response.data?.data?.payments || response.data.data.payments.length === 0) {
+      throw new Error('Pagamento não encontrado');
+    }
+    
+    const payment = response.data.data.payments[0];
+    const qrCode = response.data.data.qrCode;
+    
+    return {
+      ...payment,
+      qrCode
+    };
   } catch (error) {
     console.error('Erro ao buscar pagamento no Asaas:', error);
     
@@ -246,7 +273,9 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
   try {
     console.log(`Buscando QR code PIX: paymentId=${paymentId}`);
     
-    const response = await api.get<PixQrCodeResponse>(`api/asaas-pix-qrcode?paymentId=${paymentId}`);
+    const response = await api.get<ApiResponse<{qrCode: {encodedImage: string, payload: string}}>>('/api/payment/pix-qrcode', { 
+      params: { paymentId } 
+    });
     
     console.log('Resposta da API de QR code PIX:', response.data);
     
@@ -254,10 +283,16 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
       throw new Error('Falha ao buscar QR code PIX');
     }
     
+    const qrCode = response.data.data?.qrCode;
+    
+    if (!qrCode) {
+      throw new Error('QR code não encontrado');
+    }
+    
     return {
-      qrCodeImage: response.data.qrCode.encodedImage,
-      qrCodeText: response.data.qrCode.payload,
-      expirationDate: response.data.qrCode.expirationDate
+      qrCodeImage: qrCode.encodedImage,
+      qrCodeText: qrCode.payload,
+      expirationDate: qrCode.expirationDate
     };
   } catch (error) {
     console.error('Erro ao buscar QR code PIX no Asaas:', error);

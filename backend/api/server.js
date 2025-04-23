@@ -23,6 +23,7 @@ const notificationRouter = require('./routes/notification');
 const rouletteSearchRouter = require('./routes/rouletteSearch');
 const historyRouter = require('./routes/historyApi');
 const authRouter = require('./routes/auth');
+const paymentRouter = require('./routes/payment');
 
 // Configuração do servidor
 const app = express();
@@ -36,8 +37,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(morgan('dev'));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Adicionar headers específicos para cookies em todas as respostas
@@ -95,6 +96,7 @@ app.use('/api/notification', notificationRouter);
 app.use('/api/roulette-search', rouletteSearchRouter);
 app.use('/api/history', historyRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/payment', paymentRouter);
 
 // Rota de status da API
 app.get('/api/status', (req, res) => {
