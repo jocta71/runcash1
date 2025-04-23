@@ -1,73 +1,13 @@
 // Endpoint de criação de assinatura no Asaas para Vercel
 const axios = require('axios');
-const { MongoClient, ObjectId } = require('mongodb');
-const jwt = require('jsonwebtoken');
-
-// Cache simples para implementar rate limiting
-const rateLimitCache = {
-  requests: {},
-  resetTime: Date.now() + 3600000, // Reset a cada hora
-  limit: 20 // Limite de 20 requisições por IP por hora
-};
-
-// Função para verificar rate limiting
-const checkRateLimit = (ip) => {
-  // Reset cache se necessário
-  if (Date.now() > rateLimitCache.resetTime) {
-    rateLimitCache.requests = {};
-    rateLimitCache.resetTime = Date.now() + 3600000;
-  }
-  
-  // Inicializar contador para este IP
-  if (!rateLimitCache.requests[ip]) {
-    rateLimitCache.requests[ip] = 0;
-  }
-  
-  // Incrementar contador
-  rateLimitCache.requests[ip]++;
-  
-  // Verificar se excedeu o limite
-  return rateLimitCache.requests[ip] <= rateLimitCache.limit;
-};
-
-// Função para verificar autenticação JWT
-const authenticateToken = (req) => {
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { success: false, error: 'Token de autenticação não fornecido' };
-  }
-  
-  const token = authHeader.split(' ')[1];
-  
-  if (!token) {
-    return { success: false, error: 'Token de autenticação inválido' };
-  }
-  
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'runcash-default-secret');
-    return { success: true, user: decoded };
-  } catch (error) {
-    console.error('Erro ao verificar token:', error);
-    return { success: false, error: 'Token inválido ou expirado' };
-  }
-};
+const { MongoClient } = require('mongodb');
 
 module.exports = async (req, res) => {
-  // Configuração de CORS para permitir apenas domínios confiáveis
-  const allowedOrigins = [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    process.env.ADMIN_URL || 'http://localhost:5173'
-  ];
-  
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  
+  // Configuração de CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
   // Resposta para solicitações preflight
   if (req.method === 'OPTIONS') {
@@ -78,27 +18,6 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
-  
-  // Verificar rate limit por IP
-  const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  if (!checkRateLimit(clientIp)) {
-    return res.status(429).json({
-      success: false,
-      error: 'Taxa de requisições excedida. Tente novamente mais tarde.'
-    });
-  }
-  
-  // Verificar autenticação
-  const auth = authenticateToken(req);
-  if (!auth.success) {
-    return res.status(401).json({
-      success: false,
-      error: auth.error
-    });
-  }
-  
-  // Usuário autenticado
-  const authenticatedUser = auth.user;
 
   let client;
   
@@ -132,48 +51,6 @@ module.exports = async (req, res) => {
         success: false,
         error: 'Campos obrigatórios: customerId, planId' 
       });
-    }
-    
-    // Validar que o usuário só pode criar assinaturas para si mesmo
-    if (userId && userId !== authenticatedUser.id) {
-      console.warn(`Tentativa de criar assinatura para outro usuário: ${authenticatedUser.id} tentou criar para ${userId}`);
-      return res.status(403).json({
-        success: false,
-        error: 'Não é permitido criar assinaturas para outros usuários'
-      });
-    }
-    
-    // Verificar no MongoDB se o customerId pertence a este usuário
-    if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
-      try {
-        client = new MongoClient(process.env.MONGODB_URI);
-        await client.connect();
-        const db = client.db(process.env.MONGODB_DB_NAME || 'runcash');
-        
-        // Buscar o usuário para verificar se o customerId corresponde
-        const userRecord = await db.collection('users').findOne({
-          _id: new ObjectId(authenticatedUser.id)
-        });
-        
-        if (!userRecord) {
-          return res.status(404).json({
-            success: false,
-            error: 'Usuário não encontrado'
-          });
-        }
-        
-        // Verificar se o customerId corresponde ao usuário
-        if (userRecord.asaasCustomerId !== customerId) {
-          console.warn(`Tentativa de usar customerId inválido: ${authenticatedUser.id} tentou usar ${customerId} mas tem ${userRecord.asaasCustomerId}`);
-          return res.status(403).json({
-            success: false,
-            error: 'O customerId fornecido não corresponde ao seu usuário'
-          });
-        }
-      } catch (dbError) {
-        console.error('Erro ao verificar customerId no MongoDB:', dbError.message);
-        // Não retornar erro para não bloquear a operação, mas registrar o problema
-      }
     }
 
     // Tabela de valores oficiais para cada plano (único local confiável de preços)
@@ -238,11 +115,12 @@ module.exports = async (req, res) => {
       }
     });
 
-    // Log para depuração dos dados recebidos (sem dados sensíveis)
-    console.log('Criando assinatura:', {
+    // Log para depuração dos dados recebidos
+    console.log('Dados recebidos para criação de assinatura:', {
       customerId,
       planId,
-      userId: authenticatedUser.id,
+      valueFromClient: value,
+      valueUsed: subscriptionValue,
       billingType,
       cycle
     });
@@ -250,7 +128,7 @@ module.exports = async (req, res) => {
     // Atualizar o CPF do cliente se fornecido
     if (cpfCnpj) {
       try {
-        console.log(`Atualizando CPF/CNPJ do cliente ${customerId}`);
+        console.log(`Atualizando CPF/CNPJ do cliente ${customerId}: ${cpfCnpj}`);
         await apiClient.post(`/customers/${customerId}`, {
           cpfCnpj
         });
@@ -275,8 +153,7 @@ module.exports = async (req, res) => {
         payment: `${FRONTEND_URL}/api/asaas-webhook`,
         successUrl: `${FRONTEND_URL}/success` // URL para redirecionamento após pagamento bem-sucedido
       },
-      notifyPaymentCreatedImmediately: true,
-      externalReference: authenticatedUser.id // Associar explicitamente ao usuário autenticado
+      notifyPaymentCreatedImmediately: true
     };
 
     // Adicionar dados de cartão de crédito se for pagamento com cartão
@@ -304,8 +181,7 @@ module.exports = async (req, res) => {
 
     console.log('Criando assinatura no Asaas:', {
       ...subscriptionData,
-      creditCard: subscriptionData.creditCard ? '*** OMITIDO ***' : undefined,
-      creditCardHolderInfo: subscriptionData.creditCardHolderInfo ? '*** OMITIDO ***' : undefined
+      creditCard: subscriptionData.creditCard ? '*** OMITIDO ***' : undefined
     });
 
     // Criar assinatura
