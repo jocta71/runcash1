@@ -1,4 +1,4 @@
-// Redirecionador para o cancelamento de assinaturas no Asaas
+// Redirecionador para o webhook do Asaas
 const redirector = require('./api-redirector');
 
 module.exports = redirector; 

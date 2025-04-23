@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
+const crypto = require('crypto');
 
 // Configuração de ambiente
 const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
@@ -12,6 +13,60 @@ const API_BASE_URL = ASAAS_ENVIRONMENT === 'production'
   ? 'https://www.asaas.com/api/v3'
   : 'https://sandbox.asaas.com/api/v3';
 
+// Cache simples para implementar rate limiting
+const rateLimitCache = {
+  requests: {},
+  resetTime: Date.now() + 3600000, // Reset a cada hora
+  limit: 100 // Limite de 100 requisições por IP por hora
+};
+
+// Função para verificar rate limiting
+const checkRateLimit = (ip) => {
+  // Reset cache se necessário
+  if (Date.now() > rateLimitCache.resetTime) {
+    rateLimitCache.requests = {};
+    rateLimitCache.resetTime = Date.now() + 3600000;
+  }
+  
+  // Inicializar contador para este IP
+  if (!rateLimitCache.requests[ip]) {
+    rateLimitCache.requests[ip] = 0;
+  }
+  
+  // Incrementar contador
+  rateLimitCache.requests[ip]++;
+  
+  // Verificar se excedeu o limite
+  return rateLimitCache.requests[ip] <= rateLimitCache.limit;
+};
+
+// Função para verificar a assinatura do webhook
+const verifyAsaasSignature = (payload, signature) => {
+  if (!process.env.ASAAS_WEBHOOK_SECRET) {
+    console.warn('AVISO: ASAAS_WEBHOOK_SECRET não configurado, pulando verificação de assinatura');
+    return true;
+  }
+  
+  if (!signature) {
+    console.warn('AVISO: Assinatura não fornecida no webhook');
+    return false;
+  }
+  
+  try {
+    const hmac = crypto.createHmac('sha256', process.env.ASAAS_WEBHOOK_SECRET);
+    const expectedSignature = hmac.update(JSON.stringify(payload)).digest('hex');
+    
+    // Comparação segura para evitar timing attacks
+    return crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature)
+    );
+  } catch (error) {
+    console.error('Erro ao verificar assinatura:', error.message);
+    return false;
+  }
+};
+
 // Inicialização do cliente Supabase
 const initSupabase = () => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
@@ -23,12 +78,26 @@ const initSupabase = () => {
 // Função para registrar logs de eventos
 const logEvent = async (supabase, event) => {
   try {
+    // Criar uma versão segura do evento sem dados sensíveis
+    const safeEvent = {
+      event: event.event,
+      payment: event.payment ? {
+        id: event.payment.id,
+        status: event.payment.status,
+        subscription: event.payment.subscription,
+        customer: event.payment.customer,
+        value: event.payment.value,
+        billingType: event.payment.billingType,
+        dueDate: event.payment.dueDate
+      } : null
+    };
+    
     const { error } = await supabase
       .from('webhook_logs')
       .insert({
         provider: 'asaas',
         event_type: event.event,
-        payload: JSON.stringify(event),
+        payload: JSON.stringify(safeEvent),
         created_at: new Date().toISOString()
       });
     
@@ -132,11 +201,23 @@ const notifyUser = async (supabase, userId, title, message, type = 'info') => {
 
 // Manipulador principal do webhook
 module.exports = async (req, res) => {
-  // Configurar CORS para permitir solicitações da Asaas
+  // Configuração de CORS para permitir apenas domínios confiáveis
+  const allowedOrigins = [
+    process.env.FRONTEND_URL || 'http://localhost:3000',
+    'https://www.asaas.com',
+    'https://sandbox.asaas.com'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'http://localhost:3000');
+  }
+  
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Content-Type, X-Signature');
 
   // Responder a solicitações OPTIONS (preflight)
   if (req.method === 'OPTIONS') {
@@ -152,10 +233,23 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
+  
+  // Verificar rate limit por IP
+  const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  if (!checkRateLimit(clientIp)) {
+    return res.status(429).json({
+      success: false,
+      error: 'Taxa de requisições excedida. Tente novamente mais tarde.'
+    });
+  }
 
-  console.log('Headers recebidos:', JSON.stringify(req.headers));
-  console.log('Corpo da requisição:', JSON.stringify(req.body));
-
+  // Log de diagnóstico (sem dados sensíveis)
+  console.log('Headers recebidos:', {
+    'content-type': req.headers['content-type'],
+    'user-agent': req.headers['user-agent'],
+    'x-signature': req.headers['x-signature'] ? 'Presente' : 'Ausente'
+  });
+  
   let supabase;
   
   try {
@@ -164,6 +258,16 @@ module.exports = async (req, res) => {
     
     // Extrair dados do webhook
     const webhookData = req.body;
+    
+    // Verificar assinatura do webhook
+    const signature = req.headers['x-signature'];
+    if (!verifyAsaasSignature(webhookData, signature)) {
+      console.warn('Assinatura de webhook inválida ou ausente');
+      return res.status(401).json({
+        success: false,
+        error: 'Assinatura inválida'
+      });
+    }
     
     // Registrar o evento recebido
     await logEvent(supabase, webhookData);

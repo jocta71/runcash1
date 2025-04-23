@@ -94,15 +94,22 @@ module.exports = async (req, res) => {
     const cycle = planData.interval === 'monthly' ? 'MONTHLY' : 'YEARLY';
     const value = planData.price;
 
-    // Dados para criar a assinatura no Asaas
+    // Construir o payload da assinatura
     const subscriptionData = {
       customer: customerId,
       billingType: 'PIX',
-      value,
-      nextDueDate: nextDueDateStr,
       cycle,
+      value: value, // Usar sempre o valor oficial
+      nextDueDate: nextDueDateStr,
       description: `Assinatura ${planData.name} - ${planData.interval}`,
-      externalReference: userId,
+      callback: {
+        activated: `${FRONTEND_URL}/backend/api/payment/asaas-webhook`,
+        invoiceCreated: `${FRONTEND_URL}/backend/api/payment/asaas-webhook`,
+        payment: `${FRONTEND_URL}/backend/api/payment/asaas-webhook`,
+        successUrl: `${FRONTEND_URL}/success` // URL para redirecionamento após pagamento bem-sucedido
+      },
+      notifyPaymentCreatedImmediately: true,
+      externalReference: userId // Associar explicitamente ao usuário
     };
 
     // Criar assinatura no Asaas
