@@ -44,45 +44,52 @@ module.exports = async (req, res) => {
     // Verificar assinatura do webhook (se a chave estiver configurada)
     const WEBHOOK_SECRET = process.env.ASAAS_WEBHOOK_SECRET;
     
-    if (WEBHOOK_SECRET) {
-      const signature = req.headers['x-asaas-signature'];
-      
-      if (!signature) {
-        console.error('[WEBHOOK_SECURITY] Cabeçalho X-Asaas-Signature ausente');
-        await logWebhookSecurity({
-          type: 'MISSING_SIGNATURE',
-          ip: clientIp,
-          headers: req.headers,
-          timestamp: new Date()
-        });
-        return res.status(401).json({ error: 'Assinatura não fornecida' });
-      }
-      
-      // Computar HMAC do corpo da requisição
-      const requestBody = JSON.stringify(req.body);
-      const expectedSignature = crypto
-        .createHmac('sha256', WEBHOOK_SECRET)
-        .update(requestBody)
-        .digest('hex');
-      
-      // Verificar se a assinatura corresponde
-      if (signature !== expectedSignature) {
-        console.error('[WEBHOOK_SECURITY] Assinatura inválida');
-        await logWebhookSecurity({
-          type: 'INVALID_SIGNATURE',
-          ip: clientIp,
-          headers: req.headers,
-          providedSignature: signature,
-          expectedSignature: expectedSignature,
-          timestamp: new Date()
-        });
-        return res.status(401).json({ error: 'Assinatura inválida' });
-      }
-      
-      console.log('[WEBHOOK_SECURITY] Assinatura validada com sucesso');
-    } else {
-      console.warn('[WEBHOOK_SECURITY] ASAAS_WEBHOOK_SECRET não configurado. A autenticidade do webhook não pode ser verificada.');
+    if (!WEBHOOK_SECRET) {
+      console.error('[WEBHOOK_SECURITY] ASAAS_WEBHOOK_SECRET não configurado. Rejeitando webhook por segurança.');
+      await logWebhookSecurity({
+        type: 'MISSING_SECRET_KEY',
+        ip: clientIp,
+        headers: req.headers,
+        timestamp: new Date()
+      });
+      return res.status(401).json({ error: 'Configuração de segurança incompleta no servidor' });
     }
+    
+    const signature = req.headers['x-asaas-signature'];
+    
+    if (!signature) {
+      console.error('[WEBHOOK_SECURITY] Cabeçalho X-Asaas-Signature ausente');
+      await logWebhookSecurity({
+        type: 'MISSING_SIGNATURE',
+        ip: clientIp,
+        headers: req.headers,
+        timestamp: new Date()
+      });
+      return res.status(401).json({ error: 'Assinatura não fornecida' });
+    }
+    
+    // Computar HMAC do corpo da requisição
+    const requestBody = JSON.stringify(req.body);
+    const expectedSignature = crypto
+      .createHmac('sha256', WEBHOOK_SECRET)
+      .update(requestBody)
+      .digest('hex');
+    
+    // Verificar se a assinatura corresponde
+    if (signature !== expectedSignature) {
+      console.error('[WEBHOOK_SECURITY] Assinatura inválida');
+      await logWebhookSecurity({
+        type: 'INVALID_SIGNATURE',
+        ip: clientIp,
+        headers: req.headers,
+        providedSignature: signature,
+        expectedSignature: expectedSignature,
+        timestamp: new Date()
+      });
+      return res.status(401).json({ error: 'Assinatura inválida' });
+    }
+    
+    console.log('[WEBHOOK_SECURITY] Assinatura validada com sucesso');
 
     const webhookData = req.body;
     console.log('Webhook recebido do Asaas:', JSON.stringify(webhookData));
@@ -124,7 +131,7 @@ module.exports = async (req, res) => {
               'user-agent': req.headers['user-agent'],
               'x-asaas-signature': req.headers['x-asaas-signature']
             },
-            verified: !!WEBHOOK_SECRET
+            verified: true
           },
           created_at: new Date()
         });
@@ -164,7 +171,7 @@ module.exports = async (req, res) => {
               webhook_data: webhookData,
               security: {
                 ip: clientIp,
-                signature_verified: !!WEBHOOK_SECRET
+                signature_verified: true
               },
               timestamp: new Date()
             });
@@ -184,7 +191,7 @@ module.exports = async (req, res) => {
                     timestamp: new Date(),
                     source: 'webhook',
                     ip: clientIp,
-                    verified: !!WEBHOOK_SECRET
+                    verified: true
                   }
                 }
               }
@@ -201,7 +208,7 @@ module.exports = async (req, res) => {
               webhook_data: webhookData,
               security: {
                 ip: clientIp,
-                verified: !!WEBHOOK_SECRET
+                verified: true
               },
               created_at: new Date(),
               processed: false
