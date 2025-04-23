@@ -109,7 +109,7 @@ module.exports = async (req, res) => {
         successUrl: `${FRONTEND_URL}/success` // URL para redirecionamento após pagamento bem-sucedido
       },
       notifyPaymentCreatedImmediately: true,
-      externalReference: userId // Associar explicitamente ao usuário
+      externalReference: userId // Associar explicitamente ao usuário autenticado
     };
 
     // Criar assinatura no Asaas

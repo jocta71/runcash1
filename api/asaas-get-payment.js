@@ -1,4 +1,4 @@
-// Redirecionador para /backend/api/payment/asaas-create-customer
+// Redirecionador para /backend/api/payment/asaas-get-payment
 const axios = require('axios');
 
 module.exports = async (req, res) => {
@@ -14,7 +14,7 @@ module.exports = async (req, res) => {
   }
   
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Content-Type, Authorization');
 
   // Resposta para solicitações preflight
@@ -22,34 +22,37 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Apenas aceitar solicitações POST
-  if (req.method !== 'POST') {
+  // Apenas aceitar solicitações GET
+  if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
   
   try {
     // Log limitado (sem dados sensíveis)
-    console.log('Criação de cliente recebida em /api - Redirecionando para backend');
+    console.log('Solicitação de consulta de pagamento recebida em /api - Redirecionando para backend');
     
     // URL do novo endpoint
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
-    const targetUrl = `${backendUrl}/api/payment/asaas-create-customer`;
+    const targetUrl = `${backendUrl}/api/payment/asaas-get-payment`;
+    
+    // Construir URL com parâmetros de consulta
+    const queryParams = new URLSearchParams(req.query).toString();
+    const fullUrl = queryParams ? `${targetUrl}?${queryParams}` : targetUrl;
     
     // Encaminhar requisição para o backend (incluindo token de autorização)
     const response = await axios({
-      method: 'POST',
-      url: targetUrl,
-      data: req.body,
+      method: 'GET',
+      url: fullUrl,
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': req.headers.authorization || ''
+        'Authorization': req.headers.authorization || '',
+        'Content-Type': 'application/json'
       }
     });
     
     // Retornar a resposta do backend
     return res.status(response.status).json(response.data);
   } catch (error) {
-    console.error('Erro ao redirecionar criação de cliente:', error.message);
+    console.error('Erro ao redirecionar solicitação de consulta de pagamento:', error.message);
     
     // Se conseguimos um erro estruturado da API, utilizá-lo
     if (error.response) {
@@ -59,7 +62,7 @@ module.exports = async (req, res) => {
     // Caso contrário, retornar erro genérico
     return res.status(500).json({
       success: false,
-      error: 'Erro ao processar criação de cliente',
+      error: 'Erro ao processar solicitação de consulta de pagamento',
       message: error.message
     });
   }

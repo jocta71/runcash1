@@ -1,4 +1,4 @@
-// Redirecionador para /backend/api/payment/asaas-create-customer
+// Redirecionador para /backend/api/payment/asaas-create-payment
 const axios = require('axios');
 
 module.exports = async (req, res) => {
@@ -29,27 +29,27 @@ module.exports = async (req, res) => {
   
   try {
     // Log limitado (sem dados sensíveis)
-    console.log('Criação de cliente recebida em /api - Redirecionando para backend');
+    console.log('Solicitação de criação de cobrança recebida em /api - Redirecionando para backend');
     
     // URL do novo endpoint
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
-    const targetUrl = `${backendUrl}/api/payment/asaas-create-customer`;
+    const targetUrl = `${backendUrl}/api/payment/asaas-create-payment`;
     
-    // Encaminhar requisição para o backend (incluindo token de autorização)
+    // Encaminhar requisição para o backend (incluindo token de autorização e corpo da requisição)
     const response = await axios({
       method: 'POST',
       url: targetUrl,
       data: req.body,
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': req.headers.authorization || ''
+        'Authorization': req.headers.authorization || '',
+        'Content-Type': 'application/json'
       }
     });
     
     // Retornar a resposta do backend
     return res.status(response.status).json(response.data);
   } catch (error) {
-    console.error('Erro ao redirecionar criação de cliente:', error.message);
+    console.error('Erro ao redirecionar solicitação de criação de cobrança:', error.message);
     
     // Se conseguimos um erro estruturado da API, utilizá-lo
     if (error.response) {
@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
     // Caso contrário, retornar erro genérico
     return res.status(500).json({
       success: false,
-      error: 'Erro ao processar criação de cliente',
+      error: 'Erro ao processar solicitação de criação de cobrança',
       message: error.message
     });
   }

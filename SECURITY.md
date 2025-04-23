@@ -85,7 +85,7 @@ Para garantir que apenas o Asaas pode enviar webhooks válidos para seu sistema:
 No painel do Asaas, configure:
 
 1. **Webhooks**:
-   - URL: `https://seu-dominio.com/backend/api/payment/asaas-webhook`
+   - URL: `https://seu-dominio.com/api/asaas-webhook`
    - Eventos: payment, subscription.created, subscription.cancelled, etc.
    - Segredo compartilhado: O mesmo valor de `ASAAS_WEBHOOK_SECRET`
 

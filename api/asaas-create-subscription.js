@@ -1,59 +1,66 @@
-// Endpoint de criação de assinatura no Asaas para Vercel
+// Redirecionador para /backend/api/payment/asaas-create-subscription
 const axios = require('axios');
-const { MongoClient, ObjectId } = require('mongodb');
-const jwt = require('jsonwebtoken');
 
-// Cache simples para implementar rate limiting
-const rateLimitCache = {
-  requests: {},
-  resetTime: Date.now() + 3600000, // Reset a cada hora
-  limit: 20 // Limite de 20 requisições por IP por hora
-};
-
-// Função para verificar rate limiting
-const checkRateLimit = (ip) => {
-  // Reset cache se necessário
-  if (Date.now() > rateLimitCache.resetTime) {
-    rateLimitCache.requests = {};
-    rateLimitCache.resetTime = Date.now() + 3600000;
+module.exports = async (req, res) => {
+  // Configuração de CORS
+  const allowedOrigins = [
+    process.env.FRONTEND_URL || 'http://localhost:3000',
+    process.env.ADMIN_URL || 'http://localhost:5173'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
   }
   
-  // Inicializar contador para este IP
-  if (!rateLimitCache.requests[ip]) {
-    rateLimitCache.requests[ip] = 0;
-  }
-  
-  // Incrementar contador
-  rateLimitCache.requests[ip]++;
-  
-  // Verificar se excedeu o limite
-  return rateLimitCache.requests[ip] <= rateLimitCache.limit;
-};
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Content-Type, Authorization');
 
-// Função para verificar autenticação JWT
-const authenticateToken = (req) => {
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { success: false, error: 'Token de autenticação não fornecido' };
+  // Resposta para solicitações preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
-  
-  const token = authHeader.split(' ')[1];
-  
-  if (!token) {
-    return { success: false, error: 'Token de autenticação inválido' };
+
+  // Apenas aceitar solicitações POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Método não permitido' });
   }
   
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'runcash-default-secret');
-    return { success: true, user: decoded };
+    // Log limitado (sem dados sensíveis)
+    console.log('Solicitação de criação de assinatura recebida em /api - Redirecionando para backend');
+    
+    // URL do novo endpoint
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+    const targetUrl = `${backendUrl}/api/payment/asaas-create-subscription`;
+    
+    // Encaminhar requisição para o backend (incluindo token de autorização e corpo da requisição)
+    const response = await axios({
+      method: 'POST',
+      url: targetUrl,
+      data: req.body,
+      headers: {
+        'Authorization': req.headers.authorization || '',
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Retornar a resposta do backend
+    return res.status(response.status).json(response.data);
   } catch (error) {
-    console.error('Erro ao verificar token:', error);
-    return { success: false, error: 'Token inválido ou expirado' };
+    console.error('Erro ao redirecionar solicitação de criação de assinatura:', error.message);
+    
+    // Se conseguimos um erro estruturado da API, utilizá-lo
+    if (error.response) {
+      return res.status(error.response.status || 500).json(error.response.data);
+    }
+    
+    // Caso contrário, retornar erro genérico
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao processar solicitação de criação de assinatura',
+      message: error.message
+    });
   }
-};
-
-// Redirecionador para a criação de assinaturas no Asaas
-const redirector = require('./api-redirector');
-
-module.exports = redirector; 
+}; 

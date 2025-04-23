@@ -51,7 +51,7 @@ export const createAsaasCustomer = async (userData: {
   try {
     console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const response = await api.post<ApiResponse<{ customerId: string }>>('backend/api/payment/asaas-create-customer', {
+    const response = await api.post<ApiResponse<{ customerId: string }>>('api/asaas-create-customer', {
       name: userData.name,
       email: userData.email,
       cpfCnpj: userData.cpfCnpj,
@@ -152,7 +152,7 @@ export const createAsaasSubscription = async (
       cpfCnpj: payload.cpfCnpj ? `****${payload.cpfCnpj.slice(-4)}` : undefined
     });
     
-    const response = await api.post<ApiResponse<SubscriptionResponse>>('backend/api/payment/asaas-create-subscription', payload);
+    const response = await api.post<ApiResponse<SubscriptionResponse>>('api/asaas-create-subscription', payload);
     
     console.log('Resposta da API de criação de assinatura:', response.data);
     
@@ -201,7 +201,7 @@ export const findAsaasPayment = async (paymentId: string, force: boolean = false
     
     // Adicionar parâmetro de cache buster quando força atualização
     const cacheBuster = force ? `&_t=${Date.now()}` : '';
-    const response = await api.get<PaymentResponse>(`backend/api/payment/asaas-find-payment?paymentId=${paymentId}${cacheBuster}`);
+    const response = await api.get<PaymentResponse>(`api/asaas-find-payment?paymentId=${paymentId}${cacheBuster}`);
     
     console.log('Resposta da API de busca de pagamento:', response.data);
     
@@ -246,7 +246,7 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
   try {
     console.log(`Buscando QR code PIX: paymentId=${paymentId}`);
     
-    const response = await api.get<PixQrCodeResponse>(`backend/api/payment/asaas-pix-qrcode?paymentId=${paymentId}`);
+    const response = await api.get<PixQrCodeResponse>(`api/asaas-pix-qrcode?paymentId=${paymentId}`);
     
     console.log('Resposta da API de QR code PIX:', response.data);
     
@@ -364,7 +364,7 @@ export const findAsaasSubscription = async (subscriptionId: string): Promise<any
   try {
     console.log(`Buscando assinatura: subscriptionId=${subscriptionId}`);
     
-    const response = await api.get<ApiResponse<any>>(`backend/api/payment/asaas-find-subscription?subscriptionId=${subscriptionId}`);
+    const response = await api.get<ApiResponse<any>>(`api/asaas-find-subscription?subscriptionId=${subscriptionId}`);
     
     console.log('Resposta da API de busca de assinatura:', response.data);
     
@@ -395,7 +395,7 @@ export const cancelAsaasSubscription = async (subscriptionId: string): Promise<a
   try {
     console.log(`Cancelando assinatura: subscriptionId=${subscriptionId}`);
     
-    const response = await api.post<ApiResponse<any>>('backend/api/payment/asaas-cancel-subscription', {
+    const response = await api.post<ApiResponse<any>>('api/asaas-cancel-subscription', {
       subscriptionId
     });
     
@@ -448,7 +448,7 @@ export const findAsaasCustomer = async (
       queryParams = `email=${encodeURIComponent(email)}`;
     }
     
-    const response = await api.get<ApiResponse<any>>(`backend/api/payment/asaas-find-customer?${queryParams}`);
+    const response = await api.get<ApiResponse<any>>(`api/asaas-find-customer?${queryParams}`);
     
     console.log('Resposta da API de busca de cliente:', response.data);
     
