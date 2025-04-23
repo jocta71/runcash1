@@ -65,7 +65,7 @@ export const createAsaasCustomer = async (userData: {
       throw new Error('Email com formato inválido');
     }
     
-    const response = await api.post<ApiResponse<{ customerId: string }>>('/api/payment/customer', {
+    const response = await api.post<ApiResponse<{ customerId: string }>>('/payment/customer', {
       name: userData.name,
       email: userData.email,
       cpfCnpj: cpfCnpjClean,
@@ -163,7 +163,7 @@ export const createAsaasSubscription = async (
       cpfCnpj: payload.cpfCnpj ? `****${payload.cpfCnpj.slice(-4)}` : undefined
     });
     
-    const response = await api.post<ApiResponse<SubscriptionResponse>>('/api/payment/subscription', payload);
+    const response = await api.post<ApiResponse<SubscriptionResponse>>('/payment/subscription', payload);
     
     console.log('Resposta da API de criação de assinatura:', response.data);
     
@@ -213,7 +213,7 @@ export const findAsaasPayment = async (paymentId: string, force: boolean = false
     // Adicionar timestamp para burlar cache se necessário
     const timestamp = Date.now();
     
-    const response = await api.get<ApiResponse<{payments: any[], qrCode: any}>>('/api/payment/payment', { 
+    const response = await api.get<ApiResponse<{payments: any[], qrCode: any}>>('/payment/payment', { 
       params: { 
         paymentId,
         _t: timestamp 
@@ -273,7 +273,7 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
   try {
     console.log(`Buscando QR code PIX: paymentId=${paymentId}`);
     
-    const response = await api.get<ApiResponse<{qrCode: {encodedImage: string, payload: string}}>>('/api/payment/pix-qrcode', { 
+    const response = await api.get<ApiResponse<{qrCode: {encodedImage: string, payload: string}}>>('/payment/pix-qrcode', { 
       params: { paymentId } 
     });
     
