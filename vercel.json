@@ -3,35 +3,23 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "functions": {
-    "api/asaas-create-customer.js": {
+    "api/asaas-customers.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-create-subscription.js": {
+    "api/asaas-payments.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-subscriptions.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-webhook.js": {
       "memory": 1024,
       "maxDuration": 10
     },
     "api/webhook-manager.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-payment.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-pix-qrcode.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-cancel-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-customer.js": {
       "memory": 1024,
       "maxDuration": 10
     },
@@ -46,12 +34,16 @@
     "api/test-page.js": {
       "memory": 1024,
       "maxDuration": 10
+    },
+    "api/health.js": {
+      "memory": 512,
+      "maxDuration": 5
     }
   },
   "rewrites": [
     {
       "source": "/api/asaas-webhook",
-      "destination": "/api/webhook-manager.js"
+      "destination": "/api/asaas-webhook.js"
     },
     {
       "source": "/api/subscription-reconciliation",
@@ -63,31 +55,43 @@
     },
     {
       "source": "/api/asaas-create-customer",
-      "destination": "/api/asaas-create-customer.js"
-    },
-    {
-      "source": "/api/asaas-create-subscription",
-      "destination": "/api/asaas-create-subscription.js"
-    },
-    {
-      "source": "/api/asaas-find-payment",
-      "destination": "/api/asaas-find-payment.js"
-    },
-    {
-      "source": "/api/asaas-pix-qrcode",
-      "destination": "/api/asaas-pix-qrcode.js"
-    },
-    {
-      "source": "/api/asaas-find-subscription",
-      "destination": "/api/asaas-find-subscription.js"
-    },
-    {
-      "source": "/api/asaas-cancel-subscription",
-      "destination": "/api/asaas-cancel-subscription.js"
+      "destination": "/api/asaas-customers.js?op=create"
     },
     {
       "source": "/api/asaas-find-customer",
-      "destination": "/api/asaas-find-customer.js"
+      "destination": "/api/asaas-customers.js?op=find"
+    },
+    {
+      "source": "/api/asaas-create-payment",
+      "destination": "/api/asaas-payments.js?op=create"
+    },
+    {
+      "source": "/api/asaas-list-payments",
+      "destination": "/api/asaas-payments.js?op=list"
+    },
+    {
+      "source": "/api/asaas-get-payment",
+      "destination": "/api/asaas-payments.js?op=get"
+    },
+    {
+      "source": "/api/asaas-find-payment",
+      "destination": "/api/asaas-payments.js?op=find"
+    },
+    {
+      "source": "/api/asaas-pix-qrcode",
+      "destination": "/api/asaas-payments.js?op=qrcode"
+    },
+    {
+      "source": "/api/asaas-create-subscription",
+      "destination": "/api/asaas-subscriptions.js?op=create"
+    },
+    {
+      "source": "/api/asaas-find-subscription",
+      "destination": "/api/asaas-subscriptions.js?op=find"
+    },
+    {
+      "source": "/api/asaas-cancel-subscription",
+      "destination": "/api/asaas-subscriptions.js?op=cancel"
     },
     {
       "source": "/api/update-user",
@@ -98,7 +102,11 @@
       "destination": "/api/ai/query.js"
     },
     {
-      "source": "/api/((?!asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|update-user|ai/query|test-page).*)",
+      "source": "/api/health",
+      "destination": "/api/health.js"
+    },
+    {
+      "source": "/api/((?!asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-find-customer|asaas-create-payment|asaas-list-payments|asaas-get-payment|asaas-find-payment|asaas-pix-qrcode|asaas-create-subscription|asaas-find-subscription|asaas-cancel-subscription|update-user|ai/query|test-page|health).*)",
       "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
     },
     {
