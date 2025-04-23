@@ -22,6 +22,13 @@ Devido ao limite de funções serverless do plano Hobby da Vercel (máximo de 12
 | `/api/asaas-find-subscription` (GET) | `/api/asaas-subscriptions?op=find` (GET) |
 | `/api/asaas-cancel-subscription` (POST) | `/api/asaas-subscriptions?op=cancel` (POST) |
 
+### Clientes (Consolidados em `/api/asaas-customers`)
+
+| Operação Antiga | Nova Chamada de API |
+|-----------------|---------------------|
+| `/api/asaas-create-customer` (POST) | `/api/asaas-customers?op=create` (POST) |
+| `/api/asaas-find-customer` (GET) | `/api/asaas-customers?op=find` (GET) |
+
 ### Endpoint Inalterado
 
 - `/api/asaas-webhook` (mantido separado por ser um caso especial)
@@ -56,6 +63,24 @@ axios.post('/api/asaas-cancel-subscription', { id: subscriptionId });
 axios.post('/api/asaas-subscriptions?op=cancel', { id: subscriptionId });
 ```
 
+### Exemplo para Clientes:
+
+```javascript
+// ANTES:
+axios.post('/api/asaas-create-customer', customerData);
+
+// DEPOIS:
+axios.post('/api/asaas-customers?op=create', customerData);
+```
+
+```javascript
+// ANTES:
+axios.get(`/api/asaas-find-customer?cpfCnpj=${cpfCnpj}`);
+
+// DEPOIS:
+axios.get(`/api/asaas-customers?op=find&cpfCnpj=${cpfCnpj}`);
+```
+
 ## Regras Gerais:
 
 1. **Parâmetro `op`**: Sempre adicione `?op=operação` na URL para indicar qual operação deseja realizar
@@ -64,4 +89,4 @@ axios.post('/api/asaas-subscriptions?op=cancel', { id: subscriptionId });
 
 ## Para Testar:
 
-Antes de implantar em produção, teste todas as operações relacionadas a pagamentos e assinaturas para garantir que a migração foi bem-sucedida. 
+Antes de implantar em produção, teste todas as operações relacionadas a pagamentos, assinaturas e clientes para garantir que a migração foi bem-sucedida. 
