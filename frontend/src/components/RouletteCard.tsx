@@ -356,7 +356,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     <PlanProtectedFeature
       featureId="view_roulette_cards"
       requiredPlan={PlanType.BASIC}
-      lockedMessage="Os cartões de roleta completos só estão disponíveis para assinantes. Faça upgrade do seu plano para visualizar todos os dados."
+      lockedMessage="Visualize detalhes completos com o plano Básico"
+      redirectOnClick={true}
     >
       <Card 
         ref={cardRef}

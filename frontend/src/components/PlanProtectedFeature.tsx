@@ -12,14 +12,17 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { PlanType } from '@/types/plans';
+import { useNavigate } from 'react-router-dom';
 
 // Contexto global para gerenciar o estado de recursos bloqueados
 export const UpgradeContext = React.createContext<{
   hasBlockedResources: boolean;
   setHasBlockedResources: (value: boolean) => void;
+  redirectToPlans: () => void;
 }>({
   hasBlockedResources: false,
   setHasBlockedResources: () => {},
+  redirectToPlans: () => {},
 });
 
 // Hook para utilizar o contexto de upgrade
@@ -51,6 +54,11 @@ interface PlanProtectedFeatureProps {
    * Se não fornecido, será mostrado um placeholder genérico
    */
   placeholderContent?: React.ReactNode;
+  /**
+   * Se verdadeiro, redireciona diretamente para a página de planos ao clicar
+   * no conteúdo bloqueado, em vez de mostrar o modal de upgrade
+   */
+  redirectOnClick?: boolean;
 }
 
 /**
@@ -64,11 +72,12 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
   children,
   lockedMessage,
   showUpgradeOption = true,
-  placeholderContent
+  placeholderContent,
+  redirectOnClick = false
 }) => {
   const { hasFeatureAccess, availablePlans, currentPlan } = useSubscription();
   const hasAccess = hasFeatureAccess(featureId);
-  const { setHasBlockedResources } = useUpgradeContext();
+  const { setHasBlockedResources, redirectToPlans } = useUpgradeContext();
   
   // Quando um recurso bloqueado é renderizado, notificar o contexto
   React.useEffect(() => {
@@ -82,14 +91,33 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
     return <>{children}</>;
   }
   
+  // Função para lidar com cliques no conteúdo bloqueado
+  const handleBlockedContentClick = () => {
+    if (redirectOnClick) {
+      redirectToPlans();
+    }
+  };
+  
   // Placeholder simplificado para conteúdo bloqueado - sem botão de upgrade individual
   const simplePlaceholder = (
-    <div className="w-full h-full min-h-[150px] bg-[#131111] flex flex-col items-center justify-center p-4 rounded-md">
+    <div 
+      className="w-full h-full min-h-[150px] bg-[#131111] flex flex-col items-center justify-center p-4 rounded-md cursor-pointer hover:bg-[#1a1818] transition-colors duration-200"
+      onClick={handleBlockedContentClick}
+    >
       <div className="flex flex-col items-center">
         <LockKeyhole className="h-10 w-10 text-red-500" />
         <p className="text-xs text-gray-400 mt-2 text-center">
           {lockedMessage || `Disponível no plano ${requiredPlan}`}
         </p>
+        {redirectOnClick && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="mt-3 text-xs bg-vegas-gold/10 hover:bg-vegas-gold/20 border-vegas-gold/30 text-vegas-gold"
+          >
+            Fazer Upgrade
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -106,11 +134,20 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
  */
 export const UpgradeDialog: React.FC = () => {
   const { availablePlans, currentPlan } = useSubscription();
+  const { redirectToPlans } = useUpgradeContext();
   
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="default" size="lg" className="bg-vegas-gold hover:bg-vegas-gold/80 text-black fixed bottom-10 left-1/2 transform -translate-x-1/2 z-50 px-8 py-6 rounded-full shadow-lg shadow-vegas-gold/20">
+        <Button 
+          variant="default" 
+          size="lg" 
+          className="bg-vegas-gold hover:bg-vegas-gold/80 text-black fixed bottom-10 left-1/2 transform -translate-x-1/2 z-50 px-8 py-6 rounded-full shadow-lg shadow-vegas-gold/20"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
           Fazer Upgrade
         </Button>
       </DialogTrigger>
@@ -153,6 +190,7 @@ export const UpgradeDialog: React.FC = () => {
                     variant="default" 
                     size="sm" 
                     className="mt-2 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+                    onClick={() => redirectToPlans()}
                   >
                     Escolher
                   </Button>
@@ -177,9 +215,15 @@ export const UpgradeDialog: React.FC = () => {
  */
 export const UpgradeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [hasBlockedResources, setHasBlockedResources] = React.useState(false);
+  const navigate = useNavigate();
+  
+  // Função para redirecionar para a página de planos
+  const redirectToPlans = React.useCallback(() => {
+    navigate('/planos');
+  }, [navigate]);
   
   return (
-    <UpgradeContext.Provider value={{ hasBlockedResources, setHasBlockedResources }}>
+    <UpgradeContext.Provider value={{ hasBlockedResources, setHasBlockedResources, redirectToPlans }}>
       {children}
       {hasBlockedResources && <UpgradeDialog />}
     </UpgradeContext.Provider>

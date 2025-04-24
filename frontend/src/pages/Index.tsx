@@ -6,7 +6,6 @@ import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
-import { UpgradeProvider } from '@/components/PlanProtectedFeature';
 
 import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import RouletteFilterBar from '@/components/RouletteFilterBar';
@@ -444,65 +443,63 @@ const Index = () => {
 
   return (
     <Layout preloadData={true}>
-      <UpgradeProvider>
-        <div className="container mx-auto px-4 pt-4 md:pt-8">
-          {/* Cabeçalho removido completamente */}
-          
-          {/* Mensagem de erro */}
-          {error && (
-            <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center">
-              <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-              <p className="text-red-100">{error}</p>
-            </div>
-          )}
-          
-          {/* Estado de carregamento */}
-          {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {[...Array(12)].map((_, i) => (
-                <div key={i} className="bg-[#1e1e24] animate-pulse rounded-xl h-64"></div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col lg:flex-row gap-6">
-              {/* Cards de roleta à esquerda */}
-              <div className="w-full lg:w-1/2">
-                {/* Adicionar barra de filtro acima dos cards de roleta */}
-                <RouletteFilterBar 
-                  roulettes={roulettes}
-                  onFilter={handleRouletteFilter}
-                  onRefresh={loadRouletteData}
-                />
-                
-                <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
-                  {renderRouletteCards()}
-                </div>
-              </div>
+      <div className="container mx-auto px-4 pt-4 md:pt-8">
+        {/* Cabeçalho removido completamente */}
+        
+        {/* Mensagem de erro */}
+        {error && (
+          <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center">
+            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+            <p className="text-red-100">{error}</p>
+          </div>
+        )}
+        
+        {/* Estado de carregamento */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[...Array(12)].map((_, i) => (
+              <div key={i} className="bg-[#1e1e24] animate-pulse rounded-xl h-64"></div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Cards de roleta à esquerda */}
+            <div className="w-full lg:w-1/2">
+              {/* Adicionar barra de filtro acima dos cards de roleta */}
+              <RouletteFilterBar 
+                roulettes={roulettes}
+                onFilter={handleRouletteFilter}
+                onRefresh={loadRouletteData}
+              />
               
-              {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
-              <div className="w-full lg:w-1/2">
-                {selectedRoulette ? (
-                  <RouletteSidePanelStats
-                    roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
-                    lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
-                    wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
-                    losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
-                    providers={extractProviders(roulettes)}
-                  />
-                ) : (
-                  <div className="w-full bg-gray-900 rounded-lg p-6 text-center">
-                    <BarChart3 className="h-12 w-12 mx-auto mb-4 text-[#00ff00] opacity-50" />
-                    <h3 className="text-lg font-medium text-white mb-2">Estatísticas da Roleta</h3>
-                    <p className="text-sm text-gray-400">
-                      Selecione uma roleta para ver estatísticas detalhadas
-                    </p>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+                {renderRouletteCards()}
               </div>
             </div>
-          )}
-        </div>
-      </UpgradeProvider>
+            
+            {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
+            <div className="w-full lg:w-1/2">
+              {selectedRoulette ? (
+                <RouletteSidePanelStats
+                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
+                  lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
+                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
+                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                  providers={extractProviders(roulettes)}
+                />
+              ) : (
+                <div className="w-full bg-gray-900 rounded-lg p-6 text-center">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-[#00ff00] opacity-50" />
+                  <h3 className="text-lg font-medium text-white mb-2">Estatísticas da Roleta</h3>
+                  <p className="text-sm text-gray-400">
+                    Selecione uma roleta para ver estatísticas detalhadas
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </Layout>
   );
 };
