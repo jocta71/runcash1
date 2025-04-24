@@ -6,15 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Loader2, CreditCard, AlertTriangle, CheckCircle2, Clock, CalendarIcon, RefreshCw, ArrowRight, AlertCircle } from 'lucide-react';
+import { Loader2, CreditCard, AlertTriangle, CheckCircle2, Clock, CalendarIcon, RefreshCw, ArrowRight } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '@/config/constants';
 import { useAuth } from '@/context/AuthContext';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import { CalendarDays, CalendarClock, Ban } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Interface para pagamento
 interface Payment {
@@ -27,11 +24,7 @@ interface Payment {
   invoiceUrl?: string;
 }
 
-interface ProfileSubscriptionProps {
-  isCompact?: boolean;
-}
-
-const ProfileSubscription = ({ isCompact = false }: ProfileSubscriptionProps) => {
+const ProfileSubscription = () => {
   const { currentSubscription, currentPlan, loading, cancelSubscription, error, loadUserSubscription } = useSubscription();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -358,10 +351,10 @@ const ProfileSubscription = ({ isCompact = false }: ProfileSubscriptionProps) =>
   return (
     <div className="space-y-6">
       <Card className="border-gray-700 bg-vegas-black/30">
-        <CardHeader className={`flex flex-row items-center justify-between ${isCompact ? 'p-3' : 'p-6'}`}>
+        <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className={isCompact ? 'text-lg' : 'text-xl'}>Sua Assinatura</CardTitle>
-            <CardDescription className={isCompact ? 'text-xs' : 'text-sm'}>
+            <CardTitle>Sua Assinatura</CardTitle>
+            <CardDescription>
               Detalhes da sua assinatura atual
             </CardDescription>
           </div>
@@ -370,30 +363,30 @@ const ProfileSubscription = ({ isCompact = false }: ProfileSubscriptionProps) =>
             size="icon"
             onClick={() => refreshSubscriptionData(true)}
             disabled={isRefreshing}
-            className={isCompact ? "h-7 w-7" : "h-8 w-8"}
+            className="h-8 w-8"
           >
-            <RefreshCw className={`${isCompact ? 'h-3 w-3' : 'h-4 w-4'} ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
         </CardHeader>
         
-        <CardContent className={isCompact ? "space-y-4 px-3 pb-3" : "space-y-6"}>
+        <CardContent className="space-y-6">
           {/* Cabeçalho com plano e status */}
           <div className="flex flex-col md:flex-row md:justify-between gap-4 items-start md:items-center">
             <div className="flex items-center space-x-3">
-              <div className={`rounded-full bg-vegas-gold/10 ${isCompact ? 'p-2' : 'p-3'}`}>
-                <CreditCard className={isCompact ? "h-4 w-4 text-vegas-gold" : "h-6 w-6 text-vegas-gold"} />
+              <div className="rounded-full bg-vegas-gold/10 p-3">
+                <CreditCard className="h-6 w-6 text-vegas-gold" />
               </div>
               <div>
-                <h3 className={isCompact ? "text-base font-bold" : "text-xl font-bold"}>{currentPlan?.name || 'Plano Desconhecido'}</h3>
-                <p className={isCompact ? "text-xs text-gray-400" : "text-sm text-gray-400"}>{formatCurrency(currentPlan?.price || 0)}/mês</p>
+                <h3 className="text-xl font-bold">{currentPlan?.name || 'Plano Desconhecido'}</h3>
+                <p className="text-sm text-gray-400">{formatCurrency(currentPlan?.price || 0)}/mês</p>
               </div>
             </div>
             
             <div className="flex items-center space-x-2">
               {getStatusIcon(getEffectiveStatus().status)}
               <div>
-                <div className={isCompact ? "text-sm font-semibold" : "font-semibold"}>Status</div>
-                <div className={isCompact ? "text-xs" : "text-sm"}>{getEffectiveStatus().badge}</div>
+                <div className="font-semibold">Status</div>
+                <div>{getEffectiveStatus().badge}</div>
               </div>
             </div>
           </div>

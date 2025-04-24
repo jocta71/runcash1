@@ -174,6 +174,8 @@ const AuthStateManager = () => {
 const App = () => {
   // Criar uma única instância do QueryClient com useRef para mantê-la durante re-renders
   const queryClient = useRef(createQueryClient());
+  // Adicionar estado para controlar a exibição de páginas no painel principal
+  const [currentSideContent, setCurrentSideContent] = useState<string | null>(null);
 
   // Gerenciador de congelamento para ambientes de desenvolvimento
   const handleFreeze = () => {
@@ -224,7 +226,7 @@ const App = () => {
                           <Route index element={
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
-                                <Index />
+                                <Index currentSideContent={currentSideContent} setCurrentSideContent={setCurrentSideContent} />
                               </Suspense>
                             </ProtectedRoute>
                           } />
@@ -267,15 +269,23 @@ const App = () => {
                           <Route path="/billing" element={
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
-                                <BillingPage />
+                                <BillingPage currentSideContent={currentSideContent} setCurrentSideContent={setCurrentSideContent} />
                               </Suspense>
                             </ProtectedRoute>
                           } />
                           
+                          {/* Remover rotas específicas para páginas que agora serão carregadas via estado */}
+                          {/* As rotas ficam, mas agora passamos os estados para gerenciar exibição ao lado */}
                           <Route path="/planos" element={
+                            <Suspense fallback={<LoadingScreen />}>
+                              <Index currentSideContent="plans" setCurrentSideContent={setCurrentSideContent} />
+                            </Suspense>
+                          } />
+                          
+                          <Route path="/pagamento/:planId" element={
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
-                                <PlansPage />
+                                <Index currentSideContent="payment" setCurrentSideContent={setCurrentSideContent} />
                               </Suspense>
                             </ProtectedRoute>
                           } />
@@ -283,15 +293,7 @@ const App = () => {
                           <Route path="/pagamento" element={
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
-                                <PaymentPage />
-                              </Suspense>
-                            </ProtectedRoute>
-                          } />
-                          
-                          <Route path="/pagamento/:planId" element={
-                            <ProtectedRoute>
-                              <Suspense fallback={<LoadingScreen />}>
-                                <PaymentPage />
+                                <Index currentSideContent="payment" setCurrentSideContent={setCurrentSideContent} />
                               </Suspense>
                             </ProtectedRoute>
                           } />

@@ -6,9 +6,10 @@ interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   isMobile?: boolean;
+  setCurrentSideContent?: (content: string | null) => void;
 }
 
-const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) => {
+const Sidebar = ({ isOpen = false, onClose, isMobile = false, setCurrentSideContent }: SidebarProps) => {
   const [otherExpanded, setOtherExpanded] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState('account-information');
   const navigate = useNavigate();
@@ -22,12 +23,29 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   
   const handleSettingsItemClick = (id: string) => {
     setActiveSettingsTab(id);
+    
+    // Fechar o sidebar mobile se estiver aberto
+    if (isMobile && onClose) {
+      onClose();
+    }
+    
     if (id === 'account-information') {
       navigate('/profile');
     } else if (id === 'billing') {
-      navigate('/billing');
+      // Se estamos na página principal e temos a função para mostrar conteúdo lateral
+      if (location.pathname === '/' && setCurrentSideContent) {
+        setCurrentSideContent(null); // Limpar qualquer conteúdo lateral existente
+        navigate('/billing');
+      } else {
+        navigate('/billing');
+      }
     } else if (id === 'plans') {
-      navigate('/planos');
+      // Se estamos na página principal e temos a função para mostrar conteúdo lateral
+      if (location.pathname === '/' && setCurrentSideContent) {
+        setCurrentSideContent('plans');
+      } else {
+        navigate('/planos');
+      }
     }
   };
   
@@ -36,6 +54,11 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   ];
   
   const handleOtherItemClick = (path: string) => {
+    // Fechar o sidebar mobile se estiver aberto
+    if (isMobile && onClose) {
+      onClose();
+    }
+    
     navigate(path);
   };
   
@@ -46,7 +69,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   const content = (
     <div className="p-3 flex flex-col h-full justify-between">
       <div className="flex justify-center items-center py-4 mb-2">
-        <Link to="/" className="flex items-center justify-center">
+        <Link to="/" className="flex items-center justify-center" onClick={() => setCurrentSideContent && setCurrentSideContent(null)}>
           <img src="/img/logo.svg" alt="RunCash Logo" className="h-12" />
         </Link>
       </div>

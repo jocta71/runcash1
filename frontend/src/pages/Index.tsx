@@ -1,12 +1,14 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, BarChart3 } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback, useRef, Dispatch, SetStateAction } from 'react';
+import { AlertCircle, BarChart3, X } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
 import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
-
+import PlansPage from './PlansPage';
+import PaymentPage from './PaymentPage';
+import { useParams } from 'react-router-dom';
 
 import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import RouletteFilterBar from '@/components/RouletteFilterBar';
@@ -25,6 +27,11 @@ interface ChatMessage {
   timestamp: Date;
 }
 
+// Adicionar interface para as props
+interface IndexProps {
+  currentSideContent?: string | null;
+  setCurrentSideContent?: Dispatch<SetStateAction<string | null>>;
+}
 
 // Adicionar área do código para persistência de roletas
 interface KnownRoulette {
@@ -33,7 +40,8 @@ interface KnownRoulette {
   ultima_atualizacao: string;
 }
 
-const Index = () => {
+const Index = ({ currentSideContent, setCurrentSideContent }: IndexProps) => {
+  const { planId } = useParams<{ planId: string }>();
   // Remover o estado de busca
   // const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -442,64 +450,77 @@ const Index = () => {
     setFilteredRoulettes(filtered);
   };
 
+  // Renderizar o conteúdo lateral com base no currentSideContent
+  const renderSideContent = () => {
+    if (currentSideContent === 'plans') {
+      return <PlansPage />;
+    } else if (currentSideContent === 'payment') {
+      return <PaymentPage planId={planId} />;
+    } else if (selectedRoulette) {
+      return (
+        <RouletteSidePanelStats 
+          roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
+          lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
+          wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
+          losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+          providers={extractProviders(roulettes)}
+        />
+      );
+    }
+    return null;
+  };
+
+  // Função para fechar o painel lateral
+  const handleCloseSidePanel = () => {
+    if (setCurrentSideContent) {
+      setCurrentSideContent(null);
+    }
+  };
+
   return (
-    <Layout preloadData={true}>
-      <div className="container mx-auto px-4 pt-4 md:pt-8">
-        {/* Cabeçalho removido completamente */}
-        
-        {/* Mensagem de erro */}
-        {error && (
-          <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center">
-            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-            <p className="text-red-100">{error}</p>
-          </div>
-        )}
-        
-        {/* Estado de carregamento */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className="bg-[#1e1e24] animate-pulse rounded-xl h-64"></div>
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col lg:flex-row gap-6">
-            {/* Cards de roleta à esquerda */}
-            <div className="w-full lg:w-1/2">
-              {/* Adicionar barra de filtro acima dos cards de roleta */}
-              <RouletteFilterBar 
+    <Layout setCurrentSideContent={setCurrentSideContent}>
+      <div className="container relative mx-auto px-4 pt-2 pb-8">
+        <div className="flex flex-wrap">
+          <div className={`${currentSideContent ? 'w-full lg:w-8/12' : 'w-full'} transition-all duration-300`}>
+            <div className="mb-4">
+              <RouletteFilterBar
                 roulettes={roulettes}
                 onFilter={handleRouletteFilter}
-                onRefresh={loadRouletteData}
+                loading={isLoading}
               />
-              
-              <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
-                {renderRouletteCards()}
-              </div>
             </div>
             
-            {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
-            <div className="w-full lg:w-1/2">
-              {selectedRoulette ? (
-                <RouletteSidePanelStats
-                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
-                  lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
-                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
-                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
-                  providers={extractProviders(roulettes)}
-                />
-              ) : (
-                <div className="w-full bg-gray-900 rounded-lg p-6 text-center">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-[#00ff00] opacity-50" />
-                  <h3 className="text-lg font-medium text-white mb-2">Estatísticas da Roleta</h3>
-                  <p className="text-sm text-gray-400">
-                    Selecione uma roleta para ver estatísticas detalhadas
-                  </p>
-                </div>
-              )}
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-md flex items-center mb-4">
+                <AlertCircle className="text-red-500 mr-2" size={20} />
+                <span>{error}</span>
+              </div>
+            )}
+            
+            {renderRouletteCards()}
+            
+            <div className="mt-4 flex justify-center">
+              {renderPagination()}
             </div>
           </div>
-        )}
+          
+          {/* Painel lateral para estatísticas ou outros conteúdos */}
+          {(selectedRoulette || currentSideContent) && (
+            <div className="w-full lg:w-4/12 pl-0 lg:pl-4 mt-4 lg:mt-0">
+              <div className="bg-vegas-black/60 p-4 rounded-lg border border-gray-800 relative">
+                {currentSideContent && (
+                  <button 
+                    onClick={handleCloseSidePanel}
+                    className="absolute top-2 right-2 bg-gray-800 hover:bg-gray-700 text-white p-1 rounded-full"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+                {renderSideContent()}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </Layout>
   );
