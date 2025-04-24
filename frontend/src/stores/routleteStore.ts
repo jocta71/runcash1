@@ -1,37 +1,61 @@
-// Objeto simples sem dependências React para evitar problemas de compilação
-// Este é um substituto simples para o store que seria implementado com zustand ou React Context
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
-// Estado padrão das configurações
-const defaultSettings = {
-  enableSound: true,
-  enableNotifications: true,
-  enableVibration: false,
-  showPredictions: true,
-  autoScroll: true,
-  darkMode: false,
-};
+// Interface para o estado das configurações da roleta
+interface RouletteSettingsState {
+  // Configurações de som
+  enableSound: boolean;
+  enableNotifications: boolean;
+  enableVibration: boolean;
+  showPredictions: boolean;
+  autoScroll: boolean;
+  darkMode: boolean;
+  
+  // Métodos
+  toggleSound: () => void;
+  toggleNotifications: () => void;
+  toggleVibration: () => void;
+  togglePredictions: () => void;
+  toggleAutoScroll: () => void;
+  toggleDarkMode: () => void;
+  resetSettings: () => void;
+}
 
-/**
- * Store de configurações da roleta simplificado
- * Esta implementação básica retorna valores estáticos para evitar problemas de build
- */
-export const useRouletteSettingsStore = () => {
-  return {
-    // Propriedades de estado
-    enableSound: defaultSettings.enableSound,
-    enableNotifications: defaultSettings.enableNotifications,
-    enableVibration: defaultSettings.enableVibration,
-    showPredictions: defaultSettings.showPredictions,
-    autoScroll: defaultSettings.autoScroll,
-    darkMode: defaultSettings.darkMode,
-    
-    // Métodos - implementação vazia apenas para satisfazer a interface
-    toggleSound: () => console.log('toggleSound chamado'),
-    toggleNotifications: () => console.log('toggleNotifications chamado'),
-    toggleVibration: () => console.log('toggleVibration chamado'),
-    togglePredictions: () => console.log('togglePredictions chamado'),
-    toggleAutoScroll: () => console.log('toggleAutoScroll chamado'),
-    toggleDarkMode: () => console.log('toggleDarkMode chamado'),
-    resetSettings: () => console.log('resetSettings chamado')
-  };
-}; 
+// Criar o store com persistência local
+export const useRouletteSettingsStore = create<RouletteSettingsState>()(
+  persist(
+    (set) => ({
+      // Valores padrão
+      enableSound: true,
+      enableNotifications: true,
+      enableVibration: false,
+      showPredictions: true,
+      autoScroll: true,
+      darkMode: false,
+      
+      // Métodos para atualizar o estado
+      toggleSound: () => set((state) => ({ enableSound: !state.enableSound })),
+      toggleNotifications: () => set((state) => ({ enableNotifications: !state.enableNotifications })),
+      toggleVibration: () => set((state) => ({ enableVibration: !state.enableVibration })),
+      togglePredictions: () => set((state) => ({ showPredictions: !state.showPredictions })),
+      toggleAutoScroll: () => set((state) => ({ autoScroll: !state.autoScroll })),
+      toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
+      
+      // Resetar para valores padrão
+      resetSettings: () => set({
+        enableSound: true,
+        enableNotifications: true,
+        enableVibration: false,
+        showPredictions: true,
+        autoScroll: true,
+        darkMode: false,
+      }),
+    }),
+    {
+      name: 'roulette-settings', // Nome no localStorage
+      version: 1, // Versão para possíveis migrações futuras
+    }
+  )
+);
+
+export default useRouletteSettingsStore; 
