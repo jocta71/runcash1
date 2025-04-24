@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -12,6 +12,18 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   const [otherExpanded, setOtherExpanded] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState('account-information');
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  useEffect(() => {
+    const pathname = location.pathname;
+    if (pathname.includes('/profile')) {
+      setActiveSettingsTab('account-information');
+    } else if (pathname.includes('/billing')) {
+      setActiveSettingsTab('billing');
+    } else if (pathname.includes('/planos')) {
+      setActiveSettingsTab('plans');
+    }
+  }, [location.pathname]);
   
   const settingsOptions = [
     { id: 'account-information', label: 'Conta', icon: Settings },
