@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { proteger } = require('../middlewares/authMiddleware');
-const { verificarPlano } = require('../middleware/assinaturaMiddleware');
+const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddleware');
 
 // Controlador temporário com funções básicas
 const empresarialController = {
@@ -65,7 +65,7 @@ const empresarialController = {
 router.use(proteger);
 
 // Aplicar middleware para verificar plano empresarial
-router.use(verificarPlano(['empresarial']));
+router.use(subscriptionMiddleware.verificarPlano(['empresarial']));
 
 // Rotas de relatórios departamentais
 router.get('/relatorios/departamental', empresarialController.obterRelatorioDepartamental);

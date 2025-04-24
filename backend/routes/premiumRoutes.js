@@ -5,14 +5,14 @@
 const express = require('express');
 const router = express.Router();
 const { proteger } = require('../middlewares/authMiddleware');
-const { verificarPlano } = require('../middleware/assinaturaMiddleware');
+const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddleware');
 const premiumController = require('../controllers/premiumController');
 
 // Aplicar middleware de autenticação em todas as rotas
 router.use(proteger);
 
 // Aplicar middleware para verificar plano premium
-router.use(verificarPlano(['premium', 'empresarial']));
+router.use(subscriptionMiddleware.verificarPlano(['premium', 'empresarial']));
 
 // Rotas de relatórios financeiros
 router.get('/relatorios', premiumController.obterRelatoriosFinanceiros);

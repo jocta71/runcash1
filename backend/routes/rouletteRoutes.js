@@ -8,7 +8,7 @@ const router = express.Router();
 
 // Importar middlewares
 const { authenticate } = require('../middlewares/authMiddleware');
-const { requireSubscription } = require('../middlewares/subscriptionCheck');
+const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddleware');
 
 // Importar controller
 const rouletteController = require('../controllers/rouletteController');
@@ -49,7 +49,7 @@ router.get('/roulettes/:id/recent',
  */
 router.get('/roulettes/:id/detailed', 
   authenticate({ required: true }),
-  requireSubscription({ 
+  subscriptionMiddleware.requireSubscription({ 
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
     resourceType: 'detailed_data'
   }),
@@ -63,7 +63,7 @@ router.get('/roulettes/:id/detailed',
  */
 router.get('/roulettes/:id/stats', 
   authenticate({ required: true }),
-  requireSubscription({ 
+  subscriptionMiddleware.requireSubscription({ 
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
     resourceType: 'roulette_stats'
   }),
@@ -77,7 +77,7 @@ router.get('/roulettes/:id/stats',
  */
 router.get('/roulettes/:id/historical', 
   authenticate({ required: true }),
-  requireSubscription({ 
+  subscriptionMiddleware.requireSubscription({ 
     allowedPlans: ['PREMIUM'],
     resourceType: 'historical_data'
   }),
@@ -91,7 +91,7 @@ router.get('/roulettes/:id/historical',
  */
 router.get('/roulettes/:id/batch', 
   authenticate({ required: true }),
-  requireSubscription({ 
+  subscriptionMiddleware.requireSubscription({ 
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
     resourceType: 'numbers_batch'
   }),

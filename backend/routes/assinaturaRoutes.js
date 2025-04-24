@@ -5,14 +5,14 @@
 const express = require('express');
 const router = express.Router();
 const { proteger } = require('../middlewares/authMiddleware');
-const { adicionarInfoAssinatura } = require('../middleware/assinaturaMiddleware');
+const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddleware');
 
 // Controlador temporário para assinaturas
 const assinaturaController = {
   // Obter status da assinatura atual do usuário
   obterStatus: (req, res) => {
     // Se não houver assinatura, retornar status sem assinatura
-    if (!req.assinatura) {
+    if (!req.assinatura && !req.subscription) {
       return res.status(200).json({
         success: true,
         message: 'Informações da assinatura recuperadas com sucesso',
@@ -24,18 +24,22 @@ const assinaturaController = {
       });
     }
 
+    // Usar req.subscription se existir, senão usar req.assinatura
+    const assinatura = req.subscription || req.assinatura;
+
     // Se houver assinatura, retornar seus detalhes
     res.status(200).json({
       success: true,
       message: 'Informações da assinatura recuperadas com sucesso',
       data: {
         possuiAssinatura: true,
-        status: req.assinatura.status,
-        plano: req.assinatura.plano,
-        dataInicio: req.assinatura.dataInicio,
-        validade: req.assinatura.validade,
-        renovacaoAutomatica: req.assinatura.renovacaoAutomatica,
-        diasRestantes: req.assinatura.diasRestantes ? req.assinatura.diasRestantes() : 0
+        status: assinatura.status,
+        plano: assinatura.plano || assinatura.plan_id,
+        dataInicio: assinatura.dataInicio || assinatura.startDate,
+        validade: assinatura.validade || assinatura.expirationDate,
+        renovacaoAutomatica: assinatura.renovacaoAutomatica || assinatura.autoRenew || false,
+        diasRestantes: typeof assinatura.diasRestantes === 'function' ? assinatura.diasRestantes() : 
+          (assinatura.expirationDate ? Math.ceil((new Date(assinatura.expirationDate) - new Date()) / (1000 * 60 * 60 * 24)) : 0)
       }
     });
   },
@@ -142,8 +146,8 @@ const assinaturaController = {
 router.get('/planos', assinaturaController.listarPlanos);
 
 // Rotas que requerem autenticação
-router.get('/status', proteger, adicionarInfoAssinatura, assinaturaController.obterStatus);
+router.get('/status', proteger, assinaturaController.obterStatus);
 router.post('/assinar', proteger, assinaturaController.assinarPlano);
-router.post('/cancelar', proteger, adicionarInfoAssinatura, assinaturaController.cancelarAssinatura);
+router.post('/cancelar', proteger, assinaturaController.cancelarAssinatura);
 
 module.exports = router; 

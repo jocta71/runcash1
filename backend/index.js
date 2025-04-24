@@ -25,6 +25,7 @@ const aiAnalysisRoutes = require('./api/ai-analysis');
 const premiumRoutes = require('./routes/premiumRoutes');
 const empresarialRoutes = require('./routes/empresarialRoutes');
 const assinaturaRoutes = require('./routes/assinaturaRoutes');
+const rouletteRoutes = require('./routes/rouletteRoutes');
 
 // Middlewares
 app.use(cors());
@@ -35,6 +36,7 @@ app.use('/api/ai', aiAnalysisRoutes);
 app.use('/api/premium', premiumRoutes);
 app.use('/api/empresarial', empresarialRoutes);
 app.use('/api/assinatura', assinaturaRoutes);
+app.use('/api', rouletteRoutes);
 
 // Rota principal para verificação
 app.get('/', (req, res) => {
@@ -73,6 +75,7 @@ server.listen(PORT, () => {
   console.log(`[Server] API Premium disponível em /api/premium`);
   console.log(`[Server] API Empresarial disponível em /api/empresarial`);
   console.log(`[Server] API Assinatura disponível em /api/assinatura`);
+  console.log(`[Server] API Roletas disponível em /api/roulettes`);
 });
 
 console.log('=== RunCash WebSocket Launcher ===');
