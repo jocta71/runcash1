@@ -11,11 +11,21 @@ interface SidebarProps {
 const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) => {
   const [otherExpanded, setOtherExpanded] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState('account-information');
+  const [isRoulettesActive, setIsRoulettesActive] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
   
   useEffect(() => {
     const pathname = location.pathname;
+    
+    // Verifica se está na página inicial
+    if (pathname === '/' || pathname === '') {
+      setIsRoulettesActive(true);
+    } else {
+      setIsRoulettesActive(false);
+    }
+    
+    // Atualiza a tab de configurações ativa
     if (pathname.includes('/profile')) {
       setActiveSettingsTab('account-information');
     } else if (pathname.includes('/billing')) {
@@ -33,6 +43,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   
   const handleSettingsItemClick = (id: string) => {
     setActiveSettingsTab(id);
+    setIsRoulettesActive(false);
     if (id === 'account-information') {
       navigate('/profile');
     } else if (id === 'billing') {
@@ -47,10 +58,13 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   ];
   
   const handleOtherItemClick = (path: string) => {
+    setIsRoulettesActive(false);
     navigate(path);
   };
   
   const handleRouletteClick = () => {
+    setIsRoulettesActive(true);
+    setActiveSettingsTab('');
     navigate('/');
   };
   
@@ -79,11 +93,11 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
           <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Jogos</h3>
           <div className="space-y-1">
             <div 
-              className="menu-item active"
+              className={`menu-item ${isRoulettesActive ? 'active' : ''}`}
               onClick={handleRouletteClick}
             >
               <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <Gamepad2 size={18} className="text-white" />
+                <Gamepad2 size={18} className={isRoulettesActive ? "text-[#00FF00]" : "text-white"} />
               </div>
               <span className="truncate">Roletas</span>
             </div>

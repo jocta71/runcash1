@@ -1,12 +1,14 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, BarChart3 } from 'lucide-react';
+import { AlertCircle, BarChart3, LockKeyhole } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
 import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
-
+import { useSubscription } from '@/context/SubscriptionContext';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import RouletteFilterBar from '@/components/RouletteFilterBar';
@@ -266,7 +268,7 @@ const Index = () => {
       }
     );
     
-    // Agendar atualizações periódicas
+    // Agendar atualização periódica
     const scheduleUpdate = () => {
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
@@ -327,52 +329,70 @@ const Index = () => {
 
   // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
-    if (!Array.isArray(filteredRoulettes) || filteredRoulettes.length === 0) {
+    // Verificar se o usuário tem um plano válido para visualizar as roletas
+    const { hasFeatureAccess, currentPlan } = useSubscription();
+    const canViewRoulettes = hasFeatureAccess('view_roulette_cards');
+    const navigate = useNavigate();
+
+    // Se o usuário não tiver acesso, retornar apenas o primeiro card
+    // e um banner informativo no lugar dos demais
+    if (!canViewRoulettes) {
+      // Pegar apenas a primeira roleta para mostrar
+      const firstRoulette = roulettes.length > 0 ? roulettes[0] : null;
+      
+      if (!firstRoulette) return null;
+      
+      // Garantir números válidos para o primeiro card
+      const safeNumbers = firstRoulette.numero || firstRoulette.numeros || [];
+      
       return (
-        <div className="col-span-full text-center py-8">
-          <p className="text-muted-foreground">Nenhuma roleta disponível com os filtros atuais.</p>
-        </div>
+        <>
+          {/* Banner informativo centralizado */}
+          <div className="col-span-full mb-6">
+            <div className="bg-[#1A191F] border border-vegas-gold/30 rounded-xl p-6 text-center">
+              <LockKeyhole className="h-12 w-12 text-red-400 mx-auto mb-3" />
+              <h3 className="text-xl font-bold text-white mb-2">Acesso Limitado</h3>
+              <p className="text-gray-400 mb-4">
+                Os cartões de roleta completos só estão disponíveis para assinantes. 
+                Faça upgrade do seu plano para visualizar todas as {roulettes.length} roletas disponíveis.
+              </p>
+              <Button
+                onClick={() => navigate('/planos')}
+                className="bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+              >
+                Ver Planos Disponíveis
+              </Button>
+            </div>
+          </div>
+          
+          {/* Mostrar apenas a primeira roleta como exemplo */}
+          <div 
+            key={firstRoulette.id} 
+            className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === firstRoulette.id ? 'border-2 border-green-500 shadow-lg shadow-green-500/20' : 'p-0.5'}`}
+            onClick={() => setSelectedRoulette(firstRoulette)}
+          >
+            <RouletteCard
+              data={{
+                id: firstRoulette.id || '',
+                _id: firstRoulette._id || firstRoulette.id || '',
+                name: firstRoulette.name || firstRoulette.nome || 'Roleta sem nome',
+                nome: firstRoulette.nome || firstRoulette.name || 'Roleta sem nome',
+                lastNumbers: safeNumbers,
+                numeros: safeNumbers,
+                vitorias: typeof firstRoulette.vitorias === 'number' ? firstRoulette.vitorias : 0,
+                derrotas: typeof firstRoulette.derrotas === 'number' ? firstRoulette.derrotas : 0,
+                estado_estrategia: firstRoulette.estado_estrategia || ''
+              }}
+            />
+          </div>
+        </>
       );
     }
-
-    // Log para depuração
-    console.log(`[Index] Renderizando ${filteredRoulettes.length} roletas disponíveis`);
     
-    // Mais logs para depuração - mostrar o total de roletas
-    console.log(`[Index] Exibindo todas as ${filteredRoulettes.length} roletas disponíveis`);
-    
-    // MODIFICAÇÃO CRÍTICA: Mostrar todas as roletas sem paginação
-    const allRoulettes = filteredRoulettes;
-    
-    console.log(`[Index] Exibindo todas as ${allRoulettes.length} roletas disponíveis`);
-
-    return allRoulettes.map(roulette => {
+    // Se o usuário tem acesso, renderizar todas as roletas normalmente
+    return roulettes.map(roulette => {
       // Garantir que temos números válidos
-      let safeNumbers: number[] = [];
-      
-      // Tentar extrair números do campo numero
-      if (Array.isArray(roulette.numero)) {
-        safeNumbers = roulette.numero
-          .filter(item => item !== null && item !== undefined)
-          .map(item => {
-            // Aqui sabemos que item não é null ou undefined após o filtro
-            const nonNullItem = item as any; // Tratar como any para evitar erros de tipo
-            // Se for um objeto com a propriedade numero
-            if (typeof nonNullItem === 'object' && 'numero' in nonNullItem) {
-              return nonNullItem.numero;
-            }
-            // Se for um número diretamente
-            return nonNullItem;
-          });
-      } 
-      // Tentar extrair de lastNumbers se ainda estiver vazio
-      else if (Array.isArray(roulette.lastNumbers) && roulette.lastNumbers.length > 0) {
-        safeNumbers = roulette.lastNumbers;
-      } 
-      // Tentar extrair de numeros se ainda estiver vazio
-      else if (Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
-        safeNumbers = roulette.numeros;
-      }
+      const safeNumbers = roulette.numero || roulette.numeros || [];
       
       return (
         <div 
@@ -405,9 +425,7 @@ const Index = () => {
     }
     
     // Usar todas as roletas diretamente, sem filtro
-    const filteredRoulettes = roulettes;
-    
-    const totalPages = Math.ceil(filteredRoulettes.length / itemsPerPage);
+    const totalPages = Math.ceil(roulettes.length / itemsPerPage);
     
     // Sempre mostrar a paginação se houver roletas
     // Removida a condição que ocultava a paginação quando havia apenas uma página
