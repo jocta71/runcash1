@@ -30,10 +30,18 @@ export const availablePlans: Plan[] = [
     features: [
       'Acesso a estatísticas padrão',
       'Visualização de até 15 roletas',
+      'Visualização completa dos cartões de roleta',
+      'Acesso ao painel lateral de estatísticas',
       'Atualizações a cada 5 minutos',
       'Suporte por email'
     ],
-    allowedFeatures: ['view_basic_stats', 'view_standard_roulettes', 'email_support']
+    allowedFeatures: [
+      'view_basic_stats', 
+      'view_standard_roulettes', 
+      'view_roulette_cards',
+      'view_roulette_sidepanel',
+      'email_support'
+    ]
   },
   {
     id: 'pro',
@@ -45,35 +53,49 @@ export const availablePlans: Plan[] = [
     features: [
       'Acesso a estatísticas avançadas',
       'Visualização de roletas ilimitadas',
+      'Visualização completa dos cartões de roleta',
+      'Acesso ao painel lateral de estatísticas',
       'Atualizações a cada 1 minuto',
       'Suporte prioritário',
       'Alertas personalizados'
     ],
-    allowedFeatures: ['view_advanced_stats', 'view_unlimited_roulettes', 'priority_support', 'custom_alerts']
+    allowedFeatures: [
+      'view_advanced_stats', 
+      'view_unlimited_roulettes', 
+      'view_roulette_cards',
+      'view_roulette_sidepanel',
+      'priority_support', 
+      'custom_alerts'
+    ]
   },
   {
     id: 'premium',
     name: 'Premium',
     type: PlanType.PREMIUM,
-    description: 'Experiência completa para profissionais',
+    description: 'Experiência completa com todos os recursos exclusivos',
     price: 99.90,
     interval: 'monthly',
     features: [
-      'Acesso a estatísticas em tempo real',
-      'Visualização de roletas ilimitadas',
-      'Atualizações em tempo real',
-      'Suporte VIP 24/7',
-      'Alertas avançados personalizados',
-      'Estratégias exclusivas',
-      'Acesso antecipado a novas funcionalidades'
+      'Todos os recursos do plano Profissional',
+      'API dedicada para integração',
+      'Visualização completa dos cartões de roleta',
+      'Acesso ao painel lateral de estatísticas',
+      'Modelo de IA avançado para previsões',
+      'Acesso a dados históricos completos',
+      'Suporte técnico 24/7',
+      'Sessão de consultoria personalizada'
     ],
     allowedFeatures: [
-      'view_realtime_stats', 
+      'view_advanced_stats', 
       'view_unlimited_roulettes', 
-      'vip_support', 
-      'advanced_alerts', 
-      'exclusive_strategies', 
-      'early_access'
+      'view_historical_data', 
+      'api_access', 
+      'ai_predictions',
+      'view_roulette_cards',
+      'view_roulette_sidepanel',
+      'priority_support', 
+      'custom_alerts', 
+      'personalized_consulting'
     ]
   }
 ];
