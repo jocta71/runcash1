@@ -335,64 +335,91 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         currentPlan.allowedFeatures.includes(featureId);
     }
     
-    try {
-      // Chamar a API para verificar acesso ao backend
-      console.log(`[SubscriptionContext] Verificando acesso a feature "${featureId}" via API`);
-      const response = await axios.get(`${API_URL}/api/subscription/check-access/${featureId}`);
+    // Função de verificação local de permissões (para reutilização)
+    const checkLocalAccess = (): boolean => {
+      console.log(`[SubscriptionContext] Verificando acesso a feature "${featureId}" localmente`);
       
-      if (response.data && response.data.success) {
-        const hasAccess = response.data.hasAccess;
-        console.log(`[SubscriptionContext] Resposta da API para feature "${featureId}": ${hasAccess ? 'Acesso permitido' : 'Acesso negado'}`);
-        
-        // Se o usuário tem acesso a uma feature superior ao seu plano atual,
-        // atualizar o plano no frontend para refletir o que o backend reportou
-        if (hasAccess && response.data.planType) {
-          // Converter o tipo de plano da API para o enum PlanType
-          const planTypeFromAPI = 
-            response.data.planType === 'PREMIUM' ? PlanType.PREMIUM :
-            response.data.planType === 'PRO' ? PlanType.PRO :
-            response.data.planType === 'BASIC' ? PlanType.BASIC : 
-            PlanType.FREE;
-            
-          // Se o plano do backend for superior ao atual, atualizar
-          if (
-            (planTypeFromAPI === PlanType.PREMIUM && currentPlan.type !== PlanType.PREMIUM) ||
-            (planTypeFromAPI === PlanType.PRO && 
-              (currentPlan.type !== PlanType.PRO && currentPlan.type !== PlanType.PREMIUM)) ||
-            (planTypeFromAPI === PlanType.BASIC && 
-              (currentPlan.type === PlanType.FREE))
-          ) {
-            console.log(`[SubscriptionContext] Atualizando plano de ${currentPlan.type} para ${planTypeFromAPI} baseado na resposta da API`);
-            
-            // Encontrar o plano correspondente
-            const newPlan = availablePlans.find(p => p.type === planTypeFromAPI) || null;
-            if (newPlan) {
-              setCurrentPlan(newPlan);
-            }
-          }
-        }
-        
-        return hasAccess;
-      }
-      
-      // Se houve erro na API, negar acesso (segurança)
-      console.error(`[SubscriptionContext] Erro na resposta da API para feature "${featureId}"`);
-      return false;
-    } catch (error) {
-      console.error(`[SubscriptionContext] Erro ao verificar acesso a feature "${featureId}" via API:`, error);
-      
-      // Se houve erro na chamada à API, fazer verificação local como fallback
-      console.log(`[SubscriptionContext] Usando validação local como fallback para feature "${featureId}"`);
-      
-      // Para planos pagos, verificar se a assinatura está ativa (não pendente/cancelada)
+      // Verificar se a assinatura está ativa
       const isSubscriptionActive = currentSubscription && 
         (currentSubscription.status === 'active' || currentSubscription.status === 'ativo');
       
-      // Se for gratuito ou a assinatura estiver ativa, verifica se a feature está na lista
+      // Se for plano FREE ou assinatura ativa, verificar se a feature está na lista de permissões
       if (currentPlan.type === PlanType.FREE || isSubscriptionActive) {
-        return currentPlan.allowedFeatures.includes(featureId);
+        const hasAccess = currentPlan.allowedFeatures.includes(featureId);
+        console.log(`[SubscriptionContext] Acesso a feature "${featureId}" ${hasAccess ? 'permitido' : 'negado'} no plano ${currentPlan.type}`);
+        return hasAccess;
       }
       
+      console.log(`[SubscriptionContext] Acesso negado: assinatura não está ativa (${currentSubscription?.status || 'nenhuma'})`);
+      return false;
+    };
+    
+    // Primeiro, tentar verificar com os dados que já temos carregados
+    if (currentSubscription && currentPlan) {
+      return checkLocalAccess();
+    }
+    
+    try {
+      // Se não temos os dados carregados ou é forçada uma atualização, recarregar
+      if (!currentSubscription || !currentPlan) {
+        console.log(`[SubscriptionContext] Recarregando dados da assinatura para verificar acesso a "${featureId}"`);
+        await loadUserSubscription(true);
+        
+        // Verificar novamente após recarregar
+        return checkLocalAccess();
+      }
+      
+      // Tentar fazer a verificação via API apenas como segunda opção
+      try {
+        console.log(`[SubscriptionContext] Tentando verificar acesso a feature "${featureId}" via API`);
+        const response = await axios.get(`${API_URL}/api/subscription/check-access/${featureId}`);
+        
+        if (response.data && response.data.success) {
+          const hasAccess = response.data.hasAccess;
+          console.log(`[SubscriptionContext] Resposta da API para feature "${featureId}": ${hasAccess ? 'Acesso permitido' : 'Acesso negado'}`);
+          
+          // Se o usuário tem acesso a uma feature superior ao seu plano atual,
+          // atualizar o plano no frontend para refletir o que o backend reportou
+          if (hasAccess && response.data.planType) {
+            // Converter o tipo de plano da API para o enum PlanType
+            const planTypeFromAPI = 
+              response.data.planType === 'PREMIUM' ? PlanType.PREMIUM :
+              response.data.planType === 'PRO' ? PlanType.PRO :
+              response.data.planType === 'BASIC' ? PlanType.BASIC : 
+              PlanType.FREE;
+              
+            // Se o plano do backend for superior ao atual, atualizar
+            if (
+              (planTypeFromAPI === PlanType.PREMIUM && currentPlan.type !== PlanType.PREMIUM) ||
+              (planTypeFromAPI === PlanType.PRO && 
+                (currentPlan.type !== PlanType.PRO && currentPlan.type !== PlanType.PREMIUM)) ||
+              (planTypeFromAPI === PlanType.BASIC && 
+                (currentPlan.type === PlanType.FREE))
+            ) {
+              console.log(`[SubscriptionContext] Atualizando plano de ${currentPlan.type} para ${planTypeFromAPI} baseado na resposta da API`);
+              
+              // Encontrar o plano correspondente
+              const newPlan = availablePlans.find(p => p.type === planTypeFromAPI) || null;
+              if (newPlan) {
+                setCurrentPlan(newPlan);
+              }
+            }
+          }
+          
+          return hasAccess;
+        }
+        
+        // Se houve erro na API, usar verificação local
+        console.log(`[SubscriptionContext] Erro na resposta da API, usando validação local para "${featureId}"`);
+        return checkLocalAccess();
+      } catch (apiError) {
+        console.log(`[SubscriptionContext] API de verificação não disponível, usando validação local para "${featureId}"`);
+        return checkLocalAccess();
+      }
+    } catch (error) {
+      console.error(`[SubscriptionContext] Erro ao verificar acesso a feature "${featureId}":`, error);
+      
+      // Em caso de erro, negar acesso por segurança
       return false;
     }
   };

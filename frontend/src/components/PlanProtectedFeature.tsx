@@ -54,30 +54,40 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
   showUpgradeOption = true,
   placeholderContent
 }) => {
-  const { hasFeatureAccess, availablePlans, currentPlan } = useSubscription();
+  const { hasFeatureAccess, availablePlans, currentPlan, loading: subscriptionLoading } = useSubscription();
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
   
   // Efeito para verificar acesso de forma assíncrona
   useEffect(() => {
+    // Reiniciar verificação quando o plano atual mudar
+    if (subscriptionLoading) {
+      setCheckingAccess(true);
+      return;
+    }
+    
+    // Função para verificar acesso
     const checkAccess = async () => {
       try {
+        console.log(`[PlanProtectedFeature] Verificando acesso a "${featureId}"...`);
         setCheckingAccess(true);
         const access = await hasFeatureAccess(featureId);
         setHasAccess(access);
+        console.log(`[PlanProtectedFeature] Acesso a "${featureId}": ${access ? 'Permitido' : 'Negado'}`);
       } catch (error) {
-        console.error(`Erro ao verificar acesso a feature "${featureId}":`, error);
+        console.error(`[PlanProtectedFeature] Erro ao verificar acesso a feature "${featureId}":`, error);
         setHasAccess(false);
       } finally {
         setCheckingAccess(false);
       }
     };
     
+    // Verificar acesso quando o componente montar ou quando o plano mudar
     checkAccess();
-  }, [featureId, hasFeatureAccess]);
+  }, [featureId, hasFeatureAccess, subscriptionLoading, currentPlan]);
   
   // Exibir um loader enquanto verifica o acesso
-  if (checkingAccess) {
+  if (checkingAccess || subscriptionLoading) {
     return (
       <div className="w-full h-full min-h-[150px] bg-[#131111] flex flex-col items-center justify-center p-4 rounded-md">
         <div className="h-8 w-8 border-2 border-vegas-gold border-t-transparent rounded-full animate-spin"></div>
@@ -93,7 +103,7 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
   
   // Encontrar o plano mínimo que oferece este recurso
   const planWithFeature = availablePlans.find(plan => 
-    plan.allowedFeatures.includes(featureId) && 
+    plan.allowedFeatures?.includes(featureId) && 
     (requiredPlan ? plan.type === requiredPlan : true)
   );
 
@@ -102,7 +112,9 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
     <div className="w-full h-full min-h-[150px] bg-[#131111] flex flex-col items-center justify-center p-4 rounded-md">
       <div className="flex flex-col items-center">
         <LockKeyhole className="h-10 w-10 text-red-500 mb-3" />
-        <p className="text-center text-gray-400 mb-3 max-w-lg">{lockedMessage || 'Este recurso requer uma assinatura premium.'}</p>
+        <p className="text-center text-gray-400 mb-3 max-w-lg">
+          {lockedMessage || `Este recurso requer uma assinatura ${requiredPlan.toString().toLowerCase() || 'premium'}.`}
+        </p>
         {showUpgradeOption && (
           <Dialog>
             <DialogTrigger asChild>
