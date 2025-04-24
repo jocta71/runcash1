@@ -14,7 +14,6 @@ export interface Plan {
   interval: 'monthly' | 'annual';
   features: string[];
   allowedFeatures: string[];
-  expirationDate?: string;
 }
 
 export interface UserSubscription {

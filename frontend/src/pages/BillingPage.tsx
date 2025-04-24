@@ -1,194 +1,139 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
-import { useSubscription } from '@/context/SubscriptionContext';
-import Layout from '@/components/Layout';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowRight, Calendar, CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { formatDate } from '@/utils/date';
+import { CreditCard, ExternalLink } from 'lucide-react';
+import { useToast } from "@/components/ui/use-toast";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useSubscription } from '@/context/SubscriptionContext';
+import ProfileSubscription from './ProfileSubscription';
+import { useNavigate } from 'react-router-dom';
+import Layout from '@/components/Layout';
 
-interface BillingPageProps {
-  currentSideContent?: string | null;
-  setCurrentSideContent?: React.Dispatch<React.SetStateAction<string | null>>;
-}
-
-const BillingPage = ({ currentSideContent, setCurrentSideContent }: BillingPageProps) => {
-  const { user } = useAuth();
-  const { currentPlan, paymentHistory, loading, loadPaymentHistory } = useSubscription();
+const BillingPage = () => {
+  const { toast } = useToast();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('subscription');
-  
-  useEffect(() => {
-    // Carregar histórico de pagamentos quando o componente montar
-    if (loadPaymentHistory) {
-      loadPaymentHistory();
-    }
-  }, [loadPaymentHistory]);
+  const { currentPlan, loading } = useSubscription();
 
-  const handlePlanClick = () => {
-    // Se temos a função para setar o conteúdo lateral e estamos na página principal
-    if (setCurrentSideContent && window.location.pathname === '/') {
-      setCurrentSideContent('plans');
-    } else {
-      navigate('/planos');
-    }
+  const handleViewPlans = () => {
+    navigate('/planos');
   };
 
   return (
-    <Layout setCurrentSideContent={setCurrentSideContent}>
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
-        <h1 className="text-3xl font-bold mb-6">Minha Conta</h1>
-        
-        <Tabs 
-          defaultValue="subscription" 
-          value={activeTab} 
-          onValueChange={setActiveTab}
-          className="w-full"
-        >
-          <TabsList className="grid grid-cols-2 mb-8">
-            <TabsTrigger value="subscription">Assinatura</TabsTrigger>
-            <TabsTrigger value="payments">Histórico de Pagamentos</TabsTrigger>
-          </TabsList>
+    <Layout>
+      <div className="container max-w-4xl py-8 space-y-8">
+        <div className="max-w-4xl mx-auto bg-[#1A191F] rounded-xl p-6 text-white shadow-lg">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-white">Faturamento</h1>
+            <Button 
+              onClick={handleViewPlans} 
+              className="bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+            >
+              Ver todos os planos
+              <ExternalLink className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
           
-          <TabsContent value="subscription" className="space-y-8">
-            <div className="bg-vegas-black/60 rounded-lg p-6 border border-gray-800">
-              <h2 className="text-xl font-bold mb-4">Plano Atual</h2>
-              
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-vegas-gold" />
-                </div>
-              ) : currentPlan ? (
-                <div className="space-y-4">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-800 pb-4">
-                    <div>
-                      <span className="text-vegas-gold font-medium text-lg mb-1">
-                        {currentPlan.name}
-                      </span>
-                      <p className="text-sm text-gray-400">{currentPlan.description}</p>
-                    </div>
-                    <div className="mt-2 md:mt-0">
-                      <span className="text-2xl font-bold">
-                        R$ {currentPlan.price.toFixed(2)}
-                      </span>
-                      <span className="text-gray-400 text-sm">
-                        /{currentPlan.interval === 'monthly' ? 'mês' : 'ano'}
-                      </span>
-                    </div>
-                  </div>
+          <Tabs defaultValue="subscription" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 bg-[#111118] border border-[#33333359]">
+              <TabsTrigger value="subscription" className="data-[state=active]:bg-vegas-gold data-[state=active]:text-black">
+                Assinatura
+              </TabsTrigger>
+              <TabsTrigger value="payment-methods" className="data-[state=active]:bg-vegas-gold data-[state=active]:text-black">
+                Métodos de Pagamento
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="subscription" className="mt-6">
+              <ProfileSubscription />
+            </TabsContent>
+            
+            {/* Histórico de Pagamentos */}
+            <TabsContent value="payment-methods" className="mt-6">
+              <div className="space-y-6">
+                <div className="p-4 bg-[#111118] border border-[#33333359] rounded-lg">
+                  <h3 className="text-lg font-bold mb-4">Métodos de Pagamento</h3>
                   
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-                        <span className="text-sm">Próxima cobrança</span>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-vegas-black/60 border border-gray-700 rounded-lg">
+                      <p className="mb-4">Esta plataforma utiliza o sistema de pagamento PIX através do Asaas.</p>
+                      <div className="flex items-center p-3 border border-[#33333359] rounded-lg bg-[#1A191F]">
+                        <div className="h-10 w-10 bg-[#111118] rounded-md mr-3 flex items-center justify-center">
+                          <span className="text-green-500 font-bold">PIX</span>
+                        </div>
+                        <div>
+                          <p className="font-medium">Pagamento via PIX</p>
+                          <p className="text-xs text-gray-400">Processado por Asaas</p>
+                        </div>
                       </div>
-                      <span className="font-medium">
-                        {currentPlan.expirationDate 
-                          ? formatDate(new Date(currentPlan.expirationDate))
-                          : 'Não disponível'}
-                      </span>
                     </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Clock className="h-5 w-5 text-gray-400 mr-2" />
-                        <span className="text-sm">Status</span>
-                      </div>
-                      <span className="bg-green-500/20 text-green-500 text-xs px-2 py-1 rounded-full">
-                        Ativo
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="pt-4">
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={handlePlanClick}
-                    >
-                      Ver Outros Planos <ArrowRight className="h-4 w-4 ml-2" />
-                    </Button>
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="bg-gray-800/50 rounded-lg p-4">
-                    <p className="text-gray-400 text-center">
-                      Você não possui nenhum plano ativo no momento.
-                    </p>
+                
+                {/* Histórico de Faturamento */}
+                <div className="p-4 bg-[#111118] border border-[#33333359] rounded-lg">
+                  <h3 className="text-lg font-bold mb-4">Histórico de Faturamento</h3>
+                  <div className="space-y-4">
+                    {currentPlan ? (
+                      <>
+                        <div className="flex justify-between items-center text-sm pb-2 border-b border-[#33333359]">
+                          <div className="flex items-center">
+                            <CreditCard className="mr-2 text-green-500" size={16} />
+                            <span>Abril 13, 2025</span>
+                          </div>
+                          <div>
+                            <span className="bg-green-900/30 text-green-400 text-xs px-2 py-1 rounded-full mr-2">Pago</span>
+                            <span>R$ {currentPlan.price.toFixed(2)}</span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center text-sm pb-2 border-b border-[#33333359]">
+                          <div className="flex items-center">
+                            <CreditCard className="mr-2 text-green-500" size={16} />
+                            <span>Março 13, 2025</span>
+                          </div>
+                          <div>
+                            <span className="bg-green-900/30 text-green-400 text-xs px-2 py-1 rounded-full mr-2">Pago</span>
+                            <span>R$ {currentPlan.price.toFixed(2)}</span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center text-sm pb-2 border-b border-[#33333359]">
+                          <div className="flex items-center">
+                            <CreditCard className="mr-2 text-green-500" size={16} />
+                            <span>Fevereiro 13, 2025</span>
+                          </div>
+                          <div>
+                            <span className="bg-green-900/30 text-green-400 text-xs px-2 py-1 rounded-full mr-2">Pago</span>
+                            <span>R$ {currentPlan.price.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-gray-400 text-center py-4">
+                        Nenhum histórico de pagamento disponível.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Notas de Faturamento */}
+                <div className="p-4 bg-[#111118] border border-[#33333359] rounded-lg">
+                  <h3 className="text-lg font-bold mb-4">Informações de Pagamento</h3>
+                  
+                  <div className="space-y-2 mb-4">
+                    <p className="text-sm text-gray-300">• Os pagamentos são processados via PIX através da plataforma Asaas</p>
+                    <p className="text-sm text-gray-300">• As cobranças são realizadas a cada período de acordo com seu plano</p>
+                    <p className="text-sm text-gray-300">• Você pode cancelar sua assinatura a qualquer momento</p>
+                    <p className="text-sm text-gray-300">• Em caso de dúvidas, entre em contato com o suporte</p>
                   </div>
                   
                   <Button 
-                    variant="default" 
-                    className="w-full bg-vegas-gold hover:bg-vegas-gold/80 text-black font-medium"
-                    onClick={handlePlanClick}
+                    onClick={handleViewPlans} 
+                    className="mt-2 border border-vegas-gold text-vegas-gold hover:bg-vegas-gold/10"
                   >
-                    Ver Planos Disponíveis <ArrowRight className="h-4 w-4 ml-2" />
+                    Gerenciar Plano
                   </Button>
                 </div>
-              )}
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="payments" className="space-y-8">
-            <div className="bg-vegas-black/60 rounded-lg p-6 border border-gray-800">
-              <h2 className="text-xl font-bold mb-4">Histórico de Pagamentos</h2>
-              
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-vegas-gold" />
-                </div>
-              ) : paymentHistory && paymentHistory.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-800">
-                        <th className="text-left py-3 px-4">Data</th>
-                        <th className="text-left py-3 px-4">Descrição</th>
-                        <th className="text-left py-3 px-4">Valor</th>
-                        <th className="text-left py-3 px-4">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paymentHistory.map((payment, index) => (
-                        <tr key={index} className="border-b border-gray-800">
-                          <td className="py-3 px-4">
-                            {payment.date ? formatDate(new Date(payment.date)) : 'N/A'}
-                          </td>
-                          <td className="py-3 px-4">{payment.description || 'Pagamento'}</td>
-                          <td className="py-3 px-4">R$ {payment.amount?.toFixed(2) || '0.00'}</td>
-                          <td className="py-3 px-4">
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              payment.status === 'CONFIRMED' || payment.status === 'RECEIVED' || payment.status === 'AVAILABLE'
-                                ? 'bg-green-500/20 text-green-500'
-                                : payment.status === 'PENDING'
-                                ? 'bg-yellow-500/20 text-yellow-500'
-                                : 'bg-red-500/20 text-red-500'
-                            }`}>
-                              {payment.status === 'CONFIRMED' || payment.status === 'RECEIVED' || payment.status === 'AVAILABLE'
-                                ? 'Pago'
-                                : payment.status === 'PENDING'
-                                ? 'Pendente'
-                                : 'Cancelado'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-4">
-                  <p className="text-gray-400">
-                    Nenhum pagamento encontrado no histórico.
-                  </p>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </Layout>
   );

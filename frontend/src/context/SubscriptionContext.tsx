@@ -100,26 +100,16 @@ export const availablePlans: Plan[] = [
   }
 ];
 
-interface PaymentHistoryItem {
-  id: string;
-  date: string;
-  amount: number;
-  description: string;
-  status: string;
-}
-
 interface SubscriptionContextType {
   currentSubscription: UserSubscription | null;
   currentPlan: Plan | null;
   availablePlans: Plan[];
-  paymentHistory: PaymentHistoryItem[];
   loading: boolean;
   error: string | null;
   hasFeatureAccess: (featureId: string) => boolean;
   upgradePlan: (planId: string) => Promise<void>;
   cancelSubscription: () => Promise<void>;
   loadUserSubscription: (forceRefresh?: boolean) => Promise<void>;
-  loadPaymentHistory: () => Promise<void>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -129,7 +119,6 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const { user, setUser } = useAuth();
   const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null);
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
-  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -429,59 +418,18 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Função para carregar o histórico de pagamentos
-  const loadPaymentHistory = async (): Promise<void> => {
-    if (!user || !user.asaasCustomerId) {
-      console.log('[SubscriptionContext] Sem customerId para buscar histórico de pagamentos');
-      setPaymentHistory([]);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      console.log(`[SubscriptionContext] Buscando histórico de pagamentos para customerId: ${user.asaasCustomerId}`);
-      
-      const response = await axios.get(`${API_URL}/api/asaas-payments?customerId=${user.asaasCustomerId}`);
-      
-      if (response.data && response.data.success && Array.isArray(response.data.payments)) {
-        // Formatar os dados de pagamento
-        const formattedPayments: PaymentHistoryItem[] = response.data.payments.map((payment: any) => ({
-          id: payment.id,
-          date: payment.dueDate || payment.paymentDate || payment.confirmedDate,
-          amount: payment.value,
-          description: payment.description || 'Pagamento de assinatura',
-          status: payment.status
-        }));
-        
-        console.log(`[SubscriptionContext] ${formattedPayments.length} pagamentos encontrados`);
-        setPaymentHistory(formattedPayments);
-      } else {
-        console.log('[SubscriptionContext] Nenhum pagamento encontrado ou resposta inválida');
-        setPaymentHistory([]);
-      }
-    } catch (err) {
-      console.error('[SubscriptionContext] Erro ao carregar histórico de pagamentos:', err);
-      setError('Não foi possível carregar seu histórico de pagamentos. Tente novamente mais tarde.');
-      setPaymentHistory([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <SubscriptionContext.Provider
       value={{
         currentSubscription,
         currentPlan,
         availablePlans,
-        paymentHistory,
         loading,
         error,
         hasFeatureAccess,
         upgradePlan,
         cancelSubscription,
-        loadUserSubscription,
-        loadPaymentHistory
+        loadUserSubscription
       }}
     >
       {children}

@@ -1,19 +1,17 @@
 import { useState } from 'react';
 import { Heart, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package } from 'lucide-react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   isMobile?: boolean;
-  setCurrentSideContent?: (content: string | null) => void;
 }
 
-const Sidebar = ({ isOpen = false, onClose, isMobile = false, setCurrentSideContent }: SidebarProps) => {
+const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) => {
   const [otherExpanded, setOtherExpanded] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState('account-information');
   const navigate = useNavigate();
-  const location = useLocation();
   
   const settingsOptions = [
     { id: 'account-information', label: 'Conta', icon: Settings },
@@ -23,29 +21,12 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false, setCurrentSideCont
   
   const handleSettingsItemClick = (id: string) => {
     setActiveSettingsTab(id);
-    
-    // Fechar o sidebar mobile se estiver aberto
-    if (isMobile && onClose) {
-      onClose();
-    }
-    
     if (id === 'account-information') {
       navigate('/profile');
     } else if (id === 'billing') {
-      // Se estamos na página principal e temos a função para mostrar conteúdo lateral
-      if (location.pathname === '/' && setCurrentSideContent) {
-        setCurrentSideContent(null); // Limpar qualquer conteúdo lateral existente
-        navigate('/billing');
-      } else {
-        navigate('/billing');
-      }
+      navigate('/billing');
     } else if (id === 'plans') {
-      // Se estamos na página principal e temos a função para mostrar conteúdo lateral
-      if (location.pathname === '/' && setCurrentSideContent) {
-        setCurrentSideContent('plans');
-      } else {
-        navigate('/planos');
-      }
+      navigate('/planos');
     }
   };
   
@@ -54,11 +35,6 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false, setCurrentSideCont
   ];
   
   const handleOtherItemClick = (path: string) => {
-    // Fechar o sidebar mobile se estiver aberto
-    if (isMobile && onClose) {
-      onClose();
-    }
-    
     navigate(path);
   };
   
@@ -69,7 +45,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false, setCurrentSideCont
   const content = (
     <div className="p-3 flex flex-col h-full justify-between">
       <div className="flex justify-center items-center py-4 mb-2">
-        <Link to="/" className="flex items-center justify-center" onClick={() => setCurrentSideContent && setCurrentSideContent(null)}>
+        <Link to="/" className="flex items-center justify-center">
           <img src="/img/logo.svg" alt="RunCash Logo" className="h-12" />
         </Link>
       </div>

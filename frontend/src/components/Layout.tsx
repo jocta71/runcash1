@@ -27,10 +27,9 @@ interface ExtendedUser {
 interface LayoutProps {
   children: React.ReactNode;
   preloadData?: boolean;
-  setCurrentSideContent?: (content: string | null) => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, preloadData = false, setCurrentSideContent }) => {
+const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   const { user, signOut } = useAuth();
   const { showLoginModal, resetModalClosed } = useLoginModal();
   const [isLoading, setIsLoading] = useState(preloadData);
@@ -209,11 +208,11 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false, setCurre
     <div className="min-h-screen flex bg-vegas-black">
       {/* Desktop Sidebar */}
       <div className="hidden md:block w-64 min-h-screen fixed left-0 top-0 z-30 overflow-y-auto">
-        <Sidebar setCurrentSideContent={setCurrentSideContent} />
+        <Sidebar />
       </div>
       
       {/* Mobile Sidebar (drawer) */}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isMobile={true} setCurrentSideContent={setCurrentSideContent} />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isMobile={true} />
       
       <div className="flex-1 relative">
         {/* Mobile Header */}

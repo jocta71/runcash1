@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { PaymentForm } from '@/components/PaymentForm';
 import { Loader2, ArrowLeft } from 'lucide-react';
@@ -8,19 +8,16 @@ import { useToast } from '@/hooks/use-toast';
 import { findAsaasPayment, getAsaasPixQrCode } from '@/integrations/asaas/client';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
-interface PaymentPageProps {
-  planId?: string;
-}
-
-const PaymentPage = ({ planId: propPlanId }: PaymentPageProps) => {
+const PaymentPage = () => {
+  const { planId: routePlanId } = useParams<{ planId: string }>();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const queryPlanId = queryParams.get('planId');
   const customerId = queryParams.get('customerId');
   const paymentId = queryParams.get('paymentId');
   
-  // Determinar qual planId usar (da prop, ou da query string)
-  const planId = propPlanId || queryPlanId;
+  // Determinar qual planId usar (da rota ou da query string)
+  const planId = routePlanId || queryPlanId;
   
   const { availablePlans, loading } = useSubscription();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
