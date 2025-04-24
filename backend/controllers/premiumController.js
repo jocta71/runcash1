@@ -408,4 +408,139 @@ function gerarDadosGrafico(valorInicial, aporteMensal, taxa, meses) {
   }
   
   return dados;
-} 
+}
+
+/**
+ * Função utilitária para degradar dados baseado em nível de degradação e tipo de plano
+ */
+const degradeContentForNonPremium = (data, options = { 
+  hasAccess: false, 
+  planType: 'FREE', 
+  degradationLevel: 70
+}) => {
+  // Se usuário tem acesso ou degradação é zero, retornar dados completos
+  if (options.hasAccess || options.degradationLevel <= 0) {
+    return data;
+  }
+
+  try {
+    // Para arrays, limitar número de itens
+    if (Array.isArray(data)) {
+      // Calcular fator de limitação baseado no nível de degradação
+      const limitFactor = 1 - options.degradationLevel / 100;
+      // Garantir pelo menos um item para visualização
+      const limitCount = Math.max(1, Math.floor(data.length * limitFactor));
+      
+      // Para planos diferentes, aplicar níveis diferentes de limitação
+      switch(options.planType) {
+        case 'BASIC':
+          // Básico mostra um pouco mais
+          return data.slice(0, Math.min(limitCount * 2, data.length));
+        case 'FREE':
+        default:
+          // Free mostra apenas o mínimo
+          return data.slice(0, limitCount);
+      }
+    }
+    
+    // Para objetos, simplificar estrutura
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const result = { ...data };
+      
+      // Aplicar regras de degradação específicas por tipo de objeto
+      // Se tiver propriedade premium ou dados sensíveis, remover ou ofuscar
+      if (result.details || result.fullData) {
+        delete result.details;
+        delete result.fullData;
+        result.isPremiumRestricted = true;
+      }
+      
+      // Marcar como versão degradada
+      result.degraded = true;
+      result.upgradeMessage = "Faça upgrade para ver os dados completos";
+      
+      return result;
+    }
+    
+    // Para outros tipos, retornar como está
+    return data;
+  } catch (error) {
+    console.error('Erro ao degradar conteúdo:', error);
+    return {
+      error: 'Versão limitada disponível',
+      degraded: true
+    };
+  }
+};
+
+/**
+ * Obter dados com degradação adaptativa para não-assinantes
+ * @route GET /api/premium/content/:contentId
+ * @access Público com degradação para não-assinantes
+ */
+exports.getDegradedContent = asyncHandler(async (req, res, next) => {
+  const { contentId } = req.params;
+  
+  // Verificar parâmetros de degradação e acesso
+  const hasAccess = req.query.hasAccess === 'true';
+  const planType = req.query.planType || 'FREE';
+  const degradationLevel = parseInt(req.query.degradationLevel || '70', 10);
+  
+  // Obter dados completos do banco de dados
+  let content;
+  
+  try {
+    // Aqui seria a lógica real para buscar os dados
+    // Exemplo para demonstração:
+    switch(contentId) {
+      case 'stats':
+        content = {
+          title: 'Estatísticas detalhadas',
+          lastUpdate: new Date(),
+          data: [
+            { date: '2023-01-01', value: 125, details: 'Detalhe premium 1' },
+            { date: '2023-01-02', value: 230, details: 'Detalhe premium 2' },
+            { date: '2023-01-03', value: 190, details: 'Detalhe premium 3' },
+            { date: '2023-01-04', value: 340, details: 'Detalhe premium 4' },
+            { date: '2023-01-05', value: 410, details: 'Detalhe premium 5' }
+          ],
+          summary: {
+            total: 1295,
+            average: 259,
+            detailedAnalysis: 'Análise detalhada premium'
+          }
+        };
+        break;
+      case 'recommendations':
+        content = [
+          { id: 1, name: 'Recomendação Premium 1', confidence: 0.95, details: 'Dados exclusivos 1' },
+          { id: 2, name: 'Recomendação Premium 2', confidence: 0.88, details: 'Dados exclusivos 2' },
+          { id: 3, name: 'Recomendação Premium 3', confidence: 0.82, details: 'Dados exclusivos 3' },
+          { id: 4, name: 'Recomendação Premium 4', confidence: 0.78, details: 'Dados exclusivos 4' },
+          { id: 5, name: 'Recomendação Premium 5', confidence: 0.75, details: 'Dados exclusivos 5' },
+          { id: 6, name: 'Recomendação Premium 6', confidence: 0.71, details: 'Dados exclusivos 6' },
+          { id: 7, name: 'Recomendação Premium 7', confidence: 0.69, details: 'Dados exclusivos 7' }
+        ];
+        break;
+      default:
+        return next(new ErrorResponse('Conteúdo não encontrado', 404));
+    }
+    
+    // Degradar os dados conforme nível de acesso
+    const processedContent = degradeContentForNonPremium(content, {
+      hasAccess,
+      planType,
+      degradationLevel
+    });
+    
+    return res.status(200).json({
+      success: true,
+      premiumAccess: hasAccess,
+      data: processedContent
+    });
+    
+  } catch (error) {
+    console.error(`Erro ao recuperar conteúdo ${contentId}:`, error);
+    return next(new ErrorResponse('Erro ao buscar dados', 500));
+  }
+}); 

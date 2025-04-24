@@ -4,9 +4,10 @@
 
 const express = require('express');
 const router = express.Router();
-const { proteger } = require('../middlewares/authMiddleware');
+const { proteger, verificarPremium } = require('../middlewares/authMiddleware');
 const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddleware');
 const premiumController = require('../controllers/premiumController');
+const { requireSubscription } = require('../middlewares/subscriptionMiddleware');
 
 // Aplicar middleware de autenticação em todas as rotas
 router.use(proteger);
@@ -27,7 +28,6 @@ router.post('/tendencias', premiumController.analisarTendencias);
 router.get('/investimentos/sugestoes', premiumController.obterSugestoesInvestimento);
 
 // Rotas de alertas
-router.post('/alertas', premiumController.configurarAlertas);
 router.get('/alertas', premiumController.listarAlertas);
 router.put('/alertas/:id', premiumController.atualizarAlerta);
 router.delete('/alertas/:id', premiumController.removerAlerta);
@@ -43,5 +43,21 @@ router.post('/simulacao', premiumController.simularCenarios);
 
 // Rotas de suporte prioritário
 router.post('/suporte', premiumController.criarTicketSuporte);
+
+// Rota para fornecer conteúdo com degradação adaptativa
+// Não requer autenticação, a degradação é baseada em parâmetros de query
+router.get('/content/:contentId', premiumController.getDegradedContent);
+
+// Rota para conteúdo premium com preview degradado
+// O middleware permitirá acesso mas marcará o request como degradado
+router.get('/preview/:contentId', 
+  proteger,
+  requireSubscription({
+    allowedTypes: ['premium'],
+    requireActive: true,
+    degradedPreview: true
+  }),
+  premiumController.getDegradedContent
+);
 
 module.exports = router; 

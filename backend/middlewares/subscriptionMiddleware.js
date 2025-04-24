@@ -103,4 +103,55 @@ exports.requireAnySubscription = (options = { degradedPreview: false }) => {
     requireActive: true,
     degradedPreview: options.degradedPreview
   });
+};
+
+/**
+ * Middleware para marcar requisição como degradada
+ * Usado quando se quer permitir acesso parcial a recursos premium
+ */
+exports.markRequestDegraded = (req, res, next) => {
+  req.degradedAccess = true;
+  next();
+};
+
+/**
+ * Middleware utilitário para configurar headers de resposta
+ * Adiciona informações sobre o acesso ao conteúdo premium
+ */
+exports.addContentAccessInfo = (req, res, next) => {
+  // Função para executar ao final do middleware
+  const originalSend = res.send;
+  
+  // Sobrescrever o método send para adicionar headers antes de enviar resposta
+  res.send = function(body) {
+    // Adicionar headers sobre acesso degradado
+    if (req.degradedAccess) {
+      res.set('X-Premium-Access', 'degraded');
+      
+      // Se o corpo é JSON, adicionar metadados sobre acesso
+      if (typeof body === 'object') {
+        body.premiumAccess = false;
+        body.degradedView = true;
+        
+        // Adicionar tipo de plano atual se disponível
+        if (req.user && req.user.subscription) {
+          body.currentPlanType = req.user.subscription.type;
+        }
+      }
+    } else if (req.user && req.user.subscription && 
+               req.user.subscription.status === 'active') {
+      res.set('X-Premium-Access', 'full');
+      
+      // Se o corpo é JSON, adicionar metadados sobre acesso
+      if (typeof body === 'object') {
+        body.premiumAccess = true;
+        body.degradedView = false;
+      }
+    }
+    
+    // Chamar o método original
+    originalSend.call(this, body);
+  };
+  
+  next();
 }; 

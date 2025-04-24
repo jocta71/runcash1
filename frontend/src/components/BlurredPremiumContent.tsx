@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { AlertCircle, LockKeyhole } from 'lucide-react';
+import { LockKeyhole } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   Dialog, 
@@ -13,51 +13,49 @@ import {
 } from '@/components/ui/dialog';
 import { PlanType } from '@/types/plans';
 
-interface PlanProtectedFeatureProps {
+interface BlurredPremiumContentProps {
   /**
-   * ID do recurso que está sendo protegido (deve corresponder aos valores de allowedFeatures nos planos)
+   * ID do recurso que está sendo protegido
    */
   featureId: string;
   /**
-   * O plano mínimo necessário para acessar esse recurso
+   * O plano mínimo necessário
    */
   requiredPlan?: PlanType;
   /**
-   * Conteúdo que será exibido se o usuário tiver acesso
+   * Conteúdo que será exibido com blur se o usuário não tiver acesso
    */
   children: React.ReactNode;
   /**
-   * Mensagem personalizada para exibir quando o recurso estiver bloqueado
+   * Mensagem personalizada para mostrar no hover
    */
-  lockedMessage?: string;
+  message?: string;
   /**
-   * Habilita ou desabilita a visualização de upgrade quando o recurso está bloqueado
+   * Intensidade do efeito de blur (padrão 5px)
+   */
+  blurIntensity?: number;
+  /**
+   * Se deve exibir o botão de upgrade
    */
   showUpgradeOption?: boolean;
-  /**
-   * Componente alternativo a mostrar quando bloqueado (em vez de versão borrada)
-   * Se não fornecido, será mostrado um placeholder genérico
-   */
-  placeholderContent?: React.ReactNode;
 }
 
 /**
- * Componente que protege recursos com base no plano do usuário.
- * Exibe o conteúdo somente se o usuário tiver o plano necessário,
- * caso contrário, mostra uma mensagem de acesso bloqueado e opções de upgrade.
+ * Componente que aplica blur em conteúdo premium, mantendo-o visível mas borrado
+ * para usuários que não possuem o plano necessário
  */
-const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
+const BlurredPremiumContent: React.FC<BlurredPremiumContentProps> = ({
   featureId,
   requiredPlan = PlanType.BASIC,
   children,
-  lockedMessage,
-  showUpgradeOption = true,
-  placeholderContent
+  message,
+  blurIntensity = 5,
+  showUpgradeOption = true
 }) => {
   const { hasFeatureAccess, availablePlans, currentPlan } = useSubscription();
   const hasAccess = hasFeatureAccess(featureId);
   
-  // Se o usuário tem acesso, renderize o conteúdo
+  // Se o usuário tem acesso, renderize o conteúdo normal
   if (hasAccess) {
     return <>{children}</>;
   }
@@ -69,33 +67,20 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
   );
   
   // Mensagem padrão ou personalizada
-  const message = lockedMessage || 
-    `Este recurso está disponível apenas para assinantes do plano ${planWithFeature?.name || 'superior'}.`;
+  const defaultMessage = `Este conteúdo está disponível apenas para assinantes do plano ${planWithFeature?.name || 'superior'}.`;
+  const displayMessage = message || defaultMessage;
 
-  // Placeholder genérico se nenhum conteúdo específico for fornecido
-  const defaultPlaceholder = (
-    <div className="w-full h-full min-h-[200px] flex flex-col items-center justify-center space-y-4 p-6 text-center">
-      <div className="w-32 h-8 bg-gray-800 rounded animate-pulse"></div>
-      <div className="space-y-2 w-full max-w-md">
-        <div className="h-4 bg-gray-800 rounded w-3/4 mx-auto"></div>
-        <div className="h-4 bg-gray-800 rounded w-1/2 mx-auto"></div>
-      </div>
-      <div className="grid grid-cols-3 gap-4 w-full max-w-md">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-12 bg-gray-800 rounded animate-pulse"></div>
-        ))}
-      </div>
-      <div className="w-full h-24 bg-gray-800 rounded"></div>
-    </div>
-  );
-  
-  // Renderizar o componente de acesso bloqueado
   return (
-    <div className="relative border border-dashed border-gray-600 rounded-md">
-      <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center p-4 text-center z-10">
-        <LockKeyhole className="h-8 w-8 mb-2 text-red-400" />
-        <h3 className="text-lg font-semibold mb-1">Recurso Bloqueado</h3>
-        <p className="text-sm text-gray-300 mb-4">{message}</p>
+    <div className="relative group">
+      {/* Conteúdo borrado */}
+      <div className={`filter blur-[${blurIntensity}px] pointer-events-none transition-all duration-200`}>
+        {children}
+      </div>
+      
+      {/* Overlay apenas visível no hover */}
+      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center">
+        <LockKeyhole className="h-8 w-8 mb-2 text-vegas-gold" />
+        <p className="text-white text-sm text-center px-4 mb-3">{displayMessage}</p>
         
         {showUpgradeOption && (
           <Dialog>
@@ -150,24 +135,12 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
                     </div>
                   ))}
               </div>
-              
-              <DialogFooter>
-                <p className="text-xs text-gray-400">
-                  <AlertCircle className="inline-block h-3 w-3 mr-1" />
-                  Os valores serão cobrados mensalmente até o cancelamento.
-                </p>
-              </DialogFooter>
             </DialogContent>
           </Dialog>
         )}
-      </div>
-      
-      {/* Usar conteúdo placeholder em vez de versão borrada do conteúdo real */}
-      <div className="opacity-60">
-        {placeholderContent || defaultPlaceholder}
       </div>
     </div>
   );
 };
 
-export default PlanProtectedFeature; 
+export default BlurredPremiumContent; 

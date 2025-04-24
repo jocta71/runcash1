@@ -197,6 +197,15 @@ const getDetailedRouletteData = async (req, res) => {
     const rouletteId = req.params.id;
     const db = await getDb();
     
+    // Verificação de segurança adicional - mesmo com middleware, confirmar que o usuário tem permissão
+    if (!req.subscription && !req.assinatura) {
+      return res.status(403).json({
+        success: false,
+        message: 'Este recurso requer uma assinatura ativa',
+        code: 'SUBSCRIPTION_REQUIRED'
+      });
+    }
+    
     // Verificar se a roleta existe
     const roulette = await db.collection('roulettes').findOne({
       $or: [
@@ -256,6 +265,15 @@ const getRouletteStatistics = async (req, res) => {
     const rouletteId = req.params.id;
     const db = await getDb();
     
+    // Verificação de segurança adicional - mesmo com middleware, confirmar que o usuário tem permissão
+    if (!req.subscription && !req.assinatura) {
+      return res.status(403).json({
+        success: false,
+        message: 'Este recurso requer uma assinatura ativa',
+        code: 'SUBSCRIPTION_REQUIRED'
+      });
+    }
+    
     // Verificar se a roleta existe
     const roulette = await db.collection('roulettes').findOne({
       $or: [
@@ -307,6 +325,25 @@ const getHistoricalData = async (req, res) => {
   try {
     const rouletteId = req.params.id;
     const db = await getDb();
+    
+    // Verificação de segurança adicional - mesmo com middleware, confirmar que o usuário tem permissão
+    if (!req.subscription && !req.assinatura) {
+      return res.status(403).json({
+        success: false,
+        message: 'Este recurso requer uma assinatura ativa',
+        code: 'SUBSCRIPTION_REQUIRED'
+      });
+    }
+    
+    // Verificar se o plano é PREMIUM
+    const userPlan = req.userPlan?.type || (req.assinatura?.plano === 'anual' ? 'PREMIUM' : null);
+    if (userPlan !== 'PREMIUM') {
+      return res.status(403).json({
+        success: false,
+        message: 'Este recurso requer uma assinatura Premium',
+        code: 'PREMIUM_REQUIRED'
+      });
+    }
     
     // Verificar se a roleta existe
     const roulette = await db.collection('roulettes').findOne({
@@ -370,6 +407,15 @@ const getNumbersBatch = async (req, res) => {
     const rouletteId = req.params.id;
     const db = await getDb();
     
+    // Verificação de segurança adicional - mesmo com middleware, confirmar que o usuário tem permissão
+    if (!req.subscription && !req.assinatura) {
+      return res.status(403).json({
+        success: false,
+        message: 'Este recurso requer uma assinatura ativa',
+        code: 'SUBSCRIPTION_REQUIRED'
+      });
+    }
+    
     // Verificar se a roleta existe
     const roulette = await db.collection('roulettes').findOne({
       $or: [
@@ -400,10 +446,22 @@ const getNumbersBatch = async (req, res) => {
         default:
           limit = 500; // BASIC
       }
+    } else if (req.assinatura) {
+      // Usar modelo Mongoose
+      switch (req.assinatura.plano) {
+        case 'trimestral':
+          limit = 750; // PRO
+          break;
+        case 'anual':
+          limit = 1000; // PREMIUM
+          break;
+        default:
+          limit = 500; // mensal = BASIC
+      }
     }
     
-    // Buscar batch de números
-    const numbersBatch = await db.collection('roulette_numbers')
+    // Buscar dados
+    const numbers = await db.collection('roulette_numbers')
       .find({ rouletteId: roulette._id.toString() })
       .sort({ timestamp: -1 })
       .limit(limit)
@@ -414,13 +472,16 @@ const getNumbersBatch = async (req, res) => {
       data: {
         id: roulette._id,
         name: roulette.name,
-        numbers: numbersBatch.map(n => ({
+        numbers: numbers.map(n => ({
           number: n.number,
           timestamp: n.timestamp,
           color: getNumberColor(n.number)
         })),
-        totalCount: numbersBatch.length,
         limit,
+        planInfo: req.userPlan ? 
+          { type: req.userPlan.type, name: req.userPlan.name } : 
+          { type: req.assinatura?.plano || 'desconhecido' },
+        total: numbers.length,
         lastUpdated: new Date()
       }
     });
@@ -428,7 +489,7 @@ const getNumbersBatch = async (req, res) => {
     console.error('Erro ao obter lote de números:', error);
     return res.status(500).json({
       success: false,
-      message: 'Erro ao obter lote de números da roleta',
+      message: 'Erro ao obter lote de números',
       error: error.message
     });
   }
