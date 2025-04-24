@@ -1,158 +1,75 @@
 const jwt = require('jsonwebtoken');
-const asyncHandler = require('express-async-handler');
-const User = require('../models/User');
-const SecurityUtils = require('../utils/SecurityUtils');
 
 /**
- * Middleware para proteger rotas, verificando o token JWT
- * @returns {Function} Middleware Express
+ * Middleware para proteção de rotas, requer autenticação via JWT
  */
-const protect = asyncHandler(async (req, res, next) => {
-  let token;
+exports.protect = async (req, res, next) => {
+  try {
+    let token;
 
-  // Verificar se existe token no header Authorization
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
+    console.log('Headers de auth:', req.headers.authorization);
+    console.log('Cookies disponíveis:', req.cookies);
+    
+    // Verificar se o token está presente no header de autorização
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       // Extrair o token do header
       token = req.headers.authorization.split(' ')[1];
+      console.log('Token encontrado no header:', token ? token.substring(0, 15) + '...' : 'nenhum');
+    } 
+    // Ou usar o token dos cookies se disponível
+    else if (req.cookies && req.cookies.token) {
+      token = req.cookies.token;
+      console.log('Token encontrado no cookie:', token ? token.substring(0, 15) + '...' : 'nenhum');
+    }
 
-      // Verificar token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Se o token não estiver presente, retornar erro
+    if (!token) {
+      console.log('Nenhum token encontrado, acesso negado');
+      return res.status(401).json({
+        success: false,
+        error: 'Não autorizado para acessar este recurso'
+      });
+    }
 
-      // Verificar se o usuário existe
-      const user = await User.findById(decoded.id).select('-password');
+    try {
+      // Verificar se o token é válido
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'runcash-default-secret');
+      console.log('Token verificado com sucesso, usuário:', decoded.id);
       
-      if (!user) {
-        res.status(401);
-        throw new Error('Acesso não autorizado - usuário não encontrado');
-      }
-
-      // Verificar se o usuário está bloqueado
-      if (user.isBlocked) {
-        res.status(403);
-        throw new Error('Conta bloqueada. Entre em contato com o suporte');
-      }
-
-      // Verificar último login e forçar reautenticação após 24h
-      const tokenIat = new Date(decoded.iat * 1000);  // iat é em segundos, converter para ms
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      // Adicionar o usuário decodificado ao objeto de requisição
+      req.user = {
+        id: decoded.id,
+        email: decoded.email,
+        role: decoded.role || 'user'
+      };
       
-      if (tokenIat < twentyFourHoursAgo) {
-        res.status(401);
-        throw new Error('Token expirado. Faça login novamente');
-      }
-
-      // Verificar IP de origem
-      if (SecurityUtils.isBlockedIP(req.ip)) {
-        res.status(403);
-        throw new Error('Acesso bloqueado para este IP');
-      }
-
-      // Adicionar usuário ao objeto da requisição
-      req.user = user;
-
       next();
     } catch (error) {
-      res.status(401);
-      if (error.name === 'JsonWebTokenError') {
-        throw new Error('Token inválido');
-      } else if (error.name === 'TokenExpiredError') {
-        throw new Error('Token expirado');
-      } else {
-        throw new Error(error.message || 'Não autorizado');
-      }
+      console.error('Erro ao verificar token:', error);
+      return res.status(401).json({
+        success: false,
+        error: 'Token inválido ou expirado'
+      });
     }
-  } else {
-    res.status(401);
-    throw new Error('Acesso não autorizado - token não fornecido');
+  } catch (error) {
+    console.error('Erro no middleware de autenticação:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro no servidor durante autenticação'
+    });
   }
-});
-
-/**
- * Middleware para verificar a permissão do usuário
- * @param  {...String} roles - Lista de papéis permitidos
- * @returns {Function} Middleware Express
- */
-const authorize = (...roles) => {
-  return (req, res, next) => {
-    // Verificar se existe usuário autenticado
-    if (!req.user) {
-      res.status(401);
-      throw new Error('Acesso não autorizado');
-    }
-
-    // Verificar se o usuário tem a permissão necessária
-    if (!roles.includes(req.user.role)) {
-      res.status(403);
-      throw new Error('Você não tem permissão para acessar este recurso');
-    }
-
-    next();
-  };
 };
 
 /**
- * Middleware para autenticação opcional
- * @returns {Function} Middleware Express
+ * Middleware para verificar permissões de administrador
  */
-const optionalAuth = asyncHandler(async (req, res, next) => {
-  let token;
-
-  // Verificar se existe token no header Authorization
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id).select('-password');
-      
-      if (user && !user.isBlocked) {
-        req.user = user;
-      }
-    } catch (error) {
-      // Não lança erro, apenas continua sem usuário autenticado
-      console.warn('Token opcional inválido:', error.message);
-    }
+exports.admin = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    return res.status(403).json({
+      success: false,
+      error: 'Acesso restrito a administradores'
+    });
   }
-
-  // Sanitizar dados de entrada
-  req.body = SecurityUtils.sanitizeData(req.body);
-  req.query = SecurityUtils.sanitizeData(req.query);
-  req.params = SecurityUtils.sanitizeData(req.params);
-
-  next();
-});
-
-/**
- * Middleware para registrar acessos
- * @returns {Function} Middleware Express
- */
-const accessLogger = asyncHandler(async (req, res, next) => {
-  const startTime = Date.now();
-  
-  // Capturar o status code após a conclusão da requisição
-  res.on('finish', () => {
-    const duration = Date.now() - startTime;
-    const userId = req.user ? req.user._id : 'anônimo';
-    const method = req.method;
-    const url = req.originalUrl;
-    const status = res.statusCode;
-    const ip = req.ip || req.connection.remoteAddress;
-    const userAgent = req.headers['user-agent'] || 'desconhecido';
-    
-    // Log de acesso
-    console.log(`ACESSO [${new Date().toISOString()}] ${method} ${url} ${status} ${duration}ms | Usuário: ${userId} | IP: ${ip} | User-Agent: ${userAgent}`);
-    
-    // Aqui poderia ser implementado um registro de log em banco de dados
-    // ou serviço de monitoramento como:
-    // await AccessLog.create({...})
-  });
-  
-  next();
-});
-
-module.exports = {
-  protect,
-  authorize,
-  optionalAuth,
-  accessLogger
 }; 
