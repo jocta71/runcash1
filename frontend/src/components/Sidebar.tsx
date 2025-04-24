@@ -50,6 +50,10 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     navigate(path);
   };
   
+  const handleRouletteClick = () => {
+    navigate('/');
+  };
+  
   const sidebarClasses = isMobile
     ? "h-full w-full mobile-sidebar-inner animate-slide-right"
     : "h-screen fixed top-0 left-0 w-64 hidden md:flex flex-col animate-slide-right z-40 bg-[#131614] border-r border-border";
@@ -74,7 +78,10 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
         <div>
           <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Jogos</h3>
           <div className="space-y-1">
-            <div className="menu-item active">
+            <div 
+              className="menu-item active"
+              onClick={handleRouletteClick}
+            >
               <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <Gamepad2 size={18} className="text-white" />
               </div>
