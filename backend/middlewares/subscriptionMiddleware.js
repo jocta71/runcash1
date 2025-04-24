@@ -34,7 +34,13 @@ exports.requireSubscription = (options = {
       const subscription = req.user.subscription || {};
       
       // Verificar se o usuário tem uma assinatura ativa
-      const hasActiveSubscription = subscription.status === 'active';
+      // Garantir que pagamentos pendentes não contem como ativos
+      const hasActiveSubscription = subscription.status && 
+        ['active', 'ativo'].includes(subscription.status.toLowerCase()) && 
+        !['pending', 'pendente'].includes(subscription.status.toLowerCase());
+      
+      // Adicionar informação de diagnóstico 
+      console.log(`[subscriptionMiddleware] Verificando assinatura: status=${subscription.status}, type=${subscription.type}, active=${hasActiveSubscription}`);
       
       // Verificar se o tipo de assinatura é permitido
       const hasAllowedType = options.allowedTypes.includes(subscription.type);
@@ -50,7 +56,8 @@ exports.requireSubscription = (options = {
         return res.status(403).json({
           success: false,
           message: 'Acesso negado. Assinatura inativa ou expirada',
-          subscriptionRequired: true
+          subscriptionRequired: true,
+          status: subscription.status || 'none'
         });
       }
       
@@ -66,7 +73,8 @@ exports.requireSubscription = (options = {
           success: false,
           message: `Acesso negado. Necessário assinatura: ${options.allowedTypes.join(' ou ')}`,
           subscriptionRequired: true,
-          requiredTypes: options.allowedTypes
+          requiredTypes: options.allowedTypes,
+          currentType: subscription.type || 'none'
         });
       }
       

@@ -263,25 +263,32 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       paymentProvider: 'ASAAS',
       nextBillingDate: subscriptionData.nextDueDate ? new Date(subscriptionData.nextDueDate) : null
     };
-
-    console.log('[SubscriptionContext] Assinatura carregada:', formattedSubscription);
-    setCurrentSubscription(formattedSubscription);
-
-    // Buscar plano correspondente na lista de planos disponíveis
-    // Aqui podemos determinar o plano com base no valor ou descrição da assinatura
+    
+    // Determinar o plano com base no valor e status da assinatura
     let planId = 'free';
-    if (subscriptionData.value >= 99) {
-      planId = 'premium';
-    } else if (subscriptionData.value >= 49) {
-      planId = 'pro';
-    } else if (subscriptionData.value >= 19) {
-      planId = 'basic';
+    const isActive = normalizedStatus.toLowerCase() === 'active' || normalizedStatus.toLowerCase() === 'ativo';
+    
+    // Apenas atribuir plano pago se a assinatura estiver ativa
+    if (isActive) {
+      if (subscriptionData.value >= 99) {
+        planId = 'premium';
+      } else if (subscriptionData.value >= 49) {
+        planId = 'pro';
+      } else if (subscriptionData.value >= 19) {
+        planId = 'basic';
+      }
+    } else {
+      console.log(`[SubscriptionContext] Usando plano FREE porque a assinatura não está ativa (status: ${normalizedStatus})`);
     }
     
     // Atualizar o planId na assinatura
     formattedSubscription.planId = planId;
     formattedSubscription.planType = getPlanTypeFromId(planId);
     
+    console.log('[SubscriptionContext] Assinatura carregada:', formattedSubscription);
+    setCurrentSubscription(formattedSubscription);
+
+    // Buscar plano correspondente na lista de planos disponíveis
     const plan = availablePlans.find(p => p.id === planId) || null;
     setCurrentPlan(plan);
   };
@@ -306,9 +313,25 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Verificar se o usuário tem acesso a um recurso específico
   const hasFeatureAccess = (featureId: string): boolean => {
+    // Se não há plano atual, não tem acesso
     if (!currentPlan) return false;
     
-    // Se o plano atual permite este recurso
+    // Se for plano gratuito, verificar se o recurso está disponível para free
+    if (currentPlan.type === PlanType.FREE) {
+      return currentPlan.allowedFeatures.includes(featureId);
+    }
+    
+    // Para planos pagos, verificar se a assinatura está ativa (não pendente/cancelada)
+    const isSubscriptionActive = currentSubscription && 
+      (currentSubscription.status === 'active' || currentSubscription.status === 'ativo');
+    
+    // Se a assinatura não estiver ativa, o usuário não tem acesso aos recursos pagos
+    if (!isSubscriptionActive) {
+      console.log(`[SubscriptionContext] Acesso negado a "${featureId}": assinatura não está ativa (status: ${currentSubscription?.status || 'nenhum'})`);
+      return false;
+    }
+    
+    // Se o plano atual permite este recurso e a assinatura está ativa
     return currentPlan.allowedFeatures.includes(featureId);
   };
 
