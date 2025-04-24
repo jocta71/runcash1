@@ -312,76 +312,28 @@ class RESTSocketService {
   }
 
   private notifyListeners(event: any): void {
-    try {
-      const now = Date.now();
-      
-      // Emitir para listeners da roleta específica
-      if (event.roleta_id) {
-        const roletaListeners = this.listeners.get(event.roleta_id);
-        if (roletaListeners) {
-          roletaListeners.forEach(callback => {
-            try {
-              // Usar setTimeout para executar de forma assíncrona e evitar problemas com canais de mensagem
-              setTimeout(() => {
-                try {
-                  callback(event);
-                } catch (callbackError) {
-                  console.error(`[RESTSocketService] Erro no callback (setTimeout) para roleta ${event.roleta_id}:`, callbackError);
-                }
-              }, 0);
-            } catch (error) {
-              console.error(`[RESTSocketService] Erro ao notificar listener para roleta ${event.roleta_id}:`, error);
-            }
-          });
+    // Notificar listeners específicos para esta roleta
+    const listeners = this.listeners.get(event.roleta_nome);
+    if (listeners) {
+      listeners.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error(`[RESTSocketService] Erro em listener para ${event.roleta_nome}:`, error);
         }
-      }
-      
-      // Emitir para listeners da roleta por nome
-      if (event.roleta_nome) {
-        const roletaNameListeners = this.listeners.get(event.roleta_nome);
-        if (roletaNameListeners) {
-          roletaNameListeners.forEach(callback => {
-            try {
-              // Usar setTimeout para executar de forma assíncrona
-              setTimeout(() => {
-                try {
-                  callback(event);
-                } catch (callbackError) {
-                  console.error(`[RESTSocketService] Erro no callback (setTimeout) para roleta ${event.roleta_nome}:`, callbackError);
-                }
-              }, 0);
-            } catch (error) {
-              console.error(`[RESTSocketService] Erro ao notificar listener para roleta ${event.roleta_nome}:`, error);
-            }
-          });
+      });
+    }
+    
+    // Notificar listeners globais (marcados com "*")
+    const globalListeners = this.listeners.get('*');
+    if (globalListeners) {
+      globalListeners.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error('[RESTSocketService] Erro em listener global:', error);
         }
-      }
-      
-      // Sempre emitir para listeners globais (*)
-      const globalListeners = this.listeners.get('*');
-      if (globalListeners) {
-        globalListeners.forEach(callback => {
-          try {
-            // Usar setTimeout para executar de forma assíncrona
-            setTimeout(() => {
-              try {
-                callback(event);
-              } catch (callbackError) {
-                console.error('[RESTSocketService] Erro no callback global (setTimeout):', callbackError);
-              }
-            }, 0);
-          } catch (error) {
-            console.error('[RESTSocketService] Erro ao notificar listener global:', error);
-          }
-        });
-      }
-      
-      // Registrar timestamp de último evento para esta roleta
-      if (event.roleta_id) {
-        this.lastReceivedData.set(event.roleta_id, { timestamp: now, data: event });
-      }
-    } catch (error) {
-      console.error('[RESTSocketService] Erro geral em notifyListeners:', error);
+      });
     }
   }
 

@@ -67,40 +67,16 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
     plan.allowedFeatures.includes(featureId) && 
     (requiredPlan ? plan.type === requiredPlan : true)
   );
-  
-  // Mensagem padrão ou personalizada
-  const message = lockedMessage || 
-    `Este recurso está disponível apenas para assinantes do plano ${planWithFeature?.name || 'superior'}.`;
 
-  // Placeholder genérico se nenhum conteúdo específico for fornecido
-  const defaultPlaceholder = (
-    <div className="w-full h-full min-h-[200px] flex flex-col items-center justify-center space-y-4 p-6 text-center">
-      <div className="w-32 h-8 bg-gray-800 rounded animate-pulse"></div>
-      <div className="space-y-2 w-full max-w-md">
-        <div className="h-4 bg-gray-800 rounded w-3/4 mx-auto"></div>
-        <div className="h-4 bg-gray-800 rounded w-1/2 mx-auto"></div>
-      </div>
-      <div className="grid grid-cols-3 gap-4 w-full max-w-md">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-12 bg-gray-800 rounded animate-pulse"></div>
-        ))}
-      </div>
-      <div className="w-full h-24 bg-gray-800 rounded"></div>
-    </div>
-  );
-  
-  // Renderizar o componente de acesso bloqueado
-  return (
-    <div className="relative border border-dashed border-gray-600 rounded-md">
-      <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center p-4 text-center z-10">
-        <LockKeyhole className="h-8 w-8 mb-2 text-red-400" />
-        <h3 className="text-lg font-semibold mb-1">Recurso Bloqueado</h3>
-        <p className="text-sm text-gray-300 mb-4">{message}</p>
-        
+  // Placeholder mais simples para conteúdo bloqueado
+  const simplePlaceholder = (
+    <div className="w-full h-full min-h-[150px] bg-[#131111] flex flex-col items-center justify-center p-4 rounded-md">
+      <div className="flex flex-col items-center">
+        <LockKeyhole className="h-10 w-10 text-red-500 mb-3" />
         {showUpgradeOption && (
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="default" className="bg-vegas-gold hover:bg-vegas-gold/80 text-black">
+              <Button variant="default" size="sm" className="bg-vegas-gold hover:bg-vegas-gold/80 text-black mt-2">
                 Fazer Upgrade
               </Button>
             </DialogTrigger>
@@ -161,11 +137,13 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
           </Dialog>
         )}
       </div>
-      
-      {/* Usar conteúdo placeholder em vez de versão borrada do conteúdo real */}
-      <div className="opacity-60">
-        {placeholderContent || defaultPlaceholder}
-      </div>
+    </div>
+  );
+  
+  return (
+    <div className="h-full">
+      {/* Usar o placeholder simplificado */}
+      {placeholderContent || simplePlaceholder}
     </div>
   );
 };

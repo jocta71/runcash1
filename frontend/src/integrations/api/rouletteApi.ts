@@ -1,15 +1,35 @@
 // Removendo a importação do mapeamento canônico que pode estar filtrando roletas
 // import { mapToCanonicalRouletteId } from './rouletteService';
+import { PlanType } from '@/types/plans';
 
 // Cache para otimizar as requisições
 const cache: Record<string, { data: any, timestamp: number }> = {};
 const CACHE_TTL = 60000; // 1 minuto em milissegundos
+
+// Contexto de assinatura global armazenado no módulo
+let subscriptionContext: { hasFeatureAccess: (featureId: string) => boolean } | null = null;
+
+// Função utilitária para verificar se o usuário pode acessar dados detalhados
+// Esta função será utilizada antes de fazer requisições que consomem banda desnecessariamente
+const checkIfUserCanAccessDetailedData = () => {
+  // Verificar a assinatura do usuário
+  if (!subscriptionContext) return false;
+  
+  return subscriptionContext.hasFeatureAccess('view_roulette_cards');
+};
 
 /**
  * Busca todas as roletas e inclui os números mais recentes para cada uma.
  * Esta API combina os dados que normalmente seriam buscados separadamente.
  */
 export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
+  // Verificar se o usuário tem permissão antes de carregar dados detalhados
+  if (!checkIfUserCanAccessDetailedData()) {
+    console.log('[API] ⚠️ Requisição de números bloqueada: usuário sem assinatura ativa');
+    // Retornar apenas os dados básicos sem números
+    return []; // Ou retornar dados mockados básicos
+  }
+  
   console.log('[API] ⛔ DESATIVADO: Requisição para buscar roletas com números bloqueada para diagnóstico');
   return [];
   
@@ -89,6 +109,13 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
  * Busca uma roleta específica por ID e inclui seus números mais recentes
  */
 export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Promise<any | null> => {
+  // Verificar se o usuário tem permissão antes de carregar dados detalhados
+  if (!checkIfUserCanAccessDetailedData()) {
+    console.log('[API] ⚠️ Requisição de números bloqueada: usuário sem assinatura ativa');
+    // Retornar apenas os dados básicos sem números
+    return null; // Ou retornar dados mockados básicos
+  }
+  
   console.log(`[API] ⛔ DESATIVADO: Requisição para buscar roleta ${roletaId} com números bloqueada para diagnóstico`);
   return null;
   
@@ -143,4 +170,9 @@ export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Pr
     return null;
   }
   */
+};
+
+// Função para atualizar o contexto de assinatura
+export const setSubscriptionContext = (context: { hasFeatureAccess: (featureId: string) => boolean }) => {
+  subscriptionContext = context;
 }; 

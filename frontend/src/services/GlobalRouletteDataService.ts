@@ -274,27 +274,14 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Notifica todos os assinantes sobre a atualização dos dados
+   * Notifica todos os assinantes sobre atualização nos dados
    */
   private notifySubscribers(): void {
-    // Construir uma cópia do mapa antes de iterar para evitar problemas com modificações durante a iteração
-    const subscriberEntries = Array.from(this.subscribers.entries());
+    console.log(`[GlobalRouletteService] Notificando ${this.subscribers.size} assinantes`);
     
-    if (subscriberEntries.length > 0) {
-      console.log(`[GlobalRouletteService] Notificando ${subscriberEntries.length} assinantes sobre atualização`);
-    }
-    
-    subscriberEntries.forEach(([id, callback]) => {
+    this.subscribers.forEach((callback, id) => {
       try {
-        // Usar setTimeout para garantir que seja assíncrono
-        // Isso evita o erro "message channel closed before a response was received"
-        setTimeout(() => {
-          try {
-            callback();
-          } catch (innerError) {
-            console.error(`[GlobalRouletteService] Erro ao executar callback do assinante ${id} (setTimeout):`, innerError);
-          }
-        }, 0);
+        callback();
       } catch (error) {
         console.error(`[GlobalRouletteService] Erro ao notificar assinante ${id}:`, error);
       }

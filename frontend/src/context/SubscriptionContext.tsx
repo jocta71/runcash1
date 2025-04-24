@@ -3,6 +3,7 @@ import { Plan, PlanType, UserSubscription } from '@/types/plans';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
 import { API_URL } from '@/config/constants';
+import { setSubscriptionContext } from '@/integrations/api/rouletteApi';
 
 // Lista de planos disponíveis
 export const availablePlans: Plan[] = [
@@ -417,6 +418,15 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return false;
     }
   };
+
+  useEffect(() => {
+    // Configurar contexto de assinatura global para a API
+    if (currentSubscription || currentPlan) {
+      setSubscriptionContext({
+        hasFeatureAccess
+      });
+    }
+  }, [currentSubscription, currentPlan, hasFeatureAccess]);
 
   return (
     <SubscriptionContext.Provider
