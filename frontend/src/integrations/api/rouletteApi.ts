@@ -6,16 +6,19 @@ import { PlanType } from '@/types/plans';
 const cache: Record<string, { data: any, timestamp: number }> = {};
 const CACHE_TTL = 60000; // 1 minuto em milissegundos
 
-// Contexto de assinatura global armazenado no módulo
-let subscriptionContext: { hasFeatureAccess: (featureId: string) => boolean } | null = null;
+// Referência para o contexto de assinatura (injetado externamente pelo contexto)
+let subscriptionContext: { hasFeatureAccess: (featureId: string) => Promise<boolean> } | null = null;
 
 // Função utilitária para verificar se o usuário pode acessar dados detalhados
-// Esta função será utilizada antes de fazer requisições que consomem banda desnecessariamente
-const checkIfUserCanAccessDetailedData = () => {
-  // Verificar a assinatura do usuário
-  if (!subscriptionContext) return false;
+const canAccessDetailedData = async (): Promise<boolean> => {
+  // Se o contexto não foi injetado, negar acesso por segurança
+  if (!subscriptionContext) {
+    console.warn('[rouletteApi] Contexto de assinatura não definido, negando acesso por padrão');
+    return false;
+  }
   
-  return subscriptionContext.hasFeatureAccess('view_roulette_cards');
+  // Verificar se o usuário tem acesso à feature específica
+  return await subscriptionContext.hasFeatureAccess('view_roulette_cards');
 };
 
 /**
@@ -24,7 +27,7 @@ const checkIfUserCanAccessDetailedData = () => {
  */
 export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
   // Verificar se o usuário tem permissão antes de carregar dados detalhados
-  if (!checkIfUserCanAccessDetailedData()) {
+  if (!await canAccessDetailedData()) {
     console.log('[API] ⚠️ Requisição de números bloqueada: usuário sem assinatura ativa');
     // Retornar apenas os dados básicos sem números
     return []; // Ou retornar dados mockados básicos
@@ -110,7 +113,7 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
  */
 export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Promise<any | null> => {
   // Verificar se o usuário tem permissão antes de carregar dados detalhados
-  if (!checkIfUserCanAccessDetailedData()) {
+  if (!await canAccessDetailedData()) {
     console.log('[API] ⚠️ Requisição de números bloqueada: usuário sem assinatura ativa');
     // Retornar apenas os dados básicos sem números
     return null; // Ou retornar dados mockados básicos
@@ -172,7 +175,7 @@ export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Pr
   */
 };
 
-// Função para atualizar o contexto de assinatura
-export const setSubscriptionContext = (context: { hasFeatureAccess: (featureId: string) => boolean }) => {
+// Função para injetar o contexto de assinatura (chamada pelo SubscriptionContext)
+export const setSubscriptionContext = (context: { hasFeatureAccess: (featureId: string) => Promise<boolean> }) => {
   subscriptionContext = context;
 }; 

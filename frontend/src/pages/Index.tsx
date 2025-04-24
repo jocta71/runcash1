@@ -458,6 +458,34 @@ const Index = () => {
     });
   };
   
+  // Componente de Skeleton para os cards de roleta
+  const RouletteCardSkeleton = () => (
+    <div className="bg-[#131614] border border-gray-800 rounded-xl h-64 animate-pulse flex flex-col p-4">
+      <div className="flex justify-between items-center mb-3">
+        <div className="h-5 w-32 bg-gray-700 rounded"></div>
+        <div className="h-4 w-16 bg-gray-700 rounded"></div>
+      </div>
+      <div className="flex flex-wrap gap-1 justify-center my-4 p-3 border border-gray-700/50 rounded-xl bg-[#0f110f] flex-1">
+        <div className="flex flex-wrap gap-2 justify-center items-center w-full h-full">
+          {[...Array(15)].map((_, i) => (
+            <div key={i} className="h-7 w-7 bg-gray-700 rounded-full"></div>
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-between mt-2">
+        <div className="h-4 w-20 bg-gray-700 rounded"></div>
+        <div className="h-4 w-20 bg-gray-700 rounded"></div>
+      </div>
+    </div>
+  );
+  
+  // Função para renderizar skeletons enquanto carrega
+  const renderSkeletons = () => {
+    return [...Array(12)].map((_, i) => (
+      <RouletteCardSkeleton key={i} />
+    ));
+  };
+
   // Função para renderizar a paginação
   const renderPagination = () => {
     if (!Array.isArray(roulettes) || roulettes.length === 0) {
@@ -517,10 +545,8 @@ const Index = () => {
         
         {/* Estado de carregamento */}
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className="bg-[#1e1e24] animate-pulse rounded-xl h-64"></div>
-            ))}
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {renderSkeletons()}
           </div>
         ) : (
           <div className="flex flex-col lg:flex-row gap-6">
@@ -608,21 +634,17 @@ const Index = () => {
                         </DialogContent>
                       </Dialog>
 
-                      {/* Amostra gratuita de cards de roleta em versão bloqueada */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-10 opacity-50">
+                      {/* Amostra gratuita de cards de roleta em versão bloqueada - Agora usando o skeleton */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-10 opacity-50">
                         {[...Array(8)].map((_, i) => (
-                          <div key={i} className="bg-[#1e1e24] rounded-xl h-64 flex items-center justify-center border border-gray-700/30 relative overflow-hidden filter grayscale blur-[2px]">
-                            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                              <LockKeyhole className="h-8 w-8 text-red-500/70" />
-                            </div>
-                          </div>
+                          <RouletteCardSkeleton key={i} />
                         ))}
                       </div>
                     </div>
                   </div>
                 }
               >
-                <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {renderRouletteCards()}
                 </div>
               </PlanProtectedFeature>
