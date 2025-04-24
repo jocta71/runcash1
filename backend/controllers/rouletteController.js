@@ -1,80 +1,776 @@
-// Este é o controller que busca todas as roletas
-exports.getAllRoulettes = async (req, res) => {
+/**
+ * Controller para gerenciar dados de roletas
+ * Implementa respostas diferentes para assinantes e não-assinantes
+ */
+
+const getDb = require('../services/database');
+const { ObjectId } = require('mongodb');
+
+/**
+ * Lista todas as roletas disponíveis para o usuário
+ * Limita o número de roletas com base no plano do usuário
+ */
+const listRoulettes = async (req, res) => {
   try {
-    console.log('[Backend] Buscando todas as roletas');
+    const db = await getDb();
+    const roulettes = await db.collection('roulettes').find({}).toArray();
     
-    // Buscar no MongoDB - verificar qual campo está sendo usado
-    const roulettes = await Roulette.find({}).sort({ nome: 1 });
-    
-    if (!roulettes || roulettes.length === 0) {
-      console.log('[Backend] Nenhuma roleta encontrada, retornando roletas padrão');
-      
-      // Roletas padrão caso não encontre nenhuma no banco
-      const defaultRoulettes = [
-        { 
-          id: "7d3c2c9f-2850-f642-861f-5bb4daf1806a", 
-          nome: "Brazilian Mega Roulette", 
-          numero: [], 
-          estado_estrategia: "NEUTRAL",
-          vitorias: 0,
-          derrotas: 0
-        },
-        { 
-          id: "18bdc4ea-d884-c47a-d33f-27a268a4eead", 
-          nome: "Speed Auto Roulette", 
-          numero: [], 
-          estado_estrategia: "NEUTRAL",
-          vitorias: 0,
-          derrotas: 0
-        },
-        // ... outras roletas padrão
-      ];
-      
-      // Incluir timestamp de atualização
-      const responseWithTimestamp = defaultRoulettes.map(r => ({
-        ...r,
-        win_rate: (r.vitorias + r.derrotas > 0) ? ((r.vitorias / (r.vitorias + r.derrotas)) * 100).toFixed(1) + "%" : "N/A",
-        updated_at: new Date().toISOString()
-      }));
-      
-      return res.status(200).json(responseWithTimestamp);
+    // Se não for usuário autenticado ou não tiver plano, mostrar apenas uma amostra
+    if (!req.user) {
+      return res.json({
+        success: true,
+        message: 'Lista limitada de roletas (modo amostra)',
+        data: roulettes.slice(0, 3), // Apenas 3 roletas para visitantes
+        limited: true
+      });
     }
     
-    console.log(`[Backend] Encontradas ${roulettes.length} roletas no banco de dados`);
+    // Se for usuário autenticado, verificar plano
+    let limit = 5; // Padrão para plano gratuito
+    let limited = true;
     
-    // Mapear os resultados para o formato esperado pela API
-    const formattedRoulettes = roulettes.map(r => {
-      const rouletteObj = r.toObject ? r.toObject() : r;
-      
-      // Verificar e converter dados antigos (se necessário)
-      const numeroArray = Array.isArray(rouletteObj.numero) ? rouletteObj.numero : 
-                        (Array.isArray(rouletteObj.numeros) ? rouletteObj.numeros : []);
-      
-      // Log para debug
-      console.log(`[Backend] Roleta ${rouletteObj.nome || rouletteObj.id}: Encontrados ${numeroArray.length} números`);
-      
-      // Calcular win_rate
-      const vitorias = rouletteObj.vitorias || 0;
-      const derrotas = rouletteObj.derrotas || 0;
-      const winRate = (vitorias + derrotas > 0) ? ((vitorias / (vitorias + derrotas)) * 100).toFixed(1) + "%" : "N/A";
-      
-      return {
-        id: rouletteObj.id || rouletteObj._id,
-        nome: rouletteObj.nome,
-        // Usar somente "numero" (singular)
-        numero: numeroArray,
-        estado_estrategia: rouletteObj.estado_estrategia || "NEUTRAL",
-        vitorias: vitorias,
-        derrotas: derrotas,
-        win_rate: winRate,
-        updated_at: new Date().toISOString()
-      };
+    // Ajustar limite com base no plano
+    if (req.userPlan) {
+      switch (req.userPlan.type) {
+        case 'BASIC':
+          limit = 15;
+          break;
+        case 'PRO':
+        case 'PREMIUM':
+          limit = Infinity; // Sem limite
+          limited = false;
+          break;
+        default:
+          limit = 5; // FREE
+      }
+    }
+    
+    return res.json({
+      success: true,
+      data: limited ? roulettes.slice(0, limit) : roulettes,
+      limited,
+      totalCount: roulettes.length,
+      availableCount: limited ? limit : roulettes.length
+    });
+  } catch (error) {
+    console.error('Erro ao listar roletas:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao obter lista de roletas',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Obtém dados básicos de uma roleta específica
+ * (disponível para todos os usuários)
+ */
+const getBasicRouletteData = async (req, res) => {
+  try {
+    const rouletteId = req.params.id;
+    const db = await getDb();
+    
+    const roulette = await db.collection('roulettes').findOne({
+      $or: [
+        { _id: ObjectId.isValid(rouletteId) ? new ObjectId(rouletteId) : null },
+        { id: rouletteId }
+      ]
     });
     
-    return res.status(200).json(formattedRoulettes);
+    if (!roulette) {
+      return res.status(404).json({
+        success: false,
+        message: 'Roleta não encontrada'
+      });
+    }
     
+    // Incluir apenas últimos 5 números para todos os usuários
+    const recentNumbers = await db.collection('roulette_numbers')
+      .find({ rouletteId: roulette._id.toString() })
+      .sort({ timestamp: -1 })
+      .limit(5)
+      .toArray();
+    
+    return res.json({
+      success: true,
+      data: {
+        id: roulette._id,
+        name: roulette.name,
+        provider: roulette.provider,
+        status: roulette.status,
+        numbers: recentNumbers.map(n => n.number),
+        lastUpdated: new Date()
+      }
+    });
   } catch (error) {
-    console.error('[Backend] Erro ao buscar roletas:', error);
-    return res.status(500).json({ error: 'Erro ao buscar roletas', details: error.message });
+    console.error('Erro ao obter dados básicos da roleta:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao obter dados da roleta',
+      error: error.message
+    });
   }
+};
+
+/**
+ * Obtém os números recentes de uma roleta
+ * (limitado para usuários sem assinatura)
+ */
+const getRecentNumbers = async (req, res) => {
+  try {
+    const rouletteId = req.params.id;
+    const db = await getDb();
+    
+    // Verificar se a roleta existe
+    const roulette = await db.collection('roulettes').findOne({
+      $or: [
+        { _id: ObjectId.isValid(rouletteId) ? new ObjectId(rouletteId) : null },
+        { id: rouletteId }
+      ]
+    });
+    
+    if (!roulette) {
+      return res.status(404).json({
+        success: false,
+        message: 'Roleta não encontrada'
+      });
+    }
+    
+    // Limite baseado no plano do usuário
+    let limit = 10; // Padrão para visitantes ou plano gratuito
+    
+    // Ajustar limite com base no plano, se disponível
+    if (req.userPlan) {
+      switch (req.userPlan.type) {
+        case 'BASIC':
+          limit = 20;
+          break;
+        case 'PRO':
+          limit = 50;
+          break;
+        case 'PREMIUM':
+          limit = 100;
+          break;
+        default:
+          limit = 10; // FREE
+      }
+    }
+    
+    // Buscar números recentes
+    const recentNumbers = await db.collection('roulette_numbers')
+      .find({ rouletteId: roulette._id.toString() })
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .toArray();
+    
+    return res.json({
+      success: true,
+      data: {
+        id: roulette._id,
+        name: roulette.name,
+        numbers: recentNumbers.map(n => ({
+          number: n.number,
+          timestamp: n.timestamp,
+          color: getNumberColor(n.number)
+        })),
+        limit,
+        isPremium: limit > 10,
+        lastUpdated: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao obter números recentes:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao obter números recentes da roleta',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Obtém dados detalhados da roleta (para assinantes)
+ */
+const getDetailedRouletteData = async (req, res) => {
+  try {
+    const rouletteId = req.params.id;
+    const db = await getDb();
+    
+    // Verificar se a roleta existe
+    const roulette = await db.collection('roulettes').findOne({
+      $or: [
+        { _id: ObjectId.isValid(rouletteId) ? new ObjectId(rouletteId) : null },
+        { id: rouletteId }
+      ]
+    });
+    
+    if (!roulette) {
+      return res.status(404).json({
+        success: false,
+        message: 'Roleta não encontrada'
+      });
+    }
+    
+    // Buscar números completos (sem limite para assinantes)
+    const allNumbers = await db.collection('roulette_numbers')
+      .find({ rouletteId: roulette._id.toString() })
+      .sort({ timestamp: -1 })
+      .limit(1000) // Ainda limitar a 1000 por questões de performance
+      .toArray();
+    
+    // Gerar estatísticas avançadas
+    const stats = generateRouletteStats(allNumbers.map(n => n.number));
+    
+    return res.json({
+      success: true,
+      data: {
+        id: roulette._id,
+        name: roulette.name,
+        provider: roulette.provider,
+        status: roulette.status,
+        numbers: allNumbers.map(n => ({
+          number: n.number,
+          timestamp: n.timestamp,
+          color: getNumberColor(n.number)
+        })),
+        stats,
+        lastUpdated: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao obter dados detalhados da roleta:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao obter dados detalhados da roleta',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Obtém estatísticas detalhadas da roleta (para assinantes)
+ */
+const getRouletteStatistics = async (req, res) => {
+  try {
+    const rouletteId = req.params.id;
+    const db = await getDb();
+    
+    // Verificar se a roleta existe
+    const roulette = await db.collection('roulettes').findOne({
+      $or: [
+        { _id: ObjectId.isValid(rouletteId) ? new ObjectId(rouletteId) : null },
+        { id: rouletteId }
+      ]
+    });
+    
+    if (!roulette) {
+      return res.status(404).json({
+        success: false,
+        message: 'Roleta não encontrada'
+      });
+    }
+    
+    // Buscar números para análise
+    const allNumbers = await db.collection('roulette_numbers')
+      .find({ rouletteId: roulette._id.toString() })
+      .sort({ timestamp: -1 })
+      .limit(1000)
+      .toArray();
+    
+    // Gerar estatísticas avançadas específicas para o sidepanel
+    const stats = generateDetailedStats(allNumbers.map(n => n.number));
+    
+    return res.json({
+      success: true,
+      data: {
+        id: roulette._id,
+        name: roulette.name,
+        stats,
+        lastUpdated: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao obter estatísticas da roleta:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao obter estatísticas da roleta',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Obtém dados históricos avançados (para assinantes premium)
+ */
+const getHistoricalData = async (req, res) => {
+  try {
+    const rouletteId = req.params.id;
+    const db = await getDb();
+    
+    // Verificar se a roleta existe
+    const roulette = await db.collection('roulettes').findOne({
+      $or: [
+        { _id: ObjectId.isValid(rouletteId) ? new ObjectId(rouletteId) : null },
+        { id: rouletteId }
+      ]
+    });
+    
+    if (!roulette) {
+      return res.status(404).json({
+        success: false,
+        message: 'Roleta não encontrada'
+      });
+    }
+    
+    // Buscar histórico completo para assinantes premium (últimos 30 dias)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const historicalNumbers = await db.collection('roulette_numbers')
+      .find({ 
+        rouletteId: roulette._id.toString(),
+        timestamp: { $gte: thirtyDaysAgo }
+      })
+      .sort({ timestamp: 1 })
+      .toArray();
+    
+    // Calcular estatísticas avançadas por dia/hora
+    const timeStats = generateTimeBasedStats(historicalNumbers);
+    
+    return res.json({
+      success: true,
+      data: {
+        id: roulette._id,
+        name: roulette.name,
+        timeStats,
+        totalNumbersAnalyzed: historicalNumbers.length,
+        period: {
+          from: thirtyDaysAgo,
+          to: new Date()
+        },
+        lastUpdated: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao obter dados históricos da roleta:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao obter dados históricos da roleta',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Obtém um lote de números (batch) - requer assinatura
+ */
+const getNumbersBatch = async (req, res) => {
+  try {
+    const rouletteId = req.params.id;
+    const db = await getDb();
+    
+    // Verificar se a roleta existe
+    const roulette = await db.collection('roulettes').findOne({
+      $or: [
+        { _id: ObjectId.isValid(rouletteId) ? new ObjectId(rouletteId) : null },
+        { id: rouletteId }
+      ]
+    });
+    
+    if (!roulette) {
+      return res.status(404).json({
+        success: false,
+        message: 'Roleta não encontrada'
+      });
+    }
+    
+    // Limitar batch por plano
+    let limit = 500; // Padrão para BASIC
+    
+    // Ajustar limite com base no plano
+    if (req.userPlan) {
+      switch (req.userPlan.type) {
+        case 'PRO':
+          limit = 750;
+          break;
+        case 'PREMIUM':
+          limit = 1000;
+          break;
+        default:
+          limit = 500; // BASIC
+      }
+    }
+    
+    // Buscar batch de números
+    const numbersBatch = await db.collection('roulette_numbers')
+      .find({ rouletteId: roulette._id.toString() })
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .toArray();
+    
+    return res.json({
+      success: true,
+      data: {
+        id: roulette._id,
+        name: roulette.name,
+        numbers: numbersBatch.map(n => ({
+          number: n.number,
+          timestamp: n.timestamp,
+          color: getNumberColor(n.number)
+        })),
+        totalCount: numbersBatch.length,
+        limit,
+        lastUpdated: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao obter lote de números:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao obter lote de números da roleta',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Versão limitada/degradada para usuários sem assinatura
+ * Mostra uma prévia do que eles teriam com uma assinatura
+ */
+const getFreePreview = async (req, res) => {
+  try {
+    const rouletteId = req.params.id;
+    const db = await getDb();
+    
+    // Verificar se a roleta existe
+    const roulette = await db.collection('roulettes').findOne({
+      $or: [
+        { _id: ObjectId.isValid(rouletteId) ? new ObjectId(rouletteId) : null },
+        { id: rouletteId }
+      ]
+    });
+    
+    if (!roulette) {
+      return res.status(404).json({
+        success: false,
+        message: 'Roleta não encontrada'
+      });
+    }
+    
+    // Buscar apenas 5 números mais recentes
+    const recentNumbers = await db.collection('roulette_numbers')
+      .find({ rouletteId: roulette._id.toString() })
+      .sort({ timestamp: -1 })
+      .limit(5)
+      .toArray();
+    
+    // Exemplo simplificado de estatísticas para modo preview
+    const previewStats = {
+      colorDistribution: {
+        red: 'Disponível com assinatura',
+        black: 'Disponível com assinatura',
+        green: 'Disponível com assinatura'
+      },
+      hotNumbers: [
+        { number: '?', frequency: '?' },
+        { number: '?', frequency: '?' }
+      ],
+      coldNumbers: [
+        { number: '?', frequency: '?' },
+        { number: '?', frequency: '?' }
+      ],
+      parity: {
+        even: 'Disponível com assinatura',
+        odd: 'Disponível com assinatura'
+      }
+    };
+    
+    return res.json({
+      success: true,
+      data: {
+        id: roulette._id,
+        name: roulette.name,
+        provider: roulette.provider,
+        numbers: recentNumbers.map(n => ({
+          number: n.number,
+          timestamp: n.timestamp,
+          color: getNumberColor(n.number)
+        })),
+        previewStats,
+        isFreePreview: true,
+        message: 'Este é um exemplo limitado. Assine um plano para acessar estatísticas completas e histórico detalhado.',
+        lastUpdated: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao obter prévia gratuita:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao obter prévia gratuita da roleta',
+      error: error.message
+    });
+  }
+};
+
+/** 
+ * FUNÇÕES AUXILIARES
+ */
+
+/**
+ * Determina a cor de um número da roleta
+ */
+const getNumberColor = (number) => {
+  if (number === 0) return 'verde';
+  
+  // Números vermelhos na roleta europeia
+  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  return redNumbers.includes(number) ? 'vermelho' : 'preto';
+};
+
+/**
+ * Gera estatísticas básicas da roleta
+ */
+const generateRouletteStats = (numbers) => {
+  if (!numbers || numbers.length === 0) {
+    return {
+      empty: true,
+      message: 'Sem dados suficientes para análise'
+    };
+  }
+  
+  // Estatísticas básicas
+  const stats = {
+    totalNumbers: numbers.length,
+    distribution: {
+      red: 0,
+      black: 0,
+      green: 0
+    },
+    parity: {
+      even: 0,
+      odd: 0
+    },
+    dozens: {
+      first: 0,  // 1-12
+      second: 0, // 13-24
+      third: 0   // 25-36
+    },
+    segments: {
+      low: 0,  // 1-18
+      high: 0  // 19-36
+    }
+  };
+  
+  // Contar ocorrências de cada número
+  const numberCounts = {};
+  
+  numbers.forEach(num => {
+    // Contagem de número
+    numberCounts[num] = (numberCounts[num] || 0) + 1;
+    
+    // Cor
+    if (num === 0) {
+      stats.distribution.green++;
+    } else {
+      const isRed = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num);
+      if (isRed) {
+        stats.distribution.red++;
+      } else {
+        stats.distribution.black++;
+      }
+    }
+    
+    // Parity (zero não conta)
+    if (num !== 0) {
+      if (num % 2 === 0) {
+        stats.parity.even++;
+      } else {
+        stats.parity.odd++;
+      }
+    }
+    
+    // Dozens
+    if (num >= 1 && num <= 12) {
+      stats.dozens.first++;
+    } else if (num >= 13 && num <= 24) {
+      stats.dozens.second++;
+    } else if (num >= 25 && num <= 36) {
+      stats.dozens.third++;
+    }
+    
+    // Segments
+    if (num >= 1 && num <= 18) {
+      stats.segments.low++;
+    } else if (num >= 19 && num <= 36) {
+      stats.segments.high++;
+    }
+  });
+  
+  // Números quentes (mais frequentes) e frios (menos frequentes)
+  const sortedNumbers = Object.entries(numberCounts)
+    .map(([number, count]) => ({ number: parseInt(number), count }))
+    .sort((a, b) => b.count - a.count);
+  
+  stats.hotNumbers = sortedNumbers.slice(0, 5);
+  stats.coldNumbers = sortedNumbers.slice(-5).reverse();
+  
+  return stats;
+};
+
+/**
+ * Gera estatísticas detalhadas para o sidepanel
+ */
+const generateDetailedStats = (numbers) => {
+  const basicStats = generateRouletteStats(numbers);
+  
+  // Adicionar estatísticas mais avançadas para o sidepanel
+  const detailedStats = {
+    ...basicStats,
+    
+    // Sequências de cores
+    colorSequences: {
+      redStreaks: findLongestStreak(numbers, num => getNumberColor(num) === 'vermelho'),
+      blackStreaks: findLongestStreak(numbers, num => getNumberColor(num) === 'preto')
+    },
+    
+    // Sequências de paridade
+    paritySequences: {
+      evenStreaks: findLongestStreak(numbers, num => num !== 0 && num % 2 === 0),
+      oddStreaks: findLongestStreak(numbers, num => num !== 0 && num % 2 !== 0)
+    },
+    
+    // Padrões de bets 
+    patterns: analyzePatterns(numbers)
+  };
+  
+  return detailedStats;
+};
+
+/**
+ * Gera estatísticas baseadas em tempo
+ */
+const generateTimeBasedStats = (numbersWithTimestamp) => {
+  // Agrupar por dia
+  const dayGroups = {};
+  
+  numbersWithTimestamp.forEach(item => {
+    const date = new Date(item.timestamp);
+    const day = date.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    if (!dayGroups[day]) {
+      dayGroups[day] = [];
+    }
+    
+    dayGroups[day].push(item.number);
+  });
+  
+  // Calcular estatísticas por dia
+  const dailyStats = {};
+  
+  Object.entries(dayGroups).forEach(([day, nums]) => {
+    dailyStats[day] = generateRouletteStats(nums);
+    dailyStats[day].count = nums.length;
+  });
+  
+  return {
+    dailyStats,
+    totalDays: Object.keys(dayGroups).length
+  };
+};
+
+/**
+ * Encontra a maior sequência de números que satisfazem uma condição
+ */
+const findLongestStreak = (numbers, conditionFn) => {
+  let currentStreak = 0;
+  let longestStreak = 0;
+  let streaks = [];
+  
+  numbers.forEach((num, index) => {
+    if (conditionFn(num)) {
+      currentStreak++;
+      
+      if (index === numbers.length - 1) {
+        streaks.push(currentStreak);
+      }
+    } else {
+      if (currentStreak > 0) {
+        streaks.push(currentStreak);
+        currentStreak = 0;
+      }
+    }
+    
+    longestStreak = Math.max(longestStreak, currentStreak);
+  });
+  
+  return {
+    longest: longestStreak,
+    current: currentStreak,
+    allStreaks: streaks.filter(s => s > 1).slice(0, 5) // Top 5 sequências
+  };
+};
+
+/**
+ * Analisa padrões nos números
+ */
+const analyzePatterns = (numbers) => {
+  // Exemplo simples - implementar algoritmos mais avançados conforme necessário
+  return {
+    repeatingNumbers: findRepeatingPatterns(numbers),
+    alternatingColors: checkAlternatingColors(numbers)
+  };
+};
+
+/**
+ * Encontra padrões de repetição de números
+ */
+const findRepeatingPatterns = (numbers) => {
+  const repeats = [];
+  
+  for (let i = 0; i < numbers.length - 1; i++) {
+    if (numbers[i] === numbers[i + 1]) {
+      repeats.push({
+        number: numbers[i],
+        position: i
+      });
+    }
+  }
+  
+  return {
+    count: repeats.length,
+    examples: repeats.slice(0, 3)
+  };
+};
+
+/**
+ * Verifica padrões de alternância de cores
+ */
+const checkAlternatingColors = (numbers) => {
+  let alternatingCount = 0;
+  
+  for (let i = 0; i < numbers.length - 1; i++) {
+    const currentColor = getNumberColor(numbers[i]);
+    const nextColor = getNumberColor(numbers[i + 1]);
+    
+    if (currentColor !== nextColor) {
+      alternatingCount++;
+    }
+  }
+  
+  return {
+    count: alternatingCount,
+    percentage: Math.round((alternatingCount / (numbers.length - 1)) * 100)
+  };
+};
+
+module.exports = {
+  listRoulettes,
+  getBasicRouletteData,
+  getRecentNumbers,
+  getDetailedRouletteData,
+  getRouletteStatistics,
+  getHistoricalData,
+  getNumbersBatch,
+  getFreePreview
 }; 

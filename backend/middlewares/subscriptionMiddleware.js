@@ -1,0 +1,106 @@
+/**
+ * Middleware para verificação de assinatura
+ * Controla acesso a recursos baseado no tipo de assinatura do usuário
+ */
+
+/**
+ * Verifica se o usuário possui uma assinatura ativa
+ * @param {Object} options - Opções de configuração
+ * @param {Array} options.allowedTypes - Lista de tipos de assinatura permitidos ('basic', 'premium', etc)
+ * @param {Boolean} options.requireActive - Se true, requer que a assinatura esteja ativa
+ * @param {Boolean} options.degradedPreview - Se true, permite continuar sem assinatura mas marca o request para versão degradada
+ */
+exports.requireSubscription = (options = { 
+  allowedTypes: ['basic', 'premium'], 
+  requireActive: true,
+  degradedPreview: false
+}) => {
+  return async (req, res, next) => {
+    // Se não há usuário autenticado, verifica se degradedPreview está ativo
+    if (!req.user) {
+      if (options.degradedPreview) {
+        req.degradedAccess = true;
+        return next();
+      }
+      
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado. Autenticação necessária'
+      });
+    }
+    
+    try {
+      // Obter detalhes de assinatura do usuário
+      const subscription = req.user.subscription || {};
+      
+      // Verificar se o usuário tem uma assinatura ativa
+      const hasActiveSubscription = subscription.status === 'active';
+      
+      // Verificar se o tipo de assinatura é permitido
+      const hasAllowedType = options.allowedTypes.includes(subscription.type);
+      
+      // Verificar se requer assinatura ativa
+      if (options.requireActive && !hasActiveSubscription) {
+        // Se permitir preview degradado, continua mas marca o request
+        if (options.degradedPreview) {
+          req.degradedAccess = true;
+          return next();
+        }
+        
+        return res.status(403).json({
+          success: false,
+          message: 'Acesso negado. Assinatura inativa ou expirada',
+          subscriptionRequired: true
+        });
+      }
+      
+      // Verificar se o tipo de assinatura é permitido
+      if (!hasAllowedType) {
+        // Se permitir preview degradado, continua mas marca o request
+        if (options.degradedPreview) {
+          req.degradedAccess = true;
+          return next();
+        }
+        
+        return res.status(403).json({
+          success: false,
+          message: `Acesso negado. Necessário assinatura: ${options.allowedTypes.join(' ou ')}`,
+          subscriptionRequired: true,
+          requiredTypes: options.allowedTypes
+        });
+      }
+      
+      // Se chegou aqui, o usuário tem permissão adequada
+      next();
+      
+    } catch (error) {
+      console.error('Erro ao verificar assinatura:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Erro interno no servidor durante verificação de assinatura'
+      });
+    }
+  };
+};
+
+/**
+ * Middleware para permitir acesso apenas a usuários premium
+ */
+exports.requirePremium = (options = { degradedPreview: false }) => {
+  return exports.requireSubscription({
+    allowedTypes: ['premium'],
+    requireActive: true,
+    degradedPreview: options.degradedPreview
+  });
+};
+
+/**
+ * Middleware para permitir acesso a usuários com qualquer assinatura ativa
+ */
+exports.requireAnySubscription = (options = { degradedPreview: false }) => {
+  return exports.requireSubscription({
+    allowedTypes: ['basic', 'premium', 'pro'],
+    requireActive: true,
+    degradedPreview: options.degradedPreview
+  });
+}; 
