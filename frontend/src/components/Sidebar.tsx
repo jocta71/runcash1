@@ -93,7 +93,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
                 onClick={() => handleSettingsItemClick(option.id)}
               >
                 <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                  <option.icon size={18} className={activeSettingsTab === option.id ? "bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-text text-transparent" : "text-white"} />
+                  <option.icon size={18} className={activeSettingsTab === option.id ? "text-[#00FF00]" : "text-white"} />
                 </div>
                 <span className="truncate">{option.label}</span>
               </div>
