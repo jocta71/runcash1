@@ -200,46 +200,53 @@ export class EventService {
     
     console.log(`[EventService] Evento recebido do SocketService: ${event.type} para ${event.roleta_nome}`);
     
-    // Formatar evento (garantir compatibilidade completa)
-    let formattedEvent: RouletteNumberEvent | StrategyUpdateEvent;
-    
-    if (event.type === 'new_number') {
-      formattedEvent = {
-        type: 'new_number',
-        roleta_id: event.roleta_id || '',
-        roleta_nome: event.roleta_nome || 'Desconhecida',
-        numero: typeof event.numero === 'number' ? event.numero : 
-                typeof event.numero === 'string' ? parseInt(event.numero, 10) : 0,
-        timestamp: event.timestamp || new Date().toISOString(),
-        // Incluir campos opcionais de estratégia, se presentes
-        estado_estrategia: event.estado_estrategia,
-        sugestao_display: event.sugestao_display,
-        terminais_gatilho: event.terminais_gatilho
-      };
+    try {
+      // Formatar evento (garantir compatibilidade completa)
+      let formattedEvent: RouletteNumberEvent | StrategyUpdateEvent;
       
-      console.log(`[EventService] Novo número formatado: ${formattedEvent.roleta_nome} - ${formattedEvent.numero}`);
-    } else if (event.type === 'strategy_update') {
-      formattedEvent = {
-        type: 'strategy_update',
-        roleta_id: event.roleta_id || '',
-        roleta_nome: event.roleta_nome || 'Desconhecida',
-        estado: event.estado || 'UNKNOWN',
-        numero_gatilho: event.numero_gatilho || 0,
-        terminais_gatilho: event.terminais_gatilho || [],
-        vitorias: event.vitorias !== undefined ? event.vitorias : 0,
-        derrotas: event.derrotas !== undefined ? event.derrotas : 0,
-        sugestao_display: event.sugestao_display,
-        timestamp: event.timestamp || new Date().toISOString()
-      };
+      if (event.type === 'new_number') {
+        formattedEvent = {
+          type: 'new_number',
+          roleta_id: event.roleta_id || '',
+          roleta_nome: event.roleta_nome || 'Desconhecida',
+          numero: typeof event.numero === 'number' ? event.numero : 
+                  typeof event.numero === 'string' ? parseInt(event.numero, 10) : 0,
+          timestamp: event.timestamp || new Date().toISOString(),
+          // Incluir campos opcionais de estratégia, se presentes
+          estado_estrategia: event.estado_estrategia,
+          sugestao_display: event.sugestao_display,
+          terminais_gatilho: event.terminais_gatilho
+        };
+        
+        console.log(`[EventService] Novo número formatado: ${formattedEvent.roleta_nome} - ${formattedEvent.numero}`);
+      } else if (event.type === 'strategy_update') {
+        formattedEvent = {
+          type: 'strategy_update',
+          roleta_id: event.roleta_id || '',
+          roleta_nome: event.roleta_nome || 'Desconhecida',
+          estado: event.estado || 'UNKNOWN',
+          numero_gatilho: event.numero_gatilho || 0,
+          terminais_gatilho: event.terminais_gatilho || [],
+          vitorias: event.vitorias !== undefined ? event.vitorias : 0,
+          derrotas: event.derrotas !== undefined ? event.derrotas : 0,
+          sugestao_display: event.sugestao_display,
+          timestamp: event.timestamp || new Date().toISOString()
+        };
+        
+        console.log(`[EventService] Estratégia formatada: ${formattedEvent.roleta_nome} - ${formattedEvent.estado}`);
+      } else {
+        console.warn(`[EventService] Tipo de evento desconhecido: ${event.type}`);
+        return;
+      }
       
-      console.log(`[EventService] Estratégia formatada: ${formattedEvent.roleta_nome} - ${formattedEvent.estado}`);
-    } else {
-      console.warn(`[EventService] Tipo de evento desconhecido: ${event.type}`);
-      return;
+      // Notificar todos os ouvintes registrados em um timeout para garantir que seja assíncrono
+      // e não cause problemas com canais de mensagem fechados
+      setTimeout(() => {
+        this.notifyListeners(formattedEvent);
+      }, 0);
+    } catch (error) {
+      console.error('[EventService] Erro ao processar evento:', error);
     }
-    
-    // Notificar todos os ouvintes registrados
-    this.notifyListeners(formattedEvent);
   }
   
   // Método alternativo de polling para quando SSE falhar
@@ -371,35 +378,86 @@ export class EventService {
 
   // Notifica os listeners sobre um novo evento
   private notifyListeners(event: RouletteNumberEvent | StrategyUpdateEvent): void {
-    // Log simplificado para melhor desempenho em modo tempo real
+    // Verificar qual tipo de evento foi recebido
     if (event.type === 'new_number') {
-      debugLog(`[EventService] Novo número: ${event.roleta_nome} - ${event.numero}`);
+      // Obter a roleta a partir do ID ou nome
+      const roletaId = event.roleta_id;
+      const roletaNome = event.roleta_nome;
+      
+      // Chamar listeners para esta roleta específica
+      const listenersForRoulette = this.listeners.get(roletaId) || new Set();
+      const listenersForRouletteName = this.listeners.get(roletaNome) || new Set();
+      
+      // Chamar listeners globais (com * como chave)
+      const globalListeners = this.listeners.get('*') || new Set();
+      
+      let callbackCount = 0;
+      let errorCount = 0;
+      
+      // Função para chamar um callback de forma segura
+      const safeCallCallback = (callback: RouletteEventCallback) => {
+        try {
+          // Usar setTimeout para desacoplar a execução do callback
+          // Isso evita o erro de "message channel closed"
+          setTimeout(() => {
+            try {
+              callback(event);
+            } catch (innerError) {
+              console.error(`[EventService] Erro no callback (setTimeout):`, innerError);
+            }
+          }, 0);
+          callbackCount++;
+        } catch (error) {
+          console.error(`[EventService] Erro ao chamar callback de evento:`, error);
+          errorCount++;
+        }
+      };
+      
+      // Chamar todos os listeners
+      listenersForRoulette.forEach(safeCallCallback);
+      listenersForRouletteName.forEach(safeCallCallback);
+      globalListeners.forEach(safeCallCallback);
+      
+      debugLog(`[EventService] Notificado ${callbackCount} listeners para novo número: ${event.numero} (${event.roleta_nome}) (Erros: ${errorCount})`);
     } else if (event.type === 'strategy_update') {
-      debugLog(`[EventService] Estratégia: ${event.roleta_nome} - Estado: ${event.estado}`);
-    }
-    
-    // Notificar listeners da roleta específica
-    const roletaListeners = this.listeners.get(event.roleta_nome);
-    if (roletaListeners && roletaListeners.size > 0) {
-      roletaListeners.forEach(callback => {
+      // Lógica similar para eventos de atualização de estratégia
+      const roletaId = event.roleta_id;
+      const roletaNome = event.roleta_nome;
+      
+      // Chamar listeners para esta roleta específica
+      const listenersForRoulette = this.listeners.get(roletaId) || new Set();
+      const listenersForRouletteName = this.listeners.get(roletaNome) || new Set();
+      
+      // Chamar listeners globais (com * como chave)
+      const globalListeners = this.listeners.get('*') || new Set();
+      
+      let callbackCount = 0;
+      let errorCount = 0;
+      
+      // Função para chamar um callback de forma segura
+      const safeCallCallback = (callback: RouletteEventCallback) => {
         try {
-          callback(event);
+          // Usar setTimeout para desacoplar a execução do callback
+          setTimeout(() => {
+            try {
+              callback(event);
+            } catch (innerError) {
+              console.error(`[EventService] Erro no callback de estratégia (setTimeout):`, innerError);
+            }
+          }, 0);
+          callbackCount++;
         } catch (error) {
-          debugLog(`[EventService] Erro ao notificar listener para ${event.roleta_nome}`);
+          console.error(`[EventService] Erro ao chamar callback de evento de estratégia:`, error);
+          errorCount++;
         }
-      });
-    }
-    
-    // Notificar listeners globais (*)
-    const globalListeners = this.listeners.get('*');
-    if (globalListeners && globalListeners.size > 0) {
-      globalListeners.forEach(callback => {
-        try {
-          callback(event);
-        } catch (error) {
-          debugLog('[EventService] Erro ao notificar listener global');
-        }
-      });
+      };
+      
+      // Chamar todos os listeners
+      listenersForRoulette.forEach(safeCallCallback);
+      listenersForRouletteName.forEach(safeCallCallback);
+      globalListeners.forEach(safeCallCallback);
+      
+      debugLog(`[EventService] Notificado ${callbackCount} listeners para atualização de estratégia: ${event.estado} (${event.roleta_nome}) (Erros: ${errorCount})`);
     }
   }
 
@@ -583,7 +641,6 @@ export class EventService {
         socketService.reconnect();
         // Solicitar atualizações em qualquer caso
         socketService.requestRecentNumbers();
-        socketService.broadcastConnectionState();
       } else {
         // Se estiver conectado, solicitar atualização
         socketService.requestRecentNumbers();

@@ -237,6 +237,7 @@ const Index = () => {
   // Efeito para inicialização e atualização periódica
   useEffect(() => {
     // Inicialização
+    isMounted.current = true; // Marcar componente como montado
     loadRouletteData();
     
     // Timeout de segurança para garantir que a tela será liberada
@@ -274,11 +275,20 @@ const Index = () => {
         clearTimeout(updateTimeoutRef.current);
       }
       
+      // Somente agendar se o componente ainda estiver montado
+      if (!isMounted.current) return;
+      
       updateTimeoutRef.current = setTimeout(() => {
+        // Verificar novamente se o componente ainda está montado
+        if (!isMounted.current) return;
+        
         // Agendar próxima atualização usando o throttler (sem forçar execução imediata)
         RequestThrottler.scheduleRequest(
           'index_roulettes',
           async () => {
+            // Verifica mais uma vez se o componente está montado
+            if (!isMounted.current) return [];
+            
             console.log('🔄 Atualizando roletas periodicamente...');
             const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
             console.log(`✅ ${response.length} roletas atualizadas`);
@@ -299,15 +309,21 @@ const Index = () => {
     
     // Cleanup
     return () => {
+      // Marcar componente como desmontado PRIMEIRO, antes de qualquer outra limpeza
       isMounted.current = false;
+      
+      // Cancelar assinatura de atualizações
       unsubscribe();
       
+      // Limpar timeouts
       clearTimeout(safetyTimeout);
       
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
         updateTimeoutRef.current = null;
       }
+      
+      console.log('[Index] Componente desmontado, limpeza realizada');
     };
   }, [loadRouletteData, knownRoulettes]);
   
