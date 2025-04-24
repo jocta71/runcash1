@@ -12,21 +12,6 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { PlanType } from '@/types/plans';
-import { useNavigate } from 'react-router-dom';
-
-// Contexto global para gerenciar o estado de recursos bloqueados
-export const UpgradeContext = React.createContext<{
-  hasBlockedResources: boolean;
-  setHasBlockedResources: (value: boolean) => void;
-  redirectToPlans: () => void;
-}>({
-  hasBlockedResources: false,
-  setHasBlockedResources: () => {},
-  redirectToPlans: () => {},
-});
-
-// Hook para utilizar o contexto de upgrade
-export const useUpgradeContext = () => React.useContext(UpgradeContext);
 
 interface PlanProtectedFeatureProps {
   /**
@@ -54,17 +39,12 @@ interface PlanProtectedFeatureProps {
    * Se não fornecido, será mostrado um placeholder genérico
    */
   placeholderContent?: React.ReactNode;
-  /**
-   * Se verdadeiro, redireciona diretamente para a página de planos ao clicar
-   * no conteúdo bloqueado, em vez de mostrar o modal de upgrade
-   */
-  redirectOnClick?: boolean;
 }
 
 /**
  * Componente que protege recursos com base no plano do usuário.
  * Exibe o conteúdo somente se o usuário tiver o plano necessário,
- * caso contrário, mostra um cadeado indicando que está bloqueado.
+ * caso contrário, mostra uma mensagem de acesso bloqueado e opções de upgrade.
  */
 const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
   featureId,
@@ -72,51 +52,89 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
   children,
   lockedMessage,
   showUpgradeOption = true,
-  placeholderContent,
-  redirectOnClick = false
+  placeholderContent
 }) => {
   const { hasFeatureAccess, availablePlans, currentPlan } = useSubscription();
   const hasAccess = hasFeatureAccess(featureId);
-  const { setHasBlockedResources, redirectToPlans } = useUpgradeContext();
-  
-  // Quando um recurso bloqueado é renderizado, notificar o contexto
-  React.useEffect(() => {
-    if (!hasAccess) {
-      setHasBlockedResources(true);
-    }
-  }, [hasAccess, setHasBlockedResources]);
   
   // Se o usuário tem acesso, renderize o conteúdo
   if (hasAccess) {
     return <>{children}</>;
   }
   
-  // Função para lidar com cliques no conteúdo bloqueado
-  const handleBlockedContentClick = () => {
-    if (redirectOnClick) {
-      redirectToPlans();
-    }
-  };
-  
-  // Placeholder simplificado para conteúdo bloqueado - sem botão de upgrade individual
+  // Encontrar o plano mínimo que oferece este recurso
+  const planWithFeature = availablePlans.find(plan => 
+    plan.allowedFeatures.includes(featureId) && 
+    (requiredPlan ? plan.type === requiredPlan : true)
+  );
+
+  // Placeholder mais simples para conteúdo bloqueado
   const simplePlaceholder = (
-    <div 
-      className="w-full h-full min-h-[150px] bg-[#131111] flex flex-col items-center justify-center p-4 rounded-md cursor-pointer hover:bg-[#1a1818] transition-colors duration-200"
-      onClick={handleBlockedContentClick}
-    >
+    <div className="w-full h-full min-h-[150px] bg-[#131111] flex flex-col items-center justify-center p-4 rounded-md">
       <div className="flex flex-col items-center">
-        <LockKeyhole className="h-10 w-10 text-red-500" />
-        <p className="text-xs text-gray-400 mt-2 text-center">
-          {lockedMessage || `Disponível no plano ${requiredPlan}`}
-        </p>
-        {redirectOnClick && (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="mt-3 text-xs bg-vegas-gold/10 hover:bg-vegas-gold/20 border-vegas-gold/30 text-vegas-gold"
-          >
-            Fazer Upgrade
-          </Button>
+        <LockKeyhole className="h-10 w-10 text-red-500 mb-3" />
+        {showUpgradeOption && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="default" size="sm" className="bg-vegas-gold hover:bg-vegas-gold/80 text-black mt-2">
+                Fazer Upgrade
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-vegas-darkgray text-white border-vegas-black">
+              <DialogHeader>
+                <DialogTitle>Faça upgrade do seu plano</DialogTitle>
+                <DialogDescription className="text-gray-400">
+                  Escolha um plano para desbloquear recursos adicionais
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="grid gap-4 py-4">
+                {availablePlans
+                  .filter(plan => plan.type !== PlanType.FREE && (currentPlan ? plan.type > currentPlan.type : true))
+                  .map(plan => (
+                    <div key={plan.id} className="flex items-center justify-between border border-gray-700 rounded-md p-4">
+                      <div>
+                        <h4 className="font-medium">{plan.name}</h4>
+                        <p className="text-sm text-gray-400">{plan.description}</p>
+                        <ul className="mt-2 text-xs text-gray-300">
+                          {plan.features.slice(0, 3).map((feature, i) => (
+                            <li key={i} className="flex items-center">
+                              <span className="mr-1 text-vegas-gold">✓</span> {feature}
+                            </li>
+                          ))}
+                          {plan.features.length > 3 && (
+                            <li className="text-gray-400">+ {plan.features.length - 3} mais recursos</li>
+                          )}
+                        </ul>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-vegas-gold">
+                          {plan.price.toLocaleString('pt-BR', { 
+                            style: 'currency', 
+                            currency: 'BRL' 
+                          })}
+                          <span className="text-xs text-gray-400">/mês</span>
+                        </p>
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          className="mt-2 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+                        >
+                          Escolher
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+              
+              <DialogFooter>
+                <p className="text-xs text-gray-400">
+                  <AlertCircle className="inline-block h-3 w-3 mr-1" />
+                  Os valores serão cobrados mensalmente até o cancelamento.
+                </p>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
     </div>
@@ -124,109 +142,9 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
   
   return (
     <div className="h-full">
+      {/* Usar o placeholder simplificado */}
       {placeholderContent || simplePlaceholder}
     </div>
-  );
-};
-
-/**
- * Componente que fornece o diálogo de planos para upgrade
- */
-export const UpgradeDialog: React.FC = () => {
-  const { availablePlans, currentPlan } = useSubscription();
-  const { redirectToPlans } = useUpgradeContext();
-  
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button 
-          variant="default" 
-          size="lg" 
-          className="bg-vegas-gold hover:bg-vegas-gold/80 text-black fixed bottom-10 left-1/2 transform -translate-x-1/2 z-50 px-8 py-6 rounded-full shadow-lg shadow-vegas-gold/20"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-        >
-          Fazer Upgrade
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="bg-vegas-darkgray text-white border-vegas-black">
-        <DialogHeader>
-          <DialogTitle>Faça upgrade do seu plano</DialogTitle>
-          <DialogDescription className="text-gray-400">
-            Escolha um plano para desbloquear recursos adicionais
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="grid gap-4 py-4">
-          {availablePlans
-            .filter(plan => plan.type !== PlanType.FREE && (currentPlan ? plan.type > currentPlan.type : true))
-            .map(plan => (
-              <div key={plan.id} className="flex items-center justify-between border border-gray-700 rounded-md p-4">
-                <div>
-                  <h4 className="font-medium">{plan.name}</h4>
-                  <p className="text-sm text-gray-400">{plan.description}</p>
-                  <ul className="mt-2 text-xs text-gray-300">
-                    {plan.features.slice(0, 3).map((feature, i) => (
-                      <li key={i} className="flex items-center">
-                        <span className="mr-1 text-vegas-gold">✓</span> {feature}
-                      </li>
-                    ))}
-                    {plan.features.length > 3 && (
-                      <li className="text-gray-400">+ {plan.features.length - 3} mais recursos</li>
-                    )}
-                  </ul>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-vegas-gold">
-                    {plan.price.toLocaleString('pt-BR', { 
-                      style: 'currency', 
-                      currency: 'BRL' 
-                    })}
-                    <span className="text-xs text-gray-400">/mês</span>
-                  </p>
-                  <Button 
-                    variant="default" 
-                    size="sm" 
-                    className="mt-2 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-                    onClick={() => redirectToPlans()}
-                  >
-                    Escolher
-                  </Button>
-                </div>
-              </div>
-            ))}
-        </div>
-        
-        <DialogFooter>
-          <p className="text-xs text-gray-400">
-            <AlertCircle className="inline-block h-3 w-3 mr-1" />
-            Os valores serão cobrados mensalmente até o cancelamento.
-          </p>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-/**
- * Provider para o contexto de upgrade
- */
-export const UpgradeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [hasBlockedResources, setHasBlockedResources] = React.useState(false);
-  const navigate = useNavigate();
-  
-  // Função para redirecionar para a página de planos
-  const redirectToPlans = React.useCallback(() => {
-    navigate('/planos');
-  }, [navigate]);
-  
-  return (
-    <UpgradeContext.Provider value={{ hasBlockedResources, setHasBlockedResources, redirectToPlans }}>
-      {children}
-      {hasBlockedResources && <UpgradeDialog />}
-    </UpgradeContext.Provider>
   );
 };
 

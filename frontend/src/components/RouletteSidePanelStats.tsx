@@ -942,7 +942,6 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       featureId="view_roulette_sidepanel" 
       requiredPlan={PlanType.BASIC}
       lockedMessage="O painel lateral de estatísticas só está disponível para assinantes. Faça upgrade do seu plano para visualizar estatísticas detalhadas."
-      redirectOnClick={true}
     >
       <div className="w-full rounded-lg overflow-y-auto max-h-screen border-l border-border">
         <div className="p-5 border-b border-gray-800 bg-opacity-40">

@@ -1,15 +1,27 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, BarChart3 } from 'lucide-react';
+import { AlertCircle, BarChart3, LockKeyhole } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
 import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
-
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { DialogTrigger } from '@/components/ui/dialog';
 import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import RouletteFilterBar from '@/components/RouletteFilterBar';
 import { extractProviders } from '@/utils/rouletteProviders';
+import PlanProtectedFeature from '@/components/PlanProtectedFeature';
+import { PlanType } from '@/types/plans';
+import { useUser } from '@/hooks/useUser';
 
 interface ChatMessage {
   id: string;
@@ -49,12 +61,61 @@ const Index = () => {
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
+  const [showDrawOverlay, setShowDrawOverlay] = useState(false);
+  const [routeChanged, setRouteChanged] = useState(false);
+  const [routeTimer, setRouteTimer] = useState(10);
+  const [visibleTooltipId, setVisibleTooltipId] = useState<string | null>(null);
+  const { user } = useUser();
   
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
 
   // Referência para timeout de atualização
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Planos disponíveis para upgrade
+  const availablePlans = useMemo(() => [
+    {
+      id: 'free',
+      type: PlanType.FREE,
+      name: 'Gratuito',
+      description: 'Acesso básico',
+      price: 0,
+      features: ['Visão limitada dos dados', 'Sem acesso a roletas premium']
+    },
+    {
+      id: 'basic',
+      type: PlanType.BASIC,
+      name: 'Básico',
+      description: 'Para jogadores casuais',
+      price: 29.90,
+      features: ['Acesso a todas as roletas', 'Estatísticas básicas', 'Histórico completo de números']
+    },
+    {
+      id: 'premium',
+      type: PlanType.PREMIUM,
+      name: 'Premium',
+      description: 'Para jogadores sérios',
+      price: 69.90,
+      features: ['Tudo do plano Básico', 'Análises avançadas', 'Alertas personalizados', 'Suporte prioritário']
+    },
+    {
+      id: 'pro',
+      type: PlanType.PRO,
+      name: 'Pro',
+      description: 'Para profissionais',
+      price: 149.90,
+      features: ['Tudo do plano Premium', 'API de integração', 'Dados em tempo real', 'Análises preditivas', 'Suporte 24/7']
+    }
+  ], []);
+  
+  // Plano atual do usuário
+  const currentPlan = useMemo(() => {
+    if (!user) return null;
+    return {
+      type: user.planType || PlanType.FREE
+    };
+  }, [user]);
   
   // Escutar eventos de roletas existentes para persistência
   useEffect(() => {
@@ -472,9 +533,99 @@ const Index = () => {
                 onRefresh={loadRouletteData}
               />
               
-              <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
-                {renderRouletteCards()}
-              </div>
+              <PlanProtectedFeature
+                featureId="view_roulette_cards"
+                requiredPlan={PlanType.BASIC}
+                lockedMessage="Os cartões de roleta completos só estão disponíveis para assinantes. Faça upgrade do seu plano para visualizar todos os dados."
+                placeholderContent={
+                  <div className="w-full bg-[#131111] p-6 rounded-xl border border-gray-700/50 text-center">
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <LockKeyhole className="h-16 w-16 text-red-500 mb-6" />
+                      <h3 className="text-xl font-semibold mb-3 text-white">Acesso Bloqueado</h3>
+                      <p className="text-gray-400 mb-6 max-w-lg mx-auto">
+                        Os cartões de roleta completos só estão disponíveis para assinantes. 
+                        Faça upgrade do seu plano para visualizar todas as roletas em tempo real.
+                      </p>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="default" size="lg" className="bg-vegas-gold hover:bg-vegas-gold/80 text-black px-8">
+                            Fazer Upgrade
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-vegas-darkgray text-white border-vegas-black">
+                          <DialogHeader>
+                            <DialogTitle>Faça upgrade do seu plano</DialogTitle>
+                            <DialogDescription className="text-gray-400">
+                              Escolha um plano para desbloquear recursos adicionais
+                            </DialogDescription>
+                          </DialogHeader>
+                          
+                          <div className="grid gap-4 py-4">
+                            {availablePlans
+                              .filter(plan => plan.type !== PlanType.FREE && (currentPlan ? plan.type > currentPlan.type : true))
+                              .map(plan => (
+                                <div key={plan.id} className="flex items-center justify-between border border-gray-700 rounded-md p-4">
+                                  <div>
+                                    <h4 className="font-medium">{plan.name}</h4>
+                                    <p className="text-sm text-gray-400">{plan.description}</p>
+                                    <ul className="mt-2 text-xs text-gray-300">
+                                      {plan.features.slice(0, 3).map((feature, i) => (
+                                        <li key={i} className="flex items-center">
+                                          <span className="mr-1 text-vegas-gold">✓</span> {feature}
+                                        </li>
+                                      ))}
+                                      {plan.features.length > 3 && (
+                                        <li className="text-gray-400">+ {plan.features.length - 3} mais recursos</li>
+                                      )}
+                                    </ul>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-lg font-bold text-vegas-gold">
+                                      {plan.price.toLocaleString('pt-BR', { 
+                                        style: 'currency', 
+                                        currency: 'BRL' 
+                                      })}
+                                      <span className="text-xs text-gray-400">/mês</span>
+                                    </p>
+                                    <Button 
+                                      variant="default" 
+                                      size="sm" 
+                                      className="mt-2 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+                                    >
+                                      Escolher
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                          
+                          <DialogFooter>
+                            <p className="text-xs text-gray-400">
+                              <AlertCircle className="inline-block h-3 w-3 mr-1" />
+                              Os valores serão cobrados mensalmente até o cancelamento.
+                            </p>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+
+                      {/* Amostra gratuita de cards de roleta em versão bloqueada */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-10 opacity-50">
+                        {[...Array(8)].map((_, i) => (
+                          <div key={i} className="bg-[#1e1e24] rounded-xl h-64 flex items-center justify-center border border-gray-700/30 relative overflow-hidden filter grayscale blur-[2px]">
+                            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center">
+                              <LockKeyhole className="h-8 w-8 text-red-500/70" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                }
+              >
+                <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+                  {renderRouletteCards()}
+                </div>
+              </PlanProtectedFeature>
             </div>
             
             {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
