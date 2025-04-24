@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Heart, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package } from 'lucide-react';
+import { LifeBuoy, ChevronDown, Gamepad2, Globe, Send, X, Settings, CreditCard, Package } from 'lucide-react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 interface SidebarProps {
@@ -78,21 +78,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
               <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
                 <Gamepad2 size={18} className="text-white" />
               </div>
-              <span className="truncate">Slots</span>
-            </div>
-            
-            <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <Flame size={18} className="text-white" />
-              </div>
-              <span className="truncate">Cassino Ao Vivo</span>
-            </div>
-            
-            <div className="menu-item">
-              <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                <Heart size={18} className="text-white" />
-              </div>
-              <span className="truncate">Favoritos</span>
+              <span className="truncate">Roletas</span>
             </div>
           </div>
         </div>
