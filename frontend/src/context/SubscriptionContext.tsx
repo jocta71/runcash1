@@ -250,59 +250,75 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         payment.status?.toLowerCase() === 'pendente'
       );
     
-    // Normalizar o status da assinatura (priorizar pagamento pendente)
-    let normalizedStatus = subscriptionData.status;
+    // Normalizar o status da assinatura
+    let normalizedStatus = subscriptionData.status?.toLowerCase() || '';
     
-    // Se o status vindo do backend for "pending", ou se houver pagamento pendente,
-    // garantir que o status exibido seja "pending"
-    if (hasPendingPayment || 
-        subscriptionData.status?.toLowerCase() === 'pending' || 
-        subscriptionData.status?.toLowerCase() === 'pendente') {
-      normalizedStatus = 'pending';
-      console.log('[SubscriptionContext] Status normalizado para "pending" devido a pagamento pendente');
+    // Verificar se o status é ativo (considerando variações de maiúsculas/minúsculas)
+    const isActive = ['active', 'ativo', 'activo'].includes(normalizedStatus);
+    
+    console.log(`[SubscriptionContext] Assinatura encontrada: ID=${subscriptionData.id}, Status=${subscriptionData.status}, Valor=${subscriptionData.value}`);
+    
+    // Determinar o plano com base no valor e na descrição da assinatura
+    let planId = 'free';
+    
+    if (isActive) {
+      // Tentar determinar o plano pela descrição primeiro
+      const description = subscriptionData.description?.toLowerCase() || '';
+      if (description.includes('premium')) {
+        planId = 'premium';
+      } else if (description.includes('pro')) {
+        planId = 'pro';
+      } else if (description.includes('básico') || description.includes('basico')) {
+        planId = 'basic';
+      } else {
+        // Se não conseguir pela descrição, usar o valor
+        if (subscriptionData.value >= 99) {
+          planId = 'premium';
+        } else if (subscriptionData.value >= 49) {
+          planId = 'pro';
+        } else if (subscriptionData.value >= 19) {
+          planId = 'basic';
+        }
+      }
+      
+      console.log(`[SubscriptionContext] Plano determinado: ${planId.toUpperCase()} (baseado no valor: ${subscriptionData.value} e descrição: "${subscriptionData.description}")`);
+    } else {
+      console.log(`[SubscriptionContext] Usando plano FREE porque a assinatura não está ativa (status: ${normalizedStatus})`);
     }
     
     // Converter dados da API para o formato UserSubscription
     const formattedSubscription: UserSubscription = {
       id: subscriptionData.id,
       userId: user!.id,
-      planId: 'premium', // Valor temporário, depois será baseado no valor ou descrição
-      planType: getPlanTypeFromId('premium'), // Valor temporário
+      planId: planId,
+      planType: getPlanTypeFromId(planId),
       startDate: new Date(subscriptionData.createdDate),
       endDate: null,
-      status: normalizedStatus,
+      status: subscriptionData.status,
       paymentMethod: subscriptionData.billingType,
       paymentProvider: 'ASAAS',
       nextBillingDate: subscriptionData.nextDueDate ? new Date(subscriptionData.nextDueDate) : null
     };
     
-    // Determinar o plano com base no valor e status da assinatura
-    let planId = 'free';
-    const isActive = normalizedStatus.toLowerCase() === 'active' || normalizedStatus.toLowerCase() === 'ativo';
+    console.log('[SubscriptionContext] Assinatura processada:', {
+      id: formattedSubscription.id,
+      status: formattedSubscription.status,
+      planId: formattedSubscription.planId,
+      planType: formattedSubscription.planType
+    });
     
-    // Apenas atribuir plano pago se a assinatura estiver ativa
-    if (isActive) {
-      if (subscriptionData.value >= 99) {
-        planId = 'premium';
-      } else if (subscriptionData.value >= 49) {
-        planId = 'pro';
-      } else if (subscriptionData.value >= 19) {
-        planId = 'basic';
-      }
-    } else {
-      console.log(`[SubscriptionContext] Usando plano FREE porque a assinatura não está ativa (status: ${normalizedStatus})`);
-    }
-    
-    // Atualizar o planId na assinatura
-    formattedSubscription.planId = planId;
-    formattedSubscription.planType = getPlanTypeFromId(planId);
-    
-    console.log('[SubscriptionContext] Assinatura carregada:', formattedSubscription);
     setCurrentSubscription(formattedSubscription);
 
     // Buscar plano correspondente na lista de planos disponíveis
     const plan = availablePlans.find(p => p.id === planId) || null;
-    setCurrentPlan(plan);
+    if (plan) {
+      setCurrentPlan(plan);
+      console.log(`[SubscriptionContext] Features permitidas: ${plan.allowedFeatures?.join(', ') || 'nenhuma'}`);
+    } else {
+      console.error(`[SubscriptionContext] Plano não encontrado: ${planId}`);
+      // Usar plano free como fallback
+      setCurrentPlan(availablePlans.find(p => p.id === 'free') || null);
+    }
   };
 
   // Função auxiliar para lidar com caso de nenhuma assinatura encontrada
@@ -509,10 +525,29 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   useEffect(() => {
     // Configurar contexto de assinatura global para a API
-    if (currentSubscription || currentPlan) {
+    // Garantir que hasFeatureAccess está disponível e configurada
+    try {
+      console.log('[SubscriptionContext] Configurando contexto global para APIs...');
       setSubscriptionContext({
         hasFeatureAccess
       });
+      console.log('[SubscriptionContext] Contexto de assinatura configurado para APIs');
+      
+      // Informações detalhadas para diagnóstico
+      if (currentPlan) {
+        console.log(`[SubscriptionContext] Plano atual: ${currentPlan.name} (${currentPlan.type})`);
+        console.log(`[SubscriptionContext] Features permitidas: ${currentPlan.allowedFeatures?.join(', ') || 'nenhuma'}`);
+      } else {
+        console.log('[SubscriptionContext] Nenhum plano configurado ainda');
+      }
+      
+      if (currentSubscription) {
+        console.log(`[SubscriptionContext] Status da assinatura: ${currentSubscription.status}`);
+      } else {
+        console.log('[SubscriptionContext] Nenhuma assinatura configurada ainda');
+      }
+    } catch (error) {
+      console.error('[SubscriptionContext] Erro ao configurar contexto global:', error);
     }
   }, [currentSubscription, currentPlan, hasFeatureAccess]);
 

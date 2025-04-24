@@ -10,6 +10,26 @@ const CACHE_TTL = 60000; // 1 minuto em milissegundos
 // Referência para o contexto de assinatura (injetado externamente pelo contexto)
 let subscriptionContext: { hasFeatureAccess: (featureId: string) => Promise<boolean> } | null = null;
 
+// Dados simulados para usar quando o acesso é negado
+const mockRoulettes = [
+  { 
+    id: 'mock-1', 
+    nome: 'Roleta Demo', 
+    status: 'ativo', 
+    online: true, 
+    numero: [],
+    message: 'Acesso limitado - Faça upgrade para ver dados reais'
+  },
+  { 
+    id: 'mock-2', 
+    nome: 'Roleta Exemplo', 
+    status: 'ativo', 
+    online: true, 
+    numero: [],
+    message: 'Acesso limitado - Faça upgrade para ver dados reais'
+  }
+];
+
 // Função utilitária para verificar se o usuário pode acessar dados detalhados
 const canAccessDetailedData = async (): Promise<boolean> => {
   // Se o contexto não foi injetado, negar acesso por segurança
@@ -20,8 +40,15 @@ const canAccessDetailedData = async (): Promise<boolean> => {
   
   try {
     // Verificar se o usuário tem acesso à feature específica
+    console.log('[rouletteApi] Iniciando verificação de acesso a dados detalhados de roletas...');
     const hasAccess = await subscriptionContext.hasFeatureAccess('view_roulette_cards');
-    console.log(`[rouletteApi] Acesso a dados detalhados de roletas: ${hasAccess ? 'Permitido' : 'Negado'}`);
+    
+    if (hasAccess) {
+      console.log('[rouletteApi] ✅ Acesso a dados detalhados de roletas PERMITIDO');
+    } else {
+      console.log('[rouletteApi] ❌ Acesso a dados detalhados de roletas NEGADO');
+    }
+    
     return hasAccess;
   } catch (error) {
     console.error('[rouletteApi] Erro ao verificar permissões:', error);
@@ -36,12 +63,16 @@ const canAccessDetailedData = async (): Promise<boolean> => {
 export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
   try {
     // Verificar se o usuário tem permissão antes de carregar dados detalhados
+    console.log('[rouletteApi] Verificando permissões para acessar dados de roletas...');
     const hasAccess = await canAccessDetailedData();
+    
     if (!hasAccess) {
-      console.log('[rouletteApi] Requisição de números bloqueada: usuário sem acesso autorizado');
-      // Retornar apenas os dados básicos sem números
-      return []; // Ou retornar dados mockados básicos
+      console.log('[rouletteApi] Requisição de números bloqueada: usuário sem plano adequado');
+      console.log('[rouletteApi] Retornando dados simulados para demonstração');
+      return mockRoulettes;
     }
+    
+    console.log('[rouletteApi] Permissão concedida, buscando dados completos das roletas');
     
     // Verificar cache
     const cacheKey = `roulettes_with_numbers_${limit}`;
@@ -50,70 +81,90 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
       return cache[cacheKey].data;
     }
 
-    // Passo 1: Buscar todas as roletas disponíveis
-    console.log('[rouletteApi] Buscando roletas e seus números');
-    try {
-      const roulettesResponse = await axios.get('/api/roulettes');
-      
-      if (!roulettesResponse.data || !Array.isArray(roulettesResponse.data)) {
-        console.error('[rouletteApi] Resposta inválida da API de roletas');
-        return [];
+    // Tentar diferentes endpoints para encontrar os dados (abordagem resiliente)
+    const possibleEndpoints = [
+      '/api/roulettes',
+      '/api/roulette',
+      '/api/ROULETTES',
+      '/api/history/roulettes'
+    ];
+    
+    let roulettesData = null;
+    
+    // Tentar cada endpoint até encontrar dados válidos
+    for (const endpoint of possibleEndpoints) {
+      try {
+        console.log(`[rouletteApi] Tentando buscar roletas em ${endpoint}`);
+        const response = await axios.get(endpoint);
+        
+        // Verificar se a resposta contém dados válidos
+        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+          console.log(`[rouletteApi] ✅ Encontrados ${response.data.length} roletas em ${endpoint}`);
+          roulettesData = response.data;
+          break;
+        }
+      } catch (endpointError) {
+        console.log(`[rouletteApi] ❌ Endpoint ${endpoint} falhou: ${endpointError.message}`);
+        // Continuar tentando outros endpoints
       }
+    }
+    
+    // Se não encontrou dados em nenhum endpoint, retornar dados simulados
+    if (!roulettesData) {
+      console.log('[rouletteApi] ⚠️ Nenhum endpoint de roletas funcionou, usando dados simulados');
+      return mockRoulettes;
+    }
 
-      // Passo 2: Para cada roleta, usar os dados como estão - sem mapeamento para ID canônico
-      const roulettesWithNumbers = roulettesResponse.data.map((roleta: any) => {
-        try {
-          const id = roleta.id;
+    // Para cada roleta, usar os dados como estão
+    const roulettesWithNumbers = roulettesData.map((roleta: any) => {
+      try {
+        const id = roleta.id;
+        
+        // Verificar se a roleta já tem números incluídos
+        if (roleta.numero && Array.isArray(roleta.numero)) {
+          console.log(`[rouletteApi] Roleta: ${roleta.nome}, ID: ${id}, Números já incluídos: ${roleta.numero.length}`);
           
-          // Verificar se a roleta já tem números incluídos
-          if (roleta.numero && Array.isArray(roleta.numero)) {
-            console.log(`[rouletteApi] Roleta: ${roleta.nome}, ID: ${id}, Números já incluídos: ${roleta.numero.length}`);
-            
-            // Limitar a quantidade de números retornados
-            const limitedNumbers = roleta.numero.slice(0, limit);
-            
-            // Retornar a roleta com os números já incluídos
-            return {
-              ...roleta,
-              id: id,  // Manter o ID original
-              numero: limitedNumbers
-            };
-          }
+          // Limitar a quantidade de números retornados
+          const limitedNumbers = roleta.numero.slice(0, limit);
           
-          console.log(`[rouletteApi] Roleta: ${roleta.nome}, ID: ${id}, Sem números incluídos`);
-          
-          // A roleta não tem números, retornar com array vazio
+          // Retornar a roleta com os números já incluídos
           return {
             ...roleta,
-            id: id,  // Manter o ID original
-            numero: []
-          };
-        } catch (error) {
-          console.error(`[rouletteApi] Erro ao processar números para roleta ${roleta.nome}:`, error);
-          
-          // Mesmo em caso de erro, retornar a roleta, mas com array de números vazio
-          return {
-            ...roleta,
-            numero: []
+            id: id,
+            numero: limitedNumbers
           };
         }
-      });
+        
+        console.log(`[rouletteApi] Roleta: ${roleta.nome}, ID: ${id}, Sem números incluídos`);
+        
+        // A roleta não tem números, retornar com array vazio
+        return {
+          ...roleta,
+          id: id,
+          numero: []
+        };
+      } catch (error) {
+        console.error(`[rouletteApi] Erro ao processar números para roleta ${roleta.nome || 'desconhecida'}:`, error);
+        
+        // Mesmo em caso de erro, retornar a roleta, mas com array de números vazio
+        return {
+          ...roleta,
+          numero: []
+        };
+      }
+    });
 
-      // Armazenar em cache para requisições futuras
-      cache[cacheKey] = {
-        data: roulettesWithNumbers,
-        timestamp: Date.now()
-      };
-      
-      console.log(`[rouletteApi] Obtidas ${roulettesWithNumbers.length} roletas com seus números`);
-      return roulettesWithNumbers;
-    } catch (error) {
-      console.error('[rouletteApi] Erro ao buscar roletas:', error);
-      return [];
-    }
+    // Armazenar em cache para requisições futuras
+    cache[cacheKey] = {
+      data: roulettesWithNumbers,
+      timestamp: Date.now()
+    };
+    
+    console.log(`[rouletteApi] ✅ Obtidas ${roulettesWithNumbers.length} roletas com seus números`);
+    return roulettesWithNumbers;
   } catch (error) {
-    console.error('[rouletteApi] Erro ao verificar permissões ou buscar roletas:', error);
-    return [];
+    console.error('[rouletteApi] Erro global ao buscar roletas:', error);
+    return mockRoulettes; // Retornar dados simulados em caso de erro
   }
 };
 
@@ -123,11 +174,17 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
 export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Promise<any | null> => {
   try {
     // Verificar se o usuário tem permissão antes de carregar dados detalhados
+    console.log(`[rouletteApi] Verificando permissões para acessar dados detalhados da roleta ${roletaId}...`);
     const hasAccess = await canAccessDetailedData();
+    
     if (!hasAccess) {
-      console.log(`[rouletteApi] Requisição de números para roleta ${roletaId} bloqueada: usuário sem acesso autorizado`);
-      return null; // Ou retornar dados mockados básicos
+      console.log(`[rouletteApi] ❌ Requisição de números para roleta ${roletaId} bloqueada: usuário sem plano adequado`);
+      console.log(`[rouletteApi] Retornando dados simulados para demonstração`);
+      // Retornar dados simulados para o ID específico
+      return mockRoulettes.find(r => r.id === 'mock-1') || mockRoulettes[0];
     }
+    
+    console.log(`[rouletteApi] ✅ Permissão concedida, buscando dados completos da roleta ${roletaId}`);
     
     // Verificar cache
     const cacheKey = `roulette_with_numbers_${roletaId}_${limit}`;
@@ -136,51 +193,66 @@ export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Pr
       return cache[cacheKey].data;
     }
 
+    // Tentar buscar a roleta específica primeiro (endpoint prioritário)
     try {
-      // Buscar todas as roletas para encontrar a desejada
-      const roulettesResponse = await axios.get('/api/roulettes');
+      console.log(`[rouletteApi] Tentando buscar roleta diretamente em /api/roulette/${roletaId}`);
+      const response = await axios.get(`/api/roulette/${roletaId}`);
       
-      if (!roulettesResponse.data || !Array.isArray(roulettesResponse.data)) {
-        console.error('[rouletteApi] Resposta inválida da API de roletas');
-        return null;
+      if (response.data && !Array.isArray(response.data)) {
+        // Resposta direta da roleta
+        const roleta = response.data;
+        
+        // Verificar se a roleta já tem números incluídos
+        let numbers = [];
+        if (roleta.numero && Array.isArray(roleta.numero)) {
+          // Limitar a quantidade de números retornados
+          numbers = roleta.numero.slice(0, limit);
+        }
+        
+        // Montar o objeto final
+        const roletaWithNumbers = {
+          ...roleta,
+          numero: numbers
+        };
+        
+        // Armazenar em cache para requisições futuras
+        cache[cacheKey] = {
+          data: roletaWithNumbers,
+          timestamp: Date.now()
+        };
+        
+        console.log(`[rouletteApi] ✅ Roleta específica encontrada: ${roleta.nome}, ID: ${roleta.id}, Números obtidos: ${numbers.length}`);
+        return roletaWithNumbers;
       }
-      
-      // Encontrar a roleta pelo ID original
-      const roleta = roulettesResponse.data.find((r: any) => r.id === roletaId);
-      
-      if (!roleta) {
-        console.error(`[rouletteApi] Roleta com ID ${roletaId} não encontrada`);
-        return null;
-      }
-      
-      // Verificar se a roleta já tem números incluídos
-      let numbers = [];
-      if (roleta.numero && Array.isArray(roleta.numero)) {
-        // Limitar a quantidade de números retornados
-        numbers = roleta.numero.slice(0, limit);
-      }
-      
-      // Montar o objeto final
-      const roletaWithNumbers = {
-        ...roleta,
-        numero: numbers
-      };
+    } catch (directError) {
+      console.log(`[rouletteApi] ❌ Não foi possível buscar a roleta diretamente: ${directError.message}`);
+      // Continuar com a estratégia de buscar todas as roletas
+    }
+
+    // Tentar diferentes endpoints para buscar todas as roletas
+    console.log(`[rouletteApi] Tentando encontrar roleta ${roletaId} através da lista completa de roletas`);
+    
+    // Buscar todas as roletas e encontrar a desejada
+    const allRoulettes = await fetchRoulettesWithNumbers(limit);
+    const roleta = allRoulettes.find((r: any) => r.id === roletaId);
+    
+    if (roleta) {
+      console.log(`[rouletteApi] ✅ Roleta ${roletaId} encontrada na lista completa`);
       
       // Armazenar em cache para requisições futuras
       cache[cacheKey] = {
-        data: roletaWithNumbers,
+        data: roleta,
         timestamp: Date.now()
       };
       
-      console.log(`[rouletteApi] Roleta: ${roleta.nome}, ID: ${roleta.id}, Números obtidos: ${numbers.length}`);
-      return roletaWithNumbers;
-    } catch (error) {
-      console.error(`[rouletteApi] Erro ao buscar roleta ${roletaId}:`, error);
-      return null;
+      return roleta;
     }
+    
+    console.log(`[rouletteApi] ❌ Roleta com ID ${roletaId} não encontrada`);
+    return mockRoulettes.find(r => r.id === 'mock-1') || mockRoulettes[0];
   } catch (error) {
-    console.error(`[rouletteApi] Erro ao verificar permissões ou buscar roleta ${roletaId}:`, error);
-    return null;
+    console.error(`[rouletteApi] Erro global ao buscar roleta ${roletaId}:`, error);
+    return mockRoulettes.find(r => r.id === 'mock-1') || mockRoulettes[0]; // Retornar dados simulados em caso de erro
   }
 };
 
