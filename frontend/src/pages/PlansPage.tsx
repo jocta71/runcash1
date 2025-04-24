@@ -43,23 +43,23 @@ const PlansPage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-[300px]">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-20 px-4 max-w-6xl">
-      <h1 className="text-3xl font-bold text-center mb-2">Escolha o plano ideal para você</h1>
-      <p className="text-gray-400 text-center mb-10">
+    <div className="py-4 px-2">
+      <h1 className="text-xl font-bold mb-2">Escolha o plano ideal</h1>
+      <p className="text-gray-400 text-sm mb-6">
         Assine e tenha acesso a todos os recursos da plataforma.
       </p>
       
-      <div className="flex justify-center mb-8">
+      <div className="flex justify-center mb-6">
         <div className="flex bg-gray-800 p-1 rounded-lg">
           <button
-            className={`px-4 py-2 rounded-md transition ${
+            className={`px-3 py-1 rounded-md transition text-sm ${
               selectedInterval === 'monthly' ? 'bg-vegas-gold text-black' : 'text-white'
             }`}
             onClick={() => setSelectedInterval('monthly')}
@@ -67,23 +67,23 @@ const PlansPage = () => {
             Mensal
           </button>
           <button
-            className={`px-4 py-2 rounded-md transition ${
+            className={`px-3 py-1 rounded-md transition text-sm ${
               selectedInterval === 'annual' ? 'bg-vegas-gold text-black' : 'text-white'
             }`}
             onClick={() => setSelectedInterval('annual')}
           >
-            Anual <span className="text-xs">(2 meses grátis)</span>
+            Anual
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="space-y-4">
         {availablePlans
           .filter(plan => plan.interval === selectedInterval)
           .map(plan => (
             <div 
               key={plan.id}
-              className={`border rounded-lg p-6 flex flex-col ${
+              className={`border rounded-lg p-4 ${
                 currentPlan?.id === plan.id 
                   ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
                   : plan.id === 'pro' 
@@ -92,22 +92,22 @@ const PlansPage = () => {
               }`}
             >
               {plan.id === 'pro' && (
-                <div className="absolute right-0 top-0 bg-vegas-gold text-black text-xs px-4 py-1 transform translate-x-2 translate-y-3 rotate-45">
+                <div className="absolute right-0 top-0 bg-vegas-gold text-black text-xs px-3 py-1 transform translate-x-2 translate-y-3 rotate-45">
                   Popular
                 </div>
               )}
               
               <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold">{plan.name}</h3>
+                <h3 className="text-lg font-bold">{plan.name}</h3>
                 {currentPlan?.id === plan.id && (
                   <span className="bg-vegas-gold text-black text-xs px-2 py-1 rounded-full">
-                    Plano Atual
+                    Atual
                   </span>
                 )}
               </div>
               
-              <div className="mt-4 mb-2">
-                <span className="text-3xl font-bold">
+              <div className="mt-2 mb-2">
+                <span className="text-2xl font-bold">
                   {plan.price === 0 ? 'Grátis' : `R$ ${plan.price.toFixed(2)}`}
                 </span>
                 {plan.price > 0 && (
@@ -117,13 +117,13 @@ const PlansPage = () => {
                 )}
               </div>
               
-              <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
+              <p className="text-gray-400 text-xs mb-4">{plan.description}</p>
               
-              <ul className="space-y-3 mb-6 flex-grow">
-                {plan.features.map((feature, idx) => (
+              <ul className="space-y-2 mb-4">
+                {plan.features.slice(0, 3).map((feature, idx) => (
                   <li key={idx} className="flex items-start">
-                    <Check className="h-5 w-5 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm">{feature}</span>
+                    <Check className="h-4 w-4 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-xs">{feature}</span>
                   </li>
                 ))}
               </ul>
@@ -132,12 +132,12 @@ const PlansPage = () => {
                 onClick={() => handleSelectPlan(plan.id)}
                 className={
                   currentPlan?.id === plan.id 
-                    ? "bg-gray-700 hover:bg-gray-600" 
+                    ? "bg-gray-700 hover:bg-gray-600 w-full text-sm py-1 h-8" 
                     : plan.id === 'free' 
-                      ? "bg-gray-700 hover:bg-gray-600" 
+                      ? "bg-gray-700 hover:bg-gray-600 w-full text-sm py-1 h-8" 
                       : plan.id === 'pro'
-                        ? "bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-                        : "bg-vegas-gold/80 hover:bg-vegas-gold text-black"
+                        ? "bg-vegas-gold hover:bg-vegas-gold/80 text-black w-full text-sm py-1 h-8"
+                        : "bg-vegas-gold/80 hover:bg-vegas-gold text-black w-full text-sm py-1 h-8"
                 }
                 disabled={currentPlan?.id === plan.id}
               >
@@ -151,28 +151,21 @@ const PlansPage = () => {
           ))}
       </div>
       
-      <div className="mt-12 bg-vegas-black/30 p-6 rounded-lg border border-gray-800">
-        <h2 className="text-xl font-bold mb-4">Dúvidas Frequentes</h2>
+      <div className="mt-6 bg-vegas-black/30 p-4 rounded-lg border border-gray-800">
+        <h2 className="text-lg font-bold mb-3">Dúvidas Frequentes</h2>
         
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
-            <h3 className="font-semibold mb-2">Como funciona o sistema de assinatura?</h3>
-            <p className="text-sm text-gray-400">
+            <h3 className="font-semibold mb-1 text-sm">Como funciona o sistema de assinatura?</h3>
+            <p className="text-xs text-gray-400">
               Nossas assinaturas são cobradas mensalmente ou anualmente, dependendo do plano escolhido. O pagamento é processado via PIX através da plataforma Asaas.
             </p>
           </div>
           
           <div>
-            <h3 className="font-semibold mb-2">Posso cancelar a qualquer momento?</h3>
-            <p className="text-sm text-gray-400">
+            <h3 className="font-semibold mb-1 text-sm">Posso cancelar a qualquer momento?</h3>
+            <p className="text-xs text-gray-400">
               Sim, você pode cancelar sua assinatura a qualquer momento. O acesso aos recursos premium permanecerá ativo até o final do período pago.
-            </p>
-          </div>
-          
-          <div>
-            <h3 className="font-semibold mb-2">Como funciona o plano anual?</h3>
-            <p className="text-sm text-gray-400">
-              Os planos anuais são cobrados de uma vez só, mas oferecem o equivalente a 2 meses grátis em comparação com o pagamento mensal.
             </p>
           </div>
         </div>

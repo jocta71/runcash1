@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import ChatUI from './ChatUI';
 import AIFloatingBar from './AIFloatingBar';
-import { LogOut, Menu, MessageSquare, LogIn, UserPlus } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { LogOut, Menu, MessageSquare, LogIn, UserPlus, X } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from './ui/button';
@@ -12,6 +12,12 @@ import AnimatedInsights from './AnimatedInsights';
 import Footer from './Footer';
 import GlowingCubeLoader from './GlowingCubeLoader';
 import { useLoginModal } from '@/context/LoginModalContext';
+import PlansPage from '@/pages/PlansPage';
+import { lazy, Suspense } from 'react';
+
+// Importação sob demanda para o componente de pagamento
+const PaymentPage = lazy(() => import('@/pages/PaymentPage'));
+const BillingPage = lazy(() => import('@/pages/BillingPage'));
 
 // Interface estendida para o usuário com firstName e lastName
 interface ExtendedUser {
@@ -37,6 +43,8 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const location = useLocation();
 
   // Cast para o tipo estendido para acessar firstName e lastName
   const extUser = user as unknown as ExtendedUser;
@@ -48,6 +56,12 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
     }
     return extUser?.username || 'Usuário';
   };
+
+  // Verificar qual painel direito deve ser exibido
+  const isPlansPage = location.pathname === '/planos';
+  const isPaymentPage = location.pathname.startsWith('/pagamento');
+  const isBillingPage = location.pathname === '/billing';
+  const showRightPanel = isPlansPage || isPaymentPage || isBillingPage;
 
   // Pré-carregar dados das roletas se preloadData for verdadeiro
   useEffect(() => {
@@ -204,6 +218,34 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
     </div>
   );
 
+  // Componente para renderizar o painel direito com base na rota atual
+  const RightPanel = () => {
+    return (
+      <div className="fixed right-0 top-0 bottom-0 w-[350px] bg-[#131614] border-l border-border overflow-y-auto z-20">
+        <div className="flex justify-between items-center p-4 border-b border-border">
+          <h2 className="text-lg font-semibold">
+            {isPlansPage ? 'Planos' : isPaymentPage ? 'Pagamento' : 'Assinatura'}
+          </h2>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setRightPanelOpen(false)}
+            className="h-7 w-7"
+          >
+            <X size={16} />
+          </Button>
+        </div>
+        <div className="p-4">
+          <Suspense fallback={<div className="flex justify-center p-8"><GlowingCubeLoader /></div>}>
+            {isPlansPage && <PlansPage />}
+            {isPaymentPage && <PaymentPage />}
+            {isBillingPage && <BillingPage />}
+          </Suspense>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen flex bg-vegas-black">
       {/* Desktop Sidebar */}
@@ -214,7 +256,10 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
       {/* Mobile Sidebar (drawer) */}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isMobile={true} />
       
-      <div className="flex-1 relative">
+      {/* Painel direito para planos/pagamentos */}
+      {showRightPanel && rightPanelOpen && <RightPanel />}
+      
+      <div className={`flex-1 relative ${showRightPanel && rightPanelOpen ? 'md:mr-[350px]' : ''}`}>
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-[#131614]">
           <button 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Heart, LifeBuoy, ChevronDown, Gamepad2, Flame, Globe, Send, X, Settings, CreditCard, Package } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -12,6 +12,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   const [otherExpanded, setOtherExpanded] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState('account-information');
   const navigate = useNavigate();
+  const location = useLocation();
   
   const settingsOptions = [
     { id: 'account-information', label: 'Conta', icon: Settings },

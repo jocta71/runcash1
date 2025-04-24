@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { PaymentForm } from '@/components/PaymentForm';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle, AlertCircle, Copy, Clock, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { findAsaasPayment, getAsaasPixQrCode } from '@/integrations/asaas/client';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
 
 const PaymentPage = () => {
   const { planId: routePlanId } = useParams<{ planId: string }>();
@@ -239,6 +241,11 @@ const PaymentPage = () => {
     navigate('/planos');
   };
 
+  // Wrapper para o checkPaymentStatus que pode ser usado como handler de evento de clique
+  const handleCheckPaymentStatus = () => {
+    checkPaymentStatus(true);
+  };
+
   if (loading || (!selectedPlan && !isPixPaymentMode)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -250,81 +257,147 @@ const PaymentPage = () => {
   // Renderizar a página de QR code PIX
   if (isPixPaymentMode) {
     return (
-      <div className="container mx-auto py-12 px-4 max-w-4xl">
-        <Button 
-          variant="ghost" 
-          className="mb-6" 
-          onClick={() => navigate('/planos')}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar para planos
-        </Button>
-
-        <div className="bg-vegas-black/40 border border-gray-700 rounded-lg p-6 mb-8 text-center">
-          <h1 className="text-2xl font-bold mb-2">Pagamento via PIX</h1>
-          <p className="text-gray-400 mb-6">
-            Escaneie o QR Code abaixo com o aplicativo do seu banco para finalizar o pagamento
-          </p>
+      <div className="py-4 px-2">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-xl font-bold text-white">Pagamento</h1>
+            <Button 
+              onClick={handleCancel} 
+              variant="outline" 
+              size="sm"
+              className="h-8 text-xs"
+            >
+              <ArrowLeft className="mr-1 h-3 w-3" />
+              Voltar
+            </Button>
+          </div>
           
-          {pixError && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertTitle>Erro</AlertTitle>
-              <AlertDescription>{pixError}</AlertDescription>
-            </Alert>
+          {!isPixPaymentMode && selectedPlan && (
+            <div className="mb-4">
+              <div className="bg-vegas-black/60 border border-vegas-gold rounded-lg p-3 mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-lg font-bold">{selectedPlan.name}</h3>
+                  <Badge variant="outline" className="bg-vegas-gold text-black font-medium border-none">
+                    {selectedPlan.price === 0 
+                      ? 'Grátis' 
+                      : `R$ ${selectedPlan.price.toFixed(2)}/${selectedPlan.interval === 'monthly' ? 'mês' : 'ano'}`}
+                  </Badge>
+                </div>
+                <p className="text-xs text-gray-300 mb-3">{selectedPlan.description}</p>
+                <div className="flex items-center">
+                  <Clock className="text-vegas-gold h-3 w-3 mr-1" />
+                  <span className="text-xs text-gray-300">
+                    {selectedPlan.interval === 'monthly' ? 'Cobrança mensal' : 'Cobrança anual'}
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
           
           {pixLoading ? (
-            <div className="flex justify-center my-12">
-              <Loader2 className="h-12 w-12 animate-spin text-vegas-gold" />
+            <div className="flex flex-col items-center justify-center p-8">
+              <Spinner size="lg" />
+              <p className="mt-4 text-center text-sm text-gray-400">
+                {pixError || "Iniciando processamento do pagamento..."}
+              </p>
             </div>
           ) : (
             <>
-              {qrCodeImage && (
-                <div className="flex flex-col items-center space-y-6">
-                  <div className="bg-white p-4 rounded-lg">
-                    <img 
-                      src={`data:image/png;base64,${qrCodeImage}`} 
-                      alt="QR Code PIX" 
-                      className="w-48 h-48"
-                    />
-                  </div>
-                  
-                  <div className="w-full max-w-lg mx-auto">
-                    <p className="font-semibold mb-2">Ou copie o código PIX:</p>
-                    <div className="flex">
-                      <input
-                        type="text"
-                        value={qrCodeText || ''}
-                        readOnly
-                        className="w-full bg-gray-800 border border-gray-700 rounded-l-md p-2 text-sm"
-                      />
-                      <Button 
-                        variant="secondary"
-                        className="rounded-l-none"
-                        onClick={copyPIXCode}
-                      >
-                        Copiar
+              {paymentStatus === 'RECEIVED' || paymentStatus === 'CONFIRMED' || paymentStatus === 'AVAILABLE' || paymentStatus === 'BILLING_AVAILABLE' ? (
+                <div className="p-3 bg-green-900/20 border border-green-500 rounded-lg text-center">
+                  <CheckCircle className="h-10 w-10 mx-auto text-green-500 mb-2" />
+                  <h3 className="text-lg font-bold mb-2 text-green-400">Pagamento Processado</h3>
+                  <p className="text-xs text-gray-300 mb-3">
+                    Seu pagamento foi processado com sucesso. Aguarde a confirmação do PIX.
+                  </p>
+                  <Button className="w-full text-xs h-8 mt-2" onClick={handlePaymentSuccess}>
+                    Ver Detalhes da Assinatura
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {paymentStatus === 'OVERDUE' || paymentStatus === 'CANCELED' || paymentStatus === 'REFUNDED' || paymentStatus === 'REFUND_REQUESTED' ? (
+                    <div className="p-3 bg-red-900/20 border border-red-500 rounded-lg text-center">
+                      <AlertCircle className="h-10 w-10 mx-auto text-red-500 mb-2" />
+                      <h3 className="text-lg font-bold mb-2 text-red-400">Erro no Pagamento</h3>
+                      <p className="text-xs text-gray-300 mb-3">{pixError}</p>
+                      <Button className="w-full text-xs h-8 mt-2" onClick={loadPixQrCode}>
+                        Tentar Novamente
                       </Button>
                     </div>
-                  </div>
-                  
-                  {expirationDate && (
-                    <Alert className="max-w-lg">
-                      <AlertTitle>Atenção</AlertTitle>
-                      <AlertDescription>
-                        Este QR Code expira em: {new Date(expirationDate).toLocaleString()}
-                      </AlertDescription>
-                    </Alert>
+                  ) : (
+                    <>
+                      {qrCodeImage && (
+                        <div className="border border-gray-700 rounded-lg p-3">
+                          <h3 className="text-sm font-bold mb-3">QR Code PIX</h3>
+                          <div className="flex justify-center mb-4">
+                            <div className="bg-white p-2 rounded-lg inline-block">
+                              <img
+                                src={`data:image/png;base64,${qrCodeImage}`}
+                                alt="QR Code PIX"
+                                className="h-32 w-32"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-center">
+                            <Button 
+                              size="sm" 
+                              onClick={copyPIXCode}
+                              className="text-xs"
+                            >
+                              <Copy className="h-3 w-3 mr-1" />
+                              Copiar Código PIX
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="border border-gray-700 rounded-lg p-3">
+                        <h3 className="text-sm font-bold mb-2">Instruções de Pagamento</h3>
+                        <ol className="space-y-2 text-xs text-gray-300 list-decimal pl-4">
+                          <li>Abra o aplicativo do seu banco</li>
+                          <li>Encontre a opção de pagamento via PIX</li>
+                          <li>Escaneie o QR code ou cole o código PIX copiado</li>
+                          <li>Confira os dados e finalize o pagamento</li>
+                          <li>Após o pagamento, sua assinatura será ativada automaticamente</li>
+                        </ol>
+                      </div>
+                      
+                      <div className="border border-gray-700 rounded-lg p-3">
+                        <h3 className="text-sm font-bold mb-2">Detalhes do Pagamento</h3>
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Valor:</span>
+                            <span className="font-semibold">{selectedPlan?.price?.toFixed(2) || 'R$ 0.00'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Data:</span>
+                            <span>{new Date().toLocaleDateString('pt-BR')}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Método:</span>
+                            <span>PIX</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Status:</span>
+                            <Badge variant="outline" className="bg-yellow-900/30 text-yellow-400 border-yellow-500 text-xs">
+                              Aguardando Pagamento
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <Button 
+                        variant="outline" 
+                        className="w-full text-xs h-8"
+                        onClick={handleCheckPaymentStatus}
+                      >
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Verificar Status do Pagamento
+                      </Button>
+                    </>
                   )}
-                  
-                  <Alert className="max-w-lg bg-vegas-gold/20 border-vegas-gold text-vegas-gold">
-                    <AlertTitle>Importante</AlertTitle>
-                    <AlertDescription>
-                      Após o pagamento, esta página será atualizada automaticamente.
-                      Não feche esta página até a confirmação do pagamento.
-                    </AlertDescription>
-                  </Alert>
-                </div>
+                </>
               )}
             </>
           )}
@@ -335,45 +408,53 @@ const PaymentPage = () => {
 
   // Renderizar o formulário normal de pagamento
   return (
-    <div className="container mx-auto py-12 px-4 max-w-4xl">
-      <Button 
-        variant="ghost" 
-        className="mb-6" 
-        onClick={() => navigate('/planos')}
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Voltar para planos
-      </Button>
-
-      <div className="bg-vegas-black/40 border border-gray-700 rounded-lg p-6 mb-8">
-        <h1 className="text-2xl font-bold mb-2">Finalizar assinatura</h1>
-        <p className="text-gray-400 mb-4">
-          Você selecionou o plano <span className="font-semibold text-vegas-gold">{selectedPlan.name}</span>
-        </p>
-        
-        <div className="flex items-center justify-between border-t border-gray-700 pt-4 mt-4">
-          <div>
-            <p className="text-sm text-gray-400">Valor</p>
-            <p className="text-xl font-bold">
-              {selectedPlan.price === 0 
-                ? 'Grátis' 
-                : `R$ ${selectedPlan.price.toFixed(2)}/${selectedPlan.interval === 'monthly' ? 'mês' : 'ano'}`}
-            </p>
-          </div>
-          
-          {selectedPlan.interval === 'annual' && (
-            <div className="bg-vegas-gold/20 text-vegas-gold text-sm px-3 py-1 rounded-full">
-              2 meses grátis
-            </div>
-          )}
+    <div className="py-4 px-2">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl font-bold text-white">Finalizar Assinatura</h1>
+          <Button 
+            onClick={handleCancel} 
+            variant="outline" 
+            size="sm"
+            className="h-8 text-xs"
+          >
+            <ArrowLeft className="mr-1 h-3 w-3" />
+            Voltar
+          </Button>
         </div>
-      </div>
 
-      <PaymentForm 
-        planId={planId || ''} 
-        onPaymentSuccess={handlePaymentSuccess}
-        onCancel={handleCancel}
-      />
+        {selectedPlan && (
+          <div className="bg-vegas-black/60 border border-vegas-gold rounded-lg p-3 mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-base font-bold">{selectedPlan.name}</h3>
+              <Badge variant="outline" className="bg-vegas-gold text-black font-medium border-none text-xs">
+                {selectedPlan.price === 0 
+                  ? 'Grátis' 
+                  : `R$ ${selectedPlan.price.toFixed(2)}/${selectedPlan.interval === 'monthly' ? 'mês' : 'ano'}`}
+              </Badge>
+            </div>
+            <p className="text-xs text-gray-300 mb-3">{selectedPlan.description}</p>
+            <div className="flex items-center">
+              <Clock className="text-vegas-gold h-3 w-3 mr-1" />
+              <span className="text-xs text-gray-300">
+                {selectedPlan.interval === 'monthly' ? 'Cobrança mensal' : 'Cobrança anual'}
+              </span>
+            </div>
+            
+            {selectedPlan.interval === 'annual' && (
+              <div className="mt-2 inline-block bg-vegas-gold/20 text-vegas-gold text-xs px-2 py-0.5 rounded-full">
+                2 meses grátis
+              </div>
+            )}
+          </div>
+        )}
+
+        <PaymentForm 
+          planId={planId || ''} 
+          onPaymentSuccess={handlePaymentSuccess}
+          onCancel={handleCancel}
+        />
+      </div>
     </div>
   );
 };
