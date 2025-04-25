@@ -97,4 +97,70 @@ Se o frontend não conseguir se conectar à API:
 
 Quando fizer alterações no código, basta fazer push para o repositório Git, e o Vercel fará automaticamente o redeploy.
 
-Para forçar uma nova compilação, vá ao dashboard do Vercel, selecione seu projeto e clique em "Redeploy". 
+Para forçar uma nova compilação, vá ao dashboard do Vercel, selecione seu projeto e clique em "Redeploy".
+
+# Instruções de Implantação para Otimizações da API
+
+Este documento explica as otimizações implementadas para melhorar o desempenho dos endpoints de API e fornece instruções para implantação.
+
+## Otimizações Implementadas
+
+### 1. Novos Endpoints Otimizados
+
+- **`/api/ROULETTES/basic`**: Retorna apenas dados básicos das roletas, sem números (mais leve e rápido)
+- **`/api/ROULETTES-numbers/[id]`**: Endpoint otimizado para buscar números de uma roleta específica com paginação
+- **`/api/ROULETTES`**: Atualizado para suportar paginação e diferentes modos de busca
+
+### 2. Melhorias no Sistema de Proxy
+
+- Adicionado suporte para failover automático entre múltiplos backends
+- Implementado sistema de retry para requisições falhas
+- Melhorado logging para diagnóstico de problemas
+- Adicionado controle de timeout para evitar requisições pendentes
+
+### 3. Ferramentas de Diagnóstico
+
+- Novo endpoint `/api/api-status` para verificar a saúde dos backends
+- Logs detalhados para identificar problemas de conectividade
+
+## Arquivos Atualizados
+
+1. `frontend/api/ROULETTES.js` - Endpoint principal com paginação
+2. `frontend/api/ROULETTES-basic.js` - Novo endpoint para dados básicos
+3. `frontend/api/ROULETTES-numbers/[id].js` - Endpoint para números por roleta
+4. `frontend/api/proxy.js` - Sistema de proxy melhorado
+5. `frontend/api/api-status.js` - Endpoint de diagnóstico
+
+## Instruções para Implantação na Vercel
+
+1. Certifique-se de que todos os arquivos estejam no repositório Git
+2. Execute implantação na Vercel usando o comando:
+   ```bash
+   vercel --prod
+   ```
+3. Após a implantação, verifique o status dos novos endpoints:
+   ```
+   https://YOUR-DOMAIN.vercel.app/api/api-status
+   ```
+
+## Arquitetura do Sistema de Proxy
+
+O sistema de proxy foi redesenhado para lidar com múltiplos backends:
+
+1. Quando uma requisição chega, tentamos primeiro o backend principal
+2. Se o backend principal falha, tentamos automaticamente os backends de backup
+3. Mantemos estatísticas de falhas para cada backend e selecionamos o mais confiável
+4. Implementamos timeouts e tratamento adequado de erros
+
+## Compatibilidade
+
+Os novos endpoints são totalmente compatíveis com o código frontend existente. O serviço `RouletteApi` foi atualizado para usar os novos endpoints, mas continuará funcionando mesmo que precise fazer fallback para os endpoints antigos.
+
+## Troubleshooting
+
+Se você encontrar problemas após a implantação:
+
+1. Verifique `/api/api-status` para diagnóstico detalhado
+2. Certifique-se de que todas as dependências estão instaladas
+3. Verifique os logs de build da Vercel para erros
+4. Se necessário, faça rollback para a versão anterior 
