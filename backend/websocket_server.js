@@ -3,6 +3,8 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
+const cors = require('cors');
+const compression = require('compression');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -22,6 +24,12 @@ console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 
 // Inicializar Express
 const app = express();
+
+// Usar compressão para todas as rotas
+app.use(compression());
+
+// Configurar CORS
+app.use(cors());
 
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
@@ -186,6 +194,26 @@ async function connectToMongoDB() {
     db = client.db('runcash');
     collection = db.collection(COLLECTION_NAME);
     isConnected = true;
+    
+    // Criação de índices para melhorar a performance das consultas
+    console.log('Criando/verificando índices para otimização de consultas...');
+    
+    try {
+      // Índice para timestamp (usado em ordenações)
+      await collection.createIndex({ timestamp: -1 }, { background: true });
+      console.log('✅ Índice timestamp criado/verificado com sucesso');
+      
+      // Índice composto para buscas por roleta_id e timestamp
+      await collection.createIndex({ roleta_id: 1, timestamp: -1 }, { background: true });
+      console.log('✅ Índice composto roleta_id + timestamp criado/verificado com sucesso');
+      
+      // Índice para roleta_nome
+      await collection.createIndex({ roleta_nome: 1 }, { background: true });
+      console.log('✅ Índice roleta_nome criado/verificado com sucesso');
+    } catch (indexError) {
+      console.error('Erro ao criar índices:', indexError);
+      // Continuar mesmo se houver erro na criação de índices
+    }
     
     // Log database info
     const dbName = db.databaseName;
@@ -401,7 +429,33 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
-    // Verificar se a coleção tem dados
+    // Parâmetros de paginação
+    const limit = parseInt(req.query.limit) || 200;
+    const page = parseInt(req.query.page) || 1;
+    const skip = (page - 1) * limit;
+    
+    console.log(`[API] Usando limit: ${limit}, page: ${page}, skip: ${skip}`);
+    
+    // Cache key baseado nos parâmetros da requisição
+    const cacheKey = `roulettes_${limit}_${page}`;
+    
+    // Verificar se temos resposta em cache (cache de 30 segundos)
+    if (requestCache[cacheKey] && (Date.now() - requestCache[cacheKey].timestamp < 30000)) {
+      console.log(`[API] Usando resposta em cache para ${cacheKey}`);
+      return res.json(requestCache[cacheKey].data);
+    }
+    
+    // Projeção para retornar apenas os campos necessários
+    const projection = { 
+      _id: 0, 
+      roleta_id: 1, 
+      roleta_nome: 1, 
+      numero: 1, 
+      cor: 1, 
+      timestamp: 1 
+    };
+    
+    // Verificar quantos documentos temos para esta consulta
     const count = await collection.countDocuments();
     console.log(`[API] Total de documentos na coleção: ${count}`);
     
@@ -410,16 +464,16 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
-    // Parâmetros de paginação
-    const limit = parseInt(req.query.limit) || 200;
-    console.log(`[API] Usando limit: ${limit}`);
-    
-    // Buscar histórico de números ordenados por timestamp
+    // Buscar histórico de números ordenados por timestamp com paginação e projeção
+    console.time('mongodb_query');
     const numeros = await collection
       .find({})
+      .project(projection)
       .sort({ timestamp: -1 })
+      .skip(skip)
       .limit(limit)
       .toArray();
+    console.timeEnd('mongodb_query');
     
     console.log(`[API] Retornando ${numeros.length} números do histórico`);
     
@@ -429,9 +483,18 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
-    // Log de alguns exemplos para diagnóstico
-    console.log('[API] Exemplos de dados retornados:');
-    console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
+    // Armazenar em cache
+    requestCache[cacheKey] = {
+      data: numeros,
+      timestamp: Date.now()
+    };
+    
+    // Limpar cache antigo a cada 100 requisições para evitar vazamento de memória
+    cacheCleanupCounter++;
+    if (cacheCleanupCounter > 100) {
+      cleanupCache();
+      cacheCleanupCounter = 0;
+    }
     
     return res.json(numeros);
   } catch (error) {
@@ -783,7 +846,7 @@ app.options('/api/ROULETTES/historico', (req, res) => {
 
 // Socket.IO connection handler
 io.on('connection', async (socket) => {
-  console.log(`[WebSocket] Novo cliente conectado: ${socket.id}`);
+  console.log(`Novo cliente conectado: ${socket.id}`);
   
   // Enviar dados iniciais para o cliente
   if (isConnected) {
@@ -797,64 +860,19 @@ io.on('connection', async (socket) => {
     socket.emit('connection_error', { status: 'MongoDB not connected' });
   }
   
-  // Registrar salas para roletas específicas
-  socket.on('join_roulette', (rouletteId) => {
-    if (!rouletteId) {
-      return socket.emit('error', { message: 'ID da roleta é obrigatório' });
+  // Subscrever a uma roleta específica
+  socket.on('subscribe', (roletaNome) => {
+    if (typeof roletaNome === 'string' && roletaNome.trim()) {
+      socket.join(roletaNome);
+      console.log(`Cliente ${socket.id} subscrito à roleta: ${roletaNome}`);
     }
-    
-    console.log(`[WebSocket] Cliente ${socket.id} inscrito na roleta ${rouletteId}`);
-    socket.join(`roulette_${rouletteId}`);
-    socket.emit('joined_roulette', { rouletteId, status: 'success' });
   });
   
-  // Deixar sala de roleta específica
-  socket.on('leave_roulette', (rouletteId) => {
-    if (!rouletteId) {
-      return socket.emit('error', { message: 'ID da roleta é obrigatório' });
-    }
-    
-    console.log(`[WebSocket] Cliente ${socket.id} cancelou inscrição na roleta ${rouletteId}`);
-    socket.leave(`roulette_${rouletteId}`);
-    socket.emit('left_roulette', { rouletteId, status: 'success' });
-  });
-  
-  // Evento para pedir o último número de uma roleta específica
-  socket.on('get_last_number', async (rouletteId) => {
-    try {
-      if (!isConnected) {
-        return socket.emit('error', { message: 'Base de dados não conectada' });
-      }
-      
-      if (!rouletteId) {
-        return socket.emit('error', { message: 'ID da roleta é obrigatório' });
-      }
-      
-      const lastNumber = await collection.findOne(
-        { rouletteId: rouletteId.toString() },
-        { sort: { timestamp: -1 } }
-      );
-      
-      if (lastNumber) {
-        socket.emit('last_number', {
-          rouletteId,
-          number: lastNumber.number,
-          timestamp: lastNumber.timestamp,
-          color: getNumberColor(lastNumber.number)
-        });
-      } else {
-        socket.emit('last_number', {
-          rouletteId,
-          number: null,
-          message: 'Nenhum número encontrado para esta roleta'
-        });
-      }
-    } catch (error) {
-      console.error(`[WebSocket] Erro ao obter último número para roleta ${rouletteId}:`, error);
-      socket.emit('error', {
-        message: 'Erro ao buscar o último número',
-        details: error.message
-      });
+  // Cancelar subscrição a uma roleta específica
+  socket.on('unsubscribe', (roletaNome) => {
+    if (typeof roletaNome === 'string' && roletaNome.trim()) {
+      socket.leave(roletaNome);
+      console.log(`Cliente ${socket.id} cancelou subscrição à roleta: ${roletaNome}`);
     }
   });
   
@@ -918,52 +936,6 @@ io.on('connection', async (socket) => {
     console.log(`Cliente desconectado: ${socket.id}`);
   });
 });
-
-// Função para emitir atualização de número para uma roleta específica
-async function emitNumberUpdateForRoulette(rouletteId, number) {
-  try {
-    const timestamp = new Date();
-    const data = {
-      rouletteId,
-      number,
-      timestamp,
-      color: getNumberColor(number)
-    };
-    
-    // Emitir para todos os clientes inscritos nesta roleta específica
-    io.to(`roulette_${rouletteId}`).emit('number_update', data);
-    
-    // Também emitir no canal global para compatibilidade
-    io.emit('all_numbers_update', {
-      updates: [data]
-    });
-    
-    // Registrar na base de dados
-    if (isConnected) {
-      try {
-        await collection.insertOne({
-          rouletteId: rouletteId.toString(),
-          number: parseInt(number),
-          timestamp
-        });
-      } catch (dbError) {
-        console.error('[MongoDB] Erro ao salvar número na base de dados:', dbError);
-      }
-    }
-  } catch (error) {
-    console.error('[WebSocket] Erro ao emitir atualização de número:', error);
-  }
-}
-
-// Determinar a cor do número da roleta
-function getNumberColor(number) {
-  // Zero é verde
-  if (number === 0 || number === '0') return 'green';
-  
-  // Números vermelhos na roleta européia padrão
-  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-  return redNumbers.includes(parseInt(number)) ? 'red' : 'black';
-}
 
 // Iniciar o servidor
 server.listen(PORT, async () => {
@@ -1038,3 +1010,23 @@ app.get('/api/status', async (req, res) => {
     });
   }
 });
+
+// Cache de requisições e função para limpeza
+const requestCache = {};
+let cacheCleanupCounter = 0;
+
+// Função para limpar entradas antigas do cache
+function cleanupCache() {
+  console.log('[CACHE] Iniciando limpeza de cache');
+  const now = Date.now();
+  let deletedCount = 0;
+  
+  Object.keys(requestCache).forEach(key => {
+    if (now - requestCache[key].timestamp > 60000) { // 1 minuto
+      delete requestCache[key];
+      deletedCount++;
+    }
+  });
+  
+  console.log(`[CACHE] Limpeza concluída, ${deletedCount} entradas removidas`);
+}
