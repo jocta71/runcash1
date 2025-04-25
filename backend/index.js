@@ -27,6 +27,9 @@ const empresarialRoutes = require('./routes/empresarialRoutes');
 const assinaturaRoutes = require('./routes/assinaturaRoutes');
 const rouletteRoutes = require('./routes/rouletteRoutes');
 
+// Importar serviço de carregamento em lotes
+const batchDataService = require('./services/batchDataService');
+
 // Middlewares
 app.use(cors());
 app.use(express.json());
@@ -37,6 +40,74 @@ app.use('/api/premium', premiumRoutes);
 app.use('/api/empresarial', empresarialRoutes);
 app.use('/api/assinatura', assinaturaRoutes);
 app.use('/api', rouletteRoutes);
+
+// Adicionar rota para o carregamento em lotes otimizado
+app.get('/api/roulettes-batch', async (req, res) => {
+  try {
+    const {
+      limit = 200,
+      page = 0,
+      rouletteId = null,
+      format = 'full',
+      skipCache = false
+    } = req.query;
+    
+    console.log(`[API] Recebida requisição para carregamento em lotes. Page: ${page}, Limit: ${limit}, Format: ${format}`);
+    
+    const result = await batchDataService.loadRoulettesInBatches({
+      limit: parseInt(limit),
+      page: parseInt(page),
+      roletaId: rouletteId,
+      skipCache: skipCache === 'true',
+      format
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('[API] Erro ao processar carregamento em lotes:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao processar requisição',
+      message: error.message
+    });
+  }
+});
+
+// Rota para obter todas as roletas disponíveis
+app.get('/api/roulettes-list', async (req, res) => {
+  try {
+    const includeStatus = req.query.status === 'true';
+    const roletas = await batchDataService.getAllRoulettes(includeStatus);
+    
+    res.json({
+      success: true,
+      data: roletas,
+      count: roletas.length
+    });
+  } catch (error) {
+    console.error('[API] Erro ao listar roletas:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao listar roletas',
+      message: error.message
+    });
+  }
+});
+
+// Rota para limpar cache do serviço de lotes
+app.post('/api/roulettes-batch/clear-cache', async (req, res) => {
+  try {
+    const result = batchDataService.clearCache();
+    res.json(result);
+  } catch (error) {
+    console.error('[API] Erro ao limpar cache:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro ao limpar cache',
+      message: error.message
+    });
+  }
+});
 
 // Rota principal para verificação
 app.get('/', (req, res) => {

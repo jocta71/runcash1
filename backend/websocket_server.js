@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
+const zlib = require('zlib');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -169,55 +170,6 @@ async function initializeModels() {
   }
 }
 
-// Função para criar índices necessários no MongoDB
-async function criarIndicesMongoDB() {
-  try {
-    if (!isConnected || !collection) {
-      console.log('[MongoDB] Não foi possível criar índices: conexão não estabelecida');
-      return false;
-    }
-    
-    console.log('[MongoDB] Iniciando criação de índices...');
-    
-    // Verificar índices existentes para não recriar desnecessariamente
-    const indicesExistentes = await collection.indexes();
-    const nomesIndices = indicesExistentes.map(idx => idx.name);
-    
-    // Criar índice para roleta_id se não existir
-    if (!nomesIndices.includes('roleta_id_1')) {
-      console.log('[MongoDB] Criando índice para campo roleta_id...');
-      await collection.createIndex({ "roleta_id": 1 }, { background: true });
-      console.log('[MongoDB] ✅ Índice para roleta_id criado com sucesso');
-    } else {
-      console.log('[MongoDB] Índice para roleta_id já existe');
-    }
-    
-    // Criar índice composto para roleta_id e timestamp
-    if (!nomesIndices.includes('roleta_id_1_timestamp_-1')) {
-      console.log('[MongoDB] Criando índice composto para roleta_id e timestamp...');
-      await collection.createIndex({ "roleta_id": 1, "timestamp": -1 }, { background: true });
-      console.log('[MongoDB] ✅ Índice composto criado com sucesso');
-    } else {
-      console.log('[MongoDB] Índice composto já existe');
-    }
-    
-    // Criar índice para campo numero para otimizar análises estatísticas
-    if (!nomesIndices.includes('numero_1')) {
-      console.log('[MongoDB] Criando índice para campo numero...');
-      await collection.createIndex({ "numero": 1 }, { background: true });
-      console.log('[MongoDB] ✅ Índice para numero criado com sucesso');
-    } else {
-      console.log('[MongoDB] Índice para numero já existe');
-    }
-    
-    console.log('[MongoDB] Criação de índices concluída!');
-    return true;
-  } catch (error) {
-    console.error('[MongoDB] Erro ao criar índices:', error);
-    return false;
-  }
-}
-
 // Função para conectar ao MongoDB
 async function connectToMongoDB() {
   try {
@@ -252,9 +204,6 @@ async function connectToMongoDB() {
       console.log('Exemplos de documentos:');
       console.log(JSON.stringify(samples, null, 2));
     }
-    
-    // Criar índices para otimizar consultas
-    await criarIndicesMongoDB();
     
     // Iniciar o polling para verificar novos dados
     startPolling();
@@ -413,45 +362,23 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Rota para listar todas as roletas (endpoint em inglês)
-app.get('/api/roulettes', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/roulettes');
-  
-  try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json([]);
-    }
-    
-    // Obter roletas únicas da coleção
-    const roulettes = await collection.aggregate([
-      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-      { $project: { _id: 0, id: 1, nome: "$_id" } }
-    ]).toArray();
-    
-    console.log(`[API] Processadas ${roulettes.length} roletas`);
-    res.json(roulettes);
-  } catch (error) {
-    console.error('[API] Erro ao listar roletas:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
-  }
-});
-
-// Estrutura de cache para armazenar resultados de consultas frequentes
-const cache = {
+// Variável para armazenar o cache de resultados
+const resultsCache = {
   roulettes: {
     data: null,
-    timestamp: 0
-  },
-  rouletteNumbers: {}, // Cache por ID de roleta
-  allRouletteNumbers: {
-    data: null,
-    timestamp: 0
+    timestamp: null,
+    expiresIn: 60000 // 1 minuto de validade
   }
 };
 
-// Tempo de vida do cache (5 minutos)
-const CACHE_TTL = 5 * 60 * 1000;
+// Função para verificar se o cache é válido
+function isCacheValid(cacheKey) {
+  const cache = resultsCache[cacheKey];
+  if (!cache || !cache.data || !cache.timestamp) return false;
+  
+  const now = Date.now();
+  return (now - cache.timestamp) < cache.expiresIn;
+}
 
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
 app.get('/api/ROULETTES', async (req, res) => {
@@ -469,88 +396,96 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
-    // Verificar se temos dados em cache válidos
-    const currentTime = Date.now();
-    const useCache = !req.query.nocache && 
-                    cache.allRouletteNumbers.data && 
-                    (currentTime - cache.allRouletteNumbers.timestamp < CACHE_TTL);
+    // Parâmetros de paginação
+    const limit = parseInt(req.query.limit) || 200;
+    const page = parseInt(req.query.page) || 0;
+    const skip = page * limit;
+    const forceRefresh = req.query.refresh === 'true';
     
-    if (useCache) {
-      console.log('[API] Retornando dados de cache para todas as roletas');
-      return res.json(cache.allRouletteNumbers.data);
+    console.log(`[API] Usando limit: ${limit}, page: ${page}, skip: ${skip}`);
+    
+    // Verifica se há requisição para uma roleta específica
+    const roletaId = req.query.roleta_id;
+    const cacheKey = roletaId ? `roulette_${roletaId}_${limit}_${page}` : `roulettes_all_${limit}_${page}`;
+    
+    // Verificar cache se não for forçado um refresh
+    if (!forceRefresh && resultsCache[cacheKey] && isCacheValid(cacheKey)) {
+      console.log(`[API] Retornando dados do cache para ${cacheKey}`);
+      return res.json(resultsCache[cacheKey].data);
     }
     
-    // Verificar se a coleção tem dados
-    const count = await collection.countDocuments();
-    console.log(`[API] Total de documentos na coleção: ${count}`);
-    
-    if (count === 0) {
-      console.log('[API] Nenhum dado encontrado na coleção');
-      return res.json([]);
+    // Construir a query base
+    let query = {};
+    if (roletaId) {
+      query.roleta_id = roletaId;
     }
     
-    // Parâmetros de paginação e limite
-    const limit = parseInt(req.query.limit) || 100;
-    console.log(`[API] Usando limit: ${limit}`);
+    // Verificar contagem total para métrica
+    const totalCount = await collection.countDocuments(query);
+    console.log(`[API] Total de documentos que correspondem à query: ${totalCount}`);
     
-    // 1. Primeiro obter todas as roletas únicas (mais leve)
-    const roletas = await collection.aggregate([
-      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-      { $project: { _id: 0, id: 1, nome: "$_id" } }
-    ]).toArray();
+    // Primeiramente, verificar quantas roletas distintas existem
+    let roletas = [];
     
-    console.log(`[API] Encontradas ${roletas.length} roletas únicas`);
+    if (!roletaId) {
+      // Se não for filtrado por ID, buscar todas as roletas disponíveis
+      roletas = await collection.aggregate([
+        { $group: { _id: "$roleta_id", nome: { $first: "$roleta_nome" } } },
+        { $project: { _id: 0, id: "$_id", nome: 1 } }
+      ]).toArray();
+      
+      console.log(`[API] Total de roletas distintas: ${roletas.length}`);
+    }
     
-    // 2. Para cada roleta, buscar seus números de forma paralela (mais eficiente)
-    const roletasComNumeros = await Promise.all(
-      roletas.map(async (roleta) => {
-        try {
-          // Verificar cache específico para esta roleta
-          const roletaCache = cache.rouletteNumbers[roleta.id];
-          if (roletaCache && (currentTime - roletaCache.timestamp < CACHE_TTL)) {
-            console.log(`[API] Usando cache para roleta ${roleta.nome}`);
-            return {
-              ...roleta,
-              numero: roletaCache.data.slice(0, limit)
-            };
-          }
-          
-          // Buscar números para esta roleta
-          const numeros = await collection
-            .find({ roleta_id: roleta.id })
-            .sort({ timestamp: -1 })
-            .limit(Math.min(1000, limit)) // Limitar consulta para evitar sobrecarga
-            .project({ _id: 0, numero: 1, timestamp: 1 })
-            .toArray();
-          
-          // Processar e formatar os números
-          const numerosProcessados = numeros.map(doc => doc.numero);
-          
-          // Atualizar cache para esta roleta
-          cache.rouletteNumbers[roleta.id] = {
-            data: numerosProcessados,
-            timestamp: currentTime
-          };
-          
-          return {
-            ...roleta,
-            numero: numerosProcessados
-          };
-        } catch (error) {
-          console.error(`[API] Erro ao buscar números para roleta ${roleta.nome}:`, error);
-          return { ...roleta, numero: [] };
-        }
-      })
-    );
+    // Buscar histórico de números ordenados por timestamp
+    const pipeline = [
+      { $match: query },
+      { $sort: { timestamp: -1 } }
+    ];
     
-    // Atualizar cache global
-    cache.allRouletteNumbers = {
-      data: roletasComNumeros,
-      timestamp: currentTime
+    // Adicionar paginação apenas se não for um snapshot inicial
+    if (skip > 0) {
+      pipeline.push({ $skip: skip });
+    }
+    
+    pipeline.push({ $limit: limit });
+    
+    // Adicionar projeção para remover campos desnecessários
+    pipeline.push({
+      $project: {
+        _id: 0,
+        roleta_id: 1,
+        roleta_nome: 1,
+        numero: 1,
+        cor: 1,
+        timestamp: 1
+      }
+    });
+    
+    const numeros = await collection.aggregate(pipeline).toArray();
+    
+    console.log(`[API] Retornando ${numeros.length} números do histórico`);
+    
+    // Estruturar resposta
+    const response = {
+      data: numeros,
+      metadata: {
+        total: totalCount,
+        page: page,
+        limit: limit,
+        pages: Math.ceil(totalCount / limit),
+        roletas: roletaId ? 1 : roletas.length
+      }
     };
     
-    console.log(`[API] Retornando ${roletasComNumeros.length} roletas com números`);
-    return res.json(roletasComNumeros);
+    // Guardar no cache
+    resultsCache[cacheKey] = {
+      data: response,
+      timestamp: Date.now(),
+      expiresIn: 60000 // 1 minuto
+    };
+    
+    return res.json(response);
   } catch (error) {
     console.error('[API] Erro ao listar roletas ou histórico:', error);
     res.status(500).json({ error: 'Erro interno ao buscar dados' });
@@ -1065,376 +1000,183 @@ app.get('/api/status', async (req, res) => {
   }
 });
 
-// Adicionar nova rota otimizada para busca de grandes volumes de números
-app.get('/api/roulettes-optimized', async (req, res) => {
-  console.log('[API] Requisição recebida para rota otimizada de roletas');
+// Rota otimizada para carregamento em massa de dados históricos
+app.get('/api/ROULETTES-optimized', async (req, res) => {
+  console.log('[API] Requisição recebida para /api/ROULETTES-optimized');
+  console.log('[API] Query params:', req.query);
   
-  // Aplicar cabeçalhos CORS
+  // Aplicar cabeçalhos CORS explicitamente para esta rota
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Content-Encoding');
+  
+  // Verificar se o cliente aceita compressão gzip
+  const acceptsGzip = req.headers['accept-encoding'] && 
+                      req.headers['accept-encoding'].includes('gzip');
   
   try {
     if (!isConnected || !collection) {
-      return res.status(503).json({ 
-        error: 'Serviço indisponível',
-        message: 'Banco de dados não conectado'
-      });
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json({ error: 'Banco de dados não conectado', data: [] });
     }
     
-    // Parâmetros da requisição
-    const requestedLimit = parseInt(req.query.limit) || 1000;
-    const forceRefresh = req.query.refresh === 'true';
+    // Parâmetros
+    const limit = parseInt(req.query.limit) || 200;
+    const roletaId = req.query.roleta_id;
+    const format = req.query.format || 'json'; // Formato: json ou compact
+    const useStreaming = req.query.stream === 'true';
     
-    // Verificar cache, a menos que seja forçado refresh
-    const currentTime = Date.now();
-    if (!forceRefresh && 
-        cache.allRouletteNumbers.data && 
-        (currentTime - cache.allRouletteNumbers.timestamp < CACHE_TTL)) {
-      console.log('[API] Retornando dados de cache global');
-      return res.json({
-        success: true,
-        source: 'cache',
-        timestamp: new Date(cache.allRouletteNumbers.timestamp),
-        data: cache.allRouletteNumbers.data
-      });
-    }
-    
-    // Obter lista de roletas únicas - usando indexação para otimizar
-    console.log('[API] Buscando roletas únicas...');
-    const roletas = await collection.aggregate([
-      { 
-        $group: { 
-          _id: "$roleta_id",
-          nome: { $first: "$roleta_nome" } 
-        } 
-      },
-      { 
-        $project: { 
-          _id: 0, 
-          id: "$_id", 
-          nome: 1 
-        } 
-      }
-    ]).toArray();
-    
-    console.log(`[API] Encontradas ${roletas.length} roletas únicas`);
-    
-    // Processamento em lotes para evitar sobrecarga de memória
-    const BATCH_SIZE = 5; // Processar 5 roletas por vez
-    const resultado = [];
-    
-    // Dividir roletas em lotes menores
-    for (let i = 0; i < roletas.length; i += BATCH_SIZE) {
-      const lote = roletas.slice(i, i + BATCH_SIZE);
-      console.log(`[API] Processando lote ${Math.ceil(i/BATCH_SIZE) + 1} de ${Math.ceil(roletas.length/BATCH_SIZE)}`);
+    // Cache apenas para requisições não-stream
+    if (!useStreaming) {
+      const cacheKey = `optimized_${roletaId || 'all'}_${limit}_${format}`;
       
-      // Processar roletas em paralelo, mas em lotes menores
-      const resultadosLote = await Promise.all(
-        lote.map(async (roleta) => {
-          try {
-            // Verificar cache específico desta roleta
-            const roletaCache = cache.rouletteNumbers[roleta.id];
-            if (!forceRefresh && 
-                roletaCache && 
-                roletaCache.data && 
-                roletaCache.data.length >= requestedLimit &&
-                (currentTime - roletaCache.timestamp < CACHE_TTL)) {
-              console.log(`[API] Usando cache para roleta ${roleta.nome}`);
-              return {
-                ...roleta,
-                numero: roletaCache.data.slice(0, requestedLimit),
-                fonte: 'cache'
-              };
-            }
-            
-            // Buscar números de forma otimizada - usando projeção para reduzir volume de dados
-            console.log(`[API] Buscando números para roleta ${roleta.nome} (ID: ${roleta.id})`);
-            const numeros = await collection
-              .find({ roleta_id: roleta.id })
-              .sort({ timestamp: -1 })
-              .limit(requestedLimit)
-              .project({ _id: 0, numero: 1 })
-              .toArray();
-            
-            // Extrair apenas os números para reduzir uso de memória
-            const numerosSimples = numeros.map(doc => doc.numero);
-            
-            // Atualizar cache para esta roleta
-            cache.rouletteNumbers[roleta.id] = {
-              data: numerosSimples,
-              timestamp: currentTime
-            };
-            
-            console.log(`[API] Encontrados ${numerosSimples.length} números para roleta ${roleta.nome}`);
-            
-            return {
-              ...roleta,
-              numero: numerosSimples,
-              fonte: 'banco'
-            };
-          } catch (error) {
-            console.error(`[API] Erro ao buscar números para roleta ${roleta.nome}:`, error);
-            return { 
-              ...roleta, 
-              numero: [], 
-              erro: true,
-              mensagem: error.message
-            };
-          }
-        })
-      );
-      
-      // Adicionar resultados deste lote ao resultado final
-      resultado.push(...resultadosLote);
-    }
-    
-    // Atualizar cache global
-    cache.allRouletteNumbers = {
-      data: resultado,
-      timestamp: currentTime
-    };
-    
-    console.log(`[API] Processamento concluído. Retornando ${resultado.length} roletas`);
-    
-    return res.json({
-      success: true,
-      source: 'database',
-      timestamp: new Date(),
-      count: resultado.length,
-      data: resultado
-    });
-  } catch (error) {
-    console.error('[API] Erro ao processar rota otimizada:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Erro interno ao processar requisição',
-      message: error.message 
-    });
-  }
-});
-
-// Função para limpar cache antigo
-function limparCacheAntigo() {
-  console.log('[Cache] Iniciando limpeza de cache antigo...');
-  const now = Date.now();
-  let contadorLimpeza = 0;
-  
-  // Limpar cache por roleta
-  for (const roletaId in cache.rouletteNumbers) {
-    if (now - cache.rouletteNumbers[roletaId].timestamp > CACHE_TTL * 2) {
-      // Limpar cache de roletas que não foram acessadas recentemente
-      delete cache.rouletteNumbers[roletaId];
-      contadorLimpeza++;
-    }
-  }
-  
-  // Limpar caches globais se necessário
-  if (cache.roulettes.data && now - cache.roulettes.timestamp > CACHE_TTL * 2) {
-    cache.roulettes.data = null;
-    contadorLimpeza++;
-  }
-  
-  if (cache.allRouletteNumbers.data && now - cache.allRouletteNumbers.timestamp > CACHE_TTL * 2) {
-    cache.allRouletteNumbers.data = null;
-    contadorLimpeza++;
-  }
-  
-  console.log(`[Cache] Limpeza concluída. ${contadorLimpeza} itens removidos.`);
-  
-  // Executar coleta de lixo explicitamente (apenas sugestão para o motor V8)
-  if (global.gc) {
-    console.log('[Cache] Solicitando coleta de lixo...');
-    global.gc();
-  }
-}
-
-// Programar limpeza periódica (a cada 15 minutos)
-setInterval(limparCacheAntigo, 15 * 60 * 1000);
-
-// Rota otimizada para buscar números de uma roleta específica
-app.get('/api/roulette/:id/numbers', async (req, res) => {
-  console.log(`[API] Requisição recebida para números da roleta ID: ${req.params.id}`);
-  
-  // Aplicar cabeçalhos CORS
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
-  try {
-    if (!isConnected || !collection) {
-      return res.status(503).json({ 
-        error: 'Serviço indisponível',
-        message: 'Banco de dados não conectado'
-      });
-    }
-    
-    const roletaId = req.params.id;
-    const requestedLimit = parseInt(req.query.limit) || 1000;
-    const forceRefresh = req.query.refresh === 'true';
-    const currentTime = Date.now();
-    
-    // Verificar se temos esta roleta no cache
-    if (!forceRefresh && 
-        cache.rouletteNumbers[roletaId] && 
-        cache.rouletteNumbers[roletaId].data &&
-        cache.rouletteNumbers[roletaId].data.length >= requestedLimit &&
-        (currentTime - cache.rouletteNumbers[roletaId].timestamp < CACHE_TTL)) {
-      
-      console.log(`[API] Retornando dados em cache para roleta ID: ${roletaId}`);
-      
-      // Buscar nome da roleta
-      let nomeRoleta = "Roleta " + roletaId;
-      try {
-        // Tentar obter informações da roleta do MongoDB
-        const infoRoleta = await collection.findOne(
-          { roleta_id: roletaId },
-          { projection: { _id: 0, roleta_nome: 1 } }
-        );
+      // Verificar cache (apenas para formato JSON)
+      if (format === 'json' && resultsCache[cacheKey] && isCacheValid(cacheKey)) {
+        console.log(`[API] Retornando dados do cache para ${cacheKey}`);
         
-        if (infoRoleta && infoRoleta.roleta_nome) {
-          nomeRoleta = infoRoleta.roleta_nome;
+        if (acceptsGzip) {
+          res.header('Content-Encoding', 'gzip');
+          res.header('Content-Type', 'application/json');
+          return res.send(resultsCache[cacheKey].compressed);
+        } else {
+          return res.json(resultsCache[cacheKey].data);
         }
-      } catch (error) {
-        console.error(`[API] Erro ao buscar nome da roleta: ${error.message}`);
       }
+    }
+    
+    // Construir a query base
+    let query = {};
+    if (roletaId) {
+      query.roleta_id = roletaId;
+    }
+    
+    // Pipeline para buscar dados de forma mais eficiente
+    const pipeline = [
+      { $match: query },
+      { $sort: { timestamp: -1 } },
+      { $limit: limit },
+      { 
+        $project: {
+          _id: 0,
+          r: "$roleta_id",    // Nomes encurtados para diminuir o tamanho da resposta
+          n: "$roleta_nome",
+          v: "$numero",       // v de valor/value
+          c: "$cor",
+          t: "$timestamp"
+        }
+      }
+    ];
+    
+    // Se for usar streaming, configurar resposta streaming
+    if (useStreaming) {
+      console.log('[API] Usando modo streaming para grandes volumes de dados');
       
-      return res.json({
-        success: true,
-        id: roletaId,
-        nome: nomeRoleta,
-        numeros: cache.rouletteNumbers[roletaId].data.slice(0, requestedLimit),
-        fonte: 'cache',
-        timestamp: new Date(cache.rouletteNumbers[roletaId].timestamp)
+      // Configurar cabeçalhos para streaming
+      res.header('Content-Type', 'application/json');
+      
+      // Iniciar a resposta com um array
+      res.write('{"data":[');
+      
+      let isFirst = true;
+      const cursor = collection.aggregate(pipeline);
+      
+      // Processar cursor de forma assíncrona
+      let count = 0;
+      await cursor.forEach(doc => {
+        const separator = isFirst ? '' : ',';
+        isFirst = false;
+        
+        // Enviar documento para o cliente
+        res.write(separator + JSON.stringify(doc));
+        count++;
       });
+      
+      // Finalizar resposta
+      res.write('],"metadata":{"count":' + count + ',"streaming":true}}');
+      return res.end();
+    } else {
+      // Busca padrão não-streaming
+      const dados = await collection.aggregate(pipeline).toArray();
+      
+      // Formatar resposta de acordo com o formato solicitado
+      const response = format === 'compact' ? 
+        { d: dados, m: { c: dados.length } } :  // formato compacto
+        { data: dados, metadata: { count: dados.length } };  // formato normal
+      
+      // Para respostas grandes que aceitam gzip, comprimir
+      if (acceptsGzip && dados.length > 50) {
+        console.log('[API] Comprimindo resposta com gzip');
+        const jsonResponse = JSON.stringify(response);
+        
+        // Comprimir dados
+        zlib.gzip(jsonResponse, (err, compressed) => {
+          if (err) {
+            console.error('[API] Erro ao comprimir dados:', err);
+            return res.json(response);
+          }
+          
+          // Armazenar no cache
+          const cacheKey = `optimized_${roletaId || 'all'}_${limit}_${format}`;
+          resultsCache[cacheKey] = {
+            data: response,
+            compressed: compressed,
+            timestamp: Date.now(),
+            expiresIn: 60000 // 1 minuto
+          };
+          
+          // Enviar resposta comprimida
+          res.header('Content-Encoding', 'gzip');
+          res.header('Content-Type', 'application/json');
+          res.send(compressed);
+        });
+      } else {
+        // Armazenar no cache (sem compressão)
+        const cacheKey = `optimized_${roletaId || 'all'}_${limit}_${format}`;
+        resultsCache[cacheKey] = {
+          data: response,
+          timestamp: Date.now(),
+          expiresIn: 60000 // 1 minuto
+        };
+        
+        return res.json(response);
+      }
     }
-    
-    // Buscar informações da roleta
-    console.log(`[API] Buscando informações da roleta ID: ${roletaId}`);
-    const roleta = await collection.findOne(
-      { roleta_id: roletaId },
-      { projection: { _id: 0, roleta_nome: 1 } }
-    );
-    
-    if (!roleta) {
-      return res.status(404).json({
-        success: false,
-        error: 'Roleta não encontrada',
-        id: roletaId
-      });
-    }
-    
-    // Buscar números da roleta
-    console.log(`[API] Buscando números para roleta ${roleta.roleta_nome} (ID: ${roletaId})`);
-    const numeros = await collection
-      .find({ roleta_id: roletaId })
-      .sort({ timestamp: -1 })
-      .limit(requestedLimit)
-      .project({ _id: 0, numero: 1 })
-      .toArray();
-    
-    // Extrair apenas os números
-    const numerosSimples = numeros.map(doc => doc.numero);
-    
-    // Atualizar cache
-    cache.rouletteNumbers[roletaId] = {
-      data: numerosSimples,
-      timestamp: currentTime
-    };
-    
-    console.log(`[API] Encontrados ${numerosSimples.length} números para roleta ${roleta.roleta_nome}`);
-    
-    return res.json({
-      success: true,
-      id: roletaId,
-      nome: roleta.roleta_nome,
-      numeros: numerosSimples,
-      total: numerosSimples.length,
-      fonte: 'banco',
-      timestamp: new Date()
-    });
   } catch (error) {
-    console.error(`[API] Erro ao buscar números da roleta ${req.params.id}:`, error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno',
-      message: error.message
-    });
+    console.error('[API] Erro ao processar requisição otimizada:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar dados' });
   }
 });
 
-// Rota para verificar estatísticas do MongoDB, incluindo índices
-app.get('/api/mongodb-stats', async (req, res) => {
-  console.log('[API] Requisição recebida para estatísticas do MongoDB');
+// Endpoint para verificar status de cache e reiniciar se necessário
+app.get('/api/cache/status', (req, res) => {
+  // Obter estatísticas do cache
+  const stats = Object.keys(resultsCache).map(key => ({
+    key,
+    age: resultsCache[key].timestamp ? Math.floor((Date.now() - resultsCache[key].timestamp) / 1000) + 's' : 'N/A',
+    valid: isCacheValid(key),
+    size: resultsCache[key].data ? 
+      JSON.stringify(resultsCache[key].data).length : 
+      (resultsCache[key].compressed ? resultsCache[key].compressed.length : 0)
+  }));
   
-  // Aplicar cabeçalhos CORS
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.json({
+    cacheEntries: stats.length,
+    entries: stats,
+    totalSize: stats.reduce((acc, entry) => acc + entry.size, 0)
+  });
+});
+
+// Endpoint para limpar o cache
+app.post('/api/cache/clear', (req, res) => {
+  const before = Object.keys(resultsCache).length;
   
-  try {
-    if (!isConnected || !db) {
-      return res.status(503).json({
-        status: 'error',
-        message: 'MongoDB não está conectado'
-      });
-    }
-    
-    // Obter estatísticas da coleção
-    const stats = await db.command({ collStats: COLLECTION_NAME });
-    
-    // Obter índices da coleção
-    const indices = await collection.indexes();
-    
-    // Obter uma amostra das roletas
-    const roletasUnicas = await collection.aggregate([
-      { $group: { _id: "$roleta_id", nome: { $first: "$roleta_nome" } } },
-      { $project: { _id: 0, id: "$_id", nome: 1 } },
-      { $limit: 10 }
-    ]).toArray();
-    
-    // Obter contagem de documentos por roleta (top 10)
-    const contagemPorRoleta = await collection.aggregate([
-      { $group: { _id: "$roleta_id", nome: { $first: "$roleta_nome" }, count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 10 },
-      { $project: { _id: 0, id: "$_id", nome: 1, count: 1 } }
-    ]).toArray();
-    
-    // Obter estatísticas de cache
-    let cacheInfo = {
-      roulettes: cache.roulettes && cache.roulettes.data ? 'Disponível' : 'Vazio',
-      rouletteNumbers: Object.keys(cache.rouletteNumbers).length,
-      allRouletteNumbers: cache.allRouletteNumbers && cache.allRouletteNumbers.data ? 'Disponível' : 'Vazio',
-      cacheTTL: CACHE_TTL / 1000 + ' segundos'
-    };
-    
-    return res.json({
-      status: 'success',
-      collection: COLLECTION_NAME,
-      documentCount: stats.count,
-      storageSize: {
-        collection: stats.size,
-        indices: stats.totalIndexSize,
-        indicesSizeMB: (stats.totalIndexSize / (1024 * 1024)).toFixed(2) + ' MB',
-        sizeAllocated: stats.storageSize
-      },
-      indices: indices.map(idx => ({
-        name: idx.name,
-        key: idx.key,
-        size: idx.size || 'N/A'
-      })),
-      roletasUnicas: roletasUnicas.length,
-      roletasMaiores: contagemPorRoleta,
-      cache: cacheInfo,
-      timestamp: new Date()
-    });
-  } catch (error) {
-    console.error('[API] Erro ao obter estatísticas do MongoDB:', error);
-    return res.status(500).json({
-      status: 'error',
-      message: 'Erro ao obter estatísticas',
-      error: error.message
-    });
-  }
+  // Resetar o cache
+  Object.keys(resultsCache).forEach(key => {
+    delete resultsCache[key];
+  });
+  
+  res.json({
+    success: true,
+    message: `Cache limpo. Removidas ${before} entradas.`
+  });
 });
