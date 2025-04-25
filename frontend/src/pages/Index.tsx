@@ -35,6 +35,104 @@ interface KnownRoulette {
   ultima_atualizacao: string;
 }
 
+// Adicionar o estilo CSS inline para o componente radio
+const radioInputStyles = `
+.radio-input input {
+  display: none;
+}
+
+.radio-input label {
+  --border-color: #a1b0d8;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  min-width: 5rem;
+  margin: 1rem;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  align-items: center;
+  background-color: #191a1f;
+}
+
+.radio-input input:checked + label {
+  --border-color: #00FF00;
+  border-color: var(--border-color);
+  border-width: 2px;
+}
+
+.radio-input label:hover {
+  --border-color: #00FF00;
+  border-color: var(--border-color);
+}
+
+.radio-input {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.circle {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #2a2a35;
+  margin-right: 0.5rem;
+  position: relative;
+}
+
+.radio-input input:checked + label span.circle::before {
+  content: "";
+  display: inline;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #00FF00;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+}
+
+.text {
+  display: flex;
+  align-items: center;
+  color: white;
+}
+
+.price {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  font-weight: bold;
+  color: white;
+}
+
+.small {
+  font-size: 10px;
+  color: #a0a0a7;
+  font-weight: 100;
+}
+
+.info {
+  position: absolute;
+  display: inline-block;
+  font-size: 11px;
+  background-color: #00FF00;
+  border-radius: 20px;
+  padding: 1px 9px;
+  top: 0;
+  transform: translateY(-50%);
+  right: 5px;
+  color: black;
+  font-weight: bold;
+}
+`;
+
 const Index = () => {
   // Remover o estado de busca
   // const [search, setSearch] = useState("");
@@ -488,12 +586,40 @@ const Index = () => {
         
         {/* Botão centralizado que sobrepõe os esqueletos */}
         <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center">
+          <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center max-w-xl w-full">
             <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
-            <p className="text-white/80 mb-8 max-w-md">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
+            <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
+            
+            <style>{radioInputStyles}</style>
+            <div className="radio-input">
+              <input value="monthly" name="plan-radio" id="monthly" type="radio" defaultChecked />
+              <label htmlFor="monthly">
+                <div className="text">
+                  <span className="circle"></span>
+                  Mensal
+                </div>
+                <div className="price">
+                  <span>R$49/mês</span>
+                  <span className="small">Cobrado mensalmente</span>
+                </div>
+              </label>
+              <input value="annual" name="plan-radio" id="annual" type="radio" />
+              <label htmlFor="annual">
+                <div className="text">
+                  <span className="circle"></span>
+                  Anual
+                </div>
+                <div className="price">
+                  <span>R$99/ano</span>
+                  <span className="small">Cobrado uma vez por ano</span>
+                </div>
+                <span className="info">economize 50%</span>
+              </label>
+            </div>
+            
             <Button 
               asChild
-              className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20"
+              className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-6"
             >
               <Link to="/planos">
                 <PackageOpen className="mr-2 h-5 w-5" />
