@@ -1,18 +1,15 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, BarChart3, PackageOpen, Loader2, Check, Copy, ChevronRight } from 'lucide-react';
+import { AlertCircle, PackageOpen, Loader2, Copy } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
 import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
 import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
-import EventService from '@/services/EventService';
+import EventService, { RouletteNumberEvent, StrategyUpdateEvent } from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
-import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import RouletteSidePanelSkeleton from '@/components/RouletteSidePanelSkeleton';
-import RouletteFilterBar from '@/components/RouletteFilterBar';
-import { extractProviders } from '@/utils/rouletteProviders';
 import { Button } from '@/components/ui/button';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -24,25 +21,8 @@ import {
   checkPaymentStatus,
   SubscriptionResponse
 } from '@/integrations/asaas/client';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Checkbox } from '@/components/ui/checkbox';
-import { FormControl, FormField, FormItem, FormLabel, FormMessage, Form } from '@/components/ui/form';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+
+
 
 interface ChatMessage {
   id: string;
@@ -250,16 +230,24 @@ const Index = () => {
   
   // Escutar eventos de roletas existentes para persistência
   useEffect(() => {
-    const handleRouletteExists = (data: any) => {
-      if (!data || !data.id) {
-        console.log('[Index] Evento roleta_exists recebido sem ID válido:', data);
+    const handleRouletteExists = (event: RouletteNumberEvent | StrategyUpdateEvent) => {
+      if (!event || !event.roleta_id) {
+        console.log('[Index] Evento roleta_exists recebido sem ID válido:', event);
         return;
       }
       
-      console.log(`[Index] Evento roleta_exists recebido para: ${data.nome} (ID: ${data.id})`);
+      console.log(`[Index] Evento roleta_exists recebido para: ${event.roleta_nome} (ID: ${event.roleta_id})`);
+      
+      const rouletteData: RouletteData = {
+        id: event.roleta_id,
+        nome: event.roleta_nome,
+        name: event.roleta_nome,
+        numeros: [],
+        lastNumbers: []
+      };
       
       setKnownRoulettes(prev => {
-        const updated = [...prev, data];
+        const updated = [...prev, rouletteData];
         console.log(`[Index] Atualizado registro de roletas conhecidas. Total: ${updated.length}`);
         return updated;
       });
@@ -280,7 +268,8 @@ const Index = () => {
   // Escutar eventos de carregamento de dados históricos
   useEffect(() => {
     // Handler para evento de dados históricos carregados
-    const handleHistoricalDataLoaded = (data: any) => {
+    const handleHistoricalDataLoaded = (event: RouletteNumberEvent | StrategyUpdateEvent) => {
+      const data = event as unknown as { success: boolean; count?: number };
       console.log('[Index] Evento historical_data_loaded recebido:', data);
       if (data && data.success) {
         console.log(`[Index] Dados históricos carregados com sucesso para ${data.count || 0} roletas`);
@@ -409,9 +398,10 @@ const Index = () => {
           setError('Não foi possível carregar as roletas disponíveis.');
         }
       }
-    } catch (err: any) {
+    } catch (err: Error | unknown) {
       console.error('❌ Erro ao buscar roletas:', err);
-      setError(`Erro ao buscar roletas: ${err.message}`);
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      setError(`Erro ao buscar roletas: ${errorMessage}`);
       
       // Fallback para roletas conhecidas
       if (knownRoulettes.length > 0) {
@@ -421,7 +411,7 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [knownRoulettes]);
+  }, [knownRoulettes, mergeRoulettes]);
 
   // Efeito para inicialização e atualização periódica
   useEffect(() => {
@@ -882,31 +872,34 @@ const Index = () => {
             <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
             
             {/* From Uiverse.io by andrew-demchenk0 */}
-            <style>
-              {`
+            <style>{`
                 .wrapper {
-                  position: relative;
                   display: flex;
-                  flex-direction: row;
-                  gap: 10px;
                   justify-content: center;
-                  margin-bottom: 20px;
+                  gap: 1.5rem;
+                  width: 100%;
+                  max-width: 600px;
+                  margin: 0 auto;
                 }
                 
                 .card {
                   position: relative;
-                  width: 150px;
-                  height: 100px;
+                  width: 220px;
+                  height: 140px;
+                  padding: 1.5rem;
                   background: #111118;
-                  border-radius: 10px;
+                  border-radius: 12px;
                   transition: all 0.3s;
                   display: flex;
                   align-items: center;
                   justify-content: center;
+                  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+                  overflow: hidden;
                 }
                 
                 .card:hover {
-                  transform: scale(1.05);
+                  transform: translateY(-5px);
+                  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
                 }
                 
                 .input {
@@ -917,72 +910,97 @@ const Index = () => {
                   width: 100%;
                   cursor: pointer;
                   appearance: none;
-                  border: 1px solid #333;
-                  border-radius: 10px;
+                  border: 2px solid #222;
+                  border-radius: 12px;
                   z-index: 10;
-                  box-shadow: 1px 1px 10px rgba(0,0,0,0.5),
-                              -1px -1px 10px rgba(255,255,255,0.05);
+                  transition: all 0.3s;
+                }
+                
+                .input + .check {
+                  position: absolute;
+                  top: 12px;
+                  right: 12px;
+                  z-index: 5;
                 }
                 
                 .input + .check::before {
                   content: "";
-                  position: absolute;
-                  top: 12px;
-                  right: 12px;
-                  width: 16px;
-                  height: 16px;
-                  border: 2px solid #555;
+                  display: block;
+                  width: 22px;
+                  height: 22px;
+                  border: 2px solid #444;
                   border-radius: 50%;
                   background-color: #111;
+                  transition: all 0.3s;
                 }
                 
                 .input:checked + .check::after {
                   content: '';
                   position: absolute;
-                  top: 16px;
-                  right: 16px;
-                  width: 8px;
-                  height: 8px;
+                  top: 5px;
+                  right: 5px;
+                  width: 12px;
+                  height: 12px;
                   background-color: #00FF00;
                   border-radius: 50%;
+                  transition: all 0.3s;
                 }
                 
-                .input[value="premium"]:checked + .check::after {
-                  background-color: #00FF00;
-                }
-                
-                .input[value="basic"]:checked,
-                .input[value="premium"]:checked {
-                  border: 1.5px solid #00FF00;
+                .input:checked {
+                  border: 2px solid #00FF00;
                 }
                 
                 .label {
                   color: #fff;
                   position: relative;
-                  z-index: 0;
-                  width: 80%;
+                  z-index: 5;
+                  width: 100%;
                   text-align: left;
+                  padding-right: 25px;
                 }
                 
                 .label .title {
-                  font-weight: 900;
-                  font-size: 15px;
-                  letter-spacing: 1.5px;
-                  margin-bottom: 8px;
+                  font-weight: 800;
+                  font-size: 16px;
+                  letter-spacing: 1px;
+                  margin-bottom: 12px;
+                  text-transform: uppercase;
+                  color: #eee;
                 }
                 
                 .label .price {
-                  font-size: 20px;
+                  font-size: 24px;
                   font-weight: 900;
+                  color: #fff;
+                  display: flex;
+                  align-items: flex-end;
                 }
                 
                 .label .span {
-                  color: #999;
-                  font-weight: 700;
-                  font-size: 15px;
+                  color: #aaa;
+                  font-weight: 600;
+                  font-size: 14px;
+                  margin-left: 2px;
+                  margin-bottom: 3px;
                 }
-              `}
-            </style>
+                
+                .backdrop {
+                  position: absolute;
+                  bottom: -20px;
+                  right: -20px;
+                  width: 120px;
+                  height: 120px;
+                  border-radius: 50%;
+                  background: linear-gradient(135deg, rgba(0,255,0,0.05) 0%, rgba(0,255,0,0) 70%);
+                  z-index: 1;
+                  opacity: 0;
+                  transition: opacity 0.3s ease;
+                }
+                
+                .input:checked ~ .backdrop {
+                  opacity: 1;
+                }
+            `}</style>
             
             <div className="wrapper">
               <div className="card">
@@ -996,13 +1014,13 @@ const Index = () => {
                 />
                 <span className="check"></span>
                 <label className="label">
-                  <div className="title">MENSAL</div>
+                  <div className="title">Mensal</div>
                   <div className="price">
-                    <span className="span">R$</span>
-                    49
+                    R$49
                     <span className="span">/mês</span>
                   </div>
                 </label>
+                <div className="backdrop"></div>
               </div>
               <div className="card">
                 <input 
@@ -1014,19 +1032,19 @@ const Index = () => {
                 />
                 <span className="check"></span>
                 <label className="label">
-                  <div className="title">ANUAL</div>
+                  <div className="title">Anual</div>
                   <div className="price">
-                    <span className="span">R$</span>
-                    99
+                    R$99
                     <span className="span">/ano</span>
                   </div>
                 </label>
+                <div className="backdrop"></div>
               </div>
             </div>
             
             <Button 
               onClick={() => setShowCheckout(true)}
-              className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-6"
+              className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-8"
             >
               <PackageOpen className="mr-2 h-5 w-5" />
               Escolher Plano
