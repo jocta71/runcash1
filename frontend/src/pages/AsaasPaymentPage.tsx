@@ -54,15 +54,15 @@ const AsaasPaymentPage: React.FC = () => {
     
     try {
       // Criar assinatura no Asaas
-      const result = await createAsaasSubscription(
+      const result = await createAsaasSubscription({
         planId, 
-        user.id, 
+        userId: user.id, 
         customerId, 
         paymentMethod,
-        undefined, // creditCard
-        undefined, // creditCardHolderInfo
-        cpfCnpj    // CPF/CNPJ para atualizar o cliente
-      );
+        creditCard: undefined,
+        creditCardHolderInfo: undefined,
+        cpfCnpj
+      });
       
       // Se for assinatura gratuita, redirecionar diretamente
       if (result.status === 'ACTIVE' || planId === 'free') {

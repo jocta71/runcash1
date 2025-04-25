@@ -345,3 +345,34 @@ export const checkPaymentStatus = (
   // Retornar função para cancelar o monitoramento
   return stopChecking;
 };
+
+/**
+ * Cancela uma assinatura no Asaas
+ * @param subscriptionId ID da assinatura a ser cancelada
+ * @returns Resposta da API de cancelamento
+ */
+export const cancelAsaasSubscription = async (subscriptionId: string): Promise<any> => {
+  try {
+    console.log(`Cancelando assinatura: subscriptionId=${subscriptionId}`);
+    
+    const response = await api.post<ApiResponse>('api/asaas-cancel-subscription', {
+      subscriptionId
+    });
+    
+    console.log('Resposta da API de cancelamento de assinatura:', response.data);
+    
+    if (!response.data?.success) {
+      throw new Error('Falha ao cancelar assinatura');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao cancelar assinatura no Asaas:', error);
+    
+    if (error instanceof AxiosError) {
+      throw new Error(`Falha ao cancelar assinatura: ${error.response?.data?.error || error.message}`);
+    }
+    
+    throw new Error('Falha ao cancelar assinatura no Asaas');
+  }
+};

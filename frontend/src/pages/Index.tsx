@@ -643,12 +643,13 @@ const Index = () => {
       const userId = user.id;
       const paymentMethod = 'PIX';
 
-      const subscription = await createAsaasSubscription(
+      const subscription = await createAsaasSubscription({
         planId,
         userId,
         customerId,
-        paymentMethod
-      );
+        paymentMethod,
+        cpfCnpj: formData.cpf.replace(/\D/g, '')
+      });
       
       if (!subscription || !subscription.paymentId) {
         setPaymentError('Erro ao criar assinatura');

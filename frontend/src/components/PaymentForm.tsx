@@ -121,15 +121,15 @@ export const PaymentForm = ({ planId, onPaymentSuccess, onCancel }: PaymentFormP
     try {
       // Criar assinatura passando o CPF para atualização
       console.log('Criando assinatura para o cliente...');
-      const subscription = await createAsaasSubscription(
+      const subscription = await createAsaasSubscription({
         planId, 
-        user.id,
-        user.asaasCustomerId,
-        'PIX',
-        undefined,
-        undefined,
-        cpfClean // Passar o CPF para atualização
-      );
+        userId: user.id,
+        customerId: user.asaasCustomerId,
+        paymentMethod: 'PIX',
+        creditCard: undefined,
+        creditCardHolderInfo: undefined,
+        cpfCnpj: cpfClean // Passar o CPF para atualização
+      });
       
       console.log('Assinatura criada:', subscription);
       
