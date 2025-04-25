@@ -12,12 +12,14 @@ import {
   Settings,
   CreditCard,
   Star,
-  ShieldCheck
+  ShieldCheck,
+  AlertCircle
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/context/SubscriptionContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import useDiagnostico from '../hooks/useDiagnostico';
 
 // Interface estendida para o usuário com firstName e lastName
 interface ExtendedUser {
@@ -33,6 +35,7 @@ interface ExtendedUser {
 const ProfileDropdown = () => {
   const { user } = useAuth();
   const { currentSubscription, currentPlan } = useSubscription();
+  const { DiagnosticoModalComponent, openDiagnostico } = useDiagnostico();
   
   // Cast para o tipo estendido
   const extUser = user as unknown as ExtendedUser;
@@ -67,87 +70,103 @@ const ProfileDropdown = () => {
      currentSubscription.status?.toLowerCase() === 'confirmed');
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" className="rounded-full w-8 h-8 p-0 overflow-hidden">
-          {user?.profilePicture ? (
-            <Avatar className="w-full h-full">
-              <AvatarImage src={user.profilePicture} alt={getDisplayName()} />
-              <AvatarFallback>{user ? getInitials(user.username) : 'U'}</AvatarFallback>
-            </Avatar>
-          ) : (
-            <span className="font-semibold text-sm">{user ? getInitials(user.username) : 'U'}</span>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        {user && (
-          <>
-            <div className="px-2 py-2 text-sm font-medium">
-              <div className="flex items-center gap-2">
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src={user.profilePicture} alt={getDisplayName()} />
-                  <AvatarFallback>{getInitials(user.username)}</AvatarFallback>
-                </Avatar>
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium leading-none">{getDisplayName()}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                </div>
-              </div>
-              
-              {/* Indicador de status de assinatura */}
-              {currentPlan && (
-                <div className="mt-2 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    {hasActivePlan ? (
-                      <ShieldCheck className="h-3.5 w-3.5 text-green-500" />
-                    ) : (
-                      <CreditCard className="h-3.5 w-3.5 text-gray-400" />
-                    )}
-                    <span className="text-xs">
-                      {hasActivePlan ? `Plano ${currentPlan.name}` : 'Sem plano ativo'}
-                    </span>
+    <div className="relative">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="icon" className="rounded-full w-8 h-8 p-0 overflow-hidden">
+            {user?.profilePicture ? (
+              <Avatar className="w-full h-full">
+                <AvatarImage src={user.profilePicture} alt={getDisplayName()} />
+                <AvatarFallback>{user ? getInitials(user.username) : 'U'}</AvatarFallback>
+              </Avatar>
+            ) : (
+              <span className="font-semibold text-sm">{user ? getInitials(user.username) : 'U'}</span>
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {user && (
+            <>
+              <div className="px-2 py-2 text-sm font-medium">
+                <div className="flex items-center gap-2">
+                  <Avatar className="w-8 h-8">
+                    <AvatarImage src={user.profilePicture} alt={getDisplayName()} />
+                    <AvatarFallback>{getInitials(user.username)}</AvatarFallback>
+                  </Avatar>
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium leading-none">{getDisplayName()}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                   </div>
-                  <Badge variant="secondary" className="text-xs py-0 h-5">
-                    {hasActivePlan ? currentPlan.name : 'Free'}
-                  </Badge>
                 </div>
-              )}
-            </div>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        <DropdownMenuItem asChild>
-          <Link to="/" className="flex items-center cursor-pointer">
-            <Home className="mr-2 h-4 w-4" />
-            <span>Início</span>
-          </Link>
-        </DropdownMenuItem>
-        
-        <DropdownMenuItem asChild>
-          <Link to="/billing" className="flex items-center cursor-pointer">
-            <Star className="mr-2 h-4 w-4" />
-            <span>Minha Assinatura</span>
-          </Link>
-        </DropdownMenuItem>
-        
-        <DropdownMenuItem asChild>
-          <Link to="/planos" className="flex items-center cursor-pointer">
-            <CreditCard className="mr-2 h-4 w-4" />
-            <span>Planos</span>
-          </Link>
-        </DropdownMenuItem>
-        
-        <DropdownMenuSeparator />
-        
-        <DropdownMenuItem asChild>
-          <Link to="/profile" className="flex items-center cursor-pointer">
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Configurações</span>
-          </Link>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+                
+                {/* Indicador de status de assinatura */}
+                {currentPlan && (
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      {hasActivePlan ? (
+                        <ShieldCheck className="h-3.5 w-3.5 text-green-500" />
+                      ) : (
+                        <CreditCard className="h-3.5 w-3.5 text-gray-400" />
+                      )}
+                      <span className="text-xs">
+                        {hasActivePlan ? `Plano ${currentPlan.name}` : 'Sem plano ativo'}
+                      </span>
+                    </div>
+                    <Badge variant="secondary" className="text-xs py-0 h-5">
+                      {hasActivePlan ? currentPlan.name : 'Free'}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuItem asChild>
+            <Link to="/" className="flex items-center cursor-pointer">
+              <Home className="mr-2 h-4 w-4" />
+              <span>Início</span>
+            </Link>
+          </DropdownMenuItem>
+          
+          <DropdownMenuItem asChild>
+            <Link to="/billing" className="flex items-center cursor-pointer">
+              <Star className="mr-2 h-4 w-4" />
+              <span>Minha Assinatura</span>
+            </Link>
+          </DropdownMenuItem>
+          
+          <DropdownMenuItem asChild>
+            <Link to="/planos" className="flex items-center cursor-pointer">
+              <CreditCard className="mr-2 h-4 w-4" />
+              <span>Planos</span>
+            </Link>
+          </DropdownMenuItem>
+          
+          <DropdownMenuSeparator />
+          
+          <DropdownMenuItem asChild>
+            <Link to="/profile" className="flex items-center cursor-pointer">
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Configurações</span>
+            </Link>
+          </DropdownMenuItem>
+          
+          {/* Adicionar opção de diagnóstico apenas para administradores */}
+          {extUser.isAdmin && (
+            <DropdownMenuItem 
+              onClick={openDiagnostico}
+              className="cursor-pointer"
+            >
+              <AlertCircle className="mr-2 h-4 w-4" />
+              <span>Diagnóstico</span>
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      
+      {/* Adicionar o componente do modal */}
+      <DiagnosticoModalComponent />
+    </div>
   );
 };
 

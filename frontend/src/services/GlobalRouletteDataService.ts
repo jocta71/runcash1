@@ -1,5 +1,6 @@
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
+import { exibirDiagnosticoNoConsole } from '../utils/diagnostico';
 
 // Intervalo de polling padrão em milissegundos (4 segundos)
 const POLLING_INTERVAL = 4000;
@@ -39,6 +40,10 @@ class GlobalRouletteDataService {
   private constructor() {
     console.log('[GlobalRouletteService] Inicializando serviço global de roletas');
     this.startPolling();
+    
+    // Expor o serviço no escopo global para diagnóstico
+    (window as any).__globalRouletteService = this;
+    console.log('[GlobalRouletteService] Serviço exposto globalmente para diagnóstico');
   }
 
   /**
@@ -104,7 +109,7 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados das roletas da API (usando limit=1000) - método principal
+   * Busca dados das roletas da API (usando endpoint otimizado roulettes-batch) - método principal
    * @returns Promise com dados das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
@@ -131,24 +136,18 @@ class GlobalRouletteDataService {
       this.isFetching = true;
       
       // Removendo a verificação de cache para sempre buscar dados frescos
-      console.log('[GlobalRouletteService] Buscando dados atualizados da API (limit=1000)');
+      console.log('[GlobalRouletteService] Buscando dados atualizados da API (usando endpoint otimizado roulettes-batch)');
       
       // Criar e armazenar a promessa atual
       this._currentFetchPromise = (async () => {
-        // Usar a função utilitária com suporte a CORS - com limit=1000 para todos os casos
-        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+        // Usar a função utilitária com suporte a CORS - agora usando o endpoint otimizado
+        const data = await fetchWithCorsSupport<any[]>(`/api/roulettes-batch?limit=${DEFAULT_LIMIT}`);
         
         // Verificar se os dados são válidos
         if (data && Array.isArray(data)) {
           console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
           this.rouletteData = data;
           this.lastFetchTime = now;
-          
-          // Remover armazenamento no localStorage
-          // localStorage.setItem('global_roulette_data', JSON.stringify({
-          //   timestamp: now,
-          //   data: data
-          // }));
           
           // Notificar todos os assinantes sobre a atualização
           this.notifySubscribers();
@@ -289,11 +288,59 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados detalhados (usando limit=1000) - método mantido para compatibilidade
+   * Busca dados detalhados (usando endpoint otimizado) - método mantido para compatibilidade
    */
   public async fetchDetailedRouletteData(): Promise<any[]> {
-    // Método mantido apenas para compatibilidade, mas agora usa o mesmo método principal
-    return this.fetchRouletteData();
+    // Evitar requisições simultâneas durante a busca de dados detalhados
+    if (this.isFetching) {
+      console.log('[GlobalRouletteService] Requisição detalhada já em andamento, aguardando...');
+      if (this._currentFetchPromise) {
+        return this._currentFetchPromise;
+      }
+      return this.rouletteData;
+    }
+    
+    try {
+      this.isFetching = true;
+      
+      console.log('[GlobalRouletteService] Buscando dados detalhados da API (usando endpoint otimizado roulettes-list)');
+      
+      // Criar e armazenar a promessa atual
+      this._currentFetchPromise = (async () => {
+        // Usar a função utilitária com suporte a CORS - agora usando o endpoint otimizado
+        const data = await fetchWithCorsSupport<any[]>(`/api/roulettes-list?limit=${DETAILED_LIMIT}`);
+        
+        // Verificar se os dados são válidos
+        if (data && Array.isArray(data)) {
+          console.log(`[GlobalRouletteService] Dados detalhados recebidos com sucesso: ${data.length} roletas`);
+          this.rouletteData = data;
+          this.lastFetchTime = Date.now();
+          
+          // Notificar todos os assinantes sobre a atualização
+          this.notifySubscribers();
+          
+          // Emitir evento global para outros componentes que possam estar ouvindo
+          EventService.emit('roulette:detailed-data-updated', {
+            timestamp: new Date().toISOString(),
+            count: data.length,
+            source: 'central-service'
+          });
+          
+          return data;
+        } else {
+          console.error('[GlobalRouletteService] Resposta inválida da API para dados detalhados');
+          return this.rouletteData;
+        }
+      })();
+      
+      return await this._currentFetchPromise;
+    } catch (error) {
+      console.error('[GlobalRouletteService] Erro ao buscar dados detalhados:', error);
+      return this.rouletteData;
+    } finally {
+      this.isFetching = false;
+      this._currentFetchPromise = null;
+    }
   }
   
   /**
@@ -312,10 +359,29 @@ class GlobalRouletteDataService {
     this.subscribers.clear();
     console.log('[GlobalRouletteService] Serviço encerrado e recursos liberados');
   }
+
+  /**
+   * Realiza um diagnóstico completo da aplicação e exibe no console
+   * Útil para depuração e solução de problemas
+   */
+  public async realizarDiagnostico(): Promise<void> {
+    console.log('[GlobalRouletteService] Iniciando diagnóstico completo');
+    try {
+      await exibirDiagnosticoNoConsole();
+    } catch (error) {
+      console.error('[GlobalRouletteService] Erro durante o diagnóstico:', error);
+    }
+  }
 }
 
 // Exportar a instância única do serviço
 const globalRouletteDataService = GlobalRouletteDataService.getInstance();
+
+// Expor o serviço globalmente para diagnóstico via console
+(window as any).__runcashDiagnostico = () => {
+  return globalRouletteDataService.realizarDiagnostico();
+};
+
 export default globalRouletteDataService;
 // Também exportar a classe para permitir o uso de getInstance() diretamente
 export { GlobalRouletteDataService }; 
