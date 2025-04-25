@@ -6,8 +6,9 @@ module.exports = (req, res) => {
   // Modificar URL para apontar para o endpoint específico no backend
   req.url = '/api/ROULETTES?mode=basic';
   
-  // Log de diagnóstico
+  // Log de diagnóstico estendido
   console.log('[API] Redirecionando para endpoint básico via', req.url);
+  console.log('[API-DEBUG] Requisição recebida em /api/ROULETTES/basic, usando ROULETTES-basic.js');
   
   // Enviar cabeçalhos CORS explícitos
   res.setHeader('Access-Control-Allow-Origin', '*');
