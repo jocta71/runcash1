@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { useRouletteSettingsStore } from '@/stores/rouletteSettingsStore';
 import { cn } from '@/lib/utils';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
+import PlanProtectedFeature from './PlanProtectedFeature';
+import { PlanType } from '@/types/plans';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -351,80 +353,86 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   };
 
   return (
-    <Card 
-      ref={cardRef}
-      className={cn(
-        "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ", 
-        "hover:border-vegas-green/50",
-        isNewNumber ? "border-vegas-green animate-pulse" : "",
-        isDetailView ? "w-full" : "w-full"
-      )}
-      onClick={handleCardClick}
+    <PlanProtectedFeature
+      featureId="view_roulette_cards"
+      requiredPlan={PlanType.BASIC}
+      lockedMessage="Os cartões de roleta completos só estão disponíveis para assinantes. Faça upgrade do seu plano para visualizar todos os dados."
     >
-      {/* Logo de fundo com baixa opacidade e saturação 0 */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-lg">
-        <img 
-          src="/assets/icon-rabbit.svg" 
-          alt="Icon Rabbit" 
-          className="w-[95%] h-auto opacity-[0.025] grayscale filter select-none"
-          style={{ 
-            objectFit: "contain",
-            transformOrigin: "center"
-          }} 
-        />
-      </div>
-      
-      {/* Reprodutor de áudio (invisível) */}
-      <audio ref={audioRef} src="/sounds/coin.mp3" preload="auto" />
-      
-      <CardContent className="p-4 relative z-10">
-        {/* Cabeçalho */}
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold truncate text-white flex items-center">
-            <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
-            {safeData.name}
-          </h3>
-          <div className="flex gap-1 items-center">
-            <Badge 
-              variant={hasRealData ? "secondary" : "default"} 
-              className={`text-xs ${hasRealData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
-            >
-              {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}
-            </Badge>
-          </div>
+      <Card 
+        ref={cardRef}
+        className={cn(
+          "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ", 
+          "hover:border-vegas-green/50",
+          isNewNumber ? "border-vegas-green animate-pulse" : "",
+          isDetailView ? "w-full" : "w-full"
+        )}
+        onClick={handleCardClick}
+      >
+        {/* Logo de fundo com baixa opacidade e saturação 0 */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-lg">
+          <img 
+            src="/assets/icon-rabbit.svg" 
+            alt="Icon Rabbit" 
+            className="w-[95%] h-auto opacity-[0.025] grayscale filter select-none"
+            style={{ 
+              objectFit: "contain",
+              transformOrigin: "center"
+            }} 
+          />
         </div>
         
-        {/* Números recentes */}
-        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/50" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
-          {recentNumbers.length > 0 ? (
-            recentNumbers.slice(0, 20).map((num, idx) => (
-            <NumberDisplay 
-              key={`${num}-${idx}`}
-              number={num} 
-              size="small" 
-              highlight={idx === 0 && isNewNumber}
-            />
-            ))
-          ) : (
-            <div className="text-center text-gray-400 py-2 w-full">
-              {loading ? (
-                <div className="flex items-center justify-center">
-                  <Loader2 className="h-4 w-4 animate-spin mr-2 text-vegas-green" />
-                  Carregando números...
-                </div>
-              ) : "Nenhum número disponível"}
+        {/* Reprodutor de áudio (invisível) */}
+        <audio ref={audioRef} src="/sounds/coin.mp3" preload="auto" />
+        
+        <CardContent className="p-4 relative z-10">
+          {/* Cabeçalho */}
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-semibold truncate text-white flex items-center">
+              <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
+              {safeData.name}
+            </h3>
+            <div className="flex gap-1 items-center">
+              <Badge 
+                variant={hasRealData ? "secondary" : "default"} 
+                className={`text-xs ${hasRealData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
+              >
+                {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}
+              </Badge>
             </div>
-          )}
-        </div>
-      </CardContent>
+          </div>
+          
+          {/* Números recentes */}
+          <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/50" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
+            {recentNumbers.length > 0 ? (
+              recentNumbers.slice(0, 20).map((num, idx) => (
+              <NumberDisplay 
+                key={`${num}-${idx}`}
+                number={num} 
+                size="small" 
+                highlight={idx === 0 && isNewNumber}
+              />
+              ))
+            ) : (
+              <div className="text-center text-gray-400 py-2 w-full">
+                {loading ? (
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2 text-vegas-green" />
+                    Carregando números...
+                  </div>
+                ) : "Nenhum número disponível"}
+              </div>
+            )}
+          </div>
+        </CardContent>
 
-      {/* Toast de notificação */}
-      {toastVisible && (
-        <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
-          {toastMessage}
-        </div>
-      )}
-    </Card>
+        {/* Toast de notificação */}
+        {toastVisible && (
+          <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
+            {toastMessage}
+          </div>
+        )}
+      </Card>
+    </PlanProtectedFeature>
   );
 };
 
