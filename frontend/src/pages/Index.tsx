@@ -833,18 +833,22 @@ const Index = () => {
           
           {/* Painel lateral */}
           <div className="w-full lg:w-1/2">
-            {selectedRoulette ? (
-              <RouletteSidePanelStats
-                roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
-                lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
-                wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
-                losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
-                providers={[]} // Se houver uma lista de provedores disponível, passe aqui
-              />
+            {hasActivePlan ? (
+              selectedRoulette ? (
+                <RouletteSidePanelStats
+                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
+                  lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
+                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
+                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                  providers={[]} // Se houver uma lista de provedores disponível, passe aqui
+                />
+              ) : (
+                <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-4 flex items-center justify-center h-48">
+                  <p className="text-gray-400">Selecione uma roleta para ver suas estatísticas</p>
+                </div>
+              )
             ) : (
-              <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-4 flex items-center justify-center h-48">
-                <p className="text-gray-400">Selecione uma roleta para ver suas estatísticas</p>
-              </div>
+              <RouletteSidePanelSkeleton />
             )}
           </div>
         </div>
