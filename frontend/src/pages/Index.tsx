@@ -151,6 +151,10 @@ const Index = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
   
+  // Novos estados para o checkout
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState("basic"); // 'basic' é o padrão (mensal)
+  
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
 
@@ -695,7 +699,14 @@ const Index = () => {
             
             <div className="wrapper">
               <div className="card">
-                <input className="input" type="radio" name="card" value="basic" defaultChecked />
+                <input 
+                  className="input" 
+                  type="radio" 
+                  name="card" 
+                  value="basic" 
+                  defaultChecked 
+                  onChange={() => setSelectedPlan("basic")}
+                />
                 <span className="check"></span>
                 <label className="label">
                   <div className="title">MENSAL</div>
@@ -707,7 +718,13 @@ const Index = () => {
                 </label>
               </div>
               <div className="card">
-                <input className="input" type="radio" name="card" value="premium" />
+                <input 
+                  className="input" 
+                  type="radio" 
+                  name="card" 
+                  value="premium" 
+                  onChange={() => setSelectedPlan("premium")}
+                />
                 <span className="check"></span>
                 <label className="label">
                   <div className="title">ANUAL</div>
@@ -721,14 +738,109 @@ const Index = () => {
             </div>
             
             <Button 
-              asChild
+              onClick={() => setShowCheckout(true)}
               className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-6"
             >
-              <Link to="/planos">
-                <PackageOpen className="mr-2 h-5 w-5" />
-                Escolher Plano
-              </Link>
+              <PackageOpen className="mr-2 h-5 w-5" />
+              Escolher Plano
             </Button>
+            
+            {/* Formulário de Checkout */}
+            {showCheckout && (
+              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                <div className="bg-[#131614] rounded-xl shadow-2xl border border-gray-800 max-w-md w-full p-6 relative">
+                  <button 
+                    onClick={() => setShowCheckout(false)} 
+                    className="absolute top-3 right-3 text-gray-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                  
+                  <h2 className="text-[#00FF00] font-bold text-xl mb-6 text-center">
+                    Finalizar Compra - Plano {selectedPlan === "basic" ? "Mensal" : "Anual"}
+                  </h2>
+                  
+                  <div className="mb-6 bg-[#0d0d0d] p-4 rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-white/80">Plano:</span>
+                      <span className="text-white font-bold">
+                        {selectedPlan === "basic" ? "Mensal" : "Anual"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white/80">Valor:</span>
+                      <span className="text-[#00FF00] font-bold">
+                        {selectedPlan === "basic" ? "R$ 49,00" : "R$ 99,00"}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <form className="space-y-4">
+                    <div>
+                      <label className="block text-white/80 mb-1 text-sm">Nome completo</label>
+                      <input 
+                        type="text" 
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                        placeholder="Digite seu nome completo"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-white/80 mb-1 text-sm">E-mail</label>
+                      <input 
+                        type="email" 
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                        placeholder="seuemail@exemplo.com"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-white/80 mb-1 text-sm">Cartão de crédito</label>
+                      <input 
+                        type="text" 
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                        placeholder="0000 0000 0000 0000"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <label className="block text-white/80 mb-1 text-sm">Validade</label>
+                        <input 
+                          type="text" 
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                          placeholder="MM/AA"
+                          required
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-white/80 mb-1 text-sm">CVV</label>
+                        <input 
+                          type="text" 
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                          placeholder="123"
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    <Button 
+                      className="w-full py-3 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-6"
+                      type="submit"
+                    >
+                      Finalizar Pagamento
+                    </Button>
+                    
+                    <p className="text-center text-gray-500 text-xs mt-4">
+                      Seus dados estão protegidos por criptografia de ponta a ponta.
+                    </p>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
