@@ -52,9 +52,9 @@ interface ServiceStatus {
  * Lista de endpoints a serem verificados durante o diagnóstico
  */
 const ENDPOINTS_TO_CHECK = [
-  '/api/ROULETTES',          // Endpoint padrão (atualmente em uso)
-  '/api/roulettes-batch',    // Endpoint otimizado (em desenvolvimento)
-  '/api/roulettes-list',     // Endpoint otimizado (em desenvolvimento)
+  '/api/ROULETTES?limit=800&subject=filter',    // Endpoint padrão otimizado (atualmente em uso)
+  '/api/roulettes-batch',                       // Endpoint otimizado futuro (em desenvolvimento)
+  '/api/roulettes-list',                        // Endpoint otimizado futuro (em desenvolvimento)
   '/api/ROULETTES-optimized',
   '/api/health',
   '/api/diagnostico'
@@ -167,7 +167,7 @@ export async function exibirDiagnosticoNoConsole(): Promise<DiagnosticoResult> {
   try {
     console.group('🔍 DIAGNÓSTICO RUNCASH');
     console.log('Iniciando diagnóstico completo da aplicação...');
-    console.log('NOTA: Temporariamente usando endpoint padrão /api/ROULETTES enquanto os endpoints otimizados são implementados no backend.');
+    console.log('NOTA: Usando endpoint padrão /api/ROULETTES com parâmetros otimizados (limit=800, timestamp, subject=filter)');
     
     const resultado = await realizarDiagnostico();
     

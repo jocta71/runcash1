@@ -4,18 +4,24 @@ Este documento descreve as alterações necessárias para implementar os endpoin
 
 ## Visão Geral
 
-O frontend está preparado para usar endpoints otimizados para buscar dados das roletas, mas atualmente está usando o endpoint padrão (`/api/ROULETTES`) devido à indisponibilidade dos endpoints otimizados no backend.
+O frontend está preparado para usar endpoints otimizados para buscar dados das roletas, mas atualmente está usando o endpoint padrão (`/api/ROULETTES`) com parâmetros otimizados baseados em análise de concorrentes.
 
 ## Endpoints Otimizados a Implementar no Backend
 
 1. **`/api/roulettes-batch`**
    - Retorna dados de roletas em lote com processamento otimizado
-   - Parâmetros: `limit` (padrão: 1000)
+   - Parâmetros: 
+     - `limit` (padrão: 800)
+     - `t` (timestamp para cache)
+     - `subject` (tipo de operação, ex: "filter")
    - Formato de resposta: Igual ao `/api/ROULETTES`, um array de objetos de roleta
 
 2. **`/api/roulettes-list`**
    - Retorna uma lista simplificada de roletas (pode ter campos adicionais)
-   - Parâmetros: `limit` (padrão: 1000)
+   - Parâmetros: 
+     - `limit` (padrão: 800)
+     - `t` (timestamp para cache)
+     - `subject` (tipo de operação, ex: "filter")
    - Formato de resposta: Array de objetos de roleta
 
 ## Como Ativar os Endpoints Otimizados no Frontend
@@ -26,15 +32,17 @@ Quando os endpoints otimizados estiverem disponíveis no backend, siga estes pas
 
 ```typescript
 // Em fetchRouletteData()
-const data = await fetchWithCorsSupport<any[]>(`/api/roulettes-batch?limit=${DEFAULT_LIMIT}`);
+const timestamp = Date.now();
+const data = await fetchWithCorsSupport<any[]>(`/api/roulettes-batch?limit=${DEFAULT_LIMIT}&t=${timestamp}&subject=filter`);
 
 // Em fetchDetailedRouletteData()
-// Descomente e adapte a implementação detalhada para usar roulettes-list
+const timestamp = Date.now();
+const data = await fetchWithCorsSupport<any[]>(`/api/roulettes-list?limit=${DETAILED_LIMIT}&t=${timestamp}&subject=filter`);
 ```
 
 2. Atualize o arquivo `src/utils/diagnostico.ts`:
-   - Remova a nota sobre o uso temporário do endpoint padrão
    - Ajuste a ordem dos endpoints, colocando os otimizados como principais
+   - Atualize as mensagens de log para refletir o uso dos endpoints otimizados
 
 3. Atualize o CHANGELOG com as alterações
 
@@ -56,6 +64,18 @@ Os endpoints otimizados devem retornar dados no mesmo formato que o endpoint `/a
 ]
 ```
 
+## Otimizações Adicionais
+
+Com base na análise de concorrentes, estas otimizações adicionais são recomendadas:
+
+1. **Compressão de Payload**: Implementar compressão eficiente nos dados retornados (gzip ou Brotli)
+
+2. **Estrutura de Resposta Compacta**: Considerar um formato JSON mais compacto para reduzir o tamanho dos dados transferidos 
+
+3. **Cache Inteligente**: Utilizar o parâmetro timestamp para criar um sistema de caching eficiente
+
+4. **Limite Reduzido**: Adotar o limite de 800 itens por requisição em vez de 1000
+
 ## Testando as Alterações
 
 Após implementar os endpoints otimizados no backend:
@@ -71,6 +91,6 @@ Após implementar os endpoints otimizados no backend:
 
 ## Notas de Implementação
 
-- Considere implementar cache no backend para melhorar ainda mais a performance
-- Ao implementar `/api/roulettes-list`, priorize os campos mais usados para reduzir o tamanho da resposta
-- Considere adicionar compressão (gzip) nas respostas para reduzir ainda mais o tamanho dos dados transferidos 
+- Ao implementar os novos endpoints no backend, considere uma arquitetura que permita escalar horizontalmente
+- Priorize a velocidade de resposta e o tamanho reduzido do payload
+- Implemente mecanismos de resiliência para caso de falha (fallback para outros endpoints) 

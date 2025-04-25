@@ -1,5 +1,19 @@
 # Changelog - RunCash v1.1.0
 
+## [1.1.2] - 2023-11-17
+
+### Otimizado
+- Aplicadas melhorias inspiradas na análise de concorrentes:
+  - Reduzido o limite de dados de `1000` para `800` itens por requisição
+  - Adicionado parâmetro de timestamp `t={timestamp}` para melhorar o cache e evitar requisições duplicadas
+  - Adicionado parâmetro `subject=filter` para identificação do tipo de requisição
+  - Atualizada a documentação de diagnóstico para refletir as mudanças
+
+### Benefícios
+- Menor volume de dados transferidos por requisição
+- Melhor caching pelo navegador e CDNs
+- Formato de requisição mais alinhado com padrões de mercado
+
 ## [1.1.1] - 2023-11-16
 
 ### Alterado
