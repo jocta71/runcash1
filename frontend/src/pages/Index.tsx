@@ -964,36 +964,6 @@ const Index = () => {
               >
                 Escolher Plano
               </Button>
-              
-              {/* Modal de checkout */}
-              {showCheckout && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
-                  <div className="bg-[#131614] rounded-xl shadow-2xl border border-gray-800/50 max-w-md w-full overflow-hidden p-6">
-                    <h3 className="text-xl font-bold text-white mb-4">Complete sua compra</h3>
-                    <p className="text-gray-400 text-sm mb-6">
-                      {selectedPlan === 'basic' ? 'Plano Mensal - R$49/mês' : 'Plano Anual - R$99/ano'}
-                    </p>
-                    
-                    <div className="flex justify-end space-x-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setShowCheckout(false)}
-                        className="border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white"
-                      >
-                        Cancelar
-                      </Button>
-                      
-                      <Button
-                        onClick={handlePayment}
-                        className="bg-[#00FF00] hover:bg-[#00CC00] text-black font-bold"
-                      >
-                        Pagar com PIX
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
