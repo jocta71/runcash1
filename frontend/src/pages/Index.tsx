@@ -453,32 +453,18 @@ const Index = () => {
 
   return (
     <Layout preloadData={true}>
-      <div className="flex items-center justify-center w-full min-h-[300px] mb-8">
-        <div className="text-center max-w-xl px-4">
-          <Button 
-            asChild
-            className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20"
-          >
-            <Link to="/planos">
-              <PackageOpen className="mr-2 h-5 w-5" />
-              Escolher Plano
-            </Link>
-          </Button>
-        </div>
-      </div>
-      
-      {/* Container principal */}
-      <div className="container mx-auto px-4 pt-4 md:pt-8">
+      {/* Container principal com posicionamento relativo para permitir sobreposição */}
+      <div className="container mx-auto px-4 pt-4 md:pt-8 min-h-[80vh] relative">
         {/* Mensagem de erro */}
         {error && (
-          <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center">
+          <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center z-50 relative">
             <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
             <p className="text-red-100">{error}</p>
           </div>
         )}
         
-        {/* Layout em esqueleto */}
-        <div className="flex flex-col lg:flex-row gap-6">
+        {/* Layout em esqueleto em segundo plano (com opacidade reduzida) */}
+        <div className="flex flex-col lg:flex-row gap-6 opacity-60">
           {/* Cards de roleta à esquerda em modo esqueleto */}
           <div className="w-full lg:w-1/2">
             {/* Filtro de roletas em skeleton */}
@@ -497,6 +483,21 @@ const Index = () => {
           {/* Painel lateral em modo esqueleto */}
           <div className="w-full lg:w-1/2">
             <RouletteSidePanelSkeleton />
+          </div>
+        </div>
+        
+        {/* Botão centralizado que sobrepõe os esqueletos */}
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50">
+            <Button 
+              asChild
+              className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20"
+            >
+              <Link to="/planos">
+                <PackageOpen className="mr-2 h-5 w-5" />
+                Escolher Plano
+              </Link>
+            </Button>
           </div>
         </div>
       </div>
