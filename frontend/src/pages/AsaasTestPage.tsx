@@ -88,15 +88,15 @@ const AsaasTestPage: React.FC = () => {
     setSubscriptionResult(null);
     
     try {
-      const result = await createAsaasSubscription({
+      const result = await createAsaasSubscription(
         planId,
-        userId: user?.id || 'test-user',
+        user?.id || 'test-user',
         customerId,
         paymentMethod,
-        creditCard: undefined,
-        creditCardHolderInfo: undefined,
-        cpfCnpj: cpf.replace(/\D/g, '') // Passar CPF limpo se estiver disponível
-      });
+        undefined, // creditCard
+        undefined, // creditCardHolderInfo
+        cpf.replace(/\D/g, '') // Passar CPF limpo se estiver disponível
+      );
       
       setSubscriptionResult(result);
       if (result.paymentId) {

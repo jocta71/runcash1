@@ -29,46 +29,17 @@ api.interceptors.response.use(
 );
 
 /**
- * Interface para respostas da API
+ * Interface para resposta padrão da API
  */
-export interface ApiResponse<T = any> {
-  success?: boolean;
+interface ApiResponse<T> {
+  success: boolean;
   data?: T;
-  message?: string;
-  details?: any;
   error?: string;
-  
-  // Campos específicos para respostas de cliente
-  customerId?: string;
-  id?: string;
-  
-  // Campos específicos para respostas de assinatura
-  subscriptionId?: string;
-  paymentId?: string;
-  redirectUrl?: string;
-  status?: string;
-  
-  // Objetos completos que podem ser retornados
-  subscription?: {
-    id: string;
-    status?: string;
-    payments?: Array<{
-      id: string;
-      status?: string;
-      [key: string]: any;
-    }>;
-    [key: string]: any;
-  };
-  
-  payment?: {
-    id: string;
-    status?: string;
-    [key: string]: any;
-  };
 }
 
 /**
  * Cria um cliente no Asaas ou recupera um existente
+ * @param userData Dados do usuário (nome, email, cpf/cnpj, telefone)
  */
 export const createAsaasCustomer = async (userData: {
   name: string;
@@ -78,34 +49,30 @@ export const createAsaasCustomer = async (userData: {
   userId: string;
 }): Promise<string> => {
   try {
-    console.log('Criando cliente no Asaas:', userData);
+    console.log('Criando/recuperando cliente no Asaas:', userData);
     
-    const response = await api.post<ApiResponse>('api/asaas-create-customer', {
+    const response = await api.post<ApiResponse<{ customerId: string }>>('api/asaas-create-customer', {
       name: userData.name,
       email: userData.email,
-      cpfCnpj: userData.cpfCnpj.replace(/\D/g, ''),
-      mobilePhone: userData.mobilePhone?.replace(/\D/g, '') || '',
-      userId: userData.userId,
+      cpfCnpj: userData.cpfCnpj,
+      phone: userData.mobilePhone,
+      userId: userData.userId
     });
     
     console.log('Resposta da API de criação de cliente:', response.data);
     
-    // Verifica diversos formatos possíveis de resposta
-    const customerId = 
-      response.data?.customerId || 
-      response.data?.id || 
-      response.data?.data?.customerId ||
-      (response.data?.success && response.data?.id);
-      
-    if (customerId) {
-      console.log('ID do cliente encontrado:', customerId);
-      return customerId;
+    if (response.data?.data?.customerId) {
+      return response.data.data.customerId;
     }
     
-    console.error('Falha ao extrair ID do cliente da resposta:', response.data);
     throw new Error('ID de cliente não recebido');
   } catch (error) {
     console.error('Erro ao criar cliente no Asaas:', error);
+    
+    if (error instanceof AxiosError) {
+      throw new Error(`Falha ao criar cliente: ${error.response?.data?.error || error.message}`);
+    }
+    
     throw new Error('Falha ao criar cliente no Asaas');
   }
 };
@@ -121,63 +88,97 @@ export interface SubscriptionResponse {
 }
 
 /**
- * Interface para dados de criação de assinatura
- */
-interface SubscriptionRequest {
-  planId: string;
-  userId: string;
-  customerId: string;
-  paymentMethod: string;
-  creditCard?: any;
-  creditCardHolderInfo?: any;
-  cpfCnpj?: string;
-}
-
-/**
  * Cria uma assinatura no Asaas
+ * @param planId ID do plano a ser assinado
+ * @param userId ID do usuário no seu sistema
+ * @param customerId ID do cliente no Asaas
+ * @param paymentMethod Método de pagamento (PIX, CREDIT_CARD, etc)
+ * @param creditCard Dados do cartão de crédito (opcional)
+ * @param creditCardHolderInfo Dados do titular do cartão (opcional)
+ * @param cpfCnpj CPF/CNPJ do cliente (opcional) - Será atualizado antes de criar a assinatura
  */
 export const createAsaasSubscription = async (
-  subscriptionData: SubscriptionRequest
+  planId: string,
+  userId: string,
+  customerId: string,
+  paymentMethod: string = 'PIX',
+  creditCard?: any,
+  creditCardHolderInfo?: any,
+  cpfCnpj?: string
 ): Promise<SubscriptionResponse> => {
   try {
-    console.log('Criando assinatura no Asaas:', subscriptionData);
+    console.log(`Criando assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
+    
+    // Montar payload com todos os dados necessários
+    const payload: any = {
+      planId,
+      userId,
+      customerId,
+      billingType: paymentMethod, // CREDIT_CARD, PIX, etc
+      cycle: 'MONTHLY',
+      value: creditCard?.value || 0,
+      description: `Assinatura RunCash - Plano ${planId}`
+    };
 
-    const response = await api.post<ApiResponse<SubscriptionResponse>>(
-      'api/asaas-create-subscription',
-      subscriptionData
-    );
-
+    // Adicionar CPF/CNPJ se fornecido para atualização
+    if (cpfCnpj) {
+      payload.cpfCnpj = cpfCnpj;
+      console.log('CPF/CNPJ fornecido para atualização:', cpfCnpj);
+    }
+    
+    // Adicionar dados de cartão se for pagamento com cartão
+    if (paymentMethod === 'CREDIT_CARD' && creditCard) {
+      payload.holderName = creditCard.holderName;
+      payload.cardNumber = creditCard.number;
+      payload.expiryMonth = creditCard.expiryMonth;
+      payload.expiryYear = creditCard.expiryYear;
+      payload.ccv = creditCard.ccv;
+      
+      // Adicionar dados do titular se fornecidos
+      if (creditCardHolderInfo) {
+        payload.holderEmail = creditCardHolderInfo.email;
+        payload.holderCpfCnpj = creditCardHolderInfo.cpfCnpj;
+        payload.holderPostalCode = creditCardHolderInfo.postalCode;
+        payload.holderAddressNumber = creditCardHolderInfo.addressNumber;
+        payload.holderPhone = creditCardHolderInfo.phone;
+      }
+    }
+    
+    console.log('Enviando payload para criação de assinatura:', {
+      ...payload,
+      cardNumber: payload.cardNumber ? `****${payload.cardNumber.slice(-4)}` : undefined,
+      ccv: payload.ccv ? '***' : undefined,
+      holderCpfCnpj: payload.holderCpfCnpj ? `****${payload.holderCpfCnpj.slice(-4)}` : undefined,
+      cpfCnpj: payload.cpfCnpj ? `****${payload.cpfCnpj.slice(-4)}` : undefined
+    });
+    
+    const response = await api.post<ApiResponse<SubscriptionResponse>>('api/asaas-create-subscription', payload);
+    
     console.log('Resposta da API de criação de assinatura:', response.data);
     
-    // Busca o ID da assinatura nos diferentes possíveis formatos de resposta
-    let subscriptionId = response.data?.data?.subscriptionId || 
-                         response.data?.subscriptionId ||
-                         response.data?.subscription?.id;
-                        
-    let paymentId = response.data?.data?.paymentId || 
-                   response.data?.paymentId ||
-                   response.data?.payment?.id ||
-                   (response.data?.subscription?.payments && response.data?.subscription?.payments[0]?.id);
-                   
-    let redirectUrl = response.data?.data?.redirectUrl || response.data?.redirectUrl;
-    let status = response.data?.data?.status || response.data?.status || response.data?.subscription?.status;
-    
-    console.log('ID da assinatura encontrado:', subscriptionId);
-    console.log('ID do pagamento encontrado:', paymentId);
-    
-    if (!subscriptionId) {
+    if (!response.data?.data?.subscriptionId) {
       throw new Error('ID de assinatura não recebido');
     }
-
+    
     return {
-      subscriptionId,
-      paymentId: paymentId || '',
-      redirectUrl: redirectUrl || '',
-      status: status || ''
+      subscriptionId: response.data.data.subscriptionId,
+      paymentId: response.data.data.paymentId || '',
+      redirectUrl: response.data.data.redirectUrl,
+      status: response.data.data.status || 'PENDING'
     };
   } catch (error) {
     console.error('Erro ao criar assinatura no Asaas:', error);
-    throw new Error(`Falha ao criar assinatura no Asaas: ${(error as Error).message}`);
+    
+    if (error instanceof AxiosError) {
+      console.error('Detalhes do erro:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      throw new Error(`Falha ao criar assinatura: ${error.response?.data?.error || error.message}`);
+    }
+    
+    throw new Error('Falha ao criar assinatura no Asaas');
   }
 };
 
@@ -309,7 +310,7 @@ export const checkPaymentStatus = (
       }
       
       console.log(`Verificando status do pagamento ${paymentId}...`);
-      const payment = await findAsaasPayment(paymentId, true);
+      const payment = await findAsaasPayment(paymentId);
       console.log(`Status atual do pagamento: ${payment.status}`, payment);
       
       // Verificar se o pagamento foi confirmado (usando statusList mais completa)
@@ -322,40 +323,79 @@ export const checkPaymentStatus = (
       else if (['REFUNDED', 'REFUND_REQUESTED', 'OVERDUE', 'CANCELED'].includes(payment.status)) {
         console.log(`Pagamento ${paymentId} com problema: ${payment.status}`);
         stopChecking();
-        onError(new Error(`Pagamento não concluído: ${payment.status}`));
+        onError(new Error(`Pagamento ${payment.status}: ${payment.status === 'OVERDUE' ? 'Expirado' : 'Cancelado ou reembolsado'}`));
       }
+      // Continua verificando para outros status (PENDING, RECEIVED_IN_CASH...)
     } catch (error) {
       console.error('Erro ao verificar status do pagamento:', error);
-      // Não parar o polling em caso de erro temporário
+      if (error instanceof Error) {
+        onError(error);
+      } else {
+        onError(new Error('Erro desconhecido ao verificar pagamento'));
+      }
     }
   };
   
-  // Iniciar verificação periódica
-  intervalId = window.setInterval(checkStatus, interval);
+  // Atrasar a primeira verificação em 3 segundos para dar tempo ao Asaas processar
+  console.log(`Agendando verificação do pagamento ${paymentId} para iniciar em 3 segundos...`);
+  setTimeout(() => {
+    // Inicia o polling após o atraso inicial
+    console.log(`Iniciando verificação periódica do pagamento ${paymentId}...`);
+    checkStatus(); // Verificação inicial
+    
+    intervalId = window.setInterval(checkStatus, interval);
+    
+    // Define o timeout
+    timeoutId = window.setTimeout(() => {
+      stopChecking();
+      onError(new Error('Tempo limite excedido para verificação de pagamento'));
+    }, timeout);
+  }, 3000);
   
-  // Definir tempo máximo
-  timeoutId = window.setTimeout(() => {
-    stopChecking();
-    onError(new Error('Tempo limite excedido para verificação de pagamento'));
-  }, timeout);
-  
-  // Executar primeira verificação imediatamente
-  checkStatus();
-  
-  // Retornar função para cancelar o monitoramento
+  // Retorna função para cancelar o monitoramento
   return stopChecking;
 };
 
 /**
+ * Busca detalhes de uma assinatura no Asaas
+ * @param subscriptionId ID da assinatura no Asaas
+ */
+export const findAsaasSubscription = async (subscriptionId: string): Promise<any> => {
+  try {
+    console.log(`Buscando assinatura: subscriptionId=${subscriptionId}`);
+    
+    const response = await api.get<ApiResponse<any>>(`api/asaas-find-subscription?subscriptionId=${subscriptionId}`);
+    
+    console.log('Resposta da API de busca de assinatura:', response.data);
+    
+    if (!response.data?.success) {
+      throw new Error('Falha ao buscar assinatura');
+    }
+    
+    return {
+      subscription: response.data.subscription,
+      payments: response.data.payments || []
+    };
+  } catch (error) {
+    console.error('Erro ao buscar assinatura no Asaas:', error);
+    
+    if (error instanceof AxiosError) {
+      throw new Error(`Falha ao buscar assinatura: ${error.response?.data?.error || error.message}`);
+    }
+    
+    throw new Error('Falha ao buscar assinatura no Asaas');
+  }
+};
+
+/**
  * Cancela uma assinatura no Asaas
- * @param subscriptionId ID da assinatura a ser cancelada
- * @returns Resposta da API de cancelamento
+ * @param subscriptionId ID da assinatura no Asaas
  */
 export const cancelAsaasSubscription = async (subscriptionId: string): Promise<any> => {
   try {
     console.log(`Cancelando assinatura: subscriptionId=${subscriptionId}`);
     
-    const response = await api.post<ApiResponse>('api/asaas-cancel-subscription', {
+    const response = await api.post<ApiResponse<any>>('api/asaas-cancel-subscription', {
       subscriptionId
     });
     
@@ -365,7 +405,11 @@ export const cancelAsaasSubscription = async (subscriptionId: string): Promise<a
       throw new Error('Falha ao cancelar assinatura');
     }
     
-    return response.data;
+    return {
+      success: true,
+      message: response.data.message,
+      details: response.data.details
+    };
   } catch (error) {
     console.error('Erro ao cancelar assinatura no Asaas:', error);
     
@@ -376,3 +420,53 @@ export const cancelAsaasSubscription = async (subscriptionId: string): Promise<a
     throw new Error('Falha ao cancelar assinatura no Asaas');
   }
 };
+
+/**
+ * Busca detalhes de um cliente no Asaas
+ * @param customerId ID do cliente no Asaas
+ * @param cpfCnpj CPF/CNPJ do cliente (alternativa ao ID)
+ * @param email Email do cliente (alternativa ao ID)
+ */
+export const findAsaasCustomer = async (
+  params: { customerId?: string; cpfCnpj?: string; email?: string; }
+): Promise<any> => {
+  try {
+    const { customerId, cpfCnpj, email } = params;
+    
+    if (!customerId && !cpfCnpj && !email) {
+      throw new Error('É necessário informar customerId, cpfCnpj ou email');
+    }
+    
+    console.log(`Buscando cliente: ${customerId || cpfCnpj || email}`);
+    
+    let queryParams = '';
+    if (customerId) {
+      queryParams = `customerId=${customerId}`;
+    } else if (cpfCnpj) {
+      queryParams = `cpfCnpj=${cpfCnpj}`;
+    } else if (email) {
+      queryParams = `email=${encodeURIComponent(email)}`;
+    }
+    
+    const response = await api.get<ApiResponse<any>>(`api/asaas-find-customer?${queryParams}`);
+    
+    console.log('Resposta da API de busca de cliente:', response.data);
+    
+    if (!response.data?.success) {
+      throw new Error('Falha ao buscar cliente');
+    }
+    
+    return {
+      customer: response.data.customer,
+      subscriptions: response.data.subscriptions || []
+    };
+  } catch (error) {
+    console.error('Erro ao buscar cliente no Asaas:', error);
+    
+    if (error instanceof AxiosError) {
+      throw new Error(`Falha ao buscar cliente: ${error.response?.data?.error || error.message}`);
+    }
+    
+    throw new Error('Falha ao buscar cliente no Asaas');
+  }
+}; 
