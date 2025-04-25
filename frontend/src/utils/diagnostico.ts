@@ -167,7 +167,27 @@ export async function exibirDiagnosticoNoConsole(): Promise<DiagnosticoResult> {
   try {
     console.group('🔍 DIAGNÓSTICO RUNCASH');
     console.log('Iniciando diagnóstico completo da aplicação...');
-    console.log('NOTA: Usando endpoint padrão /api/ROULETTES com parâmetros otimizados (limit=800, timestamp, subject=filter)');
+    console.log('✨ ATUALIZAÇÃO: Agora usando endpoint otimizado /api/roulettes-batch');
+    
+    // Tentar buscar diagnóstico direto da API
+    console.log('Tentando buscar diagnóstico direto do servidor...');
+    try {
+      const apiDiagnostico = await fetchWithCorsSupport('/api/diagnostico?_t=' + Date.now(), {
+        method: 'GET',
+        headers: {
+          'x-client-diagnostics': 'true'
+        }
+      });
+      
+      if (apiDiagnostico) {
+        console.group('📊 DIAGNÓSTICO DO SERVIDOR');
+        console.log('Diagnóstico recebido do servidor:');
+        console.log(apiDiagnostico);
+        console.groupEnd();
+      }
+    } catch (apiError) {
+      console.warn('Não foi possível obter diagnóstico direto da API:', apiError);
+    }
     
     const resultado = await realizarDiagnostico();
     
@@ -177,7 +197,16 @@ export async function exibirDiagnosticoNoConsole(): Promise<DiagnosticoResult> {
     console.group('📡 Endpoints');
     resultado.endpoints.forEach(endpoint => {
       const statusEmoji = endpoint.status === 'online' ? '✅' : endpoint.status === 'offline' ? '❌' : '❓';
-      console.log(`${statusEmoji} ${endpoint.endpoint}: ${endpoint.status.toUpperCase()}${endpoint.responseTime ? ` (${endpoint.responseTime}ms)` : ''}`);
+      let endpointLabel = endpoint.endpoint;
+      
+      // Destacar o endpoint otimizado que agora está em uso
+      if (endpoint.endpoint.includes('roulettes-batch')) {
+        endpointLabel = `${endpointLabel} [ATIVO]`;
+      } else if (endpoint.endpoint.includes('ROULETTES?limit=800')) {
+        endpointLabel = `${endpointLabel} [LEGADO]`;
+      }
+      
+      console.log(`${statusEmoji} ${endpointLabel}: ${endpoint.status.toUpperCase()}${endpoint.responseTime ? ` (${endpoint.responseTime}ms)` : ''}`);
       if (endpoint.error) {
         console.log(`   └ Erro: ${endpoint.error}`);
       }

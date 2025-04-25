@@ -1,9 +1,10 @@
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
 import { exibirDiagnosticoNoConsole } from '../utils/diagnostico';
+import { compararEndpoints } from '../utils/endpoint-tester';
 
 // Intervalo de polling padrão em milissegundos (4 segundos)
-const POLLING_INTERVAL = 000;
+const POLLING_INTERVAL = 4000;
 
 // Tempo de vida do cache em milissegundos (15 segundos)
 // const CACHE_TTL = 15000;
@@ -116,28 +117,75 @@ export class GlobalRouletteDataService {
    */
   public async fetchRouletteData(): Promise<any[]> {
     try {
+      // Verificar se já existe uma requisição em andamento
+      if (this._currentFetchPromise) {
+        console.log(`GlobalRouletteService: Já existe uma requisição em andamento, retornando a mesma promise`);
+        return this._currentFetchPromise;
+      }
+      
       this.setFetchStatus('pending');
+      this.isFetching = true;
       
       // Log da requisição com o novo endpoint otimizado
-      console.log(`GlobalRouletteService: Buscando dados atualizados da API (endpoint otimizado /api/roulettes-batch, limite: 800)`);
+      console.log(`GlobalRouletteService: Buscando dados atualizados da API (endpoint otimizado /api/roulettes-batch, limite: ${DEFAULT_LIMIT})`);
       
       // Adicionar timestamp para evitar cache do navegador
       const timestamp = new Date().getTime();
       
-      // Usar o novo endpoint otimizado com limite reduzido
-      const response = await fetch(`/api/roulettes-batch?limit=800&_t=${timestamp}&subject=poll`);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erro na API: ${response.status} - ${errorText}`);
-      }
+      // Armazenar a promise para evitar requisições duplicadas
+      this._currentFetchPromise = new Promise(async (resolve, reject) => {
+        try {
+          // Usar o novo endpoint otimizado com limite reduzido
+          const response = await fetch(`/api/roulettes-batch?limit=${DEFAULT_LIMIT}&_t=${timestamp}&subject=poll`);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Erro na API: ${response.status} - ${errorText}`);
+          }
 
-      const data = await response.json();
-      this.setFetchStatus('success');
-      return data;
+          const data = await response.json();
+
+          // Armazenar os dados
+          if (Array.isArray(data)) {
+            this.rouletteData = data;
+            console.log(`GlobalRouletteService: Dados atualizados com sucesso. Total de roletas: ${data.length}`);
+            
+            // Contar números para diagnóstico
+            const totalNumeros = this.contarNumerosTotais(data);
+            console.log(`GlobalRouletteService: Total de números em todas as roletas: ${totalNumeros}`);
+          } else if (data.data && Array.isArray(data.data)) {
+            // Formato alternativo com wrapper de sucesso
+            this.rouletteData = data.data;
+            console.log(`GlobalRouletteService: Dados atualizados com sucesso (formato wrapper). Total de roletas: ${data.data.length}`);
+          } else {
+            console.warn(`GlobalRouletteService: Formato inesperado na resposta da API:`, data);
+            this.rouletteData = [];
+          }
+          
+          // Atualizar timestamp da última requisição
+          this.lastFetchTime = Date.now();
+          
+          // Notificar assinantes sobre novos dados
+          this.notifySubscribers();
+          
+          this.setFetchStatus('success');
+          resolve(this.rouletteData);
+        } catch (error) {
+          console.error('Erro ao buscar dados de roletas:', error);
+          this.setFetchStatus('error', error.message);
+          reject(error);
+        } finally {
+          this.isFetching = false;
+          this._currentFetchPromise = null;
+        }
+      });
+      
+      return this._currentFetchPromise;
     } catch (error) {
-      console.error('Erro ao buscar dados de roletas:', error);
+      console.error('Erro ao iniciar busca de dados de roletas:', error);
       this.setFetchStatus('error', error.message);
+      this.isFetching = false;
+      this._currentFetchPromise = null;
       throw error;
     }
   }
@@ -312,6 +360,9 @@ const globalRouletteDataService = GlobalRouletteDataService.getInstance();
 (window as any).__runcashDiagnostico = () => {
   return globalRouletteDataService.realizarDiagnostico();
 };
+
+// Adicionar função para comparar endpoints
+(window as any).__runcashCompararEndpoints = compararEndpoints;
 
 export default globalRouletteDataService;
 // Exportamos apenas uma vez a classe para evitar redeclaração 
