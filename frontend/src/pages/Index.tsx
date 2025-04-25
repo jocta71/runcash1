@@ -35,99 +35,125 @@ interface KnownRoulette {
   ultima_atualizacao: string;
 }
 
-// Adicionar o estilo CSS inline para o componente radio
-const radioInputStyles = `
-.radio-input input {
-  display: none;
-}
-
-.radio-input label {
-  --border-color: #a1b0d8;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  min-width: 5rem;
-  margin: 1rem;
-  padding: 1rem;
-  display: flex;
-  justify-content: space-between;
+// Adicionar o estilo CSS inline para o componente de cartões de plano
+const planCardStyles = `
+.wrapper {
   position: relative;
-  align-items: center;
-  background-color: #191a1f;
-}
-
-.radio-input input:checked + label {
-  --border-color: #00FF00;
-  border-color: var(--border-color);
-  border-width: 2px;
-}
-
-.radio-input label:hover {
-  --border-color: #00FF00;
-  border-color: var(--border-color);
-}
-
-.radio-input {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-direction: column;
-  width: 100%;
+  flex-direction: row;
+  gap: 10px;
+  justify-content: center;
   margin-bottom: 1.5rem;
 }
 
-.circle {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background-color: #2a2a35;
-  margin-right: 0.5rem;
+.card {
   position: relative;
+  width: 150px;
+  height: 100px;
+  background: #131614;
+  border-radius: 10px;
+  transition: all 0.3s;
 }
 
-.radio-input input:checked + label span.circle::before {
+.card:hover {
+  transform: scale(1.05);
+}
+
+.input {
+  position: relative;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  border: 1px solid #2a2a35;
+  border-radius: 10px;
+  z-index: 10;
+  box-shadow: 1px 1px 10px rgba(0, 0, 0, 0.3),
+              -1px -1px 10px rgba(25, 26, 31, 0.3);
+}
+
+.input + .check::before {
   content: "";
-  display: inline;
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 15px;
+  right: 15px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #2a2a35;
+  border-radius: 50%;
+  background-color: #191a1f;
+}
+
+.input:checked + .check::after {
+  content: '';
+  position: absolute;
+  top: 19px;
+  right: 19px;
+  width: 12px;
+  height: 12px;
   background-color: #00FF00;
-  width: 15px;
-  height: 15px;
   border-radius: 50%;
 }
 
-.text {
-  display: flex;
-  align-items: center;
-  color: white;
+.input[value="padrao"]:checked + .check::after {
+  background-color: #00FF00;
 }
 
-.price {
-  display: flex;
-  flex-direction: column;
-  text-align: right;
-  font-weight: bold;
-  color: white;
+.input[value="premium"]:checked + .check::after {
+  background-color: #00FF00;
 }
 
-.small {
-  font-size: 10px;
+.input[value="mensal"]:checked {
+  border: 1.5px solid #00FF00;
+}
+
+.input[value="padrao"]:checked {
+  border: 1.5px solid #00FF00;
+}
+
+.input[value="premium"]:checked {
+  border: 1.5px solid #00FF00;
+}
+
+.label {
+  color: white;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: 100%;
+}
+
+.label .title {
+  margin: 15px 0 0 15px;
+  font-weight: 900;
+  font-size: 15px;
+  letter-spacing: 1.5px;
+}
+
+.label .price {
+  margin: 20px 0 0 15px;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.label .span {
   color: #a0a0a7;
-  font-weight: 100;
+  font-weight: 700;
+  font-size: 15px;
 }
 
 .info {
   position: absolute;
   display: inline-block;
-  font-size: 11px;
+  font-size: 10px;
   background-color: #00FF00;
   border-radius: 20px;
-  padding: 1px 9px;
-  top: 0;
-  transform: translateY(-50%);
-  right: 5px;
+  padding: 1px 6px;
+  bottom: 8px;
+  right: 8px;
   color: black;
   font-weight: bold;
 }
@@ -542,7 +568,7 @@ const Index = () => {
     setFilteredRoulettes(filtered);
   };
 
-  // Renderiza skeletons para os cards de roleta
+  // Função para renderizar skeletons para os cards de roleta
   const renderRouletteSkeletons = () => {
     return Array(12).fill(0).map((_, index) => (
       <RouletteCardSkeleton key={index} />
@@ -590,31 +616,46 @@ const Index = () => {
             <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
             <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
             
-            <style>{radioInputStyles}</style>
-            <div className="radio-input">
-              <input value="monthly" name="plan-radio" id="monthly" type="radio" defaultChecked />
-              <label htmlFor="monthly">
-                <div className="text">
-                  <span className="circle"></span>
-                  Mensal
-                </div>
-                <div className="price">
-                  <span>R$49/mês</span>
-                  <span className="small">Cobrado mensalmente</span>
-                </div>
-              </label>
-              <input value="annual" name="plan-radio" id="annual" type="radio" />
-              <label htmlFor="annual">
-                <div className="text">
-                  <span className="circle"></span>
-                  Anual
-                </div>
-                <div className="price">
-                  <span>R$99/ano</span>
-                  <span className="small">Cobrado uma vez por ano</span>
-                </div>
-                <span className="info">economize 50%</span>
-              </label>
+            <style>{planCardStyles}</style>
+            <div className="wrapper">
+              <div className="card">
+                <input className="input" type="radio" name="card" value="mensal" defaultChecked />
+                <span className="check"></span>
+                <label className="label">
+                  <div className="title">MENSAL</div>
+                  <div className="price">
+                    <span className="span">R$</span>
+                    49
+                    <span className="span">/mês</span>
+                  </div>
+                </label>
+              </div>
+              <div className="card">
+                <input className="input" type="radio" name="card" value="padrao" />
+                <span className="check"></span>
+                <label className="label">
+                  <div className="title">SEMESTRAL</div>
+                  <div className="price">
+                    <span className="span">R$</span>
+                    79
+                    <span className="span">/6m</span>
+                  </div>
+                  <span className="info">econômico</span>
+                </label>
+              </div>
+              <div className="card">
+                <input className="input" type="radio" name="card" value="premium" />
+                <span className="check"></span>
+                <label className="label">
+                  <div className="title">ANUAL</div>
+                  <div className="price">
+                    <span className="span">R$</span>
+                    99
+                    <span className="span">/ano</span>
+                  </div>
+                  <span className="info">melhor valor</span>
+                </label>
+              </div>
             </div>
             
             <Button 
