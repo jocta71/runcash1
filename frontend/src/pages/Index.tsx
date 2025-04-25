@@ -22,6 +22,7 @@ import {
   SubscriptionResponse
 } from '@/integrations/asaas/client';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { PlanType } from '@/types/plans';
 
 
 
@@ -217,6 +218,8 @@ const Index = () => {
   const [checkStatusInterval, setCheckStatusInterval] = useState<NodeJS.Timeout | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
+  // Adicionar estado para controlar o carregamento da assinatura
+  const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -231,16 +234,16 @@ const Index = () => {
   const hasRouletteCardsAccess = useMemo(() => {
     if (!currentSubscription) return false;
     
-    // Se tem assinatura ativa e não é gratuita, tem acesso
-    return currentSubscription.active && currentSubscription.planType !== 'free';
+    // Se tem assinatura com status ativo e não é gratuita, tem acesso
+    return currentSubscription.status === "ACTIVE" && currentSubscription.planType !== PlanType.FREE;
   }, [currentSubscription]);
   
   const hasSidePanelAccess = useMemo(() => {
     if (!currentSubscription) return false;
     
-    // Se tem assinatura ativa e é do tipo pago, tem acesso
-    return currentSubscription.active && 
-           ['basic', 'premium', 'enterprise'].includes(currentSubscription.planType);
+    // Se tem assinatura com status ativo e é do tipo pago, tem acesso
+    return currentSubscription.status === "ACTIVE" && 
+           [PlanType.BASIC, PlanType.PRO, PlanType.PREMIUM].includes(currentSubscription.planType);
   }, [currentSubscription]);
   
   // Verificar condição para renderização - estado de carregamento, erro ou sem acesso
@@ -251,9 +254,17 @@ const Index = () => {
     // Se não tem acesso aos cards da roleta, mostra seletor de plano
     return !hasRouletteCardsAccess;
   }, [hasRouletteCardsAccess, isLoadingSubscription]);
+
+  // Atualizar o estado de carregamento da assinatura quando os dados estiverem disponíveis
+  useEffect(() => {
+    if (currentSubscription !== undefined) {
+      setIsLoadingSubscription(false);
+    }
+  }, [currentSubscription]);
   
   console.log('[Index] Tem acesso aos cards:', hasRouletteCardsAccess);
   console.log('[Index] Tem acesso ao painel lateral:', hasSidePanelAccess);
+  console.log('[Index] Carregando informações de assinatura:', isLoadingSubscription);
   
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
