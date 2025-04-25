@@ -372,6 +372,18 @@ const Index = () => {
       setIsLoading(true);
       setError(null);
       
+      // MODIFICAÇÃO IMPORTANTE: Verificar se o usuário tem plano ativo antes de carregar dados
+      if (!hasActivePlan) {
+        console.log('📊 Usuário sem plano ativo. Dados de roletas bloqueados.');
+        setIsLoading(false);
+        // Não carrega nenhum dado de roleta, deixando o array vazio
+        setRoulettes([]);
+        setFilteredRoulettes([]);
+        setDataFullyLoaded(true);
+        return;
+      }
+      
+      // Somente continua se o usuário tiver plano ativo
       // Usar o throttler para evitar múltiplas chamadas simultâneas
       const result = await RequestThrottler.scheduleRequest(
         'index_roulettes',
@@ -418,7 +430,7 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [knownRoulettes, mergeRoulettes]);
+  }, [knownRoulettes, mergeRoulettes, hasActivePlan]);
 
   // Efeito para inicialização e atualização periódica
   useEffect(() => {
@@ -428,13 +440,16 @@ const Index = () => {
         clearTimeout(updateTimeoutRef.current);
       }
       
-      updateTimeoutRef.current = setTimeout(() => {
-        // Recarregar dados
-        loadRouletteData();
-      }, 60000); // A cada 60 segundos
+      // MODIFICAÇÃO: Só atualizar se o usuário tiver plano ativo
+      if (hasActivePlan) {
+        updateTimeoutRef.current = setTimeout(() => {
+          // Recarregar dados
+          loadRouletteData();
+        }, 60000); // A cada 60 segundos
+      }
     };
     
-    // Inicialização
+    // Inicialização - carregar dados apenas se tiver plano
     loadRouletteData();
     
     // Timeout de segurança para garantir que a tela será liberada
@@ -446,11 +461,11 @@ const Index = () => {
       }
     }, 10000); // 10 segundos
     
-    // Programar atualização periódica
+    // Programar atualização periódica apenas para usuários com plano
     const updateInterval = setInterval(() => {
-        if (isMounted.current) {
-          scheduleUpdate();
-        }
+      if (isMounted.current && hasActivePlan) {
+        scheduleUpdate();
+      }
     }, 60000); // 60 segundos
     
     // Limpeza ao desmontar
@@ -463,7 +478,7 @@ const Index = () => {
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [loadRouletteData, dataFullyLoaded, mergeRoulettes]);
+  }, [loadRouletteData, dataFullyLoaded, mergeRoulettes, hasActivePlan]);
   
   // Simplificar para usar diretamente as roletas
   // const filteredRoulettes = roulettes; // Remover esta linha
@@ -856,9 +871,9 @@ const Index = () => {
         {/* Sobreposição do seletor de planos - apenas para quem não tem plano */}
         {!hasActivePlan && (
           <div className="absolute inset-0 flex items-center justify-center z-10">
-            <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center max-w-xl w-full">
-              <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
-              <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
+            <div className="bg-[#131614]/90 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center max-w-xl w-full">
+              <h2 className="text-[#00FF00] font-bold text-2xl mb-6">Conteúdo Bloqueado</h2>
+              <p className="text-white/90 mb-6">Você precisa ter um plano ativo para acessar as estatísticas e dados das roletas. Escolha um plano agora para desbloquear todos os recursos.</p>
               
               {/* O resto do seletor de planos permanece aqui... */}
             </div>
