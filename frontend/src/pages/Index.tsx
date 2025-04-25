@@ -873,49 +873,6 @@ const Index = () => {
                       </div>
                     </div>
                     
-                    <h3 className="text-white font-bold text-md pt-2 border-t border-gray-700 mt-4">Dados do Cartão</h3>
-                    
-                    <div>
-                      <label className="block text-white/80 mb-1 text-sm">Número do cartão</label>
-                      <input 
-                        type="text" 
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                        placeholder="0000 0000 0000 0000"
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-white/80 mb-1 text-sm">Nome no cartão</label>
-                      <input 
-                        type="text" 
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                        placeholder="Nome impresso no cartão"
-                        required
-                      />
-                    </div>
-                    
-                    <div className="flex gap-4">
-                      <div className="flex-1">
-                        <label className="block text-white/80 mb-1 text-sm">Validade</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="MM/AA"
-                          required
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-white/80 mb-1 text-sm">CVV</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="123"
-                          required
-                        />
-                      </div>
-                    </div>
-                    
                     <Button 
                       className="w-full py-3 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-6"
                       type="submit"
@@ -929,11 +886,11 @@ const Index = () => {
                           </svg>
                           Processando...
                         </span>
-                      ) : "Finalizar Pagamento"}
+                      ) : "Prosseguir para Pagamento"}
                     </Button>
                     
                     <p className="text-center text-gray-500 text-xs mt-4">
-                      Seus dados estão protegidos por criptografia de ponta a ponta. Pagamento processado pelo Asaas.
+                      Você será redirecionado para a plataforma segura de pagamento do Asaas.
                     </p>
                   </form>
                 </div>
