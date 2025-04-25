@@ -30,6 +30,18 @@ const CACHE_TTL = 60000; // 1 minuto em milissegundos
 // Rastreamento de requisições pendentes para evitar chamadas duplicadas
 const pendingRequests = new Map<string, Promise<any>>();
 
+// Adicionar ou atualizar a interface para o RouletteRepository
+export interface RouletteRepositoryInterface {
+  clearCache(): void;
+  fetchAllRoulettesWithNumbers(): Promise<any[]>;
+  fetchBasicRouletteInfo(): Promise<any[]>;
+  fetchRouletteById(id: string): Promise<any>;
+  addNewNumberToRoulette(roletaId: string, number: any): void;
+  updateRouletteStrategy(roletaId: string, strategy: any): void;
+  subscribeToRouletteUpdates(id: string, callback: (data: any) => void): string;
+  unsubscribeFromRouletteUpdates(id: string, subscriptionId: string): void;
+}
+
 /**
  * Repositório para gerenciar dados de roletas
  */
@@ -304,7 +316,7 @@ export const RouletteRepository = {
    * @param callback Função a ser chamada quando houver atualizações
    * @returns Função para cancelar a assinatura
    */
-  subscribeToRouletteUpdates(id: string, callback: (data: RouletteData) => void): () => void {
+  subscribeToRouletteUpdates(id: string, callback: (data: any) => void): () => void {
     const numericId = getNumericId(id);
     logger.debug(`Assinando atualizações para roleta ${numericId}`);
     
