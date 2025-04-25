@@ -3,7 +3,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
-const jwt = require('jsonwebtoken');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -13,7 +12,6 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
-const JWT_SECRET = process.env.JWT_SECRET || 'seu_segredo_jwt_padrao';
 
 // Informações de configuração
 console.log('==== Configuração do Servidor WebSocket ====');
@@ -387,67 +385,13 @@ app.get('/api/roulettes', async (req, res) => {
   }
 });
 
-// Middleware para verificar autenticação
-const verifyToken = (req, res, next) => {
-  // Obter token do cabeçalho
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1];
-  
-  // Se não tiver token, marcar request como não autenticado mas continuar
-  if (!token) {
-    req.authenticated = false;
-    req.user = null;
-    return next();
-  }
-  
-  // Verificar token
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    req.authenticated = true;
-    next();
-  } catch (error) {
-    console.error('[Auth] Erro ao verificar token:', error.message);
-    req.authenticated = false;
-    req.user = null;
-    next();
-  }
-};
-
-// Função para verificar assinatura do usuário no banco de dados
-async function checkSubscription(userId) {
-  if (!userId || !isConnected) return null;
-  
-  try {
-    // Verificar na coleção de assinaturas
-    const subscription = await db.collection('subscriptions').findOne({
-      user_id: userId,
-      status: { $in: ['active', 'ACTIVE', 'ativa'] }
-    });
-    
-    if (subscription) return subscription;
-    
-    // Verificar no formato alternativo de assinatura
-    const assinatura = await db.collection('assinaturas').findOne({
-      usuario: userId,
-      status: 'ativa',
-      validade: { $gt: new Date() }
-    });
-    
-    return assinatura;
-  } catch (error) {
-    console.error('[Subscription] Erro ao verificar assinatura:', error);
-    return null;
-  }
-}
-
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
-app.get('/api/ROULETTES', verifyToken, async (req, res) => {
+app.get('/api/ROULETTES', async (req, res) => {
   console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
-  console.log('[API] Autenticado:', req.authenticated, 'UserID:', req.user?.id);
+  console.log('[API] Query params:', req.query);
   
-  // Aplicar cabeçalhos CORS de forma mais restritiva
-  res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
+  // Aplicar cabeçalhos CORS explicitamente para esta rota
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
@@ -466,31 +410,9 @@ app.get('/api/ROULETTES', verifyToken, async (req, res) => {
       return res.json([]);
     }
     
-    // Verificar status da assinatura se o usuário estiver autenticado
-    let hasActiveSubscription = false;
-    let userPlan = null;
-    
-    if (req.authenticated && req.user && req.user.id) {
-      const subscription = await checkSubscription(req.user.id);
-      hasActiveSubscription = !!subscription;
-      userPlan = subscription?.plan_id || subscription?.plano;
-      console.log(`[API] Usuário ${req.user.id} - Assinatura ativa: ${hasActiveSubscription}, Plano: ${userPlan}`);
-    } else {
-      console.log('[API] Usuário não autenticado ou sem ID');
-    }
-    
-    // Definir limite com base no status da assinatura
-    let limit = 10; // Limite padrão para usuários sem assinatura
-    
-    if (hasActiveSubscription) {
-      // Usuários com assinatura recebem o limite solicitado ou o padrão
-      limit = parseInt(req.query.limit) || 200;
-    } else if (req.query.sample === 'true') {
-      // Permitir uma amostra maior para apresentação
-      limit = 20;
-    }
-    
-    console.log(`[API] Usando limit: ${limit} para usuário ${hasActiveSubscription ? 'com assinatura' : 'sem assinatura'}`);
+    // Parâmetros de paginação
+    const limit = parseInt(req.query.limit) || 200;
+    console.log(`[API] Usando limit: ${limit}`);
     
     // Buscar histórico de números ordenados por timestamp
     const numeros = await collection
@@ -507,30 +429,11 @@ app.get('/api/ROULETTES', verifyToken, async (req, res) => {
       return res.json([]);
     }
     
-    // Adicionar metadata de assinatura para o frontend
-    const result = {
-      data: numeros,
-      meta: {
-        authenticated: req.authenticated,
-        subscriptionActive: hasActiveSubscription,
-        plan: userPlan,
-        totalAvailable: count,
-        limited: !hasActiveSubscription,
-        limit: limit
-      }
-    };
+    // Log de alguns exemplos para diagnóstico
+    console.log('[API] Exemplos de dados retornados:');
+    console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
     
-    // Para usuários não assinantes, retornar a resposta completa
-    if (hasActiveSubscription) {
-      return res.json(numeros); // Manter compatibilidade com o frontend existente
-    }
-    
-    // Para usuários sem assinatura, indicar explicitamente a limitação
-    return res.json({
-      data: numeros,
-      subscriptionRequired: true,
-      message: "Visualização limitada. Assine um plano para acesso completo."
-    });
+    return res.json(numeros);
   } catch (error) {
     console.error('[API] Erro ao listar roletas ou histórico:', error);
     res.status(500).json({ error: 'Erro interno ao buscar dados' });
@@ -880,7 +783,7 @@ app.options('/api/ROULETTES/historico', (req, res) => {
 
 // Socket.IO connection handler
 io.on('connection', async (socket) => {
-  console.log(`Novo cliente conectado: ${socket.id}`);
+  console.log(`[WebSocket] Novo cliente conectado: ${socket.id}`);
   
   // Enviar dados iniciais para o cliente
   if (isConnected) {
@@ -894,19 +797,64 @@ io.on('connection', async (socket) => {
     socket.emit('connection_error', { status: 'MongoDB not connected' });
   }
   
-  // Subscrever a uma roleta específica
-  socket.on('subscribe', (roletaNome) => {
-    if (typeof roletaNome === 'string' && roletaNome.trim()) {
-      socket.join(roletaNome);
-      console.log(`Cliente ${socket.id} subscrito à roleta: ${roletaNome}`);
+  // Registrar salas para roletas específicas
+  socket.on('join_roulette', (rouletteId) => {
+    if (!rouletteId) {
+      return socket.emit('error', { message: 'ID da roleta é obrigatório' });
     }
+    
+    console.log(`[WebSocket] Cliente ${socket.id} inscrito na roleta ${rouletteId}`);
+    socket.join(`roulette_${rouletteId}`);
+    socket.emit('joined_roulette', { rouletteId, status: 'success' });
   });
   
-  // Cancelar subscrição a uma roleta específica
-  socket.on('unsubscribe', (roletaNome) => {
-    if (typeof roletaNome === 'string' && roletaNome.trim()) {
-      socket.leave(roletaNome);
-      console.log(`Cliente ${socket.id} cancelou subscrição à roleta: ${roletaNome}`);
+  // Deixar sala de roleta específica
+  socket.on('leave_roulette', (rouletteId) => {
+    if (!rouletteId) {
+      return socket.emit('error', { message: 'ID da roleta é obrigatório' });
+    }
+    
+    console.log(`[WebSocket] Cliente ${socket.id} cancelou inscrição na roleta ${rouletteId}`);
+    socket.leave(`roulette_${rouletteId}`);
+    socket.emit('left_roulette', { rouletteId, status: 'success' });
+  });
+  
+  // Evento para pedir o último número de uma roleta específica
+  socket.on('get_last_number', async (rouletteId) => {
+    try {
+      if (!isConnected) {
+        return socket.emit('error', { message: 'Base de dados não conectada' });
+      }
+      
+      if (!rouletteId) {
+        return socket.emit('error', { message: 'ID da roleta é obrigatório' });
+      }
+      
+      const lastNumber = await collection.findOne(
+        { rouletteId: rouletteId.toString() },
+        { sort: { timestamp: -1 } }
+      );
+      
+      if (lastNumber) {
+        socket.emit('last_number', {
+          rouletteId,
+          number: lastNumber.number,
+          timestamp: lastNumber.timestamp,
+          color: getNumberColor(lastNumber.number)
+        });
+      } else {
+        socket.emit('last_number', {
+          rouletteId,
+          number: null,
+          message: 'Nenhum número encontrado para esta roleta'
+        });
+      }
+    } catch (error) {
+      console.error(`[WebSocket] Erro ao obter último número para roleta ${rouletteId}:`, error);
+      socket.emit('error', {
+        message: 'Erro ao buscar o último número',
+        details: error.message
+      });
     }
   });
   
@@ -970,6 +918,52 @@ io.on('connection', async (socket) => {
     console.log(`Cliente desconectado: ${socket.id}`);
   });
 });
+
+// Função para emitir atualização de número para uma roleta específica
+async function emitNumberUpdateForRoulette(rouletteId, number) {
+  try {
+    const timestamp = new Date();
+    const data = {
+      rouletteId,
+      number,
+      timestamp,
+      color: getNumberColor(number)
+    };
+    
+    // Emitir para todos os clientes inscritos nesta roleta específica
+    io.to(`roulette_${rouletteId}`).emit('number_update', data);
+    
+    // Também emitir no canal global para compatibilidade
+    io.emit('all_numbers_update', {
+      updates: [data]
+    });
+    
+    // Registrar na base de dados
+    if (isConnected) {
+      try {
+        await collection.insertOne({
+          rouletteId: rouletteId.toString(),
+          number: parseInt(number),
+          timestamp
+        });
+      } catch (dbError) {
+        console.error('[MongoDB] Erro ao salvar número na base de dados:', dbError);
+      }
+    }
+  } catch (error) {
+    console.error('[WebSocket] Erro ao emitir atualização de número:', error);
+  }
+}
+
+// Determinar a cor do número da roleta
+function getNumberColor(number) {
+  // Zero é verde
+  if (number === 0 || number === '0') return 'green';
+  
+  // Números vermelhos na roleta européia padrão
+  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  return redNumbers.includes(parseInt(number)) ? 'red' : 'black';
+}
 
 // Iniciar o servidor
 server.listen(PORT, async () => {
