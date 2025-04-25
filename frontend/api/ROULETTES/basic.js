@@ -1,5 +1,5 @@
 // Endpoint específico para dados básicos das roletas
-const proxy = require('./proxy');
+const proxy = require('../proxy');
 
 // Handler para o endpoint de dados básicos das roletas
 module.exports = (req, res) => {
