@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, BarChart3, PackageOpen, Loader2, Check, Copy } from 'lucide-react';
+import { AlertCircle, BarChart3, PackageOpen, Loader2, Check, Copy, ChevronRight } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
 import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
 import Layout from '@/components/Layout';
@@ -12,11 +12,37 @@ import RouletteSidePanelSkeleton from '@/components/RouletteSidePanelSkeleton';
 import RouletteFilterBar from '@/components/RouletteFilterBar';
 import { extractProviders } from '@/utils/rouletteProviders';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { createAsaasCustomer, createAsaasSubscription, getAsaasPixQrCode, checkPaymentStatus } from '@/integrations/asaas/client';
+import { 
+  createAsaasCustomer, 
+  createAsaasSubscription, 
+  getAsaasPixQrCode, 
+  findAsaasPayment, 
+  checkPaymentStatus,
+  SubscriptionResponse
+} from '@/integrations/asaas/client';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+import { FormControl, FormField, FormItem, FormLabel, FormMessage, Form } from '@/components/ui/form';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 
 interface ChatMessage {
   id: string;
@@ -207,7 +233,9 @@ const Index = () => {
   const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
   const [qrCodeText, setQrCodeText] = useState<string | null>(null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
-  const [checkStatusInterval, setCheckStatusInterval] = useState<ReturnType<typeof setInterval> | null>(null);
+  const [checkStatusInterval, setCheckStatusInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -217,6 +245,8 @@ const Index = () => {
 
   // Referência para timeout de atualização
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const navigate = useNavigate();
   
   // Escutar eventos de roletas existentes para persistência
   useEffect(() => {
@@ -615,12 +645,179 @@ const Index = () => {
     if (user) {
       setFormData(prev => ({
         ...prev,
-        name: user.username || user.name || prev.name,
+        name: user.username || prev.name,
         email: user.email || prev.email
       }));
     }
   }, [user]);
   
+  // Função para processar o pagamento via Asaas
+  const handlePayment = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    
+    try {
+      if (!user) {
+        toast({
+          title: "Erro",
+          description: "Usuário não autenticado!",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      setPixLoading(true);
+      setPaymentError(null);
+
+      // Criar ou buscar cliente no Asaas
+      const customerData = {
+        name: formData.name || user.username || 'Cliente',
+        email: formData.email || user.email,
+        cpfCnpj: formData.cpf || '',
+        mobilePhone: formData.phone || '',
+        userId: user.id
+      };
+      
+      const customerId = await createAsaasCustomer(customerData);
+      
+      if (!customerId) {
+        setPaymentError('Erro ao criar cliente no Asaas');
+        setPixLoading(false);
+        return;
+      }
+
+      // Criar assinatura ou pagamento único
+      const planId = selectedPlan;
+      const userId = user.id;
+      const paymentMethod = 'PIX';
+
+      const subscription = await createAsaasSubscription(
+        planId,
+        userId,
+        customerId,
+        paymentMethod
+      );
+      
+      if (!subscription || !subscription.paymentId) {
+        setPaymentError('Erro ao criar assinatura');
+        setPixLoading(false);
+        return;
+      }
+
+      // Obter QR code PIX
+      const pixData = await getAsaasPixQrCode(subscription.paymentId);
+      
+      if (!pixData) {
+        setPaymentError('Erro ao gerar QR code PIX');
+        setPixLoading(false);
+        return;
+      }
+
+      // Atualizar estados com os dados do pagamento
+      setQrCodeImage(pixData.qrCodeImage);
+      setQrCodeText(pixData.qrCodeText);
+      setPaymentId(subscription.paymentId);
+      setCheckoutStep('pix');
+      
+      // Iniciar verificação periódica do status do pagamento
+      const stopChecking = checkPaymentStatus(
+        subscription.paymentId,
+        (payment) => {
+          // Pagamento confirmado com sucesso
+          if (checkStatusInterval) {
+            clearInterval(checkStatusInterval);
+            setCheckStatusInterval(null);
+          }
+          
+          setPaymentSuccess(true);
+          setShowCheckout(false);
+          setIsPaymentModalOpen(false);
+          
+          toast({
+            title: "Pagamento confirmado!",
+            description: "Seu pagamento foi confirmado com sucesso."
+          });
+          
+          // Redirecionar para a página de dashboard
+          navigate('/dashboard');
+        },
+        (error) => {
+          // Erro ao verificar pagamento
+          console.error('Erro ao verificar status:', error);
+          toast({
+            title: "Erro na verificação",
+            description: error.message || "Erro ao verificar pagamento",
+            variant: "destructive"
+          });
+        }
+      );
+      
+      setPixLoading(false);
+    } catch (error) {
+      console.error('Erro ao processar pagamento:', error);
+      setPaymentError(typeof error === 'string' ? error : 'Erro ao processar pagamento');
+      setPixLoading(false);
+    }
+  };
+
+  // Função para verificar manualmente o status do pagamento
+  const checkPaymentStatusManually = async (id: string | null) => {
+    if (!id) return;
+    
+    try {
+      setVerifyingPayment(true);
+      const payment = await findAsaasPayment(id, true); // Forçar atualização
+      
+      if (['CONFIRMED', 'RECEIVED', 'AVAILABLE', 'BILLING_AVAILABLE'].includes(payment.status)) {
+        // Pagamento confirmado
+        if (checkStatusInterval) {
+          clearInterval(checkStatusInterval);
+          setCheckStatusInterval(null);
+        }
+        
+        setPaymentSuccess(true);
+        setShowCheckout(false);
+        
+        toast({
+          title: "Pagamento confirmado!",
+          description: "Seu pagamento foi confirmado com sucesso."
+        });
+        
+        // Redirecionar para a página de dashboard
+        navigate('/dashboard');
+      } else {
+        toast({
+          title: "Verificação de pagamento",
+          description: "Ainda não identificamos seu pagamento. Por favor, aguarde ou tente novamente em alguns instantes."
+        });
+      }
+      setVerifyingPayment(false);
+    } catch (error) {
+      console.error('Erro ao verificar status do pagamento:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao verificar pagamento",
+        variant: "destructive"
+      });
+      setVerifyingPayment(false);
+    }
+  };
+
+  // Função para copiar o código PIX
+  const copyPIXCode = () => {
+    if (qrCodeText && toast) {
+      navigator.clipboard.writeText(qrCodeText)
+        .then(() => {
+          toast({
+            title: "Código copiado!",
+            description: "O código PIX foi copiado para a área de transferência.",
+          });
+        })
+        .catch(err => {
+          console.error('Erro ao copiar código:', err);
+        });
+    }
+  };
+
   // Limpar intervalos quando o componente for desmontado
   useEffect(() => {
     return () => {
@@ -640,90 +837,6 @@ const Index = () => {
       setFormData(prev => ({ ...prev, [name]: formatPhone(value) }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
-    }
-  };
-  
-  // Handler para envio do formulário
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPaymentError(null);
-    setIsProcessingPayment(true);
-    
-    try {
-      // Validação do formulário
-      if (!formData.name || !formData.email || !formData.cpf) {
-        throw new Error("Por favor, preencha todos os campos obrigatórios.");
-      }
-      
-      // Validação simples de CPF
-      const cpfClean = formData.cpf.replace(/\D/g, '');
-      if (cpfClean.length !== 11) {
-        throw new Error("Por favor, insira um CPF válido com 11 dígitos.");
-      }
-      
-      // Simulação da integração com Asaas (para ambiente de desenvolvimento)
-      console.log('Processando pagamento para:', formData);
-      console.log('Plano selecionado:', selectedPlan);
-      
-      // Simulação de criação de QR code (para ambientes sem integração real)
-      setTimeout(() => {
-        setCheckoutStep('pix');
-        // QR code de exemplo (base64)
-        setQrCodeImage('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X5+//+Pj8fn79fbz1b3vd+3F9vr/9N+/HYO79sX3/5Xbb9yX+eb/fx8uybL/zvPR67/Z5l8vb9n3vz9s/b9d9ua+P2/fvn/e8/vPet8/bvnZ/jO097z+3d7XXruvb5+37bfe//drbz7fnXj+/v+/j5T/3vS/Xa3/8z+1zP5/31+392+rH9ee2z7/uulx3+V23z95e1/Xb9W7Xvn1su96Pbfz9/vzr9//92m7X/nGdq7fL9zr+fq2Xx/b8+7X/+/F979vvf3//x7X2+s/f/9j/eqyDt7+393xsn3N7PN7u37a1ta3Nb/e/n7d/7n5+f//O8fPxeP/Yzrv/87jm9rzn9d3+7/KyvXe/3r1rOz/7ufVYtudu57ztp/t7rrc5dj/vXdvjY3sfz3vW43y3fbY+3q5h993bzm6ffV3f1tXtvdfH9vH8+fZ9e9/9+HhZX/d992vYvvPl4/a+675/W+79/u38u/W7V+O39W7dc1/Pl+3aXs7vfXvcdq7b87f1sW1rt+u5Xud9W1s/7vfuY+4+b7c5cVuX927i8zG2c96e2/bX54/7OTef7Nfyfn9vG3v9vPu1/NjWp9v3PP/7sTz3xXe/v3/u5f7/t/e9j3vH+7Zz3P7Z133/+PfXfe2+/8a6W7bf3Nbe9dh2H/+6X+7X+vGxPft+3n2tW/Z1/b7W3tad+9p7+/dn7fd1+fljvf//tv99Pr9dz/W1e33vH9u2t63X+3p0rUObM7Z95/H87f9eP/d9/f7+/tze9/r6eXvty/pxfP73Nbm9ZVuT1svL5f1jvb53W9e2dWb3R7b1cnsN+/lv2+c+Hjff367z8nLfnrd91sftHPvH9d9//8fz+df5tn/u/rvtfzzW3W1/3j5bXrfX9rFfO3/ufuzbc/f9aRsj23vbHNr2j9f35+79/m1N2Mbotifcr/VxrZ+fn9fX9+/bZrutrT/2cb9sb9t+e7vm63f++Jbj+75+/f9nfHzctt2P98e2rb3u3//c5vfz7nvf+Xb/9n23dXR7ffvz8f9f62jfJrf1aX/N2/tu3/fa7/e1Zbtuu6b7fbt1fVtvtvW6rYvP/bd979trvb/v5/V+9r3vvzOerw/X4be1f1sTHsdun7c9/7r/vnz72DzwuH97bX9svvnY9rOtXdtx2z3fXvf1bFunt9feXrfHbV+9rb3X97T9cjvmui/e1/TtEbfHx329eL3v7/n8vF/T88fHz9v7Prf1YnvN2/d/7pvPNf6+X98/Xva/a3k5v+f6/Bho+8w25rZ1ZFtrXz/avrh9zvbe2343f7y8X9u3/f7H+/XcP//8utfnr+vz/vv1bR+4rkObB7f/3vftj9t3bI//sX4+v/d9fduucXvf9rl7Y7d1+Xb+9j2v67Y+t+u8/Y/Pd3z5N0q/V8c=');
-        setQrCodeText('00020101021226820014br.gov.bcb.pix2560test@email.com.br5204000053039865802BR5913Fulano de Tal6008Brasilia62070503***6304C692');
-        setPixLoading(false);
-        
-        // Simular intervalos de verificação de status
-        const interval = setInterval(() => {
-          console.log('Verificando status de pagamento...');
-          // Simulação de confirmação de pagamento após 10 segundos
-          setTimeout(() => {
-            if (checkStatusInterval) {
-              clearInterval(checkStatusInterval);
-              setCheckStatusInterval(null);
-            }
-            
-            // Mostrar sucesso
-            setPaymentSuccess(true);
-            
-            toast({
-              title: "Pagamento confirmado!",
-              description: "Seu pagamento foi processado com sucesso.",
-            });
-          }, 10000);
-        }, 5000);
-        
-        setCheckStatusInterval(interval);
-      }, 2000);
-    } catch (error) {
-      console.error('Erro no processo de pagamento:', error);
-      setPaymentError(error instanceof Error ? error.message : "Ocorreu um erro ao processar o pagamento.");
-      
-      if (toast) {
-        toast({
-          variant: "destructive",
-          title: "Erro no pagamento",
-          description: error instanceof Error ? error.message : "Ocorreu um erro ao processar o pagamento.",
-        });
-      }
-    } finally {
-      setIsProcessingPayment(false);
-    }
-  };
-  
-  // Função para copiar o código PIX
-  const copyPIXCode = () => {
-    if (qrCodeText && toast) {
-      navigator.clipboard.writeText(qrCodeText)
-        .then(() => {
-          toast({
-            title: "Código copiado!",
-            description: "O código PIX foi copiado para a área de transferência.",
-          });
-        })
-        .catch(err => {
-          console.error('Erro ao copiar código:', err);
-        });
     }
   };
 
@@ -958,7 +1071,7 @@ const Index = () => {
                         </div>
                       </div>
                       
-                      <form className="space-y-4" onSubmit={handleSubmit}>
+                      <form className="space-y-4" onSubmit={handlePayment}>
                         <div>
                           <label className="block text-white/80 mb-1 text-sm">Nome completo *</label>
                           <input 
@@ -1093,6 +1206,21 @@ const Index = () => {
                                   Não feche esta página até a confirmação do pagamento.
                                 </AlertDescription>
                               </Alert>
+                              
+                              <Button
+                                onClick={() => paymentId && checkPaymentStatusManually(paymentId)}
+                                disabled={verifyingPayment || !paymentId}
+                                className="w-full"
+                              >
+                                {verifyingPayment ? (
+                                  <span className="flex items-center justify-center">
+                                    <Loader2 className="animate-spin -ml-1 mr-3 h-4 w-4" />
+                                    Verificando...
+                                  </span>
+                                ) : (
+                                  <span>Já realizei o pagamento</span>
+                                )}
+                              </Button>
                             </div>
                           )}
                         </>
