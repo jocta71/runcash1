@@ -1,16 +1,18 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, BarChart3 } from 'lucide-react';
+import { AlertCircle, BarChart3, PackageOpen } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
+import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
 import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
-
-
 import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
+import RouletteSidePanelSkeleton from '@/components/RouletteSidePanelSkeleton';
 import RouletteFilterBar from '@/components/RouletteFilterBar';
 import { extractProviders } from '@/utils/rouletteProviders';
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 
 interface ChatMessage {
   id: string;
@@ -442,11 +444,31 @@ const Index = () => {
     setFilteredRoulettes(filtered);
   };
 
+  // Renderiza skeletons para os cards de roleta
+  const renderRouletteSkeletons = () => {
+    return Array(12).fill(0).map((_, index) => (
+      <RouletteCardSkeleton key={index} />
+    ));
+  };
+
   return (
     <Layout preloadData={true}>
+      <div className="flex items-center justify-center w-full min-h-[300px] mb-8">
+        <div className="text-center max-w-xl px-4">
+          <Button 
+            asChild
+            className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20"
+          >
+            <Link to="/planos">
+              <PackageOpen className="mr-2 h-5 w-5" />
+              Escolher Plano
+            </Link>
+          </Button>
+        </div>
+      </div>
+      
+      {/* Container principal */}
       <div className="container mx-auto px-4 pt-4 md:pt-8">
-        {/* Cabeçalho removido completamente */}
-        
         {/* Mensagem de erro */}
         {error && (
           <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center">
@@ -455,51 +477,28 @@ const Index = () => {
           </div>
         )}
         
-        {/* Estado de carregamento */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className="bg-[#1e1e24] animate-pulse rounded-xl h-64"></div>
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col lg:flex-row gap-6">
-            {/* Cards de roleta à esquerda */}
-            <div className="w-full lg:w-1/2">
-              {/* Adicionar barra de filtro acima dos cards de roleta */}
-              <RouletteFilterBar 
-                roulettes={roulettes}
-                onFilter={handleRouletteFilter}
-                onRefresh={loadRouletteData}
-              />
-              
-              <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
-                {renderRouletteCards()}
+        {/* Layout em esqueleto */}
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Cards de roleta à esquerda em modo esqueleto */}
+          <div className="w-full lg:w-1/2">
+            {/* Filtro de roletas em skeleton */}
+            <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">
+              <div className="flex justify-between items-center">
+                <div className="h-8 w-32 bg-gray-800 rounded animate-pulse"></div>
+                <div className="h-8 w-20 bg-gray-800 rounded animate-pulse"></div>
               </div>
             </div>
             
-            {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
-            <div className="w-full lg:w-1/2">
-              {selectedRoulette ? (
-                <RouletteSidePanelStats
-                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
-                  lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
-                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
-                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
-                  providers={extractProviders(roulettes)}
-                />
-              ) : (
-                <div className="w-full bg-gray-900 rounded-lg p-6 text-center">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-[#00ff00] opacity-50" />
-                  <h3 className="text-lg font-medium text-white mb-2">Estatísticas da Roleta</h3>
-                  <p className="text-sm text-gray-400">
-                    Selecione uma roleta para ver estatísticas detalhadas
-                  </p>
-                </div>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {renderRouletteSkeletons()}
             </div>
           </div>
-        )}
+          
+          {/* Painel lateral em modo esqueleto */}
+          <div className="w-full lg:w-1/2">
+            <RouletteSidePanelSkeleton />
+          </div>
+        </div>
       </div>
     </Layout>
   );

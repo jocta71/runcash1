@@ -26,7 +26,6 @@ const premiumRoutes = require('./routes/premiumRoutes');
 const empresarialRoutes = require('./routes/empresarialRoutes');
 const assinaturaRoutes = require('./routes/assinaturaRoutes');
 const rouletteRoutes = require('./routes/rouletteRoutes');
-const subscriptionRoutes = require('./routes/subscriptionRoutes');
 
 // Middlewares
 app.use(cors());
@@ -37,7 +36,6 @@ app.use('/api/ai', aiAnalysisRoutes);
 app.use('/api/premium', premiumRoutes);
 app.use('/api/empresarial', empresarialRoutes);
 app.use('/api/assinatura', assinaturaRoutes);
-app.use('/api/subscription', subscriptionRoutes);
 app.use('/api', rouletteRoutes);
 
 // Rota principal para verificação

@@ -5,11 +5,12 @@
 
 const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
-const getDb = require('../services/database');
-const { ObjectId } = require('mongodb');
+const User = require('../models/User');
+const config = require('../config/config');
+const { Usuario } = require('../models');
 
 // Configuração do JWT - deve ser obtida do arquivo de configuração
-const JWT_SECRET = process.env.JWT_SECRET || 'runcash2024secretkey';
+const JWT_SECRET = process.env.JWT_SECRET || 'seu_segredo_super_secreto';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 /**
@@ -41,91 +42,71 @@ exports.gerarToken = (user) => {
  */
 exports.proteger = async (req, res, next) => {
   try {
-    let token;
-
-    // Verificar se o token está presente no header Authorization
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    } else if (req.cookies && req.cookies.token) {
-      // Verificar se o token está presente nos cookies
-      token = req.cookies.token;
-    } else if (req.query && req.query.token) {
-      // Verificar se o token está presente na query string
-      token = req.query.token;
-    }
-
-    // Se não houver token, retornar erro
+    // Verificar se o token está presente
+    const token = req.headers.authorization?.split(' ')[1];
+    
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Acesso negado. É necessário autenticação para acessar este recurso',
-        code: 'NO_TOKEN'
+        message: 'Não autorizado - token não fornecido',
+        error: 'ERROR_NO_TOKEN'
       });
     }
-
-    // Verificar o token
-    const decoded = jwt.verify(token, JWT_SECRET);
-
-    // Buscar usuário no banco de dados
-    const db = await getDb();
     
-    // Tentar encontrar no formato com mongoose
-    let usuario = await db.collection('usuarios').findOne({
-      _id: ObjectId.isValid(decoded.id) ? new ObjectId(decoded.id) : decoded.id
-    });
-
-    // Se não encontrar, tentar no formato novo
-    if (!usuario) {
-      usuario = await db.collection('users').findOne({
-        id: decoded.id
-      });
-    }
-
-    // Se ainda não encontrar, retornar erro
+    // Verificar e decodificar o token
+    const decodificado = jwt.verify(token, config.jwt.secret);
+    
+    // Buscar usuário para confirmar que ele existe e está ativo
+    const usuario = await Usuario.findByPk(decodificado.id);
+    
     if (!usuario) {
       return res.status(401).json({
         success: false,
-        message: 'O usuário associado a este token não existe mais',
-        code: 'USER_NOT_FOUND'
+        message: 'Usuário não encontrado ou token inválido',
+        error: 'ERROR_USER_NOT_FOUND'
       });
     }
-
-    // Adicionar usuário ao objeto de requisição
-    req.usuario = usuario;
-    req.user = {
-      id: usuario._id || usuario.id,
+    
+    if (!usuario.ativo) {
+      return res.status(403).json({
+        success: false,
+        message: 'Conta desativada. Entre em contato com o suporte.',
+        error: 'ERROR_ACCOUNT_DISABLED'
+      });
+    }
+    
+    // Adicionar informações do usuário ao objeto da requisição
+    req.usuario = {
+      id: usuario.id,
+      nome: usuario.nome,
       email: usuario.email,
-      nome: usuario.nome || usuario.name,
-      asaasCustomerId: usuario.asaasCustomerId || usuario.customerAsaasId
+      tipo: usuario.tipo,
+      premium: usuario.premium,
+      roles: usuario.roles || []
     };
-
+    
     next();
   } catch (error) {
-    console.error('Erro na autenticação:', error);
-    
-    // Se o erro for de token expirado
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         success: false,
-        message: 'Sessão expirada. Por favor, faça login novamente',
-        code: 'TOKEN_EXPIRED'
+        message: 'Token expirado, faça login novamente',
+        error: 'ERROR_TOKEN_EXPIRED'
       });
     }
-
-    // Se o erro for de token inválido
+    
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({
         success: false,
-        message: 'Token inválido. Por favor, faça login novamente',
-        code: 'INVALID_TOKEN'
+        message: 'Token inválido',
+        error: 'ERROR_INVALID_TOKEN'
       });
     }
-
-    return res.status(500).json({
+    
+    res.status(500).json({
       success: false,
-      message: 'Erro na autenticação',
-      error: error.message,
-      code: 'AUTH_ERROR'
+      message: 'Erro ao autenticar usuário',
+      error: error.message
     });
   }
 };
