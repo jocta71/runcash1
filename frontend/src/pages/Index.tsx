@@ -860,7 +860,56 @@ const Index = () => {
               <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
               <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
               
-              {/* O resto do seletor de planos permanece aqui... */}
+              {/* Cards modernos de seleção de plano */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                {/* Plano Mensal */}
+                <div className={`bg-[#1E1E2A] p-6 rounded-lg border-2 transition-all cursor-pointer ${selectedPlan === 'basic' ? 'border-[#00FF00]' : 'border-gray-700 hover:border-gray-500'}`}
+                  onClick={() => setSelectedPlan('basic')}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-white">Mensal</h3>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${selectedPlan === 'basic' ? 'bg-[#00FF00]' : 'border border-gray-400'}`}>
+                      {selectedPlan === 'basic' && <div className="w-3 h-3 rounded-full bg-black"></div>}
+                    </div>
+                  </div>
+                  <div className="mb-2">
+                    <span className="text-2xl font-bold text-white">R$49</span>
+                    <span className="text-gray-400">/mês</span>
+                  </div>
+                  <p className="text-gray-400 text-sm">Acesso a todas as funcionalidades premium durante 30 dias</p>
+                </div>
+                
+                {/* Plano Anual */}
+                <div className={`bg-[#1E1E2A] p-6 rounded-lg border-2 transition-all cursor-pointer ${selectedPlan === 'premium' ? 'border-[#00FF00]' : 'border-gray-700 hover:border-gray-500'}`}
+                  onClick={() => setSelectedPlan('premium')}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-white">Anual</h3>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${selectedPlan === 'premium' ? 'bg-[#00FF00]' : 'border border-gray-400'}`}>
+                      {selectedPlan === 'premium' && <div className="w-3 h-3 rounded-full bg-black"></div>}
+                    </div>
+                  </div>
+                  <div className="mb-2">
+                    <span className="text-2xl font-bold text-white">R$99</span>
+                    <span className="text-gray-400">/ano</span>
+                  </div>
+                  <p className="text-gray-400 text-sm">Economize e tenha acesso a todas as funcionalidades premium por 12 meses</p>
+                </div>
+              </div>
+              
+              {/* Botão de ação */}
+              <Button 
+                onClick={handlePayment}
+                className="bg-[#00FF00] hover:bg-[#00CC00] text-black font-bold py-3 px-6 rounded-lg w-full md:w-auto"
+                disabled={isProcessingPayment}
+              >
+                {isProcessingPayment ? (
+                  <span className="flex items-center">
+                    <Loader2 className="animate-spin mr-2" size={18} />
+                    Processando...
+                  </span>
+                ) : (
+                  'Escolher Plano'
+                )}
+              </Button>
             </div>
           </div>
         )}
