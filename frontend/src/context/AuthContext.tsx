@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
+import { setAuthToken, removeAuthToken } from '../services/auth/authService';
 
 interface User {
   id: string;
@@ -83,6 +84,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Limpar estados
     setToken(null);
     setUser(null);
+    
+    // Limpar no serviço de autenticação
+    removeAuthToken();
   };
 
   // Configuração global do axios para envio de cookies
@@ -530,40 +534,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const saveToken = (newToken: string) => {
     logAuthFlow(`Salvando token: ${newToken.substring(0, 15)}...`);
     
-    // Definir nos estados
+    // Salvar no estado
     setToken(newToken);
     
-    // Armazenar no cookie (principal)
-    try {
-      Cookies.set(TOKEN_COOKIE_NAME, newToken, {
-        ...COOKIE_OPTIONS,
-        // Remover domínio para maior compatibilidade
-        domain: undefined
-      });
-      logAuthFlow("Token salvo no cookie com sucesso");
-      
-      // Adicionar cookie alternativo com configurações diferentes para maior compatibilidade
-      Cookies.set(`${TOKEN_COOKIE_NAME}_alt`, newToken, {
-        path: '/',
-        expires: 30, 
-        sameSite: 'none',
-        secure: true
-      });
-      logAuthFlow("Token alternativo salvo no cookie com sucesso");
-    } catch (error) {
-      logAuthFlow(`Erro ao salvar token no cookie: ${error}`);
-    }
-
-    // Armazenar no localStorage como backup
+    // Salvar no cookie para persistência
+    Cookies.set(TOKEN_COOKIE_NAME, newToken, {
+      expires: 7, // 7 dias
+      path: '/',
+      secure: window.location.protocol === 'https:',
+      sameSite: window.location.protocol === 'https:' ? 'none' : 'lax'
+    });
+    
+    // Backup no localStorage
     try {
       localStorage.setItem('auth_token_backup', newToken);
-      logAuthFlow("Token de backup salvo no localStorage com sucesso");
-      
-      // Adicionar timestamp para verificar validade do backup
       localStorage.setItem('auth_token_timestamp', Date.now().toString());
-    } catch (error) {
-      logAuthFlow(`Erro ao salvar token de backup: ${error}`);
+    } catch (e) {
+      logAuthFlow(`Erro ao salvar token no localStorage: ${e}`);
     }
+    
+    // Salvar no serviço de autenticação
+    setAuthToken(newToken);
   };
 
   // Login - Implementação robusta

@@ -1,41 +1,74 @@
 import axios from 'axios';
 import { ENDPOINTS } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
+import { getAuthToken } from '../auth/authService';
+import { RouletteType } from '../../types/roulette';
+
+// Interface para representar a nova resposta da API
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+  subscriptionRequired?: boolean;
+  limitedData?: boolean;
+}
 
 /**
  * Cliente de API para comunicação com os endpoints de roleta
  */
 export const RouletteApi = {
   /**
+   * Obtém os cabeçalhos de autorização
+   * @returns Objeto com cabeçalhos para requisições autenticadas
+   */
+  getAuthHeaders() {
+    const token = getAuthToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  },
+
+  /**
    * Busca todas as roletas disponíveis
+   * @param withLimit Número máximo de registros (somente com assinatura)
    * @returns Array de objetos de roleta
    */
-  async fetchAllRoulettes() {
+  async fetchAllRoulettes(withLimit?: number) {
+    console.log('Fetching all roulettes');
     try {
-      console.log('[API] Buscando todas as roletas disponíveis');
-      const response = await axios.get(ENDPOINTS.ROULETTES);
-      
-      if (!response.data || !Array.isArray(response.data)) {
-        console.error('[API] Resposta inválida da API de roletas:', response.data);
-        return [];
+      // Construir URL baseada nos parâmetros
+      let url = '/api/roulettes';
+      if (withLimit) {
+        url += `?limit=${withLimit}`;
+      }
+
+      // Fazer a requisição com headers de autenticação
+      const response = await axios.get<ApiResponse<RouletteType[]>>(url, {
+        headers: this.getAuthHeaders()
+      });
+
+      // Verificar se a resposta tem o formato esperado
+      if (response.data && 'success' in response.data) {
+        // Resposta no novo formato com info de assinatura
+        const apiResponse = response.data;
+        
+        if (apiResponse.subscriptionRequired) {
+          console.warn('Acesso limitado: assinatura necessária para acesso completo às roletas');
+          // Retornar dados limitados se disponíveis
+          if (apiResponse.limitedData && apiResponse.data) {
+            return apiResponse.data;
+          }
+          return [];
+        }
+        
+        return apiResponse.data || [];
+      } else if (Array.isArray(response.data)) {
+        // Formato antigo - array direto
+        return response.data;
       }
       
-      console.log(`[API] ✅ Obtidas ${response.data.length} roletas`);
-      
-      // Processar cada roleta para extrair campos relevantes
-      const processedRoulettes = response.data.map((roulette: any) => {
-        // Garantir que temos o campo roleta_id em cada objeto
-        if (!roulette.roleta_id && roulette._id) {
-          const numericId = getNumericId(roulette._id);
-          console.log(`[API] Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
-          roulette.roleta_id = numericId;
-        }
-        return roulette;
-      });
-      
-      return processedRoulettes;
+      console.error('Resposta inválida ao buscar roletas:', response.data);
+      return [];
     } catch (error) {
-      console.error('[API] Erro ao buscar roletas:', error);
+      console.error('Error fetching roulettes:', error);
       return [];
     }
   },
@@ -46,31 +79,28 @@ export const RouletteApi = {
    * @returns Objeto da roleta encontrada ou null
    */
   async fetchRouletteById(id: string) {
+    console.log(`Fetching roulette with id: ${id}`);
     try {
-      console.log(`[API] Buscando roleta com ID: ${id}`);
-      // Converter para ID numérico para normalização
-      const numericId = getNumericId(id);
-      
-      // Buscar todas as roletas e filtrar localmente
-      // Este método é mais eficiente do que fazer múltiplas requisições
-      const allRoulettes = await this.fetchAllRoulettes();
-      
-      // Buscar com prioridade pelo campo roleta_id
-      const roulette = allRoulettes.find((r: any) => 
-        r.roleta_id === numericId || 
-        r.id === numericId || 
-        r._id === id
-      );
-      
-      if (roulette) {
-        console.log(`[API] ✅ Roleta encontrada: ${roulette.nome || roulette.name}`);
-        return roulette;
+      const response = await axios.get<ApiResponse<RouletteType>>(`/api/roulettes/${id}`, {
+        headers: this.getAuthHeaders()
+      });
+
+      // Verificar se a resposta tem o formato esperado
+      if (response.data && 'success' in response.data) {
+        const apiResponse = response.data;
+        
+        if (apiResponse.subscriptionRequired) {
+          console.warn('Acesso limitado: assinatura necessária para acesso a esta roleta');
+          return null;
+        }
+        
+        return apiResponse.data || null;
+      } else {
+        // Formato antigo - objeto direto
+        return response.data;
       }
-      
-      console.warn(`[API] ❌ Roleta com ID ${numericId} não encontrada`);
-      return null;
     } catch (error) {
-      console.error(`[API] Erro ao buscar roleta ${id}:`, error);
+      console.error(`Error fetching roulette with id ${id}:`, error);
       return null;
     }
   },
@@ -81,34 +111,28 @@ export const RouletteApi = {
    * @returns Objeto de estratégia ou null
    */
   async fetchRouletteStrategy(id: string) {
+    console.log(`Fetching current strategy for roulette: ${id}`);
     try {
-      console.log(`[API] Buscando estratégia para roleta ID: ${id}`);
-      
-      // Converter para ID numérico para normalização
-      const numericId = getNumericId(id);
-      
-      // Buscar dados da roleta que já incluem a estratégia
-      const roulette = await this.fetchRouletteById(numericId);
-      
-      if (!roulette) {
-        console.warn(`[API] Roleta ${numericId} não encontrada para estratégia`);
-        return null;
+      const response = await axios.get<ApiResponse<any>>(`/api/strategies/${id}/current`, {
+        headers: this.getAuthHeaders()
+      });
+
+      // Verificar se a resposta tem o formato esperado
+      if (response.data && 'success' in response.data) {
+        const apiResponse = response.data;
+        
+        if (apiResponse.subscriptionRequired) {
+          console.warn('Acesso limitado: assinatura necessária para acesso às estratégias');
+          return null;
+        }
+        
+        return apiResponse.data || null;
+      } else {
+        // Formato antigo - objeto direto
+        return response.data;
       }
-      
-      // Extrair dados da estratégia do objeto da roleta
-      const strategy = {
-        estado: roulette.estado_estrategia || 'NEUTRAL',
-        numero_gatilho: roulette.numero_gatilho || null,
-        terminais_gatilho: roulette.terminais_gatilho || [],
-        vitorias: roulette.vitorias || 0,
-        derrotas: roulette.derrotas || 0,
-        sugestao_display: roulette.sugestao_display || ''
-      };
-      
-      console.log(`[API] ✅ Estratégia obtida para roleta ${numericId}`);
-      return strategy;
     } catch (error) {
-      console.error(`[API] Erro ao buscar estratégia para roleta ${id}:`, error);
+      console.error(`Error fetching current strategy for roulette ${id}:`, error);
       return null;
     }
   },
@@ -119,20 +143,35 @@ export const RouletteApi = {
    * @returns Array com até 1000 números históricos
    */
   async fetchRouletteHistory(rouletteName: string) {
+    console.log(`Fetching historical numbers for roulette: ${rouletteName}`);
     try {
-      console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
-      
-      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
-      
-      if (!response.data || !Array.isArray(response.data)) {
-        console.error('[API] Resposta inválida do histórico:', response.data);
-        return [];
+      const response = await axios.get<ApiResponse<any[]>>(`/api/roulettes/${encodeURIComponent(rouletteName)}/numbers?limit=1000`, {
+        headers: this.getAuthHeaders()
+      });
+
+      // Verificar se a resposta tem o formato esperado
+      if (response.data && 'success' in response.data) {
+        const apiResponse = response.data;
+        
+        if (apiResponse.subscriptionRequired) {
+          console.warn('Acesso limitado: assinatura necessária para acesso ao histórico completo');
+          // Retornar dados limitados se disponíveis
+          if (apiResponse.limitedData && apiResponse.data) {
+            return apiResponse.data;
+          }
+          return [];
+        }
+        
+        return apiResponse.data || [];
+      } else if (Array.isArray(response.data)) {
+        // Formato antigo - array direto
+        return response.data;
       }
       
-      console.log(`[API] ✅ Obtidos ${response.data.length} números históricos`);
-      return response.data;
+      console.error('Resposta inválida ao buscar números da roleta:', response.data);
+      return [];
     } catch (error) {
-      console.error(`[API] Erro ao buscar histórico da roleta ${rouletteName}:`, error);
+      console.error(`Error fetching numbers for roulette ${rouletteName}:`, error);
       return [];
     }
   }

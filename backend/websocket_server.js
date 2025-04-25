@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
+const jwt = require('jsonwebtoken');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -12,6 +13,7 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
+const JWT_SECRET = process.env.JWT_SECRET || 'seu_segredo_jwt_padrao';
 
 // Informações de configuração
 console.log('==== Configuração do Servidor WebSocket ====');
@@ -385,13 +387,67 @@ app.get('/api/roulettes', async (req, res) => {
   }
 });
 
-// Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
-app.get('/api/ROULETTES', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
-  console.log('[API] Query params:', req.query);
+// Middleware para verificar autenticação
+const verifyToken = (req, res, next) => {
+  // Obter token do cabeçalho
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
   
-  // Aplicar cabeçalhos CORS explicitamente para esta rota
-  res.header('Access-Control-Allow-Origin', '*');
+  // Se não tiver token, marcar request como não autenticado mas continuar
+  if (!token) {
+    req.authenticated = false;
+    req.user = null;
+    return next();
+  }
+  
+  // Verificar token
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    req.authenticated = true;
+    next();
+  } catch (error) {
+    console.error('[Auth] Erro ao verificar token:', error.message);
+    req.authenticated = false;
+    req.user = null;
+    next();
+  }
+};
+
+// Função para verificar assinatura do usuário no banco de dados
+async function checkSubscription(userId) {
+  if (!userId || !isConnected) return null;
+  
+  try {
+    // Verificar na coleção de assinaturas
+    const subscription = await db.collection('subscriptions').findOne({
+      user_id: userId,
+      status: { $in: ['active', 'ACTIVE', 'ativa'] }
+    });
+    
+    if (subscription) return subscription;
+    
+    // Verificar no formato alternativo de assinatura
+    const assinatura = await db.collection('assinaturas').findOne({
+      usuario: userId,
+      status: 'ativa',
+      validade: { $gt: new Date() }
+    });
+    
+    return assinatura;
+  } catch (error) {
+    console.error('[Subscription] Erro ao verificar assinatura:', error);
+    return null;
+  }
+}
+
+// Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
+app.get('/api/ROULETTES', verifyToken, async (req, res) => {
+  console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
+  console.log('[API] Autenticado:', req.authenticated, 'UserID:', req.user?.id);
+  
+  // Aplicar cabeçalhos CORS de forma mais restritiva
+  res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
@@ -410,9 +466,31 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
-    // Parâmetros de paginação
-    const limit = parseInt(req.query.limit) || 200;
-    console.log(`[API] Usando limit: ${limit}`);
+    // Verificar status da assinatura se o usuário estiver autenticado
+    let hasActiveSubscription = false;
+    let userPlan = null;
+    
+    if (req.authenticated && req.user && req.user.id) {
+      const subscription = await checkSubscription(req.user.id);
+      hasActiveSubscription = !!subscription;
+      userPlan = subscription?.plan_id || subscription?.plano;
+      console.log(`[API] Usuário ${req.user.id} - Assinatura ativa: ${hasActiveSubscription}, Plano: ${userPlan}`);
+    } else {
+      console.log('[API] Usuário não autenticado ou sem ID');
+    }
+    
+    // Definir limite com base no status da assinatura
+    let limit = 10; // Limite padrão para usuários sem assinatura
+    
+    if (hasActiveSubscription) {
+      // Usuários com assinatura recebem o limite solicitado ou o padrão
+      limit = parseInt(req.query.limit) || 200;
+    } else if (req.query.sample === 'true') {
+      // Permitir uma amostra maior para apresentação
+      limit = 20;
+    }
+    
+    console.log(`[API] Usando limit: ${limit} para usuário ${hasActiveSubscription ? 'com assinatura' : 'sem assinatura'}`);
     
     // Buscar histórico de números ordenados por timestamp
     const numeros = await collection
@@ -429,11 +507,30 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
-    // Log de alguns exemplos para diagnóstico
-    console.log('[API] Exemplos de dados retornados:');
-    console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
+    // Adicionar metadata de assinatura para o frontend
+    const result = {
+      data: numeros,
+      meta: {
+        authenticated: req.authenticated,
+        subscriptionActive: hasActiveSubscription,
+        plan: userPlan,
+        totalAvailable: count,
+        limited: !hasActiveSubscription,
+        limit: limit
+      }
+    };
     
-    return res.json(numeros);
+    // Para usuários não assinantes, retornar a resposta completa
+    if (hasActiveSubscription) {
+      return res.json(numeros); // Manter compatibilidade com o frontend existente
+    }
+    
+    // Para usuários sem assinatura, indicar explicitamente a limitação
+    return res.json({
+      data: numeros,
+      subscriptionRequired: true,
+      message: "Visualização limitada. Assine um plano para acesso completo."
+    });
   } catch (error) {
     console.error('[API] Erro ao listar roletas ou histórico:', error);
     res.status(500).json({ error: 'Erro interno ao buscar dados' });
