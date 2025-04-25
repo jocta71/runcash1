@@ -488,7 +488,9 @@ const Index = () => {
         
         {/* Botão centralizado que sobrepõe os esqueletos */}
         <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50">
+          <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center">
+            <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
+            <p className="text-white/80 mb-8 max-w-md">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
             <Button 
               asChild
               className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20"
