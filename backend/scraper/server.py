@@ -17,7 +17,6 @@ from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 import hashlib
 import uuid
-from flask_compress import Compress
 
 # Importações locais
 from data_source_mongo import MongoDataSource
@@ -34,7 +33,6 @@ app = Flask(__name__)
 # Configurar CORS para permitir solicitações do frontend
 allowed_origins = os.environ.get('ALLOWED_ORIGINS', 'https://runcashnew-frontend-nu.vercel.app,https://runcashnew.vercel.app,https://seu-projeto.vercel.app,http://localhost:3000,http://localhost:5173,https://788b-146-235-26-230.ngrok-free.app,https://new-run-zeta.vercel.app')
 CORS(app, resources={r"/api/*": {"origins": allowed_origins.split(','), "supports_credentials": True}})
-Compress(app)  # Adicionar compressão
 
 # Fonte de dados
 data_source = MongoDataSource()
@@ -56,68 +54,9 @@ def get_roletas():
 
 @app.route('/api/roulettes', methods=['GET'])
 def get_roulettes():
-    """Returns the list of available roulettes from MongoDB with pagination and basic data only"""
-    # Parâmetros de paginação
-    page = request.args.get('page', 1, type=int)
-    limit = request.args.get('limit', 10, type=int)
-    skip = (page - 1) * limit
-
-    # Verificar se o cliente solicitou contagem total
-    count_only = request.args.get('count_only', 'false').lower() == 'true'
-    if count_only:
-        total = data_source.db.roletas.count_documents({})
-        return jsonify({"total": total})
-        
-    # Buscar apenas campos básicos
-    projection = {
-        '_id': 0, 
-        'id': 1, 
-        'nome': 1, 
-        'status': 1, 
-        'dealer': 1, 
-        'players': 1, 
-        'is_open': 1,
-        'estado_estrategia': 1,
-        'vitorias': 1,
-        'derrotas': 1
-    }
-    
-    # Opcionalmente incluir uma amostra de números (últimos 5)
-    include_sample = request.args.get('include_sample', 'true').lower() == 'true'
-    if include_sample:
-        projection['numero'] = {'$slice': -5}  # Apenas os últimos 5 números
-    
-    # Buscar roletas com paginação
-    roulettes = list(data_source.db.roletas.find({}, projection).skip(skip).limit(limit))
-    
-    # Obter contagem total para metadados de paginação
-    total = data_source.db.roletas.count_documents({})
-    
-    # Retornar com metadados de paginação
-    return jsonify({
-        "data": roulettes,
-        "pagination": {
-            "total": total,
-            "page": page,
-            "limit": limit,
-            "pages": (total + limit - 1) // limit  # Arredondamento para cima
-        }
-    })
-
-@app.route('/api/roulettes/basic', methods=['GET'])
-def get_roulettes_basic():
-    """Returns just the basic information of all roulettes without numbers"""
-    # Buscar apenas campos básicos para todas as roletas
-    projection = {
-        '_id': 0, 
-        'id': 1, 
-        'nome': 1, 
-        'status': 1,
-        'estado_estrategia': 1
-    }
-    
-    roulettes = list(data_source.db.roletas.find({}, projection))
-    return jsonify(roulettes)
+    """Returns the list of available roulettes from MongoDB"""
+    roulettes = data_source.db.roletas.find({}, {'_id': 0})
+    return jsonify(list(roulettes))
 
 @app.route('/api/roletas/<roleta_id>', methods=['GET'])
 def get_roleta(roleta_id):
@@ -130,19 +69,9 @@ def get_roleta(roleta_id):
 @app.route('/api/roulettes/<roulette_id>', methods=['GET'])
 def get_roulette(roulette_id):
     """Returns information about a specific roulette by ID"""
-    # Parâmetro para controlar quantos números retornar
-    limit_numbers = request.args.get('limit_numbers', 50, type=int)
-    
-    # Buscar roleta específica
     roulette = data_source.db.roletas.find_one({'id': roulette_id}, {'_id': 0})
-    
     if not roulette:
         return jsonify({'error': 'Roulette not found'}), 404
-    
-    # Se existir o campo 'numero', limitar a quantidade retornada
-    if 'numero' in roulette and isinstance(roulette['numero'], list):
-        roulette['numero'] = roulette['numero'][-limit_numbers:]
-    
     return jsonify(roulette)
 
 @app.route('/api/roletas/<roleta_id>/numeros', methods=['GET'])
@@ -190,60 +119,46 @@ def get_roleta_numeros(roleta_id):
 
 @app.route('/api/roulettes/<roulette_id>/numbers', methods=['GET'])
 def get_roulette_numbers(roulette_id):
-    """Returns only the numbers for a specific roulette"""
-    # Parâmetros para controlar a quantidade e paginação
-    limit = request.args.get('limit', 100, type=int)
-    offset = request.args.get('offset', 0, type=int)
+    """Returns the numbers of a specific roulette"""
+    # Log the request
+    print(f"[API] Received request for roulette numbers: {roulette_id}")
     
-    # Buscar roleta específica, apenas com campo numero
-    roulette = data_source.db.roletas.find_one(
-        {'id': roulette_id}, 
-        {'_id': 0, 'numero': {'$slice': [offset, limit]}, 'nome': 1, 'id': 1}
-    )
+    # Number of numbers to return
+    limit = int(request.args.get('limit', 50))
     
+    # Remove UUID conversion and use original ID
+    # Check if the roulette exists
+    roulette = data_source.db.roletas.find_one({'id': roulette_id}, {'_id': 0})
     if not roulette:
+        print(f"[API] Roulette not found by ID: {roulette_id}")
         return jsonify({'error': 'Roulette not found'}), 404
     
-    return jsonify({
-        'id': roulette.get('id'),
-        'nome': roulette.get('nome'),
-        'numeros': roulette.get('numero', []),
-        'total': len(roulette.get('numero', [])),
-        'limit': limit,
-        'offset': offset
-    })
-
-# Endpoint de compatibilidade para manter o sistema funcionando
-@app.route('/api/ROULETTES', methods=['GET'])
-def get_roulettes_legacy():
-    """Compatibility endpoint that returns data in the old format but with limits"""
-    # Verificar se o cliente quer dados completos ou básicos
-    basic_only = request.args.get('basic', 'false').lower() == 'true'
+    print(f"[API] Roulette found: {roulette['nome']}")
     
-    if basic_only:
-        return get_roulettes_basic()
+    # Get the roulette numbers
+    raw_numbers = data_source.obter_ultimos_numeros(roulette_id, limit)
+    print(f"[API] Raw numbers obtained: {len(raw_numbers)}")
     
-    # Limitar o número de dados retornados
-    limit = request.args.get('limit', 10, type=int)
+    # Convert to format with more information
+    numbers = []
+    for i, num in enumerate(raw_numbers):
+        color = data_source.obter_cor_numero(num)
+        timestamp = data_source.obter_timestamp_numero(roulette_id, num, i)
+        numbers.append({
+            "numero": num,
+            "cor": color,
+            "timestamp": timestamp
+        })
     
-    # Se o limite for muito alto, forçar um valor máximo
-    if limit > 50:
-        logger.warning(f"Limite muito alto ({limit}) solicitado para /api/ROULETTES, reduzindo para 50")
-        limit = 50
+    response = {
+        "roulette_id": roulette_id,
+        "roulette_name": roulette['nome'],
+        "numbers": numbers,
+        "total": len(numbers)
+    }
     
-    # Buscar roletas com limite
-    roulettes = list(data_source.db.roletas.find({}, {'_id': 0}).limit(limit))
-    
-    # Se solicitado explicitamente para incluir todos os números
-    include_all_numbers = request.args.get('include_all_numbers', 'false').lower() == 'true'
-    
-    # Limitar o número de números retornados por roleta se não for solicitado explicitamente
-    if not include_all_numbers:
-        for roulette in roulettes:
-            if 'numero' in roulette and isinstance(roulette['numero'], list):
-                roulette['numero'] = roulette['numero'][-20:]  # Apenas os últimos 20 números
-    
-    return jsonify(roulettes)
+    print(f"[API] Formatted response for '{roulette['nome']}': {len(numbers)} numbers")
+    return jsonify(response)
 
 @app.route('/api/roletas/<roleta_id>/numeros', methods=['POST'])
 def add_roleta_numero(roleta_id):

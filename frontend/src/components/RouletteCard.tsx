@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { useRouletteSettingsStore } from '@/stores/rouletteSettingsStore';
 import { cn } from '@/lib/utils';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
-import { fetchWithCorsSupport } from '@/utils/api';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -105,9 +104,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
-  const [isHovered, setIsHovered] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [detailedData, setDetailedData] = useState<any>(null);
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -130,10 +126,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   
   // Referência ao gerenciador global
   const dataManager = useMemo(() => GlobalRouletteDataManager.getInstance(), []);
-  
-  // Controlar quantidade de números que estão sendo exibidos
-  const initialNumberCount = 10; // Começar com poucos números
-  const [visibleNumberCount, setVisibleNumberCount] = useState(initialNumberCount);
   
   // Função para lidar com atualizações de dados
   const handleDataUpdate = useCallback((allRoulettes: any[]) => {
@@ -358,147 +350,80 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
   };
 
-  // Função para carregar mais números quando necessário
-  const loadMoreNumbers = useCallback(async () => {
-    if (isLoading || (detailedData && detailedData.numero && detailedData.numero.length >= 50)) {
-      return; // Já está carregando ou já tem muitos números
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      // Buscar mais números da roleta específica
-      const response = await fetchWithCorsSupport(`/api/roulettes/${data.id}/numbers?limit=50`);
-      
-      if (response && response.numeros) {
-        setDetailedData({
-          ...data,
-          numero: response.numeros
-        });
-        
-        // Aumentar a quantidade de números visíveis
-        setVisibleNumberCount(Math.min(50, response.numeros.length));
-      }
-    } catch (err) {
-      console.error('Erro ao carregar mais números:', err);
-      setError('Não foi possível carregar mais números');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [data, isLoading, detailedData]);
-  
-  // Carregar mais números quando hover
-  useEffect(() => {
-    if (isHovered && !detailedData) {
-      loadMoreNumbers();
-    }
-  }, [isHovered, loadMoreNumbers, detailedData]);
-  
-  // Números a serem exibidos
-  const displayNumbers = useMemo(() => {
-    // Se temos dados detalhados, usar esses números
-    if (detailedData && detailedData.numero) {
-      return detailedData.numero.slice(0, visibleNumberCount);
-    }
-    
-    // Caso contrário, usar dados básicos
-    if (data.numero && Array.isArray(data.numero)) {
-      return data.numero.slice(0, visibleNumberCount);
-    }
-    
-    return [];
-  }, [data, detailedData, visibleNumberCount]);
-
   return (
     <Card 
+      ref={cardRef}
       className={cn(
-        "transition-all duration-200 bg-gray-900/60 backdrop-blur-sm border-gray-800 overflow-hidden",
-        isHovered ? "shadow-xl scale-[1.02]" : "shadow-md"
+        "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ", 
+        "hover:border-vegas-green/50",
+        isNewNumber ? "border-vegas-green animate-pulse" : "",
+        isDetailView ? "w-full" : "w-full"
       )}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onClick={() => {
-        if (data.id) {
-          navigate(`/roleta/${data.id}`);
-        }
-      }}
+      onClick={handleCardClick}
     >
-      <CardContent className="p-4">
-        <div>
-          <div className="flex justify-between items-start mb-2">
-            <div>
-              <h3 className="text-lg font-semibold text-white truncate">
-                {data.nome || data.name || "Roleta sem nome"}
-              </h3>
-              <p className="text-xs text-gray-400">{data.dealer || "Casino Online"}</p>
-            </div>
-            <Badge variant="outline" className={data.estado_estrategia === 'ACTIVE' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}>
-              {data.estado_estrategia === 'ACTIVE' ? 'Ativo' : 'Neutro'}
+      {/* Logo de fundo com baixa opacidade e saturação 0 */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-lg">
+        <img 
+          src="/assets/icon-rabbit.svg" 
+          alt="Icon Rabbit" 
+          className="w-[95%] h-auto opacity-[0.025] grayscale filter select-none"
+          style={{ 
+            objectFit: "contain",
+            transformOrigin: "center"
+          }} 
+        />
+      </div>
+      
+      {/* Reprodutor de áudio (invisível) */}
+      <audio ref={audioRef} src="/sounds/coin.mp3" preload="auto" />
+      
+      <CardContent className="p-4 relative z-10">
+        {/* Cabeçalho */}
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-semibold truncate text-white flex items-center">
+            <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
+            {safeData.name}
+          </h3>
+          <div className="flex gap-1 items-center">
+            <Badge 
+              variant={hasRealData ? "secondary" : "default"} 
+              className={`text-xs ${hasRealData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
+            >
+              {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}
             </Badge>
           </div>
-          
-          {/* Exibição de números */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-gray-300">Últimos números</h4>
-              {isLoading && (
-                <span className="text-xs text-gray-400 flex items-center">
-                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                  Carregando...
-                </span>
-              )}
-            </div>
-            
-            <div className="flex flex-wrap gap-1">
-              {displayNumbers && displayNumbers.length > 0 ? (
-                displayNumbers.map((num, index) => (
-                  <NumberDisplay 
-                    key={index} 
-                    number={typeof num === 'object' ? num.numero : num} 
-                    size="small"
-                  />
-                ))
-              ) : (
-                <p className="text-xs text-gray-500 py-2">Sem números recentes</p>
-              )}
-            </div>
-            
-            {/* Botão para carregar mais números quando houver mais disponíveis */}
-            {isHovered && displayNumbers.length > 0 && displayNumbers.length < 50 && (
-              <button 
-                className="w-full mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors bg-transparent border border-blue-900/30 rounded-md py-1"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  loadMoreNumbers();
-                }}
-              >
-                {isLoading ? (
-                  <span className="flex items-center justify-center">
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    Carregando...
-                  </span>
-                ) : (
-                  'Ver mais números'
-                )}
-              </button>
-            )}
-          </div>
-          
-          {/* Estatísticas básicas */}
-          {data.vitorias !== undefined && data.derrotas !== undefined && (
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <div className="text-center p-1 bg-green-500/10 rounded-md">
-                <p className="text-xs text-gray-400">Vitórias</p>
-                <p className="text-lg font-semibold text-green-500">{data.vitorias}</p>
-              </div>
-              <div className="text-center p-1 bg-red-500/10 rounded-md">
-                <p className="text-xs text-gray-400">Derrotas</p>
-                <p className="text-lg font-semibold text-red-500">{data.derrotas}</p>
-              </div>
+        </div>
+        
+        {/* Números recentes */}
+        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/50" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
+          {recentNumbers.length > 0 ? (
+            recentNumbers.slice(0, 20).map((num, idx) => (
+            <NumberDisplay 
+              key={`${num}-${idx}`}
+              number={num} 
+              size="small" 
+              highlight={idx === 0 && isNewNumber}
+            />
+            ))
+          ) : (
+            <div className="text-center text-gray-400 py-2 w-full">
+              {loading ? (
+                <div className="flex items-center justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2 text-vegas-green" />
+                  Carregando números...
+                </div>
+              ) : "Nenhum número disponível"}
             </div>
           )}
         </div>
       </CardContent>
+
+      {/* Toast de notificação */}
+      {toastVisible && (
+        <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
+          {toastMessage}
+        </div>
+      )}
     </Card>
   );
 };

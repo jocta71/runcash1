@@ -3,6 +3,8 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
+const cors = require('cors');
+const compression = require('compression');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -79,6 +81,7 @@ app.get('/cors-test', (req, res) => {
 });
 
 app.use(express.json());
+app.use(compression());
 
 // Add a status endpoint to check if the server is working
 app.get('/socket-status', (req, res) => {
@@ -411,17 +414,51 @@ app.get('/api/ROULETTES', async (req, res) => {
     }
     
     // Parâmetros de paginação
-    const limit = parseInt(req.query.limit) || 200;
-    console.log(`[API] Usando limit: ${limit}`);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;  // Valor padrão reduzido de 200 para 100
+    const skip = (page - 1) * limit;
+    console.log(`[API] Usando paginação: página ${page}, limit: ${limit}, skip: ${skip}`);
     
-    // Buscar histórico de números ordenados por timestamp
+    // Verificar se devemos retornar informações completas ou apenas IDs das roletas
+    const mode = req.query.mode || 'full';
+
+    if (mode === 'basic') {
+      // Obter apenas informações básicas das roletas (similar ao endpoint /basic, para compatibilidade)
+      const roulettes = await collection.aggregate([
+        { 
+          $group: { 
+            _id: "$roleta_id", 
+            nome: { $first: "$roleta_nome" },
+            ultimo_numero: { $max: "$numero" },
+            timestamp: { $max: "$timestamp" }
+          } 
+        },
+        { 
+          $project: { 
+            _id: 0, 
+            id: "$_id",
+            nome: 1,
+            ultimo_numero: 1,
+            timestamp: 1
+          } 
+        }
+      ]).toArray();
+      
+      console.log(`[API] Retornando ${roulettes.length} roletas em modo básico`);
+      return res.json(roulettes);
+    }
+    
+    // Modo completo (padrão) - buscar histórico de números ordenados por timestamp
+    const totalCount = await collection.countDocuments();
+    
     const numeros = await collection
       .find({})
       .sort({ timestamp: -1 })
+      .skip(skip)
       .limit(limit)
       .toArray();
     
-    console.log(`[API] Retornando ${numeros.length} números do histórico`);
+    console.log(`[API] Retornando ${numeros.length} números do histórico (total ${totalCount})`);
     
     // Verificar se temos dados para retornar
     if (numeros.length === 0) {
@@ -429,14 +466,75 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
+    // Adicionar metadados de paginação na resposta
+    const response = {
+      data: numeros,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limit)
+      }
+    };
+    
     // Log de alguns exemplos para diagnóstico
     console.log('[API] Exemplos de dados retornados:');
     console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
     
+    // Se solicitado metadados (compatibilidade com clientes antigos)
+    if (req.query.includeMeta === 'true') {
+      return res.json(response);
+    }
+    
+    // Por padrão, retornar apenas o array de dados (compatibilidade com código existente)
     return res.json(numeros);
   } catch (error) {
     console.error('[API] Erro ao listar roletas ou histórico:', error);
     res.status(500).json({ error: 'Erro interno ao buscar dados' });
+  }
+});
+
+// NOVO ENDPOINT: Rota para listar dados básicos das roletas (sem números)
+app.get('/api/ROULETTES/basic', async (req, res) => {
+  console.log('[API] Requisição recebida para /api/ROULETTES/basic');
+  
+  // Aplicar cabeçalhos CORS explicitamente para esta rota
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json([]);
+    }
+    
+    // Obter roletas únicas da coleção com apenas dados básicos
+    const roulettes = await collection.aggregate([
+      { 
+        $group: { 
+          _id: "$roleta_id", 
+          nome: { $first: "$roleta_nome" },
+          ultimo_numero: { $max: "$numero" },
+          timestamp: { $max: "$timestamp" }
+        } 
+      },
+      { 
+        $project: { 
+          _id: 0, 
+          id: "$_id",
+          nome: 1,
+          ultimo_numero: 1,
+          timestamp: 1
+        } 
+      }
+    ]).toArray();
+    
+    console.log(`[API] Processadas ${roulettes.length} roletas (dados básicos)`);
+    res.json(roulettes);
+  } catch (error) {
+    console.error('[API] Erro ao listar dados básicos das roletas:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar dados básicos das roletas' });
   }
 });
 
@@ -508,6 +606,72 @@ app.get('/api/numbers/byid/:roletaId', async (req, res) => {
     res.status(500).json({ error: 'Erro interno ao buscar números' });
   }
 });
+
+// NOVO ENDPOINT: Rota otimizada para buscar números de uma roleta específica com paginação
+app.get('/api/ROULETTES/:roletaId/numbers', async (req, res) => {
+  console.log('[API] Requisição recebida para obter números de uma roleta específica');
+  
+  // Aplicar cabeçalhos CORS explicitamente para esta rota
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json({ numbers: [], total: 0 });
+    }
+    
+    const roletaId = req.params.roletaId;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    
+    console.log(`[API] Buscando números para roleta ${roletaId}. Página: ${page}, Limite: ${limit}`);
+    
+    // Obter contagem total para este ID de roleta
+    const totalCount = await collection.countDocuments({ roleta_id: roletaId });
+    
+    // Buscar números da roleta com paginação
+    const numbers = await collection
+      .find({ roleta_id: roletaId })
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    
+    // Mapear para um formato mais compacto
+    const compactNumbers = numbers.map(item => ({
+      numero: item.numero,
+      timestamp: item.timestamp,
+      cor: getNumberColor(item.numero)
+    }));
+    
+    console.log(`[API] Retornando ${compactNumbers.length} números para roleta ${roletaId} (${totalCount} total)`);
+    
+    res.json({
+      numbers: compactNumbers,
+      total: totalCount,
+      page,
+      totalPages: Math.ceil(totalCount / limit),
+      count: compactNumbers.length,
+      roletaId
+    });
+  } catch (error) {
+    console.error(`[API] Erro ao buscar números para roleta ${req.params.roletaId}:`, error);
+    res.status(500).json({ error: 'Erro interno ao buscar números da roleta' });
+  }
+});
+
+// Função para determinar a cor do número da roleta
+function getNumberColor(numero) {
+  if (numero === 0) return 'green';
+  
+  // Números vermelhos na roleta europeia
+  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  
+  return redNumbers.includes(parseInt(numero)) ? 'red' : 'black';
+}
 
 // Endpoint de compatibilidade para obter detalhes de uma roleta por ID
 app.get('/api/roletas/:id', async (req, res) => {
