@@ -152,11 +152,7 @@ const Index = () => {
   const itemsPerPage = 24;
   
   // Novos estados para o checkout
-  const [showCheckout, setShowCheckout] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState("basic"); // 'basic' é o padrão (mensal)
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
   
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
@@ -741,184 +737,14 @@ const Index = () => {
             </div>
             
             <Button 
-              onClick={() => setShowCheckout(true)}
+              asChild
               className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-6"
             >
-              <PackageOpen className="mr-2 h-5 w-5" />
-              Escolher Plano
+              <Link to={`/planos?plano=${selectedPlan}`}>
+                <PackageOpen className="mr-2 h-5 w-5" />
+                Escolher Plano
+              </Link>
             </Button>
-            
-            {/* Formulário de Checkout */}
-            {showCheckout && !paymentSuccess && (
-              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-                <div className="bg-[#131614] rounded-xl shadow-2xl border border-gray-800 max-w-md w-full p-6 relative overflow-y-auto max-h-[90vh]">
-                  <button 
-                    onClick={() => setShowCheckout(false)} 
-                    className="absolute top-3 right-3 text-gray-400 hover:text-white"
-                  >
-                    ✕
-                  </button>
-                  
-                  <h2 className="text-[#00FF00] font-bold text-xl mb-6 text-center">
-                    Finalizar Compra - Plano {selectedPlan === "basic" ? "Mensal" : "Anual"}
-                  </h2>
-                  
-                  {paymentError && (
-                    <div className="mb-4 bg-red-900/30 border border-red-500 p-3 rounded-lg text-red-100">
-                      <p className="text-sm">{paymentError}</p>
-                    </div>
-                  )}
-                  
-                  <div className="mb-6 bg-[#0d0d0d] p-4 rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-white/80">Plano:</span>
-                      <span className="text-white font-bold">
-                        {selectedPlan === "basic" ? "Mensal" : "Anual"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/80">Valor:</span>
-                      <span className="text-[#00FF00] font-bold">
-                        {selectedPlan === "basic" ? "R$ 49,00" : "R$ 99,00"}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <form className="space-y-4" onSubmit={(e) => {
-                    e.preventDefault();
-                    setIsProcessingPayment(true);
-                    setPaymentError(null);
-                    
-                    // Simulação de integração com Asaas
-                    setTimeout(() => {
-                      // Em uma implementação real, aqui seria feita a chamada para API
-                      setIsProcessingPayment(false);
-                      // Exemplo de tratamento de sucesso
-                      setPaymentSuccess(true);
-                      
-                      // Ou exemplo de tratamento de erro
-                      // setPaymentError("Não foi possível processar o pagamento. Verifique os dados e tente novamente.");
-                    }, 2000);
-                  }}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-white/80 mb-1 text-sm">Nome completo</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="Digite seu nome completo"
-                          required
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-white/80 mb-1 text-sm">CPF/CNPJ</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="000.000.000-00"
-                          required
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-white/80 mb-1 text-sm">E-mail</label>
-                        <input 
-                          type="email" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="seuemail@exemplo.com"
-                          required
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-white/80 mb-1 text-sm">Telefone</label>
-                        <input 
-                          type="tel" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="(00) 00000-0000"
-                          required
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-white/80 mb-1 text-sm">Endereço</label>
-                      <input 
-                        type="text" 
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                        placeholder="Rua, número, complemento"
-                        required
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-white/80 mb-1 text-sm">CEP</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="00000-000"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-white/80 mb-1 text-sm">Cidade/UF</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="Cidade/UF"
-                        />
-                      </div>
-                    </div>
-                    
-                    <Button 
-                      className="w-full py-3 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-6"
-                      type="submit"
-                      disabled={isProcessingPayment}
-                    >
-                      {isProcessingPayment ? (
-                        <span className="flex items-center justify-center">
-                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Processando...
-                        </span>
-                      ) : "Prosseguir para Pagamento"}
-                    </Button>
-                    
-                    <p className="text-center text-gray-500 text-xs mt-4">
-                      Você será redirecionado para a plataforma segura de pagamento do Asaas.
-                    </p>
-                  </form>
-                </div>
-                </div>
-              )}
-            
-            {/* Tela de sucesso no pagamento */}
-            {paymentSuccess && (
-              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-                <div className="bg-[#131614] rounded-xl shadow-2xl border border-gray-800 max-w-md w-full p-6 relative text-center">
-                  <div className="text-[#00FF00] text-6xl mb-4">✓</div>
-                  <h2 className="text-[#00FF00] font-bold text-xl mb-2">Pagamento Realizado com Sucesso!</h2>
-                  <p className="text-white/80 mb-6">Seu plano {selectedPlan === "basic" ? "Mensal" : "Anual"} foi ativado.</p>
-                  <p className="text-white/60 mb-8 text-sm">Você receberá um e-mail com os detalhes da sua compra.</p>
-                  
-                  <Button 
-                    onClick={() => {
-                      setPaymentSuccess(false);
-                      setShowCheckout(false);
-                      // Aqui você pode adicionar lógica para redirecionar para área de membros
-                    }}
-                    className="w-full py-3 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20"
-                  >
-                    Acessar Estatísticas
-                  </Button>
-            </div>
-          </div>
-        )}
           </div>
         </div>
       </div>
