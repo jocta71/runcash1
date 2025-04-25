@@ -5,22 +5,16 @@
   "rewrites": [
     { "source": "/api/events", "destination": "/api/proxy?path=/api/events" },
     { "source": "/api/roulettes", "destination": "/api/proxy?path=/api/roulettes" },
+    { "source": "/api/roulettes-batch", "destination": "/api/proxy?path=/api/roulettes-batch" },
+    { "source": "/api/roulettes-list", "destination": "/api/proxy?path=/api/roulettes-list" },
+    { "source": "/api/ROULETTES-optimized", "destination": "/api/proxy?path=/api/ROULETTES-optimized" },
+    { "source": "/api/diagnostico", "destination": "/api/proxy?path=/api/diagnostico" },
     { "source": "/api/strategies", "destination": "/api/proxy?path=/api/strategies" },
     { "source": "/emit-event", "destination": "/api/proxy?path=/emit-event" },
     { "source": "/test-cors", "destination": "/api/proxy?path=/test-cors" },
     { "source": "/socket-status", "destination": "/api/proxy?path=/socket-status" },
     { "source": "/historico/:roletaId", "destination": "/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "env": {
-    "VITE_WS_URL": "https://runcash1-production.up.railway.app",
-    "VITE_SSE_SERVER_URL": "https://runcash1-production.up.railway.app/api/events",
-    "VITE_API_BASE_URL": "https://runcash5.vercel.app/api",
-    "BACKEND_URL": "https://runcash1-production.up.railway.app"
-  }
-}
-,
-  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" },
     { 
       "source": "/api/asaas-create-customer",
       "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-customer"
@@ -33,4 +27,11 @@
       "source": "/api/asaas-webhook",
       "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/webhook"
     }
-  ]
+  ],
+  "env": {
+    "VITE_WS_URL": "https://runcash1-production.up.railway.app",
+    "VITE_SSE_SERVER_URL": "https://runcash1-production.up.railway.app/api/events",
+    "VITE_API_BASE_URL": "https://runcash5.vercel.app/api",
+    "BACKEND_URL": "https://runcash1-production.up.railway.app"
+  }
+}

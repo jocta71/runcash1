@@ -109,6 +109,83 @@ app.post('/api/roulettes-batch/clear-cache', async (req, res) => {
   }
 });
 
+// Rota para diagnóstico da API e conexão com o banco de dados
+app.get('/api/diagnostico', async (req, res) => {
+  try {
+    console.log('[API] Requisição de diagnóstico recebida');
+    
+    // Verificar se o módulo de banco de dados está funcionando
+    const dbModule = require('./services/database');
+    const dbStatus = {
+      isConnected: dbModule.isConnected(),
+      moduloCarregado: !!dbModule
+    };
+    
+    // Verificar se o serviço de lote está funcionando
+    const batchServiceStatus = {
+      moduloCarregado: !!batchDataService,
+      metodosDisponiveis: {
+        loadRoulettesInBatches: typeof batchDataService.loadRoulettesInBatches === 'function',
+        getAllRoulettes: typeof batchDataService.getAllRoulettes === 'function',
+        clearCache: typeof batchDataService.clearCache === 'function'
+      }
+    };
+    
+    // Tentar conectar ao banco de dados (se não estiver conectado)
+    if (!dbStatus.isConnected) {
+      try {
+        await dbModule.connectToDatabase();
+        dbStatus.conectadoComSucesso = dbModule.isConnected();
+      } catch (dbError) {
+        dbStatus.erroConexao = dbError.message;
+      }
+    }
+    
+    // Tentar buscar as collections disponíveis
+    let collectionsInfo = [];
+    if (dbStatus.isConnected || dbStatus.conectadoComSucesso) {
+      try {
+        const db = await dbModule();
+        const collections = await db.listCollections().toArray();
+        collectionsInfo = collections.map(c => c.name);
+      } catch (collError) {
+        collectionsInfo = [`Erro ao listar collections: ${collError.message}`];
+      }
+    }
+    
+    // Verificar ambiente
+    const envInfo = {
+      NODE_ENV: process.env.NODE_ENV || 'não definido',
+      PORT: process.env.PORT || 'não definido',
+      DATABASE_URL: process.env.MONGODB_URI ? 'definido (oculto)' : 'não definido',
+      DATABASE_NAME: process.env.MONGODB_DB || 'não definido'
+    };
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      status: 'Serviço ativo',
+      database: dbStatus,
+      collections: collectionsInfo,
+      batchService: batchServiceStatus,
+      environment: envInfo,
+      routesDisponiveis: [
+        '/api/roulettes-batch',
+        '/api/roulettes-list',
+        '/api/roulettes-batch/clear-cache',
+        '/api/ROULETTES-optimized'
+      ]
+    });
+  } catch (error) {
+    console.error('[API] Erro durante diagnóstico:', error);
+    res.status(500).json({
+      timestamp: new Date().toISOString(),
+      status: 'Erro no diagnóstico',
+      error: error.message,
+      stack: process.env.NODE_ENV !== 'production' ? error.stack : 'Oculto em produção'
+    });
+  }
+});
+
 // Rota principal para verificação
 app.get('/', (req, res) => {
   res.json({

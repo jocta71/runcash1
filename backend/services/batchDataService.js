@@ -38,7 +38,7 @@ async function loadRoulettesInBatches(options = {}) {
 
     // Conectar ao banco de dados
     const db = await getDb();
-    const collection = db.collection('roulette_numbers');
+    const collection = db.collection('roleta_numeros');
     
     // Criar filtro base
     const filter = roletaId ? { roleta_id: roletaId } : {};
@@ -143,7 +143,7 @@ async function getAllRoulettes(includeStatus = false) {
     
     // Conectar ao banco de dados
     const db = await getDb();
-    const collection = db.collection('roulette_numbers');
+    const collection = db.collection('roleta_numeros');
     
     // Buscar roletas únicas
     const roletas = await collection.aggregate([
