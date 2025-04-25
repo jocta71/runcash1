@@ -3,7 +3,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
-const zlib = require('zlib');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -362,23 +361,29 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Variável para armazenar o cache de resultados
-const resultsCache = {
-  roulettes: {
-    data: null,
-    timestamp: null,
-    expiresIn: 60000 // 1 minuto de validade
-  }
-};
-
-// Função para verificar se o cache é válido
-function isCacheValid(cacheKey) {
-  const cache = resultsCache[cacheKey];
-  if (!cache || !cache.data || !cache.timestamp) return false;
+// Rota para listar todas as roletas (endpoint em inglês)
+app.get('/api/roulettes', async (req, res) => {
+  console.log('[API] Requisição recebida para /api/roulettes');
   
-  const now = Date.now();
-  return (now - cache.timestamp) < cache.expiresIn;
-}
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json([]);
+    }
+    
+    // Obter roletas únicas da coleção
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
+    
+    console.log(`[API] Processadas ${roulettes.length} roletas`);
+    res.json(roulettes);
+  } catch (error) {
+    console.error('[API] Erro ao listar roletas:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+  }
+});
 
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
 app.get('/api/ROULETTES', async (req, res) => {
@@ -396,96 +401,39 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
+    // Verificar se a coleção tem dados
+    const count = await collection.countDocuments();
+    console.log(`[API] Total de documentos na coleção: ${count}`);
+    
+    if (count === 0) {
+      console.log('[API] Nenhum dado encontrado na coleção');
+      return res.json([]);
+    }
+    
     // Parâmetros de paginação
     const limit = parseInt(req.query.limit) || 200;
-    const page = parseInt(req.query.page) || 0;
-    const skip = page * limit;
-    const forceRefresh = req.query.refresh === 'true';
-    
-    console.log(`[API] Usando limit: ${limit}, page: ${page}, skip: ${skip}`);
-    
-    // Verifica se há requisição para uma roleta específica
-    const roletaId = req.query.roleta_id;
-    const cacheKey = roletaId ? `roulette_${roletaId}_${limit}_${page}` : `roulettes_all_${limit}_${page}`;
-    
-    // Verificar cache se não for forçado um refresh
-    if (!forceRefresh && resultsCache[cacheKey] && isCacheValid(cacheKey)) {
-      console.log(`[API] Retornando dados do cache para ${cacheKey}`);
-      return res.json(resultsCache[cacheKey].data);
-    }
-    
-    // Construir a query base
-    let query = {};
-    if (roletaId) {
-      query.roleta_id = roletaId;
-    }
-    
-    // Verificar contagem total para métrica
-    const totalCount = await collection.countDocuments(query);
-    console.log(`[API] Total de documentos que correspondem à query: ${totalCount}`);
-    
-    // Primeiramente, verificar quantas roletas distintas existem
-    let roletas = [];
-    
-    if (!roletaId) {
-      // Se não for filtrado por ID, buscar todas as roletas disponíveis
-      roletas = await collection.aggregate([
-        { $group: { _id: "$roleta_id", nome: { $first: "$roleta_nome" } } },
-        { $project: { _id: 0, id: "$_id", nome: 1 } }
-      ]).toArray();
-      
-      console.log(`[API] Total de roletas distintas: ${roletas.length}`);
-    }
+    console.log(`[API] Usando limit: ${limit}`);
     
     // Buscar histórico de números ordenados por timestamp
-    const pipeline = [
-      { $match: query },
-      { $sort: { timestamp: -1 } }
-    ];
-    
-    // Adicionar paginação apenas se não for um snapshot inicial
-    if (skip > 0) {
-      pipeline.push({ $skip: skip });
-    }
-    
-    pipeline.push({ $limit: limit });
-    
-    // Adicionar projeção para remover campos desnecessários
-    pipeline.push({
-      $project: {
-        _id: 0,
-        roleta_id: 1,
-        roleta_nome: 1,
-        numero: 1,
-        cor: 1,
-        timestamp: 1
-      }
-    });
-    
-    const numeros = await collection.aggregate(pipeline).toArray();
+    const numeros = await collection
+      .find({})
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .toArray();
     
     console.log(`[API] Retornando ${numeros.length} números do histórico`);
     
-    // Estruturar resposta
-    const response = {
-      data: numeros,
-      metadata: {
-        total: totalCount,
-        page: page,
-        limit: limit,
-        pages: Math.ceil(totalCount / limit),
-        roletas: roletaId ? 1 : roletas.length
-      }
-    };
+    // Verificar se temos dados para retornar
+    if (numeros.length === 0) {
+      console.log('[API] Nenhum número encontrado');
+      return res.json([]);
+    }
     
-    // Guardar no cache
-    resultsCache[cacheKey] = {
-      data: response,
-      timestamp: Date.now(),
-      expiresIn: 60000 // 1 minuto
-    };
+    // Log de alguns exemplos para diagnóstico
+    console.log('[API] Exemplos de dados retornados:');
+    console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
     
-    return res.json(response);
+    return res.json(numeros);
   } catch (error) {
     console.error('[API] Erro ao listar roletas ou histórico:', error);
     res.status(500).json({ error: 'Erro interno ao buscar dados' });
@@ -998,185 +946,4 @@ app.get('/api/status', async (req, res) => {
       error: error.message
     });
   }
-});
-
-// Rota otimizada para carregamento em massa de dados históricos
-app.get('/api/ROULETTES-optimized', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/ROULETTES-optimized');
-  console.log('[API] Query params:', req.query);
-  
-  // Aplicar cabeçalhos CORS explicitamente para esta rota
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Content-Encoding');
-  
-  // Verificar se o cliente aceita compressão gzip
-  const acceptsGzip = req.headers['accept-encoding'] && 
-                      req.headers['accept-encoding'].includes('gzip');
-  
-  try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json({ error: 'Banco de dados não conectado', data: [] });
-    }
-    
-    // Parâmetros
-    const limit = parseInt(req.query.limit) || 200;
-    const roletaId = req.query.roleta_id;
-    const format = req.query.format || 'json'; // Formato: json ou compact
-    const useStreaming = req.query.stream === 'true';
-    
-    // Cache apenas para requisições não-stream
-    if (!useStreaming) {
-      const cacheKey = `optimized_${roletaId || 'all'}_${limit}_${format}`;
-      
-      // Verificar cache (apenas para formato JSON)
-      if (format === 'json' && resultsCache[cacheKey] && isCacheValid(cacheKey)) {
-        console.log(`[API] Retornando dados do cache para ${cacheKey}`);
-        
-        if (acceptsGzip) {
-          res.header('Content-Encoding', 'gzip');
-          res.header('Content-Type', 'application/json');
-          return res.send(resultsCache[cacheKey].compressed);
-        } else {
-          return res.json(resultsCache[cacheKey].data);
-        }
-      }
-    }
-    
-    // Construir a query base
-    let query = {};
-    if (roletaId) {
-      query.roleta_id = roletaId;
-    }
-    
-    // Pipeline para buscar dados de forma mais eficiente
-    const pipeline = [
-      { $match: query },
-      { $sort: { timestamp: -1 } },
-      { $limit: limit },
-      { 
-        $project: {
-          _id: 0,
-          r: "$roleta_id",    // Nomes encurtados para diminuir o tamanho da resposta
-          n: "$roleta_nome",
-          v: "$numero",       // v de valor/value
-          c: "$cor",
-          t: "$timestamp"
-        }
-      }
-    ];
-    
-    // Se for usar streaming, configurar resposta streaming
-    if (useStreaming) {
-      console.log('[API] Usando modo streaming para grandes volumes de dados');
-      
-      // Configurar cabeçalhos para streaming
-      res.header('Content-Type', 'application/json');
-      
-      // Iniciar a resposta com um array
-      res.write('{"data":[');
-      
-      let isFirst = true;
-      const cursor = collection.aggregate(pipeline);
-      
-      // Processar cursor de forma assíncrona
-      let count = 0;
-      await cursor.forEach(doc => {
-        const separator = isFirst ? '' : ',';
-        isFirst = false;
-        
-        // Enviar documento para o cliente
-        res.write(separator + JSON.stringify(doc));
-        count++;
-      });
-      
-      // Finalizar resposta
-      res.write('],"metadata":{"count":' + count + ',"streaming":true}}');
-      return res.end();
-    } else {
-      // Busca padrão não-streaming
-      const dados = await collection.aggregate(pipeline).toArray();
-      
-      // Formatar resposta de acordo com o formato solicitado
-      const response = format === 'compact' ? 
-        { d: dados, m: { c: dados.length } } :  // formato compacto
-        { data: dados, metadata: { count: dados.length } };  // formato normal
-      
-      // Para respostas grandes que aceitam gzip, comprimir
-      if (acceptsGzip && dados.length > 50) {
-        console.log('[API] Comprimindo resposta com gzip');
-        const jsonResponse = JSON.stringify(response);
-        
-        // Comprimir dados
-        zlib.gzip(jsonResponse, (err, compressed) => {
-          if (err) {
-            console.error('[API] Erro ao comprimir dados:', err);
-            return res.json(response);
-          }
-          
-          // Armazenar no cache
-          const cacheKey = `optimized_${roletaId || 'all'}_${limit}_${format}`;
-          resultsCache[cacheKey] = {
-            data: response,
-            compressed: compressed,
-            timestamp: Date.now(),
-            expiresIn: 60000 // 1 minuto
-          };
-          
-          // Enviar resposta comprimida
-          res.header('Content-Encoding', 'gzip');
-          res.header('Content-Type', 'application/json');
-          res.send(compressed);
-        });
-      } else {
-        // Armazenar no cache (sem compressão)
-        const cacheKey = `optimized_${roletaId || 'all'}_${limit}_${format}`;
-        resultsCache[cacheKey] = {
-          data: response,
-          timestamp: Date.now(),
-          expiresIn: 60000 // 1 minuto
-        };
-        
-        return res.json(response);
-      }
-    }
-  } catch (error) {
-    console.error('[API] Erro ao processar requisição otimizada:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar dados' });
-  }
-});
-
-// Endpoint para verificar status de cache e reiniciar se necessário
-app.get('/api/cache/status', (req, res) => {
-  // Obter estatísticas do cache
-  const stats = Object.keys(resultsCache).map(key => ({
-    key,
-    age: resultsCache[key].timestamp ? Math.floor((Date.now() - resultsCache[key].timestamp) / 1000) + 's' : 'N/A',
-    valid: isCacheValid(key),
-    size: resultsCache[key].data ? 
-      JSON.stringify(resultsCache[key].data).length : 
-      (resultsCache[key].compressed ? resultsCache[key].compressed.length : 0)
-  }));
-  
-  res.json({
-    cacheEntries: stats.length,
-    entries: stats,
-    totalSize: stats.reduce((acc, entry) => acc + entry.size, 0)
-  });
-});
-
-// Endpoint para limpar o cache
-app.post('/api/cache/clear', (req, res) => {
-  const before = Object.keys(resultsCache).length;
-  
-  // Resetar o cache
-  Object.keys(resultsCache).forEach(key => {
-    delete resultsCache[key];
-  });
-  
-  res.json({
-    success: true,
-    message: `Cache limpo. Removidas ${before} entradas.`
-  });
 });

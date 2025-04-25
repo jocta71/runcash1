@@ -1,7 +1,5 @@
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
-import { exibirDiagnosticoNoConsole } from '../utils/diagnostico';
-import { compararEndpoints, verificarEndpointAtual } from '../utils/endpoint-tester';
 
 // Intervalo de polling padrão em milissegundos (4 segundos)
 const POLLING_INTERVAL = 4000;
@@ -10,13 +8,13 @@ const POLLING_INTERVAL = 4000;
 // const CACHE_TTL = 15000;
 
 // Intervalo mínimo entre requisições forçadas (4 segundos)
-const MIN_FORCE_INTERVAL = 10000;
+const MIN_FORCE_INTERVAL = 4000;
 
-// Limite padrão para requisições normais (800 itens - otimizado)
-const DEFAULT_LIMIT = 800;
+// Limite padrão para requisições normais (1000 itens)
+const DEFAULT_LIMIT = 1000;
 
-// Limite para requisições detalhadas (800 itens - otimizado)
-const DETAILED_LIMIT = 800;
+// Limite para requisições detalhadas (1000 itens)
+const DETAILED_LIMIT = 1000;
 
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
@@ -26,7 +24,7 @@ type SubscriberCallback = () => void;
  * Este serviço implementa o padrão Singleton para garantir apenas uma instância
  * e evitar múltiplas requisições à API
  */
-export class GlobalRouletteDataService {
+class GlobalRouletteDataService {
   private static instance: GlobalRouletteDataService;
   
   // Dados e estado
@@ -36,17 +34,11 @@ export class GlobalRouletteDataService {
   private pollingTimer: number | null = null;
   private subscribers: Map<string, SubscriberCallback> = new Map();
   private _currentFetchPromise: Promise<any[]> | null = null;
-  private fetchStatus: 'idle' | 'pending' | 'success' | 'error' = 'idle';
-  private fetchError: string | null = null;
   
   // Construtor privado para garantir Singleton
   private constructor() {
     console.log('[GlobalRouletteService] Inicializando serviço global de roletas');
     this.startPolling();
-    
-    // Expor o serviço no escopo global para diagnóstico
-    (window as any).__globalRouletteService = this;
-    console.log('[GlobalRouletteService] Serviço exposto globalmente para diagnóstico');
   }
 
   /**
@@ -112,122 +104,76 @@ export class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados das roletas da API (usando endpoint padrão otimizado) - método principal
+   * Busca dados das roletas da API (usando limit=1000) - método principal
    * @returns Promise com dados das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
-    try {
-      // Verificar se já existe uma requisição em andamento
+    // Evitar requisições simultâneas
+    if (this.isFetching) {
+      console.log('[GlobalRouletteService] Requisição já em andamento, aguardando...');
+      
+      // Aguardar a conclusão da requisição atual
       if (this._currentFetchPromise) {
-        console.log(`GlobalRouletteService: Já existe uma requisição em andamento, retornando a mesma promise`);
         return this._currentFetchPromise;
       }
       
-      this.setFetchStatus('pending');
+      return this.rouletteData;
+    }
+    
+    // Verificar se já fizemos uma requisição recentemente
+    const now = Date.now();
+    if (now - this.lastFetchTime < MIN_FORCE_INTERVAL) {
+      console.log(`[GlobalRouletteService] Última requisição foi feita há ${Math.round((now - this.lastFetchTime)/1000)}s. Aguardando intervalo mínimo de ${MIN_FORCE_INTERVAL/1000}s.`);
+      return this.rouletteData;
+    }
+    
+    try {
       this.isFetching = true;
       
-      // Adicionar timestamp para evitar cache do navegador
-      const timestamp = new Date().getTime();
+      // Removendo a verificação de cache para sempre buscar dados frescos
+      console.log('[GlobalRouletteService] Buscando dados atualizados da API (limit=1000)');
       
-      // Armazenar a promise para evitar requisições duplicadas
-      this._currentFetchPromise = new Promise(async (resolve, reject) => {
-        try {
-          // Primeiro tenta usar o endpoint otimizado
-          console.log(`GlobalRouletteService: Tentando buscar dados do endpoint otimizado /api/roulettes-batch, limite: ${DEFAULT_LIMIT}`);
+      // Criar e armazenar a promessa atual
+      this._currentFetchPromise = (async () => {
+        // Usar a função utilitária com suporte a CORS - com limit=1000 para todos os casos
+        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+        
+        // Verificar se os dados são válidos
+        if (data && Array.isArray(data)) {
+          console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
+          this.rouletteData = data;
+          this.lastFetchTime = now;
           
-          try {
-            // Tentar usar o endpoint otimizado primeiro
-            const optimizedResponse = await fetch(`/api/roulettes-batch?limit=${DEFAULT_LIMIT}&_t=${timestamp}&subject=poll`);
-            
-            if (optimizedResponse.ok) {
-              // Endpoint otimizado funcionou!
-              console.log(`GlobalRouletteService: Endpoint otimizado /api/roulettes-batch funcionou com sucesso!`);
-              const data = await optimizedResponse.json();
-              
-              // Processar e armazenar os dados
-              this.processRouletteData(data);
-              
-              // Atualizar timestamp da última requisição
-              this.lastFetchTime = Date.now();
-              
-              // Notificar assinantes sobre novos dados
-              this.notifySubscribers();
-              
-              this.setFetchStatus('success');
-              resolve(this.rouletteData);
-              return;
-            }
-            
-            // Se chegarmos aqui, o endpoint otimizado falhou mas não lançou exceção
-            console.warn(`GlobalRouletteService: Endpoint otimizado retornou status ${optimizedResponse.status}, tentando endpoint legado...`);
-          } catch (optimizedError) {
-            // O endpoint otimizado falhou com uma exceção
-            console.warn(`GlobalRouletteService: Falha ao acessar endpoint otimizado, tentando endpoint legado: ${optimizedError.message}`);
-          }
+          // Remover armazenamento no localStorage
+          // localStorage.setItem('global_roulette_data', JSON.stringify({
+          //   timestamp: now,
+          //   data: data
+          // }));
           
-          // Fallback para o endpoint legado
-          console.log(`GlobalRouletteService: Tentando endpoint legado /api/ROULETTES (fallback)`);
-          const legacyResponse = await fetch(`/api/ROULETTES?limit=${DEFAULT_LIMIT}&_t=${timestamp}&subject=poll`);
-          
-          if (!legacyResponse.ok) {
-            const errorText = await legacyResponse.text();
-            throw new Error(`Erro na API (endpoint legado): ${legacyResponse.status} - ${errorText}`);
-          }
-          
-          console.log(`GlobalRouletteService: Endpoint legado /api/ROULETTES usado com sucesso (fallback)`);
-          const legacyData = await legacyResponse.json();
-          
-          // Processar e armazenar os dados
-          this.processRouletteData(legacyData);
-          
-          // Atualizar timestamp da última requisição
-          this.lastFetchTime = Date.now();
-          
-          // Notificar assinantes sobre novos dados
+          // Notificar todos os assinantes sobre a atualização
           this.notifySubscribers();
           
-          this.setFetchStatus('success');
-          resolve(this.rouletteData);
-        } catch (error) {
-          console.error('Erro ao buscar dados de roletas:', error);
-          this.setFetchStatus('error', error.message);
-          reject(error);
-        } finally {
-          this.isFetching = false;
-          this._currentFetchPromise = null;
+          // Emitir evento global para outros componentes que possam estar ouvindo
+          EventService.emit('roulette:data-updated', {
+            timestamp: new Date().toISOString(),
+            count: data.length,
+            source: 'central-service'
+          });
+          
+          return data;
+        } else {
+          console.error('[GlobalRouletteService] Resposta inválida da API');
+          return this.rouletteData;
         }
-      });
+      })();
       
-      return this._currentFetchPromise;
+      return await this._currentFetchPromise;
     } catch (error) {
-      console.error('Erro ao iniciar busca de dados de roletas:', error);
-      this.setFetchStatus('error', error.message);
+      console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
+      return this.rouletteData;
+    } finally {
       this.isFetching = false;
       this._currentFetchPromise = null;
-      throw error;
-    }
-  }
-  
-  /**
-   * Processa os dados recebidos da API
-   * @param data Dados recebidos da API
-   */
-  private processRouletteData(data: any): void {
-    // Armazenar os dados
-    if (Array.isArray(data)) {
-      this.rouletteData = data;
-      console.log(`GlobalRouletteService: Dados atualizados com sucesso. Total de roletas: ${data.length}`);
-      
-      // Contar números para diagnóstico
-      const totalNumeros = this.contarNumerosTotais(data);
-      console.log(`GlobalRouletteService: Total de números em todas as roletas: ${totalNumeros}`);
-    } else if (data.data && Array.isArray(data.data)) {
-      // Formato alternativo com wrapper de sucesso
-      this.rouletteData = data.data;
-      console.log(`GlobalRouletteService: Dados atualizados com sucesso (formato wrapper). Total de roletas: ${data.data.length}`);
-    } else {
-      console.warn(`GlobalRouletteService: Formato inesperado na resposta da API:`, data);
-      this.rouletteData = [];
     }
   }
   
@@ -343,7 +289,7 @@ export class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados detalhados (usando endpoint padrão) - método mantido para compatibilidade
+   * Busca dados detalhados (usando limit=1000) - método mantido para compatibilidade
    */
   public async fetchDetailedRouletteData(): Promise<any[]> {
     // Método mantido apenas para compatibilidade, mas agora usa o mesmo método principal
@@ -366,53 +312,10 @@ export class GlobalRouletteDataService {
     this.subscribers.clear();
     console.log('[GlobalRouletteService] Serviço encerrado e recursos liberados');
   }
-
-  /**
-   * Realiza um diagnóstico completo da aplicação e exibe no console
-   * Útil para depuração e solução de problemas
-   */
-  public async realizarDiagnostico(): Promise<void> {
-    console.log('[GlobalRouletteService] Iniciando diagnóstico completo');
-    try {
-      await exibirDiagnosticoNoConsole();
-    } catch (error) {
-      console.error('[GlobalRouletteService] Erro durante o diagnóstico:', error);
-    }
-  }
-
-  /**
-   * Define o status atual da busca de dados
-   * @param status O novo status da busca
-   * @param errorMessage Mensagem de erro opcional (apenas para status 'error')
-   */
-  private setFetchStatus(status: 'idle' | 'pending' | 'success' | 'error', errorMessage: string | null = null) {
-    this.fetchStatus = status;
-    this.fetchError = status === 'error' ? errorMessage : null;
-    
-    // Notificar sobre mudança de status se necessário
-    console.log(`GlobalRouletteDataService: Status da busca alterado para ${status}${errorMessage ? ': ' + errorMessage : ''}`);
-  }
 }
 
 // Exportar a instância única do serviço
 const globalRouletteDataService = GlobalRouletteDataService.getInstance();
-
-// Expor o serviço globalmente para diagnóstico via console
-(window as any).__runcashDiagnostico = () => {
-  return globalRouletteDataService.realizarDiagnostico();
-};
-
-// Adicionar função para comparar endpoints
-(window as any).__runcashCompararEndpoints = compararEndpoints;
-
-// Adicionar função para verificar o endpoint atual
-(window as any).__runcashVerificarEndpoint = verificarEndpointAtual;
-
-// Adicionar função para forçar atualização
-(window as any).__runcashForceUpdate = () => {
-  console.log('[Console] Forçando atualização de dados das roletas...');
-  return globalRouletteDataService.forceUpdate();
-};
-
 export default globalRouletteDataService;
-// Exportamos apenas uma vez a classe para evitar redeclaração 
+// Também exportar a classe para permitir o uso de getInstance() diretamente
+export { GlobalRouletteDataService }; 
