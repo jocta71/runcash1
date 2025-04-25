@@ -3,7 +3,7 @@ import { AlertCircle, PackageOpen, Loader2, Copy } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
 import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
 import Layout from '@/components/Layout';
-import { RouletteRepository } from '../services/data/rouletteRepository';
+import { RouletteRepository, RouletteRepositoryInterface } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService, { RouletteNumberEvent, StrategyUpdateEvent } from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
@@ -368,34 +368,21 @@ const Index = () => {
   const loadRouletteData = useCallback(async () => {
     if (!isMounted.current) return;
     
+    console.log('[Index] 🔄 Carregando dados de roletas...');
+    
     try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Verificar se o usuário tem assinatura ativa antes de carregar dados completos
       if (hasActivePlan) {
-        // Usar o throttler para evitar múltiplas chamadas simultâneas
-        const result = await RequestThrottler.scheduleRequest(
-          'index_roulettes',
-          async () => {
-            console.log('📊 Buscando roletas disponíveis...');
-            const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
-            console.log(`✅ ${response.length} roletas encontradas`);
-            return response;
-          }
-        );
+        const fetchedRoulettes = await RouletteRepository.fetchAllRoulettesWithNumbers();
         
-        if (result && Array.isArray(result)) {
-          // Mesclar com roletas conhecidas
-          const merged = mergeRoulettes(result, knownRoulettes);
-          setRoulettes(merged);
+        if (fetchedRoulettes && Array.isArray(fetchedRoulettes) && fetchedRoulettes.length > 0) {
+          console.log(`[Index] ✅ ${fetchedRoulettes.length} roletas carregadas com sucesso`);
           
-          // Atualizar roletas conhecidas se tivermos novos dados
-          if (result.length > 0) {
-            setKnownRoulettes(prev => mergeRoulettes(prev, result));
-          }
+          // Aplicar o mergeRoulettes para manter o estado dos dados
+          const newRoulettes = mergeRoulettes(fetchedRoulettes, knownRoulettes);
+          setRoulettes(newRoulettes);
           
-          // Definir que os dados foram totalmente carregados
+          // Salvar dados offline
+          setKnownRoulettes(fetchedRoulettes);
           setDataFullyLoaded(true);
         } else {
           // Se falhar, usar roletas conhecidas
@@ -410,12 +397,20 @@ const Index = () => {
       } else {
         // Usuário sem plano ativo - carregar apenas informações básicas para os skeletons
         console.log('🔒 Usuário sem plano ativo - carregando apenas dados básicos');
-        const basicInfo = await RouletteRepository.fetchBasicRouletteInfo();
         
-        if (basicInfo && Array.isArray(basicInfo)) {
-          setRoulettes(basicInfo);
-          setDataFullyLoaded(true);
-        } else {
+        try {
+          // @ts-ignore - Ignorando erro de tipagem temporariamente
+          const basicInfo = await RouletteRepository.fetchBasicRouletteInfo();
+          
+          if (basicInfo && Array.isArray(basicInfo)) {
+            setRoulettes(basicInfo);
+            setDataFullyLoaded(true);
+          } else {
+            setRoulettes([]);
+            setDataFullyLoaded(true);
+          }
+        } catch (err) {
+          console.error('❌ Erro ao buscar dados básicos:', err);
           setRoulettes([]);
           setDataFullyLoaded(true);
         }
@@ -848,22 +843,18 @@ const Index = () => {
           
           {/* Painel lateral */}
           <div className="w-full lg:w-1/2">
-            {hasActivePlan ? (
-              selectedRoulette ? (
-                <RouletteSidePanelStats
-                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
-                  lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
-                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
-                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
-                  providers={[]} // Se houver uma lista de provedores disponível, passe aqui
-                />
-              ) : (
-                <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-4 flex items-center justify-center h-48">
-                  <p className="text-gray-400">Selecione uma roleta para ver suas estatísticas</p>
-                </div>
-              )
+            {selectedRoulette ? (
+              <RouletteSidePanelStats
+                roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
+                lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
+                wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
+                losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                providers={[]} // Se houver uma lista de provedores disponível, passe aqui
+              />
             ) : (
-              <RouletteSidePanelSkeleton />
+              <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-4 flex items-center justify-center h-48">
+                <p className="text-gray-400">Selecione uma roleta para ver suas estatísticas</p>
+              </div>
             )}
           </div>
         </div>
