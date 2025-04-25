@@ -220,11 +220,40 @@ const Index = () => {
 
   const { user } = useAuth();
   const { toast } = useToast();
-  const { currentSubscription, currentPlan, hasFeatureAccess } = useSubscription();
+  const { currentSubscription, currentPlan, hasFeatureAccess, loadUserSubscription } = useSubscription();
   
-  // Verificar se o usuário tem acesso aos recursos pagos
-  const hasRouletteCardsAccess = hasFeatureAccess('view_roulette_cards');
-  const hasSidePanelAccess = hasFeatureAccess('view_roulette_sidepanel');
+  // Verificar se o usuário tem acesso aos recursos pagos - debug para identificar problemas
+  console.log('[Index] Assinatura atual:', currentSubscription); 
+  console.log('[Index] Plano atual:', currentPlan);
+  
+  // Verificação de acesso para recursos premium
+  // Verificar acesso com base na assinatura atual do usuário
+  const hasRouletteCardsAccess = useMemo(() => {
+    if (!currentSubscription) return false;
+    
+    // Se tem assinatura ativa e não é gratuita, tem acesso
+    return currentSubscription.active && currentSubscription.planType !== 'free';
+  }, [currentSubscription]);
+  
+  const hasSidePanelAccess = useMemo(() => {
+    if (!currentSubscription) return false;
+    
+    // Se tem assinatura ativa e é do tipo pago, tem acesso
+    return currentSubscription.active && 
+           ['basic', 'premium', 'enterprise'].includes(currentSubscription.planType);
+  }, [currentSubscription]);
+  
+  // Verificar condição para renderização - estado de carregamento, erro ou sem acesso
+  const showSubscriptionSelector = useMemo(() => {
+    // Se está carregando, não mostra seletor
+    if (isLoadingSubscription) return false;
+    
+    // Se não tem acesso aos cards da roleta, mostra seletor de plano
+    return !hasRouletteCardsAccess;
+  }, [hasRouletteCardsAccess, isLoadingSubscription]);
+  
+  console.log('[Index] Tem acesso aos cards:', hasRouletteCardsAccess);
+  console.log('[Index] Tem acesso ao painel lateral:', hasSidePanelAccess);
   
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
@@ -463,6 +492,15 @@ const Index = () => {
       }
     };
   }, [loadRouletteData, dataFullyLoaded, mergeRoulettes]);
+  
+  // Efeito para forçar o recarregamento das informações de assinatura
+  useEffect(() => {
+    if (user && loadUserSubscription) {
+      console.log('[Index] Forçando atualização das informações de assinatura');
+      // Passar true para forçar o recarregamento ignorando cache
+      loadUserSubscription(true);
+    }
+  }, [user, loadUserSubscription]);
   
   // Simplificar para usar diretamente as roletas
   // const filteredRoulettes = roulettes; // Remover esta linha
@@ -812,8 +850,25 @@ const Index = () => {
           </div>
         )}
         
-        {/* Se o usuário tiver acesso aos recursos pagos, mostrar o conteúdo normal */}
-        {hasRouletteCardsAccess ? (
+        {/* Conteúdo principal - condição ajustada para verificar se tem assinatura paga ou está carregando */}
+        {isLoading ? (
+          <div className="flex flex-col lg:flex-row gap-6">
+            <div className="w-full lg:w-1/2">
+              <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">
+                <div className="flex justify-between items-center">
+                  <div className="h-8 w-32 bg-gray-800 rounded animate-pulse"></div>
+                  <div className="h-8 w-20 bg-gray-800 rounded animate-pulse"></div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderRouletteSkeletons()}
+              </div>
+            </div>
+            <div className="w-full lg:w-1/2">
+              <RouletteSidePanelSkeleton />
+            </div>
+          </div>
+        ) : hasRouletteCardsAccess ? (
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Cards de roleta à esquerda */}
             <div className="w-full lg:w-1/2">
@@ -834,18 +889,10 @@ const Index = () => {
                 </div>
               </div>
               
-              {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {renderRouletteSkeletons()}
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {renderRouletteCards()}
-                  </div>
-                  {renderPagination()}
-                </>
-              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {renderRouletteCards()}
+              </div>
+              {renderPagination()}
             </div>
             
             {/* Painel lateral (lado direito) */}
@@ -890,227 +937,202 @@ const Index = () => {
           </div>
         ) : (
           <>
-            {/* Layout em esqueleto em segundo plano (com opacidade reduzida) */}
-            <div className="flex flex-col lg:flex-row gap-6 opacity-60">
-              {/* Cards de roleta à esquerda em modo esqueleto */}
-              <div className="w-full lg:w-1/2">
-                {/* Filtro de roletas em skeleton */}
-                <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">
-                  <div className="flex justify-between items-center">
-                    <div className="h-8 w-32 bg-gray-800 rounded animate-pulse"></div>
-                    <div className="h-8 w-20 bg-gray-800 rounded animate-pulse"></div>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {renderRouletteSkeletons()}
-                </div>
-              </div>
+            {/* Layout de planos para usuários sem assinatura */}
+            <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center max-w-xl w-full mx-auto">
+              <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
+              <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
               
-              {/* Painel lateral em modo esqueleto */}
-              <div className="w-full lg:w-1/2">
-                <RouletteSidePanelSkeleton />
-              </div>
-            </div>
-            
-            {/* Botão centralizado que sobrepõe os esqueletos */}
-            <div className="absolute inset-0 flex items-center justify-center z-10">
-              <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center max-w-xl w-full">
-                <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
-                <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
-                
-                {/* Estilização do seletor de planos */}
-                <style>{`
-                    .wrapper {
-                      display: flex;
-                      justify-content: center;
-                      gap: 1.5rem;
-                      width: 100%;
-                      max-width: 600px;
-                      margin: 0 auto;
-                    }
-                    
-                    .card {
-                      position: relative;
-                      width: 220px;
-                      height: 140px;
-                      padding: 1.5rem;
-                      background: #111118;
-                      border-radius: 12px;
-                      transition: all 0.3s;
-                      display: flex;
-                      align-items: center;
-                      justify-content: center;
-                      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
-                      overflow: hidden;
-                    }
-                    
-                    .card:hover {
-                      transform: translateY(-5px);
-                      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
-                    }
-                    
-                    .input {
-                      position: absolute;
-                      top: 0;
-                      left: 0;
-                      height: 100%;
-                      width: 100%;
-                      cursor: pointer;
-                      appearance: none;
-                      border: 2px solid #222;
-                      border-radius: 12px;
-                      z-index: 10;
-                      transition: all 0.3s;
-                    }
-                    
-                    .input + .check {
-                      position: absolute;
-                      top: 12px;
-                      right: 12px;
-                      z-index: 5;
-                    }
-                    
-                    .input + .check::before {
-                      content: "";
-                      display: block;
-                      width: 22px;
-                      height: 22px;
-                      border: 2px solid #444;
-                      border-radius: 50%;
-                      background-color: #111;
-                      transition: all 0.3s;
-                    }
-                    
-                    .input:checked + .check::after {
-                      content: '';
-                      position: absolute;
-                      top: 5px;
-                      right: 5px;
-                      width: 12px;
-                      height: 12px;
-                      background-color: #00FF00;
-                      border-radius: 50%;
-                      transition: all 0.3s;
-                    }
-                    
-                    .input:checked {
-                      border: 2px solid #00FF00;
-                    }
-                    
-                    .label {
-                      color: #fff;
-                      position: relative;
-                      z-index: 5;
-                      width: 100%;
-                      text-align: left;
-                      padding-right: 25px;
-                    }
-                    
-                    .label .title {
-                      font-weight: 800;
-                      font-size: 16px;
-                      letter-spacing: 1px;
-                      margin-bottom: 12px;
-                      text-transform: uppercase;
-                      color: #eee;
-                    }
-                    
-                    .label .price {
-                      font-size: 24px;
-                      font-weight: 900;
-                      color: #fff;
-                      display: flex;
-                      align-items: flex-end;
-                    }
-                    
-                    .label .span {
-                      color: #aaa;
-                      font-weight: 600;
-                      font-size: 14px;
-                      margin-left: 2px;
-                      margin-bottom: 3px;
-                    }
-                    
-                    .backdrop {
-                      position: absolute;
-                      bottom: -20px;
-                      right: -20px;
-                      width: 120px;
-                      height: 120px;
-                      border-radius: 50%;
-                      background: linear-gradient(135deg, rgba(0,255,0,0.05) 0%, rgba(0,255,0,0) 70%);
-                      z-index: 1;
-                      opacity: 0;
-                      transition: opacity 0.3s ease;
-                    }
-                    
-                    .input:checked ~ .backdrop {
-                      opacity: 1;
-                    }
-                `}</style>
-                
-                {/* Componente de seleção de planos com design moderno */}
-                <div className="py-16 bg-[#070709] text-white">
-                  <div className="max-w-5xl mx-auto text-center px-4">
-                    <h2 className="text-3xl md:text-4xl font-bold mb-8">Escolha o Plano Perfeito para Você</h2>
-                    <p className="text-gray-400 text-lg mb-12 max-w-3xl mx-auto">
-                      Acesse recursos exclusivos e aumente suas chances de sucesso
-                    </p>
-                    
-                    {/* Cards dos planos de assinatura com UI melhorada */}
-                    <div className="wrapper">
-                      {/* Plano Mensal */}
-                      <div className="card">
-                        <input 
-                          className="input" 
-                          type="radio" 
-                          name="card" 
-                          value="basic" 
-                          defaultChecked 
-                          onChange={() => setSelectedPlan("basic")}
-                        />
-                        <span className="check"></span>
-                        <label className="label">
-                          <div className="title">Mensal</div>
-                          <div className="price">
-                            R$49
-                            <span className="span">/mês</span>
-                          </div>
-                        </label>
-                        <div className="backdrop"></div>
-                      </div>
-                      
-                      {/* Plano Anual */}
-                      <div className="card">
-                        <input 
-                          className="input" 
-                          type="radio" 
-                          name="card" 
-                          value="premium" 
-                          onChange={() => setSelectedPlan("premium")}
-                        />
-                        <span className="check"></span>
-                        <label className="label">
-                          <div className="title">Anual</div>
-                          <div className="price">
-                            R$99
-                            <span className="span">/ano</span>
-                          </div>
-                        </label>
-                        <div className="backdrop"></div>
-                      </div>
+              {/* Estilização do seletor de planos */}
+              <style>{`
+                  .wrapper {
+                    display: flex;
+                    justify-content: center;
+                    gap: 1.5rem;
+                    width: 100%;
+                    max-width: 600px;
+                    margin: 0 auto;
+                  }
+                  
+                  .card {
+                    position: relative;
+                    width: 220px;
+                    height: 140px;
+                    padding: 1.5rem;
+                    background: #111118;
+                    border-radius: 12px;
+                    transition: all 0.3s;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+                    overflow: hidden;
+                  }
+                  
+                  .card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+                  }
+                  
+                  .input {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    height: 100%;
+                    width: 100%;
+                    cursor: pointer;
+                    appearance: none;
+                    border: 2px solid #222;
+                    border-radius: 12px;
+                    z-index: 10;
+                    transition: all 0.3s;
+                  }
+                  
+                  .input + .check {
+                    position: absolute;
+                    top: 12px;
+                    right: 12px;
+                    z-index: 5;
+                  }
+                  
+                  .input + .check::before {
+                    content: "";
+                    display: block;
+                    width: 22px;
+                    height: 22px;
+                    border: 2px solid #444;
+                    border-radius: 50%;
+                    background-color: #111;
+                    transition: all 0.3s;
+                  }
+                  
+                  .input:checked + .check::after {
+                    content: '';
+                    position: absolute;
+                    top: 5px;
+                    right: 5px;
+                    width: 12px;
+                    height: 12px;
+                    background-color: #00FF00;
+                    border-radius: 50%;
+                    transition: all 0.3s;
+                  }
+                  
+                  .input:checked {
+                    border: 2px solid #00FF00;
+                  }
+                  
+                  .label {
+                    color: #fff;
+                    position: relative;
+                    z-index: 5;
+                    width: 100%;
+                    text-align: left;
+                    padding-right: 25px;
+                  }
+                  
+                  .label .title {
+                    font-weight: 800;
+                    font-size: 16px;
+                    letter-spacing: 1px;
+                    margin-bottom: 12px;
+                    text-transform: uppercase;
+                    color: #eee;
+                  }
+                  
+                  .label .price {
+                    font-size: 24px;
+                    font-weight: 900;
+                    color: #fff;
+                    display: flex;
+                    align-items: flex-end;
+                  }
+                  
+                  .label .span {
+                    color: #aaa;
+                    font-weight: 600;
+                    font-size: 14px;
+                    margin-left: 2px;
+                    margin-bottom: 3px;
+                  }
+                  
+                  .backdrop {
+                    position: absolute;
+                    bottom: -20px;
+                    right: -20px;
+                    width: 120px;
+                    height: 120px;
+                    border-radius: 50%;
+                    background: linear-gradient(135deg, rgba(0,255,0,0.05) 0%, rgba(0,255,0,0) 70%);
+                    z-index: 1;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                  }
+                  
+                  .input:checked ~ .backdrop {
+                    opacity: 1;
+                  }
+              `}</style>
+              
+              {/* Componente de seleção de planos com design moderno */}
+              <div className="py-16 bg-[#070709] text-white">
+                <div className="max-w-5xl mx-auto text-center px-4">
+                  <h2 className="text-3xl md:text-4xl font-bold mb-8">Escolha o Plano Perfeito para Você</h2>
+                  <p className="text-gray-400 text-lg mb-12 max-w-3xl mx-auto">
+                    Acesse recursos exclusivos e aumente suas chances de sucesso
+                  </p>
+                  
+                  {/* Cards dos planos de assinatura com UI melhorada */}
+                  <div className="wrapper">
+                    {/* Plano Mensal */}
+                    <div className="card">
+                      <input 
+                        className="input" 
+                        type="radio" 
+                        name="card" 
+                        value="basic" 
+                        defaultChecked 
+                        onChange={() => setSelectedPlan("basic")}
+                      />
+                      <span className="check"></span>
+                      <label className="label">
+                        <div className="title">Mensal</div>
+                        <div className="price">
+                          R$49
+                          <span className="span">/mês</span>
+                        </div>
+                      </label>
+                      <div className="backdrop"></div>
                     </div>
                     
-                    {/* Botão de ação para iniciar o checkout */}
-                    <Button 
-                      onClick={() => setShowCheckout(true)}
-                      className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-8"
-                    >
-                      <PackageOpen className="mr-2 h-5 w-5" />
-                      Escolher Plano
-                    </Button>
+                    {/* Plano Anual */}
+                    <div className="card">
+                      <input 
+                        className="input" 
+                        type="radio" 
+                        name="card" 
+                        value="premium" 
+                        onChange={() => setSelectedPlan("premium")}
+                      />
+                      <span className="check"></span>
+                      <label className="label">
+                        <div className="title">Anual</div>
+                        <div className="price">
+                          R$99
+                          <span className="span">/ano</span>
+                        </div>
+                      </label>
+                      <div className="backdrop"></div>
+                    </div>
                   </div>
+                  
+                  {/* Botão de ação para iniciar o checkout */}
+                  <Button 
+                    onClick={() => setShowCheckout(true)}
+                    className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-8"
+                  >
+                    <PackageOpen className="mr-2 h-5 w-5" />
+                    Escolher Plano
+                  </Button>
                 </div>
               </div>
             </div>
