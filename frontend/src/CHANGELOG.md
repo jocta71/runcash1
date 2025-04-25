@@ -1,5 +1,16 @@
 # Changelog - RunCash v1.1.0
 
+## [1.1.1] - 2023-11-16
+
+### Alterado
+- Revertido temporariamente o uso do endpoint otimizado `/api/roulettes-batch` para o endpoint padrão `/api/ROULETTES`
+  - Os endpoints otimizados estavam retornando erro 404 (Not Found)
+  - Esta é uma mudança temporária até que o backend seja atualizado para suportar os endpoints otimizados
+
+### Melhorado
+- Adicionado monitoramento do endpoint `/api/health` no diagnóstico
+- Melhoradas as mensagens informativas no diagnóstico para indicar o uso temporário do endpoint padrão
+
 ## [1.1.0] - 2023-11-15
 
 ### Adicionado

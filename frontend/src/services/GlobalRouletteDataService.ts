@@ -109,7 +109,7 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados das roletas da API (usando endpoint otimizado roulettes-batch) - método principal
+   * Busca dados das roletas da API (usando endpoint padrão) - método principal
    * @returns Promise com dados das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
@@ -136,12 +136,12 @@ class GlobalRouletteDataService {
       this.isFetching = true;
       
       // Removendo a verificação de cache para sempre buscar dados frescos
-      console.log('[GlobalRouletteService] Buscando dados atualizados da API (usando endpoint otimizado roulettes-batch)');
+      console.log('[GlobalRouletteService] Buscando dados atualizados da API (usando endpoint padrão /api/ROULETTES)');
       
       // Criar e armazenar a promessa atual
       this._currentFetchPromise = (async () => {
-        // Usar a função utilitária com suporte a CORS - agora usando o endpoint otimizado
-        const data = await fetchWithCorsSupport<any[]>(`/api/roulettes-batch?limit=${DEFAULT_LIMIT}`);
+        // Usar a função utilitária com suporte a CORS - voltando a usar o endpoint original que funciona
+        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
         
         // Verificar se os dados são válidos
         if (data && Array.isArray(data)) {
@@ -288,59 +288,11 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados detalhados (usando endpoint otimizado) - método mantido para compatibilidade
+   * Busca dados detalhados (usando endpoint padrão) - método mantido para compatibilidade
    */
   public async fetchDetailedRouletteData(): Promise<any[]> {
-    // Evitar requisições simultâneas durante a busca de dados detalhados
-    if (this.isFetching) {
-      console.log('[GlobalRouletteService] Requisição detalhada já em andamento, aguardando...');
-      if (this._currentFetchPromise) {
-        return this._currentFetchPromise;
-      }
-      return this.rouletteData;
-    }
-    
-    try {
-      this.isFetching = true;
-      
-      console.log('[GlobalRouletteService] Buscando dados detalhados da API (usando endpoint otimizado roulettes-list)');
-      
-      // Criar e armazenar a promessa atual
-      this._currentFetchPromise = (async () => {
-        // Usar a função utilitária com suporte a CORS - agora usando o endpoint otimizado
-        const data = await fetchWithCorsSupport<any[]>(`/api/roulettes-list?limit=${DETAILED_LIMIT}`);
-        
-        // Verificar se os dados são válidos
-        if (data && Array.isArray(data)) {
-          console.log(`[GlobalRouletteService] Dados detalhados recebidos com sucesso: ${data.length} roletas`);
-          this.rouletteData = data;
-          this.lastFetchTime = Date.now();
-          
-          // Notificar todos os assinantes sobre a atualização
-          this.notifySubscribers();
-          
-          // Emitir evento global para outros componentes que possam estar ouvindo
-          EventService.emit('roulette:detailed-data-updated', {
-            timestamp: new Date().toISOString(),
-            count: data.length,
-            source: 'central-service'
-          });
-          
-          return data;
-        } else {
-          console.error('[GlobalRouletteService] Resposta inválida da API para dados detalhados');
-          return this.rouletteData;
-        }
-      })();
-      
-      return await this._currentFetchPromise;
-    } catch (error) {
-      console.error('[GlobalRouletteService] Erro ao buscar dados detalhados:', error);
-      return this.rouletteData;
-    } finally {
-      this.isFetching = false;
-      this._currentFetchPromise = null;
-    }
+    // Método mantido apenas para compatibilidade, mas agora usa o mesmo método principal
+    return this.fetchRouletteData();
   }
   
   /**
