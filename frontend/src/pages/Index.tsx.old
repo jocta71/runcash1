@@ -801,7 +801,7 @@ const Index = () => {
   };
 
   return (
-    <Layout>
+    <Layout preloadData={true}>
       <div className="container mx-auto px-4 pt-4 md:pt-8 min-h-[80vh] relative">
         {/* Mensagem de erro */}
         {error && (
@@ -820,17 +820,36 @@ const Index = () => {
                 <div className={`${!hasActivePlan ? 'h-8 w-32 bg-gray-800 rounded animate-pulse' : 'text-white font-bold'}`}>
                   {hasActivePlan ? 'Roletas Disponíveis' : ''}
                 </div>
+                <div className={`${!hasActivePlan ? 'h-8 w-20 bg-gray-800 rounded animate-pulse' : ''}`}>
+                  {hasActivePlan ? `${filteredRoulettes.length} roletas` : ''}
+                </div>
               </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {renderRouletteSkeletons()}
+              {hasActivePlan ? renderRouletteCards() : renderRouletteSkeletons()}
             </div>
           </div>
           
           {/* Painel lateral */}
           <div className="w-full lg:w-1/2">
-            <RouletteSidePanelSkeleton />
+            {hasActivePlan ? (
+              selectedRoulette ? (
+                <RouletteSidePanelStats
+                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
+                  lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
+                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
+                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                  providers={[]} // Se houver uma lista de provedores disponível, passe aqui
+                />
+              ) : (
+                <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-4 flex items-center justify-center h-48">
+                  <p className="text-gray-400">Selecione uma roleta para ver suas estatísticas</p>
+                </div>
+              )
+            ) : (
+              <RouletteSidePanelSkeleton />
+            )}
           </div>
         </div>
         
@@ -869,6 +888,21 @@ const Index = () => {
                       <div className="text-sm text-gray-400 mb-4">
                         Renovação mensal automática
                       </div>
+                      
+                      <ul className="space-y-2 mb-4">
+                        <li className="flex items-center text-gray-300">
+                          <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                          Acesso a todas estatísticas
+                        </li>
+                        <li className="flex items-center text-gray-300">
+                          <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                          Suporte especializado
+                        </li>
+                      </ul>
                     </div>
                   </div>
                   
@@ -897,6 +931,27 @@ const Index = () => {
                       <div className="text-sm text-gray-400 mb-4">
                         Economia de R$489 por ano
                       </div>
+                      
+                      <ul className="space-y-2 mb-4">
+                        <li className="flex items-center text-gray-300">
+                          <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                          Acesso a todas estatísticas
+                        </li>
+                        <li className="flex items-center text-gray-300">
+                          <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                          Suporte prioritário
+                        </li>
+                        <li className="flex items-center text-gray-300">
+                          <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                          Conteúdo exclusivo
+                        </li>
+                      </ul>
                     </div>
                   </div>
                 </div>
@@ -910,8 +965,8 @@ const Index = () => {
                 Escolher Plano
               </Button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </Layout>
   );
