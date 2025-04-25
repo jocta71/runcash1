@@ -3,7 +3,6 @@ import { Plan, PlanType, UserSubscription } from '@/types/plans';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
 import { API_URL } from '@/config/constants';
-import { setSubscriptionContext } from '@/integrations/api/rouletteApi';
 
 // Lista de planos disponíveis
 export const availablePlans: Plan[] = [
@@ -107,24 +106,13 @@ interface SubscriptionContextType {
   availablePlans: Plan[];
   loading: boolean;
   error: string | null;
-  hasFeatureAccess: (featureId: string) => Promise<boolean>;
+  hasFeatureAccess: (featureId: string) => boolean;
   upgradePlan: (planId: string) => Promise<void>;
   cancelSubscription: () => Promise<void>;
   loadUserSubscription: (forceRefresh?: boolean) => Promise<void>;
 }
 
-// Criar contexto com valor padrão
-const SubscriptionContext = createContext<SubscriptionContextType>({
-  currentSubscription: null,
-  currentPlan: null,
-  availablePlans: [],
-  loading: false,
-  error: null,
-  hasFeatureAccess: async () => false,
-  upgradePlan: async () => {},
-  cancelSubscription: async () => {},
-  loadUserSubscription: async () => {}
-});
+const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
 // Provedor de assinatura que busca os dados reais da API
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -250,75 +238,59 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         payment.status?.toLowerCase() === 'pendente'
       );
     
-    // Normalizar o status da assinatura
-    let normalizedStatus = subscriptionData.status?.toLowerCase() || '';
+    // Normalizar o status da assinatura (priorizar pagamento pendente)
+    let normalizedStatus = subscriptionData.status;
     
-    // Verificar se o status é ativo (considerando variações de maiúsculas/minúsculas)
-    const isActive = ['active', 'ativo', 'activo'].includes(normalizedStatus);
-    
-    console.log(`[SubscriptionContext] Assinatura encontrada: ID=${subscriptionData.id}, Status=${subscriptionData.status}, Valor=${subscriptionData.value}`);
-    
-    // Determinar o plano com base no valor e na descrição da assinatura
-    let planId = 'free';
-    
-    if (isActive) {
-      // Tentar determinar o plano pela descrição primeiro
-      const description = subscriptionData.description?.toLowerCase() || '';
-      if (description.includes('premium')) {
-        planId = 'premium';
-      } else if (description.includes('pro')) {
-        planId = 'pro';
-      } else if (description.includes('básico') || description.includes('basico')) {
-        planId = 'basic';
-      } else {
-        // Se não conseguir pela descrição, usar o valor
-        if (subscriptionData.value >= 99) {
-          planId = 'premium';
-        } else if (subscriptionData.value >= 49) {
-          planId = 'pro';
-        } else if (subscriptionData.value >= 19) {
-          planId = 'basic';
-        }
-      }
-      
-      console.log(`[SubscriptionContext] Plano determinado: ${planId.toUpperCase()} (baseado no valor: ${subscriptionData.value} e descrição: "${subscriptionData.description}")`);
-    } else {
-      console.log(`[SubscriptionContext] Usando plano FREE porque a assinatura não está ativa (status: ${normalizedStatus})`);
+    // Se o status vindo do backend for "pending", ou se houver pagamento pendente,
+    // garantir que o status exibido seja "pending"
+    if (hasPendingPayment || 
+        subscriptionData.status?.toLowerCase() === 'pending' || 
+        subscriptionData.status?.toLowerCase() === 'pendente') {
+      normalizedStatus = 'pending';
+      console.log('[SubscriptionContext] Status normalizado para "pending" devido a pagamento pendente');
     }
     
     // Converter dados da API para o formato UserSubscription
     const formattedSubscription: UserSubscription = {
       id: subscriptionData.id,
       userId: user!.id,
-      planId: planId,
-      planType: getPlanTypeFromId(planId),
+      planId: 'premium', // Valor temporário, depois será baseado no valor ou descrição
+      planType: getPlanTypeFromId('premium'), // Valor temporário
       startDate: new Date(subscriptionData.createdDate),
       endDate: null,
-      status: subscriptionData.status,
+      status: normalizedStatus,
       paymentMethod: subscriptionData.billingType,
       paymentProvider: 'ASAAS',
       nextBillingDate: subscriptionData.nextDueDate ? new Date(subscriptionData.nextDueDate) : null
     };
     
-    console.log('[SubscriptionContext] Assinatura processada:', {
-      id: formattedSubscription.id,
-      status: formattedSubscription.status,
-      planId: formattedSubscription.planId,
-      planType: formattedSubscription.planType
-    });
+    // Determinar o plano com base no valor e status da assinatura
+    let planId = 'free';
+    const isActive = normalizedStatus.toLowerCase() === 'active' || normalizedStatus.toLowerCase() === 'ativo';
     
+    // Apenas atribuir plano pago se a assinatura estiver ativa
+    if (isActive) {
+      if (subscriptionData.value >= 99) {
+        planId = 'premium';
+      } else if (subscriptionData.value >= 49) {
+        planId = 'pro';
+      } else if (subscriptionData.value >= 19) {
+        planId = 'basic';
+      }
+    } else {
+      console.log(`[SubscriptionContext] Usando plano FREE porque a assinatura não está ativa (status: ${normalizedStatus})`);
+    }
+    
+    // Atualizar o planId na assinatura
+    formattedSubscription.planId = planId;
+    formattedSubscription.planType = getPlanTypeFromId(planId);
+    
+    console.log('[SubscriptionContext] Assinatura carregada:', formattedSubscription);
     setCurrentSubscription(formattedSubscription);
 
     // Buscar plano correspondente na lista de planos disponíveis
     const plan = availablePlans.find(p => p.id === planId) || null;
-    if (plan) {
-      setCurrentPlan(plan);
-      console.log(`[SubscriptionContext] Features permitidas: ${plan.allowedFeatures?.join(', ') || 'nenhuma'}`);
-    } else {
-      console.error(`[SubscriptionContext] Plano não encontrado: ${planId}`);
-      // Usar plano free como fallback
-      setCurrentPlan(availablePlans.find(p => p.id === 'free') || null);
-    }
+    setCurrentPlan(plan);
   };
 
   // Função auxiliar para lidar com caso de nenhuma assinatura encontrada
@@ -340,104 +312,27 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   // Verificar se o usuário tem acesso a um recurso específico
-  const hasFeatureAccess = async (featureId: string): Promise<boolean> => {
+  const hasFeatureAccess = (featureId: string): boolean => {
     // Se não há plano atual, não tem acesso
     if (!currentPlan) return false;
     
-    // Se não há usuário autenticado, não tem acesso (exceto para features FREE)
-    if (!user) {
-      // Verificar se é uma feature disponível no plano FREE
-      return currentPlan.type === PlanType.FREE && 
-        currentPlan.allowedFeatures.includes(featureId);
+    // Se for plano gratuito, verificar se o recurso está disponível para free
+    if (currentPlan.type === PlanType.FREE) {
+      return currentPlan.allowedFeatures.includes(featureId);
     }
     
-    // Função de verificação local de permissões (para reutilização)
-    const checkLocalAccess = (): boolean => {
-      console.log(`[SubscriptionContext] Verificando acesso a feature "${featureId}" localmente`);
-      
-      // Verificar se a assinatura está ativa
-      const isSubscriptionActive = currentSubscription && 
-        (currentSubscription.status === 'active' || currentSubscription.status === 'ativo');
-      
-      // Se for plano FREE ou assinatura ativa, verificar se a feature está na lista de permissões
-      if (currentPlan.type === PlanType.FREE || isSubscriptionActive) {
-        const hasAccess = currentPlan.allowedFeatures.includes(featureId);
-        console.log(`[SubscriptionContext] Acesso a feature "${featureId}" ${hasAccess ? 'permitido' : 'negado'} no plano ${currentPlan.type}`);
-        return hasAccess;
-      }
-      
-      console.log(`[SubscriptionContext] Acesso negado: assinatura não está ativa (${currentSubscription?.status || 'nenhuma'})`);
-      return false;
-    };
+    // Para planos pagos, verificar se a assinatura está ativa (não pendente/cancelada)
+    const isSubscriptionActive = currentSubscription && 
+      (currentSubscription.status === 'active' || currentSubscription.status === 'ativo');
     
-    // Primeiro, tentar verificar com os dados que já temos carregados
-    if (currentSubscription && currentPlan) {
-      return checkLocalAccess();
-    }
-    
-    try {
-      // Se não temos os dados carregados ou é forçada uma atualização, recarregar
-      if (!currentSubscription || !currentPlan) {
-        console.log(`[SubscriptionContext] Recarregando dados da assinatura para verificar acesso a "${featureId}"`);
-        await loadUserSubscription(true);
-        
-        // Verificar novamente após recarregar
-        return checkLocalAccess();
-      }
-      
-      // Tentar fazer a verificação via API apenas como segunda opção
-      try {
-        console.log(`[SubscriptionContext] Tentando verificar acesso a feature "${featureId}" via API`);
-        const response = await axios.get(`${API_URL}/api/subscription/check-access/${featureId}`);
-        
-        if (response.data && response.data.success) {
-          const hasAccess = response.data.hasAccess;
-          console.log(`[SubscriptionContext] Resposta da API para feature "${featureId}": ${hasAccess ? 'Acesso permitido' : 'Acesso negado'}`);
-          
-          // Se o usuário tem acesso a uma feature superior ao seu plano atual,
-          // atualizar o plano no frontend para refletir o que o backend reportou
-          if (hasAccess && response.data.planType) {
-            // Converter o tipo de plano da API para o enum PlanType
-            const planTypeFromAPI = 
-              response.data.planType === 'PREMIUM' ? PlanType.PREMIUM :
-              response.data.planType === 'PRO' ? PlanType.PRO :
-              response.data.planType === 'BASIC' ? PlanType.BASIC : 
-              PlanType.FREE;
-              
-            // Se o plano do backend for superior ao atual, atualizar
-            if (
-              (planTypeFromAPI === PlanType.PREMIUM && currentPlan.type !== PlanType.PREMIUM) ||
-              (planTypeFromAPI === PlanType.PRO && 
-                (currentPlan.type !== PlanType.PRO && currentPlan.type !== PlanType.PREMIUM)) ||
-              (planTypeFromAPI === PlanType.BASIC && 
-                (currentPlan.type === PlanType.FREE))
-            ) {
-              console.log(`[SubscriptionContext] Atualizando plano de ${currentPlan.type} para ${planTypeFromAPI} baseado na resposta da API`);
-              
-              // Encontrar o plano correspondente
-              const newPlan = availablePlans.find(p => p.type === planTypeFromAPI) || null;
-              if (newPlan) {
-                setCurrentPlan(newPlan);
-              }
-            }
-          }
-          
-          return hasAccess;
-        }
-        
-        // Se houve erro na API, usar verificação local
-        console.log(`[SubscriptionContext] Erro na resposta da API, usando validação local para "${featureId}"`);
-        return checkLocalAccess();
-      } catch (apiError) {
-        console.log(`[SubscriptionContext] API de verificação não disponível, usando validação local para "${featureId}"`);
-        return checkLocalAccess();
-      }
-    } catch (error) {
-      console.error(`[SubscriptionContext] Erro ao verificar acesso a feature "${featureId}":`, error);
-      
-      // Em caso de erro, negar acesso por segurança
+    // Se a assinatura não estiver ativa, o usuário não tem acesso aos recursos pagos
+    if (!isSubscriptionActive) {
+      console.log(`[SubscriptionContext] Acesso negado a "${featureId}": assinatura não está ativa (status: ${currentSubscription?.status || 'nenhum'})`);
       return false;
     }
+    
+    // Se o plano atual permite este recurso e a assinatura está ativa
+    return currentPlan.allowedFeatures.includes(featureId);
   };
 
   // Atualizar plano do usuário
@@ -522,34 +417,6 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return false;
     }
   };
-
-  useEffect(() => {
-    // Configurar contexto de assinatura global para a API
-    // Garantir que hasFeatureAccess está disponível e configurada
-    try {
-      console.log('[SubscriptionContext] Configurando contexto global para APIs...');
-      setSubscriptionContext({
-        hasFeatureAccess
-      });
-      console.log('[SubscriptionContext] Contexto de assinatura configurado para APIs');
-      
-      // Informações detalhadas para diagnóstico
-      if (currentPlan) {
-        console.log(`[SubscriptionContext] Plano atual: ${currentPlan.name} (${currentPlan.type})`);
-        console.log(`[SubscriptionContext] Features permitidas: ${currentPlan.allowedFeatures?.join(', ') || 'nenhuma'}`);
-      } else {
-        console.log('[SubscriptionContext] Nenhum plano configurado ainda');
-      }
-      
-      if (currentSubscription) {
-        console.log(`[SubscriptionContext] Status da assinatura: ${currentSubscription.status}`);
-      } else {
-        console.log('[SubscriptionContext] Nenhuma assinatura configurada ainda');
-      }
-    } catch (error) {
-      console.error('[SubscriptionContext] Erro ao configurar contexto global:', error);
-    }
-  }, [currentSubscription, currentPlan, hasFeatureAccess]);
 
   return (
     <SubscriptionContext.Provider

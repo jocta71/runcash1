@@ -95,7 +95,6 @@ app.use('/api/notification', notificationRouter);
 app.use('/api/roulette-search', rouletteSearchRouter);
 app.use('/api/history', historyRouter);
 app.use('/api/auth', authRouter);
-app.use('/api/subscription', require('./routes/subscription'));
 
 // Rota de status da API
 app.get('/api/status', (req, res) => {

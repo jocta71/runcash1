@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { AlertCircle, LockKeyhole } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -54,47 +54,8 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
   showUpgradeOption = true,
   placeholderContent
 }) => {
-  const { hasFeatureAccess, availablePlans, currentPlan, loading: subscriptionLoading } = useSubscription();
-  const [checkingAccess, setCheckingAccess] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
-  
-  // Efeito para verificar acesso de forma assíncrona
-  useEffect(() => {
-    // Reiniciar verificação quando o plano atual mudar
-    if (subscriptionLoading) {
-      setCheckingAccess(true);
-      return;
-    }
-    
-    // Função para verificar acesso
-    const checkAccess = async () => {
-      try {
-        console.log(`[PlanProtectedFeature] Verificando acesso a "${featureId}"...`);
-        setCheckingAccess(true);
-        const access = await hasFeatureAccess(featureId);
-        setHasAccess(access);
-        console.log(`[PlanProtectedFeature] Acesso a "${featureId}": ${access ? 'Permitido' : 'Negado'}`);
-      } catch (error) {
-        console.error(`[PlanProtectedFeature] Erro ao verificar acesso a feature "${featureId}":`, error);
-        setHasAccess(false);
-      } finally {
-        setCheckingAccess(false);
-      }
-    };
-    
-    // Verificar acesso quando o componente montar ou quando o plano mudar
-    checkAccess();
-  }, [featureId, hasFeatureAccess, subscriptionLoading, currentPlan]);
-  
-  // Exibir um loader enquanto verifica o acesso
-  if (checkingAccess || subscriptionLoading) {
-    return (
-      <div className="w-full h-full min-h-[150px] bg-[#131111] flex flex-col items-center justify-center p-4 rounded-md">
-        <div className="h-8 w-8 border-2 border-vegas-gold border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sm text-gray-400 mt-2">Verificando acesso...</p>
-      </div>
-    );
-  }
+  const { hasFeatureAccess, availablePlans, currentPlan } = useSubscription();
+  const hasAccess = hasFeatureAccess(featureId);
   
   // Se o usuário tem acesso, renderize o conteúdo
   if (hasAccess) {
@@ -103,22 +64,43 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
   
   // Encontrar o plano mínimo que oferece este recurso
   const planWithFeature = availablePlans.find(plan => 
-    plan.allowedFeatures?.includes(featureId) && 
+    plan.allowedFeatures.includes(featureId) && 
     (requiredPlan ? plan.type === requiredPlan : true)
   );
+  
+  // Mensagem padrão ou personalizada
+  const message = lockedMessage || 
+    `Este recurso está disponível apenas para assinantes do plano ${planWithFeature?.name || 'superior'}.`;
 
-  // Placeholder mais simples para conteúdo bloqueado
-  const simplePlaceholder = (
-    <div className="w-full h-full min-h-[150px] bg-[#131111] flex flex-col items-center justify-center p-4 rounded-md">
-      <div className="flex flex-col items-center">
-        <LockKeyhole className="h-10 w-10 text-red-500 mb-3" />
-        <p className="text-center text-gray-400 mb-3 max-w-lg">
-          {lockedMessage || `Este recurso requer uma assinatura ${requiredPlan.toString().toLowerCase() || 'premium'}.`}
-        </p>
+  // Placeholder genérico se nenhum conteúdo específico for fornecido
+  const defaultPlaceholder = (
+    <div className="w-full h-full min-h-[200px] flex flex-col items-center justify-center space-y-4 p-6 text-center">
+      <div className="w-32 h-8 bg-gray-800 rounded animate-pulse"></div>
+      <div className="space-y-2 w-full max-w-md">
+        <div className="h-4 bg-gray-800 rounded w-3/4 mx-auto"></div>
+        <div className="h-4 bg-gray-800 rounded w-1/2 mx-auto"></div>
+      </div>
+      <div className="grid grid-cols-3 gap-4 w-full max-w-md">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="h-12 bg-gray-800 rounded animate-pulse"></div>
+        ))}
+      </div>
+      <div className="w-full h-24 bg-gray-800 rounded"></div>
+    </div>
+  );
+  
+  // Renderizar o componente de acesso bloqueado
+  return (
+    <div className="relative border border-dashed border-gray-600 rounded-md">
+      <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center p-4 text-center z-10">
+        <LockKeyhole className="h-8 w-8 mb-2 text-red-400" />
+        <h3 className="text-lg font-semibold mb-1">Recurso Bloqueado</h3>
+        <p className="text-sm text-gray-300 mb-4">{message}</p>
+        
         {showUpgradeOption && (
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="default" size="sm" className="bg-vegas-gold hover:bg-vegas-gold/80 text-black mt-2">
+              <Button variant="default" className="bg-vegas-gold hover:bg-vegas-gold/80 text-black">
                 Fazer Upgrade
               </Button>
             </DialogTrigger>
@@ -179,13 +161,11 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
           </Dialog>
         )}
       </div>
-    </div>
-  );
-  
-  return (
-    <div className="h-full">
-      {/* Usar o placeholder personalizado ou o simplificado */}
-      {placeholderContent || simplePlaceholder}
+      
+      {/* Usar conteúdo placeholder em vez de versão borrada do conteúdo real */}
+      <div className="opacity-60">
+        {placeholderContent || defaultPlaceholder}
+      </div>
     </div>
   );
 };
