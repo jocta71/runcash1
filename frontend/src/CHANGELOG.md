@@ -1,5 +1,24 @@
 # Changelog - RunCash v1.1.0
 
+## [1.1.3] - 2023-11-18
+
+### Melhorado
+- Implementado mecanismo de fallback inteligente para endpoints:
+  - Tenta primeiro usar o endpoint otimizado `/api/roulettes-batch`
+  - Se falhar, usa automaticamente o endpoint legado `/api/ROULETTES`
+  - Adiciona logs detalhados sobre qual endpoint está sendo usado
+  - Suporte para transição gradual para endpoints otimizados
+  
+### Adicionado
+- Novas ferramentas de diagnóstico disponíveis via console:
+  - `window.__runcashVerificarEndpoint()` - Verifica qual endpoint está sendo usado
+  - `window.__runcashForceUpdate()` - Força atualização imediata dos dados
+  - Relatórios detalhados com informações de performance
+
+### Corrigido
+- Resolvido problema de falha na busca de dados quando o endpoint otimizado não está disponível
+- Melhorada resiliência do sistema contra problemas de conectividade
+
 ## [1.1.2] - 2023-11-17
 
 ### Otimizado

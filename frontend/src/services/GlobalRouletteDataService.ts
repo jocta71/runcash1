@@ -1,7 +1,7 @@
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
 import { exibirDiagnosticoNoConsole } from '../utils/diagnostico';
-import { compararEndpoints } from '../utils/endpoint-tester';
+import { compararEndpoints, verificarEndpointAtual } from '../utils/endpoint-tester';
 
 // Intervalo de polling padrão em milissegundos (4 segundos)
 const POLLING_INTERVAL = 4000;
@@ -126,41 +126,59 @@ export class GlobalRouletteDataService {
       this.setFetchStatus('pending');
       this.isFetching = true;
       
-      // Log da requisição com o novo endpoint otimizado
-      console.log(`GlobalRouletteService: Buscando dados atualizados da API (endpoint otimizado /api/roulettes-batch, limite: ${DEFAULT_LIMIT})`);
-      
       // Adicionar timestamp para evitar cache do navegador
       const timestamp = new Date().getTime();
       
       // Armazenar a promise para evitar requisições duplicadas
       this._currentFetchPromise = new Promise(async (resolve, reject) => {
         try {
-          // Usar o novo endpoint otimizado com limite reduzido
-          const response = await fetch(`/api/roulettes-batch?limit=${DEFAULT_LIMIT}&_t=${timestamp}&subject=poll`);
+          // Primeiro tenta usar o endpoint otimizado
+          console.log(`GlobalRouletteService: Tentando buscar dados do endpoint otimizado /api/roulettes-batch, limite: ${DEFAULT_LIMIT}`);
           
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Erro na API: ${response.status} - ${errorText}`);
-          }
-
-          const data = await response.json();
-
-          // Armazenar os dados
-          if (Array.isArray(data)) {
-            this.rouletteData = data;
-            console.log(`GlobalRouletteService: Dados atualizados com sucesso. Total de roletas: ${data.length}`);
+          try {
+            // Tentar usar o endpoint otimizado primeiro
+            const optimizedResponse = await fetch(`/api/roulettes-batch?limit=${DEFAULT_LIMIT}&_t=${timestamp}&subject=poll`);
             
-            // Contar números para diagnóstico
-            const totalNumeros = this.contarNumerosTotais(data);
-            console.log(`GlobalRouletteService: Total de números em todas as roletas: ${totalNumeros}`);
-          } else if (data.data && Array.isArray(data.data)) {
-            // Formato alternativo com wrapper de sucesso
-            this.rouletteData = data.data;
-            console.log(`GlobalRouletteService: Dados atualizados com sucesso (formato wrapper). Total de roletas: ${data.data.length}`);
-          } else {
-            console.warn(`GlobalRouletteService: Formato inesperado na resposta da API:`, data);
-            this.rouletteData = [];
+            if (optimizedResponse.ok) {
+              // Endpoint otimizado funcionou!
+              console.log(`GlobalRouletteService: Endpoint otimizado /api/roulettes-batch funcionou com sucesso!`);
+              const data = await optimizedResponse.json();
+              
+              // Processar e armazenar os dados
+              this.processRouletteData(data);
+              
+              // Atualizar timestamp da última requisição
+              this.lastFetchTime = Date.now();
+              
+              // Notificar assinantes sobre novos dados
+              this.notifySubscribers();
+              
+              this.setFetchStatus('success');
+              resolve(this.rouletteData);
+              return;
+            }
+            
+            // Se chegarmos aqui, o endpoint otimizado falhou mas não lançou exceção
+            console.warn(`GlobalRouletteService: Endpoint otimizado retornou status ${optimizedResponse.status}, tentando endpoint legado...`);
+          } catch (optimizedError) {
+            // O endpoint otimizado falhou com uma exceção
+            console.warn(`GlobalRouletteService: Falha ao acessar endpoint otimizado, tentando endpoint legado: ${optimizedError.message}`);
           }
+          
+          // Fallback para o endpoint legado
+          console.log(`GlobalRouletteService: Tentando endpoint legado /api/ROULETTES (fallback)`);
+          const legacyResponse = await fetch(`/api/ROULETTES?limit=${DEFAULT_LIMIT}&_t=${timestamp}&subject=poll`);
+          
+          if (!legacyResponse.ok) {
+            const errorText = await legacyResponse.text();
+            throw new Error(`Erro na API (endpoint legado): ${legacyResponse.status} - ${errorText}`);
+          }
+          
+          console.log(`GlobalRouletteService: Endpoint legado /api/ROULETTES usado com sucesso (fallback)`);
+          const legacyData = await legacyResponse.json();
+          
+          // Processar e armazenar os dados
+          this.processRouletteData(legacyData);
           
           // Atualizar timestamp da última requisição
           this.lastFetchTime = Date.now();
@@ -187,6 +205,29 @@ export class GlobalRouletteDataService {
       this.isFetching = false;
       this._currentFetchPromise = null;
       throw error;
+    }
+  }
+  
+  /**
+   * Processa os dados recebidos da API
+   * @param data Dados recebidos da API
+   */
+  private processRouletteData(data: any): void {
+    // Armazenar os dados
+    if (Array.isArray(data)) {
+      this.rouletteData = data;
+      console.log(`GlobalRouletteService: Dados atualizados com sucesso. Total de roletas: ${data.length}`);
+      
+      // Contar números para diagnóstico
+      const totalNumeros = this.contarNumerosTotais(data);
+      console.log(`GlobalRouletteService: Total de números em todas as roletas: ${totalNumeros}`);
+    } else if (data.data && Array.isArray(data.data)) {
+      // Formato alternativo com wrapper de sucesso
+      this.rouletteData = data.data;
+      console.log(`GlobalRouletteService: Dados atualizados com sucesso (formato wrapper). Total de roletas: ${data.data.length}`);
+    } else {
+      console.warn(`GlobalRouletteService: Formato inesperado na resposta da API:`, data);
+      this.rouletteData = [];
     }
   }
   
@@ -363,6 +404,15 @@ const globalRouletteDataService = GlobalRouletteDataService.getInstance();
 
 // Adicionar função para comparar endpoints
 (window as any).__runcashCompararEndpoints = compararEndpoints;
+
+// Adicionar função para verificar o endpoint atual
+(window as any).__runcashVerificarEndpoint = verificarEndpointAtual;
+
+// Adicionar função para forçar atualização
+(window as any).__runcashForceUpdate = () => {
+  console.log('[Console] Forçando atualização de dados das roletas...');
+  return globalRouletteDataService.forceUpdate();
+};
 
 export default globalRouletteDataService;
 // Exportamos apenas uma vez a classe para evitar redeclaração 

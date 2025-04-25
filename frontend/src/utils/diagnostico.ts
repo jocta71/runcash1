@@ -167,7 +167,9 @@ export async function exibirDiagnosticoNoConsole(): Promise<DiagnosticoResult> {
   try {
     console.group('🔍 DIAGNÓSTICO RUNCASH');
     console.log('Iniciando diagnóstico completo da aplicação...');
-    console.log('✨ ATUALIZAÇÃO: Agora usando endpoint otimizado /api/roulettes-batch');
+    console.log('✨ ATUALIZAÇÃO: Sistema agora usa mecanismo de fallback inteligente');
+    console.log('  • Tenta primeiro o endpoint otimizado /api/roulettes-batch');
+    console.log('  • Se falhar, usa automaticamente o endpoint legado /api/ROULETTES');
     
     // Tentar buscar diagnóstico direto da API
     console.log('Tentando buscar diagnóstico direto do servidor...');
@@ -201,9 +203,9 @@ export async function exibirDiagnosticoNoConsole(): Promise<DiagnosticoResult> {
       
       // Destacar o endpoint otimizado que agora está em uso
       if (endpoint.endpoint.includes('roulettes-batch')) {
-        endpointLabel = `${endpointLabel} [ATIVO]`;
+        endpointLabel = `${endpointLabel} [OTIMIZADO - Primeira tentativa]`;
       } else if (endpoint.endpoint.includes('ROULETTES?limit=800')) {
-        endpointLabel = `${endpointLabel} [LEGADO]`;
+        endpointLabel = `${endpointLabel} [LEGADO - Fallback]`;
       }
       
       console.log(`${statusEmoji} ${endpointLabel}: ${endpoint.status.toUpperCase()}${endpoint.responseTime ? ` (${endpoint.responseTime}ms)` : ''}`);

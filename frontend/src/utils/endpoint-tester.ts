@@ -189,5 +189,111 @@ export async function compararEndpoints(): Promise<ComparisonResults> {
   };
 }
 
+/**
+ * Verifica qual endpoint está sendo usado atualmente pelo sistema
+ * Esta função tenta fazer requisições para ambos os endpoints e compara os resultados
+ * @returns Informações sobre qual endpoint está sendo usado
+ */
+export async function verificarEndpointAtual(): Promise<{
+  endpointUsado: string;
+  status: 'otimizado' | 'legado' | 'fallback' | 'erro';
+  mensagem: string;
+  tempoResposta: { otimizado?: number; legado?: number };
+}> {
+  console.group('🔍 VERIFICAÇÃO DE ENDPOINT ATUAL');
+  console.log('Verificando qual endpoint está sendo usado atualmente...');
+  
+  const timestamp = Date.now();
+  const resultado = {
+    endpointUsado: 'Desconhecido',
+    status: 'erro' as 'otimizado' | 'legado' | 'fallback' | 'erro',
+    mensagem: '',
+    tempoResposta: {} as { otimizado?: number; legado?: number }
+  };
+  
+  // Testar endpoint otimizado
+  console.log('Testando endpoint otimizado /api/roulettes-batch...');
+  const startTimeOtimizado = performance.now();
+  let endpointOtimizadoFuncionando = false;
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`/api/roulettes-batch?limit=1&_t=${timestamp}&subject=test`, {
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    resultado.tempoResposta.otimizado = Math.round(performance.now() - startTimeOtimizado);
+    
+    if (response.ok) {
+      endpointOtimizadoFuncionando = true;
+      console.log(`✅ Endpoint otimizado funcionou! (${resultado.tempoResposta.otimizado}ms)`);
+    } else {
+      console.log(`❌ Endpoint otimizado retornou status ${response.status}`);
+    }
+  } catch (error) {
+    console.log(`❌ Erro ao testar endpoint otimizado: ${error.message}`);
+    resultado.tempoResposta.otimizado = Math.round(performance.now() - startTimeOtimizado);
+  }
+  
+  // Testar endpoint legado
+  console.log('Testando endpoint legado /api/ROULETTES...');
+  const startTimeLegado = performance.now();
+  let endpointLegadoFuncionando = false;
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`/api/ROULETTES?limit=1&_t=${timestamp}&subject=test`, {
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    resultado.tempoResposta.legado = Math.round(performance.now() - startTimeLegado);
+    
+    if (response.ok) {
+      endpointLegadoFuncionando = true;
+      console.log(`✅ Endpoint legado funcionou! (${resultado.tempoResposta.legado}ms)`);
+    } else {
+      console.log(`❌ Endpoint legado retornou status ${response.status}`);
+    }
+  } catch (error) {
+    console.log(`❌ Erro ao testar endpoint legado: ${error.message}`);
+    resultado.tempoResposta.legado = Math.round(performance.now() - startTimeLegado);
+  }
+  
+  // Determinar qual endpoint está sendo usado
+  if (endpointOtimizadoFuncionando) {
+    resultado.endpointUsado = '/api/roulettes-batch';
+    resultado.status = 'otimizado';
+    resultado.mensagem = 'O sistema está usando o endpoint otimizado.';
+  } else if (endpointLegadoFuncionando) {
+    resultado.endpointUsado = '/api/ROULETTES';
+    
+    if (endpointOtimizadoFuncionando === false) {
+      resultado.status = 'fallback';
+      resultado.mensagem = 'O sistema está usando o endpoint legado como fallback (o endpoint otimizado falhou).';
+    } else {
+      resultado.status = 'legado';
+      resultado.mensagem = 'O sistema está usando o endpoint legado.';
+    }
+  } else {
+    resultado.endpointUsado = 'Nenhum';
+    resultado.status = 'erro';
+    resultado.mensagem = 'Nenhum dos endpoints está funcionando! Verifique a conexão com o backend.';
+  }
+  
+  console.log(`📊 Resultado: ${resultado.mensagem}`);
+  console.groupEnd();
+  
+  return resultado;
+}
+
 // Expor função para testes via console
-(window as any).__compareEndpoints = compararEndpoints; 
+(window as any).__compareEndpoints = compararEndpoints;
+(window as any).__verificarEndpointAtual = verificarEndpointAtual; 
