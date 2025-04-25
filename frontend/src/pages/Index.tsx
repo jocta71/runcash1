@@ -609,6 +609,9 @@ const Index = () => {
                   background: #111118;
                   border-radius: 10px;
                   transition: all 0.3s;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
                 }
                 
                 .card:hover {
@@ -616,7 +619,7 @@ const Index = () => {
                 }
                 
                 .input {
-                  position: relative;
+                  position: absolute;
                   top: 0;
                   left: 0;
                   height: 100%;
@@ -633,8 +636,8 @@ const Index = () => {
                 .input + .check::before {
                   content: "";
                   position: absolute;
-                  top: 15px;
-                  right: 15px;
+                  top: 12px;
+                  right: 12px;
                   width: 16px;
                   height: 16px;
                   border: 2px solid #555;
@@ -645,10 +648,10 @@ const Index = () => {
                 .input:checked + .check::after {
                   content: '';
                   position: absolute;
-                  top: 19px;
-                  right: 19px;
-                  width: 12px;
-                  height: 12px;
+                  top: 16px;
+                  right: 16px;
+                  width: 8px;
+                  height: 8px;
                   background-color: #00FF00;
                   border-radius: 50%;
                 }
@@ -664,22 +667,20 @@ const Index = () => {
                 
                 .label {
                   color: #fff;
-                  position: absolute;
-                  top: 0;
-                  left: 0;
+                  position: relative;
                   z-index: 0;
-                  width: 100%;
+                  width: 80%;
+                  text-align: left;
                 }
                 
                 .label .title {
-                  margin: 15px 0 0 15px;
                   font-weight: 900;
                   font-size: 15px;
                   letter-spacing: 1.5px;
+                  margin-bottom: 8px;
                 }
                 
                 .label .price {
-                  margin: 20px 0 0 15px;
                   font-size: 20px;
                   font-weight: 900;
                 }
