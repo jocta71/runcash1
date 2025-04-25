@@ -169,6 +169,55 @@ async function initializeModels() {
   }
 }
 
+// Função para criar índices necessários no MongoDB
+async function criarIndicesMongoDB() {
+  try {
+    if (!isConnected || !collection) {
+      console.log('[MongoDB] Não foi possível criar índices: conexão não estabelecida');
+      return false;
+    }
+    
+    console.log('[MongoDB] Iniciando criação de índices...');
+    
+    // Verificar índices existentes para não recriar desnecessariamente
+    const indicesExistentes = await collection.indexes();
+    const nomesIndices = indicesExistentes.map(idx => idx.name);
+    
+    // Criar índice para roleta_id se não existir
+    if (!nomesIndices.includes('roleta_id_1')) {
+      console.log('[MongoDB] Criando índice para campo roleta_id...');
+      await collection.createIndex({ "roleta_id": 1 }, { background: true });
+      console.log('[MongoDB] ✅ Índice para roleta_id criado com sucesso');
+    } else {
+      console.log('[MongoDB] Índice para roleta_id já existe');
+    }
+    
+    // Criar índice composto para roleta_id e timestamp
+    if (!nomesIndices.includes('roleta_id_1_timestamp_-1')) {
+      console.log('[MongoDB] Criando índice composto para roleta_id e timestamp...');
+      await collection.createIndex({ "roleta_id": 1, "timestamp": -1 }, { background: true });
+      console.log('[MongoDB] ✅ Índice composto criado com sucesso');
+    } else {
+      console.log('[MongoDB] Índice composto já existe');
+    }
+    
+    // Criar índice para campo numero para otimizar análises estatísticas
+    if (!nomesIndices.includes('numero_1')) {
+      console.log('[MongoDB] Criando índice para campo numero...');
+      await collection.createIndex({ "numero": 1 }, { background: true });
+      console.log('[MongoDB] ✅ Índice para numero criado com sucesso');
+    } else {
+      console.log('[MongoDB] Índice para numero já existe');
+    }
+    
+    console.log('[MongoDB] Criação de índices concluída!');
+    return true;
+  } catch (error) {
+    console.error('[MongoDB] Erro ao criar índices:', error);
+    return false;
+  }
+}
+
 // Função para conectar ao MongoDB
 async function connectToMongoDB() {
   try {
@@ -203,6 +252,9 @@ async function connectToMongoDB() {
       console.log('Exemplos de documentos:');
       console.log(JSON.stringify(samples, null, 2));
     }
+    
+    // Criar índices para otimizar consultas
+    await criarIndicesMongoDB();
     
     // Iniciar o polling para verificar novos dados
     startPolling();
@@ -1307,6 +1359,82 @@ app.get('/api/roulette/:id/numbers', async (req, res) => {
       success: false,
       error: 'Erro interno',
       message: error.message
+    });
+  }
+});
+
+// Rota para verificar estatísticas do MongoDB, incluindo índices
+app.get('/api/mongodb-stats', async (req, res) => {
+  console.log('[API] Requisição recebida para estatísticas do MongoDB');
+  
+  // Aplicar cabeçalhos CORS
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  try {
+    if (!isConnected || !db) {
+      return res.status(503).json({
+        status: 'error',
+        message: 'MongoDB não está conectado'
+      });
+    }
+    
+    // Obter estatísticas da coleção
+    const stats = await db.command({ collStats: COLLECTION_NAME });
+    
+    // Obter índices da coleção
+    const indices = await collection.indexes();
+    
+    // Obter uma amostra das roletas
+    const roletasUnicas = await collection.aggregate([
+      { $group: { _id: "$roleta_id", nome: { $first: "$roleta_nome" } } },
+      { $project: { _id: 0, id: "$_id", nome: 1 } },
+      { $limit: 10 }
+    ]).toArray();
+    
+    // Obter contagem de documentos por roleta (top 10)
+    const contagemPorRoleta = await collection.aggregate([
+      { $group: { _id: "$roleta_id", nome: { $first: "$roleta_nome" }, count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+      { $project: { _id: 0, id: "$_id", nome: 1, count: 1 } }
+    ]).toArray();
+    
+    // Obter estatísticas de cache
+    let cacheInfo = {
+      roulettes: cache.roulettes && cache.roulettes.data ? 'Disponível' : 'Vazio',
+      rouletteNumbers: Object.keys(cache.rouletteNumbers).length,
+      allRouletteNumbers: cache.allRouletteNumbers && cache.allRouletteNumbers.data ? 'Disponível' : 'Vazio',
+      cacheTTL: CACHE_TTL / 1000 + ' segundos'
+    };
+    
+    return res.json({
+      status: 'success',
+      collection: COLLECTION_NAME,
+      documentCount: stats.count,
+      storageSize: {
+        collection: stats.size,
+        indices: stats.totalIndexSize,
+        indicesSizeMB: (stats.totalIndexSize / (1024 * 1024)).toFixed(2) + ' MB',
+        sizeAllocated: stats.storageSize
+      },
+      indices: indices.map(idx => ({
+        name: idx.name,
+        key: idx.key,
+        size: idx.size || 'N/A'
+      })),
+      roletasUnicas: roletasUnicas.length,
+      roletasMaiores: contagemPorRoleta,
+      cache: cacheInfo,
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('[API] Erro ao obter estatísticas do MongoDB:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Erro ao obter estatísticas',
+      error: error.message
     });
   }
 });
