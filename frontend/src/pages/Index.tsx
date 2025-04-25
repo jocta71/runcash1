@@ -860,52 +860,68 @@ const Index = () => {
               <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
               <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
               
-              {/* Cards modernos de seleção de plano */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              {/* Seletor de planos */}
+              <div className="flex flex-col md:flex-row gap-4 mb-6">
                 {/* Plano Mensal */}
-                <div className={`bg-[#1E1E2A] p-6 rounded-lg border-2 transition-all cursor-pointer ${selectedPlan === 'basic' ? 'border-[#00FF00]' : 'border-gray-700 hover:border-gray-500'}`}
-                  onClick={() => setSelectedPlan('basic')}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-white">Mensal</h3>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${selectedPlan === 'basic' ? 'bg-[#00FF00]' : 'border border-gray-400'}`}>
-                      {selectedPlan === 'basic' && <div className="w-3 h-3 rounded-full bg-black"></div>}
+                <div 
+                  className={`flex-1 p-6 rounded-lg border transition-all cursor-pointer
+                    ${selectedPlan === 'basic' 
+                      ? 'border-[#00FF00] bg-[#131614]/80 shadow-lg shadow-[#00FF00]/10' 
+                      : 'border-gray-700 bg-[#131614]/40 hover:border-gray-500'}`}
+                  onClick={() => setSelectedPlan('basic')}
+                >
+                  <div className="flex items-center mb-4">
+                    <div className={`w-5 h-5 rounded-full mr-3 transition-colors flex items-center justify-center
+                      ${selectedPlan === 'basic' ? 'bg-[#00FF00]' : 'border border-gray-600'}`}>
+                      {selectedPlan === 'basic' && (
+                        <div className="w-2 h-2 rounded-full bg-black"></div>
+                      )}
                     </div>
+                    <h3 className="text-lg font-semibold">Mensal</h3>
                   </div>
-                  <div className="mb-2">
-                    <span className="text-2xl font-bold text-white">R$49</span>
-                    <span className="text-gray-400">/mês</span>
+                  <div className="mb-3">
+                    <span className="text-2xl font-bold">R$49</span>
+                    <span className="text-sm text-gray-400">/mês</span>
                   </div>
-                  <p className="text-gray-400 text-sm">Acesso a todas as funcionalidades premium durante 30 dias</p>
+                  <p className="text-sm text-gray-400">Acesso a todas estatísticas e ferramentas premium</p>
                 </div>
                 
                 {/* Plano Anual */}
-                <div className={`bg-[#1E1E2A] p-6 rounded-lg border-2 transition-all cursor-pointer ${selectedPlan === 'premium' ? 'border-[#00FF00]' : 'border-gray-700 hover:border-gray-500'}`}
-                  onClick={() => setSelectedPlan('premium')}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-white">Anual</h3>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${selectedPlan === 'premium' ? 'bg-[#00FF00]' : 'border border-gray-400'}`}>
-                      {selectedPlan === 'premium' && <div className="w-3 h-3 rounded-full bg-black"></div>}
+                <div 
+                  className={`flex-1 p-6 rounded-lg border transition-all cursor-pointer
+                    ${selectedPlan === 'premium' 
+                      ? 'border-[#00FF00] bg-[#131614]/80 shadow-lg shadow-[#00FF00]/10' 
+                      : 'border-gray-700 bg-[#131614]/40 hover:border-gray-500'}`}
+                  onClick={() => setSelectedPlan('premium')}
+                >
+                  <div className="flex items-center mb-4">
+                    <div className={`w-5 h-5 rounded-full mr-3 transition-colors flex items-center justify-center
+                      ${selectedPlan === 'premium' ? 'bg-[#00FF00]' : 'border border-gray-600'}`}>
+                      {selectedPlan === 'premium' && (
+                        <div className="w-2 h-2 rounded-full bg-black"></div>
+                      )}
                     </div>
+                    <h3 className="text-lg font-semibold">Anual</h3>
                   </div>
-                  <div className="mb-2">
-                    <span className="text-2xl font-bold text-white">R$99</span>
-                    <span className="text-gray-400">/ano</span>
+                  <div className="mb-3">
+                    <span className="text-2xl font-bold">R$99</span>
+                    <span className="text-sm text-gray-400">/ano</span>
                   </div>
-                  <p className="text-gray-400 text-sm">Economize e tenha acesso a todas as funcionalidades premium por 12 meses</p>
+                  <p className="text-sm text-gray-400">Economize com o plano anual e tenha todos os benefícios</p>
                 </div>
               </div>
               
-              {/* Botão de ação */}
+              {/* Botão para abrir o checkout */}
               <Button 
                 onClick={handlePayment}
-                className="bg-[#00FF00] hover:bg-[#00CC00] text-black font-bold py-3 px-6 rounded-lg w-full md:w-auto"
+                className="bg-[#00FF00] hover:bg-[#00FF00]/80 text-black font-bold py-3 px-8 rounded-md w-full text-center transition-colors"
                 disabled={isProcessingPayment}
               >
                 {isProcessingPayment ? (
-                  <span className="flex items-center">
-                    <Loader2 className="animate-spin mr-2" size={18} />
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                     Processando...
-                  </span>
+                  </div>
                 ) : (
                   'Escolher Plano'
                 )}
