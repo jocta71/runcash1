@@ -8,6 +8,7 @@ import { RouletteData } from '@/types';
 import EventService, { RouletteNumberEvent, StrategyUpdateEvent } from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
 import RouletteSidePanelSkeleton from '@/components/RouletteSidePanelSkeleton';
+import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -834,43 +835,13 @@ const Index = () => {
           <div className="w-full lg:w-1/2">
             {hasActivePlan ? (
               selectedRoulette ? (
-                <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-4">
-                  <h2 className="text-xl font-bold text-white mb-4">{selectedRoulette.nome || selectedRoulette.name}</h2>
-                  <div className="text-white">
-                    {Array.isArray(selectedRoulette.lastNumbers) && selectedRoulette.lastNumbers.length > 0 && (
-                      <div className="mb-4">
-                        <h3 className="text-lg font-semibold mb-2">Últimos números:</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedRoulette.lastNumbers.slice(0, 20).map((num, idx) => (
-                            <span key={idx} className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold 
-                              ${num === 0 ? 'bg-green-500 text-white' : 
-                                num >= 1 && num <= 7 ? 'bg-red-500 text-white' : 
-                                num >= 8 && num <= 14 ? 'bg-black text-white border border-white' : 
-                                'bg-red-500 text-white'}`}>
-                              {num}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {typeof selectedRoulette.vitorias === 'number' && typeof selectedRoulette.derrotas === 'number' && (
-                      <div className="mb-4">
-                        <h3 className="text-lg font-semibold mb-2">Estatísticas:</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-green-500/20 p-3 rounded-lg">
-                            <p className="text-green-500 text-sm font-semibold">Vitórias</p>
-                            <p className="text-2xl font-bold text-white">{selectedRoulette.vitorias}</p>
-                          </div>
-                          <div className="bg-red-500/20 p-3 rounded-lg">
-                            <p className="text-red-500 text-sm font-semibold">Derrotas</p>
-                            <p className="text-2xl font-bold text-white">{selectedRoulette.derrotas}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <RouletteSidePanelStats
+                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
+                  lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
+                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
+                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                  providers={[]} // Se houver uma lista de provedores disponível, passe aqui
+                />
               ) : (
                 <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-4 flex items-center justify-center h-48">
                   <p className="text-gray-400">Selecione uma roleta para ver suas estatísticas</p>
