@@ -50,7 +50,7 @@ const planCardStyles = `
   position: relative;
   width: 150px;
   height: 100px;
-  background: #131614;
+  background: #191a1f;
   border-radius: 10px;
   transition: all 0.3s;
 }
@@ -70,8 +70,8 @@ const planCardStyles = `
   border: 1px solid #2a2a35;
   border-radius: 10px;
   z-index: 10;
-  box-shadow: 1px 1px 10px rgba(0, 0, 0, 0.3),
-              -1px -1px 10px rgba(25, 26, 31, 0.3);
+  box-shadow: 1px 1px 10px rgba(0, 0, 0, 0.5),
+              -1px -1px 10px rgba(40, 40, 40, 0.2);
 }
 
 .input + .check::before {
@@ -97,7 +97,7 @@ const planCardStyles = `
   border-radius: 50%;
 }
 
-.input[value="padrao"]:checked + .check::after {
+.input[value="standart"]:checked + .check::after {
   background-color: #00FF00;
 }
 
@@ -105,11 +105,11 @@ const planCardStyles = `
   background-color: #00FF00;
 }
 
-.input[value="mensal"]:checked {
+.input[value="basic"]:checked {
   border: 1.5px solid #00FF00;
 }
 
-.input[value="padrao"]:checked {
+.input[value="standart"]:checked {
   border: 1.5px solid #00FF00;
 }
 
@@ -619,7 +619,7 @@ const Index = () => {
             <style>{planCardStyles}</style>
             <div className="wrapper">
               <div className="card">
-                <input className="input" type="radio" name="card" value="mensal" defaultChecked />
+                <input className="input" type="radio" name="card" value="basic" defaultChecked />
                 <span className="check"></span>
                 <label className="label">
                   <div className="title">MENSAL</div>
@@ -631,7 +631,7 @@ const Index = () => {
                 </label>
               </div>
               <div className="card">
-                <input className="input" type="radio" name="card" value="padrao" />
+                <input className="input" type="radio" name="card" value="standart" />
                 <span className="check"></span>
                 <label className="label">
                   <div className="title">SEMESTRAL</div>
@@ -640,7 +640,6 @@ const Index = () => {
                     79
                     <span className="span">/6m</span>
                   </div>
-                  <span className="info">econômico</span>
                 </label>
               </div>
               <div className="card">
@@ -653,7 +652,6 @@ const Index = () => {
                     99
                     <span className="span">/ano</span>
                   </div>
-                  <span className="info">melhor valor</span>
                 </label>
               </div>
             </div>
