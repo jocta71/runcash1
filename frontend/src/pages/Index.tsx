@@ -415,6 +415,18 @@ const Index = () => {
 
   // Efeito para inicialização e atualização periódica
   useEffect(() => {
+    // Agendar atualizações periódicas
+    const scheduleUpdate = () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+      
+      updateTimeoutRef.current = setTimeout(() => {
+        // Recarregar dados
+        loadRouletteData();
+      }, 60000); // A cada 60 segundos
+    };
+    
     // Inicialização
     loadRouletteData();
     
@@ -427,68 +439,24 @@ const Index = () => {
       }
     }, 10000); // 10 segundos
     
-    // Configurar atualização periódica usando o throttler
-    const unsubscribe = RequestThrottler.subscribeToUpdates(
-      'index_roulettes', 
-      (data) => {
-        if (data && Array.isArray(data) && isMounted.current) {
-          console.log(`📊 Atualização periódica: ${data.length} roletas`);
-          
-          // Mesclar com roletas conhecidas e atualizar estado
-          const merged = mergeRoulettes(data, knownRoulettes);
-          setRoulettes(merged);
-          
-          // Atualizar roletas conhecidas
-          setKnownRoulettes(prev => mergeRoulettes(prev, data));
-          
-          // Garantir que os dados são considerados carregados
-          setDataFullyLoaded(true);
-        }
+    // Programar atualização periódica
+    const updateInterval = setInterval(() => {
+      if (isMounted.current) {
+        scheduleUpdate();
       }
-    );
+    }, 60000); // 60 segundos
     
-    // Agendar atualizações periódicas
-    const scheduleUpdate = () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-      
-      updateTimeoutRef.current = setTimeout(() => {
-        // Agendar próxima atualização usando o throttler (sem forçar execução imediata)
-        RequestThrottler.scheduleRequest(
-          'index_roulettes',
-          async () => {
-            console.log('🔄 Atualizando roletas periodicamente...');
-            const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
-            console.log(`✅ ${response.length} roletas atualizadas`);
-            return response;
-          },
-          false // Não forçar execução, respeitar o intervalo mínimo
-        );
-        
-        // Agendar próxima verificação
-        if (isMounted.current) {
-          scheduleUpdate();
-        }
-      }, 60000); // Verificar a cada 60 segundos
-    };
-    
-    // Iniciar agendamento
-    scheduleUpdate();
-    
-    // Cleanup
+    // Limpeza ao desmontar
     return () => {
       isMounted.current = false;
-      unsubscribe();
-      
       clearTimeout(safetyTimeout);
+      clearInterval(updateInterval);
       
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
-        updateTimeoutRef.current = null;
       }
     };
-  }, [loadRouletteData, knownRoulettes]);
+  }, [loadRouletteData, dataFullyLoaded, mergeRoulettes]);
   
   // Simplificar para usar diretamente as roletas
   // const filteredRoulettes = roulettes; // Remover esta linha
@@ -509,14 +477,9 @@ const Index = () => {
   // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
     if (!Array.isArray(filteredRoulettes) || filteredRoulettes.length === 0) {
-      return (
-        <div className="col-span-full text-center py-8">
-          <p className="text-muted-foreground">Nenhuma roleta disponível com os filtros atuais.</p>
-        </div>
-      );
+      return null;
     }
-
-    // Log para depuração
+    
     console.log(`[Index] Renderizando ${filteredRoulettes.length} roletas disponíveis`);
     
     // Mais logs para depuração - mostrar o total de roletas
@@ -537,13 +500,13 @@ const Index = () => {
           .filter(item => item !== null && item !== undefined)
           .map(item => {
             // Aqui sabemos que item não é null ou undefined após o filtro
-            const nonNullItem = item as any; // Tratar como any para evitar erros de tipo
+            const nonNullItem = item as unknown; // Usar unknown em vez de any
             // Se for um objeto com a propriedade numero
-            if (typeof nonNullItem === 'object' && 'numero' in nonNullItem) {
-              return nonNullItem.numero;
+            if (typeof nonNullItem === 'object' && nonNullItem !== null && 'numero' in nonNullItem) {
+              return (nonNullItem as {numero: number}).numero;
             }
             // Se for um número diretamente
-            return nonNullItem;
+            return Number(nonNullItem);
           });
       } 
       // Tentar extrair de lastNumbers se ainda estiver vazio
@@ -871,184 +834,199 @@ const Index = () => {
             <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
             <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
             
-            {/* From Uiverse.io by andrew-demchenk0 */}
-            <style>{`
-                .wrapper {
-                  display: flex;
-                  justify-content: center;
-                  gap: 1.5rem;
-                  width: 100%;
-                  max-width: 600px;
-                  margin: 0 auto;
-                }
+            {/* Componente de seleção de planos com design moderno */}
+            <div className="py-16 bg-[#070709] text-white">
+              <div className="max-w-5xl mx-auto text-center px-4">
+                <h2 className="text-3xl md:text-4xl font-bold mb-8">Escolha o Plano Perfeito para Você</h2>
+                <p className="text-gray-400 text-lg mb-12 max-w-3xl mx-auto">
+                  Acesse recursos exclusivos e aumente suas chances de sucesso
+                </p>
                 
-                .card {
-                  position: relative;
-                  width: 220px;
-                  height: 140px;
-                  padding: 1.5rem;
-                  background: #111118;
-                  border-radius: 12px;
-                  transition: all 0.3s;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
-                  overflow: hidden;
-                }
+                {/* Estilização do seletor de planos */}
+                <style>{`
+                    .wrapper {
+                      display: flex;
+                      justify-content: center;
+                      gap: 1.5rem;
+                      width: 100%;
+                      max-width: 600px;
+                      margin: 0 auto;
+                    }
+                    
+                    .card {
+                      position: relative;
+                      width: 220px;
+                      height: 140px;
+                      padding: 1.5rem;
+                      background: #111118;
+                      border-radius: 12px;
+                      transition: all 0.3s;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+                      overflow: hidden;
+                    }
+                    
+                    .card:hover {
+                      transform: translateY(-5px);
+                      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+                    }
+                    
+                    .input {
+                      position: absolute;
+                      top: 0;
+                      left: 0;
+                      height: 100%;
+                      width: 100%;
+                      cursor: pointer;
+                      appearance: none;
+                      border: 2px solid #222;
+                      border-radius: 12px;
+                      z-index: 10;
+                      transition: all 0.3s;
+                    }
+                    
+                    .input + .check {
+                      position: absolute;
+                      top: 12px;
+                      right: 12px;
+                      z-index: 5;
+                    }
+                    
+                    .input + .check::before {
+                      content: "";
+                      display: block;
+                      width: 22px;
+                      height: 22px;
+                      border: 2px solid #444;
+                      border-radius: 50%;
+                      background-color: #111;
+                      transition: all 0.3s;
+                    }
+                    
+                    .input:checked + .check::after {
+                      content: '';
+                      position: absolute;
+                      top: 5px;
+                      right: 5px;
+                      width: 12px;
+                      height: 12px;
+                      background-color: #00FF00;
+                      border-radius: 50%;
+                      transition: all 0.3s;
+                    }
+                    
+                    .input:checked {
+                      border: 2px solid #00FF00;
+                    }
+                    
+                    .label {
+                      color: #fff;
+                      position: relative;
+                      z-index: 5;
+                      width: 100%;
+                      text-align: left;
+                      padding-right: 25px;
+                    }
+                    
+                    .label .title {
+                      font-weight: 800;
+                      font-size: 16px;
+                      letter-spacing: 1px;
+                      margin-bottom: 12px;
+                      text-transform: uppercase;
+                      color: #eee;
+                    }
+                    
+                    .label .price {
+                      font-size: 24px;
+                      font-weight: 900;
+                      color: #fff;
+                      display: flex;
+                      align-items: flex-end;
+                    }
+                    
+                    .label .span {
+                      color: #aaa;
+                      font-weight: 600;
+                      font-size: 14px;
+                      margin-left: 2px;
+                      margin-bottom: 3px;
+                    }
+                    
+                    .backdrop {
+                      position: absolute;
+                      bottom: -20px;
+                      right: -20px;
+                      width: 120px;
+                      height: 120px;
+                      border-radius: 50%;
+                      background: linear-gradient(135deg, rgba(0,255,0,0.05) 0%, rgba(0,255,0,0) 70%);
+                      z-index: 1;
+                      opacity: 0;
+                      transition: opacity 0.3s ease;
+                    }
+                    
+                    .input:checked ~ .backdrop {
+                      opacity: 1;
+                    }
+                `}</style>
                 
-                .card:hover {
-                  transform: translateY(-5px);
-                  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
-                }
-                
-                .input {
-                  position: absolute;
-                  top: 0;
-                  left: 0;
-                  height: 100%;
-                  width: 100%;
-                  cursor: pointer;
-                  appearance: none;
-                  border: 2px solid #222;
-                  border-radius: 12px;
-                  z-index: 10;
-                  transition: all 0.3s;
-                }
-                
-                .input + .check {
-                  position: absolute;
-                  top: 12px;
-                  right: 12px;
-                  z-index: 5;
-                }
-                
-                .input + .check::before {
-                  content: "";
-                  display: block;
-                  width: 22px;
-                  height: 22px;
-                  border: 2px solid #444;
-                  border-radius: 50%;
-                  background-color: #111;
-                  transition: all 0.3s;
-                }
-                
-                .input:checked + .check::after {
-                  content: '';
-                  position: absolute;
-                  top: 5px;
-                  right: 5px;
-                  width: 12px;
-                  height: 12px;
-                  background-color: #00FF00;
-                  border-radius: 50%;
-                  transition: all 0.3s;
-                }
-                
-                .input:checked {
-                  border: 2px solid #00FF00;
-                }
-                
-                .label {
-                  color: #fff;
-                  position: relative;
-                  z-index: 5;
-                  width: 100%;
-                  text-align: left;
-                  padding-right: 25px;
-                }
-                
-                .label .title {
-                  font-weight: 800;
-                  font-size: 16px;
-                  letter-spacing: 1px;
-                  margin-bottom: 12px;
-                  text-transform: uppercase;
-                  color: #eee;
-                }
-                
-                .label .price {
-                  font-size: 24px;
-                  font-weight: 900;
-                  color: #fff;
-                  display: flex;
-                  align-items: flex-end;
-                }
-                
-                .label .span {
-                  color: #aaa;
-                  font-weight: 600;
-                  font-size: 14px;
-                  margin-left: 2px;
-                  margin-bottom: 3px;
-                }
-                
-                .backdrop {
-                  position: absolute;
-                  bottom: -20px;
-                  right: -20px;
-                  width: 120px;
-                  height: 120px;
-                  border-radius: 50%;
-                  background: linear-gradient(135deg, rgba(0,255,0,0.05) 0%, rgba(0,255,0,0) 70%);
-                  z-index: 1;
-                  opacity: 0;
-                  transition: opacity 0.3s ease;
-                }
-                
-                .input:checked ~ .backdrop {
-                  opacity: 1;
-                }
-            `}</style>
-            
-            <div className="wrapper">
-              <div className="card">
-                <input 
-                  className="input" 
-                  type="radio" 
-                  name="card" 
-                  value="basic" 
-                  defaultChecked 
-                  onChange={() => setSelectedPlan("basic")}
-                />
-                <span className="check"></span>
-                <label className="label">
-                  <div className="title">Mensal</div>
-                  <div className="price">
-                    R$49
-                    <span className="span">/mês</span>
+                {/* Cards dos planos de assinatura com UI melhorada */}
+                <div className="wrapper">
+                  {/* Plano Mensal */}
+                  <div className="card">
+                    <input 
+                      className="input" 
+                      type="radio" 
+                      name="card" 
+                      value="basic" 
+                      defaultChecked 
+                      onChange={() => setSelectedPlan("basic")}
+                    />
+                    <span className="check"></span>
+                    <label className="label">
+                      <div className="title">Mensal</div>
+                      <div className="price">
+                        R$49
+                        <span className="span">/mês</span>
+                      </div>
+                    </label>
+                    <div className="backdrop"></div>
                   </div>
-                </label>
-                <div className="backdrop"></div>
-              </div>
-              <div className="card">
-                <input 
-                  className="input" 
-                  type="radio" 
-                  name="card" 
-                  value="premium" 
-                  onChange={() => setSelectedPlan("premium")}
-                />
-                <span className="check"></span>
-                <label className="label">
-                  <div className="title">Anual</div>
-                  <div className="price">
-                    R$99
-                    <span className="span">/ano</span>
+                  
+                  {/* Plano Anual */}
+                  <div className="card">
+                    <input 
+                      className="input" 
+                      type="radio" 
+                      name="card" 
+                      value="premium" 
+                      onChange={() => setSelectedPlan("premium")}
+                    />
+                    <span className="check"></span>
+                    <label className="label">
+                      <div className="title">Anual</div>
+                      <div className="price">
+                        R$99
+                        <span className="span">/ano</span>
+                      </div>
+                    </label>
+                    <div className="backdrop"></div>
                   </div>
-                </label>
-                <div className="backdrop"></div>
+                </div>
+                
+                {/* Botão de ação para iniciar o checkout */}
+                <Button 
+                  onClick={() => setShowCheckout(true)}
+                  className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-8"
+                >
+                  <PackageOpen className="mr-2 h-5 w-5" />
+                  Escolher Plano
+                </Button>
               </div>
             </div>
-            
-            <Button 
-              onClick={() => setShowCheckout(true)}
-              className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-8"
-            >
-              <PackageOpen className="mr-2 h-5 w-5" />
-              Escolher Plano
-            </Button>
             
             {/* Formulário de Checkout */}
             {showCheckout && !paymentSuccess && (
