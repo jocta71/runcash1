@@ -822,7 +822,7 @@ const Index = () => {
         )}
         
         {/* Layout principal */}
-        <div className={`flex flex-col lg:flex-row gap-6 ${!hasActivePlan ? 'opacity-60' : ''}`}>
+        <div className={`flex flex-col lg:flex-row gap-6`}>
           {/* Cards de roleta à esquerda */}
           <div className="w-full lg:w-1/2">
             <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">

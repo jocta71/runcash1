@@ -1,0 +1,175 @@
+[33mcommit a0e101518f7452bcc2780ec35857a1ec3b26d52c[m
+Author: Usuario Exemplo <joctaxd@gmail.com>
+Date:   Fri Apr 25 03:48:37 2025 -0300
+
+    Update RouletteCard.tsx
+
+[1mdiff --git a/frontend/src/components/RouletteCard.tsx b/frontend/src/components/RouletteCard.tsx[m
+[1mindex 243d04c..6d1f4fc 100644[m
+[1m--- a/frontend/src/components/RouletteCard.tsx[m
+[1m+++ b/frontend/src/components/RouletteCard.tsx[m
+[36m@@ -8,8 +8,6 @@[m [mimport { Badge } from "@/components/ui/badge";[m
+ import { useRouletteSettingsStore } from '@/stores/rouletteSettingsStore';[m
+ import { cn } from '@/lib/utils';[m
+ import globalRouletteDataService from '@/services/GlobalRouletteDataService';[m
+[31m-import PlanProtectedFeature from './PlanProtectedFeature';[m
+[31m-import { PlanType } from '@/types/plans';[m
+ [m
+ // Debug flag - set to false to disable logs in production[m
+ const DEBUG_ENABLED = false;[m
+[36m@@ -353,86 +351,80 @@[m [mconst RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false[m
+   };[m
+ [m
+   return ([m
+[31m-    <PlanProtectedFeature[m
+[31m-      featureId="view_roulette_cards"[m
+[31m-      requiredPlan={PlanType.BASIC}[m
+[31m-      lockedMessage="Os cartões de roleta completos só estão disponíveis para assinantes. Faça upgrade do seu plano para visualizar todos os dados."[m
+[32m+[m[32m    <Card[m[41m [m
+[32m+[m[32m      ref={cardRef}[m
+[32m+[m[32m      className={cn([m
+[32m+[m[32m        "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ",[m[41m [m
+[32m+[m[32m        "hover:border-vegas-green/50",[m
+[32m+[m[32m        isNewNumber ? "border-vegas-green animate-pulse" : "",[m
+[32m+[m[32m        isDetailView ? "w-full" : "w-full"[m
+[32m+[m[32m      )}[m
+[32m+[m[32m      onClick={handleCardClick}[m
+     >[m
+[31m-      <Card [m
+[31m-        ref={cardRef}[m
+[31m-        className={cn([m
+[31m-          "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ", [m
+[31m-          "hover:border-vegas-green/50",[m
+[31m-          isNewNumber ? "border-vegas-green animate-pulse" : "",[m
+[31m-          isDetailView ? "w-full" : "w-full"[m
+[31m-        )}[m
+[31m-        onClick={handleCardClick}[m
+[31m-      >[m
+[31m-        {/* Logo de fundo com baixa opacidade e saturação 0 */}[m
+[31m-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-lg">[m
+[31m-          <img [m
+[31m-            src="/assets/icon-rabbit.svg" [m
+[31m-            alt="Icon Rabbit" [m
+[31m-            className="w-[95%] h-auto opacity-[0.025] grayscale filter select-none"[m
+[31m-            style={{ [m
+[31m-              objectFit: "contain",[m
+[31m-              transformOrigin: "center"[m
+[31m-            }} [m
+[31m-          />[m
+[32m+[m[32m      {/* Logo de fundo com baixa opacidade e saturação 0 */}[m
+[32m+[m[32m      <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-lg">[m
+[32m+[m[32m        <img[m[41m [m
+[32m+[m[32m          src="/assets/icon-rabbit.svg"[m[41m [m
+[32m+[m[32m          alt="Icon Rabbit"[m[41m [m
+[32m+[m[32m          className="w-[95%] h-auto opacity-[0.025] grayscale filter select-none"[m
+[32m+[m[32m          style={{[m[41m [m
+[32m+[m[32m            objectFit: "contain",[m
+[32m+[m[32m            transformOrigin: "center"[m
+[32m+[m[32m          }}[m[41m [m
+[32m+[m[32m        />[m
+[32m+[m[32m      </div>[m
+[32m+[m[41m      [m
+[32m+[m[32m      {/* Reprodutor de áudio (invisível) */}[m
+[32m+[m[32m      <audio ref={audioRef} src="/sounds/coin.mp3" preload="auto" />[m
+[32m+[m[41m      [m
+[32m+[m[32m      <CardContent className="p-4 relative z-10">[m
+[32m+[m[32m        {/* Cabeçalho */}[m
+[32m+[m[32m        <div className="flex justify-between items-center mb-3">[m
+[32m+[m[32m          <h3 className="text-lg font-semibold truncate text-white flex items-center">[m
+[32m+[m[32m            <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>[m
+[32m+[m[32m            {safeData.name}[m
+[32m+[m[32m          </h3>[m
+[32m+[m[32m          <div className="flex gap-1 items-center">[m
+[32m+[m[32m            <Badge[m[41m [m
+[32m+[m[32m              variant={hasRealData ? "secondary" : "default"}[m[41m [m
+[32m+[m[32m              className={`text-xs ${hasRealData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}[m
+[32m+[m[32m            >[m
+[32m+[m[32m              {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}[m
+[32m+[m[32m            </Badge>[m
+[32m+[m[32m          </div>[m
+         </div>[m
+         [m
+[31m-        {/* Reprodutor de áudio (invisível) */}[m
+[31m-        <audio ref={audioRef} src="/sounds/coin.mp3" preload="auto" />[m
+[31m-        [m
+[31m-        <CardContent className="p-4 relative z-10">[m
+[31m-          {/* Cabeçalho */}[m
+[31m-          <div className="flex justify-between items-center mb-3">[m
+[31m-            <h3 className="text-lg font-semibold truncate text-white flex items-center">[m
+[31m-              <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>[m
+[31m-              {safeData.name}[m
+[31m-            </h3>[m
+[31m-            <div className="flex gap-1 items-center">[m
+[31m-              <Badge [m
+[31m-                variant={hasRealData ? "secondary" : "default"} [m
+[31m-                className={`text-xs ${hasRealData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}[m
+[31m-              >[m
+[31m-                {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}[m
+[31m-              </Badge>[m
+[32m+[m[32m        {/* Números recentes */}[m
+[32m+[m[32m        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/50" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>[m
+[32m+[m[32m          {recentNumbers.length > 0 ? ([m
+[32m+[m[32m            recentNumbers.slice(0, 20).map((num, idx) => ([m
+[32m+[m[32m            <NumberDisplay[m[41m [m
+[32m+[m[32m              key={`${num}-${idx}`}[m
+[32m+[m[32m              number={num}[m[41m [m
+[32m+[m[32m              size="small"[m[41m [m
+[32m+[m[32m              highlight={idx === 0 && isNewNumber}[m
+[32m+[m[32m            />[m
+[32m+[m[32m            ))[m
+[32m+[m[32m          ) : ([m
+[32m+[m[32m            <div className="text-center text-gray-400 py-2 w-full">[m
+[32m+[m[32m              {loading ? ([m
+[32m+[m[32m                <div className="flex items-center justify-center">[m
+[32m+[m[32m                  <Loader2 className="h-4 w-4 animate-spin mr-2 text-vegas-green" />[m
+[32m+[m[32m                  Carregando números...[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m              ) : "Nenhum número disponível"}[m
+             </div>[m
+[31m-          </div>[m
+[31m-          [m
+[31m-          {/* Números recentes */}[m
+[31m-          <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/50" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>[m
+[31m-            {recentNumbers.length > 0 ? ([m
+[31m-              recentNumbers.slice(0, 20).map((num, idx) => ([m
+[31m-              <NumberDisplay [m
+[31m-                key={`${num}-${idx}`}[m
+[31m-                number={num} [m
+[31m-                size="small" [m
+[31m-                highlight={idx === 0 && isNewNumber}[m
+[31m-              />[m
+[31m-              ))[m
+[31m-            ) : ([m
+[31m-              <div className="text-center text-gray-400 py-2 w-full">[m
+[31m-                {loading ? ([m
+[31m-                  <div className="flex items-center justify-center">[m
+[31m-                    <Loader2 className="h-4 w-4 animate-spin mr-2 text-vegas-green" />[m
+[31m-                    Carregando números...[m
+[31m-                  </div>[m
+[31m-                ) : "Nenhum número disponível"}[m
+[31m-              </div>[m
+[31m-            )}[m
+[31m-          </div>[m
+[31m-        </CardContent>[m
+[32m+[m[32m          )}[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      </CardContent>[m
+ [m
+[31m-        {/* Toast de notificação */}[m
+[31m-        {toastVisible && ([m
+[31m-          <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">[m
+[31m-            {toastMessage}[m
+[31m-          </div>[m
+[31m-        )}[m
+[31m-      </Card>[m
+[31m-    </PlanProtectedFeature>[m
+[32m+[m[32m      {/* Toast de notificação */}[m
+[32m+[m[32m      {toastVisible && ([m
+[32m+[m[32m        <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">[m
+[32m+[m[32m          {toastMessage}[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      )}[m
+[32m+[m[32m    </Card>[m
+   );[m
+ };[m
+ [m

@@ -37,13 +37,24 @@ export class RouletteRepository {
         return [];
       }
 
-      const response = await axios.get(`${API_URL}/roulettes/with-numbers`, {
+      console.log('Usando endpoint alternativo para buscar roletas com números');
+      const response = await axios.get(`${API_URL}/roulettes`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
 
-      return response.data.data || [];
+      const processedData = (response.data.data || []).map(roulette => {
+        if (!roulette.numero || !Array.isArray(roulette.numero)) {
+          roulette.numero = [];
+        }
+        if (!roulette.lastNumbers || !Array.isArray(roulette.lastNumbers)) {
+          roulette.lastNumbers = [...(roulette.numero || [])];
+        }
+        return roulette;
+      });
+
+      return processedData;
     } catch (error) {
       this.handleApiError(error, 'Erro ao buscar roletas com números');
       // Se for erro 403, retorna array vazio
@@ -63,13 +74,23 @@ export class RouletteRepository {
         return [];
       }
 
-      const response = await axios.get(`${API_URL}/roulettes/basic-info`, {
+      console.log('Usando endpoint alternativo para buscar informações básicas');
+      const response = await axios.get(`${API_URL}/roulettes`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
 
-      return response.data.data || [];
+      const basicData = (response.data.data || []).map(roulette => ({
+        id: roulette.id || roulette._id,
+        nome: roulette.nome || roulette.name || 'Roleta sem nome',
+        name: roulette.name || roulette.nome || 'Roleta sem nome',
+        estado_estrategia: roulette.estado_estrategia || 'NEUTRAL',
+        vitorias: roulette.vitorias || 0,
+        derrotas: roulette.derrotas || 0
+      }));
+
+      return basicData;
     } catch (error) {
       this.handleApiError(error, 'Erro ao buscar informações básicas das roletas');
       return [];
