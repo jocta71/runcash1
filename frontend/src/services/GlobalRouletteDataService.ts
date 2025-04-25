@@ -8,13 +8,16 @@ const POLLING_INTERVAL = 4000;
 // const CACHE_TTL = 15000;
 
 // Intervalo mínimo entre requisições forçadas (4 segundos)
-const MIN_FORCE_INTERVAL = 4000;
+const MIN_FORCE_INTERVAL = 30000;
 
 // Limite padrão para requisições normais (1000 itens)
 const DEFAULT_LIMIT = 1000;
 
 // Limite para requisições detalhadas (1000 itens)
 const DETAILED_LIMIT = 1000;
+
+// Configurações e constantes
+const CACHE_VALIDITY_MS = 60000; // 1 minuto
 
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
@@ -34,6 +37,9 @@ class GlobalRouletteDataService {
   private pollingTimer: number | null = null;
   private subscribers: Map<string, SubscriberCallback> = new Map();
   private _currentFetchPromise: Promise<any[]> | null = null;
+  private lastUpdateTime: number = 0;
+  private hasCachedData: boolean = false;
+  private shouldLoadDetailedData: boolean = true; // Por padrão, carrega dados detalhados
   
   // Construtor privado para garantir Singleton
   private constructor() {
@@ -104,26 +110,20 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados das roletas da API (usando limit=1000) - método principal
-   * @returns Promise com dados das roletas
+   * Busca dados atualizados de roletas da API
    */
   public async fetchRouletteData(): Promise<any[]> {
     // Evitar requisições simultâneas
-    if (this.isFetching) {
-      console.log('[GlobalRouletteService] Requisição já em andamento, aguardando...');
-      
-      // Aguardar a conclusão da requisição atual
-      if (this._currentFetchPromise) {
-        return this._currentFetchPromise;
-      }
-      
-      return this.rouletteData;
+    if (this.isFetching && this._currentFetchPromise) {
+      console.log('[GlobalRouletteService] Já existe uma busca em andamento, aguardando...');
+      return this._currentFetchPromise;
     }
     
-    // Verificar se já fizemos uma requisição recentemente
+    // Verificar se temos dados em cache e se o cache ainda é válido
     const now = Date.now();
-    if (now - this.lastFetchTime < MIN_FORCE_INTERVAL) {
-      console.log(`[GlobalRouletteService] Última requisição foi feita há ${Math.round((now - this.lastFetchTime)/1000)}s. Aguardando intervalo mínimo de ${MIN_FORCE_INTERVAL/1000}s.`);
+    if (this.hasCachedData && (now - this.lastUpdateTime < CACHE_VALIDITY_MS)) {
+      console.log('[GlobalRouletteService] Usando dados em cache (expiram em ' + 
+        ((this.lastUpdateTime + CACHE_VALIDITY_MS - now) / 1000).toFixed(1) + 's)');
       return this.rouletteData;
     }
     
@@ -131,24 +131,54 @@ class GlobalRouletteDataService {
       this.isFetching = true;
       
       // Removendo a verificação de cache para sempre buscar dados frescos
-      console.log('[GlobalRouletteService] Buscando dados atualizados da API (limit=1000)');
+      console.log('[GlobalRouletteService] Buscando dados atualizados da API (endpoint básico)');
       
       // Criar e armazenar a promessa atual
       this._currentFetchPromise = (async () => {
-        // Usar a função utilitária com suporte a CORS - com limit=1000 para todos os casos
-        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+        // Usar endpoint básico para informações sem números
+        const basicData = await fetchWithCorsSupport<any[]>(`/api/roulettes/basic`);
         
         // Verificar se os dados são válidos
-        if (data && Array.isArray(data)) {
-          console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
-          this.rouletteData = data;
-          this.lastFetchTime = now;
+        if (basicData && Array.isArray(basicData)) {
+          console.log(`[GlobalRouletteService] Dados básicos recebidos: ${basicData.length} roletas`);
           
-          // Remover armazenamento no localStorage
-          // localStorage.setItem('global_roulette_data', JSON.stringify({
-          //   timestamp: now,
-          //   data: data
-          // }));
+          // Para cada roleta, buscar apenas os últimos números quando necessário
+          if (this.shouldLoadDetailedData) {
+            console.log('[GlobalRouletteService] Carregando amostras de números para cada roleta...');
+            
+            // Converter array para objeto mapeado por ID
+            const rouletteMap = basicData.reduce((acc, roleta) => {
+              acc[roleta.id] = {...roleta, numero: []};
+              return acc;
+            }, {});
+            
+            // Buscar 20 números mais recentes para cada roleta em paralelo (limit=20)
+            const fetchPromises = basicData.map(roleta => {
+              return fetchWithCorsSupport<any>(`/api/roulettes/${roleta.id}/numbers?limit=20`)
+                .then(data => {
+                  if (data && data.numeros) {
+                    console.log(`[GlobalRouletteService] Recebidos ${data.numeros.length} números para ${roleta.nome}`);
+                    rouletteMap[roleta.id].numero = data.numeros;
+                  }
+                })
+                .catch(err => console.error(`Erro ao buscar números para ${roleta.nome}:`, err));
+            });
+            
+            // Aguardar todas as requisições completarem
+            await Promise.all(fetchPromises);
+            
+            // Converter mapa de volta para array
+            const enrichedData = Object.values(rouletteMap);
+            
+            this.rouletteData = enrichedData;
+            console.log(`[GlobalRouletteService] Dados completos recebidos com sucesso: ${enrichedData.length} roletas`);
+          } else {
+            // Se não precisamos de dados detalhados, usar apenas os dados básicos
+            this.rouletteData = basicData.map(roleta => ({...roleta, numero: []}));
+            console.log('[GlobalRouletteService] Usando apenas dados básicos sem números');
+          }
+          
+          this.lastFetchTime = now;
           
           // Notificar todos os assinantes sobre a atualização
           this.notifySubscribers();
@@ -156,11 +186,11 @@ class GlobalRouletteDataService {
           // Emitir evento global para outros componentes que possam estar ouvindo
           EventService.emit('roulette:data-updated', {
             timestamp: new Date().toISOString(),
-            count: data.length,
+            count: this.rouletteData.length,
             source: 'central-service'
           });
           
-          return data;
+          return this.rouletteData;
         } else {
           console.error('[GlobalRouletteService] Resposta inválida da API');
           return this.rouletteData;
