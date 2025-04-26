@@ -1,5 +1,6 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
+import { useSubscription } from '@/context/SubscriptionContext';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -26,6 +27,9 @@ export interface HistoryData {
   message?: string;
   error?: string;
 }
+
+// Singleton para acesso ao serviço de subscrição
+let subscriptionServiceInstance: any = null;
 
 /**
  * Serviço que gerencia o acesso a dados de roletas via API REST
@@ -312,6 +316,12 @@ class RESTSocketService {
   }
 
   private notifyListeners(event: any): void {
+    // Verificar se o usuário tem acesso a recursos em tempo real
+    if (!this.checkUserHasAccess()) {
+      console.log(`[RESTSocketService] Bloqueando evento para usuário sem plano: ${event.type} para ${event.roleta_nome}`);
+      return;
+    }
+    
     // Notificar listeners específicos para esta roleta
     const listeners = this.listeners.get(event.roleta_nome);
     if (listeners) {
@@ -334,6 +344,45 @@ class RESTSocketService {
           console.error('[RESTSocketService] Erro em listener global:', error);
         }
       });
+    }
+  }
+
+  // Verificar se o usuário tem um plano ativo que permite acesso aos dados em tempo real
+  private checkUserHasAccess(): boolean {
+    try {
+      // Tentar obter o serviço de subscrição como um singleton
+      if (!subscriptionServiceInstance) {
+        // Importar dinamicamente para evitar problemas de ciclos de dependência
+        const { useSubscription } = require('@/context/SubscriptionContext');
+        
+        // Tentar obter o contexto de subscrição - pode falhar se estiver fora do escopo do React
+        try {
+          subscriptionServiceInstance = useSubscription();
+        } catch (error) {
+          console.log('[RESTSocketService] Não foi possível obter o contexto de subscrição via hook');
+          
+          // Se não conseguiu obter via hook, tentar obter via window global
+          if (window.__SUBSCRIPTION_CONTEXT) {
+            subscriptionServiceInstance = window.__SUBSCRIPTION_CONTEXT;
+          } else {
+            console.log('[RESTSocketService] Permitindo acesso porque não foi possível verificar subscrição');
+            return true;
+          }
+        }
+      }
+      
+      // Verificar acesso a recursos em tempo real
+      const hasAccess = subscriptionServiceInstance.hasFeatureAccess('real_time_data');
+      
+      if (!hasAccess) {
+        console.log('[RESTSocketService] Usuário não tem acesso a dados em tempo real');
+      }
+      
+      return hasAccess;
+    } catch (error) {
+      console.error('[RESTSocketService] Erro ao verificar acesso do usuário:', error);
+      // Em caso de erro, permitir o acesso para evitar problemas
+      return true;
     }
   }
 
