@@ -1,8 +1,11 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const config = require('./config/config');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -22,6 +25,10 @@ console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 
 // Inicializar Express
 const app = express();
+
+// Adicionar os middlewares necessários
+const { proteger } = require('./middlewares/authMiddleware');
+const { verificarPlano } = require('./middlewares/unifiedSubscriptionMiddleware');
 
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
@@ -410,15 +417,104 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
-    // Parâmetros de paginação
-    const limit = parseInt(req.query.limit) || 200;
+    // Parâmetros de paginação - usar o valor da configuração
+    let limit = config.subscription.plans.FREE.limit; // Limite padrão para usuários não autenticados
+    
+    // Extrair token da requisição
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (token) {
+      try {
+        // Verificar e decodificar o token
+        const decodificado = jwt.verify(token, config.jwt.secret);
+        
+        // Buscar usuário para confirmar que ele existe e está ativo
+        const usuario = await db.collection('usuarios').findOne({ 
+          $or: [
+            { id: decodificado.id },
+            { _id: ObjectId.isValid(decodificado.id) ? new ObjectId(decodificado.id) : null }
+          ]
+        });
+        
+        if (usuario) {
+          // Buscar assinatura ativa no banco de dados
+          const userSubscription = await db.collection('subscriptions').findOne({
+            user_id: decodificado.id,
+            status: { $in: ['active', 'ACTIVE', 'ativa'] }
+          });
+          
+          // Se não encontrou na collection padrão, tentar na outra
+          if (!userSubscription) {
+            const assinatura = await db.collection('assinaturas').findOne({
+              usuario: ObjectId.isValid(decodificado.id) ? new ObjectId(decodificado.id) : decodificado.id,
+              status: 'ativa',
+              validade: { $gt: new Date() }
+            });
+            
+            if (assinatura) {
+              // Ajustar limite com base no plano da assinatura
+              switch (assinatura.plano) {
+                case 'BASIC':
+                  limit = config.subscription.plans.BASIC.limit;
+                  break;
+                case 'PRO':
+                  limit = config.subscription.plans.PRO.limit;
+                  break;
+                case 'PREMIUM':
+                  limit = config.subscription.plans.PREMIUM.limit;
+                  break;
+                default:
+                  limit = config.subscription.plans.FREE.limit;
+              }
+              
+              console.log(`[API] Usuário autenticado com plano ${assinatura.plano}, aplicando limite: ${limit}`);
+            }
+          } else {
+            // Ajustar limite de acordo com o plano
+            if (!userSubscription.expirationDate || new Date(userSubscription.expirationDate) >= new Date()) {
+              switch (userSubscription.plan_id) {
+                case 'BASIC':
+                  limit = config.subscription.plans.BASIC.limit;
+                  break;
+                case 'PRO':
+                  limit = config.subscription.plans.PRO.limit;
+                  break;
+                case 'PREMIUM':
+                  limit = config.subscription.plans.PREMIUM.limit;
+                  break;
+                default:
+                  limit = config.subscription.plans.FREE.limit;
+              }
+              
+              console.log(`[API] Usuário autenticado com plano ${userSubscription.plan_id}, aplicando limite: ${limit}`);
+            } else {
+              console.log('[API] Assinatura expirada, aplicando limite padrão');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[API] Erro ao verificar token:', error.message);
+        // Em caso de erro na verificação do token, continuamos com o limite padrão
+      }
+    } else {
+      console.log('[API] Requisição sem token, aplicando limite padrão');
+    }
+    
     console.log(`[API] Usando limit: ${limit}`);
+    
+    // Obter o valor do parâmetro "limit" da requisição, mas respeitar os limites baseados na assinatura
+    const requestedLimit = parseInt(req.query.limit) || limit;
+    // Garantir que o limit não exceda o valor permitido pelo plano
+    const finalLimit = Math.min(requestedLimit, limit);
+    
+    // Incluir na resposta JSON informações sobre o limite aplicado
+    const incluirInfoLimite = req.query.includeLimit === 'true';
     
     // Buscar histórico de números ordenados por timestamp
     const numeros = await collection
       .find({})
       .sort({ timestamp: -1 })
-      .limit(limit)
+      .limit(finalLimit)
       .toArray();
     
     console.log(`[API] Retornando ${numeros.length} números do histórico`);
@@ -426,12 +522,28 @@ app.get('/api/ROULETTES', async (req, res) => {
     // Verificar se temos dados para retornar
     if (numeros.length === 0) {
       console.log('[API] Nenhum número encontrado');
+      if (incluirInfoLimite) {
+        return res.json({ 
+          data: [],
+          limit: finalLimit,
+          hasSubscription: limit > config.subscription.plans.FREE.limit
+        });
+      }
       return res.json([]);
     }
     
     // Log de alguns exemplos para diagnóstico
     console.log('[API] Exemplos de dados retornados:');
     console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
+    
+    if (incluirInfoLimite) {
+      return res.json({
+        data: numeros,
+        limit: finalLimit,
+        total: count,
+        hasSubscription: limit > config.subscription.plans.FREE.limit
+      });
+    }
     
     return res.json(numeros);
   } catch (error) {
