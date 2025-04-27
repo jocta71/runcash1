@@ -13,46 +13,25 @@ const fs = require('fs');
 console.log('=== RunCash Server Launcher ===');
 console.log('Diretório atual:', process.cwd());
 
-// Verificar se as dependências estão instaladas
-function checkAndInstallDependencies() {
-  console.log('Verificando dependências...');
+// Verificar se o instalador de dependências existe
+const installerPath = path.resolve(__dirname, 'install_dependencies.js');
+if (fs.existsSync(installerPath)) {
+  console.log('Verificando se é necessário instalar dependências...');
   
-  // Verificar dependências no diretório principal
+  // Tentar carregar uma dependência crítica
   try {
     require('cookie-parser');
-    console.log('cookie-parser já está instalado no diretório principal');
+    console.log('Dependências críticas já estão instaladas.');
   } catch (err) {
-    console.log('Dependência faltante: cookie-parser, instalando...');
+    console.log('Dependências críticas faltando, executando instalador...');
     try {
-      execSync('npm install cookie-parser --save', { stdio: 'inherit' });
-      console.log('cookie-parser instalado com sucesso');
+      execSync(`node ${installerPath}`, { stdio: 'inherit' });
+      console.log('Instalação de dependências concluída com sucesso.');
     } catch (installErr) {
-      console.error('Erro ao instalar cookie-parser:', installErr);
-    }
-  }
-  
-  // Verificar se o diretório api existe
-  if (fs.existsSync(path.join(process.cwd(), 'api'))) {
-    console.log('Verificando dependências do diretório api...');
-    
-    // Verificar se package.json existe no diretório api
-    const apiPackageJsonPath = path.join(process.cwd(), 'api', 'package.json');
-    if (fs.existsSync(apiPackageJsonPath)) {
-      try {
-        // Instalar dependências no diretório api se necessário
-        execSync('cd api && npm install', { stdio: 'inherit' });
-        console.log('Dependências do diretório api instaladas com sucesso');
-      } catch (apiInstallErr) {
-        console.error('Erro ao instalar dependências no diretório api:', apiInstallErr);
-      }
-    } else {
-      console.log('package.json não encontrado no diretório api, não é possível instalar dependências específicas');
+      console.error('Erro ao instalar dependências:', installErr);
     }
   }
 }
-
-// Executar verificação de dependências
-checkAndInstallDependencies();
 
 // Determinar o caminho absoluto para o arquivo index.js
 let indexPath = path.resolve(__dirname, 'index.js');

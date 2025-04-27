@@ -2,17 +2,13 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copiar os arquivos de configuração do diretório principal
+# Copiar os arquivos de configuração necessários 
 COPY package*.json ./
-
-# Instalar dependências do diretório principal
-RUN npm install
-
-# Copiar arquivo package.json do diretório api
 COPY api/package*.json ./api/
+COPY install_dependencies.js ./
 
-# Instalar dependências do diretório api
-RUN cd api && npm install
+# Instalar todas as dependências usando o script
+RUN node install_dependencies.js
 
 # Copiar todo o código-fonte
 COPY . .
