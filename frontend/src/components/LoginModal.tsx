@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -221,7 +223,9 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModal
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl grid grid-cols-1 md:grid-cols-2 p-0 gap-0 overflow-hidden">
+      <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md p-0 gap-0">
+        <DialogTitle className="sr-only">Login ou Registro</DialogTitle>
+        <DialogDescription className="sr-only">Faça login ou crie uma conta para acessar.</DialogDescription>
         {/* Lado esquerdo - Imagem */}
         <div className="relative hidden md:block">
           <div 
@@ -305,6 +309,7 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModal
                       onChange={(e) => setPassword(e.target.value)}
                       className="pl-10 bg-gray-900/50 border-gray-700 text-white"
                       required
+                      autoComplete="current-password"
                     />
                   </div>
                 </div>
@@ -431,6 +436,7 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModal
                       onChange={(e) => setPassword(e.target.value)}
                       className="pl-10 bg-gray-900/50 border-gray-700 text-white"
                       required
+                      autoComplete="new-password"
                     />
                   </div>
                 </div>
@@ -447,6 +453,7 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModal
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="pl-10 bg-gray-900/50 border-gray-700 text-white"
                       required
+                      autoComplete="new-password"
                     />
                   </div>
                 </div>
