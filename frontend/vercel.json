@@ -13,24 +13,23 @@
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "env": {
-    "VITE_WS_URL": "https://runcash1-production.up.railway.app",
-    "VITE_SSE_SERVER_URL": "https://runcash1-production.up.railway.app/api/events",
+    "VITE_WS_URL": "https://backend-production-2f96.up.railway.app",
+    "VITE_SSE_SERVER_URL": "https://backend-production-2f96.up.railway.app/api/events",
     "VITE_API_BASE_URL": "https://runcash5.vercel.app/api",
-    "BACKEND_URL": "https://runcash1-production.up.railway.app"
-  }
-}
-,
+    "BACKEND_URL": "https://backend-production-2f96.up.railway.app"
+  },
   "rewrites": [
     { 
       "source": "/api/asaas-create-customer",
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-customer"
+      "destination": "https://backend-production-2f96.up.railway.app/api/payment/asaas/create-customer"
     },
     { 
       "source": "/api/asaas-create-subscription", 
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-subscription"
+      "destination": "https://backend-production-2f96.up.railway.app/api/payment/asaas/create-subscription"
     },
     { 
       "source": "/api/asaas-webhook",
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/webhook"
+      "destination": "https://backend-production-2f96.up.railway.app/api/payment/asaas/webhook"
     }
   ]
+}
