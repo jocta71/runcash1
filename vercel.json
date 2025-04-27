@@ -1,19 +1,16 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "frontend/package.json", "use": "@vercel/next" },
-    { "src": "api/**/*.js", "use": "@vercel/node" }
-  ],
-  "routes": [
-    { "src": "/api/proxy-roulette", "dest": "/api/proxy-roulette.js" },
-    { "src": "/api/proxy-roulette/(.*)", "dest": "/api/proxy-roulette.js" },
-    { "src": "/api/ROULETTES", "dest": "/api/proxy-roulette.js" },
-    { "src": "/api/ROULETTES/(.*)", "dest": "/api/proxy-roulette.js" },
-    { "src": "/api/ROULETTES-numbers", "dest": "/api/proxy-roulette.js?type=numbers" },
-    { "src": "/api/ROULETTES-numbers/(.*)", "dest": "/api/proxy-roulette.js?type=numbers" },
-    { "src": "/api/health", "dest": "/api/health.js" },
-    { "src": "/api/(.*)", "dest": "/api/proxy.js" },
-    { "src": "/(.*)", "dest": "/frontend/$1" }
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/proxy-roulette", "destination": "/api/proxy-roulette" },
+    { "source": "/api/proxy-roulette/:path*", "destination": "/api/proxy-roulette" },
+    { "source": "/api/ROULETTES", "destination": "/api/proxy-roulette" },
+    { "source": "/api/ROULETTES/:path*", "destination": "/api/proxy-roulette" },
+    { "source": "/api/ROULETTES-numbers", "destination": "/api/proxy-roulette?type=numbers" },
+    { "source": "/api/ROULETTES-numbers/:path*", "destination": "/api/proxy-roulette?type=numbers" },
+    { "source": "/api/health", "destination": "/api/health" },
+    { "source": "/api/:path*", "destination": "/api/proxy?path=/:path*" }
   ],
   "env": {
     "VITE_WEBSOCKET_URL": "wss://backend-production-2f96.up.railway.app",
