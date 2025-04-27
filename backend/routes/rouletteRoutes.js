@@ -14,6 +14,13 @@ const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddle
 const rouletteController = require('../controllers/rouletteController');
 
 /**
+ * @route   GET /api/roulettes/sample
+ * @desc    Fornece uma amostra de dados para usuários sem plano
+ * @access  Público
+ */
+router.get('/roulettes/sample', rouletteController.getSampleRoulettes);
+
+/**
  * @route   GET /api/roulettes
  * @desc    Lista todas as roletas disponíveis (limitado por plano)
  * @access  Público com limitações

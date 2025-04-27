@@ -574,6 +574,60 @@ const getFreePreview = async (req, res) => {
   }
 };
 
+/**
+ * Fornece uma amostra limitada de dados de roletas para usuários não autenticados
+ * Usado para demonstração e para usuários sem plano
+ */
+const getSampleRoulettes = async (req, res) => {
+  try {
+    const db = await getDb();
+    const roulettes = await db.collection('roulettes').find({}).limit(3).toArray();
+    
+    // Limitar os dados retornados para cada roleta (números reduzidos)
+    const limitedData = await Promise.all(roulettes.map(async (roulette) => {
+      // Buscar apenas os 10 últimos números para cada roleta
+      const numbers = await db.collection('roulette_numbers')
+        .find({ rouletteId: roulette._id.toString() })
+        .sort({ timestamp: -1 })
+        .limit(10)
+        .toArray();
+      
+      // Anexar os números à roleta
+      return {
+        ...roulette,
+        numero: numbers.map(n => ({
+          numero: n.number,
+          timestamp: n.timestamp,
+          cor: n.color || determinarCorNumero(n.number)
+        }))
+      };
+    }));
+    
+    return res.json({
+      success: true,
+      message: 'Amostra de dados de roletas',
+      data: limitedData,
+      sample: true
+    });
+  } catch (error) {
+    console.error('Erro ao obter amostra de roletas:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao obter amostra de roletas',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Helper para determinar a cor de um número da roleta
+ */
+function determinarCorNumero(numero) {
+  if (numero === 0) return 'verde';
+  const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
+}
+
 /** 
  * FUNÇÕES AUXILIARES
  */
@@ -833,5 +887,6 @@ module.exports = {
   getRouletteStatistics,
   getHistoricalData,
   getNumbersBatch,
-  getFreePreview
+  getFreePreview,
+  getSampleRoulettes
 }; 

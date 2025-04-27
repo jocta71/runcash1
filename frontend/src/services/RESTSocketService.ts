@@ -1,5 +1,6 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
+import Cookies from 'js-cookie';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -27,33 +28,43 @@ export interface HistoryData {
   error?: string;
 }
 
+// Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
+type NodeJSTimeout = ReturnType<typeof setTimeout>;
+
+interface RESTSocketServiceConfig {
+  pollingInterval?: number;
+  httpEndpoint?: string;
+  centralServiceEndpoint?: string;
+}
+
 /**
  * Serviço que gerencia o acesso a dados de roletas via API REST
  * Substitui o antigo serviço de WebSocket, mantendo a mesma interface
  */
 class RESTSocketService {
   private static instance: RESTSocketService;
-  private listeners: Map<string, Set<any>> = new Map();
-  private connectionActive: boolean = false;
-  private timerId: number | null = null;
-  private _lastCreatedTimerId: number | null = null; // Adicionar para controle interno
-  private pollingInterval: number = 4000; // Intervalo de 4 segundos para polling
+  private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
+  private rouletteHistory: Map<string, number[]> = new Map();
+  private lastProcessedData: Map<string, string> = new Map();
   private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
+  private pollingTimer: NodeJSTimeout | null = null;
+  private secondEndpointPollingTimer: NodeJSTimeout | null = null;
+  private centralServicePollingTimer: NodeJSTimeout | null = null;
+  private limitedPollingTimer: NodeJSTimeout | null = null;
+  private connectionActive: boolean = false;
+  private historyLimit: number = 500;
+  private defaultPollingInterval: number = isProduction() ? 10000 : 5000; // 10 segundos em produção, 5 em desenvolvimento
+  private pollingEndpoint: string = '/api/roulettes/limits';
+  private centralServiceEndpoint: string = '/api/central-service/roulettes';
+  private centralServicePollingInterval: number = 60000; // 1 minuto = 60000 ms
+  private pollingIntervals: Map<string, number> = new Map();
+  private _isLoadingHistoricalData: boolean = false;
   
   // Propriedade para simular estado de conexão
   public client?: any;
   
-  // Mapa para armazenar os intervalos de polling por roletaId
-  private pollingIntervals: Map<string, number> = new Map();
-  
-  private _isLoadingHistoricalData: boolean = false;
-  
   // Adicionar uma propriedade para armazenar o histórico completo por roleta  
   private rouletteHistory: Map<string, number[]> = new Map();
-  private historyLimit: number = 1000;
-  
-  // Adicionar propriedade para armazenar cache de dados das roletas
-  private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
   private cacheTTL: number = 5 * 60 * 1000; // 5 minutos em milissegundos
   
   private constructor() {
@@ -68,11 +79,8 @@ class RESTSocketService {
       }
     });
 
-    // Iniciar o polling da API REST
-    this.startPolling();
-    
-    // Iniciar também o polling para o endpoint sem parâmetro
-    this.startSecondEndpointPolling();
+    // Verificar se o usuário tem plano antes de inicializar polling
+    this.checkSubscriptionBeforeInit();
     
     // Adicionar event listener para quando a janela ficar visível novamente
     window.addEventListener('visibilitychange', this.handleVisibilityChange);
@@ -675,6 +683,71 @@ class RESTSocketService {
     }
     
     return mergedNumbers;
+  }
+
+  // Novo método para verificar assinatura antes de iniciar polling
+  private async checkSubscriptionBeforeInit(): Promise<void> {
+    try {
+      // Verificar localmente se o usuário está autenticado
+      const token = localStorage.getItem('auth_token_backup') || Cookies.get('auth_token');
+      
+      if (!token) {
+        console.log('[RESTSocketService] Usuário não autenticado, limitando acesso a dados');
+        // Iniciar com modo limitado (apenas amostra)
+        this.startLimitedPolling();
+        return;
+      }
+      
+      // Verificar com o backend se o usuário tem plano
+      const API_URL = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${API_URL}/subscription/status`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        console.log('[RESTSocketService] Erro ao verificar assinatura, limitando acesso');
+        this.startLimitedPolling();
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data.success && data.subscription && data.subscription.status === 'active') {
+        console.log('[RESTSocketService] Usuário com plano ativo, iniciando polling completo');
+        this.startPolling();
+        this.startSecondEndpointPolling();
+      } else {
+        console.log('[RESTSocketService] Usuário sem plano ativo, limitando acesso a dados');
+        this.startLimitedPolling();
+      }
+    } catch (error) {
+      console.error('[RESTSocketService] Erro ao verificar assinatura:', error);
+      this.startLimitedPolling();
+    }
+  }
+
+  // Polling limitado para usuários sem plano
+  private startLimitedPolling(): void {
+    console.log('[RESTSocketService] Iniciando polling limitado (modo amostra)');
+    
+    const API_URL = import.meta.env.VITE_API_URL || '/api';
+    
+    // Polling com intervalo maior e apenas para o endpoint de amostra
+    this.pollingTimer = setInterval(() => {
+      fetch(`${API_URL}/roulettes/sample`)
+        .then(response => response.json())
+        .then(data => {
+          if (data && data.success && Array.isArray(data.data)) {
+            console.log(`[RESTSocketService] Dados de amostra recebidos: ${data.data.length} roletas`);
+            this.processDataAsEvents(data.data);
+          }
+        })
+        .catch(error => {
+          console.error('[RESTSocketService] Erro ao buscar dados de amostra:', error);
+        });
+    }, 15000); // 15 segundos - intervalo maior para economia de recursos
   }
 }
 
