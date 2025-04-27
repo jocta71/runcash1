@@ -786,8 +786,8 @@ const verificarAssinaturaMiddleware = async (req, res, next) => {
     req.userPlan = DEV_USER_PLAN || 'PREMIUM';
     req.hasValidSubscription = true;
     return next();
-  }
-  
+    }
+    
   // Extrair token do cabeçalho Authorization
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.startsWith('Bearer ') 
@@ -830,7 +830,7 @@ const verificarAssinaturaMiddleware = async (req, res, next) => {
     }
     
     console.log(`[AUTH] Usuário encontrado: ${usuario.nome || usuario.username || 'Sem nome'}`);
-    
+
     // Verificação de assinatura (mais detalhada e com logs)
     let temAssinaturaAtiva = false;
     let planoUsuario = 'FREE';
@@ -1015,7 +1015,7 @@ app.get('/api/ROULETTES/historico', [
       
       // Adicionar ao cache com tempo de vida de 60 segundos
       resultCache.set(cacheKey, historico, 60);
-      
+    
       res.json(historico);
     } else {
       console.log('[API] Histórico vazio');

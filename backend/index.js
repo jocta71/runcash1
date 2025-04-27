@@ -9,6 +9,7 @@ const cors = require('cors');
 const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
+const axios = require('axios'); // Adicionado para fazer proxy de requisições
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -16,6 +17,7 @@ dotenv.config();
 // Configuração
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
+const API_SERVICE_URL = process.env.API_SERVICE_URL || "https://backendapi-production-36b5.up.railway.app";
 
 // Inicializar Express
 const app = express();
@@ -27,9 +29,91 @@ const empresarialRoutes = require('./routes/empresarialRoutes');
 const assinaturaRoutes = require('./routes/assinaturaRoutes');
 const rouletteRoutes = require('./routes/rouletteRoutes');
 
+// Importar middlewares de autenticação e autorização
+let authMiddleware = { proteger: (req, res, next) => next() };
+let subscriptionMiddleware = { verificarPlano: () => (req, res, next) => next() };
+
+// Tentar carregar os middlewares reais
+try {
+  authMiddleware = require('./middlewares/authMiddleware');
+  console.log('✅ Middleware de autenticação carregado com sucesso');
+} catch (error) {
+  console.warn('⚠️ Não foi possível carregar o middleware de autenticação:', error.message);
+}
+
+try {
+  subscriptionMiddleware = require('./middlewares/unifiedSubscriptionMiddleware');
+  console.log('✅ Middleware de verificação de assinatura carregado com sucesso');
+} catch (error) {
+  console.warn('⚠️ Não foi possível carregar o middleware de verificação de assinatura:', error.message);
+}
+
+// Desestruturar os métodos que precisamos
+const { proteger } = authMiddleware;
+const { verificarPlano } = subscriptionMiddleware;
+
 // Middlewares
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(express.json());
+
+// Função para fazer proxy de requisições para a API
+const proxyRequest = async (req, res) => {
+  try {
+    const method = req.method.toLowerCase();
+    const url = `${API_SERVICE_URL}${req.originalUrl}`;
+    
+    console.log(`[PROXY] Redirecionando ${method.toUpperCase()} ${req.originalUrl} para ${url}`);
+    
+    // Preservar headers da requisição original
+    const headers = { ...req.headers };
+    
+    // Remover headers de host para evitar conflitos
+    delete headers.host;
+    
+    // Fazer requisição para o serviço da API
+    const response = await axios({
+      method,
+      url,
+      headers,
+      data: method !== 'get' ? req.body : undefined,
+      validateStatus: () => true, // Não lançar erro para status codes não-2xx
+      responseType: 'arraybuffer' // Para lidar com todos os tipos de respostas
+    });
+    
+    // Definir status code da resposta
+    res.status(response.status);
+    
+    // Copiar headers da resposta
+    Object.entries(response.headers).forEach(([key, value]) => {
+      // Não copiar content-length pois Express vai recalcular
+      if (key.toLowerCase() !== 'content-length') {
+        res.set(key, value);
+      }
+    });
+    
+    // Determinar o tipo de conteúdo e enviar resposta apropriada
+    const contentType = response.headers['content-type'] || '';
+    
+    if (contentType.includes('application/json')) {
+      const data = JSON.parse(response.data.toString('utf8'));
+      res.json(data);
+    } else {
+      res.send(response.data);
+    }
+  } catch (error) {
+    console.error('[PROXY] Erro ao redirecionar requisição:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao processar requisição',
+      error: error.message
+    });
+  }
+};
 
 // Configurar rotas da API
 app.use('/api/ai', aiAnalysisRoutes);
@@ -38,12 +122,38 @@ app.use('/api/empresarial', empresarialRoutes);
 app.use('/api/assinatura', assinaturaRoutes);
 app.use('/api', rouletteRoutes);
 
+// Middleware de verificação de autorização para todas as requisições de API
+app.use('/api/*', proteger, (req, res, next) => {
+  // Verificar planos conforme o recurso
+  if (req.originalUrl.includes('/strategy')) {
+    return verificarPlano(['BASIC', 'PRO', 'PREMIUM'])(req, res, next);
+  } else if (req.originalUrl.includes('/history')) {
+    return verificarPlano(['BASIC', 'PRO', 'PREMIUM'])(req, res, next);
+  } else {
+    next();
+  }
+});
+
+// Proxy para todas as requisições de API
+app.all('/api/*', proxyRequest);
+
 // Rota principal para verificação
 app.get('/', (req, res) => {
   res.json({
     status: 'online',
     service: 'RunCash API Server',
     timestamp: new Date().toISOString()
+  });
+});
+
+// Rota de status do proxy
+app.get('/status', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'RunCash API Proxy Server',
+    apiServiceUrl: API_SERVICE_URL,
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -71,11 +181,7 @@ io.on('connection', (socket) => {
 // Iniciar servidor
 server.listen(PORT, () => {
   console.log(`[Server] API e servidor WebSocket iniciados na porta ${PORT}`);
-  console.log(`[Server] API IA disponível em /api/ai`);
-  console.log(`[Server] API Premium disponível em /api/premium`);
-  console.log(`[Server] API Empresarial disponível em /api/empresarial`);
-  console.log(`[Server] API Assinatura disponível em /api/assinatura`);
-  console.log(`[Server] API Roletas disponível em /api/roulettes`);
+  console.log(`[Server] Proxy para API configurado para ${API_SERVICE_URL}`);
 });
 
 console.log('=== RunCash WebSocket Launcher ===');
