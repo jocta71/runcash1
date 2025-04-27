@@ -17,7 +17,7 @@
     "find-circular": "madge --extensions ts,tsx,js,jsx --circular ./frontend/src"
   },
   "dependencies": {
-    "axios": "^1.8.4",
+    "axios": "^1.9.0",
     "dotenv": "^16.5.0",
     "express-async-handler": "^1.2.0",
     "lucide-react": "^0.501.0",

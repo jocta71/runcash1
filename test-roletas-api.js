@@ -3,14 +3,14 @@
  * com autenticação JWT e verificação de assinatura Asaas
  */
 
-const axios = require('axios');
-const readline = require('readline');
+import axios from 'axios';
+import { createInterface } from 'readline';
 
-// URL base da API
-const API_URL = process.env.API_URL || 'http://localhost:5000/api';
+// URL base da API - ajustada para apontar para o Railway
+const API_URL = process.env.API_URL || 'https://runcashh1-production.up.railway.app/api';
 
 // Interface para leitura de entrada do usuário
-const rl = readline.createInterface({
+const rl = createInterface({
   input: process.stdin,
   output: process.stdout
 });
@@ -87,6 +87,7 @@ async function testarEstrategiasRoleta(roletaId) {
 async function executarTestes() {
   try {
     console.log('=== Teste da API de Roletas com Autenticação JWT e Asaas ===');
+    console.log(`Usando API URL: ${API_URL}`);
     
     // Solicitar token JWT
     token = await new Promise((resolve) => {

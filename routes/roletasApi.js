@@ -2,11 +2,10 @@
  * Rotas da API de roletas protegidas por autenticação JWT e assinatura ativa
  */
 
-const express = require('express');
-const router = express.Router();
+import express from 'express';
+import { verificarAutenticacaoEAssinatura } from '../middleware/authAndAsaas.js';
 
-// Importar middleware de autenticação e verificação de assinatura
-const { verificarAutenticacaoEAssinatura } = require('../middleware/authAndAsaas');
+const router = express.Router();
 
 // Importar funções de acesso ao banco de dados (simulado)
 // Na implementação real, substituir por acesso ao MongoDB
@@ -262,4 +261,4 @@ router.get('/premium/roletas/:id/estrategias', async (req, res) => {
   }
 });
 
-module.exports = router; 
+export default router; 

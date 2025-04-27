@@ -3,13 +3,12 @@
  * para ser importado pelo servidor principal
  */
 
-const express = require('express');
-const router = express.Router();
+import express from 'express';
+import roletasApi from '../../routes/roletasApi.js';
 
-// Importar as rotas de roletas
-const roletasApi = require('../../routes/roletasApi');
+const router = express.Router();
 
 // Montar as rotas no router
 router.use('/', roletasApi);
 
-module.exports = router; 
+export default router; 

@@ -3,8 +3,8 @@
  * de assinatura ativa no Asaas
  */
 
-const jwt = require('jsonwebtoken');
-const axios = require('axios');
+import jwt from 'jsonwebtoken';
+import axios from 'axios';
 
 // Configurações do JWT
 const JWT_SECRET = process.env.JWT_SECRET || 'seu_segredo_super_secreto';
@@ -19,7 +19,7 @@ const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3';
  * @param {Object} res - Objeto de resposta Express
  * @param {Function} next - Função next do Express
  */
-exports.verificarAutenticacaoEAssinatura = async (req, res, next) => {
+export const verificarAutenticacaoEAssinatura = async (req, res, next) => {
   try {
     // 1. Verificar se o token está presente
     const token = req.headers.authorization?.split(' ')[1];
