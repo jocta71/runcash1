@@ -74,7 +74,7 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
       name: 'CORS Proxy',
       fn: async () => {
         // Construir URL completa do backend
-        const backendBaseUrl = 'https://backendapi-production-36b5.up.railway.app';
+        const backendBaseUrl = 'https://backend-production-2f96.up.railway.app';
         const backendUrl = `${backendBaseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
         
         // Usar um serviço de proxy CORS

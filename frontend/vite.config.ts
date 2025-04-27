@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => ({
     proxy: {
       // Proxy para API principal (ROULETTES e outros endpoints)
       '/api': {
-        target: 'https://backendapi-production-36b5.up.railway.app',
+        target: 'https://backend-production-2f96.up.railway.app',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '/api'),
         secure: false,

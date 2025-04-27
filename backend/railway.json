@@ -1,13 +1,24 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "NIXPACKS",
+    "buildCommand": "npm install"
   },
   "deploy": {
     "numReplicas": 1,
-    "sleepApplication": false,
+    "startCommand": "node websocket_server.js",
+    "healthcheckPath": "/",
+    "healthcheckTimeout": 10,
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10,
-    "startCommand": "node websocket_server.js"
+    "restartPolicyMaxRetries": 10
+  },
+  "variables": {
+    "PORT": "3000",
+    "NODE_ENV": "production",
+    "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority",
+    "API_SERVICE_URL": "https://backendapi-production-36b5.up.railway.app",
+    "JWT_SECRET": "seu_segredo_super_secreto",
+    "JWT_EXPIRES_IN": "7d",
+    "FRONTEND_URL": "https://runcashh1.vercel.app"
   }
 } 

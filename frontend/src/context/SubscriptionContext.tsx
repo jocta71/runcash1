@@ -8,94 +8,91 @@ import { API_URL } from '@/config/constants';
 export const availablePlans: Plan[] = [
   {
     id: 'free',
-    name: 'Free',
+    name: 'Gratuito',
+    price: 0,
     type: PlanType.FREE,
     description: 'Acesso básico para experimentar a plataforma',
-    price: 0,
     interval: 'monthly',
     features: [
-      'Acesso a estatísticas básicas',
-      'Visualização de até 5 roletas',
-      'Atualizações a cada 10 minutos'
+      'Acesso ao histórico limitado',
+      'Estatísticas básicas',
+      'Consulta manual de resultados'
     ],
-    allowedFeatures: ['view_basic_stats', 'view_limited_roulettes']
+    allowedFeatures: [
+      'basic-stats',
+      'manual-history'
+    ]
   },
   {
     id: 'basic',
     name: 'Básico',
+    price: 29.90,
     type: PlanType.BASIC,
-    description: 'Plano ideal para iniciantes',
-    price: 19.90,
+    description: 'Ideal para iniciantes',
     interval: 'monthly',
     features: [
-      'Acesso a estatísticas padrão',
-      'Visualização de até 15 roletas',
-      'Visualização completa dos cartões de roleta',
-      'Acesso ao painel lateral de estatísticas',
-      'Atualizações a cada 5 minutos',
-      'Suporte por email'
+      'Acesso ao histórico completo',
+      'Estatísticas avançadas',
+      'Alertas personalizados',
+      'Dados em tempo real'
     ],
     allowedFeatures: [
-      'view_basic_stats', 
-      'view_standard_roulettes', 
-      'view_roulette_cards',
-      'view_roulette_sidepanel',
-      'email_support'
+      'basic-stats',
+      'manual-history',
+      'advanced-stats',
+      'custom-alerts',
+      'realtime-data-access'
     ]
   },
   {
     id: 'pro',
     name: 'Profissional',
+    price: 59.90,
     type: PlanType.PRO,
-    description: 'Para jogadores que querem levar o jogo a sério',
-    price: 49.90,
+    description: 'Para usuários experientes',
     interval: 'monthly',
     features: [
-      'Acesso a estatísticas avançadas',
-      'Visualização de roletas ilimitadas',
-      'Visualização completa dos cartões de roleta',
-      'Acesso ao painel lateral de estatísticas',
-      'Atualizações a cada 1 minuto',
-      'Suporte prioritário',
-      'Alertas personalizados'
+      'Todas as funcionalidades do plano Básico',
+      'Estratégias automáticas',
+      'Análise em multi-roletas',
+      'Suporte prioritário'
     ],
     allowedFeatures: [
-      'view_advanced_stats', 
-      'view_unlimited_roulettes', 
-      'view_roulette_cards',
-      'view_roulette_sidepanel',
-      'priority_support', 
-      'custom_alerts'
+      'basic-stats',
+      'manual-history',
+      'advanced-stats',
+      'custom-alerts',
+      'auto-strategies',
+      'multi-roulette',
+      'priority-support',
+      'realtime-data-access'
     ]
   },
   {
     id: 'premium',
     name: 'Premium',
-    type: PlanType.PREMIUM,
-    description: 'Experiência completa com todos os recursos exclusivos',
     price: 99.90,
+    type: PlanType.PREMIUM,
+    description: 'Experiência completa e sem restrições',
     interval: 'monthly',
     features: [
-      'Todos os recursos do plano Profissional',
-      'API dedicada para integração',
-      'Visualização completa dos cartões de roleta',
-      'Acesso ao painel lateral de estatísticas',
-      'Modelo de IA avançado para previsões',
-      'Acesso a dados históricos completos',
-      'Suporte técnico 24/7',
-      'Sessão de consultoria personalizada'
+      'Todas as funcionalidades dos planos anteriores',
+      'Estratégias personalizadas avançadas',
+      'Acesso a recursos experimentais',
+      'Atendimento personalizado'
     ],
     allowedFeatures: [
-      'view_advanced_stats', 
-      'view_unlimited_roulettes', 
-      'view_historical_data', 
-      'api_access', 
-      'ai_predictions',
-      'view_roulette_cards',
-      'view_roulette_sidepanel',
-      'priority_support', 
-      'custom_alerts', 
-      'personalized_consulting'
+      'basic-stats',
+      'manual-history',
+      'advanced-stats',
+      'custom-alerts',
+      'auto-strategies',
+      'multi-roulette',
+      'priority-support',
+      'advanced-custom-strategies',
+      'experimental-features',
+      'premium-support',
+      'realtime-data-access'
     ]
   }
 ];
@@ -314,11 +311,16 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Verificar se o usuário tem acesso a um recurso específico
   const hasFeatureAccess = (featureId: string): boolean => {
     // Se não há plano atual, não tem acesso
-    if (!currentPlan) return false;
+    if (!currentPlan) {
+      console.log(`[SubscriptionContext] Acesso negado a "${featureId}": usuário sem plano`);
+      return false;
+    }
     
     // Se for plano gratuito, verificar se o recurso está disponível para free
     if (currentPlan.type === PlanType.FREE) {
-      return currentPlan.allowedFeatures.includes(featureId);
+      const hasAccess = currentPlan.allowedFeatures.includes(featureId);
+      console.log(`[SubscriptionContext] Plano gratuito - acesso a "${featureId}": ${hasAccess ? 'permitido' : 'negado'}`);
+      return hasAccess;
     }
     
     // Para planos pagos, verificar se a assinatura está ativa (não pendente/cancelada)
@@ -332,7 +334,9 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
     
     // Se o plano atual permite este recurso e a assinatura está ativa
-    return currentPlan.allowedFeatures.includes(featureId);
+    const hasAccess = currentPlan.allowedFeatures.includes(featureId);
+    console.log(`[SubscriptionContext] Plano pago (${currentPlan.id}) - acesso a "${featureId}": ${hasAccess ? 'permitido' : 'negado'}`);
+    return hasAccess;
   };
 
   // Atualizar plano do usuário
@@ -371,10 +375,18 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Carregar assinatura quando o usuário mudar
+  // Efeito para carregar assinatura quando o usuário fizer login
   useEffect(() => {
+    if (user) {
+      console.log('[SubscriptionContext] Usuário autenticado, carregando informações de assinatura...');
     loadUserSubscription();
-  }, [user?.id]);
+    } else {
+      // Limpar informações de assinatura quando o usuário deslogar
+      setCurrentSubscription(null);
+      setCurrentPlan(null);
+      setLoading(false);
+    }
+  }, [user]);
 
   // Função para atualizar o ID do cliente Asaas do usuário no banco de dados e localmente
   const updateUserAsaasId = async (customerId: string, userData: any) => {
