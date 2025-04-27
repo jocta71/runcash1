@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
@@ -7,24 +7,15 @@
     { "source": "/api/proxy-roulette/:path*", "destination": "/api/proxy-roulette" },
     { "source": "/api/ROULETTES", "destination": "/api/proxy-roulette" },
     { "source": "/api/ROULETTES/:path*", "destination": "/api/proxy-roulette" },
-    { "source": "/api/ROULETTES-numbers", "destination": "/api/proxy-roulette?type=numbers" },
-    { "source": "/api/ROULETTES-numbers/:path*", "destination": "/api/proxy-roulette?type=numbers" },
-    { "source": "/api/health", "destination": "/api/health" },
-    { "source": "/api/:path*", "destination": "/api/proxy?path=/:path*" }
+    { "source": "/api/health", "destination": "/api/health" }
   ],
-  "env": {
-    "VITE_WEBSOCKET_URL": "wss://backend-production-2f96.up.railway.app",
-    "VITE_SSE_SERVER": "https://backend-production-2f96.up.railway.app/sse",
-    "VITE_API_BASE": "https://backend-production-2f96.up.railway.app",
-    "VITE_BACKEND_URL": "https://backend-production-2f96.up.railway.app"
-  },
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
         { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-Requested-With" },
         { "key": "Access-Control-Allow-Credentials", "value": "true" }
       ]
     }
