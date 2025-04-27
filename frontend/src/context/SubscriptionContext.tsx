@@ -55,7 +55,7 @@ export const availablePlans: Plan[] = [
       'Visualização de roletas ilimitadas',
       'Visualização completa dos cartões de roleta',
       'Acesso ao painel lateral de estatísticas',
-      'Atualizações em tempo real',
+      'Atualizações a cada 1 minuto',
       'Suporte prioritário',
       'Alertas personalizados'
     ],
@@ -65,8 +65,7 @@ export const availablePlans: Plan[] = [
       'view_roulette_cards',
       'view_roulette_sidepanel',
       'priority_support', 
-      'custom_alerts',
-      'real_time_data'
+      'custom_alerts'
     ]
   },
   {
@@ -83,7 +82,6 @@ export const availablePlans: Plan[] = [
       'Acesso ao painel lateral de estatísticas',
       'Modelo de IA avançado para previsões',
       'Acesso a dados históricos completos',
-      'Atualizações em tempo real',
       'Suporte técnico 24/7',
       'Sessão de consultoria personalizada'
     ],
@@ -97,8 +95,7 @@ export const availablePlans: Plan[] = [
       'view_roulette_sidepanel',
       'priority_support', 
       'custom_alerts', 
-      'personalized_consulting',
-      'real_time_data'
+      'personalized_consulting'
     ]
   }
 ];
@@ -116,13 +113,6 @@ interface SubscriptionContextType {
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
-
-// Adicionar interface para Window que permitirá acessar o contexto globalmente
-declare global {
-  interface Window {
-    __SUBSCRIPTION_CONTEXT?: any;
-  }
-}
 
 // Provedor de assinatura que busca os dados reais da API
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -428,25 +418,19 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Criar objeto de contexto
-  const contextValue = {
-    currentSubscription,
-    currentPlan,
-    availablePlans,
-    loading,
-    error,
-    hasFeatureAccess,
-    upgradePlan,
-    cancelSubscription,
-    loadUserSubscription
-  };
-  
-  // Disponibilizar o contexto globalmente para serviços fora do escopo do React
-  window.__SUBSCRIPTION_CONTEXT = contextValue;
-
   return (
     <SubscriptionContext.Provider
-      value={contextValue}
+      value={{
+        currentSubscription,
+        currentPlan,
+        availablePlans,
+        loading,
+        error,
+        hasFeatureAccess,
+        upgradePlan,
+        cancelSubscription,
+        loadUserSubscription
+      }}
     >
       {children}
     </SubscriptionContext.Provider>

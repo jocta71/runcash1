@@ -8,8 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { useRouletteSettingsStore } from '@/stores/rouletteSettingsStore';
 import { cn } from '@/lib/utils';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
-import { useSubscription } from '@/context/SubscriptionContext';
-import UpgradeForRealtimeData from './UpgradeForRealtimeData';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -117,10 +115,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const navigate = useNavigate();
   const { enableSound, enableNotifications } = useRouletteSettingsStore();
   
-  // Verificação de plano para acesso em tempo real
-  const { hasFeatureAccess } = useSubscription();
-  const hasRealtimeAccess = hasFeatureAccess('real_time_data');
-  
   // Dados iniciais seguros
   const safeData = {
     id: data?.id || data?._id || 'unknown',
@@ -156,24 +150,22 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Salvar dados brutos para uso posterior
     setRawRouletteData(myRoulette);
       
-    // Processar os dados da roleta apenas se o usuário tiver acesso a dados em tempo real
-    if (hasRealtimeAccess) {
-      processApiData(myRoulette);
-    }
+    // Processar os dados da roleta
+    processApiData(myRoulette);
         
     // Atualizar timestamp e contador
         setLastUpdateTime(Date.now());
         setUpdateCount(prev => prev + 1);
     setError(null);
     setLoading(false);
-  }, [safeData.id, safeData.name, hasRealtimeAccess]);
+  }, [safeData.id, safeData.name]);
   
   // Efeito para iniciar a busca de dados
   useEffect(() => {
     // Configurar loading inicial
     setLoading(true);
     
-    // Assinar atualizações do gerenciador global apenas se tiver acesso a dados em tempo real
+    // Assinar atualizações do gerenciador global
     const unsubscribe = dataManager.subscribe(componentId, handleDataUpdate);
     
     // Limpar inscrição ao desmontar o componente
@@ -186,7 +178,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         intervalRef.current = null;
       }
     };
-  }, [dataManager, componentId, handleDataUpdate, hasRealtimeAccess]);
+  }, [dataManager, componentId, handleDataUpdate]);
   
   // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
   // Console.log para verificar se há apenas uma fonte de requisições:
@@ -362,81 +354,76 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     <Card 
       ref={cardRef}
       className={cn(
-        "m-4 min-h-[400px] cursor-pointer transition hover:shadow-lg hover:scale-[1.03] overflow-hidden",
-        isNewNumber && "new-number-animation"
+        "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ", 
+        "hover:border-vegas-green/50",
+        isNewNumber ? "border-vegas-green animate-pulse" : "",
+        isDetailView ? "w-full" : "w-full"
       )}
       onClick={handleCardClick}
     >
-      <CardContent className="p-0 overflow-hidden">
-        {loading ? (
-          <div className="flex justify-center items-center h-[400px]">
-            <Loader2 className="h-8 w-8 animate-spin" />
+      {/* Logo de fundo com baixa opacidade e saturação 0 */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-lg">
+        <img 
+          src="/assets/icon-rabbit.svg" 
+          alt="Icon Rabbit" 
+          className="w-[95%] h-auto opacity-[0.025] grayscale filter select-none"
+          style={{ 
+            objectFit: "contain",
+            transformOrigin: "center"
+          }} 
+        />
+      </div>
+      
+      {/* Reprodutor de áudio (invisível) */}
+      <audio ref={audioRef} src="/sounds/coin.mp3" preload="auto" />
+      
+      <CardContent className="p-4 relative z-10">
+        {/* Cabeçalho */}
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-semibold truncate text-white flex items-center">
+            <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
+            {safeData.name}
+          </h3>
+          <div className="flex gap-1 items-center">
+            <Badge 
+              variant={hasRealData ? "secondary" : "default"} 
+              className={`text-xs ${hasRealData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
+            >
+              {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}
+            </Badge>
           </div>
-        ) : error ? (
-          <div className="flex justify-center items-center h-[400px] flex-col p-4">
-            <div className="text-red-500 font-bold text-lg mb-2">Erro</div>
-            <div className="text-center">{error}</div>
-          </div>
-        ) : (
-          <>
-            {/* Verificar se o usuário tem acesso a dados em tempo real */}
-            {!hasRealtimeAccess ? (
-              <UpgradeForRealtimeData className="h-[400px]" />
-            ) : (
-              <>
-                <div className="bg-gradient-to-b from-muted/50 to-muted p-4 pb-0">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-lg truncate">{rawRouletteData?.nome || safeData.name}</h3>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Última atualização: {getTimeAgo()}</span>
-                        {recentNumbers.length > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            {recentNumbers.length} números
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    {lastNumber !== null && (
-                      <div className="flex flex-col items-center">
-                        <NumberDisplay number={lastNumber} size="large" />
-                        <div className="text-xs mt-1 text-muted-foreground">Último número</div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2 justify-center pb-4">
-                    {recentNumbers.map((number, index) => (
-                      <NumberDisplay
-                        key={`${number}-${index}`}
-                        number={number}
-                        size="medium"
-                        highlight={index === 0 && isNewNumber}
-                      />
-                    ))}
-                  </div>
+        </div>
+        
+        {/* Números recentes */}
+        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/50" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
+          {recentNumbers.length > 0 ? (
+            recentNumbers.slice(0, 20).map((num, idx) => (
+            <NumberDisplay 
+              key={`${num}-${idx}`}
+              number={num} 
+              size="small" 
+              highlight={idx === 0 && isNewNumber}
+            />
+            ))
+          ) : (
+            <div className="text-center text-gray-400 py-2 w-full">
+              {loading ? (
+                <div className="flex items-center justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2 text-vegas-green" />
+                  Carregando números...
                 </div>
-
-                {/* Detalhes adicionais para visualização detalhada */}
-                {isDetailView && (
-                  <div className="p-4 border-t border-border">
-                    <h4 className="font-medium mb-2">Histórico Completo</h4>
-                    <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto">
-                      {allNumbers.map((number, index) => (
-                        <NumberDisplay
-                          key={`hist-${number}-${index}`}
-                          number={number}
-                          size="small"
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
+              ) : "Nenhum número disponível"}
+            </div>
+          )}
+        </div>
       </CardContent>
+
+      {/* Toast de notificação */}
+      {toastVisible && (
+        <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
+          {toastMessage}
+        </div>
+      )}
     </Card>
   );
 };

@@ -2,8 +2,6 @@
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
 import SocketService from '@/services/SocketService';
-// import { hasAPIAccess } from '@/utils/environment';
-import axios from 'axios';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -57,9 +55,6 @@ export type RouletteEventCallback = (event: RouletteNumberEvent | StrategyUpdate
 
 // Tipo para callbacks de eventos genéricos
 export type EventCallback = (data: any) => void;
-
-// Singleton para acesso ao serviço de subscrição
-let subscriptionServiceInstance: any = null;
 
 export class EventService {
   private static instance: EventService | null = null;
@@ -376,12 +371,6 @@ export class EventService {
 
   // Notifica os listeners sobre um novo evento
   private notifyListeners(event: RouletteNumberEvent | StrategyUpdateEvent): void {
-    // Verificar se o usuário tem acesso a recursos em tempo real
-    if (!this.checkUserHasAccess()) {
-      debugLog(`[EventService] Bloqueando evento para usuário sem plano: ${event.type} para ${event.roleta_nome}`);
-      return;
-    }
-
     // Log simplificado para melhor desempenho em modo tempo real
     if (event.type === 'new_number') {
       debugLog(`[EventService] Novo número: ${event.roleta_nome} - ${event.numero}`);
@@ -411,35 +400,6 @@ export class EventService {
           debugLog('[EventService] Erro ao notificar listener global');
         }
       });
-    }
-  }
-
-  // Verificar se o usuário tem um plano ativo que permite acesso aos dados em tempo real
-  private checkUserHasAccess(): boolean {
-    try {
-      // Tentar obter o serviço de subscrição como um singleton
-      if (!subscriptionServiceInstance) {
-        // Tentar obter o contexto de subscrição via window global
-        if (window.__SUBSCRIPTION_CONTEXT) {
-          subscriptionServiceInstance = window.__SUBSCRIPTION_CONTEXT;
-        } else {
-          debugLog('[EventService] Permitindo acesso porque não foi possível verificar subscrição');
-          return true;
-        }
-      }
-      
-      // Verificar acesso a recursos em tempo real
-      const hasAccess = subscriptionServiceInstance.hasFeatureAccess('real_time_data');
-      
-      if (!hasAccess) {
-        debugLog('[EventService] Usuário não tem acesso a dados em tempo real');
-      }
-      
-      return hasAccess;
-    } catch (error) {
-      console.error('[EventService] Erro ao verificar acesso do usuário:', error);
-      // Em caso de erro, permitir o acesso para evitar problemas
-      return true;
     }
   }
 
