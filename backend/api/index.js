@@ -164,8 +164,8 @@ apiApp.get('/ROULETTES', async (req, res) => {
                     $regex: new RegExp(`${nome.replace(/[-\s]/g, '.*')}`, 'i')
                   } 
                 })
-                .sort({ timestamp: -1 })
-                .limit(numbersLimit)
+        .sort({ timestamp: -1 })
+        .limit(numbersLimit)
                 .toArray();
                 
               if (numeros.length > 0) {
@@ -297,7 +297,7 @@ if (require.main === module) {
   const PORT = process.env.PORT || 3002;
   apiApp.listen(PORT, () => {
     console.log(`[API] Servidor iniciado na porta ${PORT}`);
-  });
+});
 }
 
 // Exportar a aplicação para ser montada pelo arquivo principal

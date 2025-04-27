@@ -26,7 +26,8 @@ exports.gerarToken = (user) => {
     email: user.email,
     nome: user.nome,
     role: user.role || 'user',
-    isPremium: user.isPremium || false
+    isPremium: user.isPremium || false,
+    asaasCustomerId: user.asaasCustomerId || null
   };
 
   return jwt.sign(userData, JWT_SECRET, {
@@ -82,7 +83,8 @@ exports.proteger = async (req, res, next) => {
       email: usuario.email,
       tipo: usuario.tipo,
       premium: usuario.premium,
-      roles: usuario.roles || []
+      roles: usuario.roles || [],
+      asaasCustomerId: usuario.asaasCustomerId || null
     };
     
     next();

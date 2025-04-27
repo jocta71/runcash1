@@ -1,6 +1,6 @@
-import axios from 'axios';
 import { ENDPOINTS } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
+import apiClient from './apiClient';
 
 /**
  * Cliente de API para comunicação com os endpoints de roleta
@@ -13,7 +13,7 @@ export const RouletteApi = {
   async fetchAllRoulettes() {
     try {
       console.log('[API] Buscando todas as roletas disponíveis');
-      const response = await axios.get(ENDPOINTS.ROULETTES);
+      const response = await apiClient.get(ENDPOINTS.ROULETTES);
       
       if (!response.data || !Array.isArray(response.data)) {
         console.error('[API] Resposta inválida da API de roletas:', response.data);
@@ -122,7 +122,7 @@ export const RouletteApi = {
     try {
       console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
       
-      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
+      const response = await apiClient.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
       
       if (!response.data || !Array.isArray(response.data)) {
         console.error('[API] Resposta inválida do histórico:', response.data);

@@ -89,7 +89,7 @@ if (fs.existsSync(apiIndexPath)) {
     // Carregar rotas de roleta do diretório principal
     try {
       const rouletteRoutes = require('./routes/rouletteRoutes');
-      app.use('/api', rouletteRoutes);
+app.use('/api', rouletteRoutes);
       console.log('Rotas de roleta carregadas do diretório principal');
     } catch (err) {
       console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
@@ -185,7 +185,7 @@ if (fs.existsSync(websocketPath)) {
           res.status(500).json({ error: 'Erro interno ao processar evento' });
         }
       });
-      
+
       console.log('Endpoint /emit-event configurado para compatibilidade com WebSocket');
     } catch (err) {
       console.error('Erro ao configurar compatibilidade WebSocket:', err);
@@ -222,4 +222,4 @@ server.listen(PORT, () => {
   console.log('- / (status do servidor)');
   console.log('- /api (rotas da API principal)');
   console.log('- /emit-event (compatibilidade com WebSocket, se ativado)');
-});
+    });

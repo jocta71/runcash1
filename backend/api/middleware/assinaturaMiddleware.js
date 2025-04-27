@@ -1,5 +1,5 @@
-const ErrorResponse = require('../utils/errorResponse');
-const Assinatura = require('../models/Assinatura');
+const ErrorResponse = require('../../utils/errorResponse');
+const Assinatura = require('../../models/Assinatura');
 const Usuario = require('../models/Usuario');
 
 /**

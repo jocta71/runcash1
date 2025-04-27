@@ -8,6 +8,10 @@ const express = require('express');
 const router = express.Router();
 const { MongoClient } = require('mongodb');
 
+// Importar middlewares
+const { proteger } = require('../../middlewares/authMiddleware');
+const { verificarAssinatura } = require('../../middlewares/asaasSubscriptionMiddleware');
+
 // Middleware para verificar se o MongoDB está disponível
 const checkMongoDB = (req, res, next) => {
   if (!req.app.locals.db) {
@@ -22,9 +26,9 @@ const checkMongoDB = (req, res, next) => {
 /**
  * @route   GET /api/roulettes/history/:rouletteName
  * @desc    Obtém até 1000 números históricos de uma roleta pelo nome
- * @access  Public
+ * @access  Privado - Requer assinatura ativa
  */
-router.get('/:rouletteName', checkMongoDB, async (req, res) => {
+router.get('/:rouletteName', proteger, verificarAssinatura(), checkMongoDB, async (req, res) => {
   try {
     const { rouletteName } = req.params;
     const db = req.app.locals.db;
@@ -119,9 +123,9 @@ router.get('/:rouletteName', checkMongoDB, async (req, res) => {
 /**
  * @route   GET /api/roulettes/history
  * @desc    Obtém informações sobre o histórico disponível
- * @access  Public
+ * @access  Privado - Requer autenticação
  */
-router.get('/', checkMongoDB, async (req, res) => {
+router.get('/', proteger, checkMongoDB, async (req, res) => {
   try {
     const db = req.app.locals.db;
     
