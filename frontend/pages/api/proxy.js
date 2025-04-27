@@ -11,7 +11,7 @@ export default function handler(req, res) {
   // Configurar CORS para permitir requisições cross-origin
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, bypass-tunnel-reminder');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   
   // Responder imediatamente para requisições de preflight (OPTIONS)
@@ -30,9 +30,14 @@ export default function handler(req, res) {
                  (req.body && req.body.path) || 
                  '/api';
 
-  // Construir URL completa incluindo query parameters do request original
+  // Remover o parâmetro path das query params para não enviar ao backend
   const originalUrl = new URL(req.url, `http://${req.headers.host}`);
-  const targetPath = apiPath + (originalUrl.search || '');
+  const searchParams = new URLSearchParams(originalUrl.search);
+  searchParams.delete('path');
+  const queryParams = searchParams.toString() ? `?${searchParams.toString()}` : '';
+  
+  // Construir URL completa para o backend
+  const targetPath = `${apiPath}${queryParams}`;
 
   // Configurar opções para o request ao backend
   const parsedBackendUrl = url.parse(BACKEND_URL);
@@ -57,6 +62,7 @@ export default function handler(req, res) {
   delete options.headers.origin;
   
   console.log(`[PROXY] Requisição para: ${BACKEND_URL}${targetPath}`);
+  console.log(`[PROXY] Caminho API: ${apiPath}, Query params: ${queryParams}`);
   
   // Preparar para receber o corpo da requisição
   let body = [];
@@ -68,7 +74,7 @@ export default function handler(req, res) {
     // Escolher o protocolo correto (http ou https)
     const protocol = isHttps ? https : http;
     
-    // Criar a requisição para o backend
+    // Criar a requisição para o backend com timeout
     const proxyReq = protocol.request(options, (proxyRes) => {
       console.log(`[PROXY] Resposta do backend: ${proxyRes.statusCode}`);
       
@@ -83,17 +89,40 @@ export default function handler(req, res) {
       // Definir o status code da resposta
       res.statusCode = proxyRes.statusCode;
       
-      // Encaminhar os dados da resposta
-      proxyRes.pipe(res);
+      // Coletar os dados da resposta
+      let responseData = [];
+      proxyRes.on('data', (chunk) => {
+        responseData.push(chunk);
+      });
+      
+      // Quando todos os dados forem recebidos
+      proxyRes.on('end', () => {
+        const responseBody = Buffer.concat(responseData);
+        res.end(responseBody);
+      });
+    });
+    
+    // Configurar timeout para a requisição
+    proxyReq.setTimeout(30000, () => {
+      proxyReq.destroy();
+      console.error('[PROXY] Timeout na requisição');
+      res.status(504).json({
+        error: true,
+        message: 'Timeout na comunicação com o backend'
+      });
     });
     
     // Lidar com erros na requisição
     proxyReq.on('error', (error) => {
       console.error('[PROXY] Erro:', error);
-      res.status(500).json({
-        error: true,
-        message: `Erro na comunicação com o backend: ${error.message}`
-      });
+      
+      // Se a resposta ainda não foi enviada
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: true,
+          message: `Erro na comunicação com o backend: ${error.message}`
+        });
+      }
     });
     
     // Enviar o corpo da requisição se aplicável
