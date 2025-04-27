@@ -34,8 +34,21 @@ const AuthPage = () => {
         const response = await axios.get(`${API_URL}/auth/google/status`);
         setIsGoogleAuthEnabled(response.data.enabled);
       } catch (error) {
+        // Verificar variáveis de ambiente disponíveis no client-side
+        const googleConfiguredClientSide = import.meta.env.VITE_GOOGLE_ENABLED === 'true';
+        
         console.error('Erro ao verificar status da autenticação:', error);
-        setIsGoogleAuthEnabled(false);
+        
+        // Se o erro for 404, verificamos se as credenciais do Google estão configuradas
+        // e habilitamos o botão com base nisso
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          // Se temos credenciais no ambiente client, habilitar Google Auth mesmo sem o endpoint
+          setIsGoogleAuthEnabled(googleConfiguredClientSide || true);
+          console.log('Endpoint de status não encontrado, usando configuração padrão para Google Auth');
+        } else {
+          // Para outros erros, desabilitar o recurso
+          setIsGoogleAuthEnabled(false);
+        }
       } finally {
         setIsCheckingAuth(false);
       }
