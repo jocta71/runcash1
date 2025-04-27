@@ -8,6 +8,9 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const NodeCache = require('node-cache');
 const compression = require('compression');
+const axios = require('axios');
+const path = require('path');
+const fs = require('fs');
 
 // Alternativa 1: Usar try-catch para tentar diferentes caminhos
 let config;
@@ -45,6 +48,7 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
+const API_SERVICE_URL = process.env.API_SERVICE_URL || "https://backendapi-production-36b5.up.railway.app";
 
 // Informações de configuração
 console.log('==== Configuração do Servidor WebSocket ====');
@@ -52,6 +56,7 @@ console.log(`PORT: ${PORT}`);
 console.log(`MONGODB_URI: ${MONGODB_URI ? MONGODB_URI.replace(/:.*@/, ':****@') : 'Não definida'}`);
 console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
 console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
+console.log(`API_SERVICE_URL: ${API_SERVICE_URL}`);
 
 // Inicializar Express
 const app = express();
@@ -1524,4 +1529,93 @@ app.get('/api/status', async (req, res) => {
       error: error.message
     });
   }
+});
+
+// Função para fazer proxy de requisições para a API
+const proxyRequest = async (req, res) => {
+  try {
+    const method = req.method.toLowerCase();
+    const url = `${API_SERVICE_URL}${req.originalUrl}`;
+    
+    console.log(`[PROXY] Redirecionando ${method.toUpperCase()} ${req.originalUrl} para ${url}`);
+    
+    // Preservar headers da requisição original
+    const headers = { ...req.headers };
+    
+    // Remover headers de host para evitar conflitos
+    delete headers.host;
+    
+    // Fazer requisição para o serviço da API
+    const response = await axios({
+      method,
+      url,
+      headers,
+      data: method !== 'get' ? req.body : undefined,
+      validateStatus: () => true, // Não lançar erro para status codes não-2xx
+      responseType: 'arraybuffer' // Para lidar com todos os tipos de respostas
+    });
+    
+    // Definir status code da resposta
+    res.status(response.status);
+    
+    // Copiar headers da resposta
+    Object.entries(response.headers).forEach(([key, value]) => {
+      // Não copiar content-length pois Express vai recalcular
+      if (key.toLowerCase() !== 'content-length') {
+        res.set(key, value);
+      }
+    });
+    
+    // Determinar o tipo de conteúdo e enviar resposta apropriada
+    const contentType = response.headers['content-type'] || '';
+    
+    if (contentType.includes('application/json')) {
+      const data = JSON.parse(response.data.toString('utf8'));
+      res.json(data);
+    } else {
+      res.send(response.data);
+    }
+  } catch (error) {
+    console.error('[PROXY] Erro ao redirecionar requisição:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao processar requisição',
+      error: error.message
+    });
+  }
+};
+
+// Middleware de verificação de autorização para todas as requisições de API
+app.use('/api/*', proteger, (req, res, next) => {
+  // Verificar planos conforme o recurso
+  if (req.originalUrl.includes('/strategy')) {
+    return verificarPlano(['BASIC', 'PRO', 'PREMIUM'])(req, res, next);
+  } else if (req.originalUrl.includes('/history')) {
+    return verificarPlano(['BASIC', 'PRO', 'PREMIUM'])(req, res, next);
+  } else {
+    next();
+  }
+});
+
+// Proxy para todas as requisições de API
+app.all('/api/*', proxyRequest);
+
+// Rota principal para verificação
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'RunCash API Server',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Rota de status do proxy
+app.get('/status', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'RunCash API Proxy Server',
+    apiServiceUrl: API_SERVICE_URL,
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
 });

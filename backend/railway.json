@@ -6,7 +6,7 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "node index.js",
+    "startCommand": "node websocket_server.js",
     "healthcheckPath": "/",
     "healthcheckTimeout": 10,
     "restartPolicyType": "ON_FAILURE",
