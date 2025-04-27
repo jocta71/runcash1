@@ -1,6 +1,6 @@
 import React, { ReactNode, useState } from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { LockKeyhole, Eye, EyeOff } from 'lucide-react';
+import { LockKeyhole, Eye, EyeOff, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   Dialog, 
@@ -11,6 +11,7 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { PlanType } from '@/types/plans';
+import { useNavigate } from 'react-router-dom';
 
 interface PremiumContentProps {
   /**
@@ -54,203 +55,279 @@ interface PremiumContentProps {
    * Se deve exibir o botão de upgrade
    */
   showUpgradeButton?: boolean;
+  /**
+   * Se deve exigir plano premium, mesmo para outras verificações de recurso 
+   */
+  requirePremium?: boolean;
 }
 
 /**
- * Componente que protege conteúdo premium com base no plano do usuário
+ * Componente para proteger conteúdo premium
+ * Exibe conteúdo alternativo ou bloqueado para usuários sem plano adequado
  */
 const PremiumContent: React.FC<PremiumContentProps> = ({
   featureId,
-  requiredPlan = PlanType.BASIC,
+  requiredPlan = PlanType.PREMIUM,
   children,
   fallbackContent,
   upgradeMessage,
   allowPeek = false,
   nonPremiumView = 'blur',
   blurIntensity = 5,
-  showUpgradeButton = true
+  showUpgradeButton = true,
+  requirePremium = false
 }) => {
-  const { hasFeatureAccess, availablePlans, currentPlan } = useSubscription();
-  const [isPeeking, setIsPeeking] = useState(false);
-  
-  const hasAccess = hasFeatureAccess(featureId);
-  
-  // Se usuário tem acesso, mostrar conteúdo normal
+  const { hasFeatureAccess, currentPlan } = useSubscription();
+  const [isVisible, setIsVisible] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const navigate = useNavigate();
+
+  // Verificar se o usuário tem acesso com base no featureId ou no plano requerido
+  const hasAccess = requirePremium 
+    ? currentPlan?.type === PlanType.PREMIUM
+    : hasFeatureAccess(featureId);
+
+  // Intensidade do blur em px
+  const blurPx = blurIntensity * 2;
+
+  // Se o usuário tem acesso, mostrar o conteúdo normalmente
   if (hasAccess) {
     return <>{children}</>;
   }
-  
-  // Encontrar o plano mínimo que oferece este recurso
-  const planWithFeature = availablePlans.find(plan => 
-    plan.allowedFeatures.includes(featureId) && 
-    (requiredPlan ? plan.type === requiredPlan : true)
-  );
-  
-  // Mensagem padrão ou personalizada
-  const defaultMessage = `Este conteúdo está disponível apenas para assinantes do plano ${planWithFeature?.name || 'superior'}.`;
-  const displayMessage = upgradeMessage || defaultMessage;
-  
-  // Toggle temporário de visibilidade
-  const togglePeek = () => {
-    setIsPeeking(!isPeeking);
+
+  // Função para ir para a página de planos
+  const goToPlans = () => {
+    setShowUpgradeDialog(false);
+    navigate('/planos');
   };
-  
-  // Placeholder genérico para quando não há fallback content
-  const defaultPlaceholder = (
-    <div className="w-full h-full min-h-[100px] bg-gray-800/30 rounded-md border border-dashed border-gray-600 flex flex-col items-center justify-center p-4">
-      <LockKeyhole className="h-6 w-6 mb-2 text-gray-400" />
-      <div className="text-sm text-gray-400 text-center">
-        Conteúdo disponível apenas para assinantes
-      </div>
-    </div>
-  );
-  
-  // Decidir qual conteúdo mostrar baseado no tipo de visualização
-  const renderContent = () => {
-    // Se estiver no modo "peek", mostrar o conteúdo original
-    if (allowPeek && isPeeking) {
+
+  // Visibilidade temporária
+  const toggleVisibility = () => {
+    setIsVisible(!isVisible);
+    
+    // Se está mostrando, configurar um timer para esconder depois de 10 segundos
+    if (!isVisible) {
+      setTimeout(() => setIsVisible(false), 10000);
+    }
+  };
+
+  // Conteúdo para exibir quando não tem acesso
+  const renderRestrictedContent = () => {
+    // Se está permitindo visualização temporária e o usuário clicou para ver
+    if (allowPeek && isVisible) {
       return (
         <div className="relative">
           {children}
-          <div className="absolute top-2 right-2">
+          <div className="absolute bottom-2 right-2">
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-8 w-8 p-0 bg-black/40 hover:bg-black/60 rounded-full" 
-              onClick={togglePeek}
+              onClick={toggleVisibility}
+              className="bg-black/60 text-white hover:bg-black/80"
             >
-              <EyeOff size={16} className="text-white" />
+              <EyeOff className="h-4 w-4 mr-1" /> 
+              Ocultar
             </Button>
           </div>
         </div>
       );
     }
-    
-    // Tipos de visualização para usuários sem acesso
+
+    // Escolher o tipo de visualização com base na prop
     switch (nonPremiumView) {
       case 'blur':
+        // Aplicar blur no conteúdo original
         return (
-          <div className="relative group/premium">
-            {/* Conteúdo com blur */}
-            <div 
-              className={`filter blur-[${blurIntensity}px] select-none transition-all group-hover/premium:blur-[${blurIntensity * 1.5}px]`}
-              style={{ 
-                pointerEvents: 'none',
-                userSelect: 'none'
-              }}
-            >
+          <div className="relative">
+            <div style={{ filter: `blur(${blurPx}px)` }} className="pointer-events-none">
               {children}
             </div>
-            
-            {/* Overlay com mensagem e botão de upgrade */}
-            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/premium:opacity-100 transition-opacity flex flex-col items-center justify-center px-4 py-8">
-              <LockKeyhole className="h-8 w-8 mb-2 text-vegas-gold" />
-              <p className="text-sm text-center text-white mb-4">{displayMessage}</p>
-              
-              {showUpgradeButton && renderUpgradeButton()}
-              
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-sm">
+              <LockKeyhole className="h-8 w-8 text-yellow-400 mb-2" />
+              <p className="text-center font-medium max-w-xs mb-4">
+                {upgradeMessage || "Este recurso está disponível apenas para assinantes Premium"}
+              </p>
+              {showUpgradeButton && (
+                <Button 
+                  className="bg-gradient-to-r from-yellow-400 to-amber-600 text-black hover:from-yellow-500 hover:to-amber-700"
+                  onClick={() => setShowUpgradeDialog(true)}
+                >
+                  <Crown className="h-4 w-4 mr-2" />
+                  Fazer Upgrade
+                </Button>
+              )}
               {allowPeek && (
                 <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={togglePeek} 
-                  className="mt-2 bg-transparent border-white/30 text-white/80 hover:bg-white/10"
+                  variant="link" 
+                  onClick={toggleVisibility} 
+                  className="mt-2 text-yellow-200"
                 >
-                  <Eye size={14} className="mr-1" /> Visualizar temporariamente
+                  <Eye className="h-4 w-4 mr-1" /> 
+                  Visualizar por 10 segundos
                 </Button>
               )}
             </div>
           </div>
         );
-        
+      
       case 'placeholder':
+        // Mostrar um placeholder genérico
         return (
-          <div className="relative">
-            {defaultPlaceholder}
+          <div className="flex flex-col items-center justify-center p-6 border border-dashed rounded-lg bg-background/50">
+            <LockKeyhole className="h-8 w-8 text-yellow-500 mb-2" />
+            <p className="text-center font-medium max-w-xs mb-4">
+              {upgradeMessage || "Este recurso está disponível apenas para assinantes Premium"}
+            </p>
             {showUpgradeButton && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                {renderUpgradeButton()}
-              </div>
+              <Button 
+                className="bg-gradient-to-r from-yellow-400 to-amber-600 text-black hover:from-yellow-500 hover:to-amber-700"
+                onClick={() => setShowUpgradeDialog(true)}
+              >
+                <Crown className="h-4 w-4 mr-2" />
+                Fazer Upgrade
+              </Button>
+            )}
+            {allowPeek && (
+              <Button 
+                variant="link" 
+                onClick={toggleVisibility} 
+                className="mt-2"
+              >
+                <Eye className="h-4 w-4 mr-1" /> 
+                Visualizar por 10 segundos
+              </Button>
             )}
           </div>
         );
-        
+      
       case 'fallback':
-        return fallbackContent || defaultPlaceholder;
-        
-      case 'hidden':
-        return (
-          <div className="w-full p-4 border border-dashed border-gray-600 rounded-md flex flex-col items-center justify-center">
-            <LockKeyhole className="h-8 w-8 mb-2 text-vegas-gold" />
-            <p className="text-sm text-center text-gray-300 mb-4">{displayMessage}</p>
-            {showUpgradeButton && renderUpgradeButton()}
+        // Mostrar conteúdo alternativo
+        return fallbackContent ? (
+          <div className="relative">
+            {fallbackContent}
+            {showUpgradeButton && (
+              <div className="mt-2 flex justify-center">
+                <Button 
+                  size="sm"
+                  className="bg-gradient-to-r from-yellow-400 to-amber-600 text-black hover:from-yellow-500 hover:to-amber-700"
+                  onClick={() => setShowUpgradeDialog(true)}
+                >
+                  <Crown className="h-4 w-4 mr-2" />
+                  Fazer Upgrade para ver completo
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          // Se não tiver fallback, usar o placeholder
+          <div className="flex flex-col items-center justify-center p-6 border border-dashed rounded-lg bg-background/50">
+            <LockKeyhole className="h-8 w-8 text-yellow-500 mb-2" />
+            <p className="text-center font-medium max-w-xs mb-4">
+              {upgradeMessage || "Este recurso está disponível apenas para assinantes Premium"}
+            </p>
+            {showUpgradeButton && (
+              <Button 
+                className="bg-gradient-to-r from-yellow-400 to-amber-600 text-black hover:from-yellow-500 hover:to-amber-700"
+                onClick={() => setShowUpgradeDialog(true)}
+              >
+                <Crown className="h-4 w-4 mr-2" />
+                Fazer Upgrade
+              </Button>
+            )}
           </div>
         );
-        
+      
+      case 'hidden':
       default:
-        return null;
+        // Esconder completamente
+        return showUpgradeButton ? (
+          <div className="flex flex-col items-center justify-center p-6 border border-dashed rounded-lg bg-background/50">
+            <Button 
+              className="bg-gradient-to-r from-yellow-400 to-amber-600 text-black hover:from-yellow-500 hover:to-amber-700"
+              onClick={() => setShowUpgradeDialog(true)}
+            >
+              <Crown className="h-4 w-4 mr-2" />
+              Desbloquear recurso Premium
+            </Button>
+          </div>
+        ) : null;
     }
   };
-  
-  // Renderizar botão de upgrade com opções de planos
-  const renderUpgradeButton = () => (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button className="bg-vegas-gold hover:bg-vegas-gold/80 text-black">
-          Fazer Upgrade
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="bg-vegas-darkgray text-white border-vegas-black">
-        <DialogHeader>
-          <DialogTitle>Faça upgrade do seu plano</DialogTitle>
-          <DialogDescription className="text-gray-400">
-            Escolha um plano para desbloquear recursos adicionais
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="grid gap-4 py-4">
-          {availablePlans
-            .filter(plan => plan.type !== PlanType.FREE && (currentPlan ? plan.type > currentPlan.type : true))
-            .map(plan => (
-              <div key={plan.id} className="flex items-center justify-between border border-gray-700 rounded-md p-4">
-                <div>
-                  <h4 className="font-medium">{plan.name}</h4>
-                  <p className="text-sm text-gray-400">{plan.description}</p>
-                  <ul className="mt-2 text-xs text-gray-300">
-                    {plan.features.slice(0, 3).map((feature, i) => (
-                      <li key={i} className="flex items-center">
-                        <span className="mr-1 text-vegas-gold">✓</span> {feature}
-                      </li>
-                    ))}
-                    {plan.features.length > 3 && (
-                      <li className="text-gray-400">+ {plan.features.length - 3} mais recursos</li>
-                    )}
-                  </ul>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-vegas-gold">
-                    {plan.price.toLocaleString('pt-BR', { 
-                      style: 'currency', 
-                      currency: 'BRL' 
-                    })}
-                    <span className="text-xs text-gray-400">/mês</span>
-                  </p>
-                  <Button 
-                    variant="default" 
-                    size="sm" 
-                    className="mt-2 bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-                  >
-                    Escolher
-                  </Button>
-                </div>
-              </div>
-            ))}
-        </div>
-      </DialogContent>
-    </Dialog>
+
+  return (
+    <>
+      {renderRestrictedContent()}
+      
+      {/* Diálogo de upgrade */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <Crown className="h-5 w-5 text-yellow-500 mr-2" />
+              Faça upgrade para o plano Premium
+            </DialogTitle>
+            <DialogDescription>
+              Tenha acesso a todos os recursos exclusivos da plataforma, incluindo dados em tempo real, histórico completo e muito mais.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col space-y-4">
+            <div className="bg-black/5 p-4 rounded-lg">
+              <h4 className="font-semibold mb-2">Benefícios do plano Premium:</h4>
+              <ul className="space-y-2">
+                <li className="flex items-start">
+                  <div className="rounded-full bg-green-500 p-1 mr-2 mt-0.5">
+                    <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 8 8">
+                      <circle cx="4" cy="4" r="3" />
+                    </svg>
+                  </div>
+                  <span>Dados em tempo real de todas as roletas</span>
+                </li>
+                <li className="flex items-start">
+                  <div className="rounded-full bg-green-500 p-1 mr-2 mt-0.5">
+                    <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 8 8">
+                      <circle cx="4" cy="4" r="3" />
+                    </svg>
+                  </div>
+                  <span>Histórico completo de jogadas</span>
+                </li>
+                <li className="flex items-start">
+                  <div className="rounded-full bg-green-500 p-1 mr-2 mt-0.5">
+                    <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 8 8">
+                      <circle cx="4" cy="4" r="3" />
+                    </svg>
+                  </div>
+                  <span>Estatísticas avançadas e sugestões inteligentes</span>
+                </li>
+                <li className="flex items-start">
+                  <div className="rounded-full bg-green-500 p-1 mr-2 mt-0.5">
+                    <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 8 8">
+                      <circle cx="4" cy="4" r="3" />
+                    </svg>
+                  </div>
+                  <span>Suporte prioritário 24/7</span>
+                </li>
+              </ul>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button
+                variant="outline"
+                onClick={() => setShowUpgradeDialog(false)}
+              >
+                Mais tarde
+              </Button>
+              <Button 
+                className="bg-gradient-to-r from-yellow-500 to-amber-600 text-black hover:from-yellow-600 hover:to-amber-700"
+                onClick={goToPlans}
+              >
+                <Crown className="h-4 w-4 mr-2" />
+                Ver planos disponíveis
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
-  
-  return renderContent();
 };
 
 export default PremiumContent; 

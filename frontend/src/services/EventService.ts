@@ -2,6 +2,7 @@
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
 import SocketService from '@/services/SocketService';
+import { PlanType } from '@/types/plans';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -13,48 +14,53 @@ const debugLog = (...args: any[]) => {
   }
 };
 
-// Definição dos tipos de eventos
+// Feature IDs para verificação de acesso
+export const SOCKET_FEATURES = {
+  REAL_TIME_DATA: 'real_time_data',
+  STRATEGY_UPDATES: 'strategy_updates'
+};
+
+// Lista de planos que podem acessar dados em tempo real
+const REAL_TIME_DATA_ALLOWED_PLANS = [PlanType.PRO, PlanType.PREMIUM];
+
+// Tipos de eventos da roleta
+export type RouletteEventType = 'new_number' | 'strategy_update';
+
+// Interface para eventos de número da roleta
 export interface RouletteNumberEvent {
   type: 'new_number';
   roleta_id: string;
   roleta_nome: string;
   numero: number;
+  cor?: string;
   timestamp: string;
-  // Campos opcionais de estratégia
   estado_estrategia?: string;
   sugestao_display?: string;
   terminais_gatilho?: number[];
-  // Flag para indicar se dados existentes devem ser preservados
-  preserve_existing?: boolean;
-  // Flag para indicar se é uma atualização em tempo real (após carregamento inicial)
-  realtime_update?: boolean;
 }
 
+// Interface para eventos de atualização de estratégia
 export interface StrategyUpdateEvent {
   type: 'strategy_update';
   roleta_id: string;
   roleta_nome: string;
   estado: string;
-  numero_gatilho: number;
-  terminais_gatilho: number[];
-  vitorias: number;
-  derrotas: number;
+  numero_gatilho?: number;
+  vitorias?: number;
+  derrotas?: number;
+  terminais_gatilho?: number[];
   sugestao_display?: string;
-  timestamp?: string;
+  timestamp: string;
 }
 
-export interface ConnectedEvent {
-  type: 'connected';
-  message: string;
-}
+// Tipo união para todos os eventos da roleta
+export type RouletteEvent = RouletteNumberEvent | StrategyUpdateEvent;
 
-export type EventData = RouletteNumberEvent | ConnectedEvent | StrategyUpdateEvent;
+// Callback para eventos da roleta
+export type RouletteEventCallback = (event: RouletteEvent) => void;
 
-// Tipo para callbacks de eventos
-export type RouletteEventCallback = (event: RouletteNumberEvent | StrategyUpdateEvent) => void;
-
-// Tipo para callbacks de eventos genéricos
-export type EventCallback = (data: any) => void;
+// Callback para eventos genéricos
+export type EventCallback = (event: any) => void;
 
 export class EventService {
   private static instance: EventService | null = null;
@@ -80,10 +86,13 @@ export class EventService {
   
   // Map para armazenar callbacks de eventos personalizados
   private customEventListeners: Map<string, Set<EventCallback>> = new Map();
+  
+  // Armazenar informação sobre acesso premium
+  private hasPremiumAccess: boolean = false;
 
   private constructor() {
     if (EventService.instance) {
-      throw new Error('Erro: Tentativa de criar uma nova instância do EventService. Use EventService.getInstance()');
+      throw new Error('Erro: Tentativa de criar uma segunda instância do EventService');
     }
     
     // Inicialização padrão
@@ -94,6 +103,8 @@ export class EventService {
     this.subscribe('*', (event: RouletteNumberEvent) => {
       debugLog(`[EventService][GLOBAL] Evento: ${event.roleta_nome}, número: ${event.numero}`);
     });
+    
+    // Verificar status do plano será feito dinamicamente
     
     // Usar diretamente o SocketService para comunicação em tempo real
     debugLog('[EventService] Usando SocketService para eventos em tempo real');
@@ -108,76 +119,57 @@ export class EventService {
    * Implementa um mecanismo que previne múltiplas instâncias mesmo com chamadas paralelas
    */
   public static getInstance(): EventService {
-    // Se já existe uma instância, retorna imediatamente
+    // Se já existe uma instância, retornar imediatamente
     if (EventService.instance) {
       return EventService.instance;
     }
-
-    // Se já está inicializando, aguarde
-    if (EventService.isInitializing) {
-      console.log('[EventService] Inicialização em andamento, aguardando...');
-      // Não tentamos retornar a promise de inicialização, pois não é utilizada corretamente
-      // Apenas retornamos a instância, que deve estar definida neste ponto
-      return EventService.instance as EventService;
+    
+    // Se já está inicializando, retornar a promise de inicialização
+    if (EventService.isInitializing && EventService.initializationPromise) {
+      return EventService.initializationPromise as unknown as EventService;
     }
-
-    // Inicia o processo de inicialização
+    
+    // Inicializar uma única vez
     EventService.isInitializing = true;
     
-    // Cria instância apenas se ainda não existir
-    if (!EventService.instance) {
-      console.log('[EventService] Criando nova instância');
-      EventService.instance = new EventService();
-    }
+    // Criar nova instância
+    const service = new EventService();
+    EventService.instance = service;
     
-    // Libera o flag de inicialização
     EventService.isInitializing = false;
     
-    return EventService.instance;
-  }
-
-  // Cleanup quando o serviço é destruído
-  public destroy() {
-    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
-    this.disconnect();
-  }
-
-  private handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible') {
-      // Tentar reconectar se a página ficar visível e não estiver conectado
-      if (!this.isConnected) {
-        debugLog('[EventService] Página tornou-se visível, reconectando...');
-        this.useSocketServiceAsFallback();
-      }
-    }
-  }
-
-  // Obtém a URL do servidor de eventos baseado no método atual
-  private getServerUrl(method: string = 'direct'): string {
-    const baseUrl = 'https://short-mammals-help.loca.lt/api/events';
-    
-    switch (method) {
-      case 'direct':
-        // Tentar conexão direta primeiro
-        return baseUrl;
-      case 'proxy':
-        // Usar um proxy CORS quando a conexão direta falhar
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(baseUrl)}`;
-        return proxyUrl;
-      default:
-        return baseUrl;
-    }
-  }
-
-  private connect(): void {
-    // Usar diretamente o SocketService, sem tentativas de usar EventSource
-    this.useSocketServiceAsFallback();
+    return service;
   }
   
-  // NOVO: Usar SocketService como fallback final
+  /**
+   * Atualiza o status de acesso premium do usuário
+   * @param hasPremiumAccess Indica se o usuário tem acesso premium
+   */
+  public updatePremiumAccessStatus(hasPremiumAccess: boolean): void {
+    this.hasPremiumAccess = hasPremiumAccess;
+    debugLog(`[EventService] Status de acesso premium atualizado: ${hasPremiumAccess}`);
+    
+    // Se não tiver acesso premium, desconectar serviços em tempo real
+    if (!hasPremiumAccess) {
+      debugLog('[EventService] Usuário sem acesso premium, limitando acesso a dados em tempo real');
+      
+      // Poderíamos desconectar aqui, mas vamos apenas filtrar os eventos
+      // para manter a conexão atual, mas sem entregar dados premium
+    }
+  }
+  
+  /**
+   * Verifica se o usuário tem acesso a dados em tempo real
+   */
+  private checkRealTimeAccess(): boolean {
+    return this.hasPremiumAccess;
+  }
+
+  // Usa o SocketService como fallback para comunicação em tempo real
   private useSocketServiceAsFallback(): void {
     if (this.usingSocketService) {
-      return; // Já está usando SocketService
+      debugLog('[EventService] Já está usando SocketService como fallback');
+      return;
     }
     
     debugLog('[EventService] Utilizando SocketService como fallback para eventos em tempo real');
@@ -195,6 +187,12 @@ export class EventService {
   private handleSocketEvent = (event: any) => {
     if (!event || !event.type) {
       console.error('[EventService] Evento inválido recebido do SocketService:', event);
+      return;
+    }
+    
+    // Verificar acesso premium antes de processar eventos
+    if (!this.checkRealTimeAccess()) {
+      debugLog(`[EventService] Bloqueando evento ${event.type} para usuário sem acesso premium`);
       return;
     }
     
@@ -231,16 +229,14 @@ export class EventService {
         sugestao_display: event.sugestao_display,
         timestamp: event.timestamp || new Date().toISOString()
       };
-      
-      console.log(`[EventService] Estratégia formatada: ${formattedEvent.roleta_nome} - ${formattedEvent.estado}`);
     } else {
-      console.warn(`[EventService] Tipo de evento desconhecido: ${event.type}`);
-      return;
+      // Tipo desconhecido, passar o evento como está
+      formattedEvent = event as RouletteEvent;
     }
     
-    // Notificar todos os ouvintes registrados
+    // Notificar os ouvintes para este evento
     this.notifyListeners(formattedEvent);
-  }
+  };
   
   // Método alternativo de polling para quando SSE falhar
   private startPolling(): void {
@@ -371,6 +367,12 @@ export class EventService {
 
   // Notifica os listeners sobre um novo evento
   private notifyListeners(event: RouletteNumberEvent | StrategyUpdateEvent): void {
+    // Verificar acesso a recursos premium
+    if (!this.checkRealTimeAccess()) {
+      debugLog(`[EventService] Bloqueando notificação de evento: usuário sem acesso premium`);
+      return;
+    }
+    
     // Log simplificado para melhor desempenho em modo tempo real
     if (event.type === 'new_number') {
       debugLog(`[EventService] Novo número: ${event.roleta_nome} - ${event.numero}`);
@@ -380,24 +382,24 @@ export class EventService {
     
     // Notificar listeners da roleta específica
     const roletaListeners = this.listeners.get(event.roleta_nome);
-    if (roletaListeners && roletaListeners.size > 0) {
+    if (roletaListeners) {
       roletaListeners.forEach(callback => {
         try {
           callback(event);
         } catch (error) {
-          debugLog(`[EventService] Erro ao notificar listener para ${event.roleta_nome}`);
+          console.error(`[EventService] Erro ao notificar listener para roleta ${event.roleta_nome}:`, error);
         }
       });
     }
     
-    // Notificar listeners globais (*)
+    // Notificar listeners globais (inscritos em "*")
     const globalListeners = this.listeners.get('*');
-    if (globalListeners && globalListeners.size > 0) {
+    if (globalListeners) {
       globalListeners.forEach(callback => {
         try {
           callback(event);
         } catch (error) {
-          debugLog('[EventService] Erro ao notificar listener global');
+          console.error('[EventService] Erro ao notificar listener global:', error);
         }
       });
     }
@@ -643,4 +645,4 @@ export class EventService {
   }
 }
 
-export default EventService; 
+export default EventService.getInstance(); 
