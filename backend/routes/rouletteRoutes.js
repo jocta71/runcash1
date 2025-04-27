@@ -7,8 +7,7 @@ const express = require('express');
 const router = express.Router();
 
 // Importar middlewares
-const { authenticate } = require('../middlewares/authMiddleware');
-const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddleware');
+const { verifyTokenAndSubscription, requireResourceAccess } = require('../middlewares/asaasAuthMiddleware');
 
 // Importar controller
 const rouletteController = require('../controllers/rouletteController');
@@ -19,7 +18,7 @@ const rouletteController = require('../controllers/rouletteController');
  * @access  Público com limitações
  */
 router.get('/roulettes', 
-  authenticate({ required: false }), // Autenticação opcional
+  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
   rouletteController.listRoulettes
 );
 
@@ -38,7 +37,7 @@ router.get('/roulettes/:id/basic',
  * @access  Público com limitações
  */
 router.get('/roulettes/:id/recent', 
-  authenticate({ required: false }), // Autenticação opcional
+  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
   rouletteController.getRecentNumbers
 );
 
@@ -48,11 +47,11 @@ router.get('/roulettes/:id/recent',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/detailed', 
-  authenticate({ required: true }),
-  subscriptionMiddleware.requireSubscription({ 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
-    resourceType: 'detailed_data'
+  verifyTokenAndSubscription({ 
+    required: true,
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
   }),
+  requireResourceAccess('standard_stats'),
   rouletteController.getDetailedRouletteData
 );
 
@@ -62,11 +61,11 @@ router.get('/roulettes/:id/detailed',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/stats', 
-  authenticate({ required: true }),
-  subscriptionMiddleware.requireSubscription({ 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
-    resourceType: 'roulette_stats'
+  verifyTokenAndSubscription({
+    required: true,
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
   }),
+  requireResourceAccess('standard_stats'),
   rouletteController.getRouletteStatistics
 );
 
@@ -76,11 +75,11 @@ router.get('/roulettes/:id/stats',
  * @access  Privado - Requer assinatura premium
  */
 router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical', 
-  authenticate({ required: true }),
-  subscriptionMiddleware.requireSubscription({ 
-    allowedPlans: ['PREMIUM'],
-    resourceType: 'historical_data'
+  verifyTokenAndSubscription({ 
+    required: true,
+    allowedPlans: ['PREMIUM']
   }),
+  requireResourceAccess('historical_data'),
   rouletteController.getHistoricalData
 );
 
@@ -90,11 +89,11 @@ router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/batch', 
-  authenticate({ required: true }),
-  subscriptionMiddleware.requireSubscription({ 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
-    resourceType: 'numbers_batch'
+  verifyTokenAndSubscription({
+    required: true,
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
   }),
+  requireResourceAccess('standard_stats'),
   rouletteController.getNumbersBatch
 );
 
