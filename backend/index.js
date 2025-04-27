@@ -27,46 +27,10 @@ const empresarialRoutes = require('./routes/empresarialRoutes');
 const assinaturaRoutes = require('./routes/assinaturaRoutes');
 const rouletteRoutes = require('./routes/rouletteRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
-const authRoutes = require('./routes/authRoutes');
-const protectedRoutes = require('./routes/protectedRoutes');
-const subscriptionApiRoutes = require('./api/subscription-api');
-const roulettesApiRoutes = require('./api/roulettes-api');
-
-// Configuração avançada de CORS
-const corsOptions = {
-  origin: [
-    'https://runcashh11.vercel.app',
-    'https://runcashh1.vercel.app',
-    'https://runcash.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:5173'
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-};
 
 // Middlewares
-app.use(cors(corsOptions));
+app.use(cors());
 app.use(express.json());
-
-// Configurar cabeçalhos CORS para todas as rotas
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (corsOptions.origin.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Responder imediatamente às solicitações OPTIONS
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  next();
-});
 
 // Configurar rotas da API
 app.use('/api/ai', aiAnalysisRoutes);
@@ -74,11 +38,7 @@ app.use('/api/premium', premiumRoutes);
 app.use('/api/empresarial', empresarialRoutes);
 app.use('/api/assinatura', assinaturaRoutes);
 app.use('/api/subscription', subscriptionRoutes);
-app.use('/api/subscription', subscriptionApiRoutes);
-app.use('/api/roulettes', roulettesApiRoutes);
 app.use('/api', rouletteRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/protected', protectedRoutes);
 
 // Rota principal para verificação
 app.get('/', (req, res) => {
@@ -89,48 +49,15 @@ app.get('/', (req, res) => {
   });
 });
 
-// Rota de verificação de saúde
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Rota de amostra para roletas (para acesso limitado)
-app.get('/api/roulettes/sample', async (req, res) => {
-  try {
-    const db = await getDb();
-    const samples = await db.collection('roulettes')
-      .find({})
-      .limit(3)
-      .toArray();
-    
-    const limitedData = samples.map(roulette => ({
-      id: roulette.id,
-      nome: roulette.nome,
-      status: roulette.status,
-      amostra: true,
-      numero: roulette.numero ? roulette.numero.slice(0, 5) : []
-    }));
-    
-    res.status(200).json(limitedData);
-  } catch (error) {
-    console.error('Erro ao buscar amostras de roletas:', error);
-    res.status(500).json({
-      success: false, 
-      message: 'Erro ao buscar amostras de roletas'
-    });
-  }
-});
-
 // Inicializar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO com configurações CORS atualizadas
+// Inicializar Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: corsOptions.origin,
-    methods: corsOptions.methods,
-    credentials: corsOptions.credentials,
-    allowedHeaders: corsOptions.allowedHeaders
+    origin: '*',
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 

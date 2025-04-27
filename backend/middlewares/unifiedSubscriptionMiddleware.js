@@ -8,59 +8,6 @@ const ErrorResponse = require('../utils/errorResponse');
 const { ObjectId } = require('mongodb');
 
 /**
- * Middleware simplificado para verificar status de assinatura sem bloquear acesso
- * Apenas adiciona informações de assinatura à requisição
- */
-exports.checkSubscriptionStatus = async (req, res, next) => {
-  try {
-    // Se não há usuário autenticado, continuar sem verificar assinatura
-    if (!req.user && !req.usuario) {
-      req.hasActiveSubscription = false;
-      req.subscription = null;
-      return next();
-    }
-    
-    const userId = req.user?.id || req.usuario?.id;
-    const db = await getDb();
-    
-    // Verificar assinatura na collection mais recente
-    const subscription = await db.collection('subscriptions').findOne({
-      user_id: userId,
-      status: { $in: ['active', 'ACTIVE', 'ativa'] },
-      expirationDate: { $gt: new Date() }
-    });
-    
-    // Se encontrou assinatura ativa
-    if (subscription) {
-      req.hasActiveSubscription = true;
-      req.subscription = subscription;
-      return next();
-    }
-    
-    // Verificar também no formato antigo de assinaturas (modelo mongoose)
-    const assinatura = await db.collection('assinaturas').findOne({
-      usuario: ObjectId.isValid(userId) ? new ObjectId(userId) : userId,
-      status: 'ativa',
-      validade: { $gt: new Date() }
-    });
-    
-    if (assinatura) {
-      req.hasActiveSubscription = true;
-      req.assinatura = assinatura;
-    } else {
-      req.hasActiveSubscription = false;
-    }
-    
-    next();
-  } catch (error) {
-    console.error('Erro ao verificar status de assinatura:', error);
-    // Em caso de erro, não bloquear o acesso
-    req.hasActiveSubscription = false;
-    next();
-  }
-};
-
-/**
  * Verifica se o usuário tem uma assinatura ativa
  * @param {Object} req - Objeto de requisição Express
  * @param {Object} res - Objeto de resposta Express
