@@ -439,29 +439,9 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Rota para listar todas as roletas (endpoint em inglês)
-app.get('/api/roulettes', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/roulettes');
-  
-  try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json([]);
-    }
-    
-    // Obter roletas únicas da coleção
-    const roulettes = await collection.aggregate([
-      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-      { $project: { _id: 0, id: 1, nome: "$_id" } }
-    ]).toArray();
-    
-    console.log(`[API] Processadas ${roulettes.length} roletas`);
-    res.json(roulettes);
-  } catch (error) {
-    console.error('[API] Erro ao listar roletas:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
-  }
-});
+// Configurações de modo de desenvolvimento - DESATIVAR EM PRODUÇÃO
+const DEV_MODE = false; // Quando true, ignora verificação de assinatura para testes
+const DEV_USER_PLAN = null; // 'BASIC', 'PRO', 'PREMIUM', ou null para usar verificação normal
 
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
 app.get('/api/ROULETTES', async (req, res) => {
@@ -488,16 +468,19 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
+    // VERIFICAÇÃO DE ASSINATURA
+    // -------------------------
+    let temAssinaturaAtiva = DEV_MODE; // Em modo dev, pode considerar true direto
+    let planUsuario = DEV_USER_PLAN || 'FREE';
+    
     // Extrair token da requisição
     const token = req.headers.authorization?.split(' ')[1];
     
-    // Verificar se tem permissão para acessar os dados
-    let temAssinaturaAtiva = false;
-    
-    if (token) {
+    if (!DEV_MODE && token) {
       try {
         // Verificar e decodificar o token
         const decodificado = jwt.verify(token, config.jwt.secret);
+        console.log(`[API] Token verificado para usuário ID: ${decodificado.id}`);
         
         // Buscar usuário para confirmar que ele existe e está ativo
         const usuario = await db.collection('usuarios').findOne({ 
@@ -508,6 +491,8 @@ app.get('/api/ROULETTES', async (req, res) => {
         });
         
         if (usuario) {
+          console.log(`[API] Usuário encontrado: ${usuario.nome || usuario.username || 'Sem nome'}`);
+          
           // Buscar assinatura ativa no banco de dados
           const userSubscription = await db.collection('subscriptions').findOne({
             user_id: decodificado.id,
@@ -516,6 +501,8 @@ app.get('/api/ROULETTES', async (req, res) => {
           
           // Se não encontrou na collection padrão, tentar na outra
           if (!userSubscription) {
+            console.log(`[API] Assinatura não encontrada na coleção principal, verificando alternativas...`);
+            
             const assinatura = await db.collection('assinaturas').findOne({
               usuario: ObjectId.isValid(decodificado.id) ? new ObjectId(decodificado.id) : decodificado.id,
               status: 'ativa',
@@ -527,8 +514,13 @@ app.get('/api/ROULETTES', async (req, res) => {
               // Apenas planos pagos têm acesso
               if (['BASIC', 'PRO', 'PREMIUM'].includes(assinatura.plano)) {
                 temAssinaturaAtiva = true;
+                planUsuario = assinatura.plano;
                 console.log(`[API] Usuário autenticado com plano ${assinatura.plano}, acesso permitido`);
+              } else {
+                console.log(`[API] Usuário tem assinatura, mas o plano ${assinatura.plano} não tem acesso aos dados`);
               }
+            } else {
+              console.log(`[API] Nenhuma assinatura ativa encontrada para o usuário`);
             }
           } else {
             // Verificar se a assinatura não está expirada
@@ -537,14 +529,23 @@ app.get('/api/ROULETTES', async (req, res) => {
               // Apenas planos pagos têm acesso
               if (['BASIC', 'PRO', 'PREMIUM'].includes(userSubscription.plan_id)) {
                 temAssinaturaAtiva = true;
+                planUsuario = userSubscription.plan_id;
                 console.log(`[API] Usuário autenticado com plano ${userSubscription.plan_id}, acesso permitido`);
+              } else {
+                console.log(`[API] Usuário tem assinatura, mas o plano ${userSubscription.plan_id} não tem acesso aos dados`);
               }
+            } else {
+              console.log(`[API] Assinatura expirada: ${userSubscription.expirationDate}`);
             }
           }
+        } else {
+          console.log(`[API] Usuário não encontrado para o ID no token: ${decodificado.id}`);
         }
       } catch (error) {
         console.error('[API] Erro ao verificar token:', error.message);
       }
+    } else if (!token && !DEV_MODE) {
+      console.log('[API] Requisição sem token de autenticação');
     }
     
     // Se o usuário não tem assinatura ativa, bloquear acesso
@@ -558,16 +559,31 @@ app.get('/api/ROULETTES', async (req, res) => {
       });
     }
     
-    // Se chegou aqui, o usuário tem assinatura ativa
-    // Definir limite baseado no plano (mantemos isso para diferenciar entre os planos pagos)
-    let limit = config.subscription.plans.BASIC.limit; // Padrão para plano BASIC
+    // Aqui temos certeza que o usuário tem assinatura ativa
+    console.log(`[API] Acesso autorizado para plano ${planUsuario}`);
+    
+    // Definir limite baseado no plano
+    let limit;
+    switch (planUsuario) {
+      case 'BASIC':
+        limit = config.subscription.plans.BASIC.limit;
+        break;
+      case 'PRO':
+        limit = config.subscription.plans.PRO.limit;
+        break;
+      case 'PREMIUM':
+        limit = config.subscription.plans.PREMIUM.limit;
+        break;
+      default:
+        limit = config.subscription.plans.BASIC.limit; // Padrão
+    }
     
     // Obter o valor do parâmetro "limit" da requisição
     const requestedLimit = parseInt(req.query.limit) || limit;
-    // Garantir que o limit não exceda o valor máximo permitido
-    const finalLimit = Math.min(requestedLimit, config.subscription.plans.PREMIUM.limit);
+    // Garantir que o limit não exceda o valor máximo permitido para o plano
+    const finalLimit = Math.min(requestedLimit, limit);
     
-    console.log(`[API] Usando limit: ${finalLimit}`);
+    console.log(`[API] Usando limit: ${finalLimit} para plano ${planUsuario}`);
     
     // Buscar histórico de números ordenados por timestamp
     const numeros = await collection
@@ -594,7 +610,8 @@ app.get('/api/ROULETTES', async (req, res) => {
         data: numeros,
         limit: finalLimit,
         total: count,
-        hasSubscription: true
+        hasSubscription: true,
+        plan: planUsuario
       });
     }
     
@@ -891,11 +908,98 @@ app.get('/api/ROULETTES/historico', async (req, res) => {
   // Configurar CORS explicitamente para esta rota
   configureCors(req, res);
   
-  // Responder com o histórico
   try {
     if (!isConnected || !collection) {
       console.log('[API] MongoDB não conectado, retornando array vazio');
       return res.json([]);
+    }
+    
+    // VERIFICAÇÃO DE ASSINATURA - Mesmo esquema da rota principal
+    // ----------------------------------------------------------
+    let temAssinaturaAtiva = DEV_MODE;
+    
+    // Extrair token da requisição
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!DEV_MODE && token) {
+      try {
+        // Verificar e decodificar o token
+        const decodificado = jwt.verify(token, config.jwt.secret);
+        console.log(`[API] Token verificado para usuário ID: ${decodificado.id}`);
+        
+        // Buscar usuário para confirmar que ele existe e está ativo
+        const usuario = await db.collection('usuarios').findOne({ 
+          $or: [
+            { id: decodificado.id },
+            { _id: ObjectId.isValid(decodificado.id) ? new ObjectId(decodificado.id) : null }
+          ]
+        });
+        
+        if (usuario) {
+          console.log(`[API] Usuário encontrado: ${usuario.nome || usuario.username || 'Sem nome'}`);
+          
+          // Buscar assinatura ativa no banco de dados
+          const userSubscription = await db.collection('subscriptions').findOne({
+            user_id: decodificado.id,
+            status: { $in: ['active', 'ACTIVE', 'ativa'] }
+          });
+          
+          // Se não encontrou na collection padrão, tentar na outra
+          if (!userSubscription) {
+            console.log(`[API] Assinatura não encontrada na coleção principal, verificando alternativas...`);
+            
+            const assinatura = await db.collection('assinaturas').findOne({
+              usuario: ObjectId.isValid(decodificado.id) ? new ObjectId(decodificado.id) : decodificado.id,
+              status: 'ativa',
+              validade: { $gt: new Date() }
+            });
+            
+            if (assinatura) {
+              // Verificar se o usuário tem um plano que permite acesso aos dados
+              // Apenas planos pagos têm acesso
+              if (['BASIC', 'PRO', 'PREMIUM'].includes(assinatura.plano)) {
+                temAssinaturaAtiva = true;
+                console.log(`[API] Usuário autenticado com plano ${assinatura.plano}, acesso permitido`);
+              } else {
+                console.log(`[API] Usuário tem assinatura, mas o plano ${assinatura.plano} não tem acesso aos dados`);
+              }
+            } else {
+              console.log(`[API] Nenhuma assinatura ativa encontrada para o usuário`);
+            }
+          } else {
+            // Verificar se a assinatura não está expirada
+            if (!userSubscription.expirationDate || new Date(userSubscription.expirationDate) >= new Date()) {
+              // Verificar se o usuário tem um plano que permite acesso aos dados
+              // Apenas planos pagos têm acesso
+              if (['BASIC', 'PRO', 'PREMIUM'].includes(userSubscription.plan_id)) {
+                temAssinaturaAtiva = true;
+                console.log(`[API] Usuário autenticado com plano ${userSubscription.plan_id}, acesso permitido`);
+              } else {
+                console.log(`[API] Usuário tem assinatura, mas o plano ${userSubscription.plan_id} não tem acesso aos dados`);
+              }
+            } else {
+              console.log(`[API] Assinatura expirada: ${userSubscription.expirationDate}`);
+            }
+          }
+        } else {
+          console.log(`[API] Usuário não encontrado para o ID no token: ${decodificado.id}`);
+        }
+      } catch (error) {
+        console.error('[API] Erro ao verificar token:', error.message);
+      }
+    } else if (!token && !DEV_MODE) {
+      console.log('[API] Requisição sem token de autenticação');
+    }
+    
+    // Se o usuário não tem assinatura ativa, bloquear acesso
+    if (!temAssinaturaAtiva) {
+      console.log('[API] Acesso negado: usuário sem assinatura ativa');
+      return res.status(403).json({
+        success: false,
+        error: 'ACCESS_DENIED',
+        message: 'Acesso não autorizado. Você precisa de uma assinatura ativa para acessar estes dados.',
+        requiresSubscription: true
+      });
     }
     
     // Obter histórico de números jogados
