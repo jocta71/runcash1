@@ -22,6 +22,14 @@ console.log(`PORT: ${PORT}`);
 console.log(`MONGODB_URI: ${MONGODB_URI ? MONGODB_URI.replace(/:.*@/, ':****@') : 'Não definida'}`);
 console.log('Diretório atual:', process.cwd());
 
+// Verificar e atualizar configuração do callback do Google
+try {
+  require('./update_google_callback');
+  console.log('[Server] Verificação do callback do Google concluída');
+} catch (err) {
+  console.warn('[Server] Erro ao verificar callback do Google:', err.message);
+}
+
 // Inicializar Express para a API principal
 const app = express();
 
@@ -97,6 +105,20 @@ app.get('/api', (req, res) => {
     service: 'RunCash API',
     timestamp: new Date().toISOString()
   });
+});
+
+// Compatibilidade direta para autenticação Google
+// Isso garante que as rotas de autenticação continuem funcionando mesmo com a mudança no diretório raiz
+app.get('/auth/google', (req, res) => {
+  console.log('[Compat] Redirecionando chamada /auth/google para /api/auth/google');
+  res.redirect('/api/auth/google');
+});
+
+app.get('/auth/google/callback', (req, res, next) => {
+  console.log('[Compat] Redirecionando callback Google para /api/auth/google/callback');
+  // Ajustar a URL para o middleware de passport poder processar corretamente
+  req.url = '/api/auth/google/callback';
+  app._router.handle(req, res, next);
 });
 
 // Inicializar servidor HTTP

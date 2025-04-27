@@ -43,11 +43,31 @@ Para utilizar esta configuração:
 
 2. Variáveis de Ambiente Importantes:
    - **ENABLE_WEBSOCKET**: Defina como "true" para habilitar o WebSocket (opcional)
+   - **GOOGLE_CALLBACK_URL**: Deve ser atualizada para `https://sua-url-do-railway.app/api/auth/google/callback`
+   - **GOOGLE_CLIENT_ID**: Necessário para autenticação Google
+   - **GOOGLE_CLIENT_SECRET**: Necessário para autenticação Google
    
 3. Rotas Disponíveis:
    - `/` - Status do servidor unificado
    - `/api` - Endpoints da API principal
    - `/emit-event` - Endpoint para emissão de eventos WebSocket (se ativado)
+
+## Configuração da Autenticação Google
+
+Após a migração para a estrutura unificada, é necessário atualizar as configurações de autenticação do Google:
+
+1. **No Railway**:
+   - Atualize a variável de ambiente `GOOGLE_CALLBACK_URL` para apontar para o novo caminho: 
+     `https://sua-url-do-railway.app/api/auth/google/callback`
+
+2. **No Console de API do Google**:
+   - Acesse https://console.cloud.google.com/apis/credentials
+   - Encontre o projeto RunCash
+   - Atualize o "URI de redirecionamento autorizado" para o mesmo URL acima
+
+3. **Compatibilidade**:
+   - O servidor unificado já inclui rotas de compatibilidade que redirecionam `/auth/google` para `/api/auth/google`
+   - Isso garante que links antigos continuem funcionando sem necessidade de atualizar o frontend
 
 ## Benefícios
 
