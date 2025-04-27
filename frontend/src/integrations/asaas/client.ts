@@ -80,7 +80,7 @@ export const createAsaasCustomer = async (userData: {
 /**
  * Interface para resposta de criação de assinatura
  */
-export interface SubscriptionResponse {
+interface SubscriptionResponse {
   subscriptionId: string;
   paymentId: string;
   redirectUrl?: string;

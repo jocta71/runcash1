@@ -28,12 +28,7 @@ const assinaturaRoutes = require('./routes/assinaturaRoutes');
 const rouletteRoutes = require('./routes/rouletteRoutes');
 
 // Middlewares
-app.use(cors({
-  origin: ['https://runcashh11.vercel.app', 'http://localhost:3000', 'https://runcashh1.vercel.app', '*'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+app.use(cors());
 app.use(express.json());
 
 // Configurar rotas da API

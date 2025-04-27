@@ -184,7 +184,6 @@ const StrategiesPage: React.FC = () => {
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
-          <DialogTitle className="sr-only">Detalhes da Estratégia</DialogTitle>
           <DialogHeader>
             <DialogTitle>Confirmar exclusão</DialogTitle>
             <DialogDescription>
