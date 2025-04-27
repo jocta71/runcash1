@@ -185,10 +185,10 @@ const LiveRoulettePage: React.FC = () => {
         <title>Roletas ao vivo | RunCash</title>
       </Helmet>
       
+      {/* Mostrar banner de assinatura acima do conteúdo principal */}
+      <SubscriptionBanner />
+      
       <div className="container mx-auto px-4 py-8">
-        {/* Mostrar banner de assinatura */}
-        <SubscriptionBanner />
-        
         <h1 className="text-3xl font-bold mb-6">Roletas ao vivo</h1>
         
         {/* Indicador de última atualização */}
