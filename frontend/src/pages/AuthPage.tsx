@@ -25,7 +25,7 @@ const AuthPage = () => {
   const { toast } = useToast();
   
   // API URL
-  const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app/api';
 
   useEffect(() => {
     // Verificar se auth Google está disponível

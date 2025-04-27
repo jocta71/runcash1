@@ -6,7 +6,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 
 // API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app/api';
 /**
  * Componente que lida com a autenticação via Google
  * Verifica se há um token na URL e processa a autenticação
