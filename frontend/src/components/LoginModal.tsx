@@ -14,11 +14,6 @@ import {
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-// Garantir que a declaração global esteja disponível
-declare global {
-  var googleAuthEnabledGlobal: boolean | null;
-}
-
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -41,43 +36,24 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModal
   const { toast } = useToast();
   
   // API URL
-  const API_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app/api';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
 
   // Verificar se auth Google está disponível
   useEffect(() => {
-    const checkGoogleAuthEnabled = async () => {
+    const checkAuthStatus = async () => {
       try {
-        setIsCheckingAuth(true);
-        
-        // Verificar se já temos a decisão em cache na variável global
-        if (window.googleAuthEnabledGlobal !== undefined && window.googleAuthEnabledGlobal !== null) {
-          console.log('Usando decisão em cache para Google Auth:', window.googleAuthEnabledGlobal);
-          setIsGoogleAuthEnabled(window.googleAuthEnabledGlobal);
-          setIsCheckingAuth(false);
-          return;
-        }
-        
-        // Se não estiver em cache, verificar com base nas variáveis de ambiente
-        const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-        const apiBaseUrl = import.meta.env.VITE_API_URL;
-        
-        // Se temos ID do cliente Google e URL da API, assumir que o auth Google está habilitado
-        const isEnabled = !!(googleClientId && apiBaseUrl);
-        console.log('Determinando status do Google Auth com base nas variáveis de ambiente:', isEnabled);
-        
-        // Armazenar a decisão globalmente
-        window.googleAuthEnabledGlobal = isEnabled;
-        setIsGoogleAuthEnabled(isEnabled);
-        setIsCheckingAuth(false);
+        const response = await axios.get(`${API_URL}/auth/google/status`);
+        setIsGoogleAuthEnabled(response.data.enabled);
       } catch (error) {
-        console.error('Erro ao verificar status de autenticação Google:', error);
+        console.error('Erro ao verificar status da autenticação:', error);
         setIsGoogleAuthEnabled(false);
+      } finally {
         setIsCheckingAuth(false);
       }
     };
-
-    checkGoogleAuthEnabled();
-  }, []);
+    
+    checkAuthStatus();
+  }, [API_URL]);
 
   // Atualizar mensagem de erro quando ela for passada como prop
   useEffect(() => {

@@ -48,7 +48,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 // API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
 
 /**
  * Provedor de autenticação que se comunica com a API

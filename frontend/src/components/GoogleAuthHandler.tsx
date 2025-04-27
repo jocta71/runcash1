@@ -6,7 +6,7 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 
 // API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
 /**
  * Componente que lida com a autenticação via Google
  * Verifica se há um token na URL e processa a autenticação
@@ -56,65 +56,30 @@ const GoogleAuthHandler = () => {
           setToken(googleToken);
           
           // Buscar informações do usuário
-          try {
-            const response = await axios.get(`${API_URL}/auth/me`, {
-              headers: {
-                Authorization: `Bearer ${googleToken}`
-              }
-            });
-            
-            if (response.data.success && response.data.data) {
-              // Atualizar o estado do usuário
-              setUser(response.data.data);
-              
-              // Limpar o token da URL para evitar exposição
-              window.history.replaceState({}, document.title, window.location.pathname);
-              
-              // Limpar a flag que indica login Google em progresso
-              localStorage.removeItem('googleAuthInProgress');
-              
-              // Mostrar toast de sucesso
-              toast({
-                title: 'Login com Google concluído',
-                description: 'Você foi autenticado com sucesso via Google',
-              });
-              
-              // Redirecionar para a página inicial
-              navigate('/');
+          const response = await axios.get(`${API_URL}/auth/me`, {
+            headers: {
+              Authorization: `Bearer ${googleToken}`
             }
-          } catch (error) {
-            console.error('Erro ao buscar dados do usuário após autenticação Google:', error);
+          });
+          
+          if (response.data.success && response.data.data) {
+            // Atualizar o estado do usuário
+            setUser(response.data.data);
             
-            // Tentar fazer login mesmo se não conseguir buscar os dados do usuário
-            // Apenas se tivermos o token, podemos considerar que o login foi bem-sucedido
-            if (googleToken) {
-              toast({
-                title: 'Login com Google parcialmente concluído',
-                description: 'Autenticado com sucesso, mas não foi possível carregar seus dados. Algumas funcionalidades podem estar limitadas.',
-              });
-              
-              // Limpar o token da URL
-              window.history.replaceState({}, document.title, window.location.pathname);
-              
-              // Limpar a flag
-              localStorage.removeItem('googleAuthInProgress');
-              
-              // Redirecionar para home mesmo assim
-              navigate('/');
-              return;
-            }
+            // Limpar o token da URL para evitar exposição
+            window.history.replaceState({}, document.title, window.location.pathname);
             
-            // Se não temos token ou outra condição falhou, mostrar erro
+            // Limpar a flag que indica login Google em progresso
             localStorage.removeItem('googleAuthInProgress');
             
+            // Mostrar toast de sucesso
             toast({
-              title: 'Erro na autenticação',
-              description: 'Ocorreu um erro ao processar sua autenticação com Google',
-              variant: 'destructive'
+              title: 'Login com Google concluído',
+              description: 'Você foi autenticado com sucesso via Google',
             });
             
-            // Redirecionar para o login em caso de erro
-            navigate('/login');
+            // Redirecionar para a página inicial
+            navigate('/');
           }
         } catch (error) {
           // Limpar a flag que indica login Google em progresso
