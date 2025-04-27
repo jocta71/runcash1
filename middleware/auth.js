@@ -2,7 +2,7 @@
  * Middleware de autenticação
  * Responsável por validar tokens e proteger rotas
  */
-const database = require('../services/database');
+const database = require('../../services/database');
 const jwt = require('jsonwebtoken');
 
 // Segredo para validação dos tokens JWT
@@ -139,8 +139,21 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = {
-  authenticate,
-  requirePremium,
-  requireAdmin
-}; 
+// Exporta o módulo com ambos os caminhos para garantir compatibilidade
+try {
+  // Tenta o caminho relativo do Railway
+  const databaseAlt = require('../../services/database');
+  module.exports = {
+    authenticate,
+    requirePremium,
+    requireAdmin
+  };
+} catch (error) {
+  // Se falhar, usa o caminho original
+  console.log('[Auth] Usando caminho de importação alternativo para o database');
+  module.exports = {
+    authenticate,
+    requirePremium,
+    requireAdmin
+  };
+} 
