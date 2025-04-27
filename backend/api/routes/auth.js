@@ -187,8 +187,7 @@ router.get('/logout', (req, res) => {
 // @route   GET /api/auth/google/status
 // @access  Público
 router.get('/google/status', (req, res) => {
-  res.status(200).json({
-    success: true,
+  res.json({
     enabled: isGoogleAuthEnabled
   });
 });

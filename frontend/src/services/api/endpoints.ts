@@ -10,16 +10,7 @@ export const ENDPOINTS = {
   EVENTS: '/api/events',
   
   // Endpoint para estratégias
-  STRATEGIES: '/api/strategies',
-  
-  // Endpoints de autenticação
-  AUTH: {
-    GOOGLE_STATUS: '/api/auth/google/status',
-    LOGIN: '/api/auth/login',
-    REGISTER: '/api/auth/register',
-    LOGOUT: '/api/auth/logout',
-    CHECK: '/api/auth/check'
-  }
+  STRATEGIES: '/api/strategies'
 };
 
 // Obtém a URL base da API a partir de variáveis de ambiente

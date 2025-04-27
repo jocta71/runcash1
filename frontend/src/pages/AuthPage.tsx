@@ -275,9 +275,8 @@ const AuthPage = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
                     required
-                    autoComplete="current-password"
                   />
                   </div>
                 </div>
@@ -399,9 +398,8 @@ const AuthPage = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
                     required
-                    autoComplete="new-password"
                   />
                   </div>
                 </div>
@@ -416,9 +414,8 @@ const AuthPage = () => {
                     placeholder="••••••••"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
                     required
-                    autoComplete="new-password"
                   />
                   </div>
                 </div>
