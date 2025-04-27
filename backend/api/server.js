@@ -18,7 +18,7 @@ dotenv.config();
 
 // Importar rotas
 const usersRouter = require('./routes/users');
-const strategyRouter = require('./routes/strategies');
+const strategyRouter = require('./routes/strategy');
 const notificationRouter = require('./routes/notification');
 const rouletteSearchRouter = require('./routes/rouletteSearch');
 const historyRouter = require('./routes/historyApi');
@@ -33,7 +33,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'bypass-tunnel-reminder']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(morgan('dev'));
 app.use(bodyParser.json());
@@ -51,7 +51,7 @@ app.use((req, res, next) => {
   
   // Outros headers necessários
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization,bypass-tunnel-reminder');
+  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
   
   // Para requisições OPTIONS (preflight)
   if (req.method === 'OPTIONS') {

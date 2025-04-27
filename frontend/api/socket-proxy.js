@@ -4,7 +4,7 @@ const http = require('http');
 const url = require('url');
 
 // URL do backend no Railway
-const BACKEND_URL = 'https://backend-production-2f96.up.railway.app';
+const BACKEND_URL = 'https://runcash1-production.up.railway.app';
 
 // Handler para requisições de proxy do Socket.IO
 module.exports = (req, res) => {

@@ -8,8 +8,6 @@ import EventService from '@/services/EventService';
 import RouletteFeedService from '@/services/RouletteFeedService';
 // Remover a importação do initializeRouletteSystem pois vamos usar o service diretamente
 // import { initializeRouletteSystem } from '@/hooks/useRouletteData';
-import PremiumDataAlert from '@/components/PremiumDataAlert';
-import { useSubscription } from '@/context/SubscriptionContext';
 
 // Flag para controlar se o componente já foi inicializado
 let IS_COMPONENT_INITIALIZED = false;
@@ -20,10 +18,6 @@ const LiveRoulettePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState<boolean>(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
-  const { hasFeatureAccess } = useSubscription();
-  
-  // Verificar se o usuário tem acesso aos dados em tempo real
-  const hasRealtimeAccess = hasFeatureAccess('realtime-data-access');
   
   // Obter referência ao serviço de feed centralizado sem inicializar novo polling
   const feedService = useMemo(() => {
@@ -191,9 +185,6 @@ const LiveRoulettePage: React.FC = () => {
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Roletas ao vivo</h1>
         
-        {/* Alerta de acesso premium para usuários sem plano */}
-        <PremiumDataAlert />
-        
         {/* Indicador de última atualização */}
         {initialized && !loading && (
           <div className="text-sm text-gray-500 mb-4">
@@ -211,7 +202,6 @@ const LiveRoulettePage: React.FC = () => {
                   .catch(() => setLoading(false));
               }}
               className="ml-2 text-blue-500 hover:text-blue-700"
-              disabled={!hasRealtimeAccess} // Desabilitar botão se não tiver acesso
             >
               Atualizar agora
             </button>
