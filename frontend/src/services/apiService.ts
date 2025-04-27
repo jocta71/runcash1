@@ -109,6 +109,22 @@ class ApiService {
   }
   
   /**
+   * Verifica o status da assinatura do usuário
+   * @returns Promise com informações da assinatura
+   */
+  public async checkSubscriptionStatus<T = any>(): Promise<AxiosResponse<T>> {
+    return this.get<T>('/subscription/status');
+  }
+  
+  /**
+   * Obtém detalhes completos da assinatura do usuário
+   * @returns Promise com detalhes da assinatura
+   */
+  public async getSubscriptionDetails<T = any>(): Promise<AxiosResponse<T>> {
+    return this.get<T>('/subscription/details');
+  }
+  
+  /**
    * Retorna a instância do axios para uso direto
    * @returns Instância configurada do axios
    */
