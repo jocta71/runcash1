@@ -5,7 +5,34 @@ const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const config = require('./config/config');
+
+// Alternativa 1: Usar try-catch para tentar diferentes caminhos
+let config;
+try {
+  // Primeiro tenta o caminho padrão
+  config = require('./config/config');
+} catch (error) {
+  try {
+    // Se falhar, tenta o caminho absoluto
+    config = require('/app/config/config');
+  } catch (innerError) {
+    // Se ambos falharem, usa uma configuração padrão
+    console.warn('Arquivo de configuração não encontrado. Usando valores padrão.');
+    config = {
+      app: { name: 'RunCash', port: 3000, environment: 'development' },
+      jwt: { secret: 'seu_segredo_super_secreto', expiresIn: '7d' },
+      subscription: {
+        plans: {
+          FREE: { name: 'Gratuito', limit: 30 },
+          BASIC: { name: 'Básico', limit: 100 },
+          PRO: { name: 'Profissional', limit: 200 },
+          PREMIUM: { name: 'Premium', limit: 500 }
+        }
+      },
+      cache: { ttl: 300 }
+    };
+  }
+}
 
 // Carregar variáveis de ambiente
 dotenv.config();
