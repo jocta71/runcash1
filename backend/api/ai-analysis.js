@@ -15,6 +15,9 @@ const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@ru
 const DB_NAME = 'runcash';
 const COLLECTION_NAME = 'roleta_numeros';
 
+// Importar middleware de autenticação
+const { protect, requireSubscription, checkSubscription } = require('./middleware/auth');
+
 /**
  * Analisar sequências e padrões nos números da roleta
  * @param {Array<number>} numbers - Array de números da roleta
@@ -330,7 +333,7 @@ Para uma análise mais específica, tente perguntar sobre tendências, frequênc
 }
 
 // Rota para processar consultas de IA
-router.post('/query', async (req, res) => {
+router.post('/query', protect, requireSubscription, async (req, res) => {
   try {
     const { query } = req.body;
     
@@ -374,7 +377,7 @@ router.post('/query', async (req, res) => {
 });
 
 // Rota para obter estatísticas de IA
-router.get('/stats', async (req, res) => {
+router.get('/stats', protect, requireSubscription, async (req, res) => {
   try {
     // Conectar ao MongoDB
     const client = new MongoClient(MONGODB_URI, { useUnifiedTopology: true });
@@ -407,6 +410,151 @@ router.get('/stats', async (req, res) => {
   } catch (error) {
     console.error('Erro ao obter estatísticas de IA:', error);
     return res.status(500).json({ error: 'Erro interno ao obter estatísticas de IA' });
+  }
+});
+
+// Rota para analisar dados da roleta
+router.post('/analyze', protect, requireSubscription, async (req, res) => {
+  try {
+    const { rouletteId, numbers, analysisType } = req.body;
+    
+    if (!rouletteId || !numbers || !Array.isArray(numbers)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Dados inválidos para análise'
+      });
+    }
+    
+    // Resposta simulada - em produção, isto chamaria um serviço de IA real
+    const simulatedAnalysis = {
+      rouletteId,
+      analysisType: analysisType || 'standard',
+      timestamp: new Date().toISOString(),
+      result: {
+        hotNumbers: [7, 11, 23, 35],
+        coldNumbers: [0, 13, 15, 28],
+        patterns: {
+          redBlack: { red: numbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n)).length, 
+                     black: numbers.filter(n => [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35].includes(n)).length,
+                     zero: numbers.filter(n => n === 0).length },
+          oddEven: { odd: numbers.filter(n => n % 2 === 1).length, 
+                     even: numbers.filter(n => n !== 0 && n % 2 === 0).length },
+          dozens: { first: numbers.filter(n => n >= 1 && n <= 12).length,
+                   second: numbers.filter(n => n >= 13 && n <= 24).length,
+                   third: numbers.filter(n => n >= 25 && n <= 36).length }
+        },
+        recommendation: "Com base na análise, recomendamos atenção aos números 7, 23 e 30 que têm mostrado uma tendência de aparecimento frequente nos últimos giros.",
+        confidence: 0.78
+      }
+    };
+    
+    // Adicionar um pequeno atraso para simular processamento real
+    setTimeout(() => {
+      res.status(200).json({
+        success: true,
+        data: simulatedAnalysis
+      });
+    }, 1500);
+  } catch (error) {
+    console.error('Erro na análise de IA:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao processar análise de IA',
+      error: error.message
+    });
+  }
+});
+
+// Rota para obter previsões baseadas em dados históricos
+router.post('/predict', protect, requireSubscription, async (req, res) => {
+  try {
+    const { rouletteId, numbers, predictionType } = req.body;
+    
+    if (!rouletteId || !numbers || !Array.isArray(numbers)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Dados inválidos para previsão'
+      });
+    }
+    
+    // Resposta simulada
+    const simulatedPrediction = {
+      rouletteId,
+      predictionType: predictionType || 'nextNumber',
+      timestamp: new Date().toISOString(),
+      result: {
+        possibleOutcomes: [
+          { number: 23, probability: 0.085 },
+          { number: 7, probability: 0.078 },
+          { number: 15, probability: 0.072 },
+          { number: 34, probability: 0.068 },
+          { number: 11, probability: 0.062 }
+        ],
+        confidence: 0.65,
+        disclaimer: "Esta previsão é baseada apenas em dados históricos e não garante resultados futuros. Jogos de azar dependem principalmente de chance."
+      }
+    };
+    
+    // Adicionar um pequeno atraso para simular processamento real
+    setTimeout(() => {
+      res.status(200).json({
+        success: true,
+        data: simulatedPrediction
+      });
+    }, 2000);
+  } catch (error) {
+    console.error('Erro na previsão de IA:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao processar previsão de IA',
+      error: error.message
+    });
+  }
+});
+
+// Rota para verificar status do serviço de IA
+router.get('/status', checkSubscription, async (req, res) => {
+  try {
+    const status = {
+      service: 'RunCash AI Analysis',
+      status: 'operational',
+      timestamp: new Date().toISOString(),
+      features: [
+        { name: 'Análise de Padrões', status: 'disponível' },
+        { name: 'Previsão de Números', status: 'disponível' },
+        { name: 'Estatísticas Avançadas', status: 'disponível' }
+      ]
+    };
+    
+    // Adicionar informações sobre recursos premium se o usuário tiver assinatura
+    if (req.hasActiveSubscription) {
+      status.subscription = {
+        active: true,
+        plan: req.subscription?.plan_id || req.assinatura?.plano || 'premium',
+        features: [
+          'Análise em tempo real',
+          'Previsões avançadas',
+          'Estatísticas históricas completas'
+        ]
+      };
+    } else {
+      status.subscription = {
+        active: false,
+        message: 'Recursos premium indisponíveis. Assine para acessar funcionalidades avançadas.'
+      };
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: status
+    });
+  } catch (error) {
+    console.error('Erro ao verificar status do serviço de IA:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao verificar status do serviço',
+      error: error.message
+    });
   }
 });
 

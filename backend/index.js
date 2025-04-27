@@ -29,6 +29,8 @@ const rouletteRoutes = require('./routes/rouletteRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const authRoutes = require('./routes/authRoutes');
 const protectedRoutes = require('./routes/protectedRoutes');
+const subscriptionApiRoutes = require('./api/subscription-api');
+const roulettesApiRoutes = require('./api/roulettes-api');
 
 // Middlewares
 app.use(cors());
@@ -40,6 +42,8 @@ app.use('/api/premium', premiumRoutes);
 app.use('/api/empresarial', empresarialRoutes);
 app.use('/api/assinatura', assinaturaRoutes);
 app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/subscription', subscriptionApiRoutes);
+app.use('/api/roulettes', roulettesApiRoutes);
 app.use('/api', rouletteRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/protected', protectedRoutes);
