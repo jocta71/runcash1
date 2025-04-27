@@ -75,7 +75,7 @@ router.get('/roulettes/:id/stats',
  * @desc    Obtém dados históricos avançados (para assinantes premium)
  * @access  Privado - Requer assinatura premium
  */
-router.get('/roulettes/:id/historical', 
+router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical', 
   authenticate({ required: true }),
   subscriptionMiddleware.requireSubscription({ 
     allowedPlans: ['PREMIUM'],
