@@ -28,27 +28,32 @@ const AuthPage = () => {
   const API_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app/api';
 
   useEffect(() => {
-    // Verificar se auth Google está disponível
+    // Verificar se auth Google está disponível usando variáveis de ambiente em vez de fazer chamada API
     const checkAuthStatus = async () => {
       try {
-        const response = await axios.get(`${API_URL}/auth/google/status`);
-        setIsGoogleAuthEnabled(response.data.enabled);
-      } catch (error) {
         // Verificar variáveis de ambiente disponíveis no client-side
-        const googleConfiguredClientSide = import.meta.env.VITE_GOOGLE_ENABLED === 'true';
+        // Se VITE_API_BASE_URL ou VITE_GOOGLE_ENABLED existe, usar para determinar se Google Auth está habilitado
+        const googleClientIdAvailable = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+        const apiBaseUrlExists = Boolean(import.meta.env.VITE_API_BASE_URL);
         
-        console.error('Erro ao verificar status da autenticação:', error);
-        
-        // Se o erro for 404, verificamos se as credenciais do Google estão configuradas
-        // e habilitamos o botão com base nisso
-        if (axios.isAxiosError(error) && error.response?.status === 404) {
-          // Se temos credenciais no ambiente client, habilitar Google Auth mesmo sem o endpoint
-          setIsGoogleAuthEnabled(googleConfiguredClientSide || true);
-          console.log('Endpoint de status não encontrado, usando configuração padrão para Google Auth');
+        // Se temos a URL da API ou ID do cliente Google, assumir que o Google Auth está habilitado
+        if (googleClientIdAvailable || apiBaseUrlExists) {
+          console.log('Google Auth habilitado com base nas variáveis de ambiente');
+          setIsGoogleAuthEnabled(true);
         } else {
-          // Para outros erros, desabilitar o recurso
-          setIsGoogleAuthEnabled(false);
+          // Tentar fazer a verificação com a API apenas se não podemos determinar pelo ambiente
+          try {
+            const response = await axios.get(`${API_URL}/auth/google/status`);
+            setIsGoogleAuthEnabled(response.data.enabled);
+          } catch (error) {
+            console.log('Endpoint de status não encontrado, assumindo Google Auth habilitado');
+            setIsGoogleAuthEnabled(true);
+          }
         }
+      } catch (error) {
+        console.error('Erro ao verificar status da autenticação:', error);
+        // Assumir que Google Auth está habilitado, já que temos as variáveis no Railway
+        setIsGoogleAuthEnabled(true);
       } finally {
         setIsCheckingAuth(false);
       }
