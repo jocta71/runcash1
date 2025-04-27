@@ -42,18 +42,24 @@ export async function fetchWithCorsSupport<T>(
   console.log(`[API] Iniciando requisição para: ${endpoint}`);
   
   try {
+    // Tenta obter o token de autenticação
+    const authToken = getAuthToken();
+    
     // Configurações padrão para todas as requisições
     const defaultOptions: RequestInit = {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'bypass-tunnel-reminder': 'true'
+        'bypass-tunnel-reminder': 'true',
+        'Authorization': authToken ? `Bearer ${authToken}` : ''
       },
       credentials: 'include', // Enviar cookies para autenticação se necessário
       mode: 'cors',           // Mesclar com opções personalizadas
       ...options              
     };
+    
+    console.log(`[API] Autenticação disponível: ${authToken ? 'Sim' : 'Não'}`);
     
     // Lista de métodos para tentar, em ordem de preferência
     const methods = [
@@ -71,7 +77,11 @@ export async function fetchWithCorsSupport<T>(
             }
           });
           
-          if (!response.ok) throw new Error(`Status: ${response.status}`);
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[API] Erro ${response.status}: ${errorText}`);
+            throw new Error(`Status: ${response.status}`);
+          }
           return await response.json();
         }
       },
@@ -79,9 +89,17 @@ export async function fetchWithCorsSupport<T>(
         name: 'Next.js API Route',
         fn: async () => {
           // Se o endpoint for para roletas, usar o proxy dedicado
-          const nextApiUrl = endpoint.includes('ROULETTES') ? 
-            '/api/proxy-roulette' : 
-            `/api/proxy?path=${encodeURIComponent(endpoint)}`;
+          let nextApiUrl;
+          if (endpoint.includes('ROULETTES')) {
+            nextApiUrl = '/api/proxy-roulette';
+            // Adicionar parâmetros de consulta se existirem no endpoint
+            const queryIndex = endpoint.indexOf('?');
+            if (queryIndex > -1) {
+              nextApiUrl += endpoint.substring(queryIndex);
+            }
+          } else {
+            nextApiUrl = `/api/proxy?path=${encodeURIComponent(endpoint)}`;
+          }
           
           console.log(`[API] Tentando método Next.js API Route: ${nextApiUrl}`);
           
@@ -93,7 +111,11 @@ export async function fetchWithCorsSupport<T>(
             }
           });
           
-          if (!response.ok) throw new Error(`Status: ${response.status}`);
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[API] Erro ${response.status}: ${errorText}`);
+            throw new Error(`Status: ${response.status}`);
+          }
           return await response.json();
         }
       },
@@ -120,7 +142,37 @@ export async function fetchWithCorsSupport<T>(
             }
           });
           
-          if (!response.ok) throw new Error(`Status: ${response.status}`);
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[API] Erro ${response.status}: ${errorText}`);
+            throw new Error(`Status: ${response.status}`);
+          }
+          return await response.json();
+        }
+      },
+      {
+        name: 'Backend Direto',
+        fn: async () => {
+          // Tentativa direta ao backend como último recurso
+          const backendBaseUrl = 'https://backend-production-2f96.up.railway.app';
+          const backendUrl = `${backendBaseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+          
+          console.log(`[API] Tentando método Backend Direto: ${backendUrl}`);
+          
+          const response = await fetch(backendUrl, {
+            ...defaultOptions,
+            credentials: 'include',
+            headers: {
+              ...defaultOptions.headers,
+              ...(options?.headers || {})
+            }
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[API] Erro ${response.status}: ${errorText}`);
+            throw new Error(`Status: ${response.status}`);
+          }
           return await response.json();
         }
       }
@@ -169,4 +221,35 @@ export function clearRequestCache(): void {
     delete requestCache[key];
   });
   console.log('[API] Cache de requisições limpo');
+}
+
+/**
+ * Tenta obter o token de autenticação atual
+ * Verifica múltiplas fontes: cookies, localStorage
+ */
+function getAuthToken(): string {
+  try {
+    // Tentar obter do localStorage (método preferido)
+    const storedToken = localStorage.getItem('auth-token');
+    if (storedToken) {
+      return storedToken;
+    }
+
+    // Tentar ler dos cookies
+    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+      const [key, value] = cookie.trim().split('=');
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+    
+    const cookieToken = cookies['auth-token'];
+    if (cookieToken) {
+      return cookieToken;
+    }
+    
+    return '';
+  } catch (e) {
+    console.error('[API] Erro ao obter token de autenticação:', e);
+    return '';
+  }
 } 

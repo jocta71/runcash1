@@ -3,28 +3,31 @@
   "buildCommand": "vite build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/ROULETTES", "destination": "/api/ROULETTES" },
-    { "source": "/api/ROULETTES/:path*", "destination": "/api/ROULETTES" },
-    { "source": "/api/ROULETTES-numbers", "destination": "/api/ROULETTES-numbers" },
-    { "source": "/api/ROULETTES-numbers/:path*", "destination": "/api/ROULETTES-numbers" },
+    { "source": "/api/ROULETTES", "destination": "/api/proxy-roulette" },
+    { "source": "/api/ROULETTES/:path*", "destination": "/api/proxy-roulette" },
+    { "source": "/api/ROULETTES-numbers", "destination": "/api/proxy-roulette?type=numbers" },
+    { "source": "/api/ROULETTES-numbers/:path*", "destination": "/api/proxy-roulette?type=numbers" },
     { "source": "/api/proxy-roulette", "destination": "/api/proxy-roulette" },
+    { "source": "/api/proxy", "destination": "/api/proxy" },
+    { "source": "/api/health", "destination": "/api/health" },
     { "source": "/api/events", "destination": "/api/proxy?path=/api/events" },
     { "source": "/api/roulettes", "destination": "/api/proxy?path=/api/roulettes" },
     { "source": "/api/strategies", "destination": "/api/proxy?path=/api/strategies" },
+    { "source": "/api/asaas-find-subscription", "destination": "/api/asaas-find-subscription" },
     { "source": "/emit-event", "destination": "/api/proxy?path=/emit-event" },
     { "source": "/test-cors", "destination": "/api/proxy?path=/test-cors" },
     { "source": "/socket-status", "destination": "/api/proxy?path=/socket-status" },
     { 
       "source": "/api/asaas-create-customer",
-      "destination": "https://backend-production-2f96.up.railway.app/api/payment/asaas/create-customer"
+      "destination": "/api/proxy?path=/api/payment/asaas/create-customer"
     },
     { 
       "source": "/api/asaas-create-subscription", 
-      "destination": "https://backend-production-2f96.up.railway.app/api/payment/asaas/create-subscription"
+      "destination": "/api/proxy?path=/api/payment/asaas/create-subscription"
     },
     { 
       "source": "/api/asaas-webhook",
-      "destination": "https://backend-production-2f96.up.railway.app/api/payment/asaas/webhook"
+      "destination": "/api/proxy?path=/api/payment/asaas/webhook"
     },
     { "source": "/historico/:roletaId", "destination": "/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
@@ -34,5 +37,16 @@
     "VITE_SSE_SERVER_URL": "https://backend-production-2f96.up.railway.app/api/events",
     "VITE_API_BASE_URL": "https://runcashh11.vercel.app/api",
     "BACKEND_URL": "https://backend-production-2f96.up.railway.app"
-  }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-Requested-With, bypass-tunnel-reminder" },
+        { "key": "Access-Control-Allow-Credentials", "value": "true" }
+      ]
+    }
+  ]
 }
