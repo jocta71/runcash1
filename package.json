@@ -21,7 +21,8 @@
     "dotenv": "^16.5.0",
     "express-async-handler": "^1.2.0",
     "lucide-react": "^0.501.0",
-    "mongodb": "^6.15.0"
+    "mongodb": "^6.15.0",
+    "node-cache": "^5.1.2"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.4.0",

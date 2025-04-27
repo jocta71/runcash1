@@ -5,6 +5,8 @@ const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const NodeCache = require('node-cache');
 
 // Alternativa 1: Usar try-catch para tentar diferentes caminhos
 let config;
@@ -100,6 +102,321 @@ try {
 // Desestruturar os métodos que precisamos
 const { proteger } = authMiddleware;
 const { verificarPlano } = subscriptionMiddleware;
+
+// Criar cache em memória (alternativa ao Redis para implementação mais simples)
+const assinaturaCache = new NodeCache({ 
+  stdTTL: 300, // 5 minutos de TTL padrão
+  checkperiod: 60 // Verificar itens expirados a cada 60 segundos
+});
+
+// Cache para tokens inválidos (para prevenir ataques de força bruta)
+const tokenInvalidoCache = new NodeCache({ 
+  stdTTL: 3600, // 1 hora
+  checkperiod: 300 
+});
+
+// Função para verificar assinatura com cache
+const verificarAssinaturaComCache = async (userId) => {
+  // Verificar primeiro no cache
+  const cacheKey = `assinatura:${userId}`;
+  const dadosCache = assinaturaCache.get(cacheKey);
+  
+  if (dadosCache) {
+    console.log(`[CACHE] Usando dados de assinatura em cache para usuário ${userId}`);
+    return dadosCache;
+  }
+  
+  console.log(`[CACHE] Cache miss para assinatura do usuário ${userId}, buscando no banco`);
+  
+  try {
+    // Verificar na coleção principal de assinaturas
+    let assinaturaAtiva = false;
+    let planoUsuario = 'FREE';
+    
+    // 1. Verificar na coleção 'subscriptions'
+    const userSubscription = await db.collection('subscriptions').findOne({
+      user_id: userId,
+      status: { $in: ['active', 'ACTIVE', 'ativa'] }
+    });
+    
+    if (userSubscription) {
+      // Verificar se a assinatura está válida
+      const isExpired = userSubscription.expirationDate && new Date(userSubscription.expirationDate) < new Date();
+      
+      if (!isExpired && ['BASIC', 'PRO', 'PREMIUM'].includes(userSubscription.plan_id)) {
+        assinaturaAtiva = true;
+        planoUsuario = userSubscription.plan_id;
+      }
+    } else {
+      // 2. Se não encontrou na collection principal, verificar em 'assinaturas'
+      const assinatura = await db.collection('assinaturas').findOne({
+        usuario: ObjectId.isValid(userId) ? new ObjectId(userId) : userId,
+        status: 'ativa',
+        validade: { $gt: new Date() }
+      });
+      
+      if (assinatura && ['BASIC', 'PRO', 'PREMIUM'].includes(assinatura.plano)) {
+        assinaturaAtiva = true;
+        planoUsuario = assinatura.plano;
+      }
+    }
+    
+    // Preparar resultado
+    const resultado = {
+      temAssinatura: assinaturaAtiva,
+      plano: planoUsuario
+    };
+    
+    // Armazenar no cache (TTL diferente para resultados positivos e negativos)
+    if (assinaturaAtiva) {
+      // Cache mais longo para assinaturas ativas (10 minutos)
+      assinaturaCache.set(cacheKey, resultado, 600);
+    } else {
+      // Cache mais curto para sem assinatura (2 minutos)
+      assinaturaCache.set(cacheKey, resultado, 120);
+    }
+    
+    return resultado;
+  } catch (error) {
+    console.error('[CACHE] Erro ao verificar assinatura:', error);
+    // Em caso de erro, retornar resultado negativo com TTL curto
+    const resultadoFalha = { temAssinatura: false, plano: 'FREE' };
+    assinaturaCache.set(cacheKey, resultadoFalha, 60); // Cache por apenas 1 minuto
+    return resultadoFalha;
+  }
+};
+
+// Funções utilitárias para tokens
+const gerarTokenComAssinatura = (usuario, assinaturaInfo) => {
+  // Gerar ID único para este token
+  const tokenId = crypto.randomBytes(16).toString('hex');
+  
+  // Claims de assinatura
+  const subscriptionClaims = {
+    plan: assinaturaInfo.plano || 'FREE',
+    active: assinaturaInfo.ativa || false
+  };
+  
+  // Se houver data de expiração, incluir
+  if (assinaturaInfo.validade) {
+    subscriptionClaims.exp_date = assinaturaInfo.validade.getTime();
+  }
+  
+  // Criar token com todas as informações necessárias
+  return jwt.sign({
+    id: usuario._id || usuario.id,
+    name: usuario.nome || usuario.username,
+    email: usuario.email,
+    subscription: subscriptionClaims,
+    jti: tokenId // JWT ID único
+  }, config.jwt.secret, { expiresIn: '24h' });
+};
+
+// Middleware otimizado para verificação de token e assinatura
+const verificarTokenJWT = (req, res, next) => {
+  console.log('[AUTH] Verificando token JWT');
+  
+  // Extrair token
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.startsWith('Bearer ') 
+    ? authHeader.slice(7) 
+    : null;
+  
+  if (!token) {
+    console.log('[AUTH] Token não encontrado na requisição');
+    return res.status(401).json({
+      success: false,
+      error: 'TOKEN_MISSING',
+      message: 'Acesso não autorizado. Token de autenticação necessário.'
+    });
+  }
+  
+  // Verificar se o token está na lista de tokens inválidos
+  if (tokenInvalidoCache.has(token)) {
+    console.log('[AUTH] Token previamente marcado como inválido');
+    return res.status(401).json({
+      success: false,
+      error: 'INVALID_TOKEN',
+      message: 'Acesso não autorizado. Token inválido ou expirado.'
+    });
+  }
+  
+  try {
+    // Verificar token JWT
+    const decodificado = jwt.verify(token, config.jwt.secret);
+    
+    // Verificar as claims básicas
+    if (!decodificado.id) {
+      throw new Error('Token não contém ID de usuário');
+    }
+    
+    // Armazenar dados do usuário e assinatura no objeto req
+    req.userId = decodificado.id;
+    req.userName = decodificado.name;
+    req.userEmail = decodificado.email;
+    
+    // Se o token contém informações de assinatura, usá-las diretamente
+    if (decodificado.subscription) {
+      req.subscription = {
+        active: decodificado.subscription.active,
+        plan: decodificado.subscription.plan
+      };
+      
+      // Verificar se a assinatura não está expirada
+      if (decodificado.subscription.exp_date) {
+        req.subscription.active = 
+          decodificado.subscription.active && 
+          new Date(decodificado.subscription.exp_date) > new Date();
+      }
+      
+      console.log(`[AUTH] Token contém informações de assinatura: ${req.subscription.active ? 'Ativa' : 'Inativa'}, Plano: ${req.subscription.plan}`);
+    } else {
+      // Sem informações de assinatura no token
+      console.log('[AUTH] Token não contém informações de assinatura, será verificado no banco');
+      req.subscription = null;
+    }
+    
+    next();
+  } catch (error) {
+    console.error('[AUTH] Erro ao verificar token:', error.message);
+    
+    // Armazenar token inválido no cache para bloqueio futuro
+    tokenInvalidoCache.set(token, true);
+    
+    return res.status(401).json({
+      success: false,
+      error: 'INVALID_TOKEN',
+      message: 'Acesso não autorizado. Token inválido ou expirado.'
+    });
+  }
+};
+
+// Middleware para verificar assinatura (após verificar token)
+const verificarAssinatura = (planosPermitidos = ['BASIC', 'PRO', 'PREMIUM']) => async (req, res, next) => {
+  console.log(`[AUTH] Verificando assinatura para acesso. Planos permitidos: ${planosPermitidos.join(', ')}`);
+  
+  // Se estamos em modo de desenvolvimento, podemos ignorar a verificação
+  if (DEV_MODE) {
+    console.log('[AUTH] Modo de desenvolvimento ativado, ignorando verificação de assinatura');
+    req.userPlan = DEV_USER_PLAN || 'PREMIUM';
+    req.hasValidSubscription = true;
+    return next();
+  }
+  
+  // Se já temos informações de assinatura do token e elas são positivas
+  if (req.subscription && req.subscription.active && 
+      planosPermitidos.includes(req.subscription.plan)) {
+    console.log(`[AUTH] Assinatura verificada via token JWT: Plano ${req.subscription.plan}`);
+    req.userPlan = req.subscription.plan;
+    req.hasValidSubscription = true;
+    return next();
+  }
+  
+  // Se não temos informações da assinatura ou elas são negativas, verificar no banco com cache
+  try {
+    const assinaturaInfo = await verificarAssinaturaComCache(req.userId);
+    
+    if (!assinaturaInfo.temAssinatura) {
+      console.log(`[AUTH] Usuário ${req.userId} não possui assinatura ativa`);
+      return res.status(403).json({
+        success: false,
+        error: 'SUBSCRIPTION_REQUIRED',
+        message: 'Acesso não autorizado. Você precisa de uma assinatura ativa para acessar estes dados.',
+        requiresSubscription: true
+      });
+    }
+    
+    // Verificar se o plano do usuário está entre os permitidos
+    if (!planosPermitidos.includes(assinaturaInfo.plano)) {
+      console.log(`[AUTH] Usuário ${req.userId} possui plano ${assinaturaInfo.plano}, mas não tem acesso a este recurso`);
+      return res.status(403).json({
+        success: false,
+        error: 'PLAN_UPGRADE_REQUIRED',
+        message: 'Seu plano atual não permite acesso a este recurso.',
+        currentPlan: assinaturaInfo.plano,
+        requiredPlans: planosPermitidos,
+        requiresUpgrade: true
+      });
+    }
+    
+    // Tudo ok, tem assinatura válida e plano permitido
+    console.log(`[AUTH] Assinatura verificada no banco: Plano ${assinaturaInfo.plano}`);
+    req.userPlan = assinaturaInfo.plano;
+    req.hasValidSubscription = true;
+    next();
+  } catch (error) {
+    console.error('[AUTH] Erro ao verificar assinatura:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'SUBSCRIPTION_CHECK_ERROR',
+      message: 'Erro ao verificar estado da assinatura. Tente novamente mais tarde.'
+    });
+  }
+};
+
+// Rate Limiting simples para limitar requisições por IP
+const rateLimiter = (limitePorMinuto, janela = 60 * 1000) => {
+  // Armazenar contadores para cada IP
+  const requestCounts = {};
+  
+  // Limpar contadores periodicamente
+  setInterval(() => {
+    for (const ip in requestCounts) {
+      if (Date.now() - requestCounts[ip].timestamp > janela) {
+        delete requestCounts[ip];
+      }
+    }
+  }, janela);
+  
+  // Middleware de rate limiting
+  return (req, res, next) => {
+    const ip = req.ip;
+    
+    // Inicializar contador se não existir
+    if (!requestCounts[ip]) {
+      requestCounts[ip] = {
+        count: 0,
+        timestamp: Date.now()
+      };
+    }
+    
+    // Se o contador está muito antigo, resetar
+    if (Date.now() - requestCounts[ip].timestamp > janela) {
+      requestCounts[ip] = {
+        count: 0,
+        timestamp: Date.now()
+      };
+    }
+    
+    // Incrementar contador
+    requestCounts[ip].count++;
+    
+    // Verificar se excedeu o limite
+    if (requestCounts[ip].count > limitePorMinuto) {
+      return res.status(429).json({
+        success: false,
+        error: 'RATE_LIMIT_EXCEEDED',
+        message: 'Muitas requisições. Tente novamente mais tarde.'
+      });
+    }
+    
+    next();
+  };
+};
+
+// Função para obter limite com base no plano do usuário
+const getLimitForPlan = (plan) => {
+  switch (plan) {
+    case 'BASIC':
+      return config.subscription.plans.BASIC.limit;
+    case 'PRO':
+      return config.subscription.plans.PRO.limit;
+    case 'PREMIUM':
+      return config.subscription.plans.PREMIUM.limit;
+    default:
+      return config.subscription.plans.FREE.limit;
+  }
+};
 
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
@@ -586,23 +903,12 @@ const verificarAssinaturaMiddleware = async (req, res, next) => {
   }
 };
 
-// Função para obter limite com base no plano do usuário
-const getLimitForPlan = (plan) => {
-  switch (plan) {
-    case 'BASIC':
-      return config.subscription.plans.BASIC.limit;
-    case 'PRO':
-      return config.subscription.plans.PRO.limit;
-    case 'PREMIUM':
-      return config.subscription.plans.PREMIUM.limit;
-    default:
-      return config.subscription.plans.FREE.limit;
-  }
-};
-
-// Aplicar o middleware apenas às rotas que fornecem dados
-// Substituir a rota existente /api/ROULETTES 
-app.get('/api/ROULETTES', verificarAssinaturaMiddleware, async (req, res) => {
+// Substituir a rota existente /api/ROULETTES com o novo sistema
+app.get('/api/ROULETTES', [
+  rateLimiter(60), // 60 requisições por minuto
+  verificarTokenJWT,
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
   console.log('[API] Requisição autenticada recebida para /api/ROULETTES');
   
   try {
@@ -667,8 +973,12 @@ app.get('/api/ROULETTES', verificarAssinaturaMiddleware, async (req, res) => {
   }
 });
 
-// Substituir a rota existente /api/ROULETTES/historico
-app.get('/api/ROULETTES/historico', verificarAssinaturaMiddleware, async (req, res) => {
+// Substituir a rota existente /api/ROULETTES/historico com o novo sistema
+app.get('/api/ROULETTES/historico', [
+  rateLimiter(60),
+  verificarTokenJWT,
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
   console.log('[API] Requisição autenticada recebida para /api/ROULETTES/historico');
   
   try {
@@ -703,9 +1013,61 @@ app.get('/api/ROULETTES/historico', verificarAssinaturaMiddleware, async (req, r
   }
 });
 
-// Adicionar middleware para outras rotas de dados críticos
-// Verificar também a rota /api/historico
-app.get('/api/historico', verificarAssinaturaMiddleware, async (req, res) => {
+// Adicionar rota para atualizar token com informações de assinatura atualizadas
+app.post('/api/refresh-token', verificarTokenJWT, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    // Buscar usuário atualizado
+    const usuario = await db.collection('usuarios').findOne({ 
+      $or: [
+        { id: userId },
+        { _id: ObjectId.isValid(userId) ? new ObjectId(userId) : null }
+      ]
+    });
+    
+    if (!usuario) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'USER_NOT_FOUND',
+        message: 'Usuário não encontrado'
+      });
+    }
+    
+    // Buscar assinatura atualizada
+    const assinaturaInfo = await verificarAssinaturaComCache(userId);
+    
+    // Gerar novo token com informações atualizadas
+    const newToken = gerarTokenComAssinatura(usuario, {
+      plano: assinaturaInfo.plano,
+      ativa: assinaturaInfo.temAssinatura
+    });
+    
+    // Retornar novo token
+    res.json({
+      success: true,
+      token: newToken,
+      subscription: {
+        active: assinaturaInfo.temAssinatura,
+        plan: assinaturaInfo.plano
+      }
+    });
+  } catch (error) {
+    console.error('[API] Erro ao atualizar token:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'TOKEN_REFRESH_ERROR',
+      message: 'Erro ao atualizar token'
+    });
+  }
+});
+
+// Atualizar outras rotas protegidas com os novos middlewares
+app.get('/api/historico', [
+  rateLimiter(60),
+  verificarTokenJWT,
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
   console.log('[API] Requisição autenticada recebida para /api/historico');
   console.log('[API] Query params:', req.query);
   
@@ -759,8 +1121,11 @@ app.get('/api/historico', verificarAssinaturaMiddleware, async (req, res) => {
   }
 });
 
-// Adicionar verificação para rota de números por nome da roleta
-app.get('/api/numbers/:roletaNome', verificarAssinaturaMiddleware, async (req, res) => {
+app.get('/api/numbers/:roletaNome', [
+  rateLimiter(60),
+  verificarTokenJWT, 
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
   try {
     if (!isConnected) {
       return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
@@ -786,8 +1151,11 @@ app.get('/api/numbers/:roletaNome', verificarAssinaturaMiddleware, async (req, r
   }
 });
 
-// Adicionar verificação para rota de números por ID da roleta
-app.get('/api/numbers/byid/:roletaId', verificarAssinaturaMiddleware, async (req, res) => {
+app.get('/api/numbers/byid/:roletaId', [
+  rateLimiter(60),
+  verificarTokenJWT,
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
   try {
     if (!isConnected) {
       return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
