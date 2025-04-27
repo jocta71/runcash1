@@ -53,7 +53,6 @@ class RESTSocketService {
   private pollingTimer: NodeJSTimeout | null = null;
   private secondEndpointPollingTimer: NodeJSTimeout | null = null;
   private centralServicePollingTimer: NodeJSTimeout | null = null;
-  private limitedPollingTimer: NodeJSTimeout | null = null;
   private connectionActive: boolean = false;
   private historyLimit: number = 500;
   private defaultPollingInterval: number = isProduction ? 10000 : 5000; // 10 segundos em produção, 5 em desenvolvimento
@@ -82,8 +81,9 @@ class RESTSocketService {
       }
     });
 
-    // Verificar se o usuário tem plano antes de inicializar polling
-    this.checkSubscriptionBeforeInit();
+    // Iniciar polling diretamente
+    this.startPolling();
+    this.startSecondEndpointPolling();
     
     // Adicionar event listener para quando a janela ficar visível novamente
     window.addEventListener('visibilitychange', this.handleVisibilityChange);
@@ -696,9 +696,8 @@ class RESTSocketService {
       const token = localStorage.getItem('auth_token_backup') || Cookies.get('auth_token');
       
       if (!token) {
-        console.log('[RESTSocketService] Usuário não autenticado, limitando acesso a dados');
-        // Iniciar com modo limitado (apenas amostra)
-        this.startLimitedPolling();
+        console.log('[RESTSocketService] Usuário não autenticado, iniciando polling padrão');
+        this.startPolling();
         return;
       }
       
@@ -711,47 +710,21 @@ class RESTSocketService {
       });
       
       if (!response.ok) {
-        console.log('[RESTSocketService] Erro ao verificar assinatura, limitando acesso');
-        this.startLimitedPolling();
+        console.log('[RESTSocketService] Erro ao verificar assinatura, iniciando polling padrão');
+        this.startPolling();
         return;
       }
       
       const data = await response.json();
       
-      if (data.success && data.subscription && data.subscription.status === 'active') {
-        console.log('[RESTSocketService] Usuário com plano ativo, iniciando polling completo');
-        this.startPolling();
-        this.startSecondEndpointPolling();
-      } else {
-        console.log('[RESTSocketService] Usuário sem plano ativo, limitando acesso a dados');
-        this.startLimitedPolling();
-      }
+      // Iniciar polling completo independente do status da assinatura
+      console.log('[RESTSocketService] Iniciando polling padrão');
+      this.startPolling();
+      this.startSecondEndpointPolling();
     } catch (error) {
       console.error('[RESTSocketService] Erro ao verificar assinatura:', error);
-      this.startLimitedPolling();
+      this.startPolling();
     }
-  }
-
-  // Polling limitado para usuários sem plano
-  private startLimitedPolling(): void {
-    console.log('[RESTSocketService] Iniciando polling limitado (modo amostra)');
-    
-    const API_URL = import.meta.env.VITE_API_URL || '/api';
-    
-    // Polling com intervalo maior e apenas para o endpoint de roletas
-    this.pollingTimer = setInterval(() => {
-      fetch(`${API_URL}/roulettes`)
-        .then(response => response.json())
-        .then(data => {
-          if (data && data.success && Array.isArray(data.data)) {
-            console.log(`[RESTSocketService] Dados de roletas recebidos: ${data.data.length} roletas`);
-            this.processDataAsEvents(data.data);
-          }
-        })
-        .catch(error => {
-          console.error('[RESTSocketService] Erro ao buscar dados de roletas:', error);
-        });
-    }, 15000); // 15 segundos - intervalo maior para economia de recursos
   }
 }
 
