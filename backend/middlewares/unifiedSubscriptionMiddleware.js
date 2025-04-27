@@ -3,33 +3,8 @@
  * Consolida as diferentes implementações de verificação de planos e assinaturas
  */
 
-let getDb;
-try {
-  getDb = require('../services/database');
-} catch (error) {
-  console.warn('Serviço de banco de dados não encontrado. Usando função simulada.');
-  // Função simulada para evitar erros
-  getDb = async () => ({
-    collection: () => ({
-      findOne: async () => null
-    })
-  });
-}
-
-let ErrorResponse;
-try {
-  ErrorResponse = require('../utils/errorResponse');
-} catch (error) {
-  console.warn('Utilitário errorResponse não encontrado. Usando classe simulada.');
-  // Classe simulada para evitar erros
-  ErrorResponse = class ErrorResponse extends Error {
-    constructor(message, statusCode) {
-      super(message);
-      this.statusCode = statusCode;
-    }
-  };
-}
-
+const getDb = require('../services/database');
+const ErrorResponse = require('../utils/errorResponse');
 const { ObjectId } = require('mongodb');
 
 /**

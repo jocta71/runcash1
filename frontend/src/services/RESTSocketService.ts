@@ -1,6 +1,5 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
-import { useSubscription } from '@/context/SubscriptionContext';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -57,8 +56,6 @@ class RESTSocketService {
   private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
   private cacheTTL: number = 5 * 60 * 1000; // 5 minutos em milissegundos
   
-  private hasFeatureAccess: boolean = false; // Flag para controlar acesso premium
-  
   private constructor() {
     console.log('[RESTSocketService] Inicializando serviço REST API com polling');
     
@@ -90,9 +87,6 @@ class RESTSocketService {
     setInterval(() => {
       this.checkTimerHealth();
     }, 30000);
-
-    // Inicialmente, não tem acesso premium (será verificado depois)
-    this.hasFeatureAccess = false;
   }
 
   // Manipular alterações de visibilidade da página
@@ -197,12 +191,6 @@ class RESTSocketService {
     // Registrar esta chamada como bem-sucedida
     const now = Date.now();
     this.lastReceivedData.set('global', { timestamp: now, data: { count: data.length } });
-    
-    // Verificar se tem acesso premium antes de processar os dados
-    if (!this.hasFeatureAccess) {
-      console.log('[RESTSocketService] Acesso negado: usuário não possui plano necessário para receber dados em tempo real');
-      return;
-    }
     
     // Para cada roleta, emitir eventos
     data.forEach(roulette => {
@@ -324,12 +312,6 @@ class RESTSocketService {
   }
 
   private notifyListeners(event: any): void {
-    // Verificar acesso antes de notificar listeners
-    if (!this.hasFeatureAccess) {
-      console.log('[RESTSocketService] Acesso negado: usuário não possui plano necessário para receber notificações');
-      return;
-    }
-    
     // Notificar listeners específicos para esta roleta
     const listeners = this.listeners.get(event.roleta_nome);
     if (listeners) {
@@ -693,14 +675,6 @@ class RESTSocketService {
     }
     
     return mergedNumbers;
-  }
-
-  // Método para atualizar status de acesso premium
-  public updateAccessStatus(hasAccess: boolean): void {
-    if (this.hasFeatureAccess !== hasAccess) {
-      console.log(`[RESTSocketService] Status de acesso premium atualizado: ${hasAccess ? 'Autorizado' : 'Não autorizado'}`);
-      this.hasFeatureAccess = hasAccess;
-    }
   }
 }
 

@@ -1,18 +1,30 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, BarChart3, PackageOpen } from 'lucide-react';
+import { AlertCircle, PackageOpen, Loader2, Copy } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
 import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
 import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
-import EventService from '@/services/EventService';
+import EventService, { RouletteNumberEvent, StrategyUpdateEvent } from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
-import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import RouletteSidePanelSkeleton from '@/components/RouletteSidePanelSkeleton';
-import RouletteFilterBar from '@/components/RouletteFilterBar';
-import { extractProviders } from '@/utils/rouletteProviders';
+import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { 
+  createAsaasCustomer, 
+  createAsaasSubscription, 
+  getAsaasPixQrCode, 
+  findAsaasPayment, 
+  checkPaymentStatus,
+  SubscriptionResponse
+} from '@/integrations/asaas/client';
+import { useSubscription } from '@/context/SubscriptionContext';
+
+
 
 interface ChatMessage {
   id: string;
@@ -133,6 +145,37 @@ const radioInputStyles = `
 }
 `;
 
+// Função para formatar CPF
+const formatCPF = (value: string) => {
+  // Remove todos os caracteres não numéricos
+  const cleanValue = value.replace(/\D/g, '');
+  
+  // Aplica a máscara do CPF: XXX.XXX.XXX-XX
+  if (cleanValue.length <= 3) {
+    return cleanValue;
+  } else if (cleanValue.length <= 6) {
+    return `${cleanValue.slice(0, 3)}.${cleanValue.slice(3)}`;
+  } else if (cleanValue.length <= 9) {
+    return `${cleanValue.slice(0, 3)}.${cleanValue.slice(3, 6)}.${cleanValue.slice(6)}`;
+  } else {
+    return `${cleanValue.slice(0, 3)}.${cleanValue.slice(3, 6)}.${cleanValue.slice(6, 9)}-${cleanValue.slice(9, 11)}`;
+  }
+};
+
+// Função para formatar telefone
+const formatPhone = (value: string) => {
+  // Remove todos os caracteres não numéricos
+  const cleanValue = value.replace(/\D/g, '');
+  
+  if (cleanValue.length <= 2) {
+    return cleanValue;
+  } else if (cleanValue.length <= 7) {
+    return `(${cleanValue.slice(0, 2)}) ${cleanValue.slice(2)}`;
+  } else {
+    return `(${cleanValue.slice(0, 2)}) ${cleanValue.slice(2, 7)}-${cleanValue.slice(7, 11)}`;
+  }
+};
+
 const Index = () => {
   // Remover o estado de busca
   // const [search, setSearch] = useState("");
@@ -158,24 +201,60 @@ const Index = () => {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   
+  // Estados para o formulário de pagamento
+  const [checkoutStep, setCheckoutStep] = useState<'form' | 'pix'>('form');
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    cpf: '',
+    phone: ''
+  });
+  
+  // Estados para o QR code PIX
+  const [pixLoading, setPixLoading] = useState(false);
+  const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
+  const [qrCodeText, setQrCodeText] = useState<string | null>(null);
+  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [checkStatusInterval, setCheckStatusInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { currentSubscription, currentPlan } = useSubscription();
+  const hasActivePlan = useMemo(() => {
+    return currentSubscription?.status?.toLowerCase() === 'active' || 
+           currentSubscription?.status?.toLowerCase() === 'ativo';
+  }, [currentSubscription]);
+  
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
 
   // Referência para timeout de atualização
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
+  const navigate = useNavigate();
+  
   // Escutar eventos de roletas existentes para persistência
   useEffect(() => {
-    const handleRouletteExists = (data: any) => {
-      if (!data || !data.id) {
-        console.log('[Index] Evento roleta_exists recebido sem ID válido:', data);
+    const handleRouletteExists = (event: RouletteNumberEvent | StrategyUpdateEvent) => {
+      if (!event || !event.roleta_id) {
+        console.log('[Index] Evento roleta_exists recebido sem ID válido:', event);
         return;
       }
       
-      console.log(`[Index] Evento roleta_exists recebido para: ${data.nome} (ID: ${data.id})`);
+      console.log(`[Index] Evento roleta_exists recebido para: ${event.roleta_nome} (ID: ${event.roleta_id})`);
+      
+      const rouletteData: RouletteData = {
+        id: event.roleta_id,
+        nome: event.roleta_nome,
+        name: event.roleta_nome,
+        numeros: [],
+        lastNumbers: []
+      };
       
       setKnownRoulettes(prev => {
-        const updated = [...prev, data];
+        const updated = [...prev, rouletteData];
         console.log(`[Index] Atualizado registro de roletas conhecidas. Total: ${updated.length}`);
         return updated;
       });
@@ -196,7 +275,8 @@ const Index = () => {
   // Escutar eventos de carregamento de dados históricos
   useEffect(() => {
     // Handler para evento de dados históricos carregados
-    const handleHistoricalDataLoaded = (data: any) => {
+    const handleHistoricalDataLoaded = (event: RouletteNumberEvent | StrategyUpdateEvent) => {
+      const data = event as unknown as { success: boolean; count?: number };
       console.log('[Index] Evento historical_data_loaded recebido:', data);
       if (data && data.success) {
         console.log(`[Index] Dados históricos carregados com sucesso para ${data.count || 0} roletas`);
@@ -325,9 +405,10 @@ const Index = () => {
           setError('Não foi possível carregar as roletas disponíveis.');
         }
       }
-    } catch (err: any) {
+    } catch (err: Error | unknown) {
       console.error('❌ Erro ao buscar roletas:', err);
-      setError(`Erro ao buscar roletas: ${err.message}`);
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      setError(`Erro ao buscar roletas: ${errorMessage}`);
       
       // Fallback para roletas conhecidas
       if (knownRoulettes.length > 0) {
@@ -337,10 +418,22 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [knownRoulettes]);
+  }, [knownRoulettes, mergeRoulettes]);
 
   // Efeito para inicialização e atualização periódica
   useEffect(() => {
+    // Agendar atualizações periódicas
+    const scheduleUpdate = () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+      
+      updateTimeoutRef.current = setTimeout(() => {
+        // Recarregar dados
+        loadRouletteData();
+      }, 60000); // A cada 60 segundos
+    };
+    
     // Inicialização
     loadRouletteData();
     
@@ -353,68 +446,24 @@ const Index = () => {
       }
     }, 10000); // 10 segundos
     
-    // Configurar atualização periódica usando o throttler
-    const unsubscribe = RequestThrottler.subscribeToUpdates(
-      'index_roulettes', 
-      (data) => {
-        if (data && Array.isArray(data) && isMounted.current) {
-          console.log(`📊 Atualização periódica: ${data.length} roletas`);
-          
-          // Mesclar com roletas conhecidas e atualizar estado
-          const merged = mergeRoulettes(data, knownRoulettes);
-          setRoulettes(merged);
-          
-          // Atualizar roletas conhecidas
-          setKnownRoulettes(prev => mergeRoulettes(prev, data));
-          
-          // Garantir que os dados são considerados carregados
-          setDataFullyLoaded(true);
-        }
-      }
-    );
-    
-    // Agendar atualizações periódicas
-    const scheduleUpdate = () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-      
-      updateTimeoutRef.current = setTimeout(() => {
-        // Agendar próxima atualização usando o throttler (sem forçar execução imediata)
-        RequestThrottler.scheduleRequest(
-          'index_roulettes',
-          async () => {
-            console.log('🔄 Atualizando roletas periodicamente...');
-            const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
-            console.log(`✅ ${response.length} roletas atualizadas`);
-            return response;
-          },
-          false // Não forçar execução, respeitar o intervalo mínimo
-        );
-        
-        // Agendar próxima verificação
+    // Programar atualização periódica
+    const updateInterval = setInterval(() => {
         if (isMounted.current) {
           scheduleUpdate();
         }
-      }, 60000); // Verificar a cada 60 segundos
-    };
+    }, 60000); // 60 segundos
     
-    // Iniciar agendamento
-    scheduleUpdate();
-    
-    // Cleanup
+    // Limpeza ao desmontar
     return () => {
       isMounted.current = false;
-      unsubscribe();
-      
       clearTimeout(safetyTimeout);
+      clearInterval(updateInterval);
       
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
-        updateTimeoutRef.current = null;
       }
     };
-  }, [loadRouletteData, knownRoulettes]);
+  }, [loadRouletteData, dataFullyLoaded, mergeRoulettes]);
   
   // Simplificar para usar diretamente as roletas
   // const filteredRoulettes = roulettes; // Remover esta linha
@@ -435,14 +484,9 @@ const Index = () => {
   // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
     if (!Array.isArray(filteredRoulettes) || filteredRoulettes.length === 0) {
-      return (
-        <div className="col-span-full text-center py-8">
-          <p className="text-muted-foreground">Nenhuma roleta disponível com os filtros atuais.</p>
-        </div>
-      );
+      return null;
     }
-
-    // Log para depuração
+    
     console.log(`[Index] Renderizando ${filteredRoulettes.length} roletas disponíveis`);
     
     // Mais logs para depuração - mostrar o total de roletas
@@ -463,13 +507,13 @@ const Index = () => {
           .filter(item => item !== null && item !== undefined)
           .map(item => {
             // Aqui sabemos que item não é null ou undefined após o filtro
-            const nonNullItem = item as any; // Tratar como any para evitar erros de tipo
+            const nonNullItem = item as unknown; // Usar unknown em vez de any
             // Se for um objeto com a propriedade numero
-            if (typeof nonNullItem === 'object' && 'numero' in nonNullItem) {
-              return nonNullItem.numero;
+            if (typeof nonNullItem === 'object' && nonNullItem !== null && 'numero' in nonNullItem) {
+              return (nonNullItem as {numero: number}).numero;
             }
             // Se for um número diretamente
-            return nonNullItem;
+            return Number(nonNullItem);
           });
       } 
       // Tentar extrair de lastNumbers se ainda estiver vazio
@@ -556,9 +600,208 @@ const Index = () => {
     ));
   };
 
+  // Atualizar dados do formulário quando o usuário mudar
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        name: user.username || prev.name,
+        email: user.email || prev.email
+      }));
+    }
+  }, [user]);
+  
+  // Função para processar o pagamento via Asaas
+  const handlePayment = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    
+    try {
+      if (!user) {
+        toast({
+          title: "Erro",
+          description: "Usuário não autenticado!",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      setPixLoading(true);
+      setPaymentError(null);
+
+      // Criar ou buscar cliente no Asaas
+      const customerData = {
+        name: formData.name || user.username || 'Cliente',
+        email: formData.email || user.email,
+        cpfCnpj: formData.cpf || '',
+        mobilePhone: formData.phone || '',
+        userId: user.id
+      };
+      
+      const customerId = await createAsaasCustomer(customerData);
+      
+      if (!customerId) {
+        setPaymentError('Erro ao criar cliente no Asaas');
+        setPixLoading(false);
+        return;
+      }
+
+      // Criar assinatura ou pagamento único
+      const planId = selectedPlan;
+      const userId = user.id;
+      const paymentMethod = 'PIX';
+
+      const subscription = await createAsaasSubscription(
+        planId,
+        userId,
+        customerId,
+        paymentMethod
+      );
+      
+      if (!subscription || !subscription.paymentId) {
+        setPaymentError('Erro ao criar assinatura');
+        setPixLoading(false);
+        return;
+      }
+
+      // Obter QR code PIX
+      const pixData = await getAsaasPixQrCode(subscription.paymentId);
+      
+      if (!pixData) {
+        setPaymentError('Erro ao gerar QR code PIX');
+        setPixLoading(false);
+        return;
+      }
+
+      // Atualizar estados com os dados do pagamento
+      setQrCodeImage(pixData.qrCodeImage);
+      setQrCodeText(pixData.qrCodeText);
+      setPaymentId(subscription.paymentId);
+      setCheckoutStep('pix');
+      
+      // Iniciar verificação periódica do status do pagamento
+      const stopChecking = checkPaymentStatus(
+        subscription.paymentId,
+        (payment) => {
+          // Pagamento confirmado com sucesso
+          if (checkStatusInterval) {
+            clearInterval(checkStatusInterval);
+            setCheckStatusInterval(null);
+          }
+          
+          setPaymentSuccess(true);
+          setShowCheckout(false);
+          setIsPaymentModalOpen(false);
+          
+          toast({
+            title: "Pagamento confirmado!",
+            description: "Seu pagamento foi confirmado com sucesso."
+          });
+          
+          // Redirecionar para a página de dashboard
+          navigate('/dashboard');
+        },
+        (error) => {
+          // Erro ao verificar pagamento
+          console.error('Erro ao verificar status:', error);
+          toast({
+            title: "Erro na verificação",
+            description: error.message || "Erro ao verificar pagamento",
+            variant: "destructive"
+          });
+        }
+      );
+      
+      setPixLoading(false);
+    } catch (error) {
+      console.error('Erro ao processar pagamento:', error);
+      setPaymentError(typeof error === 'string' ? error : 'Erro ao processar pagamento');
+      setPixLoading(false);
+    }
+  };
+
+  // Função para verificar manualmente o status do pagamento
+  const checkPaymentStatusManually = async (id: string | null) => {
+    if (!id) return;
+    
+    try {
+      setVerifyingPayment(true);
+      const payment = await findAsaasPayment(id, true); // Forçar atualização
+      
+      if (['CONFIRMED', 'RECEIVED', 'AVAILABLE', 'BILLING_AVAILABLE'].includes(payment.status)) {
+        // Pagamento confirmado
+        if (checkStatusInterval) {
+          clearInterval(checkStatusInterval);
+          setCheckStatusInterval(null);
+        }
+        
+        setPaymentSuccess(true);
+        setShowCheckout(false);
+        
+        toast({
+          title: "Pagamento confirmado!",
+          description: "Seu pagamento foi confirmado com sucesso."
+        });
+        
+        // Redirecionar para a página de dashboard
+        navigate('/dashboard');
+      } else {
+        toast({
+          title: "Verificação de pagamento",
+          description: "Ainda não identificamos seu pagamento. Por favor, aguarde ou tente novamente em alguns instantes."
+        });
+      }
+      setVerifyingPayment(false);
+    } catch (error) {
+      console.error('Erro ao verificar status do pagamento:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao verificar pagamento",
+        variant: "destructive"
+      });
+      setVerifyingPayment(false);
+    }
+  };
+
+  // Função para copiar o código PIX
+  const copyPIXCode = () => {
+    if (qrCodeText && toast) {
+      navigator.clipboard.writeText(qrCodeText)
+        .then(() => {
+          toast({
+            title: "Código copiado!",
+            description: "O código PIX foi copiado para a área de transferência.",
+          });
+        })
+        .catch(err => {
+          console.error('Erro ao copiar código:', err);
+        });
+    }
+  };
+
+  // Limpar intervalos quando o componente for desmontado
+  useEffect(() => {
+    return () => {
+      if (checkStatusInterval) {
+        clearInterval(checkStatusInterval);
+      }
+    };
+  }, [checkStatusInterval]);
+
+  // Handler para mudanças no formulário
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    
+    if (name === 'cpf') {
+      setFormData(prev => ({ ...prev, [name]: formatCPF(value) }));
+    } else if (name === 'phone') {
+      setFormData(prev => ({ ...prev, [name]: formatPhone(value) }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
   return (
-    <Layout preloadData={true}>
-      {/* Container principal com posicionamento relativo para permitir sobreposição */}
+    <Layout>
       <div className="container mx-auto px-4 pt-4 md:pt-8 min-h-[80vh] relative">
         {/* Mensagem de erro */}
         {error && (
@@ -568,15 +811,15 @@ const Index = () => {
           </div>
         )}
         
-        {/* Layout em esqueleto em segundo plano (com opacidade reduzida) */}
-        <div className="flex flex-col lg:flex-row gap-6 opacity-60">
-          {/* Cards de roleta à esquerda em modo esqueleto */}
+        {/* Layout principal */}
+        <div className={`flex flex-col lg:flex-row gap-6 ${!hasActivePlan ? 'opacity-60' : ''}`}>
+          {/* Cards de roleta à esquerda */}
           <div className="w-full lg:w-1/2">
-            {/* Filtro de roletas em skeleton */}
             <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">
               <div className="flex justify-between items-center">
-                <div className="h-8 w-32 bg-gray-800 rounded animate-pulse"></div>
-                <div className="h-8 w-20 bg-gray-800 rounded animate-pulse"></div>
+                <div className={`${!hasActivePlan ? 'h-8 w-32 bg-gray-800 rounded animate-pulse' : 'text-white font-bold'}`}>
+                  {hasActivePlan ? 'Roletas Disponíveis' : ''}
+                </div>
               </div>
             </div>
             
@@ -585,342 +828,279 @@ const Index = () => {
             </div>
           </div>
           
-          {/* Painel lateral em modo esqueleto */}
-            <div className="w-full lg:w-1/2">
+          {/* Painel lateral */}
+          <div className="w-full lg:w-1/2">
             <RouletteSidePanelSkeleton />
           </div>
         </div>
         
-        {/* Botão centralizado que sobrepõe os esqueletos */}
-        <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center max-w-xl w-full">
-            <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
-            <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
-            
-            {/* From Uiverse.io by andrew-demchenk0 */}
-            <style>
-              {`
-                .wrapper {
-                  position: relative;
-                  display: flex;
-                  flex-direction: row;
-                  gap: 10px;
-                  justify-content: center;
-                  margin-bottom: 20px;
-                }
+        {/* Sobreposição do seletor de planos - apenas para quem não tem plano */}
+        {!hasActivePlan && (
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center max-w-xl w-full">
+              <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
+              <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
+              
+              {/* Seletor de planos com design moderno */}
+              <div className="flex flex-col items-center mb-6">
+                <style>{radioInputStyles}</style>
                 
-                .card {
-                  position: relative;
-                  width: 150px;
-                  height: 100px;
-                  background: #111118;
-                  border-radius: 10px;
-                  transition: all 0.3s;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                }
-                
-                .card:hover {
-                  transform: scale(1.05);
-                }
-                
-                .input {
-                  position: absolute;
-                  top: 0;
-                  left: 0;
-                  height: 100%;
-                  width: 100%;
-                  cursor: pointer;
-                  appearance: none;
-                  border: 1px solid #333;
-                  border-radius: 10px;
-                  z-index: 10;
-                  box-shadow: 1px 1px 10px rgba(0,0,0,0.5),
-                              -1px -1px 10px rgba(255,255,255,0.05);
-                }
-                
-                .input + .check::before {
-                  content: "";
-                  position: absolute;
-                  top: 12px;
-                  right: 12px;
-                  width: 16px;
-                  height: 16px;
-                  border: 2px solid #555;
-                  border-radius: 50%;
-                  background-color: #111;
-                }
-                
-                .input:checked + .check::after {
-                  content: '';
-                  position: absolute;
-                  top: 16px;
-                  right: 16px;
-                  width: 8px;
-                  height: 8px;
-                  background-color: #00FF00;
-                  border-radius: 50%;
-                }
-                
-                .input[value="premium"]:checked + .check::after {
-                  background-color: #00FF00;
-                }
-                
-                .input[value="basic"]:checked,
-                .input[value="premium"]:checked {
-                  border: 1.5px solid #00FF00;
-                }
-                
-                .label {
-                  color: #fff;
-                  position: relative;
-                  z-index: 0;
-                  width: 80%;
-                  text-align: left;
-                }
-                
-                .label .title {
-                  font-weight: 900;
-                  font-size: 15px;
-                  letter-spacing: 1.5px;
-                  margin-bottom: 8px;
-                }
-                
-                .label .price {
-                  font-size: 20px;
-                  font-weight: 900;
-                }
-                
-                .label .span {
-                  color: #999;
-                  font-weight: 700;
-                  font-size: 15px;
-                }
-              `}
-            </style>
-            
-            <div className="wrapper">
-              <div className="card">
-                <input 
-                  className="input" 
-                  type="radio" 
-                  name="card" 
-                  value="basic" 
-                  defaultChecked 
-                  onChange={() => setSelectedPlan("basic")}
-                />
-                <span className="check"></span>
-                <label className="label">
-                  <div className="title">MENSAL</div>
-                  <div className="price">
-                    <span className="span">R$</span>
-                    49
-                    <span className="span">/mês</span>
-                  </div>
-                </label>
-              </div>
-              <div className="card">
-                <input 
-                  className="input" 
-                  type="radio" 
-                  name="card" 
-                  value="premium" 
-                  onChange={() => setSelectedPlan("premium")}
-                />
-                <span className="check"></span>
-                <label className="label">
-                  <div className="title">ANUAL</div>
-                  <div className="price">
-                    <span className="span">R$</span>
-                    99
-                    <span className="span">/ano</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-            
-            <Button 
-              onClick={() => setShowCheckout(true)}
-              className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-6"
-            >
-              <PackageOpen className="mr-2 h-5 w-5" />
-              Escolher Plano
-            </Button>
-            
-            {/* Formulário de Checkout */}
-            {showCheckout && !paymentSuccess && (
-              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-                <div className="bg-[#131614] rounded-xl shadow-2xl border border-gray-800 max-w-md w-full p-6 relative overflow-y-auto max-h-[90vh]">
-                  <button 
-                    onClick={() => setShowCheckout(false)} 
-                    className="absolute top-3 right-3 text-gray-400 hover:text-white"
+                {/* Cards de planos */}
+                <div className="flex flex-wrap justify-center w-full gap-4 mb-8">
+                  {/* Card do Plano Mensal */}
+                  <div 
+                    className={`w-full md:w-5/12 bg-[#18181f] border-2 rounded-xl shadow-lg overflow-hidden transition-all hover:shadow-green-500/20 cursor-pointer ${selectedPlan === "basic" ? "border-[#00FF00] shadow-md shadow-green-500/20" : "border-gray-800/50 hover:border-gray-700"}`}
+                    onClick={() => setSelectedPlan("basic")}
                   >
-                    ✕
-                  </button>
-                  
-                  <h2 className="text-[#00FF00] font-bold text-xl mb-6 text-center">
-                    Finalizar Compra - Plano {selectedPlan === "basic" ? "Mensal" : "Anual"}
-                  </h2>
-                  
-                  {paymentError && (
-                    <div className="mb-4 bg-red-900/30 border border-red-500 p-3 rounded-lg text-red-100">
-                      <p className="text-sm">{paymentError}</p>
-                    </div>
-                  )}
-                  
-                  <div className="mb-6 bg-[#0d0d0d] p-4 rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-white/80">Plano:</span>
-                      <span className="text-white font-bold">
-                        {selectedPlan === "basic" ? "Mensal" : "Anual"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/80">Valor:</span>
-                      <span className="text-[#00FF00] font-bold">
-                        {selectedPlan === "basic" ? "R$ 49,00" : "R$ 99,00"}
-                      </span>
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold text-white">Mensal</h3>
+                        <div className="flex items-center">
+                          <div className={`w-5 h-5 rounded-full border border-gray-600 mr-3 flex items-center justify-center ${selectedPlan === "basic" ? "bg-[#00FF00] border-green-500" : "bg-transparent"}`}>
+                            {selectedPlan === "basic" && <div className="w-3 h-3 rounded-full bg-white"></div>}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="text-3xl font-bold text-white mb-2">
+                        R$49<span className="text-sm text-gray-400">/mês</span>
+                      </div>
+                      
+                      <div className="text-sm text-gray-400 mb-4">
+                        Renovação mensal automática
+                      </div>
                     </div>
                   </div>
                   
-                  <form className="space-y-4" onSubmit={(e) => {
-                    e.preventDefault();
-                    setIsProcessingPayment(true);
-                    setPaymentError(null);
-                    
-                    // Simulação de integração com Asaas
-                    setTimeout(() => {
-                      // Em uma implementação real, aqui seria feita a chamada para API
-                      setIsProcessingPayment(false);
-                      // Exemplo de tratamento de sucesso
-                      setPaymentSuccess(true);
-                      
-                      // Ou exemplo de tratamento de erro
-                      // setPaymentError("Não foi possível processar o pagamento. Verifique os dados e tente novamente.");
-                    }, 2000);
-                  }}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-white/80 mb-1 text-sm">Nome completo</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="Digite seu nome completo"
-                          required
-                        />
+                  {/* Card do Plano Anual */}
+                  <div 
+                    className={`w-full md:w-5/12 bg-[#18181f] border-2 rounded-xl shadow-lg overflow-hidden transition-all hover:shadow-green-500/20 cursor-pointer ${selectedPlan === "premium" ? "border-[#00FF00] shadow-md shadow-green-500/20" : "border-gray-800/50 hover:border-gray-700"}`}
+                    onClick={() => setSelectedPlan("premium")}
+                  >
+                    <div className="absolute top-0 right-0 bg-[#00FF00] text-black text-xs font-bold px-3 py-1 rounded-bl-lg">
+                      MELHOR OPÇÃO
+                    </div>
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold text-white">Anual</h3>
+                        <div className="flex items-center">
+                          <div className={`w-5 h-5 rounded-full border border-gray-600 mr-3 flex items-center justify-center ${selectedPlan === "premium" ? "bg-[#00FF00] border-green-500" : "bg-transparent"}`}>
+                            {selectedPlan === "premium" && <div className="w-3 h-3 rounded-full bg-white"></div>}
+                          </div>
+                        </div>
                       </div>
                       
-                      <div>
-                        <label className="block text-white/80 mb-1 text-sm">CPF/CNPJ</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="000.000.000-00"
-                          required
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-white/80 mb-1 text-sm">E-mail</label>
-                        <input 
-                          type="email" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="seuemail@exemplo.com"
-                          required
-                        />
+                      <div className="text-3xl font-bold text-white mb-2">
+                        R$99<span className="text-sm text-gray-400">/ano</span>
                       </div>
                       
-                      <div>
-                        <label className="block text-white/80 mb-1 text-sm">Telefone</label>
-                        <input 
-                          type="tel" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="(00) 00000-0000"
-                          required
-                        />
+                      <div className="text-sm text-gray-400 mb-4">
+                        Economia de R$489 por ano
                       </div>
                     </div>
-                    
-                    <div>
-                      <label className="block text-white/80 mb-1 text-sm">Endereço</label>
-                      <input 
-                        type="text" 
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                        placeholder="Rua, número, complemento"
-                        required
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-white/80 mb-1 text-sm">CEP</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="00000-000"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-white/80 mb-1 text-sm">Cidade/UF</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
-                          placeholder="Cidade/UF"
-                        />
-                      </div>
-                    </div>
-                    
-                    <Button 
-                      className="w-full py-3 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-6"
-                      type="submit"
-                      disabled={isProcessingPayment}
-                    >
-                      {isProcessingPayment ? (
-                        <span className="flex items-center justify-center">
-                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Processando...
-                        </span>
-                      ) : "Prosseguir para Pagamento"}
-                    </Button>
-                    
-                    <p className="text-center text-gray-500 text-xs mt-4">
-                      Você será redirecionado para a plataforma segura de pagamento do Asaas.
-                    </p>
-                  </form>
+                  </div>
                 </div>
+              </div>
+              
+              {/* Botão de ação */}
+              <Button
+                onClick={() => setShowCheckout(true)}
+                className="bg-[#00FF00] hover:bg-[#00CC00] text-black font-bold py-3 px-6 rounded-lg w-full text-center transition-all transform hover:scale-105"
+              >
+                Escolher Plano
+              </Button>
+              
+              {/* Modal de checkout */}
+              {showCheckout && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+                  <div className="bg-[#131614] rounded-xl shadow-2xl border border-gray-800/50 max-w-md w-full overflow-hidden">
+                    {checkoutStep === 'form' ? (
+                      <>
+                        <div className="p-6 border-b border-gray-800">
+                          <h3 className="text-xl font-bold text-white">Complete sua compra</h3>
+                          <p className="text-gray-400 text-sm mt-1">
+                            {selectedPlan === 'basic' ? 'Plano Mensal - R$49/mês' : 'Plano Anual - R$99/ano'}
+                          </p>
+                        </div>
+                        
+                        <form onSubmit={handlePayment} className="p-6 space-y-4">
+                          {paymentError && (
+                            <Alert variant="destructive" className="mb-4">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertTitle>Erro no pagamento</AlertTitle>
+                              <AlertDescription>{paymentError}</AlertDescription>
+                            </Alert>
+                          )}
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Nome completo</label>
+                            <input
+                              type="text"
+                              name="name"
+                              value={formData.name}
+                              onChange={handleChange}
+                              required
+                              className="w-full px-4 py-2 rounded-lg bg-[#1E1E24] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Email</label>
+                            <input
+                              type="email"
+                              name="email"
+                              value={formData.email}
+                              onChange={handleChange}
+                              required
+                              className="w-full px-4 py-2 rounded-lg bg-[#1E1E24] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">CPF</label>
+                            <input
+                              type="text"
+                              name="cpf"
+                              value={formData.cpf}
+                              onChange={handleChange}
+                              placeholder="000.000.000-00"
+                              required
+                              className="w-full px-4 py-2 rounded-lg bg-[#1E1E24] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Telefone</label>
+                            <input
+                              type="text"
+                              name="phone"
+                              value={formData.phone}
+                              onChange={handleChange}
+                              placeholder="(00) 00000-0000"
+                              required
+                              className="w-full px-4 py-2 rounded-lg bg-[#1E1E24] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            />
+                          </div>
+                          
+                          <div className="flex justify-end space-x-3 mt-6">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setShowCheckout(false)}
+                              className="border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white"
+                            >
+                              Cancelar
+                            </Button>
+                            
+                            <Button
+                              type="submit"
+                              disabled={isProcessingPayment}
+                              className="bg-[#00FF00] hover:bg-[#00CC00] text-black font-bold"
+                            >
+                              {isProcessingPayment ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Processando...
+                                </>
+                              ) : (
+                                'Pagar com PIX'
+                              )}
+                            </Button>
+                          </div>
+                        </form>
+                      </>
+                    ) : (
+                      <>
+                        <div className="p-6 border-b border-gray-800">
+                          <h3 className="text-xl font-bold text-white">Pagamento via PIX</h3>
+                          <p className="text-gray-400 text-sm mt-1">
+                            Escaneie o QR code ou copie o código para pagar
+                          </p>
+                        </div>
+                        
+                        <div className="p-6">
+                          {pixLoading ? (
+                            <div className="flex flex-col items-center justify-center py-8">
+                              <Loader2 className="h-10 w-10 text-[#00FF00] animate-spin mb-4" />
+                              <p className="text-white">Gerando QR Code PIX...</p>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex flex-col items-center mb-6">
+                                {qrCodeImage && (
+                                  <img 
+                                    src={qrCodeImage} 
+                                    alt="QR Code PIX" 
+                                    className="w-48 h-48 bg-white p-2 rounded-lg"
+                                  />
+                                )}
+                                
+                                <div className="mt-4 text-center">
+                                  <p className="text-sm text-gray-400 mb-2">
+                                    Use o aplicativo do seu banco para escanear o QR code
+                                  </p>
+                                  
+                                  <div className="relative">
+                                    <div className="border border-gray-700 bg-[#1E1E24] rounded-lg p-3 text-sm text-gray-300 max-w-xs overflow-hidden overflow-ellipsis whitespace-nowrap">
+                                      {qrCodeText && qrCodeText.substring(0, 30)}...
+                                    </div>
+                                    
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={copyPIXCode}
+                                      className="absolute top-1 right-1 h-8 px-2 bg-transparent hover:bg-gray-800 border-0"
+                                    >
+                                      <Copy className="h-4 w-4 text-gray-400" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="border-t border-gray-800 pt-4 mt-4 text-center">
+                                <p className="text-sm text-gray-400 mb-4">
+                                  Após o pagamento, você será redirecionado automaticamente
+                                </p>
+                                
+                                <div className="flex justify-center space-x-3">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setShowCheckout(false)}
+                                    className="border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white"
+                                  >
+                                    Cancelar
+                                  </Button>
+                                  
+                                  <Button
+                                    type="button"
+                                    disabled={verifyingPayment}
+                                    onClick={() => checkPaymentStatusManually(paymentId)}
+                                    className="bg-[#00FF00] hover:bg-[#00CC00] text-black font-bold"
+                                  >
+                                    {verifyingPayment ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Verificando...
+                                      </>
+                                    ) : (
+                                      'Já paguei'
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
-            
-            {/* Tela de sucesso no pagamento */}
-            {paymentSuccess && (
-              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-                <div className="bg-[#131614] rounded-xl shadow-2xl border border-gray-800 max-w-md w-full p-6 relative text-center">
-                  <div className="text-[#00FF00] text-6xl mb-4">✓</div>
-                  <h2 className="text-[#00FF00] font-bold text-xl mb-2">Pagamento Realizado com Sucesso!</h2>
-                  <p className="text-white/80 mb-6">Seu plano {selectedPlan === "basic" ? "Mensal" : "Anual"} foi ativado.</p>
-                  <p className="text-white/60 mb-8 text-sm">Você receberá um e-mail com os detalhes da sua compra.</p>
-                  
-                  <Button 
-                    onClick={() => {
-                      setPaymentSuccess(false);
-                      setShowCheckout(false);
-                      // Aqui você pode adicionar lógica para redirecionar para área de membros
-                    }}
-                    className="w-full py-3 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20"
-                  >
-                    Acessar Estatísticas
-                  </Button>
             </div>
           </div>
         )}
-          </div>
-        </div>
       </div>
     </Layout>
   );

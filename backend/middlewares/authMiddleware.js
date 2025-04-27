@@ -5,43 +5,9 @@
 
 const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
-
-// Tratamento para o modelo User
-let User;
-try {
-  User = require('../models/User');
-} catch (error) {
-  console.warn('Modelo User não encontrado. Algumas funcionalidades podem não funcionar corretamente.');
-  // Modelo vazio para evitar erros
-  User = {};
-}
-
-// Tratamento para o objeto config
-let config;
-try {
-  config = require('../config/config');
-} catch (error) {
-  console.warn('Arquivo de configuração não encontrado. Usando valores padrão.');
-  config = {
-    jwt: {
-      secret: process.env.JWT_SECRET || 'seu_segredo_super_secreto',
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d'
-    }
-  };
-}
-
-// Tratamento para o modelo Usuario
-let Usuario;
-try {
-  const models = require('../models');
-  Usuario = models.Usuario;
-} catch (error) {
-  console.warn('Modelo Usuario não encontrado. Algumas funcionalidades podem não funcionar corretamente.');
-  // Modelo vazio para evitar erros
-  Usuario = {
-    findByPk: async () => null
-  };
-}
+const User = require('../models/User');
+const config = require('../config/config');
+const { Usuario } = require('../models');
 
 // Configuração do JWT - deve ser obtida do arquivo de configuração
 const JWT_SECRET = process.env.JWT_SECRET || 'seu_segredo_super_secreto';

@@ -2,7 +2,6 @@
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
 import SocketService from '@/services/SocketService';
-import { useSubscription } from '@/context/SubscriptionContext';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -82,9 +81,6 @@ export class EventService {
   // Map para armazenar callbacks de eventos personalizados
   private customEventListeners: Map<string, Set<EventCallback>> = new Map();
 
-  // Flag para controlar acesso premium
-  private hasFeatureAccess: boolean = false;
-
   private constructor() {
     if (EventService.instance) {
       throw new Error('Erro: Tentativa de criar uma nova instância do EventService. Use EventService.getInstance()');
@@ -105,9 +101,6 @@ export class EventService {
     
     // Adicionar listener para visibilidade da página
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
-
-    // Inicialmente, não tem acesso premium (será verificado depois)
-    this.hasFeatureAccess = false;
   }
 
   /**
@@ -200,12 +193,6 @@ export class EventService {
   
   // Handler para eventos do SocketService
   private handleSocketEvent = (event: any) => {
-    // Verificar acesso antes de processar eventos
-    if (!this.hasFeatureAccess) {
-      debugLog('[EventService] Acesso negado: usuário não possui plano necessário para receber eventos');
-      return;
-    }
-
     if (!event || !event.type) {
       console.error('[EventService] Evento inválido recebido do SocketService:', event);
       return;
@@ -384,12 +371,6 @@ export class EventService {
 
   // Notifica os listeners sobre um novo evento
   private notifyListeners(event: RouletteNumberEvent | StrategyUpdateEvent): void {
-    // Verificar acesso antes de notificar listeners
-    if (!this.hasFeatureAccess) {
-      debugLog('[EventService] Acesso negado: usuário não possui plano necessário para notificar listeners');
-      return;
-    }
-    
     // Log simplificado para melhor desempenho em modo tempo real
     if (event.type === 'new_number') {
       debugLog(`[EventService] Novo número: ${event.roleta_nome} - ${event.numero}`);
@@ -658,14 +639,6 @@ export class EventService {
           console.error(`[EventService] Erro ao executar callback para ${eventName}:`, error);
         }
       });
-    }
-  }
-
-  // Método para atualizar status de acesso premium
-  public updateAccessStatus(hasAccess: boolean): void {
-    if (this.hasFeatureAccess !== hasAccess) {
-      debugLog(`[EventService] Status de acesso premium atualizado: ${hasAccess ? 'Autorizado' : 'Não autorizado'}`);
-      this.hasFeatureAccess = hasAccess;
     }
   }
 }
