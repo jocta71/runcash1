@@ -64,9 +64,9 @@ const checkMongoDB = (req, res, next) => {
 /**
  * @route   GET /api/roulettes/history/:rouletteName
  * @desc    Obtém até 1000 números históricos de uma roleta pelo nome
- * @access  Público - Temporariamente sem verificação
+ * @access  Privado - Requer autenticação e assinatura ativa
  */
-router.get('/:rouletteName', checkMongoDB, async (req, res) => {
+router.get('/:rouletteName', proteger, verificarAssinatura(), checkMongoDB, async (req, res) => {
   try {
     const { rouletteName } = req.params;
     const db = req.app.locals.db;
@@ -161,9 +161,9 @@ router.get('/:rouletteName', checkMongoDB, async (req, res) => {
 /**
  * @route   GET /api/roulettes/history
  * @desc    Obtém informações sobre o histórico disponível
- * @access  Público - Temporariamente sem verificação
+ * @access  Privado - Requer autenticação
  */
-router.get('/', checkMongoDB, async (req, res) => {
+router.get('/', proteger, checkMongoDB, async (req, res) => {
   try {
     const db = req.app.locals.db;
     
