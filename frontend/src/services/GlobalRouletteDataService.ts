@@ -1,6 +1,5 @@
-import { EventService } from './EventService';
-import { fetchWithCorsSupport } from '@/utils/apiUtils';
-import { apiService } from '@/services/apiService';
+import { fetchWithCorsSupport } from '../utils/api-helpers';
+import EventService from './EventService';
 
 // Intervalo de polling padrão em milissegundos (4 segundos)
 const POLLING_INTERVAL = 4000;
@@ -136,47 +135,34 @@ class GlobalRouletteDataService {
       
       // Criar e armazenar a promessa atual
       this._currentFetchPromise = (async () => {
-        // Usar o apiService para garantir que o token JWT seja enviado na requisição
-        try {
-          const response = await apiService.get(`/ROULETTES?limit=${DEFAULT_LIMIT}`);
-          const data = response.data;
+        // Usar a função utilitária com suporte a CORS - com limit=1000 para todos os casos
+        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+        
+        // Verificar se os dados são válidos
+        if (data && Array.isArray(data)) {
+          console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
+          this.rouletteData = data;
+          this.lastFetchTime = now;
           
-          // Verificar se os dados são válidos
-          if (data && Array.isArray(data)) {
-            console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
-            this.rouletteData = data;
-            this.lastFetchTime = now;
-            
-            // Notificar todos os assinantes sobre a atualização
-            this.notifySubscribers();
-            
-            // Emitir evento global para outros componentes que possam estar ouvindo
-            EventService.emit('roulette:data-updated', {
-              timestamp: new Date().toISOString(),
-              count: data.length,
-              source: 'central-service'
-            });
-            
-            return data;
-          } else {
-            console.error('[GlobalRouletteService] Resposta inválida da API');
-            return this.rouletteData;
-          }
-        } catch (apiError) {
-          console.error('[GlobalRouletteService] Erro ao usar apiService:', apiError);
+          // Remover armazenamento no localStorage
+          // localStorage.setItem('global_roulette_data', JSON.stringify({
+          //   timestamp: now,
+          //   data: data
+          // }));
           
-          // Fallback para o método antigo em caso de erro
-          console.log('[GlobalRouletteService] Tentando método alternativo...');
-          const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+          // Notificar todos os assinantes sobre a atualização
+          this.notifySubscribers();
           
-          if (data && Array.isArray(data)) {
-            console.log(`[GlobalRouletteService] Dados recebidos via fallback: ${data.length} roletas`);
-            this.rouletteData = data;
-            this.lastFetchTime = now;
-            this.notifySubscribers();
-            return data;
-          }
+          // Emitir evento global para outros componentes que possam estar ouvindo
+          EventService.emit('roulette:data-updated', {
+            timestamp: new Date().toISOString(),
+            count: data.length,
+            source: 'central-service'
+          });
           
+          return data;
+        } else {
+          console.error('[GlobalRouletteService] Resposta inválida da API');
           return this.rouletteData;
         }
       })();
