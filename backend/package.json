@@ -1,11 +1,13 @@
 {
   "name": "runcash-backend",
   "version": "1.0.0",
-  "description": "Backend WebSocket para transmitir dados do MongoDB em tempo real",
-  "main": "websocket_server.js",
+  "description": "Backend unificado do RunCash - API e WebSocket",
+  "main": "index.js",
   "scripts": {
-    "start": "node websocket_server.js",
-    "dev": "nodemon websocket_server.js",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "start:websocket": "node websocket_server.js",
+    "dev:websocket": "nodemon websocket_server.js",
     "test": "node test_insert_number.js"
   },
   "dependencies": {

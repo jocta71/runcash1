@@ -1,17 +1,16 @@
-FROM node:18-slim
+FROM node:18-alpine
 
 WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install --omit=dev
+RUN npm install
 
-COPY api/ ./api/
-COPY websocket_server.js ./
+COPY . .
 
-ENV PORT=3000
+ENV PORT=5000
 ENV NODE_ENV=production
 
-EXPOSE 3000
+EXPOSE 5000
 
-CMD ["node", "websocket_server.js"] 
+CMD ["node", "start_index.js"] 
