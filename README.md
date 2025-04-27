@@ -142,4 +142,101 @@ npm run preview
 ## Documentação Adicional
 
 - [Frontend README](./frontend/README.md) - Detalhes da implementação do frontend
-- [Documentação de Deploy](./frontend/DEPLOY.md) - Instruções detalhadas para deploy 
+- [Documentação de Deploy](./frontend/DEPLOY.md) - Instruções detalhadas para deploy
+
+# API de Roletas
+
+API para acesso a dados de roletas, com sistema de autenticação JWT e verificação de assinatura no Asaas.
+
+## Estrutura da API
+
+A API implementa dois níveis de acesso:
+
+1. **Dados Simulados**: Acessíveis a todos os usuários, sem necessidade de autenticação.
+2. **Dados Reais**: Requerem autenticação JWT e assinatura premium ativa no Asaas.
+
+## Endpoints Disponíveis
+
+### Públicos (Dados Simulados)
+
+- `GET /api/roletas` - Lista todas as roletas com dados simulados
+- `GET /api/roletas/:id` - Obtém dados simulados de uma roleta específica
+
+### Protegidos (Dados Reais - Requer Assinatura Premium)
+
+- `GET /api/roletas/premium/todas` - Lista todas as roletas com dados reais
+- `GET /api/roletas/premium/:id/historico` - Obtém histórico completo de uma roleta
+
+## Autenticação
+
+A API utiliza autenticação via token JWT:
+
+```
+Authorization: Bearer <seu_token_jwt>
+```
+
+O token JWT deve conter:
+- `id`: ID do usuário
+- `email`: Email do usuário
+- `asaasCustomerId`: ID do cliente no Asaas
+
+## Verificação de Assinatura
+
+Para acessar endpoints protegidos, além do token JWT válido, o usuário deve possuir assinatura premium ativa no Asaas.
+
+O sistema consulta a API do Asaas para verificar:
+1. Se o cliente existe no Asaas
+2. Se possui alguma assinatura com status "ACTIVE"
+3. Se a assinatura é do tipo premium/PRO
+
+## Configuração
+
+Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
+
+```
+PORT=3000
+NODE_ENV=development
+JWT_SECRET=seu_segredo_super_secreto
+ASAAS_API_KEY=sua_chave_api_asaas
+ASAAS_API_URL=https://api.asaas.com/v3
+```
+
+## Instalação e Execução
+
+```bash
+# Instalar dependências
+npm install
+
+# Iniciar servidor de desenvolvimento
+npm run dev
+
+# Iniciar servidor de produção
+npm start
+```
+
+## Respostas da API
+
+### Sucesso
+
+```json
+{
+  "success": true,
+  "message": "Descrição do sucesso",
+  "data": { ... }
+}
+```
+
+### Erro
+
+```json
+{
+  "success": false,
+  "message": "Descrição do erro",
+  "error": "CODIGO_ERRO"
+}
+```
+
+## Erros de Autenticação e Assinatura
+
+- `401` - Token ausente, inválido ou expirado
+- `403` - Usuário sem assinatura cadastrada ou assinatura inativa 

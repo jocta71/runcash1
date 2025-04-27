@@ -8,9 +8,6 @@ const router = express.Router();
 // Importar middleware de autenticação e verificação de assinatura
 const { verificarAutenticacaoEAssinatura } = require('../middleware/authAndAsaas');
 
-// Importar router de roletas
-const roletasRouter = require('./roletas');
-
 // Rota pública - não requer autenticação nem assinatura
 router.get('/public', (req, res) => {
   res.json({
@@ -22,9 +19,6 @@ router.get('/public', (req, res) => {
 
 // Rotas protegidas - requerem autenticação JWT e assinatura ativa
 router.use('/premium', verificarAutenticacaoEAssinatura);
-
-// Registrar router de roletas na rota /api/roletas
-router.use('/roletas', roletasRouter);
 
 // Rota para obter dados das roletas
 router.get('/premium/roletas', (req, res) => {
