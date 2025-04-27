@@ -582,7 +582,7 @@ const getSampleRoulettes = async (req, res) => {
   try {
     console.log('[API] Requisição recebida para /api/roulettes/sample');
     
-    // Uso de mock data caso o DB esteja vazio
+    // Dados mockados para caso o banco esteja indisponível
     const mockData = [
       {
         _id: "1001",
@@ -607,14 +607,27 @@ const getSampleRoulettes = async (req, res) => {
           { numero: 0, timestamp: new Date(Date.now() - 180000).toISOString(), cor: "verde" },
           { numero: 11, timestamp: new Date(Date.now() - 240000).toISOString(), cor: "preto" }
         ]
+      },
+      {
+        _id: "1003",
+        nome: "Lightning Roulette Demo",
+        ativa: true,
+        provider: "Evolution",
+        numero: [
+          { numero: 21, timestamp: new Date().toISOString(), cor: "vermelho" },
+          { numero: 14, timestamp: new Date(Date.now() - 60000).toISOString(), cor: "vermelho" },
+          { numero: 0, timestamp: new Date(Date.now() - 120000).toISOString(), cor: "verde" },
+          { numero: 33, timestamp: new Date(Date.now() - 180000).toISOString(), cor: "preto" },
+          { numero: 27, timestamp: new Date(Date.now() - 240000).toISOString(), cor: "vermelho" }
+        ]
       }
     ];
     
-    // Tenta obter dados reais
+    // Tenta obter dados reais do banco
     try {
       const db = await getDb();
-      console.log('[API] Conexão com banco de dados estabelecida para roulettes/sample');
-
+      
+      // Se o banco não estiver disponível, retorna dados mockados imediatamente
       if (!db) {
         console.log('[API] Banco de dados não disponível, retornando dados mockados');
         return res.json({
@@ -626,52 +639,55 @@ const getSampleRoulettes = async (req, res) => {
         });
       }
       
-      // Verificar se as coleções existem
+      console.log('[API] Conexão com banco de dados estabelecida para roulettes/sample');
+      
+      // Verificar coleções disponíveis
       const collections = await db.listCollections().toArray();
       const collectionNames = collections.map(c => c.name);
       console.log('[API] Coleções disponíveis:', collectionNames);
       
-      if (!collectionNames.includes('roulettes')) {
-        console.log('[API] Coleção "roulettes" não encontrada, verificando coleção alternativa');
-      }
+      // Tentar obter roletas
+      const rouletteCollection = 
+        collectionNames.includes('roulettes') ? 'roulettes' : 
+        collectionNames.includes('roletas') ? 'roletas' : null;
       
-      // Tentar primeiro com a coleção 'roulettes', depois com 'roletas'
-      const rouletteCollection = collectionNames.includes('roulettes') ? 'roulettes' : 
-                                (collectionNames.includes('roletas') ? 'roletas' : null);
-      
+      // Se não encontrar a coleção, retorna mockados
       if (!rouletteCollection) {
-        console.log('[API] Nenhuma coleção de roletas encontrada, retornando dados mockados');
+        console.log('[API] Coleção de roletas não encontrada, retornando dados mockados');
         return res.json({
           success: true,
-          message: 'Amostra de dados de roletas (mockados)',
+          message: 'Amostra de dados de roletas (mockados - coleção não encontrada)',
           data: mockData,
           sample: true,
           mock: true
         });
       }
       
-      console.log(`[API] Buscando roletas da coleção "${rouletteCollection}"`);
-      const roulettes = await db.collection(rouletteCollection).find({}).limit(3).toArray();
-      console.log(`[API] Encontradas ${roulettes.length} roletas`);
+      // Buscar roletas do banco (limitado a 3)
+      const roulettes = await db.collection(rouletteCollection)
+        .find({})
+        .limit(3)
+        .toArray();
       
       if (roulettes.length === 0) {
         console.log('[API] Nenhuma roleta encontrada, retornando dados mockados');
         return res.json({
           success: true,
-          message: 'Amostra de dados de roletas (mockados)',
+          message: 'Amostra de dados de roletas (mockados - nenhuma roleta encontrada)',
           data: mockData,
           sample: true,
           mock: true
         });
       }
       
-      // Determinar qual coleção usar para números
-      const numbersCollection = collectionNames.includes('roleta_numeros') ? 'roleta_numeros' : 
-                               (collectionNames.includes('roulette_numbers') ? 'roulette_numbers' : null);
+      // Determinar coleção de números
+      const numbersCollection = 
+        collectionNames.includes('roulette_numbers') ? 'roulette_numbers' : 
+        collectionNames.includes('roleta_numeros') ? 'roleta_numeros' : null;
       
-      // Caso não tenha coleção de números, retornar as roletas com números vazios
+      // Se não houver coleção de números, retornar roletas com números vazios
       if (!numbersCollection) {
-        console.log('[API] Nenhuma coleção de números encontrada');
+        console.log('[API] Coleção de números não encontrada');
         const limitedData = roulettes.map(roulette => ({
           ...roulette,
           numero: []
@@ -685,58 +701,48 @@ const getSampleRoulettes = async (req, res) => {
         });
       }
       
-      // Limitar os dados retornados para cada roleta (números reduzidos)
-      console.log(`[API] Buscando números da coleção "${numbersCollection}"`);
+      // Buscar números para cada roleta
       const limitedData = await Promise.all(roulettes.map(async (roulette) => {
-        // Determinar o ID da roleta
         const rouletteId = roulette._id?.toString() || roulette.id;
         console.log(`[API] Buscando números para roleta: ${roulette.nome || roulette.name} (ID: ${rouletteId})`);
         
-        // Definir critério de busca baseado no formato do ID
-        let queryFilter = {};
-        if (rouletteId) {
-          // Tentar diferentes campos possíveis
-          queryFilter = {
-            $or: [
-              { rouletteId: rouletteId },
-              { roleta_id: rouletteId },
-              { roletaId: rouletteId }
-            ]
-          };
-        } else {
-          // Se não tem ID, tenta pelo nome
-          const roletaNome = roulette.nome || roulette.name;
-          queryFilter = {
-            $or: [
-              { roletaNome },
-              { roleta_nome: roletaNome }
-            ]
-          };
+        // Filtro para buscar números da roleta
+        const queryFilter = {
+          $or: [
+            { rouletteId: rouletteId },
+            { roleta_id: rouletteId },
+            { roletaId: rouletteId }
+          ]
+        };
+        
+        // Buscar os 10 números mais recentes
+        let numbers = [];
+        try {
+          numbers = await db.collection(numbersCollection)
+            .find(queryFilter)
+            .sort({ timestamp: -1 })
+            .limit(10)
+            .toArray();
+            
+          console.log(`[API] Encontrados ${numbers.length} números para roleta ${roulette.nome || roulette.name}`);
+        } catch (err) {
+          console.log(`[API] Erro ao buscar números: ${err.message}`);
+          // Continua com array vazio
         }
         
-        // Buscar apenas os 10 últimos números para cada roleta
-        const numbers = await db.collection(numbersCollection)
-          .find(queryFilter)
-          .sort({ timestamp: -1 })
-          .limit(10)
-          .toArray();
-        
-        console.log(`[API] Encontrados ${numbers.length} números para roleta ${roulette.nome || roulette.name}`);
-        
-        // Anexar os números à roleta
+        // Formatar resposta para esta roleta
         return {
           ...roulette,
           nome: roulette.nome || roulette.name,
-          numero: numbers.length > 0 ? numbers.map(n => ({
+          numero: numbers.map(n => ({
             numero: n.numero || n.number || n.value || 0,
             timestamp: n.timestamp || n.created_at || n.criado_em || new Date().toISOString(),
             cor: n.cor || n.color || determinarCorNumero(n.numero || n.number || n.value || 0)
-          })) : []
+          }))
         };
       }));
       
-      console.log(`[API] Retornando ${limitedData.length} roletas com seus números (${JSON.stringify(limitedData.map(r => r.nome))})`);
-      
+      // Retornar dados reais
       return res.json({
         success: true,
         message: 'Amostra de dados de roletas',
@@ -744,9 +750,8 @@ const getSampleRoulettes = async (req, res) => {
         sample: true
       });
     } catch (dbError) {
-      console.error('[API] Erro ao acessar banco de dados:', dbError);
-      
-      // Em caso de erro, retornar dados mockados
+      // Tratar qualquer erro de banco e retornar dados mockados
+      console.error('[API] Erro ao acessar banco de dados:', dbError.message);
       return res.json({
         success: true,
         message: 'Amostra de dados de roletas (mockados - erro DB)',
@@ -757,7 +762,8 @@ const getSampleRoulettes = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('[API] Erro ao obter amostra de roletas:', error);
+    // Erro geral da função
+    console.error('[API] Erro ao obter amostra de roletas:', error.message);
     return res.status(500).json({
       success: false,
       message: 'Erro ao obter amostra de roletas',
