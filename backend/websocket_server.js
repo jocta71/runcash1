@@ -455,7 +455,7 @@ const configureCors = (req, res) => {
   }
   
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, bypass-tunnel-reminder');
   res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
   res.header('Access-Control-Allow-Credentials', 'true');
   
