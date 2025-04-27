@@ -1623,10 +1623,9 @@ export default class RouletteFeedService {
     try {
       // Array com endpoints alternativos para verificar a saúde da API
       const healthEndpoints = [
-        '/frontend/api/health',  // Usar o health do frontend
-        '/api/proxy-roulette',   // Usar o endpoint de proxy como verificação
-        '/api/asaas-webhook',    // Usar um endpoint existente como fallback
-        '/api'                   // Tentar apenas o path base como último recurso
+        '/api/health',
+        '/api/asaas-webhook', // Usar um endpoint existente como fallback
+        '/api' // Tentar apenas o path base como último recurso
       ];
       
       let isHealthy = false;

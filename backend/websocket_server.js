@@ -1,8 +1,44 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const NodeCache = require('node-cache');
+const compression = require('compression');
+const axios = require('axios');
+const path = require('path');
+const fs = require('fs');
+
+// Alternativa 1: Usar try-catch para tentar diferentes caminhos
+let config;
+try {
+  // Primeiro tenta o caminho padrão
+  config = require('./config/config');
+} catch (error) {
+  try {
+    // Se falhar, tenta o caminho absoluto
+    config = require('/app/config/config');
+  } catch (innerError) {
+    // Se ambos falharem, usa uma configuração padrão
+    console.warn('Arquivo de configuração não encontrado. Usando valores padrão.');
+    config = {
+      app: { name: 'RunCash', port: 3000, environment: 'development' },
+      jwt: { secret: 'seu_segredo_super_secreto', expiresIn: '7d' },
+      subscription: {
+        plans: {
+          FREE: { name: 'Gratuito', limit: 30 },
+          BASIC: { name: 'Básico', limit: 100 },
+          PRO: { name: 'Profissional', limit: 200 },
+          PREMIUM: { name: 'Premium', limit: 500 }
+        }
+      },
+      cache: { ttl: 300 }
+    };
+  }
+}
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -12,6 +48,7 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
+const API_SERVICE_URL = process.env.API_SERVICE_URL || "https://backendapi-production-36b5.up.railway.app";
 
 // Informações de configuração
 console.log('==== Configuração do Servidor WebSocket ====');
@@ -19,9 +56,389 @@ console.log(`PORT: ${PORT}`);
 console.log(`MONGODB_URI: ${MONGODB_URI ? MONGODB_URI.replace(/:.*@/, ':****@') : 'Não definida'}`);
 console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
 console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
+console.log(`API_SERVICE_URL: ${API_SERVICE_URL}`);
 
 // Inicializar Express
 const app = express();
+
+// Carregar os middlewares com tratamento de erro
+let authMiddleware = {
+  proteger: (req, res, next) => {
+    console.warn('⚠️ Usando versão simulada do middleware de autenticação');
+    // Versão simulada que permite todos os requests
+    next();
+  }
+};
+
+let subscriptionMiddleware = {
+  verificarPlano: () => (req, res, next) => {
+    console.warn('⚠️ Usando versão simulada do middleware de verificação de plano');
+    // Versão simulada que permite todos os requests
+    next();
+  }
+};
+
+// Tentar carregar os middlewares reais
+try {
+  authMiddleware = require('./middlewares/authMiddleware');
+  console.log('✅ Middleware de autenticação carregado com sucesso');
+} catch (error) {
+  try {
+    // Tentar caminho absoluto
+    authMiddleware = require('/app/middlewares/authMiddleware');
+    console.log('✅ Middleware de autenticação carregado do caminho absoluto');
+  } catch (innerError) {
+    console.warn('⚠️ Não foi possível carregar o middleware de autenticação: ', innerError.message);
+  }
+}
+
+try {
+  subscriptionMiddleware = require('./middlewares/unifiedSubscriptionMiddleware');
+  console.log('✅ Middleware de verificação de assinatura carregado com sucesso');
+} catch (error) {
+  try {
+    // Tentar caminho absoluto
+    subscriptionMiddleware = require('/app/middlewares/unifiedSubscriptionMiddleware');
+    console.log('✅ Middleware de verificação de assinatura carregado do caminho absoluto');
+  } catch (innerError) {
+    console.warn('⚠️ Não foi possível carregar o middleware de verificação de assinatura: ', innerError.message);
+  }
+}
+
+// Desestruturar os métodos que precisamos
+const { proteger } = authMiddleware;
+const { verificarPlano } = subscriptionMiddleware;
+
+// Criar cache em memória (alternativa ao Redis para implementação mais simples)
+const assinaturaCache = new NodeCache({ 
+  stdTTL: 300, // 5 minutos de TTL padrão
+  checkperiod: 60 // Verificar itens expirados a cada 60 segundos
+});
+
+// Cache para tokens inválidos (para prevenir ataques de força bruta)
+const tokenInvalidoCache = new NodeCache({ 
+  stdTTL: 3600, // 1 hora
+  checkperiod: 300 
+});
+
+// Cache para resultados de consultas (TTL: 30 segundos)
+const resultCache = new NodeCache({ 
+  stdTTL: 30,
+  checkperiod: 10 
+});
+
+// Função para verificar assinatura com cache
+const verificarAssinaturaComCache = async (userId) => {
+  // Verificar primeiro no cache
+  const cacheKey = `assinatura:${userId}`;
+  const dadosCache = assinaturaCache.get(cacheKey);
+  
+  if (dadosCache) {
+    console.log(`[CACHE] Usando dados de assinatura em cache para usuário ${userId}`);
+    return dadosCache;
+  }
+  
+  console.log(`[CACHE] Cache miss para assinatura do usuário ${userId}, buscando no banco`);
+  
+  try {
+    // Verificar na coleção principal de assinaturas
+    let assinaturaAtiva = false;
+    let planoUsuario = 'FREE';
+    
+    // 1. Verificar na coleção 'subscriptions'
+    const userSubscription = await db.collection('subscriptions').findOne({
+      user_id: userId,
+      status: { $in: ['active', 'ACTIVE', 'ativa'] }
+    });
+    
+    if (userSubscription) {
+      // Verificar se a assinatura está válida
+      const isExpired = userSubscription.expirationDate && new Date(userSubscription.expirationDate) < new Date();
+      
+      if (!isExpired && ['BASIC', 'PRO', 'PREMIUM'].includes(userSubscription.plan_id)) {
+        assinaturaAtiva = true;
+        planoUsuario = userSubscription.plan_id;
+      }
+    } else {
+      // 2. Se não encontrou na collection principal, verificar em 'assinaturas'
+      const assinatura = await db.collection('assinaturas').findOne({
+        usuario: ObjectId.isValid(userId) ? new ObjectId(userId) : userId,
+        status: 'ativa',
+        validade: { $gt: new Date() }
+      });
+      
+      if (assinatura && ['BASIC', 'PRO', 'PREMIUM'].includes(assinatura.plano)) {
+        assinaturaAtiva = true;
+        planoUsuario = assinatura.plano;
+      }
+    }
+    
+    // Preparar resultado
+    const resultado = {
+      temAssinatura: assinaturaAtiva,
+      plano: planoUsuario
+    };
+    
+    // Armazenar no cache (TTL diferente para resultados positivos e negativos)
+    if (assinaturaAtiva) {
+      // Cache mais longo para assinaturas ativas (10 minutos)
+      assinaturaCache.set(cacheKey, resultado, 600);
+    } else {
+      // Cache mais curto para sem assinatura (2 minutos)
+      assinaturaCache.set(cacheKey, resultado, 120);
+    }
+    
+    return resultado;
+  } catch (error) {
+    console.error('[CACHE] Erro ao verificar assinatura:', error);
+    // Em caso de erro, retornar resultado negativo com TTL curto
+    const resultadoFalha = { temAssinatura: false, plano: 'FREE' };
+    assinaturaCache.set(cacheKey, resultadoFalha, 60); // Cache por apenas 1 minuto
+    return resultadoFalha;
+  }
+};
+
+// Funções utilitárias para tokens
+const gerarTokenComAssinatura = (usuario, assinaturaInfo) => {
+  // Gerar ID único para este token
+  const tokenId = crypto.randomBytes(16).toString('hex');
+  
+  // Claims de assinatura
+  const subscriptionClaims = {
+    plan: assinaturaInfo.plano || 'FREE',
+    active: assinaturaInfo.ativa || false
+  };
+  
+  // Se houver data de expiração, incluir
+  if (assinaturaInfo.validade) {
+    subscriptionClaims.exp_date = assinaturaInfo.validade.getTime();
+  }
+  
+  // Criar token com todas as informações necessárias
+  return jwt.sign({
+    id: usuario._id || usuario.id,
+    name: usuario.nome || usuario.username,
+    email: usuario.email,
+    subscription: subscriptionClaims,
+    jti: tokenId // JWT ID único
+  }, config.jwt.secret, { expiresIn: '24h' });
+};
+
+// Middleware otimizado para verificação de token e assinatura
+const verificarTokenJWT = (req, res, next) => {
+  console.log('[AUTH] Verificando token JWT');
+  
+  // Extrair token
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.startsWith('Bearer ') 
+    ? authHeader.slice(7) 
+    : null;
+  
+  if (!token) {
+    console.log('[AUTH] Token não encontrado na requisição');
+    return res.status(401).json({
+      success: false,
+      error: 'TOKEN_MISSING',
+      message: 'Acesso não autorizado. Token de autenticação necessário.'
+    });
+  }
+  
+  // Verificar se o token está na lista de tokens inválidos
+  if (tokenInvalidoCache.has(token)) {
+    console.log('[AUTH] Token previamente marcado como inválido');
+    return res.status(401).json({
+      success: false,
+      error: 'INVALID_TOKEN',
+      message: 'Acesso não autorizado. Token inválido ou expirado.'
+    });
+  }
+  
+  try {
+    // Verificar token JWT
+    const decodificado = jwt.verify(token, config.jwt.secret);
+    
+    // Verificar as claims básicas
+    if (!decodificado.id) {
+      throw new Error('Token não contém ID de usuário');
+    }
+    
+    // Armazenar dados do usuário e assinatura no objeto req
+    req.userId = decodificado.id;
+    req.userName = decodificado.name;
+    req.userEmail = decodificado.email;
+    
+    // Se o token contém informações de assinatura, usá-las diretamente
+    if (decodificado.subscription) {
+      req.subscription = {
+        active: decodificado.subscription.active,
+        plan: decodificado.subscription.plan
+      };
+      
+      // Verificar se a assinatura não está expirada
+      if (decodificado.subscription.exp_date) {
+        req.subscription.active = 
+          decodificado.subscription.active && 
+          new Date(decodificado.subscription.exp_date) > new Date();
+      }
+      
+      console.log(`[AUTH] Token contém informações de assinatura: ${req.subscription.active ? 'Ativa' : 'Inativa'}, Plano: ${req.subscription.plan}`);
+    } else {
+      // Sem informações de assinatura no token
+      console.log('[AUTH] Token não contém informações de assinatura, será verificado no banco');
+      req.subscription = null;
+    }
+    
+    next();
+  } catch (error) {
+    console.error('[AUTH] Erro ao verificar token:', error.message);
+    
+    // Armazenar token inválido no cache para bloqueio futuro
+    tokenInvalidoCache.set(token, true);
+    
+    return res.status(401).json({
+      success: false,
+      error: 'INVALID_TOKEN',
+      message: 'Acesso não autorizado. Token inválido ou expirado.'
+    });
+  }
+};
+
+// Middleware para verificar assinatura (após verificar token)
+const verificarAssinatura = (planosPermitidos = ['BASIC', 'PRO', 'PREMIUM']) => async (req, res, next) => {
+  console.log(`[AUTH] Verificando assinatura para acesso. Planos permitidos: ${planosPermitidos.join(', ')}`);
+  
+  // Se estamos em modo de desenvolvimento, podemos ignorar a verificação
+  if (DEV_MODE) {
+    console.log('[AUTH] Modo de desenvolvimento ativado, ignorando verificação de assinatura');
+    req.userPlan = DEV_USER_PLAN || 'PREMIUM';
+    req.hasValidSubscription = true;
+    return next();
+  }
+  
+  // Se já temos informações de assinatura do token e elas são positivas
+  if (req.subscription && req.subscription.active && 
+      planosPermitidos.includes(req.subscription.plan)) {
+    console.log(`[AUTH] Assinatura verificada via token JWT: Plano ${req.subscription.plan}`);
+    req.userPlan = req.subscription.plan;
+    req.hasValidSubscription = true;
+    return next();
+  }
+  
+  // Se não temos informações de assinatura ou elas estão desatualizadas, verificar no banco
+  try {
+    console.log(`[AUTH] Verificando assinatura no banco para usuário ${req.userId}`);
+    
+    // Verificar assinatura no banco de dados
+    const assinaturaInfo = await verificarAssinaturaComCache(req.userId);
+    
+    // Log detalhado para diagnóstico
+    console.log(`[AUTH] Informações de assinatura obtidas do banco: ${JSON.stringify(assinaturaInfo)}`);
+    
+    // Verificar se o usuário tem assinatura ativa com plano permitido
+    if (assinaturaInfo.temAssinatura && planosPermitidos.includes(assinaturaInfo.plano)) {
+      console.log(`[AUTH] Assinatura verificada via banco: Plano ${assinaturaInfo.plano}`);
+      req.userPlan = assinaturaInfo.plano;
+      req.hasValidSubscription = true;
+      next();
+    } else {
+      console.log(`[AUTH] Assinatura insuficiente: ${assinaturaInfo.temAssinatura ? 'Ativa' : 'Inativa'}, Plano: ${assinaturaInfo.plano}`);
+      
+      // Resposta padronizada para erro de assinatura
+      res.status(403).json({
+        success: false,
+        error: 'SUBSCRIPTION_REQUIRED',
+        message: 'Você precisa de uma assinatura ativa para acessar estes dados',
+        requiresSubscription: true
+      });
+    }
+  } catch (error) {
+    console.error('[AUTH] Erro ao verificar assinatura:', error);
+    
+    // Resposta de erro para problemas na verificação
+    res.status(403).json({
+      success: false,
+      error: 'SUBSCRIPTION_CHECK_ERROR',
+      message: 'Erro ao verificar assinatura. Tente novamente mais tarde.',
+      requiresSubscription: true
+    });
+  }
+};
+
+// Middleware para garantir conexão com MongoDB estabelecida
+const garantirConexaoMongoDB = (req, res, next) => {
+  if (!isConnected || !db || !collection) {
+    return res.status(503).json({
+      success: false,
+      error: 'DATABASE_UNAVAILABLE',
+      message: 'Serviço temporariamente indisponível. Tente novamente mais tarde.'
+    });
+  }
+  next();
+};
+
+// Rate Limiting simples para limitar requisições por IP
+const rateLimiter = (limitePorMinuto, janela = 60 * 1000) => {
+  // Armazenar contadores para cada IP
+  const requestCounts = {};
+  
+  // Limpar contadores periodicamente
+  setInterval(() => {
+    for (const ip in requestCounts) {
+      if (Date.now() - requestCounts[ip].timestamp > janela) {
+        delete requestCounts[ip];
+      }
+    }
+  }, janela);
+  
+  // Middleware de rate limiting
+  return (req, res, next) => {
+    const ip = req.ip;
+    
+    // Inicializar contador se não existir
+    if (!requestCounts[ip]) {
+      requestCounts[ip] = {
+        count: 0,
+        timestamp: Date.now()
+      };
+    }
+    
+    // Se o contador está muito antigo, resetar
+    if (Date.now() - requestCounts[ip].timestamp > janela) {
+      requestCounts[ip] = {
+        count: 0,
+        timestamp: Date.now()
+      };
+    }
+    
+    // Incrementar contador
+    requestCounts[ip].count++;
+    
+    // Verificar se excedeu o limite
+    if (requestCounts[ip].count > limitePorMinuto) {
+      return res.status(429).json({
+        success: false,
+        error: 'RATE_LIMIT_EXCEEDED',
+        message: 'Muitas requisições. Tente novamente mais tarde.'
+      });
+    }
+    
+    next();
+  };
+};
+
+// Função para obter limite com base no plano do usuário
+const getLimitForPlan = (plan) => {
+  switch (plan) {
+    case 'BASIC':
+      return config.subscription.plans.BASIC.limit;
+    case 'PRO':
+      return config.subscription.plans.PRO.limit;
+    case 'PREMIUM':
+      return config.subscription.plans.PREMIUM.limit;
+    default:
+      return config.subscription.plans.FREE.limit;
+  }
+};
 
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
@@ -361,115 +778,383 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Rota para listar todas as roletas (endpoint em inglês)
-app.get('/api/roulettes', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/roulettes');
-  
-  try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json([]);
-    }
-    
-    // Obter roletas únicas da coleção
-    const roulettes = await collection.aggregate([
-      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-      { $project: { _id: 0, id: 1, nome: "$_id" } }
-    ]).toArray();
-    
-    console.log(`[API] Processadas ${roulettes.length} roletas`);
-    res.json(roulettes);
-  } catch (error) {
-    console.error('[API] Erro ao listar roletas:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
-  }
-});
+// Configurações de modo de desenvolvimento - DESATIVAR EM PRODUÇÃO
+const DEV_MODE = false; // Quando true, ignora verificação de assinatura para testes
+const DEV_USER_PLAN = null; // 'BASIC', 'PRO', 'PREMIUM', ou null para usar verificação normal
 
-// Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
-app.get('/api/ROULETTES', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
-  console.log('[API] Query params:', req.query);
+// Middleware centralizado para verificação de assinatura
+const verificarAssinaturaMiddleware = async (req, res, next) => {
+  console.log('[AUTH] Verificando assinatura para rota:', req.path);
   
-  // Aplicar cabeçalhos CORS explicitamente para esta rota
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (DEV_MODE) {
+    console.log('[AUTH] Modo de desenvolvimento ativado, pulando verificação');
+    req.userPlan = DEV_USER_PLAN || 'PREMIUM';
+    req.hasValidSubscription = true;
+    return next();
+    }
+    
+  // Extrair token do cabeçalho Authorization
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.startsWith('Bearer ') 
+    ? authHeader.slice(7) 
+    : null;
+  
+  // Se não tem token, bloqueie o acesso
+  if (!token) {
+    console.log('[AUTH] Requisição sem token de autenticação');
+    return res.status(403).json({
+      success: false,
+      error: 'TOKEN_MISSING',
+      message: 'Acesso não autorizado. Autenticação necessária.',
+      requiresSubscription: true
+    });
+  }
   
   try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json([]);
+    // Verificar e decodificar o token
+    const decodificado = jwt.verify(token, config.jwt.secret);
+    const userId = decodificado.id;
+    console.log(`[AUTH] Token verificado para usuário ID: ${userId}`);
+    
+    // Verificar se o usuário existe
+    const usuario = await db.collection('usuarios').findOne({ 
+      $or: [
+        { id: userId },
+        { _id: ObjectId.isValid(userId) ? new ObjectId(userId) : null }
+      ]
+    });
+    
+    if (!usuario) {
+      console.log(`[AUTH] Usuário não encontrado para ID: ${userId}`);
+      return res.status(403).json({
+        success: false,
+        error: 'USER_NOT_FOUND',
+        message: 'Acesso não autorizado. Usuário não encontrado.',
+        requiresSubscription: true
+      });
     }
     
-    // Verificar se a coleção tem dados
-    const count = await collection.countDocuments();
-    console.log(`[API] Total de documentos na coleção: ${count}`);
+    console.log(`[AUTH] Usuário encontrado: ${usuario.nome || usuario.username || 'Sem nome'}`);
+
+    // Verificação de assinatura (mais detalhada e com logs)
+    let temAssinaturaAtiva = false;
+    let planoUsuario = 'FREE';
     
-    if (count === 0) {
-      console.log('[API] Nenhum dado encontrado na coleção');
-      return res.json([]);
+    // 1. Verificar na coleção 'subscriptions'
+    console.log(`[AUTH] Verificando assinatura em 'subscriptions' para usuário ${userId}`);
+    const userSubscription = await db.collection('subscriptions').findOne({
+      user_id: userId,
+      status: { $in: ['active', 'ACTIVE', 'ativa'] }
+    });
+    
+    if (userSubscription) {
+      console.log(`[AUTH] Assinatura encontrada em 'subscriptions': ${JSON.stringify(userSubscription.plan_id)}`);
+      
+      // Verificar se a assinatura está válida
+      const isExpired = userSubscription.expirationDate && new Date(userSubscription.expirationDate) < new Date();
+      
+      if (isExpired) {
+        console.log(`[AUTH] Assinatura expirada em: ${userSubscription.expirationDate}`);
+      } else if (['BASIC', 'PRO', 'PREMIUM'].includes(userSubscription.plan_id)) {
+        console.log(`[AUTH] Assinatura válida com plano: ${userSubscription.plan_id}`);
+        temAssinaturaAtiva = true;
+        planoUsuario = userSubscription.plan_id;
+      } else {
+        console.log(`[AUTH] Plano não válido para acesso: ${userSubscription.plan_id}`);
+      }
+    } else {
+      console.log(`[AUTH] Nenhuma assinatura encontrada em 'subscriptions'`);
     }
     
-    // Parâmetros de paginação
-    const limit = parseInt(req.query.limit) || 200;
-    console.log(`[API] Usando limit: ${limit}`);
+    // 2. Se não encontrou na collection principal, verificar em 'assinaturas'
+    if (!temAssinaturaAtiva) {
+      console.log(`[AUTH] Verificando assinatura em 'assinaturas' para usuário ${userId}`);
+      
+      const assinatura = await db.collection('assinaturas').findOne({
+        usuario: ObjectId.isValid(userId) ? new ObjectId(userId) : userId,
+        status: 'ativa',
+        validade: { $gt: new Date() }
+      });
+      
+      if (assinatura) {
+        console.log(`[AUTH] Assinatura encontrada em 'assinaturas': ${JSON.stringify(assinatura.plano)}`);
+        
+        if (['BASIC', 'PRO', 'PREMIUM'].includes(assinatura.plano)) {
+          console.log(`[AUTH] Assinatura válida com plano: ${assinatura.plano}`);
+          temAssinaturaAtiva = true;
+          planoUsuario = assinatura.plano;
+        } else {
+          console.log(`[AUTH] Plano não válido para acesso: ${assinatura.plano}`);
+        }
+      } else {
+        console.log(`[AUTH] Nenhuma assinatura válida encontrada em 'assinaturas'`);
+      }
+    }
+    
+    // Se não tem assinatura ativa, bloquear acesso
+    if (!temAssinaturaAtiva) {
+      console.log(`[AUTH] Acesso negado: usuário ${userId} sem assinatura ativa`);
+      return res.status(403).json({
+        success: false,
+        error: 'SUBSCRIPTION_REQUIRED',
+        message: 'Acesso não autorizado. Você precisa de uma assinatura ativa para acessar estes dados.',
+        requiresSubscription: true
+      });
+    }
+    
+    // Se chegou aqui, o usuário tem uma assinatura válida
+    console.log(`[AUTH] Acesso autorizado para usuário ${userId} com plano ${planoUsuario}`);
+    
+    // Adicionar informações do usuário e plano ao objeto req para uso posterior
+    req.userId = userId;
+    req.userPlan = planoUsuario;
+    req.hasValidSubscription = true;
+    req.username = usuario.nome || usuario.username;
+    
+    // Continuar para o próximo middleware ou rota
+    next();
+    
+  } catch (error) {
+    console.error(`[AUTH] Erro na verificação de token/assinatura:`, error.message);
+    return res.status(403).json({
+      success: false,
+      error: 'AUTHENTICATION_ERROR',
+      message: 'Acesso não autorizado. Erro na autenticação.',
+      requiresSubscription: true
+    });
+  }
+};
+
+// Substituir a rota existente /api/ROULETTES com o novo sistema
+app.get('/api/ROULETTES', [
+  rateLimiter(60), // 60 requisições por minuto
+  verificarTokenJWT,
+  garantirConexaoMongoDB,
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
+  console.log('[API] Requisição autenticada recebida para /api/ROULETTES');
+  
+  try {
+    // Usuário já está autenticado e com assinatura verificada pelo middleware
+    console.log(`[API] Processando requisição para usuário ${req.userId} com plano ${req.userPlan}`);
+    
+    // Obter o valor do parâmetro "limit" da requisição
+    const requestedLimit = parseInt(req.query.limit) || 100;
+    
+    // Obter o limite máximo para o plano do usuário
+    const planLimit = getLimitForPlan(req.userPlan);
+    
+    // Garantir que o limit não exceda o valor máximo permitido para o plano
+    const finalLimit = Math.min(requestedLimit, planLimit);
+    
+    console.log(`[API] Usando limit: ${finalLimit} para plano ${req.userPlan}`);
+    
+    // Garantir uso de cache para evitar sobrecarga do banco
+    const cacheKey = `roulette_history:${req.userPlan}:${finalLimit}`;
+    const cachedData = resultCache.get(cacheKey);
+    
+    if (cachedData) {
+      console.log(`[API] Usando dados em cache para ${cacheKey}`);
+      return res.json(cachedData);
+    }
     
     // Buscar histórico de números ordenados por timestamp
     const numeros = await collection
       .find({})
       .sort({ timestamp: -1 })
-      .limit(limit)
+      .limit(finalLimit)
       .toArray();
     
     console.log(`[API] Retornando ${numeros.length} números do histórico`);
     
-    // Verificar se temos dados para retornar
-    if (numeros.length === 0) {
-      console.log('[API] Nenhum número encontrado');
-      return res.json([]);
-    }
+    // Adicionar ao cache com tempo de vida de 30 segundos
+    resultCache.set(cacheKey, numeros, 30);
     
     // Log de alguns exemplos para diagnóstico
-    console.log('[API] Exemplos de dados retornados:');
+    if (numeros.length > 0) {
+      console.log('[API] Primeiros dois resultados:');
     console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
-    
-    return res.json(numeros);
-  } catch (error) {
-    console.error('[API] Erro ao listar roletas ou histórico:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar dados' });
-  }
-});
-
-// Rota para listar todas as roletas (endpoint em português - compatibilidade)
-app.get('/api/roletas', async (req, res) => {
-  console.log('[API] Endpoint de compatibilidade /api/roletas acessado');
-  try {
-    if (!isConnected) {
-      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
     }
     
-    // Obter roletas únicas da coleção
-    const roulettes = await collection.aggregate([
-      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-      { $project: { _id: 0, id: 1, nome: "$_id" } }
-    ]).toArray();
-    
-    res.json(roulettes);
+    res.json(numeros);
   } catch (error) {
-    console.error('Erro ao listar roletas:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+    console.error('[API] Erro ao buscar números:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
 
-// Rota para buscar números por nome da roleta
-app.get('/api/numbers/:roletaNome', async (req, res) => {
+// Substituir a rota existente /api/ROULETTES/historico com o novo sistema
+app.get('/api/ROULETTES/historico', [
+  rateLimiter(60),
+  verificarTokenJWT,
+  garantirConexaoMongoDB,
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
+  console.log('[API] Requisição autenticada recebida para /api/ROULETTES/historico');
+  
+  try {
+    // Usuário já está autenticado e com assinatura verificada pelo middleware
+    console.log(`[API] Processando histórico para usuário ${req.userId} com plano ${req.userPlan}`);
+    
+    // Obter o limite máximo para o plano do usuário
+    const planLimit = getLimitForPlan(req.userPlan);
+    
+    // Verificar se temos dados em cache
+    const cacheKey = `roulette_full_history:${req.userPlan}`;
+    const cachedData = resultCache.get(cacheKey);
+    
+    if (cachedData) {
+      console.log(`[API] Usando dados em cache para histórico completo`);
+      return res.json(cachedData);
+    }
+    
+    // Obter histórico de números jogados com limite baseado no plano
+    const historico = await collection
+      .find({})
+      .sort({ timestamp: -1 })
+      .limit(planLimit)
+      .toArray();
+    
+    if (historico.length > 0) {
+      console.log(`[API] Retornando histórico com ${historico.length} entradas para plano ${req.userPlan}`);
+      
+      // Adicionar ao cache com tempo de vida de 60 segundos
+      resultCache.set(cacheKey, historico, 60);
+    
+      res.json(historico);
+    } else {
+      console.log('[API] Histórico vazio');
+      res.status(404).json({ error: 'Histórico vazio' });
+    }
+  } catch (error) {
+    console.error('[API] Erro ao buscar histórico:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Adicionar rota para atualizar token com informações de assinatura atualizadas
+app.post('/api/refresh-token', verificarTokenJWT, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    // Buscar usuário atualizado
+    const usuario = await db.collection('usuarios').findOne({ 
+      $or: [
+        { id: userId },
+        { _id: ObjectId.isValid(userId) ? new ObjectId(userId) : null }
+      ]
+    });
+    
+    if (!usuario) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'USER_NOT_FOUND',
+        message: 'Usuário não encontrado'
+      });
+    }
+    
+    // Buscar assinatura atualizada
+    const assinaturaInfo = await verificarAssinaturaComCache(userId);
+    
+    // Gerar novo token com informações atualizadas
+    const newToken = gerarTokenComAssinatura(usuario, {
+      plano: assinaturaInfo.plano,
+      ativa: assinaturaInfo.temAssinatura
+    });
+    
+    // Retornar novo token
+    res.json({
+      success: true,
+      token: newToken,
+      subscription: {
+        active: assinaturaInfo.temAssinatura,
+        plan: assinaturaInfo.plano
+      }
+    });
+  } catch (error) {
+    console.error('[API] Erro ao atualizar token:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'TOKEN_REFRESH_ERROR',
+      message: 'Erro ao atualizar token'
+    });
+  }
+});
+
+// Atualizar outras rotas protegidas com os novos middlewares
+app.get('/api/historico', [
+  rateLimiter(60),
+  verificarTokenJWT,
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
+  console.log('[API] Requisição autenticada recebida para /api/historico');
+  console.log('[API] Query params:', req.query);
+  
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json({ data: [], total: 0 });
+    }
+    
+    // Parâmetros de consulta
+    const requestedLimit = parseInt(req.query.limit) || 500;
+    const skip = parseInt(req.query.skip) || 0;
+    
+    // Obter o limite máximo para o plano do usuário
+    const planLimit = getLimitForPlan(req.userPlan);
+    
+    // Garantir que o limit não exceda o valor máximo permitido para o plano
+    const finalLimit = Math.min(requestedLimit, planLimit);
+    
+    // Filtros opcionais
+    const filtros = {};
+    if (req.query.roleta_id) filtros.roleta_id = req.query.roleta_id;
+    if (req.query.roleta_nome) filtros.roleta_nome = req.query.roleta_nome;
+    
+    console.log(`[API] Buscando histórico com filtros:`, filtros);
+    console.log(`[API] Limit: ${finalLimit}, Skip: ${skip}`);
+    
+    // Buscar dados com paginação
+    const numeros = await collection
+      .find(filtros)
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(finalLimit)
+      .toArray();
+    
+    // Contar total de documentos
+    const total = await collection.countDocuments(filtros);
+    
+    console.log(`[API] Retornando ${numeros.length} registros de um total de ${total}`);
+    
+    res.json({
+      data: numeros,
+      total,
+      limit: finalLimit,
+      skip,
+      plan: req.userPlan
+    });
+  } catch (error) {
+    console.error('[API] Erro ao buscar histórico:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar histórico' });
+  }
+});
+
+app.get('/api/numbers/:roletaNome', [
+  rateLimiter(60),
+  verificarTokenJWT, 
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
   try {
     if (!isConnected) {
       return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
     }
     
     const roletaNome = req.params.roletaNome;
-    const limit = parseInt(req.query.limit) || 20;
+    // Usar o limite do plano
+    const requestedLimit = parseInt(req.query.limit) || 20;
+    const planLimit = getLimitForPlan(req.userPlan);
+    const limit = Math.min(requestedLimit, planLimit);
     
     // Buscar números da roleta especificada
     const numbers = await collection
@@ -485,15 +1170,21 @@ app.get('/api/numbers/:roletaNome', async (req, res) => {
   }
 });
 
-// Rota para buscar números por ID da roleta
-app.get('/api/numbers/byid/:roletaId', async (req, res) => {
+app.get('/api/numbers/byid/:roletaId', [
+  rateLimiter(60),
+  verificarTokenJWT,
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
   try {
     if (!isConnected) {
       return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
     }
     
     const roletaId = req.params.roletaId;
-    const limit = parseInt(req.query.limit) || 20;
+    // Usar o limite do plano
+    const requestedLimit = parseInt(req.query.limit) || 20;
+    const planLimit = getLimitForPlan(req.userPlan);
+    const limit = Math.min(requestedLimit, planLimit);
     
     // Buscar números da roleta especificada
     const numbers = await collection
@@ -509,68 +1200,42 @@ app.get('/api/numbers/byid/:roletaId', async (req, res) => {
   }
 });
 
-// Endpoint de compatibilidade para obter detalhes de uma roleta por ID
-app.get('/api/roletas/:id', async (req, res) => {
-  console.log('[API] Endpoint de compatibilidade /api/roletas/:id acessado');
+// Rota para listar todas as roletas (endpoint em português - compatibilidade)
+app.get('/api/roletas', [
+  rateLimiter(60), // 60 requisições por minuto
+  verificarTokenJWT,
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
+  console.log('[API] Endpoint de compatibilidade /api/roletas acessado');
   try {
     if (!isConnected) {
       return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
     }
     
-    const roletaId = req.params.id;
+    console.log(`[API] Usuário autenticado: ${req.userId} com plano ${req.userPlan || 'N/A'}`);
     
-    // Buscar informações da roleta especificada
-    const roleta = await db.collection('roletas').findOne({ id: roletaId });
+    // Obter roletas únicas da coleção
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
     
-    if (!roleta) {
-      return res.status(404).json({ error: 'Roleta não encontrada' });
-    }
-    
-    res.json(roleta);
+    console.log(`[API] Retornando ${roulettes.length} roletas para usuário com plano ${req.userPlan}`);
+    res.json(roulettes);
   } catch (error) {
-    console.error('Erro ao buscar detalhes da roleta:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar detalhes da roleta' });
+    console.error('Erro ao listar roletas:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
   }
 });
 
-// Rota para inserir número (para testes)
-app.post('/api/numbers', async (req, res) => {
-  try {
-    if (!isConnected) {
-      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
-    }
-    
-    const { roleta_nome, roleta_id, numero } = req.body;
-    
-    if (!roleta_nome || !numero) {
-      return res.status(400).json({ error: 'Campos obrigatórios: roleta_nome, numero' });
-    }
-    
-    // Determinar a cor do número
-    let cor = 'verde';
-    if (numero > 0) {
-      const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-      cor = numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
-    }
-    
-    // Inserir novo número
-    const result = await collection.insertOne({
-      roleta_nome, 
-      roleta_id: roleta_id || 'unknown',
-      numero: parseInt(numero),
-      cor,
-      timestamp: new Date().toISOString()
-    });
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'Número inserido com sucesso',
-      id: result.insertedId
-    });
-  } catch (error) {
-    console.error('Erro ao inserir número:', error);
-    res.status(500).json({ error: 'Erro interno ao inserir número' });
-  }
+// Redirecionar /api/roulettes para /api/ROULETTES (case-insensitive)
+app.get('/api/roulettes', (req, res) => {
+  console.log('[API] Redirecionando /api/roulettes para /api/ROULETTES');
+  // Preservar todos os query params na URL redirecionada
+  const queryString = Object.keys(req.query).length > 0 
+    ? '?' + new URLSearchParams(req.query).toString() 
+    : '';
+  res.redirect(307, `/api/ROULETTES${queryString}`);
 });
 
 // Rota para buscar número específico por ID
@@ -669,88 +1334,6 @@ app.get('/disable-cors-check', (req, res) => {
     cors: 'disabled',
     origin: req.headers.origin || 'unknown'
   });
-});
-
-// Endpoint específico para buscar histórico completo
-app.get('/api/historico', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/historico');
-  console.log('[API] Query params:', req.query);
-  
-  try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json({ data: [], total: 0 });
-    }
-    
-    // Parâmetros de consulta
-    const limit = parseInt(req.query.limit) || 2000;  // Aumentado para retornar mais registros
-    const skip = parseInt(req.query.skip) || 0;
-    
-    // Filtros opcionais
-    const filtros = {};
-    if (req.query.roleta_id) filtros.roleta_id = req.query.roleta_id;
-    if (req.query.roleta_nome) filtros.roleta_nome = req.query.roleta_nome;
-    
-    console.log(`[API] Buscando histórico com filtros:`, filtros);
-    console.log(`[API] Limit: ${limit}, Skip: ${skip}`);
-    
-    // Buscar dados com paginação
-    const numeros = await collection
-      .find(filtros)
-      .sort({ timestamp: -1 })
-      .skip(skip)
-      .limit(limit)
-      .toArray();
-    
-    // Contar total de documentos
-    const total = await collection.countDocuments(filtros);
-    
-    console.log(`[API] Retornando ${numeros.length} registros de um total de ${total}`);
-    
-    res.json({
-      data: numeros,
-      total,
-      limit,
-      skip
-    });
-  } catch (error) {
-    console.error('[API] Erro ao buscar histórico:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar histórico' });
-  }
-});
-
-// Rota específica para o histórico
-app.get('/api/ROULETTES/historico', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/ROULETTES/historico');
-  
-  // Configurar CORS explicitamente para esta rota
-  configureCors(req, res);
-  
-  // Responder com o histórico
-  try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json([]);
-    }
-    
-    // Obter histórico de números jogados
-    const historico = await collection
-      .find({})
-      .sort({ timestamp: -1 })
-      .limit(2000)  // Aumentado para retornar mais registros
-      .toArray();
-    
-    if (historico.length > 0) {
-      console.log(`[API] Retornando histórico com ${historico.length} entradas`);
-      res.json(historico);
-    } else {
-      console.log('[API] Histórico vazio');
-      res.status(404).json({ error: 'Histórico vazio' });
-    }
-  } catch (error) {
-    console.error('[API] Erro ao buscar histórico:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
 });
 
 // Manipulador OPTIONS específico para /api/ROULETTES
@@ -946,4 +1529,93 @@ app.get('/api/status', async (req, res) => {
       error: error.message
     });
   }
+});
+
+// Função para fazer proxy de requisições para a API
+const proxyRequest = async (req, res) => {
+  try {
+    const method = req.method.toLowerCase();
+    const url = `${API_SERVICE_URL}${req.originalUrl}`;
+    
+    console.log(`[PROXY] Redirecionando ${method.toUpperCase()} ${req.originalUrl} para ${url}`);
+    
+    // Preservar headers da requisição original
+    const headers = { ...req.headers };
+    
+    // Remover headers de host para evitar conflitos
+    delete headers.host;
+    
+    // Fazer requisição para o serviço da API
+    const response = await axios({
+      method,
+      url,
+      headers,
+      data: method !== 'get' ? req.body : undefined,
+      validateStatus: () => true, // Não lançar erro para status codes não-2xx
+      responseType: 'arraybuffer' // Para lidar com todos os tipos de respostas
+    });
+    
+    // Definir status code da resposta
+    res.status(response.status);
+    
+    // Copiar headers da resposta
+    Object.entries(response.headers).forEach(([key, value]) => {
+      // Não copiar content-length pois Express vai recalcular
+      if (key.toLowerCase() !== 'content-length') {
+        res.set(key, value);
+      }
+    });
+    
+    // Determinar o tipo de conteúdo e enviar resposta apropriada
+    const contentType = response.headers['content-type'] || '';
+    
+    if (contentType.includes('application/json')) {
+      const data = JSON.parse(response.data.toString('utf8'));
+      res.json(data);
+    } else {
+      res.send(response.data);
+    }
+  } catch (error) {
+    console.error('[PROXY] Erro ao redirecionar requisição:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao processar requisição',
+      error: error.message
+    });
+  }
+};
+
+// Middleware de verificação de autorização para todas as requisições de API
+app.use('/api/*', proteger, (req, res, next) => {
+  // Verificar planos conforme o recurso
+  if (req.originalUrl.includes('/strategy')) {
+    return verificarPlano(['BASIC', 'PRO', 'PREMIUM'])(req, res, next);
+  } else if (req.originalUrl.includes('/history')) {
+    return verificarPlano(['BASIC', 'PRO', 'PREMIUM'])(req, res, next);
+  } else {
+    next();
+  }
+});
+
+// Proxy para todas as requisições de API
+app.all('/api/*', proxyRequest);
+
+// Rota principal para verificação
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'RunCash API Server',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Rota de status do proxy
+app.get('/status', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'RunCash API Proxy Server',
+    apiServiceUrl: API_SERVICE_URL,
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
