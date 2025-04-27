@@ -3,15 +3,13 @@ import { Helmet } from 'react-helmet-async';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
 import { RouletteData } from '@/integrations/api/rouletteService';
 // import axios from 'axios'; // Removido - não precisamos mais de requisições diretas
-import { Loader2, Info } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import EventService from '@/services/EventService';
 import RouletteFeedService from '@/services/RouletteFeedService';
-import SubscriptionBadge from '@/components/subscription/SubscriptionBadge';
-import GlobalRouletteDataService from '@/services/GlobalRouletteDataService';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/context/AuthContext';
 // Remover a importação do initializeRouletteSystem pois vamos usar o service diretamente
 // import { initializeRouletteSystem } from '@/hooks/useRouletteData';
+// Importar o banner de assinatura
+import SubscriptionBanner from '@/components/SubscriptionBanner';
 
 // Flag para controlar se o componente já foi inicializado
 let IS_COMPONENT_INITIALIZED = false;
@@ -22,8 +20,6 @@ const LiveRoulettePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState<boolean>(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
-  const [subscriptionLimits, setSubscriptionLimits] = useState<any>(null);
-  const { user } = useAuth();
   
   // Obter referência ao serviço de feed centralizado sem inicializar novo polling
   const feedService = useMemo(() => {
@@ -46,6 +42,7 @@ const LiveRoulettePage: React.FC = () => {
     setRoulettes(prevRoulettes => {
       return prevRoulettes.map(roleta => {
         // Verificar se é a roleta certa
+        // @ts-ignore - A propriedade canonicalId pode existir em tempo de execução
         if (roleta.id === rouletteId || roleta._id === rouletteId || roleta.canonicalId === rouletteId) {
           // Criar um novo número no formato correto
           const newNumber = {
@@ -113,13 +110,6 @@ const LiveRoulettePage: React.FC = () => {
             setLoading(false);
           }, 5000);
         }
-        
-        // Obter informações de assinatura do usuário
-        const dataService = GlobalRouletteDataService.getInstance();
-        const subscriptionInfo = dataService.getSubscriptionInfo();
-        if (subscriptionInfo) {
-          setSubscriptionLimits(subscriptionInfo.limits);
-        }
       })
       .catch(err => {
         console.error('[LiveRoulettePage] Erro ao inicializar serviço de feed:', err);
@@ -153,17 +143,9 @@ const LiveRoulettePage: React.FC = () => {
       }
     };
     
-    // Escutar evento de atualização de assinatura
-    const handleSubscriptionUpdate = (data: any) => {
-      if (data && data.limits) {
-        setSubscriptionLimits(data.limits);
-      }
-    };
-    
     // Inscrever-se nos eventos
     EventService.on('roulette:data-updated', handleDataUpdated);
     EventService.on('roulette:new-number', handleSocketUpdate);
-    EventService.on('subscription:updated', handleSubscriptionUpdate);
     
     // Iniciar timer para verificar atualizações periódicas
     const updateCheckTimer = setInterval(() => {
@@ -191,7 +173,6 @@ const LiveRoulettePage: React.FC = () => {
       // Limpar listeners ao desmontar
       EventService.off('roulette:data-updated', handleDataUpdated);
       EventService.off('roulette:new-number', handleSocketUpdate);
-      EventService.off('subscription:updated', handleSubscriptionUpdate);
       clearInterval(updateCheckTimer);
       // Não resetamos IS_COMPONENT_INITIALIZED pois queremos garantir que só haja
       // uma inicialização durante todo o ciclo de vida da aplicação
@@ -205,32 +186,10 @@ const LiveRoulettePage: React.FC = () => {
       </Helmet>
       
       <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-          <h1 className="text-3xl font-bold">Roletas ao vivo</h1>
-          
-          {/* Adicionar badge de assinatura */}
-          <SubscriptionBadge size="md" showUpgradeButton={true} />
-        </div>
+        {/* Mostrar banner de assinatura */}
+        <SubscriptionBanner />
         
-        {/* Mostrar alerta para usuários do plano básico */}
-        {subscriptionLimits && subscriptionLimits.maxRoulettes && (
-          <Alert className="mb-4 bg-blue-50 border-blue-200">
-            <Info className="h-4 w-4 text-blue-500" />
-            <AlertDescription className="text-blue-700">
-              {user ? (
-                <>
-                  Seu plano atual permite visualizar até <strong>{subscriptionLimits.maxRoulettes}</strong> roletas e 
-                  <strong> {subscriptionLimits.maxHistoryItems}</strong> números do histórico.
-                  Faça upgrade para acessar todas as roletas sem limitações.
-                </>
-              ) : (
-                <>
-                  Faça login para acessar mais recursos e todas as roletas sem limitações.
-                </>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
+        <h1 className="text-3xl font-bold mb-6">Roletas ao vivo</h1>
         
         {/* Indicador de última atualização */}
         {initialized && !loading && (

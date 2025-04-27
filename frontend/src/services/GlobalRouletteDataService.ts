@@ -1,24 +1,8 @@
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
 
-// Tipo para informações de assinatura na resposta da API
-interface SubscriptionInfo {
-  plan: string;
-  limits: {
-    maxRoulettes: number | null;
-    maxHistoryItems: number | null;
-    refreshInterval: number;
-  }
-}
-
-// Tipo para a resposta da API com envelope
-interface ApiResponse<T> {
-  data: T;
-  subscription?: SubscriptionInfo;
-}
-
 // Intervalo de polling padrão em milissegundos (4 segundos)
-const DEFAULT_POLLING_INTERVAL = 4000;
+const POLLING_INTERVAL = 4000;
 
 // Tempo de vida do cache em milissegundos (15 segundos)
 // const CACHE_TTL = 15000;
@@ -51,10 +35,6 @@ class GlobalRouletteDataService {
   private subscribers: Map<string, SubscriberCallback> = new Map();
   private _currentFetchPromise: Promise<any[]> | null = null;
   
-  // Informações da assinatura do usuário
-  private subscriptionInfo: SubscriptionInfo | null = null;
-  private pollingInterval: number = DEFAULT_POLLING_INTERVAL;
-  
   // Construtor privado para garantir Singleton
   private constructor() {
     console.log('[GlobalRouletteService] Inicializando serviço global de roletas');
@@ -82,40 +62,17 @@ class GlobalRouletteDataService {
     // Buscar dados imediatamente
     this.fetchRouletteData();
     
-    // Configurar polling com intervalo baseado na assinatura
+    // Configurar polling
     this.pollingTimer = window.setInterval(() => {
       this.fetchRouletteData();
-    }, this.pollingInterval) as unknown as number;
+    }, POLLING_INTERVAL) as unknown as number;
     
-    console.log(`[GlobalRouletteService] Polling iniciado com intervalo de ${this.pollingInterval}ms`);
+    console.log(`[GlobalRouletteService] Polling iniciado com intervalo de ${POLLING_INTERVAL}ms`);
     
     // Adicionar manipuladores de visibilidade para pausar quando a página não estiver visível
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     window.addEventListener('focus', this.resumePolling);
     window.addEventListener('blur', this.handleVisibilityChange);
-  }
-  
-  /**
-   * Atualiza o intervalo de polling com base na assinatura
-   */
-  private updatePollingInterval(): void {
-    if (this.subscriptionInfo && this.subscriptionInfo.limits.refreshInterval) {
-      // Usar o intervalo definido pela assinatura
-      this.pollingInterval = this.subscriptionInfo.limits.refreshInterval;
-    } else {
-      // Usar intervalo padrão
-      this.pollingInterval = DEFAULT_POLLING_INTERVAL;
-    }
-    
-    // Reiniciar polling com novo intervalo
-    if (this.pollingTimer) {
-      window.clearInterval(this.pollingTimer);
-      this.pollingTimer = window.setInterval(() => {
-        this.fetchRouletteData();
-      }, this.pollingInterval) as unknown as number;
-      
-      console.log(`[GlobalRouletteService] Intervalo de polling atualizado para ${this.pollingInterval}ms`);
-    }
   }
   
   /**
@@ -142,7 +99,7 @@ class GlobalRouletteDataService {
       this.fetchRouletteData(); // Buscar dados imediatamente
       this.pollingTimer = window.setInterval(() => {
         this.fetchRouletteData();
-      }, this.pollingInterval) as unknown as number;
+      }, POLLING_INTERVAL) as unknown as number;
     }
   }
   
@@ -179,30 +136,19 @@ class GlobalRouletteDataService {
       // Criar e armazenar a promessa atual
       this._currentFetchPromise = (async () => {
         // Usar a função utilitária com suporte a CORS - com limit=1000 para todos os casos
-        const response = await fetchWithCorsSupport<ApiResponse<any[]> | any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
         
-        // Verificar se a resposta está no formato de envelope com informações de assinatura
-        if (response && typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
-          console.log(`[GlobalRouletteService] Dados recebidos com envelope: ${response.data.length} roletas`);
-          
-          // Extrair e armazenar informações da assinatura
-          if (response.subscription) {
-            this.subscriptionInfo = response.subscription;
-            console.log(`[GlobalRouletteService] Informações de assinatura atualizadas: ${this.subscriptionInfo.plan}`);
-            
-            // Atualizar o intervalo de polling conforme o plano
-            this.updatePollingInterval();
-            
-            // Emitir evento de assinatura atualizada
-            EventService.emit('subscription:updated', {
-              plan: this.subscriptionInfo.plan,
-              limits: this.subscriptionInfo.limits
-            });
-          }
-          
-          // Usar os dados contidos no envelope
-          this.rouletteData = response.data;
+        // Verificar se os dados são válidos
+        if (data && Array.isArray(data)) {
+          console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
+          this.rouletteData = data;
           this.lastFetchTime = now;
+          
+          // Remover armazenamento no localStorage
+          // localStorage.setItem('global_roulette_data', JSON.stringify({
+          //   timestamp: now,
+          //   data: data
+          // }));
           
           // Notificar todos os assinantes sobre a atualização
           this.notifySubscribers();
@@ -210,30 +156,11 @@ class GlobalRouletteDataService {
           // Emitir evento global para outros componentes que possam estar ouvindo
           EventService.emit('roulette:data-updated', {
             timestamp: new Date().toISOString(),
-            count: response.data.length,
-            source: 'central-service',
-            subscriptionPlan: this.subscriptionInfo?.plan || 'basic'
-          });
-          
-          return response.data;
-        }
-        // Verificar se a resposta é um array direto (formato antigo)
-        else if (Array.isArray(response)) {
-          console.log(`[GlobalRouletteService] Dados recebidos em formato antigo: ${response.length} roletas`);
-          this.rouletteData = response;
-          this.lastFetchTime = now;
-          
-          // Notificar todos os assinantes sobre a atualização
-          this.notifySubscribers();
-          
-          // Emitir evento global para outros componentes que possam estar ouvindo
-          EventService.emit('roulette:data-updated', {
-            timestamp: new Date().toISOString(),
-            count: response.length,
+            count: data.length,
             source: 'central-service'
           });
           
-          return response;
+          return data;
         } else {
           console.error('[GlobalRouletteService] Resposta inválida da API');
           return this.rouletteData;
@@ -248,34 +175,6 @@ class GlobalRouletteDataService {
       this.isFetching = false;
       this._currentFetchPromise = null;
     }
-  }
-  
-  /**
-   * Retorna as informações da assinatura atual
-   */
-  public getSubscriptionInfo(): SubscriptionInfo | null {
-    return this.subscriptionInfo;
-  }
-  
-  /**
-   * Verifica se o usuário está no plano básico
-   */
-  public isBasicPlan(): boolean {
-    return !this.subscriptionInfo || this.subscriptionInfo.plan === 'basic';
-  }
-  
-  /**
-   * Verifica se o usuário possui plano premium ou superior
-   */
-  public isPremiumOrAbove(): boolean {
-    return this.subscriptionInfo?.plan === 'premium' || this.subscriptionInfo?.plan === 'vip';
-  }
-  
-  /**
-   * Verifica se o usuário possui plano VIP
-   */
-  public isVipPlan(): boolean {
-    return this.subscriptionInfo?.plan === 'vip';
   }
   
   /**

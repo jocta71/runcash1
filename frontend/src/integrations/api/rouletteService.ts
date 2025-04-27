@@ -4,6 +4,7 @@ import axios from 'axios';
 export interface RouletteData {
   _id?: string;
   id?: string;
+  canonicalId?: string;  // ID canônico para correspondência entre sistemas
   nome?: string;
   name?: string;
   numero?: Array<any>;   // Mantendo apenas o campo singular
@@ -11,6 +12,7 @@ export interface RouletteData {
   ativa?: boolean;
   vitorias?: number;
   derrotas?: number;
+  uuid?: string;        // UUID original
 }
 
 export interface LatestRouletteNumber {
@@ -78,6 +80,7 @@ export const fetchRoulettes = async (): Promise<RouletteData[]> => {
           ...roleta,
           _id: canonicalId,       // Adicionar o ID canônico
           uuid: uuid,             // Preservar o UUID original
+          canonicalId: canonicalId, // Explicitar o ID canônico
           numero: numerosArray,   // Usar sempre o campo "numero" (singular)
           numeros: undefined      // Remover campo "numeros" (plural)
         };

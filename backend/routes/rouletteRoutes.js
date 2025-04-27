@@ -5,6 +5,8 @@
 
 const express = require('express');
 const router = express.Router();
+const verificarAssinaturaRoletas = require('../../middleware/verificarAssinaturaRoletas');
+const DadosSimuladosService = require('../../services/DadosSimuladosService');
 
 // Importar middlewares simplificados
 let authMiddleware;
@@ -69,6 +71,52 @@ if (!rouletteController) {
 }
 
 /**
+ * Middleware para verificar acesso a dados específicos de roletas
+ * Redireciona para dados simulados ou reais com base na assinatura
+ */
+const verificarAcessoRoleta = (req, res, next) => {
+  // Se não tiver nível de acesso definido, aplicar o middleware
+  if (!req.nivelAcessoRoletas) {
+    return verificarAssinaturaRoletas(req, res, () => {
+      handleRouletteAccess(req, res, next);
+    });
+  }
+  
+  // Se já tiver nível de acesso definido, verificar diretamente
+  handleRouletteAccess(req, res, next);
+};
+
+/**
+ * Função auxiliar para tratar o acesso baseado no nível
+ */
+const handleRouletteAccess = (req, res, next) => {
+  // Se for acesso simulado, retornar dados simulados
+  if (req.nivelAcessoRoletas === 'simulado') {
+    // Obter ID da roleta da URL
+    const roletaId = req.params.id;
+    
+    // Obter limite da query string
+    const limit = parseInt(req.query.limit) || 20;
+    
+    // Buscar dados simulados
+    const dadosSimulados = DadosSimuladosService.obterRoletaSimuladaPorId(roletaId, limit);
+    
+    // Se não encontrou dados simulados para este ID, tente usar um ID padrão
+    if (!dadosSimulados) {
+      return res.json(DadosSimuladosService.obterRoletaSimuladaPorId('sim_001', limit));
+    }
+    
+    return res.json(dadosSimulados);
+  }
+  
+  // Caso contrário, continuar para o próximo middleware (dados reais)
+  next();
+};
+
+// Aplicar verificação de assinatura a todas as rotas
+router.use(verificarAssinaturaRoletas);
+
+/**
  * @route   GET /api/roulettes
  * @desc    Lista todas as roletas disponíveis (limitado por plano)
  * @access  Privado - Requer autenticação básica
@@ -85,6 +133,7 @@ router.get('/roulettes',
  */
 router.get('/roulettes/:id/basic', 
   proteger,
+  verificarAcessoRoleta,
   rouletteController.getBasicRouletteData
 );
 
@@ -95,6 +144,7 @@ router.get('/roulettes/:id/basic',
  */
 router.get('/roulettes/:id/recent', 
   proteger,
+  verificarAcessoRoleta,
   rouletteController.getRecentNumbers
 );
 
@@ -105,7 +155,7 @@ router.get('/roulettes/:id/recent',
  */
 router.get('/roulettes/:id/detailed', 
   proteger,
-  verificarAssinaturaBasica,
+  verificarAcessoRoleta,
   rouletteController.getDetailedRouletteData
 );
 
@@ -116,7 +166,7 @@ router.get('/roulettes/:id/detailed',
  */
 router.get('/roulettes/:id/stats', 
   proteger,
-  verificarAssinaturaBasica,
+  verificarAcessoRoleta,
   rouletteController.getRouletteStatistics
 );
 
@@ -127,7 +177,7 @@ router.get('/roulettes/:id/stats',
  */
 router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical', 
   proteger,
-  verificarAssinatura(),
+  verificarAcessoRoleta,
   rouletteController.getHistoricalData
 );
 
@@ -138,7 +188,7 @@ router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical',
  */
 router.get('/roulettes/:id/batch', 
   proteger,
-  verificarAssinatura(),
+  verificarAcessoRoleta,
   rouletteController.getNumbersBatch
 );
 

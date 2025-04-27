@@ -8,10 +8,16 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const morgan = require('morgan');
 const path = require('path');
+const helmet = require('helmet');
 
 // Importar middleware de autenticação e verificação de assinatura
 const { autenticar } = require('./backend/middleware/auth');
 const { verificarAssinaturaPremium } = require('./backend/middleware/assinaturaAsaas');
+
+// Importar middleware de verificação de assinatura das roletas
+const verificarAssinaturaRoletas = require('./middleware/verificarAssinaturaRoletas');
+// Importar serviço de dados simulados
+const DadosSimuladosService = require('./services/DadosSimuladosService');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -23,6 +29,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(helmet());
 
 // Logging em desenvolvimento
 if (process.env.NODE_ENV === 'development') {
@@ -49,17 +56,64 @@ app.use('/api/auth', authRoutes);
 // Nova implementação da API de roletas com autenticação e verificação de assinatura
 app.use('/api/roletas', roletaRoutes);
 
-// Redirecionar as chamadas antigas para a nova implementação
+// Aplicar middleware de verificação de assinatura para todas as rotas de roletas
+app.use(['/api/ROULETTES', '/api/roulettes', '/api/roletas'], verificarAssinaturaRoletas);
+
+// Modificar o endpoint de roletas para verificar nível de acesso
 app.use('/api/ROULETTES', (req, res, next) => {
-    console.log(`[API] Redirecionando requisição de /api/ROULETTES para /api/roletas: ${req.method} ${req.path}`);
-    req.url = req.url.replace('/api/ROULETTES', '/api/roletas');
-    app._router.handle(req, res, next);
+  console.log(`[API] Requisição para /api/ROULETTES - Nível de acesso: ${req.nivelAcessoRoletas || 'não definido'}`);
+  
+  // Se o nível de acesso for 'simulado', retornar dados simulados
+  if (req.nivelAcessoRoletas === 'simulado') {
+    console.log('[API] Fornecendo dados SIMULADOS para usuário sem assinatura premium');
+    
+    // Obter limite da query string
+    const limit = parseInt(req.query.limit) || 20;
+    
+    // Retornar roletas simuladas
+    return res.json(DadosSimuladosService.obterTodasRoletasSimuladas(limit));
+  }
+  
+  // Se for premium, continuar para o próximo middleware (que vai buscar dados reais)
+  console.log('[API] Redirecionando requisição de usuário PREMIUM para dados reais');
+  req.url = req.url.replace('/api/ROULETTES', '/api/roletas');
+  next();
 });
 
+// Endpoint em minúsculas também verifica nível de acesso
 app.use('/api/roulettes', (req, res, next) => {
-    console.log(`[API] Redirecionando requisição de /api/roulettes para /api/roletas: ${req.method} ${req.path}`);
-    req.url = req.url.replace('/api/roulettes', '/api/roletas');
-    app._router.handle(req, res, next);
+  console.log(`[API] Requisição para /api/roulettes - Nível de acesso: ${req.nivelAcessoRoletas || 'não definido'}`);
+  
+  // Se o nível de acesso for 'simulado', retornar dados simulados
+  if (req.nivelAcessoRoletas === 'simulado') {
+    console.log('[API] Fornecendo dados SIMULADOS para usuário sem assinatura premium');
+    
+    // Obter limite da query string
+    const limit = parseInt(req.query.limit) || 20;
+    
+    // Retornar roletas simuladas
+    return res.json(DadosSimuladosService.obterTodasRoletasSimuladas(limit));
+  }
+  
+  // Se for premium, continuar para o próximo middleware (que vai buscar dados reais)
+  console.log('[API] Redirecionando requisição de usuário PREMIUM para dados reais');
+  req.url = req.url.replace('/api/roulettes', '/api/roletas');
+  next();
+});
+
+// Rota para verificar status da assinatura
+app.get('/api/subscription/status', verificarAssinaturaRoletas, (req, res) => {
+  return res.json({
+    nivelAcesso: req.nivelAcessoRoletas || 'simulado',
+    assinatura: req.assinatura || null,
+    usuario: req.usuario ? {
+      id: req.usuario.id,
+      email: req.usuario.email
+    } : null,
+    mensagem: req.nivelAcessoRoletas === 'premium' 
+      ? 'Você tem acesso aos dados reais das roletas'
+      : 'Você está usando dados simulados. Faça uma assinatura premium para acessar dados reais.'
+  });
 });
 
 // Middleware de tratamento de erros
