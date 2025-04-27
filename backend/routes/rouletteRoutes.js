@@ -26,16 +26,6 @@ router.get('/roulettes/demo', (req, res, next) => {
 });
 
 /**
- * @route   GET /api/roulettes/sample
- * @desc    Fornece uma amostra de dados para usuários sem plano
- * @access  Público
- */
-router.get('/roulettes/sample', (req, res, next) => {
-  console.log('[DEBUG] Rota /api/roulettes/sample acessada (legado)');
-  return rouletteController.getSampleRoulettes(req, res, next);
-});
-
-/**
  * @route   GET /api/roulettes
  * @desc    Lista todas as roletas disponíveis (limitado por plano)
  * @access  Público com limitações
