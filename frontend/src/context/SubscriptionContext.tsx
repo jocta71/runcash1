@@ -163,6 +163,8 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
               
               // Agora podemos verificar o status da assinatura usando o endpoint
               try {
+                // Tentar endpoint unificado primeiro
+                console.log('[SubscriptionContext] Tentando endpoint unificado para verificação de status');
                 const response = await apiService.checkSubscriptionStatus();
                 if (response.data && response.data.success) {
                   processSubscriptionResponse(response.data);
@@ -173,8 +175,23 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 }
               } catch (statusError) {
                 console.error('[SubscriptionContext] Erro ao verificar status da assinatura:', statusError);
-                handleNoSubscription();
-                break;
+                
+                // Tentar rota alternativa se a principal falhar
+                try {
+                  console.log('[SubscriptionContext] Tentando endpoint alternativo (asaas) para verificação de status');
+                  const altResponse = await apiService.get(`/api/subscription/status/asaas`);
+                  if (altResponse.data && altResponse.data.success) {
+                    processSubscriptionResponse(altResponse.data);
+                    break;
+                  } else {
+                    handleNoSubscription();
+                    break;
+                  }
+                } catch (altError) {
+                  console.error('[SubscriptionContext] Erro no endpoint alternativo:', altError);
+                  handleNoSubscription();
+                  break;
+                }
               }
             } else {
               console.error('[SubscriptionContext] Falha ao criar/recuperar cliente Asaas:', customerResponse.data);
@@ -189,22 +206,56 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
           console.log(`[SubscriptionContext] Verificando status da assinatura com customerId: ${user.asaasCustomerId}`);
           
           try {
+            // Tentar endpoint unificado primeiro
+            console.log('[SubscriptionContext] Tentando endpoint unificado para verificação de status');
             const response = await apiService.checkSubscriptionStatus();
             
             if (response.data && response.data.success) {
               processSubscriptionResponse(response.data);
               break;
             } else {
-              handleNoSubscription();
+              // Mesmo com resposta "success: false", processamos para obter info de status
+              processSubscriptionResponse(response.data);
               break;
             }
           } catch (statusError) {
             console.error('[SubscriptionContext] Erro ao verificar status da assinatura:', statusError);
             
-            // Se o erro for 404, significa que o endpoint não existe ainda (fallback para método antigo)
-            if (statusError.response && statusError.response.status === 404) {
-              console.log('[SubscriptionContext] Endpoint não encontrado, usando método antigo de consulta');
+            // Tentar rota alternativa se a principal falhar
+            try {
+              console.log('[SubscriptionContext] Tentando endpoint alternativo (asaas) para verificação de status');
+              const altResponse = await apiService.get(`/api/subscription/status/asaas`);
+              if (altResponse.data && altResponse.data.success) {
+                processSubscriptionResponse(altResponse.data);
+                break;
+              } else {
+                // Se o erro for 404, significa que o endpoint não existe ainda (fallback para método antigo)
+                if (statusError.response && statusError.response.status === 404) {
+                  console.log('[SubscriptionContext] Endpoint não encontrado, usando método antigo de consulta');
+                  try {
+                    const fallbackResponse = await axios.get(`${API_URL}/api/asaas-find-subscription?customerId=${user.asaasCustomerId}`);
+                    if (fallbackResponse.data && fallbackResponse.data.success && fallbackResponse.data.subscriptions && fallbackResponse.data.subscriptions.length > 0) {
+                      processSubscriptionResponse(fallbackResponse.data);
+                      break;
+                    } else {
+                      handleNoSubscription();
+                      break;
+                    }
+                  } catch (fallbackError) {
+                    console.error('[SubscriptionContext] Erro no método antigo:', fallbackError);
+                    throw fallbackError;
+                  }
+                } else {
+                  handleNoSubscription();
+                  break;
+                }
+              }
+            } catch (altError) {
+              console.error('[SubscriptionContext] Erro no endpoint alternativo:', altError);
+              
+              // Tentar método antigo como último recurso
               try {
+                console.log('[SubscriptionContext] Tentando método antigo de consulta como último recurso');
                 const fallbackResponse = await axios.get(`${API_URL}/api/asaas-find-subscription?customerId=${user.asaasCustomerId}`);
                 if (fallbackResponse.data && fallbackResponse.data.success && fallbackResponse.data.subscriptions && fallbackResponse.data.subscriptions.length > 0) {
                   processSubscriptionResponse(fallbackResponse.data);
@@ -217,8 +268,6 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 console.error('[SubscriptionContext] Erro no método antigo:', fallbackError);
                 throw fallbackError;
               }
-            } else {
-              throw statusError;
             }
           }
         }

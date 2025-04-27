@@ -15,10 +15,10 @@ const subscriptionVerifier = require('../middlewares/subscriptionVerifier');
 
 /**
  * @route   GET /api/subscription/status
- * @desc    Verifica o status da assinatura do usuário
+ * @desc    Verifica o status da assinatura do usuário (Asaas)
  * @access  Privado - Requer autenticação
  */
-router.get('/status', 
+router.get('/status/asaas', 
   verifyTokenAndSubscription({ required: true, allowedPlans: [] }), 
   async (req, res) => {
     try {
@@ -102,7 +102,7 @@ router.get('/details',
 // Rotas para verificação de assinatura
 /**
  * @route   GET /api/subscription/status
- * @desc    Verifica e retorna o status da assinatura do usuário
+ * @desc    Verifica e retorna o status da assinatura do usuário (Versão unificada)
  * @access  Público / Autenticação Opcional
  */
 router.get('/status', 

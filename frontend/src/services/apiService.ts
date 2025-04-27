@@ -113,7 +113,14 @@ class ApiService {
    * @returns Promise com informações da assinatura
    */
   public async checkSubscriptionStatus<T = any>(): Promise<AxiosResponse<T>> {
-    return this.get<T>('/subscription/status');
+    try {
+      // Primeiro tentar a versão unificada da API
+      return this.get<T>('/subscription/status');
+    } catch (error) {
+      console.log('Fallback para endpoint alternativo de assinatura após erro:', error);
+      // Fallback para o endpoint Asaas específico se o primeiro falhar
+      return this.get<T>('/subscription/status/asaas');
+    }
   }
   
   /**
