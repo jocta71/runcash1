@@ -3,7 +3,6 @@ import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
 import SocketService from '@/services/SocketService';
 import RESTSocketService from './RESTSocketService';
-import { debugLog } from './utils/debugLog';
 import Cookies from 'js-cookie';
 
 // Debug flag - set to false to disable logs in production
@@ -580,7 +579,6 @@ export class EventService {
         socketService.reconnect();
         // Solicitar atualizações em qualquer caso
         socketService.requestRecentNumbers();
-        socketService.broadcastConnectionState();
       } else {
         // Se estiver conectado, solicitar atualização
         socketService.requestRecentNumbers();
@@ -693,7 +691,7 @@ export class EventService {
     this.usingSocketService = true;
     this.isConnected = true; // Simular conexão estabelecida
     
-    // Usar RESTSocketService configurado para modo limitado
+    // Usar SocketService padrão para modo limitado
     const socketService = SocketService.getInstance();
     
     // Apenas se inscrever em eventos de amostra

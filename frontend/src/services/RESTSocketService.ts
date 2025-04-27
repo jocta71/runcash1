@@ -37,6 +37,9 @@ interface RESTSocketServiceConfig {
   centralServiceEndpoint?: string;
 }
 
+// Tipagem para callback de eventos da roleta
+export type RouletteEventCallback = (event: any) => void;
+
 /**
  * Serviço que gerencia o acesso a dados de roletas via API REST
  * Substitui o antigo serviço de WebSocket, mantendo a mesma interface
@@ -53,19 +56,19 @@ class RESTSocketService {
   private limitedPollingTimer: NodeJSTimeout | null = null;
   private connectionActive: boolean = false;
   private historyLimit: number = 500;
-  private defaultPollingInterval: number = isProduction() ? 10000 : 5000; // 10 segundos em produção, 5 em desenvolvimento
+  private defaultPollingInterval: number = isProduction ? 10000 : 5000; // 10 segundos em produção, 5 em desenvolvimento
   private pollingEndpoint: string = '/api/roulettes/limits';
   private centralServiceEndpoint: string = '/api/central-service/roulettes';
   private centralServicePollingInterval: number = 60000; // 1 minuto = 60000 ms
   private pollingIntervals: Map<string, number> = new Map();
   private _isLoadingHistoricalData: boolean = false;
+  private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
   
   // Propriedade para simular estado de conexão
   public client?: any;
   
-  // Adicionar uma propriedade para armazenar o histórico completo por roleta  
-  private rouletteHistory: Map<string, number[]> = new Map();
-  private cacheTTL: number = 5 * 60 * 1000; // 5 minutos em milissegundos
+  // Propriedade para armazenar o último timer ID criado
+  private _lastCreatedTimerId: NodeJSTimeout | null = null;
   
   private constructor() {
     console.log('[RESTSocketService] Inicializando serviço REST API com polling');
@@ -108,9 +111,9 @@ class RESTSocketService {
   // Iniciar polling da API REST
   private startPolling() {
     // Limpar qualquer timer existente
-    if (this.timerId) {
-      window.clearInterval(this.timerId);
-      this.timerId = null;
+    if (this.pollingTimer) {
+      window.clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
     }
 
     this.connectionActive = true;
@@ -135,10 +138,10 @@ class RESTSocketService {
     }
     
     // Criar um timer de verificação para garantir que o serviço global está funcionando
-    this.timerId = window.setInterval(() => {
+    this.pollingTimer = window.setInterval(() => {
       // Verificação simples para manter o timer ativo
       this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
-    }, this.pollingInterval);
+    }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
   }
   
   // Buscar dados da API REST
@@ -286,6 +289,7 @@ class RESTSocketService {
     return RESTSocketService.instance;
   }
 
+  // Obtém a URL do servidor de eventos baseado no método atual
   private getApiBaseUrl(): string {
     // Em ambiente de produção, usar o proxy da Vercel para evitar problemas de CORS
     if (isProduction) {
@@ -348,14 +352,14 @@ class RESTSocketService {
   public disconnect(): void {
     console.log('[RESTSocketService] Desconectando serviço de polling');
     
-    if (this.timerId) {
-      console.log('[RESTSocketService] Limpando timer:', this.timerId);
+    if (this.pollingTimer) {
+      console.log('[RESTSocketService] Limpando timer:', this.pollingTimer);
       try {
-        window.clearInterval(this.timerId);
+        window.clearInterval(this.pollingTimer);
       } catch (e) {
         console.error('[RESTSocketService] Erro ao limpar timer:', e);
       }
-      this.timerId = null;
+      this.pollingTimer = null;
     }
     
     this.connectionActive = false;
@@ -366,26 +370,26 @@ class RESTSocketService {
     console.log('[RESTSocketService] Reconectando serviço de polling');
     
     // Limpar intervalo existente para garantir
-    if (this.timerId) {
+    if (this.pollingTimer) {
       console.log('[RESTSocketService] Limpando timer existente antes de reconectar');
       try {
-        window.clearInterval(this.timerId);
+        window.clearInterval(this.pollingTimer);
       } catch (e) {
         console.error('[RESTSocketService] Erro ao limpar timer existente:', e);
       }
-      this.timerId = null;
+      this.pollingTimer = null;
     }
     
-    // Reiniciar polling com certeza de intervalo fixo de 8s
+    // Reiniciar polling com certeza de intervalo fixo
     setTimeout(() => {
       this.startPolling();
       
       // Verificar se o timer foi realmente criado
-      if (!this.timerId) {
+      if (!this.pollingTimer) {
         console.warn('[RESTSocketService] Timer não foi criado na reconexão. Criando manualmente...');
-        this.timerId = window.setInterval(() => {
+        this.pollingTimer = window.setInterval(() => {
           this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
-        }, this.pollingInterval);
+        }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
       }
     }, 100); // Pequeno atraso para garantir que o timer anterior foi limpo
   }
@@ -498,9 +502,9 @@ class RESTSocketService {
     console.log('[RESTSocketService] Destruindo serviço');
     
     // Limpar intervalos
-    if (this.timerId) {
-      window.clearInterval(this.timerId);
-      this.timerId = null;
+    if (this.pollingTimer) {
+      window.clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
     }
     
     // Remover event listeners
@@ -517,8 +521,8 @@ class RESTSocketService {
   private checkTimerHealth(): void {
     console.log('[RESTSocketService] Verificando saúde do timer de polling');
     
-    if (this.connectionActive && !this.timerId) {
-      console.warn('[RESTSocketService] Timer ativo mas variável timerId nula. Corrigindo...');
+    if (this.connectionActive && !this.pollingTimer) {
+      console.warn('[RESTSocketService] Timer ativo mas variável pollingTimer nula. Corrigindo...');
       
       // Primeiro limpar qualquer timer que possa existir mas não está referenciado
       try {
@@ -528,9 +532,9 @@ class RESTSocketService {
       } catch (e) {}
       
       // Criar um novo timer
-      this.timerId = window.setInterval(() => {
+      this.pollingTimer = window.setInterval(() => {
         this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
-      }, this.pollingInterval);
+      }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
       
       // Não chamar reconnect() para evitar loop
       return;
