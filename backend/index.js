@@ -32,9 +32,41 @@ const protectedRoutes = require('./routes/protectedRoutes');
 const subscriptionApiRoutes = require('./api/subscription-api');
 const roulettesApiRoutes = require('./api/roulettes-api');
 
+// Configuração avançada de CORS
+const corsOptions = {
+  origin: [
+    'https://runcashh11.vercel.app',
+    'https://runcashh1.vercel.app',
+    'https://runcash.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
 // Middlewares
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
+
+// Configurar cabeçalhos CORS para todas as rotas
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (corsOptions.origin.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Responder imediatamente às solicitações OPTIONS
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
 // Configurar rotas da API
 app.use('/api/ai', aiAnalysisRoutes);
@@ -92,12 +124,13 @@ app.get('/api/roulettes/sample', async (req, res) => {
 // Inicializar servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar Socket.IO
+// Inicializar Socket.IO com configurações CORS atualizadas
 const io = new Server(server, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-    credentials: true
+    origin: corsOptions.origin,
+    methods: corsOptions.methods,
+    credentials: corsOptions.credentials,
+    allowedHeaders: corsOptions.allowedHeaders
   }
 });
 
