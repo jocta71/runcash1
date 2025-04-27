@@ -10,6 +10,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import axios from 'axios';
 
+// Variável global declarada em AuthContext.tsx
+// Usar janela global como fallback no caso de a variável não estar definida
+declare global {
+  var googleAuthEnabledGlobal: boolean | null;
+}
+
+if (typeof window.googleAuthEnabledGlobal === 'undefined') {
+  window.googleAuthEnabledGlobal = null;
+}
+
 const AuthPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +41,14 @@ const AuthPage = () => {
     // Verificar se auth Google está disponível usando variáveis de ambiente em vez de fazer chamada API
     const checkAuthStatus = async () => {
       try {
+        // Se já temos uma decisão armazenada na variável global, usar direto
+        if (window.googleAuthEnabledGlobal !== null) {
+          console.log('Usando decisão em cache para Google Auth:', window.googleAuthEnabledGlobal);
+          setIsGoogleAuthEnabled(window.googleAuthEnabledGlobal);
+          setIsCheckingAuth(false);
+          return;
+        }
+
         // Verificar variáveis de ambiente disponíveis no client-side
         // Se VITE_API_BASE_URL ou VITE_GOOGLE_ENABLED existe, usar para determinar se Google Auth está habilitado
         const googleClientIdAvailable = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
@@ -40,20 +58,21 @@ const AuthPage = () => {
         if (googleClientIdAvailable || apiBaseUrlExists) {
           console.log('Google Auth habilitado com base nas variáveis de ambiente');
           setIsGoogleAuthEnabled(true);
+          // Armazenar na variável global para evitar chamadas futuras
+          window.googleAuthEnabledGlobal = true;
         } else {
-          // Tentar fazer a verificação com a API apenas se não podemos determinar pelo ambiente
-          try {
-            const response = await axios.get(`${API_URL}/auth/google/status`);
-            setIsGoogleAuthEnabled(response.data.enabled);
-          } catch (error) {
-            console.log('Endpoint de status não encontrado, assumindo Google Auth habilitado');
-            setIsGoogleAuthEnabled(true);
-          }
+          // Assumir habilitado sem fazer chamada à API
+          console.log('Assumindo Google Auth habilitado por padrão');
+          setIsGoogleAuthEnabled(true);
+          // Armazenar na variável global para evitar chamadas futuras
+          window.googleAuthEnabledGlobal = true;
         }
       } catch (error) {
         console.error('Erro ao verificar status da autenticação:', error);
         // Assumir que Google Auth está habilitado, já que temos as variáveis no Railway
         setIsGoogleAuthEnabled(true);
+        // Armazenar na variável global para evitar chamadas futuras
+        window.googleAuthEnabledGlobal = true;
       } finally {
         setIsCheckingAuth(false);
       }
