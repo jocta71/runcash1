@@ -3,7 +3,8 @@ nixPkgs = ["nodejs", "nodejs.pkgs.npm"]
 
 [phases.build]
 cmds = [
-  "cd backend && npm install"
+  "cd backend && npm install",
+  "cd backend/api && npm install"
 ]
 
 [start]
