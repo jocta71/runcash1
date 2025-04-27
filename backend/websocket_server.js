@@ -488,11 +488,11 @@ app.get('/api/ROULETTES', async (req, res) => {
       return res.json([]);
     }
     
-    // Parâmetros de paginação - usar o valor da configuração
-    let limit = config.subscription.plans.FREE.limit; // Limite padrão para usuários não autenticados
-    
     // Extrair token da requisição
     const token = req.headers.authorization?.split(' ')[1];
+    
+    // Verificar se tem permissão para acessar os dados
+    let temAssinaturaAtiva = false;
     
     if (token) {
       try {
@@ -523,63 +523,51 @@ app.get('/api/ROULETTES', async (req, res) => {
             });
             
             if (assinatura) {
-              // Ajustar limite com base no plano da assinatura
-              switch (assinatura.plano) {
-                case 'BASIC':
-                  limit = config.subscription.plans.BASIC.limit;
-                  break;
-                case 'PRO':
-                  limit = config.subscription.plans.PRO.limit;
-                  break;
-                case 'PREMIUM':
-                  limit = config.subscription.plans.PREMIUM.limit;
-                  break;
-                default:
-                  limit = config.subscription.plans.FREE.limit;
+              // Verificar se o usuário tem um plano que permite acesso aos dados
+              // Apenas planos pagos têm acesso
+              if (['BASIC', 'PRO', 'PREMIUM'].includes(assinatura.plano)) {
+                temAssinaturaAtiva = true;
+                console.log(`[API] Usuário autenticado com plano ${assinatura.plano}, acesso permitido`);
               }
-              
-              console.log(`[API] Usuário autenticado com plano ${assinatura.plano}, aplicando limite: ${limit}`);
             }
           } else {
-            // Ajustar limite de acordo com o plano
+            // Verificar se a assinatura não está expirada
             if (!userSubscription.expirationDate || new Date(userSubscription.expirationDate) >= new Date()) {
-              switch (userSubscription.plan_id) {
-                case 'BASIC':
-                  limit = config.subscription.plans.BASIC.limit;
-                  break;
-                case 'PRO':
-                  limit = config.subscription.plans.PRO.limit;
-                  break;
-                case 'PREMIUM':
-                  limit = config.subscription.plans.PREMIUM.limit;
-                  break;
-                default:
-                  limit = config.subscription.plans.FREE.limit;
+              // Verificar se o usuário tem um plano que permite acesso aos dados
+              // Apenas planos pagos têm acesso
+              if (['BASIC', 'PRO', 'PREMIUM'].includes(userSubscription.plan_id)) {
+                temAssinaturaAtiva = true;
+                console.log(`[API] Usuário autenticado com plano ${userSubscription.plan_id}, acesso permitido`);
               }
-              
-              console.log(`[API] Usuário autenticado com plano ${userSubscription.plan_id}, aplicando limite: ${limit}`);
-            } else {
-              console.log('[API] Assinatura expirada, aplicando limite padrão');
             }
           }
         }
       } catch (error) {
         console.error('[API] Erro ao verificar token:', error.message);
-        // Em caso de erro na verificação do token, continuamos com o limite padrão
       }
-    } else {
-      console.log('[API] Requisição sem token, aplicando limite padrão');
     }
     
-    console.log(`[API] Usando limit: ${limit}`);
+    // Se o usuário não tem assinatura ativa, bloquear acesso
+    if (!temAssinaturaAtiva) {
+      console.log('[API] Acesso negado: usuário sem assinatura ativa');
+      return res.status(403).json({
+        success: false,
+        error: 'ACCESS_DENIED',
+        message: 'Acesso não autorizado. Você precisa de uma assinatura ativa para acessar estes dados.',
+        requiresSubscription: true
+      });
+    }
     
-    // Obter o valor do parâmetro "limit" da requisição, mas respeitar os limites baseados na assinatura
+    // Se chegou aqui, o usuário tem assinatura ativa
+    // Definir limite baseado no plano (mantemos isso para diferenciar entre os planos pagos)
+    let limit = config.subscription.plans.BASIC.limit; // Padrão para plano BASIC
+    
+    // Obter o valor do parâmetro "limit" da requisição
     const requestedLimit = parseInt(req.query.limit) || limit;
-    // Garantir que o limit não exceda o valor permitido pelo plano
-    const finalLimit = Math.min(requestedLimit, limit);
+    // Garantir que o limit não exceda o valor máximo permitido
+    const finalLimit = Math.min(requestedLimit, config.subscription.plans.PREMIUM.limit);
     
-    // Incluir na resposta JSON informações sobre o limite aplicado
-    const incluirInfoLimite = req.query.includeLimit === 'true';
+    console.log(`[API] Usando limit: ${finalLimit}`);
     
     // Buscar histórico de números ordenados por timestamp
     const numeros = await collection
@@ -593,13 +581,6 @@ app.get('/api/ROULETTES', async (req, res) => {
     // Verificar se temos dados para retornar
     if (numeros.length === 0) {
       console.log('[API] Nenhum número encontrado');
-      if (incluirInfoLimite) {
-        return res.json({ 
-          data: [],
-          limit: finalLimit,
-          hasSubscription: limit > config.subscription.plans.FREE.limit
-        });
-      }
       return res.json([]);
     }
     
@@ -607,12 +588,13 @@ app.get('/api/ROULETTES', async (req, res) => {
     console.log('[API] Exemplos de dados retornados:');
     console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
     
-    if (incluirInfoLimite) {
+    // Incluir na resposta JSON informações sobre o acesso
+    if (req.query.includeLimit === 'true') {
       return res.json({
         data: numeros,
         limit: finalLimit,
         total: count,
-        hasSubscription: limit > config.subscription.plans.FREE.limit
+        hasSubscription: true
       });
     }
     
