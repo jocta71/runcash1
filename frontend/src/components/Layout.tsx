@@ -12,6 +12,7 @@ import AnimatedInsights from './AnimatedInsights';
 import Footer from './Footer';
 import GlowingCubeLoader from './GlowingCubeLoader';
 import { useLoginModal } from '@/context/LoginModalContext';
+import SubscriptionBanner from './SubscriptionBanner';
 
 // Interface estendida para o usuário com firstName e lastName
 interface ExtendedUser {
@@ -27,17 +28,57 @@ interface ExtendedUser {
 interface LayoutProps {
   children: React.ReactNode;
   preloadData?: boolean;
+  sidebarOpen?: boolean;
+  setSidebarOpen?: React.Dispatch<React.SetStateAction<boolean>>;
+  chatOpen?: boolean;
+  setChatOpen?: React.Dispatch<React.SetStateAction<boolean>>;
+  showMobileSearch?: boolean;
+  setShowMobileSearch?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
+const Layout: React.FC<LayoutProps> = ({ 
+  children, 
+  preloadData = false,
+  sidebarOpen = false,
+  setSidebarOpen,
+  chatOpen = false,
+  setChatOpen,
+  showMobileSearch = false,
+  setShowMobileSearch
+}) => {
   const { user, signOut } = useAuth();
   const { showLoginModal, resetModalClosed } = useLoginModal();
   const [isLoading, setIsLoading] = useState(preloadData);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
 
+  // Se não for fornecido setSidebarOpen, criar um estado local
+  const [localSidebarOpen, setLocalSidebarOpen] = useState(sidebarOpen);
+  const [localChatOpen, setLocalChatOpen] = useState(chatOpen);
+  const [localShowMobileSearch, setLocalShowMobileSearch] = useState(showMobileSearch);
+  
+  // Usar setSidebarOpen fornecido ou o estado local
+  const handleSidebarToggle = (value: boolean) => {
+    if (setSidebarOpen) {
+      setSidebarOpen(value);
+    } else {
+      setLocalSidebarOpen(value);
+    }
+  };
+  
+  // Usar setChatOpen fornecido ou o estado local
+  const handleChatToggle = (value: boolean) => {
+    if (setChatOpen) {
+      setChatOpen(value);
+    } else {
+      setLocalChatOpen(value);
+    }
+  };
+  
+  // Usar o valor efetivo do sidebarOpen (fornecido ou local)
+  const effectiveSidebarOpen = setSidebarOpen ? sidebarOpen : localSidebarOpen;
+  const effectiveChatOpen = setChatOpen ? chatOpen : localChatOpen;
+  
   // Cast para o tipo estendido para acessar firstName e lastName
   const extUser = user as unknown as ExtendedUser;
   
@@ -212,21 +253,21 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
       </div>
       
       {/* Mobile Sidebar (drawer) */}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isMobile={true} />
+      <Sidebar isOpen={effectiveSidebarOpen} onClose={() => handleSidebarToggle(false)} isMobile={true} />
       
       <div className="flex-1 relative">
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-[#131614]">
           <button 
             className="p-2"
-            onClick={() => setSidebarOpen(true)}
+            onClick={() => handleSidebarToggle(true)}
           >
             <Menu size={24} className="bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-text text-transparent" />
           </button>
           
           <button 
             className="p-2"
-            onClick={() => setChatOpen(true)}
+            onClick={() => handleChatToggle(true)}
           >
             <MessageSquare size={24} className="bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] bg-clip-text text-transparent" />
           </button>
@@ -272,26 +313,26 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         </div>
         
         {/* Área do conteúdo principal */}
-        <main className="pt-4 md:pt-[70px] pb-8 px-4 md:px-6 md:pl-[280px] w-full min-h-screen bg-[#131614]">
-          {children}
-        </main>
-
+        <div className="pt-4 md:pt-[70px] w-full">
+          {/* Banner de assinatura */}
+          <SubscriptionBanner />
+          
+          <main className="pb-8 px-4 md:px-6 md:pl-[280px] w-full min-h-screen bg-[#131614]">
+            {children}
+          </main>
+        </div>
+        
         {/* Footer - com classe para evitar sobreposição com o chat */}
         <div className="md:pl-64 lg:pl-64 md:pr-[400px] lg:pr-[400px] pb-[100px] md:pb-0">
           <Footer />
         </div>
+        
+        {/* Componente flutuante de IA */}
+        <AIFloatingBar />
+        
+        {/* Chat UI */}
+        <ChatUI isOpen={effectiveChatOpen} onClose={() => handleChatToggle(false)} />
       </div>
-      
-      {/* Chat fixo na parte inferior */}
-      <div className="fixed bottom-0 right-0 w-[400px] h-[600px] z-40">
-        <ChatUI isOpen={true} />
-      </div>
-      
-      {/* Mobile Chat (drawer) */}
-      <ChatUI isOpen={chatOpen} onClose={() => setChatOpen(false)} isMobile={true} />
-      
-      {/* Barra flutuante da IA */}
-      <AIFloatingBar />
     </div>
   );
 };

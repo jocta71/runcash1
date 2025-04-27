@@ -815,7 +815,12 @@ const Index = () => {
   };
 
   return (
-    <Layout>
+    <Layout
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      chatOpen={chatOpen}
+      setChatOpen={setChatOpen}
+    >
       <div className="container mx-auto px-4 pt-4 md:pt-8 min-h-[80vh] relative">
         {/* Mensagem de erro */}
         {error && (
