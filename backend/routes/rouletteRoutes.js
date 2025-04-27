@@ -9,6 +9,8 @@ const router = express.Router();
 // Importar middlewares
 const { authenticate } = require('../middlewares/authMiddleware');
 const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddleware');
+const { controlDataAccess, filterDataByAccessLevel } = require('../middlewares/dataAccessController');
+const getDb = require('../services/database');
 
 // Importar controller
 const rouletteController = require('../controllers/rouletteController');
@@ -113,5 +115,148 @@ router.get('/roulettes/:id/batch',
 router.get('/roulettes/:id/preview', 
   rouletteController.getFreePreview
 );
+
+/**
+ * @route GET /api/roulettes/limits
+ * @desc Obter dados recentes das roletas com controle de acesso baseado em assinatura
+ * @access Público com dados limitados / Dados completos para assinantes
+ */
+router.get('/limits', authenticate({required: false}), controlDataAccess, async (req, res) => {
+  try {
+    // Conectar ao MongoDB
+    const db = await getDb();
+    
+    // Buscar números recentes das roletas
+    const result = await db.collection('roleta_numeros')
+      .find({})
+      .sort({ timestamp: -1 })
+      .limit(100)
+      .toArray();
+    
+    if (!result || result.length === 0) {
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Nenhum dado disponível',
+        data: [] 
+      });
+    }
+    
+    // Agrupar por roleta
+    const rouletteMap = {};
+    
+    result.forEach(item => {
+      // Verificar se temos uma entrada para esta roleta
+      if (!rouletteMap[item.roleta_id]) {
+        rouletteMap[item.roleta_id] = {
+          id: item.roleta_id,
+          nome: item.roleta_nome || `Roleta ${item.roleta_id}`,
+          numero: [],
+          status: 'active',
+          timestamp: new Date()
+        };
+      }
+      
+      // Adicionar número se ainda não temos 30 (ou o limite determinado pelo plano)
+      const numeroLimit = req.dataAccessLevel === 'premium' ? 50 : 
+                         (req.dataAccessLevel === 'authenticated' ? 10 : 3);
+      
+      if (rouletteMap[item.roleta_id].numero.length < numeroLimit) {
+        rouletteMap[item.roleta_id].numero.push({
+          numero: item.numero,
+          timestamp: item.timestamp
+        });
+      }
+    });
+    
+    // Converter para array
+    let roulettes = Object.values(rouletteMap);
+    
+    // Aplicar filtro baseado no nível de acesso
+    const filteredData = filterDataByAccessLevel(roulettes, req.dataAccessLevel);
+    
+    return res.status(200).json({
+      success: true,
+      access_level: req.dataAccessLevel,
+      has_subscription: req.hasActiveSubscription,
+      plan_type: req.planType,
+      count: filteredData.length,
+      timestamp: new Date(),
+      data: filteredData
+    });
+  } catch (error) {
+    console.error('Erro ao buscar dados das roletas:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar dados das roletas',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/roulettes/:id
+ * @desc Obter dados específicos de uma roleta
+ * @access Público com dados limitados / Dados completos para assinantes
+ */
+router.get('/:id', authenticate({required: false}), controlDataAccess, async (req, res) => {
+  try {
+    const roletaId = req.params.id;
+    
+    if (!roletaId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID da roleta não fornecido'
+      });
+    }
+    
+    // Conectar ao MongoDB
+    const db = await getDb();
+    
+    // Buscar números da roleta específica
+    const result = await db.collection('roleta_numeros')
+      .find({ roleta_id: roletaId })
+      .sort({ timestamp: -1 })
+      .limit(req.dataAccessLevel === 'premium' ? 100 : 10)
+      .toArray();
+    
+    if (!result || result.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Roleta não encontrada ou sem dados disponíveis'
+      });
+    }
+    
+    // Construir objeto com dados da roleta
+    const roulette = {
+      id: roletaId,
+      nome: result[0].roleta_nome || `Roleta ${roletaId}`,
+      numero: result.map(item => ({
+        numero: item.numero,
+        timestamp: item.timestamp
+      })),
+      status: 'active',
+      timestamp: new Date()
+    };
+    
+    // Aplicar filtro baseado no nível de acesso
+    const filteredData = filterDataByAccessLevel(roulette, req.dataAccessLevel);
+    
+    return res.status(200).json({
+      success: true,
+      access_level: req.dataAccessLevel,
+      has_subscription: req.hasActiveSubscription,
+      plan_type: req.planType,
+      timestamp: new Date(),
+      data: filteredData
+    });
+  } catch (error) {
+    console.error('Erro ao buscar dados da roleta:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar dados da roleta',
+      error: error.message
+    });
+  }
+});
 
 module.exports = router; 

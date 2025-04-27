@@ -138,6 +138,74 @@ const io = new Server(server, {
 
 console.log('[Socket.IO] Inicializado com configuração CORS para aceitar todas as origens');
 
+// Middleware de autenticação para Socket.IO
+io.use(async (socket, next) => {
+  try {
+    // Obter token da requisição
+    const token = socket.handshake.auth.token || 
+                 socket.handshake.headers.authorization?.replace('Bearer ', '') ||
+                 socket.handshake.query.token;
+    
+    // Se não houver token, permitir conexão mas marcar como não autenticado
+    if (!token) {
+      console.log('[Socket.IO] Conexão sem token de autenticação');
+      socket.data.authenticated = false;
+      socket.data.hasPlan = false;
+      return next();
+    }
+    
+    // Verificar token (usando função jwt ou outro método de seu sistema)
+    // Esta é uma implementação simplificada, adapte à sua lógica de autenticação
+    try {
+      // Conectar ao MongoDB se ainda não estiver conectado
+      if (!isConnected) {
+        await connectToMongoDB();
+      }
+      
+      // Verificar JWT no banco de dados ou através de decodificação
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'seu_segredo_jwt');
+      
+      if (!decoded || !decoded.id) {
+        throw new Error('Token inválido');
+      }
+      
+      // Buscar o usuário no banco de dados
+      const userId = decoded.id;
+      const user = await db.collection('usuarios').findOne({ _id: userId });
+      
+      if (!user) {
+        throw new Error('Usuário não encontrado');
+      }
+      
+      // Verificar se o usuário tem uma assinatura ativa
+      const subscription = await db.collection('subscriptions').findOne({
+        user_id: userId,
+        status: { $in: ['active', 'ACTIVE', 'ativa'] },
+        expirationDate: { $gt: new Date() }
+      });
+      
+      // Marcar o socket como autenticado
+      socket.data.authenticated = true;
+      socket.data.userId = userId;
+      socket.data.hasPlan = !!subscription;
+      socket.data.planType = subscription ? subscription.plan_id : null;
+      
+      console.log(`[Socket.IO] Usuário ${userId} autenticado, plano: ${socket.data.hasPlan ? socket.data.planType : 'nenhum'}`);
+      
+      return next();
+    } catch (error) {
+      console.error('[Socket.IO] Erro ao verificar token:', error.message);
+      socket.data.authenticated = false;
+      socket.data.hasPlan = false;
+      return next();
+    }
+  } catch (error) {
+    console.error('[Socket.IO] Erro no middleware de autenticação:', error.message);
+    return next();
+  }
+});
+
 // Status e números das roletas
 let rouletteStatus = {};
 let lastProcessedIds = new Set();
@@ -286,70 +354,97 @@ async function broadcastAllStrategies() {
   }
 }
 
-// Função para fazer polling dos dados mais recentes
+// Função para iniciar o polling do MongoDB
 function startPolling() {
-  console.log('Iniciando polling a cada ' + POLL_INTERVAL + 'ms');
-  
-  // Configurar intervalo para buscar dados regularmente
-  pollingInterval = setInterval(async () => {
+  setInterval(async () => {
     try {
-      console.log('Conectando ao MongoDB...');
-      
-      if (!isConnected || !collection) {
+      if (!isConnected) {
         console.log('MongoDB não está conectado, tentando reconectar...');
-        await connectToMongoDB();
-        return;
+        const success = await connectToMongoDB();
+        if (!success) {
+          console.log('Falha ao reconectar ao MongoDB, pulando ciclo de polling');
+          return;
+        }
       }
       
-      // Buscar a contagem total de documentos para diagnóstico
-      const totalCount = await collection.countDocuments();
-      console.log(`Total de documentos na coleção: ${totalCount}`);
-      
-      // Buscar os números mais recentes para cada roleta
-      const results = await collection.aggregate([
-        { $sort: { timestamp: -1 } },
-        { $group: { 
-            _id: '$roleta_nome', 
-            roleta_id: { $first: '$roleta_id' }, 
-            numero: { $first: '$numero' }, 
-            cor: { $first: '$cor' },
-            timestamp: { $first: '$timestamp' }
-          }
-        }
-      ]).toArray();
-      
-      if (results.length === 0) {
-        console.log('Nenhum número encontrado na coleção');
-        return;
-      }
-      
-      console.log(`Encontrados últimos números para ${results.length} roletas`);
-      
-      // Enviar eventos para cada roleta
-      results.forEach(result => {
-        if (io) {
-          const eventData = {
-            roleta_id: result.roleta_id,
-            roleta_nome: result._id,
-            numero: result.numero,
-            cor: result.cor,
-            timestamp: result.timestamp
-          };
-          
-          // Emitir evento para o namespace da roleta
-          const namespace = `roleta_${result.roleta_id}`;
-          io.to(namespace).emit('numero', eventData);
-          
-          // Também emitir para o canal geral
-          io.emit('numero', eventData);
-          
-          console.log(`Enviado evento para roleta ${result._id}: número ${result.numero}`);
-        }
-      });
+      await fetchAllRoulettesData();
     } catch (error) {
-      console.error('Erro durante polling:', error);
+      console.error('Erro durante o polling:', error);
     }
   }, POLL_INTERVAL);
+  console.log(`Iniciado polling a cada ${POLL_INTERVAL}ms`);
+}
+
+// Função para obter dados de todas as roletas
+async function fetchAllRoulettesData() {
+  try {
+    if (!isConnected) {
+      return false;
+    }
+    
+    console.time('fetchAllRoulettesData');
+    
+    // Buscar todos os números das roletas
+    const result = await collection.find({}).sort({ timestamp: -1 }).limit(100).toArray();
+    
+    if (!result || result.length === 0) {
+      console.log('Nenhum número encontrado na coleção');
+      return false;
+    }
+    
+    console.log(`Obtidos ${result.length} números de roletas`);
+    
+    // Agrupar por roleta e pegar os últimos 30 de cada
+    const rouletteMap = {};
+    
+    // Registrar os IDs processados nesta execução
+    const processedIds = new Set();
+    
+    result.forEach(item => {
+      // Adicionar ao conjunto de IDs processados
+      processedIds.add(item._id.toString());
+      
+      // Pular se já processamos este ID
+      if (lastProcessedIds.has(item._id.toString())) {
+        return;
+      }
+      
+      // Verificar se temos uma entrada para esta roleta
+      if (!rouletteMap[item.roleta_id]) {
+        rouletteMap[item.roleta_id] = {
+          id: item.roleta_id,
+          nome: item.roleta_nome || `Roleta ${item.roleta_id}`,
+          numero: [],
+          status: 'active',
+          timestamp: new Date()
+        };
+      }
+      
+      // Adicionar número se ainda não temos 30
+      if (rouletteMap[item.roleta_id].numero.length < 30) {
+        rouletteMap[item.roleta_id].numero.push({
+          numero: item.numero,
+          timestamp: item.timestamp
+        });
+      }
+    });
+    
+    // Atualizar o conjunto de IDs processados
+    lastProcessedIds = processedIds;
+    
+    // Atualizar o status global
+    rouletteStatus = Object.values(rouletteMap);
+    
+    console.timeEnd('fetchAllRoulettesData');
+    
+    // Enviar dados para todos os clientes conectados usando a função personalizada
+    broadcastData('all_roulettes_update', rouletteStatus);
+    
+    return true;
+  } catch (error) {
+    console.error('Erro ao buscar dados das roletas:', error);
+    return false;
+  }
 }
 
 // Rota de status da API
@@ -781,96 +876,200 @@ app.options('/api/ROULETTES/historico', (req, res) => {
   res.status(204).end();
 });
 
-// Socket.IO connection handler
-io.on('connection', async (socket) => {
-  console.log(`Novo cliente conectado: ${socket.id}`);
-  
-  // Enviar dados iniciais para o cliente
-  if (isConnected) {
-    socket.emit('connection_success', { status: 'connected' });
+// Função para enviar dados para todos os clientes conectados
+function broadcastData(eventName, data) {
+  try {
+    // Verificar se há dados para enviar
+    if (!data) {
+      console.warn(`[WebSocket] Tentativa de broadcast sem dados para evento ${eventName}`);
+      return;
+    }
     
-    // Enviar os últimos números conhecidos para cada roleta
-    socket.emit('initial_data', rouletteStatus);
+    // Contar clientes conectados
+    const connectedClients = io.sockets.sockets.size;
+    console.log(`[WebSocket] Enviando dados para ${connectedClients} clientes conectados`);
     
-    console.log('Enviados dados iniciais para o cliente');
-  } else {
-    socket.emit('connection_error', { status: 'MongoDB not connected' });
+    // Se não houver clientes, não fazer nada
+    if (connectedClients === 0) {
+      return;
+    }
+    
+    // Iterar sobre todos os sockets conectados
+    io.sockets.sockets.forEach((socket) => {
+      // Verificar se o socket tem informações de plano
+      const hasPlan = socket.data?.hasPlan === true;
+      const isAuthenticated = socket.data?.authenticated === true;
+      
+      // Preparar dados com base no status de assinatura
+      let clientData;
+      
+      if (hasPlan) {
+        // Cliente com plano recebe dados completos
+        clientData = data;
+      } else if (isAuthenticated) {
+        // Cliente autenticado mas sem plano recebe dados limitados
+        clientData = limitDataForNonSubscribers(data, 'authenticated');
+      } else {
+        // Cliente não autenticado recebe dados mínimos
+        clientData = limitDataForNonSubscribers(data, 'anonymous');
+      }
+      
+      // Enviar dados para o cliente
+      socket.emit(eventName, clientData);
+    });
+  } catch (error) {
+    console.error(`[WebSocket] Erro ao fazer broadcast de dados: ${error.message}`);
+  }
+}
+
+// Função para limitar dados para usuários sem assinatura
+function limitDataForNonSubscribers(data, userType = 'anonymous') {
+  // Se for um array (como lista de roletas)
+  if (Array.isArray(data)) {
+    // Limitar número de itens e profundidade dos dados
+    const limitedItems = data.slice(0, userType === 'authenticated' ? 3 : 1);
+    
+    // Para cada item, limitar a quantidade de informações
+    return limitedItems.map(item => {
+      // Obter apenas os dados necessários para visualização básica
+      const limitedItem = {
+        id: item.id,
+        nome: item.nome,
+        status: item.status,
+        numero: [],
+        amostra: true // Marca que é apenas uma amostra
+      };
+      
+      // Para usuários autenticados, incluir alguns números para amostra
+      if (userType === 'authenticated' && item.numero && Array.isArray(item.numero)) {
+        limitedItem.numero = item.numero.slice(0, 3);
+      }
+      
+      // Para não autenticados, incluir apenas o último número
+      if (userType === 'anonymous' && item.numero && Array.isArray(item.numero) && item.numero.length > 0) {
+        limitedItem.numero = [item.numero[0]];
+      }
+      
+      return limitedItem;
+    });
   }
   
-  // Subscrever a uma roleta específica
-  socket.on('subscribe', (roletaNome) => {
-    if (typeof roletaNome === 'string' && roletaNome.trim()) {
-      socket.join(roletaNome);
-      console.log(`Cliente ${socket.id} subscrito à roleta: ${roletaNome}`);
+  // Se for um objeto único (como atualização de estratégia)
+  if (typeof data === 'object' && data !== null) {
+    // Criar uma versão simplificada do objeto
+    const limitedData = {
+      ...data,
+      amostra: true,
+      mensagem: "Assine um plano para acessar dados completos"
+    };
+    
+    // Remover dados estratégicos para usuários sem plano
+    if (limitedData.estrategias) {
+      delete limitedData.estrategias;
     }
+    
+    return limitedData;
+  }
+  
+  // Para outros tipos de dados, retornar como está
+  return data;
+}
+
+// Socket.IO connection handler
+io.on('connection', (socket) => {
+  // Registro do evento de conexão
+  const userType = socket.data?.hasPlan ? 'premium' : 
+                  (socket.data?.authenticated ? 'autenticado' : 'anônimo');
+  console.log(`[Socket.IO] Cliente conectado: ${socket.id} (Tipo: ${userType})`);
+  
+  // Enviar configuração inicial para o cliente
+  socket.emit('config', {
+    serverTimestamp: new Date(),
+    isSubscriber: socket.data?.hasPlan === true,
+    requiresSubscription: true,
+    version: '2.0.0'
   });
   
-  // Cancelar subscrição a uma roleta específica
-  socket.on('unsubscribe', (roletaNome) => {
-    if (typeof roletaNome === 'string' && roletaNome.trim()) {
-      socket.leave(roletaNome);
-      console.log(`Cliente ${socket.id} cancelou subscrição à roleta: ${roletaNome}`);
-    }
-  });
+  // Enviar dados iniciais para o cliente
+  if (Object.keys(rouletteStatus).length > 0) {
+    // Usar a função de broadcast para enviar dados conforme o plano do cliente
+    const clientData = socket.data?.hasPlan ? 
+                      rouletteStatus : 
+                      limitDataForNonSubscribers(rouletteStatus, 
+                        socket.data?.authenticated ? 'authenticated' : 'anonymous');
+    
+    socket.emit('initial_data', clientData);
+  }
   
-  // Handler para novo número
-  socket.on('new_number', async (data) => {
-    try {
-      console.log('[WebSocket] Recebido novo número:', data);
-      
-      // Adicionar o número ao histórico
-      if (historyModel && data.roletaId && data.numero !== undefined) {
-        await historyModel.addNumberToHistory(
-          data.roletaId,
-          data.roletaNome || `Roleta ${data.roletaId}`,
-          data.numero
-        );
-        console.log(`[WebSocket] Número ${data.numero} adicionado ao histórico da roleta ${data.roletaId}`);
-      }
-      
-      // Broadcast para todos os clientes inscritos nesta roleta
-      if (data.roletaNome) {
-        io.to(data.roletaNome).emit('new_number', data);
-        console.log(`[WebSocket] Evento 'new_number' emitido para sala ${data.roletaNome}`);
-      }
-      
-      // Broadcast global para todos os clientes
-      io.emit('global_new_number', data);
-    } catch (error) {
-      console.error('[WebSocket] Erro ao processar novo número:', error);
-    }
-  });
-  
-  // Handler para solicitar histórico completo de uma roleta
+  // Evento de pedido de histórico
   socket.on('request_history', async (data) => {
     try {
-      if (!historyModel) {
-        await initializeModels();
-      }
-      
       if (!data || !data.roletaId) {
-        return socket.emit('history_error', { error: 'ID da roleta é obrigatório' });
+        return socket.emit('history_error', { 
+          error: 'ID da roleta não fornecido', 
+          requiresSubscription: !socket.data?.hasPlan 
+        });
       }
       
-      console.log(`[WebSocket] Solicitação de histórico para roleta ${data.roletaId}`);
+      const roletaId = data.roletaId;
       
-      const history = await historyModel.getHistoryByRouletteId(data.roletaId);
+      // Verificar se o cliente tem acesso aos dados históricos completos
+      if (!socket.data?.hasPlan) {
+        return socket.emit('history_data', {
+          roletaId,
+          amostra: true,
+          numeros: [], // Não enviar números históricos para não assinantes
+          mensagem: "Assine um plano para acessar o histórico completo"
+        });
+      }
       
-      socket.emit('history_data', {
-        roletaId: data.roletaId,
-        ...history
-      });
+      console.log(`[Socket.IO] Recebido pedido de histórico para roleta: ${roletaId}`);
       
-      console.log(`[WebSocket] Histórico enviado: ${history.numeros ? history.numeros.length : 0} números`);
+      try {
+        // Conexão com MongoDB já deve estar estabelecida
+        if (!isConnected) {
+          await connectToMongoDB();
+        }
+        
+        // Buscar histórico da roleta
+        const history = await historyModel.getRouletteHistory(roletaId);
+        
+        socket.emit('history_data', {
+          roletaId,
+          numeros: history
+        });
+      } catch (error) {
+        console.error(`[Socket.IO] Erro ao buscar histórico: ${error.message}`);
+        socket.emit('history_error', { error: 'Falha ao buscar histórico' });
+      }
     } catch (error) {
-      console.error('[WebSocket] Erro ao buscar histórico:', error);
-      socket.emit('history_error', { error: 'Erro ao buscar histórico' });
+      console.error(`[Socket.IO] Erro no handler de request_history: ${error.message}`);
+      socket.emit('history_error', { error: 'Erro interno do servidor' });
+    }
+  });
+  
+  // Evento de pedido de atualização de todas as roletas
+  socket.on('request_all_roulettes', async () => {
+    try {
+      // Obter dados atualizados
+      await fetchAllRoulettesData();
+      
+      // Enviar dados adequados ao tipo de cliente
+      const clientData = socket.data?.hasPlan ? 
+                        rouletteStatus : 
+                        limitDataForNonSubscribers(rouletteStatus, 
+                          socket.data?.authenticated ? 'authenticated' : 'anonymous');
+      
+      socket.emit('all_roulettes_data', clientData);
+    } catch (error) {
+      console.error(`[Socket.IO] Erro ao processar pedido de todas as roletas: ${error.message}`);
+      socket.emit('error', { message: 'Erro ao buscar dados das roletas' });
     }
   });
   
   // Evento de desconexão
-  socket.on('disconnect', () => {
-    console.log(`Cliente desconectado: ${socket.id}`);
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket.IO] Cliente desconectado: ${socket.id}, Motivo: ${reason}`);
   });
 });
 

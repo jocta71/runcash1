@@ -648,6 +648,9 @@ export class EventService {
       if (!token) {
         debugLog('[EventService] Usuário não autenticado, usando modo limitado');
         this.useSocketServiceWithLimits();
+        
+        // Atualizar status no localStorage
+        localStorage.setItem('subscription_status', 'none');
         return;
       }
       
@@ -662,6 +665,9 @@ export class EventService {
       if (!response.ok) {
         debugLog('[EventService] Erro ao verificar assinatura, usando modo limitado');
         this.useSocketServiceWithLimits();
+        
+        // Atualizar status no localStorage
+        localStorage.setItem('subscription_status', 'error');
         return;
       }
       
@@ -670,13 +676,51 @@ export class EventService {
       if (data.success && data.subscription && data.subscription.status === 'active') {
         debugLog('[EventService] Usuário com plano ativo, usando serviço completo');
         this.useSocketServiceAsFallback();
+        
+        // Armazenar dados da assinatura para uso em outros componentes
+        localStorage.setItem('subscription_status', 'active');
+        localStorage.setItem('subscription_plan', data.subscription.plan);
+        localStorage.setItem('subscription_features', JSON.stringify(data.subscription.features || []));
+        localStorage.setItem('subscription_expiration', data.subscription.expirationDate);
+        
+        // Acionar evento para notificar outros componentes sobre o status da assinatura
+        window.dispatchEvent(new CustomEvent('subscription_updated', { 
+          detail: { 
+            status: 'active', 
+            plan: data.subscription.plan,
+            features: data.subscription.features || []
+          } 
+        }));
       } else {
         debugLog('[EventService] Usuário sem plano ativo, usando modo limitado');
         this.useSocketServiceWithLimits();
+        
+        // Armazenar status para uso em outros componentes
+        localStorage.setItem('subscription_status', 'inactive');
+        
+        // Acionar evento para notificar outros componentes sobre o status da assinatura
+        window.dispatchEvent(new CustomEvent('subscription_updated', { 
+          detail: { 
+            status: 'inactive'
+          } 
+        }));
+        
+        // Se o usuário estiver logado mas sem plano, mostrar mensagem para upgrade
+        if (data.success && data.message) {
+          console.info('[EventService] Mensagem do servidor:', data.message);
+          
+          // Criar evento para mostrar mensagem de upgrade
+          window.dispatchEvent(new CustomEvent('show_subscription_upgrade', { 
+            detail: { message: 'Para acessar todos os recursos, considere fazer upgrade para um plano pago.' } 
+          }));
+        }
       }
     } catch (error) {
       debugLog(`[EventService] Erro ao verificar assinatura: ${error}`);
       this.useSocketServiceWithLimits();
+      
+      // Atualizar status no localStorage
+      localStorage.setItem('subscription_status', 'error');
     }
   }
 
