@@ -26,36 +26,10 @@ exports.gerarToken = (user) => {
     email: user.email,
     nome: user.nome,
     role: user.role || 'user',
-    isPremium: user.isPremium || false,
-    // Incluir o ID da assinatura, se disponível
-    assinaturaId: user.assinaturaId || user.subscription_id || null
+    isPremium: user.isPremium || false
   };
 
   return jwt.sign(userData, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN
-  });
-};
-
-/**
- * Gera um token JWT para um usuário com informações de assinatura
- * 
- * @param {Object} user - Dados do usuário
- * @param {Object} subscription - Dados da assinatura
- * @returns {String} Token JWT
- */
-exports.gerarTokenComAssinatura = (user, subscription) => {
-  // Criar payload com dados do usuário e da assinatura
-  const payload = {
-    id: user.id,
-    email: user.email,
-    nome: user.nome,
-    role: user.role || 'user',
-    isPremium: true,
-    assinaturaId: subscription.id,
-    plano: subscription.plan_id || subscription.plano
-  };
-
-  return jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN
   });
 };
