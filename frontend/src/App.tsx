@@ -96,6 +96,34 @@ const AuthStateManager = () => {
     initialAuthCheck();
   }, [checkAuth, checkedOnMount]);
   
+  // Verificar autenticação quando a página for recarregada
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      // Quando a página se torna visível novamente, verificar autenticação
+      if (document.visibilityState === 'visible') {
+        console.log('[AuthStateManager] Página visível - verificando autenticação');
+        await checkAuth();
+      }
+    };
+    
+    // Adicionar listener para mudança de visibilidade
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Adicionar listener para atualização de página
+    window.addEventListener('pageshow', (event) => {
+      // O evento bfcache (back-forward cache) indica que a página foi restaurada de um cache
+      if (event.persisted) {
+        console.log('[AuthStateManager] Página restaurada do cache - verificando autenticação');
+        checkAuth();
+      }
+    });
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handleVisibilityChange);
+    };
+  }, [checkAuth]);
+  
   useEffect(() => {
     // Verificar se há um state na navegação que solicita o modal de login
     if (location.state && location.state.showLoginModal) {
@@ -110,62 +138,7 @@ const AuthStateManager = () => {
       // Limpar o state para evitar que o modal apareça novamente em navegações futuras
       window.history.replaceState({}, document.title, location.pathname);
     }
-    
-    // Verificar autenticação ao navegar entre páginas
-    const verifyAuthOnNavigation = async () => {
-      // Verificar sempre em páginas críticas, especialmente pagamento
-      const isPaymentRelatedPath = 
-        location.pathname.includes('payment-success') || 
-        location.pathname.includes('pagamento/sucesso') ||
-        location.pathname.includes('pagamento') ||
-        location.pathname.includes('payment');
-        
-      const hasPaymentParams = 
-        location.search.includes('planId') || 
-        location.search.includes('paymentId') ||
-        location.search.includes('customerId');
-      
-      // Se já temos usuário e token e não estamos em página de pagamento, não verificar novamente
-      if (user && token && !isPaymentRelatedPath && !hasPaymentParams) {
-        console.log('[AuthStateManager] Usuário já autenticado, pulando verificação');
-        return;
-      }
-        
-      // Verificação de autenticação apenas quando necessário
-      if (isPaymentRelatedPath || hasPaymentParams || !user) {
-        console.log('[AuthStateManager] Verificando autenticação após navegação');
-        console.log(`[AuthStateManager] Path: ${location.pathname}, Params: ${location.search}`);
-        console.log(`[AuthStateManager] Token disponível: ${token ? 'Sim' : 'Não'}`);
-        
-        // Tentativa robusta de verificação de autenticação
-        try {
-          const isAuthenticated = await checkAuth();
-          console.log(`[AuthStateManager] Status de autenticação: ${isAuthenticated ? 'Autenticado' : 'Não autenticado'}`);
-          
-          // Se não autenticado em página de pagamento com customerId, tentar mostrar login
-          if (!isAuthenticated && 
-              isPaymentRelatedPath && 
-              location.search.includes('customerId')) {
-            
-            console.log('[AuthStateManager] Mostrando modal de login para página de pagamento');
-            showLoginModal({
-              redirectAfterLogin: location.pathname + location.search,
-              message: 'Por favor, faça login para continuar com o pagamento.'
-            });
-          }
-        } catch (error) {
-          console.error('[AuthStateManager] Erro ao verificar autenticação:', error);
-        }
-      }
-    };
-    
-    // Pequeno atraso para garantir que qualquer atualização de estado seja processada primeiro
-    const timeoutId = setTimeout(() => {
-      verifyAuthOnNavigation();
-    }, 50);
-    
-    return () => clearTimeout(timeoutId);
-  }, [location, showLoginModal, checkAuth, user, token]);
+  }, [location, showLoginModal]);
   
   return null; // Este componente não renderiza nada
 };
