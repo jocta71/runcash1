@@ -21,7 +21,12 @@ const PopoverContent = React.forwardRef<
         className
       )}
       {...props}
-    />
+    >
+      {!props['aria-label'] && (
+        <span className="sr-only" id="popover-title">Menu de opções</span>
+      )}
+      {props.children}
+    </PopoverPrimitive.Content>
   </PopoverPrimitive.Portal>
 ))
 PopoverContent.displayName = PopoverPrimitive.Content.displayName
