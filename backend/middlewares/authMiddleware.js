@@ -5,7 +5,6 @@
 
 const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
-const User = require('../models/User');
 const config = require('../config/config');
 const { Usuario } = require('../models');
 
@@ -296,8 +295,8 @@ exports.authenticate = (options = { required: true }) => {
       // Verifica e decodifica o token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       
-      // Busca usuário no banco de dados
-      const user = await User.findById(decoded.userId).select('-password');
+      // Busca usuário usando o modelo Usuario em vez de User
+      const user = await Usuario.findByPk(decoded.id);
       
       if (!user) {
         if (options.required) {

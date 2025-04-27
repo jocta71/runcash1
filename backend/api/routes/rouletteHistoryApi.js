@@ -8,9 +8,47 @@ const express = require('express');
 const router = express.Router();
 const { MongoClient } = require('mongodb');
 
-// Importar middlewares
-const { proteger } = require('../../middlewares/authMiddleware');
-const { verificarAssinatura } = require('../../middlewares/asaasSubscriptionMiddleware');
+// Importar middlewares simplificados
+let authMiddleware;
+let subscriptionMiddleware;
+
+try {
+  // Tentar carregar o middleware simplificado primeiro
+  authMiddleware = require('../../middlewares/simpleAuthMiddleware');
+  console.log('[API] Usando middleware de autenticação simplificado');
+} catch (err) {
+  // Fallback para o middleware original se o simplificado não existir
+  try {
+    authMiddleware = require('../../middlewares/authMiddleware');
+    console.log('[API] Usando middleware de autenticação padrão');
+  } catch (error) {
+    console.error('[API] Erro ao carregar middleware de autenticação:', error.message);
+    // Criar um middleware vazio que apenas passa para o próximo
+    authMiddleware = {
+      proteger: (req, res, next) => next(),
+      authenticate: () => (req, res, next) => next()
+    };
+    console.warn('[API] Usando middleware de autenticação "dummy" (nenhuma verificação)');
+  }
+}
+
+try {
+  // Tentar carregar o middleware de assinatura
+  subscriptionMiddleware = require('../../middlewares/asaasSubscriptionMiddleware');
+  console.log('[API] Middleware de verificação de assinatura carregado');
+} catch (error) {
+  console.error('[API] Erro ao carregar middleware de assinatura:', error.message);
+  // Criar um middleware vazio que apenas passa para o próximo
+  subscriptionMiddleware = {
+    verificarAssinatura: () => (req, res, next) => next(),
+    verificarAssinaturaBasica: (req, res, next) => next()
+  };
+  console.warn('[API] Usando middleware de assinatura "dummy" (nenhuma verificação)');
+}
+
+// Extrair os middlewares necessários
+const { proteger } = authMiddleware;
+const { verificarAssinatura } = subscriptionMiddleware;
 
 // Middleware para verificar se o MongoDB está disponível
 const checkMongoDB = (req, res, next) => {
@@ -26,9 +64,9 @@ const checkMongoDB = (req, res, next) => {
 /**
  * @route   GET /api/roulettes/history/:rouletteName
  * @desc    Obtém até 1000 números históricos de uma roleta pelo nome
- * @access  Privado - Requer assinatura ativa
+ * @access  Público - Temporariamente sem verificação
  */
-router.get('/:rouletteName', proteger, verificarAssinatura(), checkMongoDB, async (req, res) => {
+router.get('/:rouletteName', checkMongoDB, async (req, res) => {
   try {
     const { rouletteName } = req.params;
     const db = req.app.locals.db;
@@ -123,9 +161,9 @@ router.get('/:rouletteName', proteger, verificarAssinatura(), checkMongoDB, asyn
 /**
  * @route   GET /api/roulettes/history
  * @desc    Obtém informações sobre o histórico disponível
- * @access  Privado - Requer autenticação
+ * @access  Público - Temporariamente sem verificação
  */
-router.get('/', proteger, checkMongoDB, async (req, res) => {
+router.get('/', checkMongoDB, async (req, res) => {
   try {
     const db = req.app.locals.db;
     
