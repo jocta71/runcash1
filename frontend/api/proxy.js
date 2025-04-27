@@ -17,6 +17,11 @@ const proxyRequest = (req, res, path) => {
   const authToken = cookies['auth-token'] || '';
   const refreshToken = cookies['refresh-token'] || '';
 
+  // Log do caminho e origem
+  console.log(`[PROXY] Origem: ${req.headers.origin || 'desconhecida'}`);
+  console.log(`[PROXY] Path: ${path}`);
+  console.log(`[PROXY] Auth token presente: ${authToken ? 'Sim' : 'Não'}`);
+
   // Configurar opções do request
   const options = {
     hostname: parsedUrl.hostname,
@@ -43,16 +48,32 @@ const proxyRequest = (req, res, path) => {
     body = Buffer.concat(body).toString();
     
     // Debugar requisição
-    console.log(`Proxy reenviando requisição para: ${BACKEND_URL}${options.path}`);
-    console.log('Headers: ', JSON.stringify(options.headers, null, 2));
+    console.log(`[PROXY] Reenviando requisição para: ${BACKEND_URL}${options.path}`);
     
     // Escolher o protocolo correto (http ou https)
     const protocol = isHttps ? https : http;
     
     // Criar a requisição para o backend
     const proxyReq = protocol.request(options, (proxyRes) => {
+      // Log da resposta
+      console.log(`[PROXY] Resposta do backend: ${proxyRes.statusCode}`);
+      
       // Configurar os headers da resposta
-      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      Object.keys(proxyRes.headers).forEach(key => {
+        // Não passar headers de CORS do backend, vamos definir nossos próprios
+        if (!key.toLowerCase().startsWith('access-control-')) {
+          res.setHeader(key, proxyRes.headers[key]);
+        }
+      });
+      
+      // Definir headers CORS para permitir todas as origens
+      res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      
+      // Definir o status code
+      res.statusCode = proxyRes.statusCode;
       
       // Encaminhar os dados da resposta
       proxyRes.pipe(res, { end: true });
@@ -60,7 +81,7 @@ const proxyRequest = (req, res, path) => {
     
     // Lidar com erros na requisição
     proxyReq.on('error', (error) => {
-      console.error('Erro no proxy:', error);
+      console.error('[PROXY] Erro:', error);
       res.statusCode = 500;
       res.end(`Erro na comunicação com o backend: ${error.message}`);
     });
@@ -90,9 +111,11 @@ module.exports = (req, res) => {
   }
   
   // Obter o path específico, se fornecido como query parameter
-  const { path } = url.parse(req.url, true).query;
-  const targetPath = path || req.url;
+  const queryParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
+  const path = queryParams.get('path') || req.url;
+  
+  console.log(`[PROXY] Iniciando proxy. Método: ${req.method}, Path: ${path}`);
   
   // Encaminhar a requisição para o backend
-  proxyRequest(req, res, targetPath);
+  proxyRequest(req, res, path);
 }; 

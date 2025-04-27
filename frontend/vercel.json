@@ -3,22 +3,16 @@
   "buildCommand": "vite build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/api/ROULETTES", "destination": "/api/ROULETTES" },
+    { "source": "/api/ROULETTES/:path*", "destination": "/api/ROULETTES" },
+    { "source": "/api/ROULETTES-numbers", "destination": "/api/ROULETTES-numbers" },
+    { "source": "/api/ROULETTES-numbers/:path*", "destination": "/api/ROULETTES-numbers" },
     { "source": "/api/events", "destination": "/api/proxy?path=/api/events" },
     { "source": "/api/roulettes", "destination": "/api/proxy?path=/api/roulettes" },
     { "source": "/api/strategies", "destination": "/api/proxy?path=/api/strategies" },
     { "source": "/emit-event", "destination": "/api/proxy?path=/emit-event" },
     { "source": "/test-cors", "destination": "/api/proxy?path=/test-cors" },
     { "source": "/socket-status", "destination": "/api/proxy?path=/socket-status" },
-    { "source": "/historico/:roletaId", "destination": "/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "env": {
-    "VITE_WS_URL": "https://backend-production-2f96.up.railway.app",
-    "VITE_SSE_SERVER_URL": "https://backend-production-2f96.up.railway.app/api/events",
-    "VITE_API_BASE_URL": "https://runcash5.vercel.app/api",
-    "BACKEND_URL": "https://backend-production-2f96.up.railway.app"
-  },
-  "rewrites": [
     { 
       "source": "/api/asaas-create-customer",
       "destination": "https://backend-production-2f96.up.railway.app/api/payment/asaas/create-customer"
@@ -30,6 +24,14 @@
     { 
       "source": "/api/asaas-webhook",
       "destination": "https://backend-production-2f96.up.railway.app/api/payment/asaas/webhook"
-    }
-  ]
+    },
+    { "source": "/historico/:roletaId", "destination": "/index.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "env": {
+    "VITE_WS_URL": "https://backend-production-2f96.up.railway.app",
+    "VITE_SSE_SERVER_URL": "https://backend-production-2f96.up.railway.app/api/events",
+    "VITE_API_BASE_URL": "https://runcashh11.vercel.app/api",
+    "BACKEND_URL": "https://backend-production-2f96.up.railway.app"
+  }
 }
