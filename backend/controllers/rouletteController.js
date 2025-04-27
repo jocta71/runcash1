@@ -574,6 +574,26 @@ const getFreePreview = async (req, res) => {
   }
 };
 
+// Função para criar números mockados para uma roleta específica
+function gerarNumerosMockados() {
+  // Gerar 5 números aleatórios para roleta
+  const numerosMockados = [];
+  for (let i = 0; i < 5; i++) {
+    // Gerar número aleatório entre 0 e 36
+    const numero = Math.floor(Math.random() * 37);
+    
+    // Timestamp decrementado a cada 60 segundos
+    const timestamp = new Date(Date.now() - (i * 60000)).toISOString();
+    
+    // Determinar cor
+    const cor = determinarCorNumero(numero);
+    
+    numerosMockados.push({ numero, timestamp, cor });
+  }
+  
+  return numerosMockados;
+}
+
 /**
  * Fornece uma amostra limitada de dados de roletas para usuários não autenticados
  * Usado para demonstração e para usuários sem plano
@@ -685,19 +705,21 @@ const getSampleRoulettes = async (req, res) => {
         collectionNames.includes('roulette_numbers') ? 'roulette_numbers' : 
         collectionNames.includes('roleta_numeros') ? 'roleta_numeros' : null;
       
-      // Se não houver coleção de números, retornar roletas com números vazios
+      // Se não houver coleção de números, gerar números aleatórios
       if (!numbersCollection) {
-        console.log('[API] Coleção de números não encontrada');
+        console.log('[API] Coleção de números não encontrada, gerando números aleatórios');
         const limitedData = roulettes.map(roulette => ({
           ...roulette,
-          numero: []
+          nome: roulette.nome || roulette.name,
+          numero: gerarNumerosMockados()
         }));
         
         return res.json({
           success: true,
-          message: 'Amostra de dados de roletas (sem números)',
+          message: 'Amostra de dados de roletas (com números aleatórios)',
           data: limitedData,
-          sample: true
+          sample: true,
+          mockNumbers: true
         });
       }
       
@@ -730,24 +752,34 @@ const getSampleRoulettes = async (req, res) => {
           // Continua com array vazio
         }
         
+        // Se não encontrou números, gerar números aleatórios
+        const numerosFinal = numbers.length > 0 ?
+          numbers.map(n => ({
+            numero: n.numero || n.number || n.value || 0,
+            timestamp: n.timestamp || n.created_at || n.criado_em || new Date().toISOString(),
+            cor: n.cor || n.color || determinarCorNumero(n.numero || n.number || n.value || 0)
+          })) : 
+          gerarNumerosMockados();
+        
         // Formatar resposta para esta roleta
         return {
           ...roulette,
           nome: roulette.nome || roulette.name,
-          numero: numbers.map(n => ({
-            numero: n.numero || n.number || n.value || 0,
-            timestamp: n.timestamp || n.created_at || n.criado_em || new Date().toISOString(),
-            cor: n.cor || n.color || determinarCorNumero(n.numero || n.number || n.value || 0)
-          }))
+          numero: numerosFinal,
+          mockNumbers: numbers.length === 0 // Indica se os números são mockados para esta roleta
         };
       }));
+      
+      // Verificar se todas as roletas tem números mockados
+      const todasComNumerosMockados = limitedData.every(r => r.mockNumbers);
       
       // Retornar dados reais
       return res.json({
         success: true,
-        message: 'Amostra de dados de roletas',
+        message: 'Amostra de dados de roletas' + (todasComNumerosMockados ? ' (com números aleatórios)' : ''),
         data: limitedData,
-        sample: true
+        sample: true,
+        mockNumbers: todasComNumerosMockados
       });
     } catch (dbError) {
       // Tratar qualquer erro de banco e retornar dados mockados
