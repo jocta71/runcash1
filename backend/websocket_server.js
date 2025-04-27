@@ -442,15 +442,25 @@ const getLimitForPlan = (plan) => {
 
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
-  // Sempre permitir todas as origens para simplificar
-  res.header('Access-Control-Allow-Origin', '*');
+  const ALLOWED_ORIGINS = ['https://runcashh11.vercel.app', 'http://localhost:5173', 'http://localhost:3000'];
+  const origin = req.headers.origin;
+  
+  // Verificar se a origem está na lista de permitidas
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    // Modo fallback para desenvolvimento/testes
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    console.log(`[CORS] Aviso: Origem não reconhecida: ${origin || 'undefined'}`);
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
   res.header('Access-Control-Allow-Credentials', 'true');
   
   // Logar para depuração
-  console.log(`[CORS] Configurado para requisição ${req.method} em ${req.path} de origem: ${req.headers.origin || 'desconhecida'}`);
+  console.log(`[CORS] Configurado para requisição ${req.method} em ${req.path} de origem: ${origin || 'desconhecida'}`);
   
   // Tratar solicitações preflight
   if (req.method === 'OPTIONS') {
@@ -542,7 +552,7 @@ const server = http.createServer(app);
 // Inicializar Socket.IO com configurações CORS aprimoradas
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: ['https://runcashh11.vercel.app', 'http://localhost:5173', 'http://localhost:3000'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowEIO3: true
@@ -553,7 +563,7 @@ const io = new Server(server, {
   connectTimeout: 45000 // Aumentar tempo limite de conexão
 });
 
-console.log('[Socket.IO] Inicializado com configuração CORS para aceitar todas as origens');
+console.log('[Socket.IO] Inicializado com configuração CORS para origens específicas');
 
 // Status e números das roletas
 let rouletteStatus = {};
@@ -1340,11 +1350,20 @@ app.get('/disable-cors-check', (req, res) => {
 app.options('/api/ROULETTES', (req, res) => {
   console.log('[CORS] Requisição OPTIONS recebida para /api/ROULETTES');
   
+  const origin = req.headers.origin;
+  const ALLOWED_ORIGINS = ['https://runcashh11.vercel.app', 'http://localhost:5173', 'http://localhost:3000'];
+  
   // Aplicar cabeçalhos CORS necessários
-  res.header('Access-Control-Allow-Origin', '*');
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.header('Access-Control-Allow-Headers', '*');
   res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
+  res.header('Access-Control-Allow-Credentials', 'true');
   
   // Responder imediatamente com sucesso
   res.status(204).end();
@@ -1354,11 +1373,20 @@ app.options('/api/ROULETTES', (req, res) => {
 app.options('/api/ROULETTES/historico', (req, res) => {
   console.log('[CORS] Requisição OPTIONS recebida para /api/ROULETTES/historico');
   
+  const origin = req.headers.origin;
+  const ALLOWED_ORIGINS = ['https://runcashh11.vercel.app', 'http://localhost:5173', 'http://localhost:3000'];
+  
   // Aplicar cabeçalhos CORS necessários
-  res.header('Access-Control-Allow-Origin', '*');
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.header('Access-Control-Allow-Headers', '*');
   res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
+  res.header('Access-Control-Allow-Credentials', 'true');
   
   // Responder imediatamente com sucesso
   res.status(204).end();

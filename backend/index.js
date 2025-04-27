@@ -18,6 +18,7 @@ dotenv.config();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const API_SERVICE_URL = process.env.API_SERVICE_URL || "https://backendapi-production-36b5.up.railway.app";
+const ALLOWED_ORIGINS = ['https://runcashh11.vercel.app', 'http://localhost:5173', 'http://localhost:3000'];
 
 // Inicializar Express
 const app = express();
@@ -54,7 +55,18 @@ const { verificarPlano } = subscriptionMiddleware;
 
 // Middlewares
 app.use(cors({
-  origin: '*',
+  origin: function (origin, callback) {
+    // Permitir requisições sem origem (como ferramentas de API ou mobile)
+    if (!origin) return callback(null, true);
+    
+    // Verificar se a origem está na lista de permitidas
+    if (ALLOWED_ORIGINS.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS] Origem bloqueada: ${origin}`);
+      callback(null, true); // Em produção, considere mudar para false para realmente bloquear
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -82,7 +94,8 @@ const proxyRequest = async (req, res) => {
       headers,
       data: method !== 'get' ? req.body : undefined,
       validateStatus: () => true, // Não lançar erro para status codes não-2xx
-      responseType: 'arraybuffer' // Para lidar com todos os tipos de respostas
+      responseType: 'arraybuffer', // Para lidar com todos os tipos de respostas
+      withCredentials: true // Habilitar envio de cookies/credenciais
     });
     
     // Definir status code da resposta
@@ -157,13 +170,22 @@ app.get('/status', (req, res) => {
   });
 });
 
+// Endpoint para verificação de saúde do servidor
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
+
 // Inicializar servidor HTTP
 const server = http.createServer(app);
 
 // Inicializar Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: ALLOWED_ORIGINS,
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -182,6 +204,7 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
   console.log(`[Server] API e servidor WebSocket iniciados na porta ${PORT}`);
   console.log(`[Server] Proxy para API configurado para ${API_SERVICE_URL}`);
+  console.log(`[Server] CORS configurado para origens: ${ALLOWED_ORIGINS.join(', ')}`);
 });
 
 console.log('=== RunCash WebSocket Launcher ===');

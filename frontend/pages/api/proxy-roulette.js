@@ -1,166 +1,108 @@
-// Proxy específico para requisições de roletas
+// Proxy específico para endpoint de roletas
 import https from 'https';
 import http from 'http';
-import url from 'url';
-import cookie from 'cookie';
 
-// URL do backend no Railway
-const BACKEND_URL = 'https://backend-production-2f96.up.railway.app';
-const API_PATH = '/api/ROULETTES';
-
-export default function handler(req, res) {
-  console.log(`[PROXY-ROULETTE] Recebendo requisição: ${req.method} ${req.url}`);
+export default async function handler(req, res) {
+  // Configurar CORS para permitir credenciais
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   
+  // Responder imediatamente a solicitações preflight OPTIONS
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   try {
-    // Configurar CORS para permitir requisições cross-origin
-    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, bypass-tunnel-reminder');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    // Defina o URL do backend (Railway)
+    const backendUrl = process.env.BACKEND_URL || 'https://backend-production-2f96.up.railway.app';
     
-    // Responder imediatamente para requisições de preflight (OPTIONS)
-    if (req.method === 'OPTIONS') {
-      console.log('[PROXY-ROULETTE] Respondendo requisição OPTIONS');
-      res.status(200).end();
-      return;
-    }
+    // Extrair parâmetros da consulta - ROULETTES é o padrão
+    const query = new URLSearchParams(req.query);
+    const endpoint = query.get('endpoint') || 'ROULETTES';
+    // Remover o parâmetro endpoint para não duplicar na URL
+    query.delete('endpoint');
+    
+    // Preservar outros parâmetros na consulta
+    const queryString = query.toString();
+    const path = `/api/${endpoint}${queryString ? `?${queryString}` : ''}`;
+    
+    console.log(`[Proxy Roleta] Redirecionando para: ${backendUrl}${path}`);
 
-    // Extrair tokens de autenticação dos cookies e headers
-    const cookies = req.headers.cookie ? cookie.parse(req.headers.cookie) : {};
-    const authToken = req.headers.authorization || cookies['auth-token'] || '';
-    const refreshToken = cookies['refresh-token'] || '';
-    
-    console.log(`[PROXY-ROULETTE] Token de autorização disponível: ${authToken ? 'Sim' : 'Não'}`);
-
-    // Determinar o tipo de requisição (normal ou de números)
-    const queryParams = new URLSearchParams(url.parse(req.url).query || '');
-    const isNumbersRequest = queryParams.get('type') === 'numbers';
-    const pathSuffix = isNumbersRequest ? '-numbers' : '';
-    
-    // Remover parâmetro type para não enviar ao backend
-    queryParams.delete('type');
-    const cleanedQuery = queryParams.toString() ? `?${queryParams.toString()}` : '';
-    
-    // Construir URL completa para o backend
-    const targetPath = `${API_PATH}${pathSuffix}${cleanedQuery}`;
-
-    // Configurar opções para o request ao backend
-    const parsedBackendUrl = url.parse(BACKEND_URL);
-    const isHttps = parsedBackendUrl.protocol === 'https:';
-    
+    // Preparar a solicitação para o backend
     const options = {
-      hostname: parsedBackendUrl.hostname,
-      port: parsedBackendUrl.port || (isHttps ? 443 : 80),
-      path: targetPath,
       method: req.method,
       headers: {
         ...req.headers,
-        host: parsedBackendUrl.hostname,
-        'Authorization': authToken ? `Bearer ${authToken}` : '',
-        'X-Refresh-Token': refreshToken || '',
-        'Connection': 'keep-alive',
+        host: new URL(backendUrl).host,
+        // Adicionar headers específicos para depuração
+        'X-Forwarded-From': 'vercel-proxy-roulette',
+        'X-Original-URL': req.url
       }
     };
 
-    // Remover headers problemáticos
-    delete options.headers.host;
-    delete options.headers.origin;
+    // Escolher http ou https com base na URL
+    const protocolClient = backendUrl.startsWith('https') ? https : http;
     
-    console.log(`[PROXY-ROULETTE] Requisição para: ${BACKEND_URL}${targetPath}`);
-    console.log(`[PROXY-ROULETTE] Método: ${req.method}, Autenticação: ${authToken ? 'Com token' : 'Sem token'}`);
-    
-    // Preparar para receber o corpo da requisição
-    let body = [];
-    req.on('data', (chunk) => {
-      body.push(chunk);
-    }).on('end', () => {
-      body = Buffer.concat(body).toString();
-      
-      // Escolher o protocolo correto (http ou https)
-      const protocol = isHttps ? https : http;
-      
-      // Criar a requisição para o backend com timeout
-      const proxyReq = protocol.request(options, (proxyRes) => {
-        console.log(`[PROXY-ROULETTE] Resposta do backend: ${proxyRes.statusCode}`);
-        
-        // Configurar os headers da resposta
-        Object.keys(proxyRes.headers).forEach(key => {
-          // Não passar headers de CORS do backend, definimos nossos próprios
-          if (!key.toLowerCase().startsWith('access-control-')) {
-            res.setHeader(key, proxyRes.headers[key]);
-          }
-        });
-        
-        // Definir o status code da resposta
-        res.statusCode = proxyRes.statusCode;
-        
-        // Coletar os dados da resposta
-        let responseData = [];
-        proxyRes.on('data', (chunk) => {
-          responseData.push(chunk);
-        });
-        
-        // Quando todos os dados forem recebidos
-        proxyRes.on('end', () => {
-          const responseBody = Buffer.concat(responseData);
-          
-          // Log de resposta para debug
-          try {
-            const jsonResponse = JSON.parse(responseBody.toString());
-            console.log(`[PROXY-ROULETTE] Resposta processada com sucesso, tamanho: ${responseBody.length} bytes`);
-            
-            // Se houver erro de autenticação, registrar para depuração
-            if (proxyRes.statusCode === 401) {
-              console.error('[PROXY-ROULETTE] Erro de autenticação 401:', jsonResponse);
-            }
-          } catch (e) {
-            console.log(`[PROXY-ROULETTE] Resposta não é JSON válido, tamanho: ${responseBody.length} bytes`);
-          }
-          
-          res.end(responseBody);
-        });
-      });
-      
-      // Configurar timeout para a requisição
-      proxyReq.setTimeout(30000, () => {
-        proxyReq.destroy();
-        console.error('[PROXY-ROULETTE] Timeout na requisição');
-        res.status(504).json({
-          error: true,
-          message: 'Timeout na comunicação com o backend'
-        });
-      });
-      
-      // Lidar com erros na requisição
-      proxyReq.on('error', (error) => {
-        console.error('[PROXY-ROULETTE] Erro:', error);
-        
-        // Se a resposta ainda não foi enviada
-        if (!res.headersSent) {
-          res.status(500).json({
-            error: true,
-            message: `Erro na comunicação com o backend: ${error.message}`
-          });
-        }
-      });
-      
-      // Enviar o corpo da requisição se aplicável
-      if (['POST', 'PUT', 'PATCH'].includes(req.method) && body) {
-        proxyReq.write(body);
+    // Montar o corpo da solicitação para métodos POST
+    let requestBody = '';
+    if (req.method === 'POST') {
+      const buffers = [];
+      for await (const chunk of req) {
+        buffers.push(chunk);
       }
-      
-      // Finalizar a requisição
-      proxyReq.end();
-    });
-  } catch (error) {
-    console.error('[PROXY-ROULETTE] Erro não tratado:', error);
-    
-    // Se a resposta ainda não foi enviada
-    if (!res.headersSent) {
-      res.status(500).json({
-        error: true,
-        message: `Erro interno no proxy: ${error.message}`
-      });
+      requestBody = Buffer.concat(buffers).toString();
     }
+
+    // Fazer a solicitação ao backend
+    const backendReq = protocolClient.request(
+      `${backendUrl}${path}`,
+      options,
+      (backendRes) => {
+        // Responder com o código de status do backend
+        res.statusCode = backendRes.statusCode;
+        
+        // Copiar headers da resposta, exceto CORS que serão definidos pelo Vercel
+        Object.entries(backendRes.headers).forEach(([key, value]) => {
+          if (!key.toLowerCase().startsWith('access-control-')) {
+            res.setHeader(key, value);
+          }
+        });
+        
+        // Transmitir a resposta do backend para o cliente
+        backendRes.pipe(res);
+        
+        // Registrar o resultado
+        console.log(`[Proxy Roleta] Resposta: ${backendRes.statusCode}`);
+      }
+    );
+    
+    // Lidar com erros na solicitação
+    backendReq.on('error', (error) => {
+      console.error(`[Proxy Roleta] Erro: ${error.message}`);
+      res.status(500).json({ 
+        error: "Erro ao conectar ao backend", 
+        message: error.message,
+        origin: "proxy-roulette"
+      });
+    });
+    
+    // Enviar corpo para solicitações POST
+    if (req.method === 'POST' && requestBody) {
+      backendReq.write(requestBody);
+    }
+    
+    // Finalizar a solicitação
+    backendReq.end();
+    
+  } catch (error) {
+    console.error(`[Proxy Roleta] Erro na execução: ${error.message}`);
+    res.status(500).json({ 
+      error: "Erro interno no proxy", 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 } 
