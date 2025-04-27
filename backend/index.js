@@ -89,10 +89,19 @@ if (fs.existsSync(apiIndexPath)) {
     // Carregar rotas de roleta do diretório principal
     try {
       const rouletteRoutes = require('./routes/rouletteRoutes');
-app.use('/api', rouletteRoutes);
+      app.use('/api', rouletteRoutes);
       console.log('Rotas de roleta carregadas do diretório principal');
     } catch (err) {
       console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
+    }
+    
+    // Carregar rotas protegidas de roletas
+    try {
+      const roletasProtegidas = require('./routes/roletasProtegidas');
+      app.use('/api', roletasProtegidas);
+      console.log('Rotas protegidas de roletas carregadas com sucesso');
+    } catch (err) {
+      console.log('Rotas protegidas de roletas não disponíveis:', err.message);
     }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
