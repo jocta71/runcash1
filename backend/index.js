@@ -85,6 +85,15 @@ if (fs.existsSync(apiIndexPath)) {
         console.log('Rota de estratégias não disponível:', err.message);
       }
     }
+    
+    // Carregar rotas de roleta do diretório principal
+    try {
+      const rouletteRoutes = require('./routes/rouletteRoutes');
+      app.use('/api', rouletteRoutes);
+      console.log('Rotas de roleta carregadas do diretório principal');
+    } catch (err) {
+      console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
+    }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
   }

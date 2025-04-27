@@ -18,7 +18,12 @@ const rouletteController = require('../controllers/rouletteController');
  * @desc    Fornece uma amostra de dados para usuários sem plano
  * @access  Público
  */
-router.get('/roulettes/sample', rouletteController.getSampleRoulettes);
+router.get('/roulettes/sample', (req, res, next) => {
+  console.log('[DEBUG] Rota /api/roulettes/sample acessada');
+  console.log('[DEBUG] Parâmetros:', req.params);
+  console.log('[DEBUG] Query:', req.query);
+  return rouletteController.getSampleRoulettes(req, res, next);
+});
 
 /**
  * @route   GET /api/roulettes
