@@ -133,6 +133,53 @@ router.get('/status',
   }
 );
 
+// Rota especial para verificar assinatura sem autenticação (para uso com ID de cliente)
+router.get('/verify/:customerId', async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    
+    if (!customerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID do cliente não fornecido'
+      });
+    }
+    
+    const db = await getDb();
+    const subscription = await db.collection('subscriptions').findOne({
+      customer_id: customerId,
+      status: { $in: ['active', 'ACTIVE', 'ativa'] },
+      expirationDate: { $gt: new Date() }
+    });
+    
+    if (!subscription) {
+      return res.status(200).json({
+        success: true,
+        hasActiveSubscription: false,
+        subscription: null
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      hasActiveSubscription: true,
+      subscription: {
+        id: subscription._id,
+        plan: subscription.plan_id,
+        status: subscription.status,
+        expirationDate: subscription.expirationDate
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao verificar assinatura por ID de cliente:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao verificar assinatura por ID de cliente',
+      error: error.message
+    });
+  }
+});
+
 // Outras rotas existentes...
 // ... existing code ...
 

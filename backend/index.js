@@ -27,6 +27,8 @@ const empresarialRoutes = require('./routes/empresarialRoutes');
 const assinaturaRoutes = require('./routes/assinaturaRoutes');
 const rouletteRoutes = require('./routes/rouletteRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
+const authRoutes = require('./routes/authRoutes');
+const protectedRoutes = require('./routes/protectedRoutes');
 
 // Middlewares
 app.use(cors());
@@ -39,6 +41,8 @@ app.use('/api/empresarial', empresarialRoutes);
 app.use('/api/assinatura', assinaturaRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api', rouletteRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/protected', protectedRoutes);
 
 // Rota principal para verificação
 app.get('/', (req, res) => {
@@ -47,6 +51,38 @@ app.get('/', (req, res) => {
     service: 'RunCash API Server',
     timestamp: new Date().toISOString()
   });
+});
+
+// Rota de verificação de saúde
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Rota de amostra para roletas (para acesso limitado)
+app.get('/api/roulettes/sample', async (req, res) => {
+  try {
+    const db = await getDb();
+    const samples = await db.collection('roulettes')
+      .find({})
+      .limit(3)
+      .toArray();
+    
+    const limitedData = samples.map(roulette => ({
+      id: roulette.id,
+      nome: roulette.nome,
+      status: roulette.status,
+      amostra: true,
+      numero: roulette.numero ? roulette.numero.slice(0, 5) : []
+    }));
+    
+    res.status(200).json(limitedData);
+  } catch (error) {
+    console.error('Erro ao buscar amostras de roletas:', error);
+    res.status(500).json({
+      success: false, 
+      message: 'Erro ao buscar amostras de roletas'
+    });
+  }
 });
 
 // Inicializar servidor HTTP

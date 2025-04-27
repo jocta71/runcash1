@@ -17,10 +17,38 @@ const rouletteController = require('../controllers/rouletteController');
 
 /**
  * @route   GET /api/roulettes/sample
- * @desc    Fornece uma amostra de dados para usuários sem plano
+ * @desc    Obtém uma amostra limitada de dados de roletas para usuários sem assinatura
  * @access  Público
  */
-router.get('/roulettes/sample', rouletteController.getSampleRoulettes);
+router.get('/sample', async (req, res) => {
+  try {
+    const db = await getDb();
+    
+    // Buscar algumas roletas para fornecer como amostra
+    const roulettes = await db.collection('roulettes')
+      .find({})
+      .limit(3)
+      .toArray();
+    
+    // Limitar os dados retornados
+    const limitedData = roulettes.map(roulette => ({
+      id: roulette.id,
+      nome: roulette.nome || roulette.name,
+      status: roulette.status || 'active',
+      amostra: true,
+      numero: roulette.numero ? roulette.numero.slice(0, 5) : []
+    }));
+    
+    res.status(200).json(limitedData);
+  } catch (error) {
+    console.error('Erro ao buscar amostras de roletas:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar amostras de roletas',
+      error: error.message
+    });
+  }
+});
 
 /**
  * @route   GET /api/roulettes
