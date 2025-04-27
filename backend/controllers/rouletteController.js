@@ -652,9 +652,8 @@ const getSampleRoulettes = async (req, res) => {
         console.log('[API] Banco de dados não disponível, retornando dados mockados');
         return res.json({
           success: true,
-          message: 'Amostra de dados de roletas (mockados)',
+          message: 'Dados de roletas (mockados)',
           data: mockData,
-          sample: true,
           mock: true
         });
       }
@@ -676,9 +675,8 @@ const getSampleRoulettes = async (req, res) => {
         console.log('[API] Coleção de roletas não encontrada, retornando dados mockados');
         return res.json({
           success: true,
-          message: 'Amostra de dados de roletas (mockados - coleção não encontrada)',
+          message: 'Dados de roletas (mockados - coleção não encontrada)',
           data: mockData,
-          sample: true,
           mock: true
         });
       }
@@ -693,9 +691,8 @@ const getSampleRoulettes = async (req, res) => {
         console.log('[API] Nenhuma roleta encontrada, retornando dados mockados');
         return res.json({
           success: true,
-          message: 'Amostra de dados de roletas (mockados - nenhuma roleta encontrada)',
+          message: 'Dados de roletas (mockados - nenhuma roleta encontrada)',
           data: mockData,
-          sample: true,
           mock: true
         });
       }
@@ -716,9 +713,8 @@ const getSampleRoulettes = async (req, res) => {
         
         return res.json({
           success: true,
-          message: 'Amostra de dados de roletas (com números aleatórios)',
+          message: 'Dados de roletas (com números aleatórios)',
           data: limitedData,
-          sample: true,
           mockNumbers: true
         });
       }
@@ -776,9 +772,8 @@ const getSampleRoulettes = async (req, res) => {
       // Retornar dados reais
       return res.json({
         success: true,
-        message: 'Amostra de dados de roletas' + (todasComNumerosMockados ? ' (com números aleatórios)' : ''),
+        message: 'Dados de roletas' + (todasComNumerosMockados ? ' (com números aleatórios)' : ''),
         data: limitedData,
-        sample: true,
         mockNumbers: todasComNumerosMockados
       });
     } catch (dbError) {
@@ -786,9 +781,8 @@ const getSampleRoulettes = async (req, res) => {
       console.error('[API] Erro ao acessar banco de dados:', dbError.message);
       return res.json({
         success: true,
-        message: 'Amostra de dados de roletas (mockados - erro DB)',
+        message: 'Dados de roletas (mockados - erro DB)',
         data: mockData,
-        sample: true,
         mock: true,
         error: dbError.message
       });
@@ -798,7 +792,7 @@ const getSampleRoulettes = async (req, res) => {
     console.error('[API] Erro ao obter amostra de roletas:', error.message);
     return res.status(500).json({
       success: false,
-      message: 'Erro ao obter amostra de roletas',
+      message: 'Erro ao obter dados de roletas',
       error: error.message
     });
   }

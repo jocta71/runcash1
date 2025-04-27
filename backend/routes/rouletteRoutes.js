@@ -14,14 +14,24 @@ const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddle
 const rouletteController = require('../controllers/rouletteController');
 
 /**
+ * @route   GET /api/roulettes/demo
+ * @desc    Fornece dados de demonstração para usuários sem plano
+ * @access  Público
+ */
+router.get('/roulettes/demo', (req, res, next) => {
+  console.log('[DEBUG] Rota /api/roulettes/demo acessada');
+  console.log('[DEBUG] Parâmetros:', req.params);
+  console.log('[DEBUG] Query:', req.query);
+  return rouletteController.getSampleRoulettes(req, res, next);
+});
+
+/**
  * @route   GET /api/roulettes/sample
  * @desc    Fornece uma amostra de dados para usuários sem plano
  * @access  Público
  */
 router.get('/roulettes/sample', (req, res, next) => {
-  console.log('[DEBUG] Rota /api/roulettes/sample acessada');
-  console.log('[DEBUG] Parâmetros:', req.params);
-  console.log('[DEBUG] Query:', req.query);
+  console.log('[DEBUG] Rota /api/roulettes/sample acessada (legado)');
   return rouletteController.getSampleRoulettes(req, res, next);
 });
 
