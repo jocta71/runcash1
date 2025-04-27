@@ -7,6 +7,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const NodeCache = require('node-cache');
+const compression = require('compression');
 
 // Alternativa 1: Usar try-catch para tentar diferentes caminhos
 let config;
@@ -113,6 +114,12 @@ const assinaturaCache = new NodeCache({
 const tokenInvalidoCache = new NodeCache({ 
   stdTTL: 3600, // 1 hora
   checkperiod: 300 
+});
+
+// Cache para resultados de consultas (TTL: 30 segundos)
+const resultCache = new NodeCache({ 
+  stdTTL: 30,
+  checkperiod: 10 
 });
 
 // Função para verificar assinatura com cache
@@ -312,46 +319,56 @@ const verificarAssinatura = (planosPermitidos = ['BASIC', 'PRO', 'PREMIUM']) => 
     return next();
   }
   
-  // Se não temos informações da assinatura ou elas são negativas, verificar no banco com cache
+  // Se não temos informações de assinatura ou elas estão desatualizadas, verificar no banco
   try {
+    console.log(`[AUTH] Verificando assinatura no banco para usuário ${req.userId}`);
+    
+    // Verificar assinatura no banco de dados
     const assinaturaInfo = await verificarAssinaturaComCache(req.userId);
     
-    if (!assinaturaInfo.temAssinatura) {
-      console.log(`[AUTH] Usuário ${req.userId} não possui assinatura ativa`);
-      return res.status(403).json({
+    // Log detalhado para diagnóstico
+    console.log(`[AUTH] Informações de assinatura obtidas do banco: ${JSON.stringify(assinaturaInfo)}`);
+    
+    // Verificar se o usuário tem assinatura ativa com plano permitido
+    if (assinaturaInfo.temAssinatura && planosPermitidos.includes(assinaturaInfo.plano)) {
+      console.log(`[AUTH] Assinatura verificada via banco: Plano ${assinaturaInfo.plano}`);
+      req.userPlan = assinaturaInfo.plano;
+      req.hasValidSubscription = true;
+      next();
+    } else {
+      console.log(`[AUTH] Assinatura insuficiente: ${assinaturaInfo.temAssinatura ? 'Ativa' : 'Inativa'}, Plano: ${assinaturaInfo.plano}`);
+      
+      // Resposta padronizada para erro de assinatura
+      res.status(403).json({
         success: false,
         error: 'SUBSCRIPTION_REQUIRED',
-        message: 'Acesso não autorizado. Você precisa de uma assinatura ativa para acessar estes dados.',
+        message: 'Você precisa de uma assinatura ativa para acessar estes dados',
         requiresSubscription: true
       });
     }
-    
-    // Verificar se o plano do usuário está entre os permitidos
-    if (!planosPermitidos.includes(assinaturaInfo.plano)) {
-      console.log(`[AUTH] Usuário ${req.userId} possui plano ${assinaturaInfo.plano}, mas não tem acesso a este recurso`);
-      return res.status(403).json({
-        success: false,
-        error: 'PLAN_UPGRADE_REQUIRED',
-        message: 'Seu plano atual não permite acesso a este recurso.',
-        currentPlan: assinaturaInfo.plano,
-        requiredPlans: planosPermitidos,
-        requiresUpgrade: true
-      });
-    }
-    
-    // Tudo ok, tem assinatura válida e plano permitido
-    console.log(`[AUTH] Assinatura verificada no banco: Plano ${assinaturaInfo.plano}`);
-    req.userPlan = assinaturaInfo.plano;
-    req.hasValidSubscription = true;
-    next();
   } catch (error) {
     console.error('[AUTH] Erro ao verificar assinatura:', error);
-    return res.status(500).json({
+    
+    // Resposta de erro para problemas na verificação
+    res.status(403).json({
       success: false,
       error: 'SUBSCRIPTION_CHECK_ERROR',
-      message: 'Erro ao verificar estado da assinatura. Tente novamente mais tarde.'
+      message: 'Erro ao verificar assinatura. Tente novamente mais tarde.',
+      requiresSubscription: true
     });
   }
+};
+
+// Middleware para garantir conexão com MongoDB estabelecida
+const garantirConexaoMongoDB = (req, res, next) => {
+  if (!isConnected || !db || !collection) {
+    return res.status(503).json({
+      success: false,
+      error: 'DATABASE_UNAVAILABLE',
+      message: 'Serviço temporariamente indisponível. Tente novamente mais tarde.'
+    });
+  }
+  next();
 };
 
 // Rate Limiting simples para limitar requisições por IP
@@ -907,25 +924,12 @@ const verificarAssinaturaMiddleware = async (req, res, next) => {
 app.get('/api/ROULETTES', [
   rateLimiter(60), // 60 requisições por minuto
   verificarTokenJWT,
+  garantirConexaoMongoDB,
   verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
 ], async (req, res) => {
   console.log('[API] Requisição autenticada recebida para /api/ROULETTES');
   
   try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json([]);
-    }
-    
-    // Verificar se a coleção tem dados
-    const count = await collection.countDocuments();
-    console.log(`[API] Total de documentos na coleção: ${count}`);
-    
-    if (count === 0) {
-      console.log('[API] Nenhum dado encontrado na coleção');
-      return res.json([]);
-    }
-    
     // Usuário já está autenticado e com assinatura verificada pelo middleware
     console.log(`[API] Processando requisição para usuário ${req.userId} com plano ${req.userPlan}`);
     
@@ -940,6 +944,15 @@ app.get('/api/ROULETTES', [
     
     console.log(`[API] Usando limit: ${finalLimit} para plano ${req.userPlan}`);
     
+    // Garantir uso de cache para evitar sobrecarga do banco
+    const cacheKey = `roulette_history:${req.userPlan}:${finalLimit}`;
+    const cachedData = resultCache.get(cacheKey);
+    
+    if (cachedData) {
+      console.log(`[API] Usando dados em cache para ${cacheKey}`);
+      return res.json(cachedData);
+    }
+    
     // Buscar histórico de números ordenados por timestamp
     const numeros = await collection
       .find({})
@@ -949,27 +962,19 @@ app.get('/api/ROULETTES', [
     
     console.log(`[API] Retornando ${numeros.length} números do histórico`);
     
+    // Adicionar ao cache com tempo de vida de 30 segundos
+    resultCache.set(cacheKey, numeros, 30);
+    
     // Log de alguns exemplos para diagnóstico
     if (numeros.length > 0) {
       console.log('[API] Primeiros dois resultados:');
-      console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
+    console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
     }
     
-    // Incluir na resposta JSON informações sobre o acesso
-    if (req.query.includeLimit === 'true') {
-      return res.json({
-        data: numeros,
-        limit: finalLimit,
-        total: count,
-        hasSubscription: true,
-        plan: req.userPlan
-      });
-    }
-    
-    return res.json(numeros);
+    res.json(numeros);
   } catch (error) {
-    console.error('[API] Erro ao processar dados:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar dados' });
+    console.error('[API] Erro ao buscar números:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
 
@@ -977,21 +982,26 @@ app.get('/api/ROULETTES', [
 app.get('/api/ROULETTES/historico', [
   rateLimiter(60),
   verificarTokenJWT,
+  garantirConexaoMongoDB,
   verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
 ], async (req, res) => {
   console.log('[API] Requisição autenticada recebida para /api/ROULETTES/historico');
   
   try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json([]);
-    }
-    
     // Usuário já está autenticado e com assinatura verificada pelo middleware
     console.log(`[API] Processando histórico para usuário ${req.userId} com plano ${req.userPlan}`);
     
     // Obter o limite máximo para o plano do usuário
     const planLimit = getLimitForPlan(req.userPlan);
+    
+    // Verificar se temos dados em cache
+    const cacheKey = `roulette_full_history:${req.userPlan}`;
+    const cachedData = resultCache.get(cacheKey);
+    
+    if (cachedData) {
+      console.log(`[API] Usando dados em cache para histórico completo`);
+      return res.json(cachedData);
+    }
     
     // Obter histórico de números jogados com limite baseado no plano
     const historico = await collection
@@ -1002,6 +1012,10 @@ app.get('/api/ROULETTES/historico', [
     
     if (historico.length > 0) {
       console.log(`[API] Retornando histórico com ${historico.length} entradas para plano ${req.userPlan}`);
+      
+      // Adicionar ao cache com tempo de vida de 60 segundos
+      resultCache.set(cacheKey, historico, 60);
+      
       res.json(historico);
     } else {
       console.log('[API] Histórico vazio');
@@ -1182,12 +1196,18 @@ app.get('/api/numbers/byid/:roletaId', [
 });
 
 // Rota para listar todas as roletas (endpoint em português - compatibilidade)
-app.get('/api/roletas', async (req, res) => {
+app.get('/api/roletas', [
+  rateLimiter(60), // 60 requisições por minuto
+  verificarTokenJWT,
+  verificarAssinatura(['BASIC', 'PRO', 'PREMIUM'])
+], async (req, res) => {
   console.log('[API] Endpoint de compatibilidade /api/roletas acessado');
   try {
     if (!isConnected) {
       return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
     }
+    
+    console.log(`[API] Usuário autenticado: ${req.userId} com plano ${req.userPlan || 'N/A'}`);
     
     // Obter roletas únicas da coleção
     const roulettes = await collection.aggregate([
@@ -1195,11 +1215,22 @@ app.get('/api/roletas', async (req, res) => {
       { $project: { _id: 0, id: 1, nome: "$_id" } }
     ]).toArray();
     
+    console.log(`[API] Retornando ${roulettes.length} roletas para usuário com plano ${req.userPlan}`);
     res.json(roulettes);
   } catch (error) {
     console.error('Erro ao listar roletas:', error);
     res.status(500).json({ error: 'Erro interno ao buscar roletas' });
   }
+});
+
+// Redirecionar /api/roulettes para /api/ROULETTES (case-insensitive)
+app.get('/api/roulettes', (req, res) => {
+  console.log('[API] Redirecionando /api/roulettes para /api/ROULETTES');
+  // Preservar todos os query params na URL redirecionada
+  const queryString = Object.keys(req.query).length > 0 
+    ? '?' + new URLSearchParams(req.query).toString() 
+    : '';
+  res.redirect(307, `/api/ROULETTES${queryString}`);
 });
 
 // Rota para buscar número específico por ID

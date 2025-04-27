@@ -379,7 +379,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     if (user) {
       console.log('[SubscriptionContext] Usuário autenticado, carregando informações de assinatura...');
-      loadUserSubscription();
+    loadUserSubscription();
     } else {
       // Limpar informações de assinatura quando o usuário deslogar
       setCurrentSubscription(null);

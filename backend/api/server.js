@@ -18,7 +18,7 @@ dotenv.config();
 
 // Importar rotas
 const usersRouter = require('./routes/users');
-const strategyRouter = require('./routes/strategy');
+const strategyRouter = require('./routes/strategies');
 const notificationRouter = require('./routes/notification');
 const rouletteSearchRouter = require('./routes/rouletteSearch');
 const historyRouter = require('./routes/historyApi');
