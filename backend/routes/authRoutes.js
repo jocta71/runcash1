@@ -105,4 +105,11 @@ router.delete(
   authController.deletarUsuario
 );
 
+/**
+ * @route   POST /api/auth/atualizar-token
+ * @desc    Atualiza o token do usuário após aquisição de assinatura
+ * @access  Privado
+ */
+router.post('/atualizar-token', authMiddleware.proteger, authController.atualizarTokenComAssinatura);
+
 module.exports = router; 

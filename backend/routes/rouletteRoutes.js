@@ -9,6 +9,7 @@ const router = express.Router();
 // Importar middlewares
 const { authenticate } = require('../middlewares/authMiddleware');
 const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddleware');
+const { verificarAssinaturaAsaas } = require('../middlewares/asaasSubscriptionMiddleware');
 
 // Importar controller
 const rouletteController = require('../controllers/rouletteController');
@@ -105,6 +106,16 @@ router.get('/roulettes/:id/batch',
  */
 router.get('/roulettes/:id/preview', 
   rouletteController.getFreePreview
+);
+
+/**
+ * @route   GET /api/roulettes/:id/premium-data
+ * @desc    Obtém dados premium da roleta com verificação direta no Asaas
+ * @access  Privado - Verificação direta no Asaas
+ */
+router.get('/roulettes/:id/premium-data', 
+  verificarAssinaturaAsaas,
+  rouletteController.getPremiumRouletteData
 );
 
 module.exports = router; 
