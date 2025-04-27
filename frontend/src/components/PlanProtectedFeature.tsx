@@ -105,6 +105,7 @@ const PlanProtectedFeature: React.FC<PlanProtectedFeatureProps> = ({
               </Button>
             </DialogTrigger>
             <DialogContent className="bg-vegas-darkgray text-white border-vegas-black">
+              <DialogTitle className="sr-only">Upgrade de Plano Necessário</DialogTitle>
               <DialogHeader>
                 <DialogTitle>Faça upgrade do seu plano</DialogTitle>
                 <DialogDescription className="text-gray-400">

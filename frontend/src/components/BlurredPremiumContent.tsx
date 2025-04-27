@@ -90,6 +90,7 @@ const BlurredPremiumContent: React.FC<BlurredPremiumContentProps> = ({
               </Button>
             </DialogTrigger>
             <DialogContent className="bg-vegas-darkgray text-white border-vegas-black">
+              <DialogTitle className="sr-only">Conteúdo Premium</DialogTitle>
               <DialogHeader>
                 <DialogTitle>Faça upgrade do seu plano</DialogTitle>
                 <DialogDescription className="text-gray-400">
