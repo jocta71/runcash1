@@ -836,8 +836,11 @@ const Index = () => {
           <div className="w-full lg:w-1/2">
             <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">
               <div className="flex justify-between items-center">
-                <div className={`${!hasActivePlan ? 'h-8 w-32 bg-gray-800 rounded animate-pulse' : 'text-white font-bold'}`}>
-                  {hasActivePlan ? 'Roletas Disponíveis' : ''}
+                <div className="flex flex-col">
+                  <span className="text-gray-400 text-sm mb-1">Plataforma RunCash</span>
+                  <div className={`${!hasActivePlan ? 'h-8 w-32 bg-gray-800 rounded animate-pulse' : 'text-white font-bold'}`}>
+                    {hasActivePlan ? 'Roletas Disponíveis' : ''}
+                  </div>
                 </div>
               </div>
             </div>
