@@ -1,16 +1,18 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, BarChart3 } from 'lucide-react';
+import { AlertCircle, BarChart3, PackageOpen } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
+import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
 import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
-
-
 import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
+import RouletteSidePanelSkeleton from '@/components/RouletteSidePanelSkeleton';
 import RouletteFilterBar from '@/components/RouletteFilterBar';
 import { extractProviders } from '@/utils/rouletteProviders';
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 
 interface ChatMessage {
   id: string;
@@ -33,6 +35,104 @@ interface KnownRoulette {
   ultima_atualizacao: string;
 }
 
+// Adicionar o estilo CSS inline para o componente radio
+const radioInputStyles = `
+.radio-input input {
+  display: none;
+}
+
+.radio-input label {
+  --border-color: #a1b0d8;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  min-width: 5rem;
+  margin: 1rem;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  align-items: center;
+  background-color: #191a1f;
+}
+
+.radio-input input:checked + label {
+  --border-color: #00FF00;
+  border-color: var(--border-color);
+  border-width: 2px;
+}
+
+.radio-input label:hover {
+  --border-color: #00FF00;
+  border-color: var(--border-color);
+}
+
+.radio-input {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.circle {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #2a2a35;
+  margin-right: 0.5rem;
+  position: relative;
+}
+
+.radio-input input:checked + label span.circle::before {
+  content: "";
+  display: inline;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #00FF00;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+}
+
+.text {
+  display: flex;
+  align-items: center;
+  color: white;
+}
+
+.price {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  font-weight: bold;
+  color: white;
+}
+
+.small {
+  font-size: 10px;
+  color: #a0a0a7;
+  font-weight: 100;
+}
+
+.info {
+  position: absolute;
+  display: inline-block;
+  font-size: 11px;
+  background-color: #00FF00;
+  border-radius: 20px;
+  padding: 1px 9px;
+  top: 0;
+  transform: translateY(-50%);
+  right: 5px;
+  color: black;
+  font-weight: bold;
+}
+`;
+
 const Index = () => {
   // Remover o estado de busca
   // const [search, setSearch] = useState("");
@@ -50,6 +150,13 @@ const Index = () => {
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
+  
+  // Novos estados para o checkout
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState("basic"); // 'basic' é o padrão (mensal)
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
@@ -442,64 +549,378 @@ const Index = () => {
     setFilteredRoulettes(filtered);
   };
 
+  // Renderiza skeletons para os cards de roleta
+  const renderRouletteSkeletons = () => {
+    return Array(12).fill(0).map((_, index) => (
+      <RouletteCardSkeleton key={index} />
+    ));
+  };
+
   return (
     <Layout preloadData={true}>
-      <div className="container mx-auto px-4 pt-4 md:pt-8">
-        {/* Cabeçalho removido completamente */}
-        
+      {/* Container principal com posicionamento relativo para permitir sobreposição */}
+      <div className="container mx-auto px-4 pt-4 md:pt-8 min-h-[80vh] relative">
         {/* Mensagem de erro */}
         {error && (
-          <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center">
+          <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center z-50 relative">
             <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
             <p className="text-red-100">{error}</p>
           </div>
         )}
         
-        {/* Estado de carregamento */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className="bg-[#1e1e24] animate-pulse rounded-xl h-64"></div>
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col lg:flex-row gap-6">
-            {/* Cards de roleta à esquerda */}
-            <div className="w-full lg:w-1/2">
-              {/* Adicionar barra de filtro acima dos cards de roleta */}
-              <RouletteFilterBar 
-                roulettes={roulettes}
-                onFilter={handleRouletteFilter}
-                onRefresh={loadRouletteData}
-              />
-              
-              <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-4">
-                {renderRouletteCards()}
+        {/* Layout em esqueleto em segundo plano (com opacidade reduzida) */}
+        <div className="flex flex-col lg:flex-row gap-6 opacity-60">
+          {/* Cards de roleta à esquerda em modo esqueleto */}
+          <div className="w-full lg:w-1/2">
+            {/* Filtro de roletas em skeleton */}
+            <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">
+              <div className="flex justify-between items-center">
+                <div className="h-8 w-32 bg-gray-800 rounded animate-pulse"></div>
+                <div className="h-8 w-20 bg-gray-800 rounded animate-pulse"></div>
               </div>
             </div>
             
-            {/* Painel de estatísticas à direita - USANDO VERSÃO SEM POPUP */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {renderRouletteSkeletons()}
+            </div>
+          </div>
+          
+          {/* Painel lateral em modo esqueleto */}
             <div className="w-full lg:w-1/2">
-              {selectedRoulette ? (
-                <RouletteSidePanelStats
-                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta Selecionada'}
-                  lastNumbers={selectedRoulette.lastNumbers || selectedRoulette.numero || []}
-                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
-                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
-                  providers={extractProviders(roulettes)}
+            <RouletteSidePanelSkeleton />
+          </div>
+        </div>
+        
+        {/* Botão centralizado que sobrepõe os esqueletos */}
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center max-w-xl w-full">
+            <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
+            <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
+            
+            {/* From Uiverse.io by andrew-demchenk0 */}
+            <style>
+              {`
+                .wrapper {
+                  position: relative;
+                  display: flex;
+                  flex-direction: row;
+                  gap: 10px;
+                  justify-content: center;
+                  margin-bottom: 20px;
+                }
+                
+                .card {
+                  position: relative;
+                  width: 150px;
+                  height: 100px;
+                  background: #111118;
+                  border-radius: 10px;
+                  transition: all 0.3s;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                }
+                
+                .card:hover {
+                  transform: scale(1.05);
+                }
+                
+                .input {
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                  height: 100%;
+                  width: 100%;
+                  cursor: pointer;
+                  appearance: none;
+                  border: 1px solid #333;
+                  border-radius: 10px;
+                  z-index: 10;
+                  box-shadow: 1px 1px 10px rgba(0,0,0,0.5),
+                              -1px -1px 10px rgba(255,255,255,0.05);
+                }
+                
+                .input + .check::before {
+                  content: "";
+                  position: absolute;
+                  top: 12px;
+                  right: 12px;
+                  width: 16px;
+                  height: 16px;
+                  border: 2px solid #555;
+                  border-radius: 50%;
+                  background-color: #111;
+                }
+                
+                .input:checked + .check::after {
+                  content: '';
+                  position: absolute;
+                  top: 16px;
+                  right: 16px;
+                  width: 8px;
+                  height: 8px;
+                  background-color: #00FF00;
+                  border-radius: 50%;
+                }
+                
+                .input[value="premium"]:checked + .check::after {
+                  background-color: #00FF00;
+                }
+                
+                .input[value="basic"]:checked,
+                .input[value="premium"]:checked {
+                  border: 1.5px solid #00FF00;
+                }
+                
+                .label {
+                  color: #fff;
+                  position: relative;
+                  z-index: 0;
+                  width: 80%;
+                  text-align: left;
+                }
+                
+                .label .title {
+                  font-weight: 900;
+                  font-size: 15px;
+                  letter-spacing: 1.5px;
+                  margin-bottom: 8px;
+                }
+                
+                .label .price {
+                  font-size: 20px;
+                  font-weight: 900;
+                }
+                
+                .label .span {
+                  color: #999;
+                  font-weight: 700;
+                  font-size: 15px;
+                }
+              `}
+            </style>
+            
+            <div className="wrapper">
+              <div className="card">
+                <input 
+                  className="input" 
+                  type="radio" 
+                  name="card" 
+                  value="basic" 
+                  defaultChecked 
+                  onChange={() => setSelectedPlan("basic")}
                 />
-              ) : (
-                <div className="w-full bg-gray-900 rounded-lg p-6 text-center">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4 text-[#00ff00] opacity-50" />
-                  <h3 className="text-lg font-medium text-white mb-2">Estatísticas da Roleta</h3>
-                  <p className="text-sm text-gray-400">
-                    Selecione uma roleta para ver estatísticas detalhadas
-                  </p>
+                <span className="check"></span>
+                <label className="label">
+                  <div className="title">MENSAL</div>
+                  <div className="price">
+                    <span className="span">R$</span>
+                    49
+                    <span className="span">/mês</span>
+                  </div>
+                </label>
+              </div>
+              <div className="card">
+                <input 
+                  className="input" 
+                  type="radio" 
+                  name="card" 
+                  value="premium" 
+                  onChange={() => setSelectedPlan("premium")}
+                />
+                <span className="check"></span>
+                <label className="label">
+                  <div className="title">ANUAL</div>
+                  <div className="price">
+                    <span className="span">R$</span>
+                    99
+                    <span className="span">/ano</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+            
+            <Button 
+              onClick={() => setShowCheckout(true)}
+              className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-6"
+            >
+              <PackageOpen className="mr-2 h-5 w-5" />
+              Escolher Plano
+            </Button>
+            
+            {/* Formulário de Checkout */}
+            {showCheckout && !paymentSuccess && (
+              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                <div className="bg-[#131614] rounded-xl shadow-2xl border border-gray-800 max-w-md w-full p-6 relative overflow-y-auto max-h-[90vh]">
+                  <button 
+                    onClick={() => setShowCheckout(false)} 
+                    className="absolute top-3 right-3 text-gray-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                  
+                  <h2 className="text-[#00FF00] font-bold text-xl mb-6 text-center">
+                    Finalizar Compra - Plano {selectedPlan === "basic" ? "Mensal" : "Anual"}
+                  </h2>
+                  
+                  {paymentError && (
+                    <div className="mb-4 bg-red-900/30 border border-red-500 p-3 rounded-lg text-red-100">
+                      <p className="text-sm">{paymentError}</p>
+                    </div>
+                  )}
+                  
+                  <div className="mb-6 bg-[#0d0d0d] p-4 rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-white/80">Plano:</span>
+                      <span className="text-white font-bold">
+                        {selectedPlan === "basic" ? "Mensal" : "Anual"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white/80">Valor:</span>
+                      <span className="text-[#00FF00] font-bold">
+                        {selectedPlan === "basic" ? "R$ 49,00" : "R$ 99,00"}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <form className="space-y-4" onSubmit={(e) => {
+                    e.preventDefault();
+                    setIsProcessingPayment(true);
+                    setPaymentError(null);
+                    
+                    // Simulação de integração com Asaas
+                    setTimeout(() => {
+                      // Em uma implementação real, aqui seria feita a chamada para API
+                      setIsProcessingPayment(false);
+                      // Exemplo de tratamento de sucesso
+                      setPaymentSuccess(true);
+                      
+                      // Ou exemplo de tratamento de erro
+                      // setPaymentError("Não foi possível processar o pagamento. Verifique os dados e tente novamente.");
+                    }, 2000);
+                  }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-white/80 mb-1 text-sm">Nome completo</label>
+                        <input 
+                          type="text" 
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                          placeholder="Digite seu nome completo"
+                          required
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-white/80 mb-1 text-sm">CPF/CNPJ</label>
+                        <input 
+                          type="text" 
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                          placeholder="000.000.000-00"
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-white/80 mb-1 text-sm">E-mail</label>
+                        <input 
+                          type="email" 
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                          placeholder="seuemail@exemplo.com"
+                          required
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-white/80 mb-1 text-sm">Telefone</label>
+                        <input 
+                          type="tel" 
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                          placeholder="(00) 00000-0000"
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-white/80 mb-1 text-sm">Endereço</label>
+                      <input 
+                        type="text" 
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                        placeholder="Rua, número, complemento"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-white/80 mb-1 text-sm">CEP</label>
+                        <input 
+                          type="text" 
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                          placeholder="00000-000"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-white/80 mb-1 text-sm">Cidade/UF</label>
+                        <input 
+                          type="text" 
+                          className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-md text-white focus:border-[#00FF00] focus:outline-none"
+                          placeholder="Cidade/UF"
+                        />
+                      </div>
+                    </div>
+                    
+                    <Button 
+                      className="w-full py-3 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20 mt-6"
+                      type="submit"
+                      disabled={isProcessingPayment}
+                    >
+                      {isProcessingPayment ? (
+                        <span className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processando...
+                        </span>
+                      ) : "Prosseguir para Pagamento"}
+                    </Button>
+                    
+                    <p className="text-center text-gray-500 text-xs mt-4">
+                      Você será redirecionado para a plataforma segura de pagamento do Asaas.
+                    </p>
+                  </form>
+                </div>
                 </div>
               )}
+            
+            {/* Tela de sucesso no pagamento */}
+            {paymentSuccess && (
+              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                <div className="bg-[#131614] rounded-xl shadow-2xl border border-gray-800 max-w-md w-full p-6 relative text-center">
+                  <div className="text-[#00FF00] text-6xl mb-4">✓</div>
+                  <h2 className="text-[#00FF00] font-bold text-xl mb-2">Pagamento Realizado com Sucesso!</h2>
+                  <p className="text-white/80 mb-6">Seu plano {selectedPlan === "basic" ? "Mensal" : "Anual"} foi ativado.</p>
+                  <p className="text-white/60 mb-8 text-sm">Você receberá um e-mail com os detalhes da sua compra.</p>
+                  
+                  <Button 
+                    onClick={() => {
+                      setPaymentSuccess(false);
+                      setShowCheckout(false);
+                      // Aqui você pode adicionar lógica para redirecionar para área de membros
+                    }}
+                    className="w-full py-3 text-lg font-bold bg-gradient-to-r from-[#00FF00] to-[#A3FFA3] hover:from-[#00DD00] hover:to-[#8AE98A] text-black rounded-full shadow-lg shadow-green-500/20"
+                  >
+                    Acessar Estatísticas
+                  </Button>
             </div>
           </div>
         )}
+          </div>
+        </div>
       </div>
     </Layout>
   );
