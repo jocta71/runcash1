@@ -2,42 +2,52 @@
 const https = require('https');
 const http = require('http');
 const url = require('url');
+const cookie = require('cookie');
 
 // URL do backend no Railway
 const BACKEND_URL = 'https://backend-production-2f96.up.railway.app';
 
 // Função para encaminhar a requisição
-function proxyRequest(req, res, path) {
-  // Analisar a URL do backend
+const proxyRequest = (req, res, path) => {
   const parsedUrl = url.parse(BACKEND_URL);
+  const isHttps = parsedUrl.protocol === 'https:';
+
+  // Extrair tokens de autenticação dos cookies
+  const cookies = req.headers.cookie ? cookie.parse(req.headers.cookie) : {};
+  const authToken = cookies['auth-token'] || '';
+  const refreshToken = cookies['refresh-token'] || '';
+
+  // Configurar opções do request
+  const options = {
+    hostname: parsedUrl.hostname,
+    port: parsedUrl.port || (isHttps ? 443 : 80),
+    path: `${parsedUrl.path !== '/' ? parsedUrl.path : ''}${path}`,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: parsedUrl.hostname,
+      'Authorization': authToken ? `Bearer ${authToken}` : '',
+      'X-Refresh-Token': refreshToken || '',
+      'Connection': 'keep-alive',
+    }
+  };
+
+  // Remover headers problemáticos
+  delete options.headers['host'];
   
-  // Obter os dados do corpo da requisição (se houver)
+  // Para requisições com corpo (POST, PUT, PATCH)
   let body = [];
   req.on('data', (chunk) => {
     body.push(chunk);
   }).on('end', () => {
     body = Buffer.concat(body).toString();
     
-    // Configurar as opções da requisição para o backend
-    const options = {
-      hostname: parsedUrl.hostname,
-      port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
-      path: path || req.url.replace('/api', '/api'),
-      method: req.method,
-      headers: {
-        ...req.headers,
-        host: parsedUrl.hostname,
-      }
-    };
-    
-    // Remover headers problemáticos
-    delete options.headers['content-length'];
-    
     // Debugar requisição
     console.log(`Proxy reenviando requisição para: ${BACKEND_URL}${options.path}`);
+    console.log('Headers: ', JSON.stringify(options.headers, null, 2));
     
     // Escolher o protocolo correto (http ou https)
-    const protocol = parsedUrl.protocol === 'https:' ? https : http;
+    const protocol = isHttps ? https : http;
     
     // Criar a requisição para o backend
     const proxyReq = protocol.request(options, (proxyRes) => {
@@ -68,9 +78,10 @@ function proxyRequest(req, res, path) {
 // Handler para requisições API
 module.exports = (req, res) => {
   // Definir headers CORS para permitir todas as origens
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   
   // Tratar preflight requests (OPTIONS)
   if (req.method === 'OPTIONS') {
