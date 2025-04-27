@@ -130,6 +130,9 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setCurrentSubscription(null);
       setCurrentPlan(null);
       setLoading(false);
+      
+      // Atualizar os serviços mesmo quando não há usuário (desativando acesso premium)
+      updatePremiumServices();
       return;
     }
 

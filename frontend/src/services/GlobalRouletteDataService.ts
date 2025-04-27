@@ -181,13 +181,28 @@ class GlobalRouletteDataService {
    * Conta o número total de números em todas as roletas
    */
   private contarNumerosTotais(roletas: any[]): number {
-    let total = 0;
-    roletas.forEach(roleta => {
-      if (roleta.numero && Array.isArray(roleta.numero)) {
-        total += roleta.numero.length;
+    try {
+      let total = 0;
+      if (!roletas || !Array.isArray(roletas)) {
+        console.warn('[GlobalRouletteService] Contagem de números: dados de roletas inválidos');
+        return 0;
       }
-    });
-    return total;
+      
+      roletas.forEach(roleta => {
+        // Verificar se tem a propriedade numeros
+        if (roleta.numeros && Array.isArray(roleta.numeros)) {
+          total += roleta.numeros.length;
+        } 
+        // Verificar se tem a propriedade numero
+        else if (roleta.numero && Array.isArray(roleta.numero)) {
+          total += roleta.numero.length;
+        }
+      });
+      return total;
+    } catch (error) {
+      console.error('[GlobalRouletteService] Erro ao contar números totais:', error);
+      return 0;
+    }
   }
   
   /**

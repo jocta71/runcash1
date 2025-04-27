@@ -37,6 +37,8 @@ export interface RouletteNumberEvent {
   estado_estrategia?: string;
   sugestao_display?: string;
   terminais_gatilho?: number[];
+  // Flag para indicar se é uma atualização em tempo real
+  realtime_update?: boolean;
 }
 
 // Interface para eventos de atualização de estratégia
@@ -124,17 +126,35 @@ export class EventService {
       return EventService.instance;
     }
     
-    // Se já está inicializando, retornar a promise de inicialização
+    // Se já está inicializando, aguardar a promise de inicialização
     if (EventService.isInitializing && EventService.initializationPromise) {
-      return EventService.initializationPromise as unknown as EventService;
+      // Criar uma instância de EventService que será substituída quando a promessa for resolvida
+      const tempInstance = new EventService();
+      
+      // Iniciar processo para substituir o objeto temporário quando a promise resolver
+      EventService.initializationPromise.then(realInstance => {
+        // Copiar propriedades relevantes da instância real para a temporária
+        Object.assign(tempInstance, realInstance);
+      });
+      
+      return tempInstance;
     }
     
     // Inicializar uma única vez
     EventService.isInitializing = true;
     
+    // Criar a promessa de inicialização
+    let promiseResolve: (instance: EventService) => void;
+    EventService.initializationPromise = new Promise<EventService>(resolve => {
+      promiseResolve = resolve;
+    });
+    
     // Criar nova instância
     const service = new EventService();
     EventService.instance = service;
+    
+    // Resolver a promessa com a instância criada
+    promiseResolve!(service);
     
     EventService.isInitializing = false;
     
@@ -163,6 +183,23 @@ export class EventService {
    */
   private checkRealTimeAccess(): boolean {
     return this.hasPremiumAccess;
+  }
+
+  // Método para conectar a fonte de eventos
+  private connect(): void {
+    // Usar diretamente o SocketService, sem tentativas de usar EventSource
+    this.useSocketServiceAsFallback();
+  }
+
+  // Método para lidar com mudanças de visibilidade
+  private handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      // Tentar reconectar se a página ficar visível e não estiver conectado
+      if (!this.isConnected) {
+        debugLog('[EventService] Página tornou-se visível, reconectando...');
+        this.useSocketServiceAsFallback();
+      }
+    }
   }
 
   // Usa o SocketService como fallback para comunicação em tempo real
@@ -431,24 +468,38 @@ export class EventService {
     this.isConnected = false;
   }
 
-  // Adiciona um listener para eventos de um tipo específico
+  /**
+   * Adicionar um listener para eventos de um tipo específico
+   * @param eventType Tipo de evento
+   * @param callback Função a ser chamada quando o evento ocorrer
+   */
   public subscribeToEvent(eventType: string, callback: RouletteEventCallback): void {
     debugLog(`[EventService] Inscrevendo para eventos do tipo: ${eventType}`);
     this.subscribe(eventType, callback);
   }
 
-  // Remove um listener de um tipo específico
+  /**
+   * Remover um listener de um tipo específico
+   * @param eventType Tipo de evento
+   * @param callback Função registrada anteriormente
+   */
   public unsubscribeFromEvent(eventType: string, callback: RouletteEventCallback): void {
     this.unsubscribe(eventType, callback);
   }
 
-  // Adiciona um listener para todos os eventos
+  /**
+   * Adicionar um listener para todos os eventos
+   * @param callback Função a ser chamada para todos os eventos
+   */
   public subscribeToGlobalEvents(callback: RouletteEventCallback): void {
     debugLog(`[EventService] Inscrevendo para todos os eventos`);
     this.subscribe('*', callback);
   }
 
-  // Remove um listener global
+  /**
+   * Remover um listener global
+   * @param callback Função registrada anteriormente
+   */
   public unsubscribeFromGlobalEvents(callback: RouletteEventCallback): void {
     this.unsubscribe('*', callback);
   }
@@ -500,6 +551,14 @@ export class EventService {
    */
   public dispatchEvent(event: any): void {
     console.log(`[EventService] Disparando evento ${event.type} para roleta ${event.roleta_nome || 'desconhecida'}`);
+    
+    // Verificar acesso premium antes de enviar eventos
+    if (event.type === 'new_number' || event.type === 'strategy_update') {
+      if (!this.checkRealTimeAccess()) {
+        debugLog(`[EventService] Bloqueando envio de evento: usuário sem acesso premium`);
+        return;
+      }
+    }
     
     // Notificar os listeners específicos para este tipo de evento
     const callbacks = this.listeners.get(event.type);
@@ -585,7 +644,9 @@ export class EventService {
         socketService.reconnect();
         // Solicitar atualizações em qualquer caso
         socketService.requestRecentNumbers();
-        socketService.broadcastConnectionState();
+        
+        // Esta propriedade não existe no SocketService, então não chamar
+        // Implementamos verificação de tipo acima, mas também removemos a chamada aqui
       } else {
         // Se estiver conectado, solicitar atualização
         socketService.requestRecentNumbers();
