@@ -15,6 +15,7 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import SoundManager from "./components/SoundManager";
 import { LoginModalProvider, useLoginModal } from "./context/LoginModalContext";
+import { useServiceAccess } from './hooks/useServiceAccess';
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -74,6 +75,20 @@ const AccountRouteRedirect = () => {
   }, [navigate]);
   
   return <LoadingScreen />;
+};
+
+// Componente para inicializar e gerenciar o acesso aos serviços
+const ServiceAccessManager = () => {
+  const { hasAccess, servicesConfigured, isLoading } = useServiceAccess();
+  
+  useEffect(() => {
+    if (!isLoading) {
+      console.log(`[ServiceAccessManager] Configuração de acesso aos serviços: ${servicesConfigured ? 'Concluída' : 'Pendente'}`);
+      console.log(`[ServiceAccessManager] Status de acesso a dados em tempo real: ${hasAccess ? 'PERMITIDO' : 'BLOQUEADO'}`);
+    }
+  }, [hasAccess, servicesConfigured, isLoading]);
+  
+  return null; // Componente sem renderização visual
 };
 
 // Componente para gerenciar o estado de autenticação e modal de login
@@ -217,6 +232,7 @@ const App = () => {
                       <GoogleAuthHandler />
                       <LoginModalProvider>
                         <AuthStateManager />
+                        <ServiceAccessManager />
                         <Routes>
                           {/* Remover rota explícita de login e sempre usar o modal */}
                           
