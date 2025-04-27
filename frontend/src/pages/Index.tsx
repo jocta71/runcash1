@@ -1,13 +1,11 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { AlertCircle, PackageOpen, Loader2, Copy } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
-import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
 import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService, { RouletteNumberEvent, StrategyUpdateEvent } from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
-import RouletteSidePanelSkeleton from '@/components/RouletteSidePanelSkeleton';
 import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -596,7 +594,23 @@ const Index = () => {
   // Renderiza skeletons para os cards de roleta
   const renderRouletteSkeletons = () => {
     return Array(12).fill(0).map((_, index) => (
-      <RouletteCardSkeleton key={index} />
+      <div key={index} className="relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border border-gray-800/30 rounded-lg p-4">
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center">
+            <div className="h-6 w-36 bg-gray-800 rounded animate-pulse"></div>
+          </div>
+          <div className="h-5 w-16 bg-gray-800 rounded-full animate-pulse"></div>
+        </div>
+        
+        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/20 bg-[#131111]">
+          {[...Array(8)].map((_, idx) => (
+            <div 
+              key={idx} 
+              className="w-6 h-6 rounded-full bg-gray-800 animate-pulse"
+            ></div>
+          ))}
+        </div>
+      </div>
     ));
   };
 
@@ -830,7 +844,26 @@ const Index = () => {
           
           {/* Painel lateral */}
           <div className="w-full lg:w-1/2">
-            <RouletteSidePanelSkeleton />
+            {hasActivePlan ? (
+              selectedRoulette ? (
+                <RouletteSidePanelStats
+                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
+                  lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
+                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
+                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                  providers={[]} // Se houver uma lista de provedores disponível, passe aqui
+                />
+              ) : (
+                <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-4 flex items-center justify-center h-48">
+                  <p className="text-gray-400">Selecione uma roleta para ver suas estatísticas</p>
+                </div>
+              )
+            ) : (
+              <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-8 flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-muted border-t-[hsl(142.1,70.6%,45.3%)] mb-4"></div>
+                <p className="text-gray-400">Carregando estatísticas...</p>
+              </div>
+            )}
           </div>
         </div>
         
