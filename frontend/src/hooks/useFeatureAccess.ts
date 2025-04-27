@@ -1,130 +1,74 @@
 import { useEffect, useState } from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { api } from '@/lib/api';
-import { PlanType } from '@/types/plans';
-import { useNavigate } from 'react-router-dom';
-import { toast } from '@/components/ui/use-toast';
 
 interface UseFeatureAccessOptions {
   featureId: string;
   fetchOnMount?: boolean;
   mockDataFallback?: any;
-  redirectToPlans?: boolean;
-  requiredPlan?: PlanType;
-  showToast?: boolean;
 }
 
 /**
- * Hook personalizado para verificar acesso a recursos premium
- * Permite verificar se o usuário tem acesso a um recurso específico,
- * mostrar mensagens de erro e redirecionar para página de planos
+ * Hook personalizado para gerenciar o acesso a recursos premium
+ * Garante que os dados protegidos são obtidos apenas se o usuário tiver permissão
  */
-export function useFeatureAccess(options: UseFeatureAccessOptions) {
-  const { 
-    featureId, 
-    fetchOnMount = false, 
-    mockDataFallback = null,
-    redirectToPlans = false,
-    requiredPlan = PlanType.PREMIUM,
-    showToast = false
-  } = options;
+export function useFeatureAccess<T>({
+  featureId,
+  fetchOnMount = false,
+  mockDataFallback
+}: UseFeatureAccessOptions) {
+  const { hasFeatureAccess } = useSubscription();
+  const [data, setData] = useState<T | null>(null);
+  const [mockData, setMockData] = useState<any>(mockDataFallback || null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
   
-  const { hasFeatureAccess, currentPlan, currentSubscription, loading } = useSubscription();
-  const [data, setData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(fetchOnMount);
-  const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
-
-  // Verificar se o usuário tem acesso ao recurso
   const hasAccess = hasFeatureAccess(featureId);
   
-  // Verificar se o usuário tem o plano mínimo necessário
-  const hasPlanAccess = currentPlan && currentPlan.type >= requiredPlan;
-  
-  // Verificar se o usuário tem uma assinatura ativa
-  const hasActiveSubscription = currentSubscription && 
-    (currentSubscription.status === 'active' || currentSubscription.status === 'ativo');
-  
-  // Verificar se é um plano pago
-  const hasPaidPlan = currentPlan && currentPlan.type > PlanType.FREE;
-
-  // Carregar dados do recurso via API
-  const fetchData = async () => {
-    // Se não tiver acesso, nem tentar buscar dados
+  // Função para buscar dados protegidos do servidor
+  const fetchProtectedData = async (endpoint: string) => {
     if (!hasAccess) {
-      if (mockDataFallback) {
-        setData(mockDataFallback);
-        setIsLoading(false);
-        return;
-      }
-      
-      if (redirectToPlans) {
-        redirectToPlanPage();
-        return;
-      }
-      
-      setError('Acesso não autorizado. Faça upgrade do seu plano.');
-      setIsLoading(false);
-      return;
+      return null;
     }
     
     try {
-      setIsLoading(true);
+      setLoading(true);
       setError(null);
       
-      // Endpoint específico para o recurso
-      const endpoint = `/features/${featureId}`;
-      const response = await api.get(endpoint);
-      
-      if (response.data.success) {
-        setData(response.data.data);
-      } else {
-        setError(response.data.message || 'Erro ao carregar dados');
-        setData(mockDataFallback);
-      }
-    } catch (err: any) {
-      console.error(`[useFeatureAccess] Erro ao buscar recurso ${featureId}:`, err);
-      setError(err.message || 'Erro ao buscar dados');
-      setData(mockDataFallback);
+      const response = await api.get<T>(endpoint);
+      setData(response.data);
+      return response.data;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Erro ao buscar dados protegidos'));
+      return null;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
-
-  // Função para redirecionar para a página de planos
-  const redirectToPlanPage = () => {
-    if (showToast) {
-      toast({
-        title: "Acesso restrito",
-        description: `Este recurso requer o plano ${
-          requiredPlan === PlanType.PREMIUM ? 'Premium' : 
-          requiredPlan === PlanType.PRO ? 'Profissional' : 'Básico'
-        }.`,
-        variant: "destructive"
-      });
+  
+  // Função para gerar dados fictícios para exibição quando o acesso é negado
+  const generateMockData = (template: any) => {
+    if (hasAccess) {
+      return;
     }
     
-    navigate('/planos');
+    setMockData(template);
   };
-
-  // Verificar acesso e carregar dados iniciais se necessário
+  
+  // Efeito para buscar dados automaticamente na montagem, se solicitado
   useEffect(() => {
-    if (fetchOnMount && !loading) {
-      fetchData();
+    if (fetchOnMount && hasAccess) {
+      fetchProtectedData(`/api/features/${featureId}`);
     }
-  }, [fetchOnMount, loading, featureId]);
-
+  }, [fetchOnMount, hasAccess, featureId]);
+  
   return {
-    hasAccess,
-    hasPlanAccess,
-    hasActiveSubscription,
-    hasPaidPlan,
-    isLoading: isLoading || loading,
-    error,
     data,
-    fetchData,
-    redirectToPlanPage,
-    currentPlan,
-    requiredPlan
+    mockData,
+    loading,
+    error,
+    hasAccess,
+    fetchProtectedData,
+    generateMockData
   };
 } 

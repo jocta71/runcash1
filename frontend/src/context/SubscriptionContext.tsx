@@ -3,8 +3,6 @@ import { Plan, PlanType, UserSubscription } from '@/types/plans';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
 import { API_URL } from '@/config/constants';
-import EventService from '@/services/EventService';
-import RESTSocketService from '@/services/RESTSocketService';
 
 // Lista de planos disponíveis
 export const availablePlans: Plan[] = [
@@ -130,9 +128,6 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setCurrentSubscription(null);
       setCurrentPlan(null);
       setLoading(false);
-      
-      // Atualizar os serviços mesmo quando não há usuário (desativando acesso premium)
-      updatePremiumServices();
       return;
     }
 
@@ -339,35 +334,6 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // Se o plano atual permite este recurso e a assinatura está ativa
     return currentPlan.allowedFeatures.includes(featureId);
   };
-
-  // Atualizar serviços de acesso premium com base no plano atual
-  const updatePremiumServices = () => {
-    // Verificar se o usuário tem acesso a dados em tempo real
-    const hasRealtimeAccess = currentPlan?.type === PlanType.PREMIUM || currentPlan?.type === PlanType.PRO;
-    
-    console.log(`[SubscriptionContext] Atualizando serviços com acesso premium: ${hasRealtimeAccess}`);
-    
-    // Atualizar os serviços EventService e RESTSocketService
-    try {
-      // Como estamos importando a instância singleton dos serviços
-      // TypeScript não reconhece os métodos adicionados dinamicamente
-      // Então usamos verificação de existência e casting
-      if (typeof (EventService as any).updatePremiumAccessStatus === 'function') {
-        (EventService as any).updatePremiumAccessStatus(hasRealtimeAccess);
-      }
-      
-      if (typeof (RESTSocketService as any).updatePremiumAccessStatus === 'function') {
-        (RESTSocketService as any).updatePremiumAccessStatus(hasRealtimeAccess);
-      }
-    } catch (error) {
-      console.error('[SubscriptionContext] Erro ao atualizar serviços de acesso premium:', error);
-    }
-  };
-
-  // Efeito para atualizar serviços de acesso premium quando o plano muda
-  useEffect(() => {
-    updatePremiumServices();
-  }, [currentPlan]);
 
   // Atualizar plano do usuário
   const upgradePlan = async (planId: string): Promise<void> => {

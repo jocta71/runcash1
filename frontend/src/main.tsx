@@ -9,7 +9,6 @@ import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
 import globalRouletteDataService from './services/GlobalRouletteDataService'
-import { initializeSocketServices } from './patches/connectFix'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -25,10 +24,6 @@ initializeLogging();
 
 // Obter logger para o componente principal
 const logger = getLogger('Main');
-
-// Aplicar patches para corrigir problemas de conexão
-logger.info('Aplicando patches para corrigir problemas de conexão...');
-initializeSocketServices();
 
 // Configurar manipuladores globais de erro
 setupGlobalErrorHandlers();

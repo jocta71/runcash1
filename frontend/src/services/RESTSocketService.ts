@@ -1,6 +1,5 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
-import { PlanType } from '@/types/plans';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -14,26 +13,19 @@ export interface HistoryRequest {
   roletaId: string;
 }
 
-export interface HistoryResponse {
-  success: boolean;
-  data?: number[];
+export interface HistoryData {
+  roletaId: string;
+  roletaNome?: string;
+  numeros: {
+    numero: number;
+    timestamp: Date;
+  }[];
+  createdAt?: Date;
+  updatedAt?: Date;
+  totalRegistros?: number;
+  message?: string;
   error?: string;
 }
-
-// Definição da interface de configuração para permitir personalização
-export interface RESTSocketOptions {
-  pollingInterval?: number;
-  baseUrl?: string;
-  cacheEnabled?: boolean;
-  cacheDuration?: number;
-  maxRetries?: number;
-}
-
-// Feature IDs para verificação de acesso
-export const REST_FEATURES = {
-  REAL_TIME_DATA: 'real_time_data',
-  ROULETTE_HISTORY: 'roulette_history'
-};
 
 /**
  * Serviço que gerencia o acesso a dados de roletas via API REST
@@ -64,15 +56,8 @@ class RESTSocketService {
   private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
   private cacheTTL: number = 5 * 60 * 1000; // 5 minutos em milissegundos
   
-  // Status de acesso premium
-  private hasPremiumAccess: boolean = false;
-  
-  private constructor(options: RESTSocketOptions = {}) {
+  private constructor() {
     console.log('[RESTSocketService] Inicializando serviço REST API com polling');
-    
-    // Inicialização de configurações
-    this.pollingInterval = options.pollingInterval || 5000; // 5 segundos padrão
-    this.connectionActive = true;
     
     // Adicionar listener global para logging de todos os eventos
     this.subscribe('*', (event: any) => {
@@ -327,12 +312,6 @@ class RESTSocketService {
   }
 
   private notifyListeners(event: any): void {
-    // Verificar acesso premium antes de notificar listeners
-    if (!this.checkPremiumAccess()) {
-      console.log(`[RESTSocketService] Bloqueando notificação ${event.type} para usuário sem acesso premium`);
-      return;
-    }
-    
     // Notificar listeners específicos para esta roleta
     const listeners = this.listeners.get(event.roleta_nome);
     if (listeners) {
@@ -696,23 +675,6 @@ class RESTSocketService {
     }
     
     return mergedNumbers;
-  }
-
-  /**
-   * Atualiza o status de acesso premium do usuário
-   * @param hasPremiumAccess Indica se o usuário tem acesso premium
-   */
-  public updatePremiumAccessStatus(hasPremiumAccess: boolean): void {
-    this.hasPremiumAccess = hasPremiumAccess;
-    console.log(`[RESTSocketService] Status de acesso premium atualizado: ${hasPremiumAccess}`);
-  }
-  
-  /**
-   * Verifica se o usuário tem acesso premium
-   * @returns true se o usuário tem acesso premium, false caso contrário
-   */
-  private checkPremiumAccess(): boolean {
-    return this.hasPremiumAccess;
   }
 }
 
