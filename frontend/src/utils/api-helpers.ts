@@ -54,7 +54,7 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
         // Se o endpoint for para roletas, usar o proxy dedicado
         const nextApiUrl = endpoint.includes('ROULETTES') ? 
           '/api/proxy-roulette' : 
-          '/api/proxy';
+          `/api/proxy?path=${encodeURIComponent(endpoint)}`;
         
         console.log(`[API] Tentando método Next.js API Route: ${nextApiUrl}`);
         

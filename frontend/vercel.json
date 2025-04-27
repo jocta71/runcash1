@@ -7,6 +7,7 @@
     { "source": "/api/ROULETTES/:path*", "destination": "/api/ROULETTES" },
     { "source": "/api/ROULETTES-numbers", "destination": "/api/ROULETTES-numbers" },
     { "source": "/api/ROULETTES-numbers/:path*", "destination": "/api/ROULETTES-numbers" },
+    { "source": "/api/proxy-roulette", "destination": "/api/proxy-roulette" },
     { "source": "/api/events", "destination": "/api/proxy?path=/api/events" },
     { "source": "/api/roulettes", "destination": "/api/proxy?path=/api/roulettes" },
     { "source": "/api/strategies", "destination": "/api/proxy?path=/api/strategies" },
