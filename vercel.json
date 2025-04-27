@@ -1,127 +1,35 @@
 {
   "version": 2,
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
-  "functions": {
-    "api/asaas-create-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-create-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/webhook-manager.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-payment.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-pix-qrcode.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-cancel-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/update-user.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/ai/query.js": {
-      "memory": 1024,
-      "maxDuration": 30
-    },
-    "api/test-page.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/asaas-webhook",
-      "destination": "/api/webhook-manager.js"
-    },
-    {
-      "source": "/api/subscription-reconciliation",
-      "destination": "/api/webhook-manager.js?operation=reconciliation"
-    },
-    {
-      "source": "/api/retry-failed-webhooks",
-      "destination": "/api/webhook-manager.js?operation=retry"
-    },
-    {
-      "source": "/api/asaas-create-customer",
-      "destination": "/api/asaas-create-customer.js"
-    },
-    {
-      "source": "/api/asaas-create-subscription",
-      "destination": "/api/asaas-create-subscription.js"
-    },
-    {
-      "source": "/api/asaas-find-payment",
-      "destination": "/api/asaas-find-payment.js"
-    },
-    {
-      "source": "/api/asaas-pix-qrcode",
-      "destination": "/api/asaas-pix-qrcode.js"
-    },
-    {
-      "source": "/api/asaas-find-subscription",
-      "destination": "/api/asaas-find-subscription.js"
-    },
-    {
-      "source": "/api/asaas-cancel-subscription",
-      "destination": "/api/asaas-cancel-subscription.js"
-    },
-    {
-      "source": "/api/asaas-find-customer",
-      "destination": "/api/asaas-find-customer.js"
-    },
-    {
-      "source": "/api/update-user",
-      "destination": "/api/update-user.js"
-    },
-    {
-      "source": "/api/ai/query",
-      "destination": "/api/ai/query.js"
-    },
-    {
-      "source": "/api/((?!asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|update-user|ai/query|test-page).*)",
-      "destination": "https://backend-production-2f96.up.railway.app/api/$1"
-    },
-    {
-      "source": "/test",
-      "destination": "/api/test-page"
-    },
-    {
-      "source": "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg|logo.png|img/).*)",
-      "destination": "/index.html"
-    }
+  "builds": [
+    { "src": "frontend/package.json", "use": "@vercel/next" },
+    { "src": "api/**/*.js", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/proxy-roulette", "dest": "/api/proxy-roulette.js" },
+    { "src": "/api/proxy-roulette/(.*)", "dest": "/api/proxy-roulette.js" },
+    { "src": "/api/ROULETTES", "dest": "/api/proxy-roulette.js" },
+    { "src": "/api/ROULETTES/(.*)", "dest": "/api/proxy-roulette.js" },
+    { "src": "/api/ROULETTES-numbers", "dest": "/api/proxy-roulette.js?type=numbers" },
+    { "src": "/api/ROULETTES-numbers/(.*)", "dest": "/api/proxy-roulette.js?type=numbers" },
+    { "src": "/api/health", "dest": "/api/health.js" },
+    { "src": "/api/(.*)", "dest": "/api/proxy.js" },
+    { "src": "/(.*)", "dest": "/frontend/$1" }
   ],
   "env": {
-    "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash",
-    "MONGODB_DB_NAME": "runcash",
-    "MONGODB_ENABLED": "true",
-    "ASAAS_API_KEY": "$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmE4NzkxZDA3LTdiNzAtNDVkZC04ZWZjLTk0ZWJkODI1ZWIyNzo6JGFhY2hfZDVjODRmZjAtOGU4Ny00MWE5LWI4MGMtMWQ5MjBhOWI3YWYz",
-    "ASAAS_ENVIRONMENT": "sandbox",
-    "FRONTEND_URL": "https://runcashh11.vercel.app",
-    "NODE_ENV": "production",
-    "OPENAI_API_KEY": "${OPENAI_API_KEY}",
-    "GEMINI_API_KEY": "AIzaSyDvpb9h0XJoc_0NrZZokQYgz8qkWxMBP3Q",
-    "AI_PROVIDER": "gemini",
-    "GEMINI_MODEL": "gemini-2.0-flash",
-    "ADMIN_API_KEY": "rcwh_secret_key_123"
-  }
+    "VITE_WEBSOCKET_URL": "wss://backend-production-2f96.up.railway.app",
+    "VITE_SSE_SERVER": "https://backend-production-2f96.up.railway.app/sse",
+    "VITE_API_BASE": "https://backend-production-2f96.up.railway.app",
+    "VITE_BACKEND_URL": "https://backend-production-2f96.up.railway.app"
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" },
+        { "key": "Access-Control-Allow-Credentials", "value": "true" }
+      ]
+    }
+  ]
 }
