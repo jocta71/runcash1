@@ -738,18 +738,18 @@ class RESTSocketService {
     
     const API_URL = import.meta.env.VITE_API_URL || '/api';
     
-    // Polling com intervalo maior e apenas para o endpoint de amostra
+    // Polling com intervalo maior e apenas para o endpoint de roletas
     this.pollingTimer = setInterval(() => {
-      fetch(`${API_URL}/roulettes/sample`)
+      fetch(`${API_URL}/roulettes`)
         .then(response => response.json())
         .then(data => {
           if (data && data.success && Array.isArray(data.data)) {
-            console.log(`[RESTSocketService] Dados de amostra recebidos: ${data.data.length} roletas`);
+            console.log(`[RESTSocketService] Dados de roletas recebidos: ${data.data.length} roletas`);
             this.processDataAsEvents(data.data);
           }
         })
         .catch(error => {
-          console.error('[RESTSocketService] Erro ao buscar dados de amostra:', error);
+          console.error('[RESTSocketService] Erro ao buscar dados de roletas:', error);
         });
     }, 15000); // 15 segundos - intervalo maior para economia de recursos
   }
