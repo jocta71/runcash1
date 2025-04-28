@@ -9,6 +9,7 @@ import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
 import globalRouletteDataService from './services/GlobalRouletteDataService'
+import { EventEmitter } from 'events'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -36,60 +37,173 @@ window.ROULETTE_SYSTEM_INITIALIZED = false;
 function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
-  // Inicializar os serviços em ordem
-  const socketService = SocketService.getInstance();
-  const eventService = EventService.getInstance();
-  const rouletteFeedService = RouletteFeedService.getInstance();
-  
-  // Registrar o SocketService no RouletteFeedService
-  rouletteFeedService.registerSocketService(socketService);
-  
-  // Inicializar o serviço global e buscar dados iniciais uma única vez
-  logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
-  
-  // Usar a instância importada diretamente
-  globalRouletteDataService.fetchRouletteData().then(data => {
-    logger.info(`Dados iniciais obtidos pelo serviço global: ${data.length} roletas`);
+  try {
+    // Criar objetos para armazenar os serviços (inicialmente com implementações vazias)
+    let socketService: any = {
+      loadHistoricalRouletteNumbers: async () => false,
+      isConnected: () => false,
+      on: () => () => {},
+      subscribe: () => () => {},
+      unsubscribe: () => {},
+      // Métodos mínimos necessários
+    };
     
-    // Em seguida, inicializar o RouletteFeedService que usará os dados do serviço global
-    rouletteFeedService.initialize().then(() => {
-      logger.info('RouletteFeedService inicializado usando dados do serviço global');
+    const eventService = EventService.getInstance();
+    
+    let rouletteFeedService: any = {
+      registerSocketService: () => {},
+      initialize: async () => {},
+      startPolling: () => {},
+      stop: () => {},
+      // Métodos mínimos necessários
+    };
+    
+    // Inicializar os serviços com tratamento de erro
+    try {
+      // Tentar inicializar SocketService
+      socketService = SocketService.getInstance();
+      logger.info('SocketService inicializado com sucesso');
+    } catch (socketError) {
+      logger.error('Erro ao inicializar SocketService - usando implementação alternativa:', socketError);
       
-      // Disparar evento para notificar componentes
-      eventService.dispatchEvent({
-        type: 'roulette:data-updated',
-        data: {
-          source: 'initial-load',
-          timestamp: new Date().toISOString()
+      // Tentar alternativa
+      try {
+        // Importar RESTSocketService como alternativa
+        import('./services/RESTSocketService').then(module => {
+          try {
+            const alternativeSocketService = module.default.getInstance();
+            // Substituir a implementação vazia
+            socketService = alternativeSocketService;
+            logger.info('RESTSocketService inicializado como alternativa ao SocketService');
+            
+            // Tentar registrar no FeedService se ele já existir
+            if (rouletteFeedService && rouletteFeedService.registerSocketService) {
+              rouletteFeedService.registerSocketService(socketService);
+            }
+          } catch (alternativeError) {
+            logger.error('Falha também na alternativa RESTSocketService:', alternativeError);
+          }
+        }).catch(importError => {
+          logger.error('Erro ao importar RESTSocketService como alternativa:', importError);
+        });
+      } catch (alternativeError) {
+        logger.error('Erro ao tentar usar serviço de socket alternativo:', alternativeError);
+      }
+    }
+    
+    try {
+      // Tentar inicializar RouletteFeedService
+      rouletteFeedService = RouletteFeedService.getInstance();
+      logger.info('RouletteFeedService inicializado com sucesso');
+      
+      // Registrar o SocketService no RouletteFeedService
+      try {
+        rouletteFeedService.registerSocketService(socketService);
+      } catch (registerError) {
+        logger.error('Erro ao registrar SocketService no RouletteFeedService:', registerError);
+      }
+    } catch (feedError) {
+      logger.error('Erro ao inicializar RouletteFeedService - usando implementação básica:', feedError);
+    }
+  
+    // Inicializar o serviço global e buscar dados iniciais uma única vez
+    logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
+    
+    // Usar a instância importada diretamente, com tratamento de erro
+    try {
+      globalRouletteDataService.fetchRouletteData().then(data => {
+        if (!data || !Array.isArray(data)) {
+          logger.warn('Serviço global retornou dados inválidos ou vazios');
+          return;
         }
+        
+        logger.info(`Dados iniciais obtidos pelo serviço global: ${data.length} roletas`);
+        
+        // Em seguida, inicializar o RouletteFeedService que usará os dados do serviço global
+        try {
+          rouletteFeedService.initialize().then(() => {
+            logger.info('RouletteFeedService inicializado usando dados do serviço global');
+            
+            // Disparar evento para notificar componentes
+            try {
+              eventService.dispatchEvent({
+                type: 'roulette:data-updated',
+                data: {
+                  source: 'initial-load',
+                  timestamp: new Date().toISOString()
+                }
+              });
+            } catch (eventError) {
+              logger.error('Erro ao disparar evento após inicialização:', eventError);
+            }
+            
+            // Iniciar polling com intervalo de 10 segundos
+            try {
+              rouletteFeedService.startPolling();
+              logger.info('Polling de roletas iniciado (intervalo de 10s)');
+            } catch (pollingError) {
+              logger.error('Erro ao iniciar polling:', pollingError);
+            }
+          }).catch(initError => {
+            logger.error('Erro ao inicializar RouletteFeedService:', initError);
+          });
+        } catch (initialDataError) {
+          logger.error('Erro ao processar dados iniciais:', initialDataError);
+        }
+      }).catch(error => {
+        logger.error('Erro ao buscar dados iniciais pelo serviço global:', error);
       });
-      
-      // Iniciar polling com intervalo de 10 segundos
-      rouletteFeedService.startPolling();
-      logger.info('Polling de roletas iniciado (intervalo de 10s)');
-    }).catch(error => {
-      logger.error('Erro ao inicializar RouletteFeedService:', error);
+    } catch (globalServiceError) {
+      logger.error('Erro ao chamar fetchRouletteData do serviço global:', globalServiceError);
+    }
+    
+    // Marcar como inicializado, mesmo com erros para permitir que a aplicação continue
+    window.ROULETTE_SYSTEM_INITIALIZED = true;
+    
+    // Adicionar função para limpar recursos quando a página for fechada
+    window.addEventListener('beforeunload', () => {
+      try {
+        rouletteFeedService.stop();
+      } catch (stopError) {
+        // Não logar erro no momento de fechamento da página
+      }
+      window.ROULETTE_SYSTEM_INITIALIZED = false;
+      logger.info('Sistema de roletas finalizado');
     });
-  }).catch(error => {
-    logger.error('Erro ao buscar dados iniciais pelo serviço global:', error);
-  });
-  
-  // Marcar como inicializado
-  window.ROULETTE_SYSTEM_INITIALIZED = true;
-  
-  // Adicionar função para limpar recursos quando a página for fechada
-  window.addEventListener('beforeunload', () => {
-    rouletteFeedService.stop();
-    window.ROULETTE_SYSTEM_INITIALIZED = false;
-    logger.info('Sistema de roletas finalizado');
-  });
-  
-  return {
-    socketService,
-    rouletteFeedService,
-    eventService,
-    globalRouletteDataService
-  };
+    
+    return {
+      socketService,
+      rouletteFeedService,
+      eventService,
+      globalRouletteDataService
+    };
+  } catch (systemError) {
+    logger.error('Erro crítico na inicialização do sistema de roletas:', systemError);
+    
+    // Criar implementação vazia para permitir que o aplicativo continue funcionando
+    const dummyEmitter = new EventEmitter();
+    
+    // Retornar implementação mínima para evitar erros em cascata
+    return {
+      socketService: {
+        loadHistoricalRouletteNumbers: async () => false,
+        isConnected: () => false,
+        on: () => () => {},
+        subscribe: () => () => {},
+        unsubscribe: () => {},
+        emitter: dummyEmitter
+      },
+      rouletteFeedService: {
+        registerSocketService: () => {},
+        initialize: async () => {},
+        startPolling: () => {},
+        stop: () => {},
+        emitter: dummyEmitter
+      },
+      eventService: EventService.getInstance(),
+      globalRouletteDataService
+    };
+  }
 }
 
 // Inicializar serviços com tratamento de erro
@@ -168,38 +282,75 @@ window.fetch = function(input, init) {
   return originalFetch(input, newInit);
 };
 
-// Iniciar pré-carregamento de dados históricos
+// Iniciar pré-carregamento de dados históricos de forma segura
 logger.info('Iniciando pré-carregamento de dados históricos...');
 try {
-  // Acessar o socketService do sistema de roletas
-  const socketServiceInstance = rouletteSystem?.socketService;
-  
-  // Verificar se socketService está disponível antes de usar
-  if (socketServiceInstance && typeof socketServiceInstance.loadHistoricalRouletteNumbers === 'function') {
-    socketServiceInstance.loadHistoricalRouletteNumbers().catch(err => {
-      logger.error('Erro ao pré-carregar dados históricos:', err);
-    });
-  } else {
-    logger.warn('Pré-carregamento de dados históricos ignorado: socketService não está disponível');
-    
-    // Tentar importar dinamicamente como alternativa
-    import('./services/RESTSocketService').then(module => {
-      try {
-        const restSocketService = module.default.getInstance();
-        if (restSocketService && restSocketService.loadHistoricalRouletteNumbers) {
-          restSocketService.loadHistoricalRouletteNumbers().catch(err => {
-            logger.error('Erro ao pré-carregar dados históricos (alternativa):', err);
-          });
+  const loadHistorico = async () => {
+    try {
+      // Acessar o socketService do sistema de roletas
+      const socketServiceInstance = rouletteSystem?.socketService;
+      
+      // Verificar se socketService está disponível antes de usar
+      if (socketServiceInstance && typeof socketServiceInstance.loadHistoricalRouletteNumbers === 'function') {
+        try {
+          await socketServiceInstance.loadHistoricalRouletteNumbers();
+          logger.info('Dados históricos carregados com sucesso');
+          return true;
+        } catch (loadError) {
+          logger.error('Erro ao pré-carregar dados históricos:', loadError);
+          return false;
         }
-      } catch (socketError) {
-        logger.error('Falha ao inicializar RESTSocketService para carregamento de histórico:', socketError);
+      } else {
+        logger.warn('Socket principal não disponível, tentando método alternativo...');
+        
+        // Tentar importar RESTSocketService e usá-lo diretamente
+        try {
+          const RESTSocketServiceModule = await import('./services/RESTSocketService');
+          const restSocketService = RESTSocketServiceModule.default.getInstance();
+          
+          if (restSocketService && typeof restSocketService.loadHistoricalRouletteNumbers === 'function') {
+            try {
+              await restSocketService.loadHistoricalRouletteNumbers();
+              logger.info('Dados históricos carregados via serviço REST alternativo');
+              return true;
+            } catch (restLoadError) {
+              logger.error('Erro ao pré-carregar dados históricos via REST:', restLoadError);
+              return false;
+            }
+          } else {
+            logger.warn('Serviço REST alternativo não implementa loadHistoricalRouletteNumbers');
+            return false;
+          }
+        } catch (importRestError) {
+          logger.error('Erro ao importar RESTSocketService alternativo:', importRestError);
+          
+          // Última tentativa: usar o serviço global diretamente
+          try {
+            const data = await globalRouletteDataService.fetchDetailedRouletteData();
+            logger.info('Dados históricos obtidos diretamente do serviço global');
+            return Boolean(data && Array.isArray(data) && data.length > 0);
+          } catch (globalDataError) {
+            logger.error('Todas as tentativas de carregar dados históricos falharam');
+            return false;
+          }
+        }
       }
-    }).catch(importError => {
-      logger.error('Erro ao importar RESTSocketService para carregamento de histórico:', importError);
+    } catch (outerError) {
+      logger.error('Erro crítico no carregamento de histórico:', outerError);
+      return false;
+    }
+  };
+  
+  // Executar carregamento depois de um pequeno atraso para permitir que outros serviços inicializem
+  setTimeout(() => {
+    loadHistorico().then(success => {
+      logger.info(`Carregamento de dados históricos ${success ? 'bem-sucedido' : 'falhou'}`);
+    }).catch(err => {
+      logger.error('Erro inesperado durante carregamento de histórico:', err);
     });
-  }
-} catch (error) {
-  logger.error('Erro crítico ao carregar dados históricos:', error);
+  }, 2000);
+} catch (globalHistoricoError) {
+  logger.error('Erro fatal na inicialização do carregamento de histórico:', globalHistoricoError);
 }
 
 // Expor globalmente a função para verificar se o sistema foi inicializado
@@ -295,14 +446,65 @@ if (rootElement) {
               0 0 500px #3aff5e;
           }
         </style>
+        <p style="margin-top: 20px; font-size: 16px;">Inicializando sistema...</p>
       </div>
     </div>
   `;
   
+  // Sistema de recuperação de erros para garantir que a interface seja renderizada
+  let appRenderAttempted = false;
+  
+  // Função para renderizar o aplicativo com tratamento de erros
+  const renderApp = () => {
+    try {
+      if (appRenderAttempted) {
+        logger.warn('Tentativa de renderizar o aplicativo mais de uma vez ignorada');
+        return;
+      }
+      
+      appRenderAttempted = true;
+      logger.info('Renderizando aplicativo React...');
+      
+      // Criar root React e renderizar o aplicativo
+      try {
+        createRoot(rootElement).render(<App />);
+        logger.info('Aplicativo renderizado com sucesso');
+      } catch (renderError) {
+        logger.error('Erro crítico ao renderizar React App:', renderError);
+        
+        // Mostrar uma mensagem de erro amigável para o usuário
+        rootElement.innerHTML = `
+          <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background-color: #1a1a1a; color: #f0f0f0; padding: 20px; text-align: center;">
+            <h2>Ops! Algo deu errado.</h2>
+            <p>Não foi possível carregar a aplicação corretamente.</p>
+            <p>Por favor, tente recarregar a página ou verifique sua conexão com a internet.</p>
+            <button onclick="window.location.reload()" style="margin-top: 20px; padding: 10px 20px; background-color: #3aff5e; color: #000; border: none; border-radius: 4px; cursor: pointer;">
+              Recarregar
+            </button>
+          </div>
+        `;
+      }
+    } catch (e) {
+      logger.error('Erro grave durante tentativa de renderização:', e);
+    }
+  };
+  
   // Aguardar um pequeno intervalo para dar tempo à conexão de ser estabelecida
-  setTimeout(() => {
-    createRoot(rootElement).render(<App />);
-  }, 1500);
+  const renderTimeout = setTimeout(() => {
+    renderApp();
+  }, 2000);
+  
+  // Garantir que renderizamos mesmo se ocorrer algum outro erro
+  window.addEventListener('load', () => {
+    // Se ainda não renderizamos após 5 segundos, força a renderização
+    const forceRenderTimeout = setTimeout(() => {
+      if (!appRenderAttempted) {
+        logger.warn('Forçando renderização do aplicativo após timeout');
+        clearTimeout(renderTimeout); // Limpar o outro timer se ainda estiver pendente
+        renderApp();
+      }
+    }, 5000);
+  });
 } else {
   logger.error('Elemento root não encontrado!');
 }
