@@ -1,6 +1,8 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
 import Cookies from 'js-cookie';
+import EventEmitter from 'events';
+import RouletteService from './RouletteService';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -69,15 +71,47 @@ class RESTSocketService {
   // Propriedade para armazenar o último timer ID criado
   private _lastCreatedTimerId: NodeJSTimeout | null = null;
   
+  // Serviço de controle de duplicação
+  private rouletteService: RouletteService;
+  
+  // Propriedade para controlar eventos emitidos
+  private emitter: EventEmitter;
+  
+  // Indica se estamos em modo centralizado
+  private isCentralizedMode: boolean = true;
+  
+  // Habilitar depuração em desenvolvimento
+  private debug: boolean = !isProduction;
+  
+  // Para rastrear origens dos dados processados
+  private processedDataSources: Set<string> = new Set();
+  
   private constructor() {
     console.log('[RESTSocketService] Inicializando serviço REST API com polling');
+    
+    // Inicializar o serviço anti-duplicação
+    this.rouletteService = RouletteService.getInstance();
+    
+    // Configurar listener de debug do RouletteService
+    if (this.debug) {
+      this.rouletteService.onDebug((message: string) => {
+        console.debug(`[RESTSocketService] ${message}`);
+      });
+    }
+    
+    // Inicializar emitter de eventos
+    this.emitter = new EventEmitter();
     
     // Adicionar listener global para logging de todos os eventos
     this.subscribe('*', (event: any) => {
       if (event.type === 'new_number') {
-        console.log(`[RESTSocketService][GLOBAL] Evento recebido para roleta: ${event.roleta_nome}, número: ${event.numero}`);
+        if (this.debug) {
+          console.log(`[RESTSocketService][GLOBAL] Evento recebido para roleta: ${event.roleta_nome}, número: ${event.numero}`);
+        }
       } else if (event.type === 'strategy_update') {
-        console.log(`[RESTSocketService][GLOBAL] Atualização de estratégia para roleta: ${event.roleta_nome}, estado: ${event.estado}`);
+        if (this.debug) {
+          console.log(`[RESTSocketService][GLOBAL] Atualização de estratégia para roleta: ${event.roleta_nome}, estado: ${event.estado}`);
+        }
       }
     });
 
@@ -122,11 +156,13 @@ class RESTSocketService {
     
     // Registrar para receber atualizações do serviço global
     globalRouletteDataService.subscribe('RESTSocketService-main', () => {
-      console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
+      if (this.debug) {
+        console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
+      }
       // Reprocessar dados do serviço global quando houver atualização
       const data = globalRouletteDataService.getAllRoulettes();
       if (data && Array.isArray(data)) {
-        this.processDataAsEvents(data);
+        this.processDataAsEvents(data, 'global-service');
       }
     });
     
@@ -134,7 +170,7 @@ class RESTSocketService {
     const initialData = globalRouletteDataService.getAllRoulettes();
     if (initialData && initialData.length > 0) {
       console.log('[RESTSocketService] Processando dados iniciais do serviço global');
-      this.processDataAsEvents(initialData);
+      this.processDataAsEvents(initialData, 'initial-load');
     }
     
     // Criar um timer de verificação para garantir que o serviço global está funcionando
@@ -148,7 +184,9 @@ class RESTSocketService {
   private async fetchDataFromREST() {
     try {
       const startTime = Date.now();
-      console.log('[RESTSocketService] Obtendo dados através do serviço global centralizado');
+      if (this.debug) {
+        console.log('[RESTSocketService] Obtendo dados através do serviço global centralizado');
+      }
       
       // Usar o serviço global centralizado em vez de fazer chamada direta à API
       const data = await globalRouletteDataService.fetchRouletteData();
@@ -158,10 +196,12 @@ class RESTSocketService {
       }
       
       const endTime = Date.now();
-      console.log(`[RESTSocketService] Dados obtidos do serviço global em ${endTime - startTime}ms`);
+      if (this.debug) {
+        console.log(`[RESTSocketService] Dados obtidos do serviço global em ${endTime - startTime}ms`);
+      }
       
       // Processar os dados como eventos
-      this.processDataAsEvents(data);
+      this.processDataAsEvents(data, 'rest-api');
       
       return true;
     } catch (error) {
@@ -182,7 +222,7 @@ class RESTSocketService {
         const now = Date.now();
         if (now - parsed.timestamp < 10 * 60 * 1000) {
           console.log('[RESTSocketService] Usando dados em cache para inicialização rápida');
-          this.processDataAsEvents(parsed.data);
+          this.processDataAsEvents(parsed.data, 'cache');
         }
       }
     } catch (error) {
@@ -191,163 +231,222 @@ class RESTSocketService {
   }
   
   // Processar dados da API como eventos de WebSocket
-  private processDataAsEvents(data: any[]) {
+  private processDataAsEvents(data: any[], source: string = 'unknown') {
     if (!Array.isArray(data)) {
       console.warn('[RESTSocketService] Dados recebidos não são um array:', data);
       return;
     }
     
-    console.log(`[RESTSocketService] Processando ${data.length} roletas da API REST`);
+    if (this.debug) {
+      console.log(`[RESTSocketService] Processando ${data.length} roletas da fonte: ${source}`);
+    }
     
     // Registrar esta chamada como bem-sucedida
     const now = Date.now();
-    this.lastReceivedData.set('global', { timestamp: now, data: { count: data.length } });
+    this.lastReceivedData.set(source, { timestamp: now, data: { count: data.length } });
     
-    // Para cada roleta, emitir eventos
-    data.forEach(roulette => {
-      if (!roulette || !roulette.id) return;
+    // Adicionar fonte aos processados
+    this.processedDataSources.add(source);
+    
+    // Usar o RouletteService para filtrar dados duplicados
+    const uniqueItems = this.rouletteService.processRouletteData(data, source);
+    
+    if (this.debug) {
+      console.log(`[RESTSocketService] Após filtragem anti-duplicação: ${uniqueItems.length} roletas únicas de ${data.length} originais`);
+    }
+    
+    // Se não há itens únicos para processar, não continuar
+    if (uniqueItems.length === 0) {
+      return;
+    }
+    
+    // Atualizar o cache apenas se não for uma fonte de cache
+    if (source !== 'cache') {
+      try {
+        localStorage.setItem('roulettes_data_cache', JSON.stringify({
+          data: uniqueItems,
+          timestamp: now
+        }));
+      } catch (error) {
+        console.warn('[RESTSocketService] Erro ao salvar cache:', error);
+      }
+    }
+    
+    // Para cada roleta no array
+    for (const roleta of uniqueItems) {
+      const roletaId = roleta.id;
+      const roletaNome = roleta.nome || roleta.id;
       
-      // Registrar timestamp para cada roleta
-      this.lastReceivedData.set(roulette.id, { timestamp: now, data: roulette });
-      
-      // Atualizar o histórico da roleta se houver números
-      if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
-        // Mapear apenas os números para um array simples
-        const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
+      // Verificar se há novos números para a roleta
+      if (roleta.numero && Array.isArray(roleta.numero) && roleta.numero.length > 0) {
+        // Obter histórico atual ou inicializar array vazio
+        const currentHistory = this.rouletteHistory.get(roletaId) || [];
         
-        // Obter histórico existente e mesclar com os novos números
-        const existingHistory = this.rouletteHistory.get(roulette.id) || [];
+        // Extrair todos os novos números (max 20 dos mais recentes)
+        const newNumbers = roleta.numero
+          .slice(0, 20)
+          .filter((n: any) => n && (typeof n.numero === 'number' || typeof n === 'number'))
+          .map((n: any) => typeof n.numero === 'number' ? n.numero : n);
         
-        // Verificar se já existe o primeiro número na lista para evitar duplicação
-        const isNewData = existingHistory.length === 0 || 
-                         existingHistory[0] !== numbers[0] ||
-                         !existingHistory.includes(numbers[0]);
+        // Verificar se há novos números comparando com o histórico
+        if (newNumbers.length > 0) {
+          const lastProcessedJson = this.lastProcessedData.get(roletaId);
+          const lastProcessed = lastProcessedJson ? JSON.parse(lastProcessedJson) : null;
+          
+          // Verificar se é realmente um novo número (não processado anteriormente)
+          const ultimoNumero = newNumbers[0];
+          const isNewNumber = !lastProcessed || 
+                              lastProcessed.numero !== ultimoNumero || 
+                              (lastProcessed.timestamp && now - new Date(lastProcessed.timestamp).getTime() > 60000);
+          
+          if (isNewNumber) {
+            // Novo número detectado - atualizar histórico
+            // Mesclar sem duplicatas
+            const mergedHistory = this.mergeNumbersWithoutDuplicates(newNumbers, currentHistory);
+            this.rouletteHistory.set(roletaId, mergedHistory);
+            
+            // Registrar processamento deste número
+            this.lastProcessedData.set(roletaId, JSON.stringify({
+              numero: ultimoNumero,
+              timestamp: new Date().toISOString()
+            }));
+            
+            if (this.debug) {
+              console.log(`[RESTSocketService] Novos números detectados para roleta ${roletaNome}: ${ultimoNumero} (fonte: ${source})`);
+            }
+            
+            // Emitir evento de novo número
+            const event = {
+              type: 'new_number',
+              numero: ultimoNumero,
+              cor: this.determinarCorNumero(ultimoNumero),
+              roleta_id: roletaId,
+              roleta_nome: roletaNome,
+              timestamp: new Date(),
+              source: source
+            };
+            
+            this.notifyListeners(event);
+            
+            // Atualizar cache desta roleta específica
+            this.rouletteDataCache.set(roletaId, {
+              data: roleta,
+              timestamp: now
+            });
+          }
+        }
         
-        if (isNewData) {
-          console.log(`[RESTSocketService] Novos números detectados para roleta ${roulette.nome || roulette.id}`);
+        // Verificar se há uma estratégia ativa
+        if (roleta.estrategias && Array.isArray(roleta.estrategias) && roleta.estrategias.length > 0) {
+          const estrategia = roleta.estrategias[0];
           
-          // Mesclar, evitando duplicações e preservando ordem
-          const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
-          
-          // Limitar ao tamanho máximo
-          const limitedHistory = mergedNumbers.slice(0, this.historyLimit);
-          
-          // Atualizar o histórico
-          this.setRouletteHistory(roulette.id, limitedHistory);
-          
-          // Emitir evento com o número mais recente
-          const lastNumber = roulette.numero[0];
-          
-          const event: any = {
-            type: 'new_number',
-            roleta_id: roulette.id,
-            roleta_nome: roulette.nome,
-            numero: lastNumber.numero || lastNumber.number || 0,
-            cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
-            timestamp: lastNumber.timestamp || new Date().toISOString(),
-            source: 'limit-endpoint' // Marcar a origem para depuração
-          };
-          
-          // Notificar os listeners sobre o novo número
-          this.notifyListeners(event);
+          if (estrategia && estrategia.id) {
+            // Emitir evento de atualização de estratégia
+            const estrategiaEvent = {
+              type: 'strategy_update',
+              roleta_id: roletaId,
+              roleta_nome: roletaNome,
+              estrategia_id: estrategia.id,
+              estado: estrategia.estado || 'desconhecido',
+              timestamp: new Date(),
+              detalhes: estrategia,
+              source: source
+            };
+            
+            // Notificar ouvintes sobre a atualização de estratégia
+            this.notifyListeners(estrategiaEvent);
+          }
         }
       }
-      
-      // Emitir evento de estratégia se houver
-      if (roulette.estado_estrategia) {
-        const strategyEvent: any = {
-          type: 'strategy_update',
-          roleta_id: roulette.id,
-          roleta_nome: roulette.nome,
-          estado: roulette.estado_estrategia,
-          numero_gatilho: roulette.numero_gatilho || 0,
-          vitorias: roulette.vitorias || 0,
-          derrotas: roulette.derrotas || 0,
-          terminais_gatilho: roulette.terminais_gatilho || [],
-          source: 'limit-endpoint' // Marcar a origem para depuração
-        };
-        
-        // Notificar os listeners sobre a atualização de estratégia
-        this.notifyListeners(strategyEvent);
-      }
-    });
+    }
   }
-
+  
+  // Determinar cor de um número da roleta
   private determinarCorNumero(numero: number): string {
     if (numero === 0) return 'verde';
-    if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(numero)) {
-      return 'vermelho';
-    }
-    return 'preto';
+    
+    const numeros_vermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    
+    return numeros_vermelhos.includes(numero) ? 'vermelho' : 'preto';
   }
 
-  // Singleton
+  // Método para obtenção da instância singleton
   public static getInstance(): RESTSocketService {
     if (!RESTSocketService.instance) {
       RESTSocketService.instance = new RESTSocketService();
     }
+    
     return RESTSocketService.instance;
   }
-
-  // Obtém a URL do servidor de eventos baseado no método atual
+  
+  // Obter base URL da API
   private getApiBaseUrl(): string {
-    // Em ambiente de produção, usar o proxy da Vercel para evitar problemas de CORS
-    if (isProduction) {
-      // Usar o endpoint relativo que será tratado pelo proxy da Vercel
-      return '/api';
+    try {
+      return getRequiredEnvVar('NEXT_PUBLIC_API_URL') || '';
+    } catch (error) {
+      // Fallback para URL relativa se não encontrar no env
+      console.warn('[RESTSocketService] Variável de ambiente API URL não encontrada, usando relativa');
+      return '';
     }
-    
-    // Em desenvolvimento, usar a URL completa da API
-    return getRequiredEnvVar('VITE_API_BASE_URL');
   }
-
-  // Métodos públicos que mantém compatibilidade com a versão WebSocket
-
-  public subscribe(roletaNome: string, callback: any): void {
+  
+  // Adicionar um listener para eventos de roleta
+  public subscribe(roletaNome: string, callback: RouletteEventCallback): void {
     if (!this.listeners.has(roletaNome)) {
       this.listeners.set(roletaNome, new Set());
     }
     
-    const listeners = this.listeners.get(roletaNome);
-    if (listeners) {
-      listeners.add(callback);
-      console.log(`[RESTSocketService] Registrado listener para ${roletaNome}, total: ${listeners.size}`);
+    const callbacks = this.listeners.get(roletaNome);
+    if (callbacks) {
+      callbacks.add(callback);
     }
   }
-
-  public unsubscribe(roletaNome: string, callback: any): void {
-    const listeners = this.listeners.get(roletaNome);
-    if (listeners) {
-      listeners.delete(callback);
-      console.log(`[RESTSocketService] Listener removido para ${roletaNome}, restantes: ${listeners.size}`);
+  
+  // Remover um listener para eventos de roleta
+  public unsubscribe(roletaNome: string, callback: RouletteEventCallback): void {
+    const callbacks = this.listeners.get(roletaNome);
+    if (callbacks) {
+      callbacks.delete(callback);
     }
   }
-
+  
+  // Notificar todos os listeners relevantes sobre um evento
   private notifyListeners(event: any): void {
-    // Notificar listeners específicos para esta roleta
-    const listeners = this.listeners.get(event.roleta_nome);
-    if (listeners) {
-      listeners.forEach(callback => {
+    // Listener específico para a roleta
+    const roletaCallbacks = this.listeners.get(event.roleta_nome);
+    if (roletaCallbacks) {
+      roletaCallbacks.forEach(callback => {
         try {
           callback(event);
         } catch (error) {
-          console.error(`[RESTSocketService] Erro em listener para ${event.roleta_nome}:`, error);
+          console.error(`[RESTSocketService] Erro ao executar callback para ${event.roleta_nome}:`, error);
         }
       });
     }
     
-    // Notificar listeners globais (marcados com "*")
-    const globalListeners = this.listeners.get('*');
-    if (globalListeners) {
-      globalListeners.forEach(callback => {
+    // Listener global (*)
+    const globalCallbacks = this.listeners.get('*');
+    if (globalCallbacks) {
+      globalCallbacks.forEach(callback => {
         try {
           callback(event);
         } catch (error) {
-          console.error('[RESTSocketService] Erro em listener global:', error);
+          console.error('[RESTSocketService] Erro ao executar callback global:', error);
         }
       });
     }
   }
+  
+  // Método para emitir informações sobre dados processados
+  public getDataSourceInfo(): {sources: string[], activeTimers: number} {
+    return {
+      sources: Array.from(this.processedDataSources),
+      activeTimers: [this.pollingTimer, this.secondEndpointPollingTimer, this.centralServicePollingTimer]
+                     .filter(timer => timer !== null).length
+    };
+  }
+
+  // Métodos públicos que mantém compatibilidade com a versão WebSocket
 
   public disconnect(): void {
     console.log('[RESTSocketService] Desconectando serviço de polling');
@@ -556,175 +655,166 @@ class RESTSocketService {
 
   // Método para iniciar o polling do segundo endpoint (/api/ROULETTES sem parâmetro)
   private startSecondEndpointPolling() {
-    console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
-    
-    // Usar o GlobalRouletteDataService para obter dados
-    globalRouletteDataService.subscribe('RESTSocketService', () => {
-      console.log('[RESTSocketService] Recebendo dados do serviço centralizado');
-      this.processDataFromCentralService();
-    });
-    
-    // Executar imediatamente a primeira vez
-    this.processDataFromCentralService();
+    // Verificar se o segundo endpoint está habilitado
+    if (!this.secondEndpointPollingTimer) {
+      console.log('[RESTSocketService] Não inicializando segundo endpoint de polling - usando apenas dados do serviço global');
+      
+      // Assinar atualizações do serviço global centralizado em vez de fazer polling diretamente
+      globalRouletteDataService.subscribe('RESTSocketService-secondary', () => {
+        if (this.debug) {
+          console.log('[RESTSocketService] Recebendo dados secundários do serviço global centralizado');
+        }
+        
+        // Apenas notificar sobre a atualização, sem processar novamente os dados
+        // Isso evita a duplicação de eventos, já que os dados já foram processados pelo serviço principal
+        this.emitter.emit('data_update', {
+          source: 'global-service-secondary',
+          count: globalRouletteDataService.getAllRoulettes()?.length || 0,
+          timestamp: new Date()
+        });
+        
+        // Não chamamos this.processDataAsEvents aqui para evitar duplicação
+      });
+    }
   }
   
-  // Método para processar dados do serviço centralizado
-  private async processDataFromCentralService() {
-    try {
-      const startTime = Date.now();
-      console.log('[RESTSocketService] Processando dados do serviço centralizado: ' + startTime);
-      
-      // Obter dados do serviço global
-      const data = globalRouletteDataService.getAllRoulettes();
-      
-      if (!data || !Array.isArray(data) || data.length === 0) {
-        console.log('[RESTSocketService] Sem dados disponíveis no serviço centralizado, aguardando...');
-        return;
-      }
-      
-      console.log(`[RESTSocketService] Processando ${data.length} roletas do serviço centralizado`);
-      
-      // Registrar esta chamada como bem-sucedida
-      const now = Date.now();
-      this.lastReceivedData.set('endpoint-base', { timestamp: now, data: { count: data.length } });
-      
-      // Salvar no cache com uma chave diferente para não conflitar
-      localStorage.setItem('roulettes_data_cache_base', JSON.stringify({
-        timestamp: Date.now(),
-        data: data
-      }));
-      
-      // Para cada roleta, processar os dados
-      data.forEach(roulette => {
-        if (!roulette || !roulette.id) return;
-        
-        // Registrar timestamp para cada roleta
-        this.lastReceivedData.set(`base-${roulette.id}`, { timestamp: now, data: roulette });
-        
-        // Atualizar o histórico da roleta se houver números
-        if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
-          // Mapear apenas os números para um array simples
-          const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
-          
-          // Obter histórico existente 
-          const existingHistory = this.rouletteHistory.get(roulette.id) || [];
-          
-          // Verificar se já existe o primeiro número na lista para evitar duplicação
-          const isNewData = existingHistory.length === 0 || 
-                            existingHistory[0] !== numbers[0] ||
-                            !existingHistory.includes(numbers[0]);
-          
-          if (isNewData) {
-            console.log(`[RESTSocketService] Novos números detectados para roleta ${roulette.nome || roulette.id} (central-service)`);
-            
-            // Mesclar, evitando duplicações e preservando ordem
-            const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
-            
-            // Atualizar o histórico com mesclagem para preservar números antigos
-            this.setRouletteHistory(roulette.id, mergedNumbers);
-            
-            // Emitir evento com o número mais recente
-            const lastNumber = roulette.numero[0];
-            
-            const event: any = {
-              type: 'new_number',
-              roleta_id: roulette.id,
-              roleta_nome: roulette.nome,
-              numero: lastNumber.numero || lastNumber.number || 0,
-              cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
-              timestamp: lastNumber.timestamp || new Date().toISOString(),
-              source: 'central-service' // Marcar a origem para depuração
-            };
-            
-            // Notificar os listeners sobre o novo número
-            this.notifyListeners(event);
-          }
-        }
-        
-        // Emitir evento de estratégia se houver
-        if (roulette.estado_estrategia) {
-          const strategyEvent: any = {
-            type: 'strategy_update',
-            roleta_id: roulette.id,
-            roleta_nome: roulette.nome,
-            estado: roulette.estado_estrategia,
-            numero_gatilho: roulette.numero_gatilho || 0,
-            vitorias: roulette.vitorias || 0,
-            derrotas: roulette.derrotas || 0,
-            terminais_gatilho: roulette.terminais_gatilho || [],
-            source: 'central-service' // Marcar a origem para depuração
-          };
-          
-          // Notificar os listeners sobre a atualização de estratégia
-          this.notifyListeners(strategyEvent);
-        }
-      });
-      
-      const endTime = Date.now();
-      console.log(`[RESTSocketService] Processamento concluído em ${endTime - startTime}ms`);
-      
-      return true;
-    } catch (error) {
-      console.error('[RESTSocketService] Erro ao processar dados do serviço centralizado:', error);
-      return false;
-    }
+  // Função utilitária para determinar a cor de um número de roleta
+  private determinarCorNumero(numero: number): string {
+    if (numero === 0) return 'verde';
+    
+    // Lista de números vermelhos em roletas européias padrão
+    const numerosVermelhos = [
+      1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36
+    ];
+    
+    return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
   }
-
-  // Função auxiliar para mesclar arrays de números sem duplicações
+  
+  // Função para mesclar arrays de números sem duplicatas
   private mergeNumbersWithoutDuplicates(newNumbers: number[], existingNumbers: number[]): number[] {
-    // Criar um Set a partir dos números existentes para verificação rápida
-    const existingSet = new Set(existingNumbers);
+    // Criar um conjunto (Set) para eliminar duplicatas
+    const uniqueNumbersSet = new Set([...newNumbers, ...existingNumbers]);
     
-    // Array para armazenar os números mesclados
-    const mergedNumbers = [...existingNumbers];
+    // Converter de volta para array e limitar ao tamanho máximo
+    return Array.from(uniqueNumbersSet).slice(0, this.historyLimit);
+  }
+  
+  // Verificar "saúde" do timer para garantir que o polling ainda está funcionando
+  private checkTimerHealth() {
+    // Se estamos conectados mas o último dado é muito antigo
+    const now = Date.now();
+    let needsReconnect = false;
     
-    // Adicionar apenas números novos
-    for (const num of newNumbers) {
-      if (!existingSet.has(num)) {
-        mergedNumbers.unshift(num); // Adicionar no início para manter os mais recentes primeiro
-        existingSet.add(num);
+    // Verificar se há alguma fonte de dados ativa
+    for (const [source, data] of this.lastReceivedData.entries()) {
+      const age = now - data.timestamp;
+      
+      // Se o último dado tem mais de 5 minutos (300000ms)
+      if (age > 300000) {
+        console.warn(`[RESTSocketService] Fonte de dados ${source} está inativa há ${Math.floor(age/1000)}s`);
+        needsReconnect = true;
+        this.lastReceivedData.delete(source);
       }
     }
     
-    return mergedNumbers;
-  }
-
-  // Novo método para verificar assinatura antes de iniciar polling
-  private async checkSubscriptionBeforeInit(): Promise<void> {
-    try {
-      // Verificar localmente se o usuário está autenticado
-      const token = localStorage.getItem('auth_token_backup') || Cookies.get('auth_token');
-      
-      if (!token) {
-        console.log('[RESTSocketService] Usuário não autenticado, iniciando polling padrão');
-        this.startPolling();
-        return;
+    // Se todas as fontes estão inativas ou não há dados, reconectar
+    if (needsReconnect || this.lastReceivedData.size === 0) {
+      console.warn('[RESTSocketService] Timer de dados parece inativo. Forçando atualização...');
+      globalRouletteDataService.forceUpdate();
+    } else {
+      if (this.debug) {
+        console.log('[RESTSocketService] Timer de verificação ok, dados sendo recebidos normalmente');
       }
-      
-      // Verificar com o backend se o usuário tem plano
-      const API_URL = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${API_URL}/subscription/status`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+    }
+  }
+  
+  // Notificar todos os listeners inscritos para um evento
+  private notifyListeners(event: any) {
+    // Obter ouvintes para este tipo de roleta específica
+    const roletaId = event.roleta_id;
+    
+    if (this.listeners.has(roletaId)) {
+      const callbacks = this.listeners.get(roletaId)!;
+      callbacks.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error('[RESTSocketService] Erro ao notificar listener:', error);
         }
       });
-      
-      if (!response.ok) {
-        console.log('[RESTSocketService] Erro ao verificar assinatura, iniciando polling padrão');
-        this.startPolling();
-        return;
-      }
-      
-      const data = await response.json();
-      
-      // Iniciar polling completo independente do status da assinatura
-      console.log('[RESTSocketService] Iniciando polling padrão');
-        this.startPolling();
-        this.startSecondEndpointPolling();
-    } catch (error) {
-      console.error('[RESTSocketService] Erro ao verificar assinatura:', error);
-      this.startPolling();
     }
+    
+    // Notificar ouvintes globais (asterisco)
+    if (this.listeners.has('*')) {
+      const globalCallbacks = this.listeners.get('*')!;
+      globalCallbacks.forEach(callback => {
+        try {
+          callback(event);
+        } catch (error) {
+          console.error('[RESTSocketService] Erro ao notificar listener global:', error);
+        }
+      });
+    }
+    
+    // Emitir via EventEmitter para compatibilidade
+    this.emitter.emit(event.type, event);
+  }
+  
+  // Retorna a instância singleton
+  public static getInstance(config?: RESTSocketServiceConfig): RESTSocketService {
+    if (!RESTSocketService.instance) {
+      RESTSocketService.instance = new RESTSocketService();
+      
+      // Aplicar configurações se fornecidas
+      if (config) {
+        if (config.pollingInterval) {
+          RESTSocketService.instance.defaultPollingInterval = config.pollingInterval;
+        }
+        
+        if (config.httpEndpoint) {
+          RESTSocketService.instance.pollingEndpoint = config.httpEndpoint;
+        }
+        
+        if (config.centralServiceEndpoint) {
+          RESTSocketService.instance.centralServiceEndpoint = config.centralServiceEndpoint;
+        }
+      }
+    }
+    
+    return RESTSocketService.instance;
+  }
+
+  // Inscrever uma função callback para receber eventos de uma roleta específica
+  public subscribe(roletaId: string, callback: RouletteEventCallback): () => void {
+    // Garantir que temos um conjunto para este ID de roleta
+    if (!this.listeners.has(roletaId)) {
+      this.listeners.set(roletaId, new Set());
+    }
+    
+    // Adicionar o callback ao conjunto
+    this.listeners.get(roletaId)!.add(callback);
+    
+    // Retornar função para cancelar a inscrição
+    return () => {
+      if (this.listeners.has(roletaId)) {
+        this.listeners.get(roletaId)!.delete(callback);
+      }
+    };
+  }
+  
+  // Cancelar a inscrição de todos os callbacks para uma roleta
+  public unsubscribe(roletaId: string): void {
+    this.listeners.delete(roletaId);
+  }
+  
+  // Obter todos os IDs de roletas atualmente monitoradas
+  public getRoulettesIds(): string[] {
+    return Array.from(this.rouletteHistory.keys());
+  }
+  
+  // Obter histórico de números para uma roleta específica
+  public getRouletteHistory(roletaId: string): number[] {
+    return this.rouletteHistory.get(roletaId) || [];
   }
 }
 
