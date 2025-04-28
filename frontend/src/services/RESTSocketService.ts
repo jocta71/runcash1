@@ -63,33 +63,46 @@ interface RouletteEvent {
 }
 
 class RESTSocketService extends BrowserEventEmitter {
-  private dataListeners: Map<string, Set<(event: any) => void>>;
-  private pollingInterval: ReturnType<typeof setTimeout> | null;
-  private pollingIntervalMs: number;
-  private isPolling: boolean;
-  private isCentralizedMode: boolean;
-  private debug: boolean;
-  private rouletteService: any; // Usando any por compatibilidade, mas idealmente teria um tipo
-  private lastReceivedTimestamp: number;
+  private dataListeners: Map<string, Set<RouletteEventCallback>> = new Map();
+  private pollingInterval: ReturnType<typeof setTimeout> | null = null;
+  private pollingIntervalMs: number = 4000;
+  private isPolling: boolean = false;
+  private isCentralizedMode: boolean = true;
+  private debug: boolean = !isProduction;
+  private rouletteService: any;
+  private lastReceivedTimestamp: number = 0;
+  private lastProcessedData: Map<string, string> = new Map();
+  private rouletteHistory: Map<string, number[]> = new Map();
 
   constructor() {
     super();
-    this.dataListeners = new Map();
-    this.pollingInterval = null;
-    this.pollingIntervalMs = 4000; // 4 segundos
-    this.isPolling = false;
-    this.isCentralizedMode = true; // Modo centralizado usando GlobalRouletteService
-    this.debug = process.env.NODE_ENV !== 'production';
     this.rouletteService = RouletteService.getInstance();
-    
-    this.lastReceivedTimestamp = 0;
   }
 
-  // Registrar ouvinte para eventos
-  on(event: string, callback: (data: any) => void): () => void {
-    super.on(event, callback);
-    if (this.debug) console.log(`[RESTSocketService] Registrado listener para ${event}, total: ${this.listenerCount(event)}`);
-    return () => this.removeListener(event, callback);
+  /**
+   * Registrar ouvinte para eventos
+   * Sobrescrito para manter compatibilidade com o código antigo,
+   * mas modificado para retornar BrowserEventEmitter conforme esperado
+   */
+  on(event: string, listener: Function): BrowserEventEmitter {
+    super.on(event, listener);
+    if (this.debug) console.log(`[RESTSocketService] Registrado listener para ${event}, total: ${this.listeners(event).length}`);
+    return this;
+  }
+
+  /**
+   * Método adicional para suporte a unsubscribe com retorno de função
+   */
+  subscribe(event: string, callback: RouletteEventCallback): () => void {
+    this.on(event, callback);
+    return () => this.off(event, callback);
+  }
+
+  /**
+   * Remove um listener específico
+   */
+  removeListener(event: string, listener: Function): BrowserEventEmitter {
+    return this.off(event, listener);
   }
 
   // Processar dados das roletas evitando duplicações
@@ -113,6 +126,17 @@ class RESTSocketService extends BrowserEventEmitter {
         
         // Emitir evento para o primeiro número (mais recente)
         const lastNumber = lastNumbers[0].numero;
+        
+        // Registrar processamento deste número para evitar duplicação
+        this.lastProcessedData.set(rouletteId, JSON.stringify({
+          numero: lastNumber,
+          timestamp: new Date().toISOString()
+        }));
+        
+        // Atualizar histórico de números desta roleta
+        const currentHistory = this.rouletteHistory.get(rouletteId) || [];
+        this.rouletteHistory.set(rouletteId, this.mergeNumbersWithoutDuplicates([lastNumber], currentHistory));
+        
         this.emit('new_number', {
           rouletteId,
           rouletteName: roulette.nome,
@@ -180,7 +204,75 @@ class RESTSocketService extends BrowserEventEmitter {
     this.processRouletteData(data, 'central-service');
   }
 
-  // Outros métodos do serviço...
+  /**
+   * Carrega dados históricos das roletas
+   * Implementado para compatibilidade com a interface esperada
+   */
+  async loadHistoricalRouletteNumbers(): Promise<boolean> {
+    try {
+      if (this.debug) console.log('[RESTSocketService] Carregando dados históricos das roletas');
+      
+      // Tentar carregar dados históricos do serviço global
+      const data = await globalRouletteDataService.fetchDetailedRouletteData();
+      
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        if (this.debug) console.warn('[RESTSocketService] Nenhum dado histórico disponível');
+        return false;
+      }
+      
+      // Processar dados como histórico
+      for (const roulette of data) {
+        if (!roulette || !roulette.id || !roulette.numeros) continue;
+        
+        const roletaId = roulette.id;
+        const numeros = roulette.numeros.map((n: any) => 
+          typeof n.numero === 'number' ? n.numero : 
+          typeof n === 'number' ? n : 0
+        ).filter((n: number) => n > 0);
+        
+        if (numeros.length > 0) {
+          // Atualizar histórico com novos números
+          const currentHistory = this.rouletteHistory.get(roletaId) || [];
+          this.rouletteHistory.set(roletaId, this.mergeNumbersWithoutDuplicates(numeros, currentHistory));
+          
+          if (this.debug) {
+            console.log(`[RESTSocketService] Carregados ${numeros.length} números históricos para roleta ${roulette.nome || roletaId}`);
+          }
+        }
+      }
+      
+      if (this.debug) console.log(`[RESTSocketService] Carregamento de histórico concluído: ${data.length} roletas processadas`);
+      return true;
+    } catch (error) {
+      console.error('[RESTSocketService] Erro ao carregar dados históricos:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Verifica se o serviço está conectado
+   */
+  isConnected(): boolean {
+    return true; // REST API está sempre "conectada"
+  }
+  
+  /**
+   * Função para mesclar arrays de números sem duplicatas
+   */
+  private mergeNumbersWithoutDuplicates(newNumbers: number[], existingNumbers: number[]): number[] {
+    // Criar um conjunto (Set) para eliminar duplicatas
+    const uniqueNumbersSet = new Set([...newNumbers, ...existingNumbers]);
+    
+    // Converter de volta para array e limitar ao tamanho máximo (500 como padrão)
+    return Array.from(uniqueNumbersSet).slice(0, 500);
+  }
+  
+  /**
+   * Obter histórico de números para uma roleta específica
+   */
+  getRouletteHistory(roletaId: string): number[] {
+    return this.rouletteHistory.get(roletaId) || [];
+  }
 }
 
 // Singleton
