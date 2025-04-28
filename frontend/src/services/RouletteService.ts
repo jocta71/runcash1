@@ -1,41 +1,51 @@
 /**
- * RouletteService.js
+ * RouletteService.ts
  * Serviço para controle de duplicação de dados de roletas
  * Implementa um mecanismo para evitar que o mesmo dado seja processado 
  * múltiplas vezes por diferentes fontes de dados
  */
 
-import EventEmitter from 'events';
+import BrowserEventEmitter from '../utils/BrowserEventEmitter';
+
+interface RouletteData {
+  id?: string;
+  numero?: Array<{
+    numero?: number;
+    number?: number;
+    timestamp?: string;
+  }>;
+  [key: string]: any;
+}
 
 /**
  * Serviço Singleton para gerenciar o controle de dados de roletas
  * e prevenir duplicações no sistema
  */
 class RouletteService {
-  static instance;
+  static instance: RouletteService;
   
   // Armazenar IDs de dados processados, com timestamps de expiração
-  #processedDataIds = new Map();
+  #processedDataIds = new Map<string, number>();
   
   // Manter registro das fontes de dados ativas
-  #activeDataSources = new Set();
+  #activeDataSources = new Set<string>();
   
   // Tempo de expiração para dados processados (em milissegundos)
   #expirationTime = 5 * 60 * 1000; // 5 minutos padrão
   
   // Para emitir eventos
-  #emitter = new EventEmitter();
+  #emitter = new BrowserEventEmitter();
   
   /**
    * Construtor privado, seguindo padrão Singleton
    */
-  constructor() {
+  private constructor() {
     // Registrar uma limpeza periódica da cache de dados expirados
     setInterval(() => this.#cleanupExpiredData(), 30000); // Limpar a cada 30 segundos
     
     // Configurar manipulador de debug (apenas em desenvolvimento)
     if (process.env.NODE_ENV !== 'production') {
-      this.#emitter.on('debug', (message) => {
+      this.#emitter.on('debug', (message: string) => {
         console.debug(`[RouletteService] ${message}`);
       });
     }
@@ -45,7 +55,7 @@ class RouletteService {
    * Obtém a única instância do serviço (Singleton)
    * @returns {RouletteService} A instância do serviço
    */
-  static getInstance() {
+  static getInstance(): RouletteService {
     if (!RouletteService.instance) {
       RouletteService.instance = new RouletteService();
     }
@@ -54,16 +64,16 @@ class RouletteService {
   
   /**
    * Gera um ID único para um item de dados
-   * @param {Object} data Dado de roleta a ser processado 
+   * @param {RouletteData} data Dado de roleta a ser processado 
    * @returns {string} ID único para o dado
    */
-  #generateDataId(data) {
+  #generateDataId(data: RouletteData): string {
     if (!data) return '';
     
     // Diferentes tipos de dados podem ter diferentes formatos
     // Precisamos extrair identificadores consistentes
     
-    let idParts = [];
+    let idParts: string[] = [];
     
     // ID da roleta (obrigatório)
     if (data.id) {
@@ -90,11 +100,11 @@ class RouletteService {
   
   /**
    * Processa dados de roleta, evitando duplicações
-   * @param {Array} data Array de dados de roletas
+   * @param {Array<RouletteData>} data Array de dados de roletas
    * @param {string} source Identificador da fonte de dados (api, websocket, etc)
-   * @returns {Array} Dados filtrados, sem duplicações
+   * @returns {Array<RouletteData>} Dados filtrados, sem duplicações
    */
-  processRouletteData(data, source) {
+  processRouletteData(data: RouletteData[], source: string): RouletteData[] {
     if (!data || !Array.isArray(data)) {
       console.warn('[RouletteService] Dados inválidos para processamento');
       return [];
@@ -104,7 +114,7 @@ class RouletteService {
     this.#activeDataSources.add(source);
     
     const now = Date.now();
-    const uniqueItems = [];
+    const uniqueItems: RouletteData[] = [];
     const debug = process.env.NODE_ENV !== 'production';
     
     // Para cada item, verificar se já foi processado
@@ -147,7 +157,7 @@ class RouletteService {
    * @param {string} id ID único do dado
    * @param {number} expirationTime Tempo para expiração em milissegundos
    */
-  #scheduleIdExpiration(id, expirationTime) {
+  #scheduleIdExpiration(id: string, expirationTime: number): void {
     setTimeout(() => {
       // Remover se ainda existir e não foi atualizado
       if (this.#processedDataIds.has(id)) {
@@ -160,7 +170,7 @@ class RouletteService {
   /**
    * Limpa dados expirados da cache
    */
-  #cleanupExpiredData() {
+  #cleanupExpiredData(): void {
     const now = Date.now();
     let expiredCount = 0;
     
@@ -182,14 +192,14 @@ class RouletteService {
    * @param {string} source Identificador da fonte
    * @returns {boolean} true se a fonte está ativa
    */
-  isDataSourceActive(source) {
+  isDataSourceActive(source: string): boolean {
     return this.#activeDataSources.has(source);
   }
   
   /**
    * Limpa a cache de dados processados
    */
-  clearProcessedDataCache() {
+  clearProcessedDataCache(): void {
     this.#processedDataIds.clear();
     this.#emitter.emit('debug', 'Cache de dados processados limpa');
   }
@@ -198,7 +208,7 @@ class RouletteService {
    * Define o tempo de expiração para dados processados
    * @param {number} timeMs Tempo em milissegundos
    */
-  setExpirationTime(timeMs) {
+  setExpirationTime(timeMs: number): void {
     if (typeof timeMs === 'number' && timeMs > 0) {
       this.#expirationTime = timeMs;
     }
@@ -208,7 +218,7 @@ class RouletteService {
    * Registra um ouvinte para eventos de debug
    * @param {Function} listener Função ouvinte para eventos de debug
    */
-  onDebug(listener) {
+  onDebug(listener: (message: string) => void): void {
     if (typeof listener === 'function') {
       this.#emitter.on('debug', listener);
     }

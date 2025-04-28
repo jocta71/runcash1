@@ -9,7 +9,7 @@ import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
 import globalRouletteDataService from './services/GlobalRouletteDataService'
-import { EventEmitter } from 'events'
+import BrowserEventEmitter from './utils/BrowserEventEmitter'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -181,7 +181,7 @@ function initializeRoulettesSystem() {
     logger.error('Erro crítico na inicialização do sistema de roletas:', systemError);
     
     // Criar implementação vazia para permitir que o aplicativo continue funcionando
-    const dummyEmitter = new EventEmitter();
+    const dummyEmitter = new BrowserEventEmitter();
     
     // Retornar implementação mínima para evitar erros em cascata
     return {
