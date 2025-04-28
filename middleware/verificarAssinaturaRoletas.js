@@ -17,7 +17,8 @@ const verificarAssinaturaRoletas = async (req, res, next) => {
     req.nivelAcessoRoletas = 'simulado';
     
     // Verificar se o token está presente no header
-    const token = req.headers.authorization?.split(' ')[1];
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
     
     // Se não há token, continuar com acesso simulado
     if (!token) {
@@ -28,9 +29,14 @@ const verificarAssinaturaRoletas = async (req, res, next) => {
     try {
       // Verificar token JWT
       const JWT_SECRET = process.env.JWT_SECRET || 'secret_padrao_roleta';
+      
+      if (!JWT_SECRET) {
+        console.error('[API] JWT_SECRET não configurada. Usando fallback padrão');
+      }
+      
       const decodificado = jwt.verify(token, JWT_SECRET);
       
-      console.log(`[API] Token JWT válido para usuário: ${decodificado.email}`);
+      console.log(`[API] Token JWT válido para usuário: ${decodificado.email || 'desconhecido'}`);
       
       // Adicionar informações do usuário à requisição
       req.usuario = {
@@ -45,23 +51,34 @@ const verificarAssinaturaRoletas = async (req, res, next) => {
         return next();
       }
       
-      // Verificar status da assinatura no Asaas
-      const assinatura = await verificarAssinaturaAsaas(decodificado.asaasCustomerId);
-      
-      if (assinatura && assinatura.status === 'ACTIVE') {
-        console.log(`[API] Assinatura premium ativa para usuário ${decodificado.email}`);
-        req.nivelAcessoRoletas = 'premium';
-        req.assinatura = assinatura;
-      } else {
-        console.log(`[API] Assinatura não ativa para usuário ${decodificado.email}: usando dados simulados`);
-        // Garantir que o nível de acesso seja definido explicitamente
+      // Verificar status da assinatura no Asaas com timeout
+      try {
+        const assinatura = await Promise.race([
+          verificarAssinaturaAsaas(decodificado.asaasCustomerId),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout ao consultar Asaas')), 5000)
+          )
+        ]);
+        
+        if (assinatura && assinatura.status === 'ACTIVE') {
+          console.log(`[API] Assinatura premium ativa para usuário ${decodificado.email}`);
+          req.nivelAcessoRoletas = 'premium';
+          req.assinatura = assinatura;
+        } else {
+          console.log(`[API] Assinatura não ativa para usuário ${decodificado.email}: usando dados simulados`);
+          // Garantir que o nível de acesso seja definido explicitamente
+          req.nivelAcessoRoletas = 'simulado';
+        }
+      } catch (asaasError) {
+        console.error('[API] Erro ao verificar assinatura no Asaas:', asaasError.message);
+        // Em caso de erro na verificação com Asaas, manter acesso simulado
         req.nivelAcessoRoletas = 'simulado';
       }
       
       next();
-    } catch (error) {
+    } catch (jwtError) {
       // Se houver erro na validação do token, manter acesso simulado
-      console.log('[API] Erro na verificação do token: usando dados simulados', error.message);
+      console.log('[API] Erro na verificação do token: usando dados simulados', jwtError.message);
       req.nivelAcessoRoletas = 'simulado';
       next();
     }
@@ -90,28 +107,54 @@ async function verificarAssinaturaAsaas(customerId) {
     
     console.log(`[API] Verificando assinatura no Asaas para customer: ${customerId}`);
     
-    // Buscar assinaturas do cliente
-    const response = await axios.get(
-      `${ASAAS_API_URL}/subscriptions?customer=${customerId}&status=ACTIVE`,
-      {
-        headers: {
-          'access_token': ASAAS_API_KEY
+    // Criar instância do axios com timeout
+    const axiosInstance = axios.create({
+      timeout: 5000, // 5 segundos
+      headers: {
+        'access_token': ASAAS_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Buscar assinaturas do cliente com retry
+    const maxRetries = 2;
+    let retries = 0;
+    let lastError = null;
+    
+    while (retries <= maxRetries) {
+      try {
+        const response = await axiosInstance.get(
+          `${ASAAS_API_URL}/subscriptions?customer=${customerId}&status=ACTIVE`
+        );
+        
+        // Verificar se há assinaturas ativas
+        if (response.data && 
+            response.data.data && 
+            Array.isArray(response.data.data) && 
+            response.data.data.length > 0) {
+          
+          console.log(`[API] Assinatura ativa encontrada no Asaas para customer: ${customerId}`);
+          // Retornar a primeira assinatura ativa
+          return response.data.data[0];
+        }
+        
+        // Se chegou aqui, não encontrou assinaturas ativas
+        console.log(`[API] Nenhuma assinatura ativa encontrada no Asaas para customer: ${customerId}`);
+        return null;
+      } catch (error) {
+        lastError = error;
+        retries++;
+        
+        if (retries <= maxRetries) {
+          console.log(`[API] Tentativa ${retries}/${maxRetries} falhou, tentando novamente...`);
+          // Esperar um tempo antes de tentar novamente (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * retries));
         }
       }
-    );
-    
-    // Verificar se há assinaturas ativas
-    if (response.data && 
-        response.data.data && 
-        Array.isArray(response.data.data) && 
-        response.data.data.length > 0) {
-      
-      console.log(`[API] Assinatura ativa encontrada no Asaas para customer: ${customerId}`);
-      // Retornar a primeira assinatura ativa
-      return response.data.data[0];
     }
     
-    console.log(`[API] Nenhuma assinatura ativa encontrada no Asaas para customer: ${customerId}`);
+    // Se todas as tentativas falharam, logar o erro e retornar null
+    console.error('[API] Todas as tentativas de conexão com Asaas falharam:', lastError?.message);
     return null;
   } catch (error) {
     console.error('[API] Erro ao verificar assinatura no Asaas:', error.message);

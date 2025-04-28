@@ -19,10 +19,20 @@ const SubscriptionBanner = () => {
         setLoading(true);
         console.log('SubscriptionBanner: Verificando status da assinatura...');
         
+        // Obter token do localStorage
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          console.log('SubscriptionBanner: Token não encontrado, exibindo banner para dados simulados');
+          setSubscriptionData({ nivelAcesso: 'simulado' });
+          setLoading(false);
+          return;
+        }
+        
         // Buscar status da assinatura do usuário
         const response = await axios.get('/api/subscription/status', {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${token}`
           }
         });
         
@@ -31,12 +41,38 @@ const SubscriptionBanner = () => {
         setLoading(false);
       } catch (err) {
         console.error('Erro ao verificar assinatura:', err);
+        
+        // Log detalhado do erro para diagnóstico
+        if (err.response) {
+          // Resposta do servidor com código de erro
+          console.error('Detalhes do erro:', {
+            status: err.response.status,
+            data: err.response.data
+          });
+        } else if (err.request) {
+          // Requisição foi feita mas não houve resposta
+          console.error('Sem resposta do servidor:', err.request);
+        } else {
+          // Erro ao configurar a requisição
+          console.error('Erro na configuração da requisição:', err.message);
+        }
+        
+        // Definir mensagem de erro
         setError('Não foi possível verificar seu status de assinatura');
+        
+        // Como fallback, definir como dados simulados
+        setSubscriptionData({ nivelAcesso: 'simulado' });
         setLoading(false);
       }
     };
 
     checkSubscription();
+    
+    // A cada 15 minutos, verificar novamente o status da assinatura
+    const intervalId = setInterval(checkSubscription, 15 * 60 * 1000);
+    
+    // Limpar intervalo ao desmontar componente
+    return () => clearInterval(intervalId);
   }, []);
 
   // Determinar se o usuário tem assinatura premium
@@ -58,8 +94,8 @@ const SubscriptionBanner = () => {
   // Se estiver carregando, não mostrar nada
   if (loading) return null;
 
-  // Se ocorreu erro, mostrar mensagem simplificada
-  if (error) {
+  // Mostrar banner de erro apenas se não tivermos dados de assinatura
+  if (error && !subscriptionData) {
     return (
       <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
         <div className="flex">
@@ -71,6 +107,9 @@ const SubscriptionBanner = () => {
           <div className="ml-3">
             <p className="text-sm text-yellow-700">
               {error}
+            </p>
+            <p className="text-sm text-yellow-700 mt-1">
+              Você está visualizando dados simulados enquanto tentamos resolver o problema.
             </p>
           </div>
           <div className="ml-auto pl-3">
