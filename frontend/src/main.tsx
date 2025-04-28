@@ -92,12 +92,59 @@ function initializeRoulettesSystem() {
   };
 }
 
-// Inicializar o SocketService logo no início para estabelecer conexão antecipada
-logger.info('Inicializando SocketService antes do render...');
-const socketService = SocketService.getInstance(); // Inicia a conexão
+// Inicializar serviços com tratamento de erro
+function initializeServices() {
+  try {
+    console.log('[Main] Inicializando serviços globais...');
+    
+    // Inicializar o serviço global de dados de roletas
+    try {
+      globalRouletteDataService.fetchRouletteData().then(data => {
+        console.log('[Main] Dados iniciais carregados pelo GlobalRouletteDataService:', 
+                    data ? `${data.length} roletas` : 'Nenhum dado disponível');
+      }).catch(error => {
+        console.error('[Main] Erro ao carregar dados iniciais:', error);
+      });
+    } catch (routletteServiceError) {
+      console.error('[Main] Erro ao inicializar GlobalRouletteDataService:', routletteServiceError);
+    }
+    
+    // Inicializar o SocketService com tratamento de erros
+    try {
+      console.log('[Main] Inicializando SocketService antes do render...');
+      
+      // Importação dinâmica para evitar erros de dependência cíclica
+      import('./services/RESTSocketService').then(module => {
+        try {
+          const socketService = module.default.getInstance();
+          console.log('[Main] SocketService inicializado com sucesso');
+          
+          // Verificar se o serviço está operacional
+          if (socketService && socketService.isConnected) {
+            console.log('[Main] SocketService conectado:', socketService.isConnected());
+          } else {
+            console.warn('[Main] SocketService inicializado mas não está conectado');
+          }
+        } catch (socketError) {
+          console.error('[Main] Falha ao inicializar o SocketService:', socketError);
+          // Não bloquear a inicialização do aplicativo em caso de erro
+        }
+      }).catch(importError => {
+        console.error('[Main] Erro ao importar RESTSocketService:', importError);
+      });
+    } catch (error) {
+      console.error('[Main] Erro fatal ao configurar SocketService:', error);
+    }
+    
+    console.log('[Main] Inicialização dos serviços globais concluída');
+  } catch (error) {
+    console.error('[Main] Erro crítico na inicialização de serviços:', error);
+    // Continuar a execução da aplicação mesmo com erro nos serviços
+  }
+}
 
-// Informa ao usuário que a conexão está sendo estabelecida
-logger.info('Conexão com o servidor sendo estabelecida em background...');
+// Chamar inicialização dos serviços
+initializeServices();
 
 // Inicializar o sistema de roletas como parte do carregamento da aplicação
 logger.info('Inicializando sistema de roletas de forma centralizada...');
@@ -123,9 +170,37 @@ window.fetch = function(input, init) {
 
 // Iniciar pré-carregamento de dados históricos
 logger.info('Iniciando pré-carregamento de dados históricos...');
-socketService.loadHistoricalRouletteNumbers().catch(err => {
-  logger.error('Erro ao pré-carregar dados históricos:', err);
-});
+try {
+  // Acessar o socketService do sistema de roletas
+  const socketServiceInstance = rouletteSystem?.socketService;
+  
+  // Verificar se socketService está disponível antes de usar
+  if (socketServiceInstance && typeof socketServiceInstance.loadHistoricalRouletteNumbers === 'function') {
+    socketServiceInstance.loadHistoricalRouletteNumbers().catch(err => {
+      logger.error('Erro ao pré-carregar dados históricos:', err);
+    });
+  } else {
+    logger.warn('Pré-carregamento de dados históricos ignorado: socketService não está disponível');
+    
+    // Tentar importar dinamicamente como alternativa
+    import('./services/RESTSocketService').then(module => {
+      try {
+        const restSocketService = module.default.getInstance();
+        if (restSocketService && restSocketService.loadHistoricalRouletteNumbers) {
+          restSocketService.loadHistoricalRouletteNumbers().catch(err => {
+            logger.error('Erro ao pré-carregar dados históricos (alternativa):', err);
+          });
+        }
+      } catch (socketError) {
+        logger.error('Falha ao inicializar RESTSocketService para carregamento de histórico:', socketError);
+      }
+    }).catch(importError => {
+      logger.error('Erro ao importar RESTSocketService para carregamento de histórico:', importError);
+    });
+  }
+} catch (error) {
+  logger.error('Erro crítico ao carregar dados históricos:', error);
+}
 
 // Expor globalmente a função para verificar se o sistema foi inicializado
 window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;

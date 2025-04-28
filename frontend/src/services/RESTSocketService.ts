@@ -89,49 +89,112 @@ class RESTSocketService {
   private constructor() {
     console.log('[RESTSocketService] Inicializando serviço REST API com polling');
     
-    // Inicializar o serviço anti-duplicação
-    this.rouletteService = RouletteService.getInstance();
-    
-    // Configurar listener de debug do RouletteService
-    if (this.debug) {
-      this.rouletteService.onDebug((message: string) => {
-        console.debug(`[RESTSocketService] ${message}`);
-      });
-    }
-    
-    // Inicializar emitter de eventos
-    this.emitter = new EventEmitter();
-    
-    // Adicionar listener global para logging de todos os eventos
-    this.subscribe('*', (event: any) => {
-      if (event.type === 'new_number') {
+    try {
+      // Inicializar o serviço anti-duplicação
+      try {
+        this.rouletteService = RouletteService.getInstance();
+        
+        // Configurar listener de debug do RouletteService
         if (this.debug) {
-          console.log(`[RESTSocketService][GLOBAL] Evento recebido para roleta: ${event.roleta_nome}, número: ${event.numero}`);
+          try {
+            this.rouletteService.onDebug((message: string) => {
+              console.debug(`[RESTSocketService] ${message}`);
+            });
+          } catch (debugError) {
+            console.warn('[RESTSocketService] Não foi possível configurar debug do RouletteService:', debugError);
+          }
         }
-      } else if (event.type === 'strategy_update') {
-        if (this.debug) {
-          console.log(`[RESTSocketService][GLOBAL] Atualização de estratégia para roleta: ${event.roleta_nome}, estado: ${event.estado}`);
-        }
+      } catch (routletteServiceError) {
+        console.error('[RESTSocketService] Erro ao inicializar RouletteService:', routletteServiceError);
+        // Criar um serviço de fallback para evitar erros
+        this.rouletteService = {
+          processRouletteData: (data) => data,
+          onDebug: () => {},
+          getInstance: () => this.rouletteService
+        } as any;
       }
-    });
+      
+      // Inicializar emitter de eventos
+      try {
+        this.emitter = new EventEmitter();
+      } catch (emitterError) {
+        console.error('[RESTSocketService] Erro ao criar EventEmitter:', emitterError);
+        this.emitter = {
+          on: () => {},
+          emit: () => {},
+          once: () => {},
+          removeListener: () => {}
+        } as any;
+      }
+      
+      // Adicionar listener global para logging de todos os eventos
+      try {
+        this.subscribe('*', (event: any) => {
+          if (event.type === 'new_number') {
+            if (this.debug) {
+              console.log(`[RESTSocketService][GLOBAL] Evento recebido para roleta: ${event.roleta_nome}, número: ${event.numero}`);
+            }
+          } else if (event.type === 'strategy_update') {
+            if (this.debug) {
+              console.log(`[RESTSocketService][GLOBAL] Atualização de estratégia para roleta: ${event.roleta_nome}, estado: ${event.estado}`);
+            }
+          }
+        });
+      } catch (subscribeError) {
+        console.warn('[RESTSocketService] Erro ao adicionar listener global:', subscribeError);
+      }
 
-    // Iniciar polling diretamente
-    this.startPolling();
-    this.startSecondEndpointPolling();
-    
-    // Adicionar event listener para quando a janela ficar visível novamente
-    window.addEventListener('visibilitychange', this.handleVisibilityChange);
-    
-    // Iniciar como conectado
-    this.connectionActive = true;
-    
-    // Carregar dados iniciais do localStorage se existirem
-    this.loadCachedData();
-    
-    // Adicionar verificação de saúde do timer a cada 30 segundos
-    setInterval(() => {
-      this.checkTimerHealth();
-    }, 30000);
+      // Iniciar polling diretamente, com tratamento de erros
+      try {
+        this.startPolling();
+      } catch (pollingError) {
+        console.error('[RESTSocketService] Erro ao iniciar polling principal:', pollingError);
+      }
+      
+      try {
+        this.startSecondEndpointPolling();
+      } catch (secondEndpointError) {
+        console.error('[RESTSocketService] Erro ao iniciar polling secundário:', secondEndpointError);
+      }
+      
+      // Adicionar event listener para quando a janela ficar visível novamente
+      try {
+        window.addEventListener('visibilitychange', this.handleVisibilityChange);
+      } catch (visibilityError) {
+        console.warn('[RESTSocketService] Erro ao registrar evento de visibilidade:', visibilityError);
+      }
+      
+      // Iniciar como conectado
+      this.connectionActive = true;
+      
+      // Carregar dados iniciais do localStorage se existirem
+      try {
+        this.loadCachedData();
+      } catch (cacheError) {
+        console.warn('[RESTSocketService] Erro ao carregar dados do cache:', cacheError);
+      }
+      
+      // Adicionar verificação de saúde do timer a cada 30 segundos
+      try {
+        setInterval(() => {
+          try {
+            this.checkTimerHealth();
+          } catch (healthCheckError) {
+            console.warn('[RESTSocketService] Erro ao verificar saúde do timer:', healthCheckError);
+          }
+        }, 30000);
+      } catch (intervalError) {
+        console.warn('[RESTSocketService] Erro ao configurar verificação de saúde:', intervalError);
+      }
+    } catch (constructorError) {
+      console.error('[RESTSocketService] Erro fatal no construtor:', constructorError);
+      // Em caso de erro fatal no construtor, pelo menos garantir que o estado básico esteja definido
+      this.connectionActive = false;
+      this.listeners = new Map();
+      this.rouletteHistory = new Map();
+      this.lastReceivedData = new Map();
+      if (!this.emitter) this.emitter = new EventEmitter();
+    }
   }
 
   // Manipular alterações de visibilidade da página
@@ -413,12 +476,74 @@ class RESTSocketService {
   }
 
   // Método para obtenção da instância singleton
-  public static getInstance(): RESTSocketService {
-    if (!RESTSocketService.instance) {
-      RESTSocketService.instance = new RESTSocketService();
+  public static getInstance(config?: RESTSocketServiceConfig): RESTSocketService {
+    try {
+      if (!RESTSocketService.instance) {
+        try {
+          RESTSocketService.instance = new RESTSocketService();
+          
+          // Aplicar configurações se fornecidas
+          if (config) {
+            if (config.pollingInterval) {
+              RESTSocketService.instance.defaultPollingInterval = config.pollingInterval;
+            }
+            
+            if (config.httpEndpoint) {
+              RESTSocketService.instance.pollingEndpoint = config.httpEndpoint;
+            }
+            
+            if (config.centralServiceEndpoint) {
+              RESTSocketService.instance.centralServiceEndpoint = config.centralServiceEndpoint;
+            }
+          }
+        } catch (initError) {
+          console.error('[RESTSocketService] Erro crítico durante inicialização do serviço:', initError);
+          
+          // Criar uma instância fallback simplificada para evitar erros de null
+          if (!RESTSocketService.instance) {
+            console.warn('[RESTSocketService] Criando instância de emergência para evitar erros fatais');
+            
+            // Criação manual de uma instância mínima para evitar crashes
+            const fallbackInstance = Object.create(RESTSocketService.prototype);
+            fallbackInstance.listeners = new Map();
+            fallbackInstance.rouletteHistory = new Map();
+            fallbackInstance.lastReceivedData = new Map();
+            fallbackInstance.emitter = new EventEmitter();
+            fallbackInstance.connectionActive = false;
+            fallbackInstance.debug = !isProduction;
+            
+            // Implementar métodos básicos para evitar erros
+            fallbackInstance.processDataAsEvents = () => console.warn('[RESTSocketService] Operação indisponível: serviço em modo de emergência');
+            fallbackInstance.subscribe = () => () => {}; // Retorna função vazia de unsubscribe
+            fallbackInstance.unsubscribe = () => {};
+            fallbackInstance.notifyListeners = () => {};
+            fallbackInstance.getRouletteHistory = () => [];
+            fallbackInstance.hasRealData = () => false;
+            
+            RESTSocketService.instance = fallbackInstance as RESTSocketService;
+          }
+        }
+      }
+      
+      return RESTSocketService.instance;
+    } catch (error) {
+      console.error('[RESTSocketService] Erro fatal ao obter instância:', error);
+      
+      // Em caso de erro completamente fatal, criar e retornar um objeto vazio com interface mínima
+      const emergencyInstance: any = {
+        subscribe: () => () => {},
+        unsubscribe: () => {},
+        getRouletteHistory: () => [],
+        hasRealData: () => false,
+        isConnected: () => false,
+        requestRecentNumbers: async () => false,
+        getConnectionStatus: () => false,
+        connectionActive: false,
+        emitter: new EventEmitter()
+      };
+      
+      return emergencyInstance;
     }
-    
-    return RESTSocketService.instance;
   }
   
   // Obter base URL da API
@@ -848,26 +973,73 @@ class RESTSocketService {
   
   // Retorna a instância singleton
   public static getInstance(config?: RESTSocketServiceConfig): RESTSocketService {
-    if (!RESTSocketService.instance) {
-      RESTSocketService.instance = new RESTSocketService();
-      
-      // Aplicar configurações se fornecidas
-      if (config) {
-        if (config.pollingInterval) {
-          RESTSocketService.instance.defaultPollingInterval = config.pollingInterval;
-        }
-        
-        if (config.httpEndpoint) {
-          RESTSocketService.instance.pollingEndpoint = config.httpEndpoint;
-        }
-        
-        if (config.centralServiceEndpoint) {
-          RESTSocketService.instance.centralServiceEndpoint = config.centralServiceEndpoint;
+    try {
+      if (!RESTSocketService.instance) {
+        try {
+          RESTSocketService.instance = new RESTSocketService();
+          
+          // Aplicar configurações se fornecidas
+          if (config) {
+            if (config.pollingInterval) {
+              RESTSocketService.instance.defaultPollingInterval = config.pollingInterval;
+            }
+            
+            if (config.httpEndpoint) {
+              RESTSocketService.instance.pollingEndpoint = config.httpEndpoint;
+            }
+            
+            if (config.centralServiceEndpoint) {
+              RESTSocketService.instance.centralServiceEndpoint = config.centralServiceEndpoint;
+            }
+          }
+        } catch (initError) {
+          console.error('[RESTSocketService] Erro crítico durante inicialização do serviço:', initError);
+          
+          // Criar uma instância fallback simplificada para evitar erros de null
+          if (!RESTSocketService.instance) {
+            console.warn('[RESTSocketService] Criando instância de emergência para evitar erros fatais');
+            
+            // Criação manual de uma instância mínima para evitar crashes
+            const fallbackInstance = Object.create(RESTSocketService.prototype);
+            fallbackInstance.listeners = new Map();
+            fallbackInstance.rouletteHistory = new Map();
+            fallbackInstance.lastReceivedData = new Map();
+            fallbackInstance.emitter = new EventEmitter();
+            fallbackInstance.connectionActive = false;
+            fallbackInstance.debug = !isProduction;
+            
+            // Implementar métodos básicos para evitar erros
+            fallbackInstance.processDataAsEvents = () => console.warn('[RESTSocketService] Operação indisponível: serviço em modo de emergência');
+            fallbackInstance.subscribe = () => () => {}; // Retorna função vazia de unsubscribe
+            fallbackInstance.unsubscribe = () => {};
+            fallbackInstance.notifyListeners = () => {};
+            fallbackInstance.getRouletteHistory = () => [];
+            fallbackInstance.hasRealData = () => false;
+            
+            RESTSocketService.instance = fallbackInstance as RESTSocketService;
+          }
         }
       }
+      
+      return RESTSocketService.instance;
+    } catch (error) {
+      console.error('[RESTSocketService] Erro fatal ao obter instância:', error);
+      
+      // Em caso de erro completamente fatal, criar e retornar um objeto vazio com interface mínima
+      const emergencyInstance: any = {
+        subscribe: () => () => {},
+        unsubscribe: () => {},
+        getRouletteHistory: () => [],
+        hasRealData: () => false,
+        isConnected: () => false,
+        requestRecentNumbers: async () => false,
+        getConnectionStatus: () => false,
+        connectionActive: false,
+        emitter: new EventEmitter()
+      };
+      
+      return emergencyInstance;
     }
-    
-    return RESTSocketService.instance;
   }
 
   // Inscrever uma função callback para receber eventos de uma roleta específica
