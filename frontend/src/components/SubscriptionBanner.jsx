@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import { useSubscription } from '@/context/SubscriptionContext';
 
 /**
  * Banner que mostra informações sobre a assinatura do usuário
  * e o tipo de dados de roletas que está acessando
  */
 const SubscriptionBanner = () => {
-  const [subscriptionData, setSubscriptionData] = useState(null);
+  const { currentSubscription, hasFeatureAccess } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isOpen, setIsOpen] = useState(true);
+  const [subscriptionData, setSubscriptionData] = useState(null);
 
   // Verificar status da assinatura ao montar o componente
   useEffect(() => {
@@ -18,6 +20,13 @@ const SubscriptionBanner = () => {
       try {
         setLoading(true);
         console.log('SubscriptionBanner: Verificando status da assinatura...');
+        
+        // Se já temos dados da assinatura através do SubscriptionContext, usá-los
+        if (currentSubscription) {
+          setSubscriptionData(currentSubscription);
+          setLoading(false);
+          return;
+        }
         
         // Obter token do localStorage
         const token = localStorage.getItem('token');
@@ -73,12 +82,18 @@ const SubscriptionBanner = () => {
     
     // Limpar intervalo ao desmontar componente
     return () => clearInterval(intervalId);
-  }, []);
+  }, [currentSubscription]);
 
-  // Determinar se o usuário tem assinatura premium
-  const isPremiumUser = subscriptionData?.nivelAcesso === 'premium' || 
-                       (subscriptionData?.subscription?.status === 'active') ||
-                       (subscriptionData?.hasActiveSubscription === true);
+  // Determinar se o usuário tem assinatura premium usando o sistema correto
+  const isPremiumUser = 
+    // Verificar o contexto de assinatura primeiro (mais confiável)
+    (currentSubscription?.isPremiumActive === true) ||
+    // Verificar o status tradicional da assinatura como fallback
+    subscriptionData?.nivelAcesso === 'premium' || 
+    (subscriptionData?.subscription?.status === 'active') ||
+    (subscriptionData?.hasActiveSubscription === true) ||
+    // Verificar se o usuário tem acesso a recursos premium
+    hasFeatureAccess?.('view_unlimited_roulettes');
   
   console.log('SubscriptionBanner: Estado atual:', { 
     loading, 

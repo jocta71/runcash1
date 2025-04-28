@@ -10,6 +10,9 @@ const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
 const strategiesRouter = require('./routes/strategies');
 const authRouter = require('./routes/auth');
 
+// Importar middlewares
+const verificarAssinaturaRoletas = require('../middleware/verificarAssinaturaRoletas');
+
 // Configuração MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.MONGODB_DB_NAME;
@@ -69,6 +72,9 @@ apiApp.use(cors({
 apiApp.use(express.json());
 apiApp.use(cookieParser());
 
+// Aplicar middleware de verificação de assinatura para todas as rotas
+apiApp.use(verificarAssinaturaRoletas);
+
 // Disponibilizar o banco de dados para os roteadores
 apiApp.locals.db = db;
 
@@ -77,21 +83,6 @@ apiApp.use('/roulettes/history', rouletteHistoryRouter);
 apiApp.use('/strategies', strategiesRouter);
 apiApp.use('/auth', authRouter);
 
-// Adicionar mapeamento de nomes para IDs de roletas conhecidas
-const NOME_PARA_ID = {
-  "Speed Roulette": "2330046",
-  "Immersive Roulette": "2330047",
-  "Brazilian Mega Roulette": "2330048",
-  "Bucharest Auto-Roulette": "2330049",
-  "Auto-Roulette": "2330050",
-  "Auto-Roulette VIP": "2330051",
-  "VIP Roulette": "2330052",
-  "Roulette Macao": "2330053",
-  "Speed Roulette 1": "2330054",
-  "Hippodrome Grand Casino": "2330055",
-  "Ruleta Bola Rapida en Vivo": "2330056",
-  "Ruleta en Vivo": "2330057"
-};
 
 // Garantir que a rota /api/roulettes funcione
 apiApp.get('/ROULETTES', async (req, res) => {
@@ -101,6 +92,17 @@ apiApp.get('/ROULETTES', async (req, res) => {
     // Obter o parâmetro limit da query string ou usar um valor padrão
     const numbersLimit = req.query.limit ? parseInt(req.query.limit) : 20;
     console.log(`[API] Parâmetro limit: ${numbersLimit}`);
+    
+    // Verificar nível de acesso do usuário (definido pelo middleware verificarAssinaturaRoletas)
+    const nivelAcesso = req.nivelAcessoRoletas || 'simulado';
+    
+    // Se o usuário está solicitando mais de 20 números por roleta, mas não tem acesso premium,
+    // limitar o número de números retornados
+    const limiteFinal = nivelAcesso === 'premium' ? 
+      Math.min(numbersLimit, 1000) : // Usuários premium podem receber até 1000 números
+      Math.min(numbersLimit, 20);    // Usuários gratuitos limitados a 20 números
+    
+    console.log(`[API] Nível de acesso: ${nivelAcesso}, Limite aplicado: ${limiteFinal}`);
     
     // Implementação alternativa caso não exista controlador ou MongoDB não esteja conectado
     if (!db) {
@@ -114,8 +116,19 @@ apiApp.get('/ROULETTES', async (req, res) => {
     try {
       // Primeiro, obter todas as roletas da coleção 'roletas'
       console.log('[API] Buscando todas as roletas da coleção roletas');
-      const roletas = await db.collection('roletas').find({}).toArray();
-      console.log(`[API] Encontradas ${roletas.length} roletas na coleção 'roletas'`);
+      
+      // Se o usuário não tem acesso premium, limitar o número de roletas retornadas
+      const roletasLimit = nivelAcesso === 'premium' ? 0 : 5; // 0 = sem limite
+      
+      // Adicionar filtro opcional na consulta
+      const roletasQuery = {};
+      
+      // Aplicar limite na consulta se necessário
+      const roletas = roletasLimit > 0 ? 
+        await db.collection('roletas').find(roletasQuery).limit(roletasLimit).toArray() :
+        await db.collection('roletas').find(roletasQuery).toArray();
+      
+      console.log(`[API] Encontradas ${roletas.length} roletas na coleção 'roletas' (limite: ${roletasLimit || 'sem limite'})`);
       
       if (roletas.length === 0) {
         console.log('[API] Nenhuma roleta encontrada, retornando lista vazia');
@@ -131,13 +144,13 @@ apiApp.get('/ROULETTES', async (req, res) => {
         
         try {
           // Buscar números para esta roleta pelo nome
-          console.log(`[API] Buscando números para roleta "${nome}"`);
+          console.log(`[API] Buscando números para roleta "${nome}" (limite: ${limiteFinal})`);
           
           // Primeiro, vamos tentar uma busca exata
           let numeros = await db.collection('roleta_numeros')
             .find({ roleta_nome: nome })
             .sort({ timestamp: -1 })
-            .limit(numbersLimit)
+            .limit(limiteFinal)
             .toArray();
             
           if (numeros.length === 0) {
@@ -151,7 +164,7 @@ apiApp.get('/ROULETTES', async (req, res) => {
                 } 
               })
               .sort({ timestamp: -1 })
-              .limit(numbersLimit)
+              .limit(limiteFinal)
               .toArray();
               
             if (numeros.length === 0) {
@@ -165,7 +178,7 @@ apiApp.get('/ROULETTES', async (req, res) => {
                   } 
                 })
         .sort({ timestamp: -1 })
-        .limit(numbersLimit)
+        .limit(limiteFinal)
                 .toArray();
                 
               if (numeros.length > 0) {
@@ -230,7 +243,9 @@ apiApp.get('/ROULETTES', async (req, res) => {
               : "N/A",
             updated_at: roleta.updated_at || roleta.atualizado_em || formattedNumbers.length > 0 
               ? formattedNumbers[0].timestamp 
-              : new Date().toISOString()
+              : new Date().toISOString(),
+            // Adicionar informação sobre o acesso
+            nivel_acesso: nivelAcesso
           };
         } catch (error) {
           console.error(`[API] Erro ao buscar números para roleta ${nome}:`, error);
@@ -246,16 +261,35 @@ apiApp.get('/ROULETTES', async (req, res) => {
             win_rate: (roleta.vitorias || 0) + (roleta.derrotas || 0) > 0 
               ? `${((roleta.vitorias || 0) / ((roleta.vitorias || 0) + (roleta.derrotas || 0)) * 100).toFixed(1)}%` 
               : "N/A",
-            updated_at: roleta.updated_at || roleta.atualizado_em || new Date().toISOString()
+            updated_at: roleta.updated_at || roleta.atualizado_em || new Date().toISOString(),
+            // Adicionar informação sobre o acesso
+            nivel_acesso: nivelAcesso
           };
         }
       });
       
       // Resolva todas as promessas e retorne os resultados
       const roletasComNumeros = await Promise.all(fetchPromises);
-      console.log(`[API] Retornando ${roletasComNumeros.length} roletas com seus números`);
+      console.log(`[API] Retornando ${roletasComNumeros.length} roletas com seus números (nível: ${nivelAcesso})`);
       
-      return res.json(roletasComNumeros);
+      // Adicionar informações sobre o acesso na resposta
+      const response = {
+        roletas: roletasComNumeros,
+        meta: {
+          nivel_acesso: nivelAcesso,
+          limite_numeros: limiteFinal,
+          limite_roletas: roletasLimit || 'sem limite',
+          total_roletas: roletasComNumeros.length,
+          isDemo: nivelAcesso !== 'premium'
+        }
+      };
+      
+      // Se o acesso for simulado, adicionar mensagem
+      if (nivelAcesso !== 'premium') {
+        response.meta.mensagem = 'Você está visualizando dados limitados. Assine um plano premium para acessar dados completos.';
+      }
+      
+      return res.json(response);
     } catch (error) {
       console.error(`[API] Erro ao buscar roletas: ${error}`);
       return res.status(500).json({ error: 'Erro ao buscar roletas e números' });
