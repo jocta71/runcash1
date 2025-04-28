@@ -2,166 +2,71 @@ const jwt = require('jsonwebtoken');
 const axios = require('axios');
 
 /**
- * Middleware para verificar assinatura premium para acesso às roletas
- * Verifica status da assinatura no Asaas e define nível de acesso
- * 
- * Níveis de acesso:
- * - 'simulado': dados fictícios para usuários sem assinatura ou não autenticados
- * - 'premium': dados reais para usuários com assinatura ativa
+ * Middleware para verificar assinaturas de usuários e controlar acesso às roletas
+ * Implementa a lógica de verificação para endpoints específicos da API
  */
-const verificarAssinaturaRoletas = async (req, res, next) => {
-  try {
-    console.log('[API] Iniciando verificação de assinatura para roletas');
-    
-    // Definir acesso padrão como 'simulado'
-    req.nivelAcessoRoletas = 'simulado';
-    
-    // Endpoint não requer limitar o acesso?
-    const isPublicEndpoint = req.path.includes('/health') || 
-                             req.path.includes('/auth') || 
-                             req.path === '/';
-    
-    if (isPublicEndpoint) {
-      console.log('[API] Endpoint público, prosseguindo sem verificação');
-      return next();
-    }
-    
-    // Verificar se temos controle de acesso de demonstração
-    const DEMO_MODE = process.env.DEMO_MODE === 'true';
-    if (DEMO_MODE) {
-      console.log('[API] Modo de demonstração ativado, permitindo acesso irrestrito');
-      req.nivelAcessoRoletas = 'premium';
-      return next();
-    }
-    
-    // Verificar se o token está presente no header
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-    
-    // Se não há token, continuar com acesso simulado ou rejeitar, dependendo do endpoint
-    if (!token) {
-      if (req.path.includes('/ROULETTES') && !req.path.includes('/demo')) {
-        console.log('[API] Acesso a ROULETTES sem autenticação, recusando acesso');
-        return res.status(401).json({ 
-          error: 'Autenticação necessária para acessar dados reais',
-          redirectTo: '/login'
-        });
-      }
-      console.log('[API] Acesso sem autenticação: usando dados simulados');
-      return next();
-    }
-    
-    try {
-      // Verificar token JWT
-      const JWT_SECRET = process.env.JWT_SECRET || 'secret_padrao_roleta';
-      
-      if (!JWT_SECRET) {
-        console.error('[API] JWT_SECRET não configurada. Usando fallback padrão');
-      }
-      
-      const decodificado = jwt.verify(token, JWT_SECRET);
-      
-      console.log(`[API] Token JWT válido para usuário: ${decodificado.email || 'desconhecido'}`);
-      
-      // Adicionar informações do usuário à requisição
-      req.usuario = {
-        id: decodificado.id,
-        email: decodificado.email,
-        asaasCustomerId: decodificado.asaasCustomerId
-      };
-      
-      // Se não tem asaasCustomerId, avaliar o endpoint
-      if (!decodificado.asaasCustomerId) {
-        if (req.path.includes('/ROULETTES') && req.query.limit > 20 && !req.path.includes('/demo')) {
-          console.log('[API] Usuário sem ID Asaas tentando acessar dados premium, recusando acesso');
-          return res.status(403).json({ 
-            error: 'Assinatura premium necessária',
-            subscription: {
-              status: 'inactive',
-              message: 'Assine um plano premium para acessar dados completos'
-            }
-          });
-        }
-        console.log('[API] Usuário sem ID Asaas: usando dados simulados ou limitados');
-        return next();
-      }
-      
-      // Verificar status da assinatura no Asaas com timeout
-      try {
-        const assinatura = await Promise.race([
-          verificarAssinaturaAsaas(decodificado.asaasCustomerId),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout ao consultar Asaas')), 5000)
-          )
-        ]);
-        
-        if (assinatura && assinatura.status === 'ACTIVE') {
-          console.log(`[API] Assinatura premium ativa para usuário ${decodificado.email}`);
-          req.nivelAcessoRoletas = 'premium';
-          req.assinatura = assinatura;
-          return next();
-        } else {
-          console.log(`[API] Assinatura não ativa para usuário ${decodificado.email}`);
-          
-          // Se tentando acessar endpoint premium, negar acesso
-          if (req.path.includes('/ROULETTES') && req.query.limit > 20 && !req.path.includes('/demo')) {
-            return res.status(403).json({ 
-              error: 'Assinatura premium necessária',
-              subscription: {
-                status: assinatura?.status || 'inactive',
-                message: 'Sua assinatura não está ativa ou expirou'
-              }
-            });
-          }
-          
-          // Garantir que o nível de acesso seja definido explicitamente
-          req.nivelAcessoRoletas = 'simulado';
-          return next();
-        }
-      } catch (asaasError) {
-        console.error('[API] Erro ao verificar assinatura no Asaas:', asaasError.message);
-        
-        // Em caso de erro, verificar o endpoint
-        if (req.path.includes('/ROULETTES') && req.query.limit > 20 && !req.path.includes('/demo')) {
-          return res.status(500).json({
-            error: 'Erro ao verificar status da assinatura',
-            message: 'Não foi possível verificar sua assinatura no momento. Tente novamente mais tarde.'
-          });
-        }
-        
-        // Em caso de erro não-crítico, permitir acesso limitado
-        req.nivelAcessoRoletas = 'simulado';
-        return next();
-      }
-    } catch (jwtError) {
-      // Se houver erro na validação do token, avaliar o endpoint
-      console.log('[API] Erro na verificação do token:', jwtError.message);
-      
-      if (req.path.includes('/ROULETTES') && req.query.limit > 20 && !req.path.includes('/demo')) {
-        return res.status(401).json({
-          error: 'Token de autenticação inválido',
-          redirectTo: '/login'
-        });
-      }
-      
-      req.nivelAcessoRoletas = 'simulado';
-      return next();
-    }
-  } catch (error) {
-    console.error('[API] Erro ao verificar assinatura:', error);
-    
-    // Em caso de erro crítico em endpoints protegidos, falhar com segurança
-    if (req.path.includes('/ROULETTES') && req.query.limit > 20 && !req.path.includes('/demo')) {
-      return res.status(500).json({
-        error: 'Erro interno ao verificar acesso',
-        message: 'Ocorreu um erro ao validar seu acesso. Tente novamente mais tarde.'
-      });
-    }
-    
-    // Em caso de erro não-crítico, continuar com acesso simulado
-    req.nivelAcessoRoletas = 'simulado';
-    next();
+
+const verificarAssinaturaRoletas = (req, res, next) => {
+  // Endpoints públicos que não requerem verificação de assinatura
+  const PUBLIC_ENDPOINTS = [
+    '/health',
+    '/auth',
+    '/subscription/status',
+    '/subscription/create',
+    '/payment'
+  ];
+
+  // Verifica se a rota atual é pública
+  const isPublicEndpoint = PUBLIC_ENDPOINTS.some(endpoint => 
+    req.path.startsWith(`/api${endpoint}`) || req.path === endpoint || req.path === `/api${endpoint}`
+  );
+
+  // Se for um endpoint público, permite o acesso sem verificação
+  if (isPublicEndpoint) {
+    return next();
   }
+
+  // Para endpoints de ROULETTES, verifica permissões específicas
+  if (req.path.includes('/ROULETTES')) {
+    // Extrai o token de autenticação do cabeçalho
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+
+    // Caso não tenha token, verifica se é modo de demonstração ou limita dados
+    if (!token || token === 'undefined' || token === 'null') {
+      // Opção 1: Mostrar dados limitados/demo
+      req.isPremiumUser = false;
+      return next();
+    }
+
+    try {
+      // Verifica se o usuário tem informações de assinatura no req (definido por middleware anterior)
+      if (req.user && req.user.subscription) {
+        // Verifica se a assinatura está ativa
+        const isActive = req.user.subscription.status === 'ACTIVE';
+        req.isPremiumUser = isActive;
+      } else {
+        // Se não tiver informações de assinatura, considera como usuário não premium
+        req.isPremiumUser = false;
+      }
+
+      // Permite que a requisição continue, mas com a flag isPremiumUser definida
+      return next();
+    } catch (error) {
+      console.error('[Middleware] Erro ao verificar assinatura:', error);
+      req.isPremiumUser = false;
+      return next();
+    }
+  }
+
+  // Para outros endpoints protegidos, verifica apenas autenticação básica
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Acesso não autorizado. Autenticação necessária.' });
+  }
+
+  // Permite que a requisição continue
+  return next();
 };
 
 /**
