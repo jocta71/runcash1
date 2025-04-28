@@ -239,30 +239,4 @@ npm start
 ## Erros de Autenticação e Assinatura
 
 - `401` - Token ausente, inválido ou expirado
-- `403` - Usuário sem assinatura cadastrada ou assinatura inativa
-
-## Solução de Problemas
-
-### Erro "Não foi possível verificar seu status de assinatura"
-
-Se você estiver vendo a mensagem "Não foi possível verificar seu status de assinatura" no banner de assinatura, siga estas etapas:
-
-1. **Verifique a configuração do Asaas**:
-   - Certifique-se de que sua chave API do Asaas está configurada no arquivo `.env`
-   - Use o script `node verificar-asaas.js` para diagnosticar problemas com a configuração
-
-2. **Verifique a conexão com a internet**:
-   - O sistema precisa se comunicar com a API do Asaas para verificar assinaturas
-
-3. **Verifique os logs do servidor**:
-   - Procure erros relacionados à verificação de assinaturas nos logs do servidor
-
-4. **Configuração do arquivo .env**:
-   - Certifique-se de que as seguintes variáveis estão configuradas:
-     ```
-     ASAAS_API_KEY=sua-chave-api-asaas-aqui
-     ASAAS_API_URL=https://www.asaas.com/api/v3
-     JWT_SECRET=sua-chave-jwt-secreta-aqui
-     ```
-
-O sistema continuará funcionando mesmo sem verificar sua assinatura, mas mostrará apenas dados simulados. 
+- `403` - Usuário sem assinatura cadastrada ou assinatura inativa 
