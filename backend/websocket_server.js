@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
+const { verifyTokenAndSubscription, requireResourceAccess } = require('./middlewares/asaasAuthMiddleware');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -362,8 +363,15 @@ app.get('/api/status', (req, res) => {
 });
 
 // Rota para listar todas as roletas (endpoint em inglês)
-app.get('/api/roulettes', async (req, res) => {
+app.get('/api/roulettes', 
+  verifyTokenAndSubscription({ 
+    required: true, 
+    allowedPlans: ['PRO', 'PREMIUM'] 
+  }),
+  async (req, res) => {
   console.log('[API] Requisição recebida para /api/roulettes');
+  console.log('[API] Usuário autenticado:', req.usuario?.email || 'Não disponível');
+  console.log('[API] Plano do usuário:', req.subscription?.plan || 'Não disponível');
   
   try {
     if (!isConnected || !collection) {
@@ -386,9 +394,16 @@ app.get('/api/roulettes', async (req, res) => {
 });
 
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
-app.get('/api/ROULETTES', async (req, res) => {
+app.get('/api/ROULETTES', 
+  verifyTokenAndSubscription({ 
+    required: true, 
+    allowedPlans: ['PRO', 'PREMIUM'] 
+  }),
+  async (req, res) => {
   console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
   console.log('[API] Query params:', req.query);
+  console.log('[API] Usuário autenticado:', req.usuario?.email || 'Não disponível');
+  console.log('[API] Plano do usuário:', req.subscription?.plan || 'Não disponível');
   
   // Aplicar cabeçalhos CORS explicitamente para esta rota
   res.header('Access-Control-Allow-Origin', '*');
@@ -757,28 +772,26 @@ app.get('/api/ROULETTES/historico', async (req, res) => {
 app.options('/api/ROULETTES', (req, res) => {
   console.log('[CORS] Requisição OPTIONS recebida para /api/ROULETTES');
   
-  // Aplicar cabeçalhos CORS necessários
+  // Configurar headers CORS para permitir autenticação
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', '*');
-  res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Max-Age', '3600'); // Cache de preflight por 1 hora
   
-  // Responder imediatamente com sucesso
-  res.status(204).end();
+  res.sendStatus(204); // No content
 });
 
-// Manipulador OPTIONS específico para /api/ROULETTES/historico
-app.options('/api/ROULETTES/historico', (req, res) => {
-  console.log('[CORS] Requisição OPTIONS recebida para /api/ROULETTES/historico');
+// Manipulador OPTIONS específico para /api/roulettes (minúsculas)
+app.options('/api/roulettes', (req, res) => {
+  console.log('[CORS] Requisição OPTIONS recebida para /api/roulettes (minúsculas)');
   
-  // Aplicar cabeçalhos CORS necessários
+  // Configurar headers CORS para permitir autenticação
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', '*');
-  res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Max-Age', '3600'); // Cache de preflight por 1 hora
   
-  // Responder imediatamente com sucesso
-  res.status(204).end();
+  res.sendStatus(204); // No content
 });
 
 // Socket.IO connection handler

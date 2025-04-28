@@ -10,6 +10,9 @@ const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
 const strategiesRouter = require('./routes/strategies');
 const authRouter = require('./routes/auth');
 
+// Importar o middleware de autenticação no topo do arquivo
+const { verifyTokenAndSubscription, requireResourceAccess } = require('../middlewares/asaasAuthMiddleware');
+
 // Configuração MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.MONGODB_DB_NAME;
@@ -94,9 +97,17 @@ const NOME_PARA_ID = {
 };
 
 // Garantir que a rota /api/roulettes funcione
-apiApp.get('/ROULETTES', async (req, res) => {
+apiApp.get('/ROULETTES', 
+  // Adicionar middleware de verificação de token e assinatura
+  verifyTokenAndSubscription({ 
+    required: true, 
+    allowedPlans: ['PRO', 'PREMIUM'] 
+  }),
+  async (req, res) => {
   try {
     console.log('[API] Requisição recebida para /api/ROULETTES');
+    console.log('[API] Usuário autenticado:', req.usuario?.email || 'Não disponível');
+    console.log('[API] Plano do usuário:', req.subscription?.plan || 'Não disponível');
     
     // Obter o parâmetro limit da query string ou usar um valor padrão
     const numbersLimit = req.query.limit ? parseInt(req.query.limit) : 20;
@@ -264,6 +275,19 @@ apiApp.get('/ROULETTES', async (req, res) => {
     console.error(`[API] Erro ao processar requisição /api/ROULETTES: ${error}`);
     return res.status(500).json({ error: 'Erro ao processar requisição' });
   }
+});
+
+// Manipulador OPTIONS para o endpoint /ROULETTES
+apiApp.options('/ROULETTES', (req, res) => {
+  console.log('[CORS] Requisição OPTIONS recebida para /api/ROULETTES');
+  
+  // Configurar headers CORS para permitir autenticação
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Max-Age', '3600'); // Cache de preflight por 1 hora
+  
+  res.sendStatus(204); // No content
 });
 
 // Rota para a API principal
