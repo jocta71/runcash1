@@ -10,75 +10,27 @@
     { "source": "/test-cors", "destination": "/api/proxy?path=/test-cors" },
     { "source": "/socket-status", "destination": "/api/proxy?path=/socket-status" },
     { "source": "/historico/:roletaId", "destination": "/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" },
-    {
-      "source": "/socket.io/(.*)",
-      "destination": "https://backend-production-2f96.up.railway.app/socket.io/$1"
-    },
-    {
-      "source": "/api/auth/(.*)",
-      "destination": "https://backend-production-2f96.up.railway.app/api/auth/$1"
-    },
-    {
-      "source": "/api/users/(.*)",
-      "destination": "https://backend-production-2f96.up.railway.app/api/users/$1"
-    },
-    {
-      "source": "/api/strategies/(.*)",
-      "destination": "https://backend-production-2f96.up.railway.app/api/strategies/$1"
-    },
-    {
-      "source": "/api/roulette/(.*)",
-      "destination": "https://backend-production-2f96.up.railway.app/api/roulette/$1"
-    },
-    {
-      "source": "/api/payment/asaas/create-customer",
-      "destination": "https://backend-production-2f96.up.railway.app/api/payment/asaas/create-customer"
-    },
-    {
-      "source": "/api/payment/asaas/create-subscription",
-      "destination": "https://backend-production-2f96.up.railway.app/api/payment/asaas/create-subscription"
-    },
-    {
-      "source": "/api/payment/asaas/webhook",
-      "destination": "https://backend-production-2f96.up.railway.app/api/payment/asaas/webhook"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/$1"
-    }
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "env": {
     "VITE_WS_URL": "https://runcash1-production.up.railway.app",
     "VITE_SSE_SERVER_URL": "https://runcash1-production.up.railway.app/api/events",
     "VITE_API_BASE_URL": "https://runcash5.vercel.app/api",
     "BACKEND_URL": "https://runcash1-production.up.railway.app"
-  },
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "X-Requested-With, Content-Type, Authorization"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
-      ]
+  }
+}
+,
+  "rewrites": [
+    { 
+      "source": "/api/asaas-create-customer",
+      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-customer"
+    },
+    { 
+      "source": "/api/asaas-create-subscription", 
+      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-subscription"
+    },
+    { 
+      "source": "/api/asaas-webhook",
+      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/webhook"
     }
   ]
-}

@@ -1,1 +1,0 @@
-const backendBaseUrl = 'https://backend-production-2f96.up.railway.app'; 

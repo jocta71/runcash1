@@ -2,6 +2,8 @@
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
 import SocketService from '@/services/SocketService';
+import RESTSocketService from './RESTSocketService';
+import Cookies from 'js-cookie';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -90,14 +92,8 @@ export class EventService {
     this.eventListeners = {};
     this.globalEventListeners = {};
     
-    // Adicionar listener global para logging de todos os eventos
-    this.subscribe('*', (event: RouletteNumberEvent) => {
-      debugLog(`[EventService][GLOBAL] Evento: ${event.roleta_nome}, número: ${event.numero}`);
-    });
-    
-    // Usar diretamente o SocketService para comunicação em tempo real
-    debugLog('[EventService] Usando SocketService para eventos em tempo real');
-    this.useSocketServiceAsFallback();
+    // Verificar assinatura antes de inicializar
+    this.checkSubscriptionBeforeInit();
     
     // Adicionar listener para visibilidade da página
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
@@ -583,7 +579,6 @@ export class EventService {
         socketService.reconnect();
         // Solicitar atualizações em qualquer caso
         socketService.requestRecentNumbers();
-        socketService.broadcastConnectionState();
       } else {
         // Se estiver conectado, solicitar atualização
         socketService.requestRecentNumbers();
@@ -640,6 +635,80 @@ export class EventService {
         }
       });
     }
+  }
+
+  // Novo método para verificar assinatura antes de inicialização completa
+  private async checkSubscriptionBeforeInit(): Promise<void> {
+    try {
+      debugLog('[EventService] Verificando assinatura antes de inicializar serviço');
+      
+      // Verificar localmente se o usuário está autenticado
+      const token = localStorage.getItem('auth_token_backup') || Cookies.get('auth_token');
+      
+      if (!token) {
+        debugLog('[EventService] Usuário não autenticado, usando modo limitado');
+        this.useSocketServiceWithLimits();
+        return;
+      }
+      
+      // Verificar com o backend se o usuário tem plano
+      const API_URL = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${API_URL}/subscription/status`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        debugLog('[EventService] Erro ao verificar assinatura, usando modo limitado');
+        this.useSocketServiceWithLimits();
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data.success && data.subscription && data.subscription.status === 'active') {
+        debugLog('[EventService] Usuário com plano ativo, usando serviço completo');
+        this.useSocketServiceAsFallback();
+      } else {
+        debugLog('[EventService] Usuário sem plano ativo, usando modo limitado');
+        this.useSocketServiceWithLimits();
+      }
+    } catch (error) {
+      debugLog(`[EventService] Erro ao verificar assinatura: ${error}`);
+      this.useSocketServiceWithLimits();
+    }
+  }
+
+  // Método para usar SocketService com limites para usuários sem plano
+  private useSocketServiceWithLimits(): void {
+    if (this.usingSocketService) {
+      return; // Já está usando SocketService
+    }
+    
+    debugLog('[EventService] Utilizando SocketService com limites');
+    
+    this.usingSocketService = true;
+    this.isConnected = true; // Simular conexão estabelecida
+    
+    // Usar SocketService padrão para modo limitado
+    const socketService = SocketService.getInstance();
+    
+    // Apenas se inscrever em eventos de amostra
+    socketService.subscribe('*', (event: any) => {
+      // Filtrar eventos - apenas permitir eventos de roletas de amostra
+      if (event && event.type === 'new_number') {
+        // Verificar se o evento é de uma das roletas de amostra
+        // Este código depende de como você identifica roletas de amostra
+        const sampleEvent = {
+          ...event,
+          sample: true // Marcar como evento de amostra
+        };
+        this.handleSocketEvent(sampleEvent);
+      }
+    });
+    
+    this.socketServiceSubscriptions.add('*');
   }
 }
 

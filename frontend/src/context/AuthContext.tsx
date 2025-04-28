@@ -48,7 +48,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 // API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'https://backend-production-2f96.up.railway.app/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
 
 /**
  * Provedor de autenticação que se comunica com a API
@@ -279,24 +279,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       // Verificar primeiro no cookie (mais rápido)
-      const storedToken = Cookies.get(TOKEN_COOKIE_NAME);
+      let storedToken = Cookies.get(TOKEN_COOKIE_NAME);
+      
+      // Se não encontrar no cookie padrão, tentar no alternativo
+      if (!storedToken) {
+        storedToken = Cookies.get(`${TOKEN_COOKIE_NAME}_alt`);
+        if (storedToken) {
+          logAuthFlow("Token encontrado no cookie alternativo");
+        }
+      } else {
+        logAuthFlow("Token encontrado no cookie padrão");
+      }
+      
+      // Se ainda não encontrou, tentar no localStorage (mais confiável entre recargas)
+      if (!storedToken) {
+        storedToken = localStorage.getItem('auth_token_backup');
+        if (storedToken) {
+          logAuthFlow("Token encontrado no localStorage");
+          
+          // Se token só existe no localStorage, restaurar no cookie para futuras requisições
+          try {
+            const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+            Cookies.set(TOKEN_COOKIE_NAME, storedToken, {
+              ...COOKIE_OPTIONS,
+              sameSite: isLocalhost ? 'lax' as const : 'none' as const,
+              secure: isLocalhost ? false : true,
+            });
+            logAuthFlow("Token restaurado do localStorage para o cookie");
+          } catch (e) {
+            logAuthFlow(`Erro ao restaurar token para cookie: ${e}`);
+          }
+        }
+      }
       
       // Se token encontrado, verificar com API
       if (storedToken) {
-        logAuthFlow("Token encontrado no cookie, verificando com API");
         try {
           // Definir o token no estado antes mesmo de verificar com a API
           if (!token) {
-            logAuthFlow("Definindo token do cookie no estado");
+            logAuthFlow("Definindo token no estado");
             setToken(storedToken);
           }
           
+          // Verificar usuário em cache primeiro para experiência mais rápida
+          const cachedUser = localStorage.getItem('auth_user_cache');
+          if (cachedUser) {
+            try {
+              const userData = JSON.parse(cachedUser);
+              setUser(userData);
+              logAuthFlow("Usando dados de usuário em cache temporariamente");
+            } catch (e) {
+              logAuthFlow(`Erro ao analisar cache do usuário: ${e}`);
+            }
+          }
+          
+          // Verificar token com a API (mesmo que já tenhamos dados em cache)
           const isValid = await verifyTokenWithApi(storedToken);
           if (isValid) return true;
         } catch (error) {
           // Tratar erro de verificação
           logAuthFlow(`Erro ao verificar token: ${error}`);
-          // Se for erro de rede, não limpar token ainda
+          // Se for erro de rede, usar cache local e confiar no token
           if (axios.isAxiosError(error) && !error.response) {
             logAuthFlow("Erro de rede. Verificando cache local.");
             
@@ -306,7 +349,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               try {
                 const userData = JSON.parse(cachedUser);
                 setUser(userData);
-                logAuthFlow("Usando dados de usuário em cache com o token do cookie");
+                logAuthFlow("Usando dados de usuário em cache com o token");
                 return true;
               } catch (e) {
                 logAuthFlow(`Erro ao analisar cache do usuário: ${e}`);
@@ -319,60 +362,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       
-      // Se não encontrar no cookie ou verificação falhou, tentar no localStorage (fallback)
-      const backupToken = localStorage.getItem('auth_token_backup');
-      
-      // Se já definimos o token no estado, mas não conseguimos verificar com a API,
-      // vamos confiar no token em caso de erro de rede
-      if (token && backupToken && token === backupToken) {
-        logAuthFlow("Confiando no token já definido, possível erro temporário de rede");
-        return true;
-      }
-      
-      // Verificar validade do timestamp (opcional)
-      const timestamp = localStorage.getItem('auth_token_timestamp');
-      const tokenAge = timestamp ? (Date.now() - parseInt(timestamp)) : null;
-      const isTokenRecent = tokenAge ? tokenAge < 30 * 24 * 60 * 60 * 1000 : false; // 30 dias
-      
-      // Se encontrou token de backup recente, restaurar e verificar
-      if (backupToken && isTokenRecent) {
-        logAuthFlow("Token encontrado no localStorage e é recente, restaurando");
-        saveToken(backupToken);
-        
-        try {
-          return await verifyTokenWithApi(backupToken);
-        } catch (error) {
-          // Se for erro de rede, confiar no token de backup
-          if (axios.isAxiosError(error) && !error.response) {
-            logAuthFlow("Erro de rede ao verificar token de backup. Confiando no token.");
-            
-            // Verificar se temos usuário em cache
-            const cachedUser = localStorage.getItem('auth_user_cache');
-            if (cachedUser) {
-              try {
-                const userData = JSON.parse(cachedUser);
-                setUser(userData);
-                logAuthFlow("Usando dados de usuário em cache com token de backup");
-                return true;
-              } catch (e) {
-                logAuthFlow(`Erro ao analisar cache do usuário: ${e}`);
-              }
-            }
-            
-            // Mesmo sem cache de usuário, confiar no token
-            return true;
-          }
-          
-          // Outros erros - token inválido
-          logAuthFlow(`Token de backup inválido: ${error}`);
-        }
-      }
-      
-      // Nenhum token válido encontrado
-      logAuthFlow("Nenhum token válido encontrado, usuário não está autenticado");
+      // Se chegou até aqui, não encontrou token válido
+      logAuthFlow("Nenhum token válido encontrado");
+      clearAuthData();
       return false;
     } catch (error) {
-      logAuthFlow(`Erro inesperado na verificação de autenticação: ${error}`);
+      logAuthFlow(`Erro durante verificação de autenticação: ${error}`);
       return false;
     }
   };
@@ -535,26 +530,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Armazenar no cookie (principal)
     try {
-      Cookies.set(TOKEN_COOKIE_NAME, newToken, {
+      // Detectar se estamos em localhost para ajustar configurações
+      const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      
+      // Configuração adaptativa para cookies
+      const cookieConfig = {
         ...COOKIE_OPTIONS,
+        // Ajustar sameSite e secure conforme ambiente
+        sameSite: isLocalhost ? 'lax' as const : 'none' as const,
+        secure: isLocalhost ? false : true,
         // Remover domínio para maior compatibilidade
         domain: undefined
-      });
-      logAuthFlow("Token salvo no cookie com sucesso");
+      };
+      
+      Cookies.set(TOKEN_COOKIE_NAME, newToken, cookieConfig);
+      logAuthFlow(`Token salvo no cookie com configuração: ${JSON.stringify(cookieConfig)}`);
       
       // Adicionar cookie alternativo com configurações diferentes para maior compatibilidade
-      Cookies.set(`${TOKEN_COOKIE_NAME}_alt`, newToken, {
+      const altCookieConfig = {
         path: '/',
-        expires: 30, 
-        sameSite: 'none',
-        secure: true
-      });
-      logAuthFlow("Token alternativo salvo no cookie com sucesso");
+        expires: 30,
+        sameSite: 'lax' as const,
+        secure: window.location.protocol === "https:",
+      };
+      
+      Cookies.set(`${TOKEN_COOKIE_NAME}_alt`, newToken, altCookieConfig);
+      logAuthFlow(`Token alternativo salvo no cookie com configuração: ${JSON.stringify(altCookieConfig)}`);
     } catch (error) {
       logAuthFlow(`Erro ao salvar token no cookie: ${error}`);
     }
 
-    // Armazenar no localStorage como backup
+    // Armazenar no localStorage como backup principal (mais confiável entre recargas)
     try {
       localStorage.setItem('auth_token_backup', newToken);
       logAuthFlow("Token de backup salvo no localStorage com sucesso");
@@ -678,8 +684,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  // Valor do contexto
-  const value = {
+  // Criar objeto de contexto a ser fornecido
+  const contextValue: AuthContextType = {
     user,
     loading,
     token,
@@ -691,7 +697,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  // Renderizar o Provider com o valor do contexto
+  return (
+    <AuthContext.Provider value={contextValue}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 /**
@@ -699,8 +710,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
  */
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+  
+  if (!context) {
+    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
   }
+  
   return context;
 };
+
+// Exportar o Provider para uso no App
+export default AuthContext;

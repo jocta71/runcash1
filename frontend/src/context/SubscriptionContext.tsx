@@ -3,6 +3,7 @@ import { Plan, PlanType, UserSubscription } from '@/types/plans';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
 import { API_URL } from '@/config/constants';
+import { apiService } from '@/services/apiService';
 
 // Lista de planos disponíveis
 export const availablePlans: Plan[] = [
@@ -140,9 +141,6 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     while (retryCount < maxRetries) {
       try {
-        // Adicionar um parâmetro de timestamp para evitar cache
-        const cacheKey = forceRefresh ? `&_t=${Date.now()}` : '';
-        
         // Verificar se o usuário já tem um ID de cliente Asaas
         if (!user.asaasCustomerId) {
           console.log('[SubscriptionContext] Usuário não possui asaasCustomerId, tentando criar ou recuperar cliente no Asaas...');
@@ -163,14 +161,18 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
               // Atualizar o usuário com o ID do cliente Asaas
               await updateUserAsaasId(customerId, user);
               
-              // Buscar assinatura com o customerId recuperado
-              const response = await axios.get(`${API_URL}/api/asaas-find-subscription?customerId=${customerId}${cacheKey}`);
-              
-              // Processar resposta (código existente)
-              if (response.data && response.data.success && response.data.subscriptions && response.data.subscriptions.length > 0) {
-                processSubscriptionResponse(response.data);
-                break;
-              } else {
+              // Agora podemos verificar o status da assinatura usando o endpoint
+              try {
+                const response = await apiService.checkSubscriptionStatus();
+                if (response.data && response.data.success) {
+                  processSubscriptionResponse(response.data);
+                  break;
+                } else {
+                  handleNoSubscription();
+                  break;
+                }
+              } catch (statusError) {
+                console.error('[SubscriptionContext] Erro ao verificar status da assinatura:', statusError);
                 handleNoSubscription();
                 break;
               }
@@ -183,16 +185,41 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
             throw customerError; // Propagar erro para o tratamento existente
           }
         } else {
-          // Usuário já tem asaasCustomerId, usar diretamente
-          console.log(`[SubscriptionContext] Buscando assinatura com customerId: ${user.asaasCustomerId}`);
-          const response = await axios.get(`${API_URL}/api/asaas-find-subscription?customerId=${user.asaasCustomerId}${cacheKey}`);
+          // Usuário já tem asaasCustomerId, usar novo endpoint para verificar status
+          console.log(`[SubscriptionContext] Verificando status da assinatura com customerId: ${user.asaasCustomerId}`);
           
-          if (response.data && response.data.success && response.data.subscriptions && response.data.subscriptions.length > 0) {
-            processSubscriptionResponse(response.data);
-            break;
-          } else {
-            handleNoSubscription();
-            break;
+          try {
+            const response = await apiService.checkSubscriptionStatus();
+            
+            if (response.data && response.data.success) {
+              processSubscriptionResponse(response.data);
+              break;
+            } else {
+              handleNoSubscription();
+              break;
+            }
+          } catch (statusError) {
+            console.error('[SubscriptionContext] Erro ao verificar status da assinatura:', statusError);
+            
+            // Se o erro for 404, significa que o endpoint não existe ainda (fallback para método antigo)
+            if (statusError.response && statusError.response.status === 404) {
+              console.log('[SubscriptionContext] Endpoint não encontrado, usando método antigo de consulta');
+              try {
+                const fallbackResponse = await axios.get(`${API_URL}/api/asaas-find-subscription?customerId=${user.asaasCustomerId}`);
+                if (fallbackResponse.data && fallbackResponse.data.success && fallbackResponse.data.subscriptions && fallbackResponse.data.subscriptions.length > 0) {
+                  processSubscriptionResponse(fallbackResponse.data);
+                  break;
+                } else {
+                  handleNoSubscription();
+                  break;
+                }
+              } catch (fallbackError) {
+                console.error('[SubscriptionContext] Erro no método antigo:', fallbackError);
+                throw fallbackError;
+              }
+            } else {
+              throw statusError;
+            }
           }
         }
       } catch (err: any) {
@@ -229,68 +256,92 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Função auxiliar para processar a resposta de assinatura
   const processSubscriptionResponse = (data: any) => {
-    const subscriptionData = data.subscriptions[0];
-    
-    // Verificar se há status de pagamento pendente
-    const hasPendingPayment = data.payments && 
-      data.payments.some(payment => 
-        payment.status?.toLowerCase() === 'pending' || 
-        payment.status?.toLowerCase() === 'pendente'
-      );
-    
-    // Normalizar o status da assinatura (priorizar pagamento pendente)
-    let normalizedStatus = subscriptionData.status;
-    
-    // Se o status vindo do backend for "pending", ou se houver pagamento pendente,
-    // garantir que o status exibido seja "pending"
-    if (hasPendingPayment || 
-        subscriptionData.status?.toLowerCase() === 'pending' || 
-        subscriptionData.status?.toLowerCase() === 'pendente') {
-      normalizedStatus = 'pending';
-      console.log('[SubscriptionContext] Status normalizado para "pending" devido a pagamento pendente');
-    }
-    
-    // Converter dados da API para o formato UserSubscription
-    const formattedSubscription: UserSubscription = {
-      id: subscriptionData.id,
-      userId: user!.id,
-      planId: 'premium', // Valor temporário, depois será baseado no valor ou descrição
-      planType: getPlanTypeFromId('premium'), // Valor temporário
-      startDate: new Date(subscriptionData.createdDate),
-      endDate: null,
-      status: normalizedStatus,
-      paymentMethod: subscriptionData.billingType,
-      paymentProvider: 'ASAAS',
-      nextBillingDate: subscriptionData.nextDueDate ? new Date(subscriptionData.nextDueDate) : null
-    };
-    
-    // Determinar o plano com base no valor e status da assinatura
-    let planId = 'free';
-    const isActive = normalizedStatus.toLowerCase() === 'active' || normalizedStatus.toLowerCase() === 'ativo';
-    
-    // Apenas atribuir plano pago se a assinatura estiver ativa
-    if (isActive) {
-      if (subscriptionData.value >= 99) {
-        planId = 'premium';
-      } else if (subscriptionData.value >= 49) {
-        planId = 'pro';
-      } else if (subscriptionData.value >= 19) {
-        planId = 'basic';
+    // Verificar o formato dos dados (endpoint antigo ou novo)
+    if (data.subscriptions && data.subscriptions.length > 0) {
+      // Formato antigo: { subscriptions: [...] }
+      const subscriptionData = data.subscriptions[0];
+      
+      // Verificar se há status de pagamento pendente
+      const hasPendingPayment = data.payments && 
+        data.payments.some(payment => 
+          payment.status?.toLowerCase() === 'pending' || 
+          payment.status?.toLowerCase() === 'pendente'
+        );
+      
+      // Normalizar o status da assinatura (priorizar pagamento pendente)
+      let normalizedStatus = subscriptionData.status;
+      
+      // Se o status vindo do backend for "pending", ou se houver pagamento pendente,
+      // garantir que o status exibido seja "pending"
+      if (hasPendingPayment || 
+          subscriptionData.status?.toLowerCase() === 'pending' || 
+          subscriptionData.status?.toLowerCase() === 'pendente') {
+        normalizedStatus = 'pending';
+        console.log('[SubscriptionContext] Status normalizado para "pending" devido a pagamento pendente');
       }
+      
+      // Construir objeto de assinatura normalizado
+      const newSubscription: UserSubscription = {
+        id: subscriptionData.id,
+        customerId: subscriptionData.customer,
+        status: normalizedStatus,
+        planId: subscriptionData.billingType || getPlanTypeFromId(subscriptionData.billingType || ''),
+        createdAt: subscriptionData.dateCreated,
+        nextDueDate: subscriptionData.nextDueDate,
+        lastPaymentDate: subscriptionData.lastBillingDate || null,
+        value: subscriptionData.value || 0
+      };
+      
+      setCurrentSubscription(newSubscription);
+      
+      // Determinar plano atual
+      const planType = getPlanTypeFromId(subscriptionData.billingType || '');
+      const plan = availablePlans.find(p => p.type === planType) || null;
+      setCurrentPlan(plan);
+      
+      console.log('[SubscriptionContext] Assinatura atualizada:', newSubscription);
+    } else if (data.subscription && data.hasActiveSubscription) {
+      // Formato novo: { subscription: {...}, hasActiveSubscription: true }
+      const subscriptionData = data.subscription;
+      
+      // Verificar se há pagamentos pendentes
+      const hasPendingPayment = data.pendingPayments && data.pendingPayments.length > 0;
+      
+      // Normalizar o status da assinatura
+      let normalizedStatus = subscriptionData.status;
+      
+      if (hasPendingPayment) {
+        normalizedStatus = 'pending';
+        console.log('[SubscriptionContext] Status normalizado para "pending" devido a pagamento pendente');
+      }
+      
+      // Mapear o tipo de plano
+      const planType = getPlanTypeFromId(subscriptionData.billingType || '');
+      
+      // Construir objeto de assinatura normalizado
+      const newSubscription: UserSubscription = {
+        id: subscriptionData.id,
+        customerId: subscriptionData.customer,
+        status: normalizedStatus,
+        planId: subscriptionData.billingType || planType,
+        createdAt: subscriptionData.dateCreated,
+        nextDueDate: subscriptionData.nextDueDate,
+        lastPaymentDate: subscriptionData.lastBillingDate || null,
+        value: subscriptionData.value || 0
+      };
+      
+      setCurrentSubscription(newSubscription);
+      
+      // Determinar plano atual
+      const plan = availablePlans.find(p => p.type === planType) || null;
+      setCurrentPlan(plan);
+      
+      console.log('[SubscriptionContext] Assinatura atualizada (novo formato):', newSubscription);
     } else {
-      console.log(`[SubscriptionContext] Usando plano FREE porque a assinatura não está ativa (status: ${normalizedStatus})`);
+      // Formato inesperado ou sem assinatura
+      console.warn('[SubscriptionContext] Formato de resposta inesperado ou sem assinatura ativa:', data);
+      handleNoSubscription();
     }
-    
-    // Atualizar o planId na assinatura
-    formattedSubscription.planId = planId;
-    formattedSubscription.planType = getPlanTypeFromId(planId);
-    
-    console.log('[SubscriptionContext] Assinatura carregada:', formattedSubscription);
-    setCurrentSubscription(formattedSubscription);
-
-    // Buscar plano correspondente na lista de planos disponíveis
-    const plan = availablePlans.find(p => p.id === planId) || null;
-    setCurrentPlan(plan);
   };
 
   // Função auxiliar para lidar com caso de nenhuma assinatura encontrada

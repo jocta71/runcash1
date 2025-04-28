@@ -1,17 +1,21 @@
-FROM node:18-slim
+FROM node:18-alpine
 
 WORKDIR /app
 
+# Copiar os arquivos de configuração necessários 
 COPY package*.json ./
+COPY api/package*.json ./api/
+COPY install_dependencies.js ./
 
-RUN npm install --omit=dev
+# Instalar todas as dependências usando o script
+RUN node install_dependencies.js
 
-COPY api/ ./api/
-COPY websocket_server.js ./
+# Copiar todo o código-fonte
+COPY . .
 
-ENV PORT=3000
+ENV PORT=5000
 ENV NODE_ENV=production
 
-EXPOSE 3000
+EXPOSE 5000
 
-CMD ["node", "websocket_server.js"] 
+CMD ["node", "start_index.js"] 

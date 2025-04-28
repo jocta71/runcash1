@@ -21,21 +21,21 @@ mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('Mongoose conectado ao MongoDB'))
-.catch(err => console.error('Erro ao conectar Mongoose:', err));
+.then(() => console.log('[API] Mongoose conectado ao MongoDB'))
+.catch(err => console.error('[API] Erro ao conectar Mongoose:', err));
 
 // Conectar ao MongoDB
 async function connectToMongoDB() {
   try {
-    console.log(`Conectando ao MongoDB: ${MONGODB_URI.replace(/:.*@/, ':****@')}`);
+    console.log(`[API] Conectando ao MongoDB: ${MONGODB_URI.replace(/:.*@/, ':****@')}`);
     const client = new MongoClient(MONGODB_URI);
     await client.connect();
-    console.log('Conectado ao MongoDB com sucesso');
+    console.log('[API] Conectado ao MongoDB com sucesso');
     db = client.db(DB_NAME);
-    console.log(`Usando banco de dados: ${DB_NAME}`);
+    console.log(`[API] Usando banco de dados: ${DB_NAME}`);
     return db;
   } catch (error) {
-    console.error('Erro ao conectar ao MongoDB:', error);
+    console.error('[API] Erro ao conectar ao MongoDB:', error);
     return null;
   }
 }
@@ -43,11 +43,11 @@ async function connectToMongoDB() {
 // Iniciar conexão com MongoDB
 connectToMongoDB();
 
-const app = express();
-const PORT = process.env.PORT || 3002;
+// Criar aplicação Express para a API
+const apiApp = express();
 
 // Configuração CORS básica
-app.use(cors({
+apiApp.use(cors({
   origin: [
     'https://runcashh11.vercel.app',
     'https://runcash5.vercel.app', 
@@ -66,16 +66,16 @@ app.use(cors({
 }));
 
 // Middleware
-app.use(express.json());
-app.use(cookieParser());
+apiApp.use(express.json());
+apiApp.use(cookieParser());
 
 // Disponibilizar o banco de dados para os roteadores
-app.locals.db = db;
+apiApp.locals.db = db;
 
 // Configurar rotas
-app.use('/api/roulettes/history', rouletteHistoryRouter);
-app.use('/api/strategies', strategiesRouter);
-app.use('/api/auth', authRouter);
+apiApp.use('/roulettes/history', rouletteHistoryRouter);
+apiApp.use('/strategies', strategiesRouter);
+apiApp.use('/auth', authRouter);
 
 // Adicionar mapeamento de nomes para IDs de roletas conhecidas
 const NOME_PARA_ID = {
@@ -94,7 +94,7 @@ const NOME_PARA_ID = {
 };
 
 // Garantir que a rota /api/roulettes funcione
-app.get('/api/ROULETTES', async (req, res) => {
+apiApp.get('/ROULETTES', async (req, res) => {
   try {
     console.log('[API] Requisição recebida para /api/ROULETTES');
     
@@ -164,8 +164,8 @@ app.get('/api/ROULETTES', async (req, res) => {
                     $regex: new RegExp(`${nome.replace(/[-\s]/g, '.*')}`, 'i')
                   } 
                 })
-        .sort({ timestamp: -1 })
-        .limit(numbersLimit)
+                .sort({ timestamp: -1 })
+                .limit(numbersLimit)
                 .toArray();
                 
               if (numeros.length > 0) {
@@ -179,13 +179,13 @@ app.get('/api/ROULETTES', async (req, res) => {
           // Para diagnóstico, vamos verificar todas as roletas distintas na coleção
           if (numeros.length === 0) {
             // Fazemos isso apenas uma vez por eficiência
-            if (!app.locals.listaRoletasNumeros) {
+            if (!apiApp.locals.listaRoletasNumeros) {
               const roletasDistintas = await db.collection('roleta_numeros').aggregate([
                 { $group: { _id: "$roleta_nome", count: { $sum: 1 } } },
                 { $sort: { count: -1 } }
               ]).toArray();
               
-              app.locals.listaRoletasNumeros = roletasDistintas.map(r => r._id);
+              apiApp.locals.listaRoletasNumeros = roletasDistintas.map(r => r._id);
               
               console.log('[API] DIAGNÓSTICO: Roletas disponíveis na coleção roleta_numeros:');
               roletasDistintas.forEach(r => {
@@ -195,7 +195,7 @@ app.get('/api/ROULETTES', async (req, res) => {
             
             // Sugerir correspondências possíveis
             console.log(`[API] Possíveis correspondências para "${nome}":`);
-            const sugestoes = app.locals.listaRoletasNumeros
+            const sugestoes = apiApp.locals.listaRoletasNumeros
               .filter(rNome => rNome && rNome.toLowerCase().includes(nome.toLowerCase().substring(0, 5)))
               .slice(0, 3);
               
@@ -251,55 +251,54 @@ app.get('/api/ROULETTES', async (req, res) => {
         }
       });
       
-      // Aguardar todas as promessas
-      let formattedRoulettes = await Promise.all(fetchPromises);
+      // Resolva todas as promessas e retorne os resultados
+      const roletasComNumeros = await Promise.all(fetchPromises);
+      console.log(`[API] Retornando ${roletasComNumeros.length} roletas com seus números`);
       
-      // Ordenar roletas - as que têm números aparecem primeiro
-      formattedRoulettes.sort((a, b) => {
-        // Primeiro critério: roletas com números aparecem primeiro
-        if (a.numero.length > 0 && b.numero.length === 0) return -1;
-        if (a.numero.length === 0 && b.numero.length > 0) return 1;
-        
-        // Segundo critério: roletas com mais números aparecem antes
-        if (a.numero.length !== b.numero.length) {
-          return b.numero.length - a.numero.length;
-        }
-        
-        // Terceiro critério: ordem alfabética pelo nome
-        return (a.nome || '').localeCompare(b.nome || '');
-      });
-      
-      console.log(`[API] Retornando ${formattedRoulettes.length} roletas no total`);
-      return res.json(formattedRoulettes);
-      
+      return res.json(roletasComNumeros);
     } catch (error) {
-      console.error('[API] Erro ao processar roletas:', error);
-      return res.status(500).json({ error: 'Erro ao processar roletas', details: error.message });
+      console.error(`[API] Erro ao buscar roletas: ${error}`);
+      return res.status(500).json({ error: 'Erro ao buscar roletas e números' });
     }
   } catch (error) {
-    console.error('[API] Erro ao buscar roletas:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar roletas', details: error.message });
+    console.error(`[API] Erro ao processar requisição /api/ROULETTES: ${error}`);
+    return res.status(500).json({ error: 'Erro ao processar requisição' });
   }
 });
 
-// Função para mapear UUIDs para IDs canônicos
+// Rota para a API principal
+apiApp.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'RunCash API',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Função auxiliar para mapear entre IDs de roletas
 function mapToCanonicalId(uuid) {
-  // MODIFICAÇÃO CRÍTICA: Retornar o ID original diretamente sem conversão
-  // Isso permite que todas as roletas sejam exibidas, sem limitação pelos IDs canônicos
-  console.log(`[API] MODO PERMISSIVO: Usando ID original ${uuid} sem conversão`);
+  // Mapear o UUID para um ID canônico se existir, caso contrário retornar o próprio UUID
+  for (const [nome, id] of Object.entries(NOME_PARA_ID)) {
+    if (uuid === id) return uuid;
+  }
   return uuid;
 }
 
 // Função auxiliar para determinar a cor de um número da roleta
 function determinarCorNumero(numero) {
-  if (numero === 0) return 'verde';
-  
-  // Números vermelhos na roleta europeia
+  if (numero === 0) return 'green';
   const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-  return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
+  return numerosVermelhos.includes(numero) ? 'red' : 'black';
 }
 
-// Iniciar o servidor
-app.listen(PORT, () => {
-  console.log(`API rodando na porta ${PORT}`);
-});
+// Se for executado diretamente (não importado como módulo), iniciar servidor
+if (require.main === module) {
+  const PORT = process.env.PORT || 3002;
+  apiApp.listen(PORT, () => {
+    console.log(`[API] Servidor iniciado na porta ${PORT}`);
+  });
+}
+
+// Exportar a aplicação para ser montada pelo arquivo principal
+module.exports = apiApp;
