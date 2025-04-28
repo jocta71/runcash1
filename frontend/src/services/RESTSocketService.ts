@@ -155,29 +155,49 @@ class RESTSocketService {
     console.log('[RESTSocketService] Não criando timer próprio - usando serviço global centralizado');
     
     // Registrar para receber atualizações do serviço global
-    globalRouletteDataService.subscribe('RESTSocketService-main', () => {
-      if (this.debug) {
-        console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
-      }
-      // Reprocessar dados do serviço global quando houver atualização
-      const data = globalRouletteDataService.getAllRoulettes();
-      if (data && Array.isArray(data)) {
-        this.processDataAsEvents(data, 'global-service');
-      }
-    });
+    try {
+      globalRouletteDataService.subscribe('RESTSocketService-main', () => {
+        if (this.debug) {
+          console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
+        }
+        // Reprocessar dados do serviço global quando houver atualização
+        try {
+          const data = globalRouletteDataService.getAllRoulettes();
+          if (data && Array.isArray(data)) {
+            this.processDataAsEvents(data, 'global-service');
+          } else {
+            console.warn('[RESTSocketService] Dados inválidos recebidos do serviço global:', data);
+          }
+        } catch (error) {
+          console.error('[RESTSocketService] Erro ao processar dados do serviço global:', error);
+        }
+      });
+    } catch (error) {
+      console.error('[RESTSocketService] Erro ao se inscrever no serviço global:', error);
+    }
     
     // Processar dados iniciais se disponíveis
-    const initialData = globalRouletteDataService.getAllRoulettes();
-    if (initialData && initialData.length > 0) {
-      console.log('[RESTSocketService] Processando dados iniciais do serviço global');
-      this.processDataAsEvents(initialData, 'initial-load');
+    try {
+      const initialData = globalRouletteDataService.getAllRoulettes();
+      if (initialData && Array.isArray(initialData) && initialData.length > 0) {
+        console.log('[RESTSocketService] Processando dados iniciais do serviço global');
+        this.processDataAsEvents(initialData, 'initial-load');
+      } else {
+        console.log('[RESTSocketService] Não há dados iniciais para carregar do serviço global');
+      }
+    } catch (error) {
+      console.error('[RESTSocketService] Erro ao carregar dados iniciais do serviço global:', error);
     }
     
     // Criar um timer de verificação para garantir que o serviço global está funcionando
-    this.pollingTimer = window.setInterval(() => {
-      // Verificação simples para manter o timer ativo
-      this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
-    }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
+    try {
+      this.pollingTimer = window.setInterval(() => {
+        // Verificação simples para manter o timer ativo
+        this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
+      }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
+    } catch (error) {
+      console.error('[RESTSocketService] Erro ao configurar timer de verificação:', error);
+    }
   }
   
   // Buscar dados da API REST
@@ -237,6 +257,17 @@ class RESTSocketService {
       return;
     }
     
+    // Verificar se há dados para processar
+    if (data.length === 0) {
+      console.log('[RESTSocketService] Array de dados vazio recebido da fonte:', source);
+      // Ainda registramos a chamada como bem-sucedida para evitar reconexões desnecessárias
+      this.lastReceivedData.set(source, { 
+        timestamp: Date.now(), 
+        data: { count: 0, isEmpty: true } 
+      });
+      return;
+    }
+    
     if (this.debug) {
       console.log(`[RESTSocketService] Processando ${data.length} roletas da fonte: ${source}`);
     }
@@ -274,6 +305,12 @@ class RESTSocketService {
     
     // Para cada roleta no array
     for (const roleta of uniqueItems) {
+      // Verificar se o objeto roleta é válido
+      if (!roleta || !roleta.id) {
+        console.warn('[RESTSocketService] Objeto de roleta inválido:', roleta);
+        continue;
+      }
+      
       const roletaId = roleta.id;
       const roletaNome = roleta.nome || roleta.id;
       
@@ -287,6 +324,11 @@ class RESTSocketService {
           .slice(0, 20)
           .filter((n: any) => n && (typeof n.numero === 'number' || typeof n === 'number'))
           .map((n: any) => typeof n.numero === 'number' ? n.numero : n);
+        
+        // Verificar se há novos números após filtragem
+        if (newNumbers.length === 0) {
+          continue;
+        }
         
         // Verificar se há novos números comparando com o histórico
         if (newNumbers.length > 0) {
@@ -515,12 +557,19 @@ class RESTSocketService {
       await globalRouletteDataService.forceUpdate();
       
       // Processar os dados atualizados
-      const data = globalRouletteDataService.getAllRoulettes();
-      if (data && Array.isArray(data)) {
-        this.processDataAsEvents(data);
+      try {
+        const data = globalRouletteDataService.getAllRoulettes();
+        if (data && Array.isArray(data)) {
+          this.processDataAsEvents(data, 'request-recent');
+          return true;
+        } else {
+          console.warn('[RESTSocketService] Dados inválidos recebidos do forceUpdate:', data);
+          return false;
+        }
+      } catch (innerError) {
+        console.error('[RESTSocketService] Erro ao processar dados após forceUpdate:', innerError);
+        return false;
       }
-      
-      return true;
     } catch (error) {
       console.error('[RESTSocketService] Erro ao atualizar dados:', error);
       return false;
@@ -536,25 +585,53 @@ class RESTSocketService {
   }
 
   public async requestRouletteNumbers(roletaId: string): Promise<boolean> {
+    if (!roletaId) {
+      console.error('[RESTSocketService] ID de roleta inválido fornecido para requestRouletteNumbers');
+      return false;
+    }
+    
     try {
       console.log(`[RESTSocketService] Buscando números para roleta ${roletaId} via serviço global`);
       await globalRouletteDataService.forceUpdate();
       
       // Processar os dados atualizados
-      const data = globalRouletteDataService.getAllRoulettes();
-      if (data && Array.isArray(data)) {
-        const roleta = data.find(r => r.id === roletaId);
-        if (roleta && roleta.numero && Array.isArray(roleta.numero)) {
-          // Extrair apenas os números
-          const numeros = roleta.numero.map((n: any) => n.numero || n.number || 0);
-          
-          // Atualizar o histórico
-          this.setRouletteHistory(roletaId, numeros);
-          console.log(`[RESTSocketService] Atualizados ${numeros.length} números para roleta ${roletaId}`);
+      try {
+        const data = globalRouletteDataService.getAllRoulettes();
+        if (!data || !Array.isArray(data)) {
+          console.warn('[RESTSocketService] Dados inválidos recebidos do serviço global após forceUpdate');
+          return false;
         }
+        
+        const roleta = data.find(r => r && r.id === roletaId);
+        if (!roleta) {
+          console.warn(`[RESTSocketService] Roleta com ID ${roletaId} não encontrada nos dados atualizados`);
+          return false;
+        }
+        
+        if (!roleta.numero || !Array.isArray(roleta.numero)) {
+          console.warn(`[RESTSocketService] Roleta ${roletaId} não tem números válidos`);
+          return false;
+        }
+        
+        // Extrair apenas os números
+        const numeros = roleta.numero
+          .filter(n => n && (n.numero !== undefined || n.number !== undefined))
+          .map(n => n.numero || n.number || 0);
+        
+        if (numeros.length === 0) {
+          console.warn(`[RESTSocketService] Nenhum número válido encontrado para roleta ${roletaId}`);
+          return false;
+        }
+        
+        // Atualizar o histórico
+        this.setRouletteHistory(roletaId, numeros);
+        console.log(`[RESTSocketService] Atualizados ${numeros.length} números para roleta ${roletaId}`);
+        
+        return true;
+      } catch (innerError) {
+        console.error(`[RESTSocketService] Erro ao processar dados da roleta ${roletaId}:`, innerError);
+        return false;
       }
-      
-      return true;
     } catch (error) {
       console.error(`[RESTSocketService] Erro ao buscar números para roleta ${roletaId}:`, error);
       return false;
@@ -660,21 +737,30 @@ class RESTSocketService {
       console.log('[RESTSocketService] Não inicializando segundo endpoint de polling - usando apenas dados do serviço global');
       
       // Assinar atualizações do serviço global centralizado em vez de fazer polling diretamente
-      globalRouletteDataService.subscribe('RESTSocketService-secondary', () => {
-        if (this.debug) {
-          console.log('[RESTSocketService] Recebendo dados secundários do serviço global centralizado');
-        }
-        
-        // Apenas notificar sobre a atualização, sem processar novamente os dados
-        // Isso evita a duplicação de eventos, já que os dados já foram processados pelo serviço principal
-        this.emitter.emit('data_update', {
-          source: 'global-service-secondary',
-          count: globalRouletteDataService.getAllRoulettes()?.length || 0,
-          timestamp: new Date()
+      try {
+        globalRouletteDataService.subscribe('RESTSocketService-secondary', () => {
+          if (this.debug) {
+            console.log('[RESTSocketService] Recebendo dados secundários do serviço global centralizado');
+          }
+          
+          try {
+            // Apenas notificar sobre a atualização, sem processar novamente os dados
+            // Isso evita a duplicação de eventos, já que os dados já foram processados pelo serviço principal
+            const roulettes = globalRouletteDataService.getAllRoulettes();
+            this.emitter.emit('data_update', {
+              source: 'global-service-secondary',
+              count: roulettes && Array.isArray(roulettes) ? roulettes.length : 0,
+              timestamp: new Date()
+            });
+            
+            // Não chamamos this.processDataAsEvents aqui para evitar duplicação
+          } catch (error) {
+            console.error('[RESTSocketService] Erro ao processar dados secundários:', error);
+          }
         });
-        
-        // Não chamamos this.processDataAsEvents aqui para evitar duplicação
-      });
+      } catch (error) {
+        console.error('[RESTSocketService] Erro ao registrar no serviço global secundário:', error);
+      }
     }
   }
   
