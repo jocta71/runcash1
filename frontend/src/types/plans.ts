@@ -28,5 +28,4 @@ export interface UserSubscription {
   paymentProvider?: 'stripe' | 'manual' | 'ASAAS';
   paymentId?: string;
   nextBillingDate?: Date | null;
-  isPremiumActive?: boolean;
 } 
