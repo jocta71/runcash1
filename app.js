@@ -103,6 +103,11 @@ app.use('/api/roulettes', (req, res, next) => {
 
 // Rota para verificar status da assinatura
 app.get('/api/subscription/status', verificarAssinaturaRoletas, (req, res) => {
+  console.log('[API] Verificação de status de assinatura:', {
+    nivelAcesso: req.nivelAcessoRoletas || 'simulado',
+    usuarioId: req.usuario?.id || 'não autenticado'
+  });
+  
   return res.json({
     nivelAcesso: req.nivelAcessoRoletas || 'simulado',
     assinatura: req.assinatura || null,

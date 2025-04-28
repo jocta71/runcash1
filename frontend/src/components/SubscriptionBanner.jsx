@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
  * e o tipo de dados de roletas que está acessando
  */
 const SubscriptionBanner = () => {
-  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [subscriptionData, setSubscriptionData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isOpen, setIsOpen] = useState(true);
@@ -17,6 +17,8 @@ const SubscriptionBanner = () => {
     const checkSubscription = async () => {
       try {
         setLoading(true);
+        console.log('SubscriptionBanner: Verificando status da assinatura...');
+        
         // Buscar status da assinatura do usuário
         const response = await axios.get('/api/subscription/status', {
           headers: {
@@ -24,7 +26,8 @@ const SubscriptionBanner = () => {
           }
         });
         
-        setSubscriptionStatus(response.data);
+        console.log('SubscriptionBanner: Resposta recebida:', response.data);
+        setSubscriptionData(response.data);
         setLoading(false);
       } catch (err) {
         console.error('Erro ao verificar assinatura:', err);
@@ -35,6 +38,19 @@ const SubscriptionBanner = () => {
 
     checkSubscription();
   }, []);
+
+  // Determinar se o usuário tem assinatura premium
+  const isPremiumUser = subscriptionData?.nivelAcesso === 'premium' || 
+                       (subscriptionData?.subscription?.status === 'active') ||
+                       (subscriptionData?.hasActiveSubscription === true);
+  
+  console.log('SubscriptionBanner: Estado atual:', { 
+    loading, 
+    error, 
+    subscriptionData, 
+    isPremiumUser,
+    isOpen 
+  });
 
   // Se o banner for fechado, não mostrar nada
   if (!isOpen) return null;
@@ -74,7 +90,7 @@ const SubscriptionBanner = () => {
   }
 
   // Se não há status ou o usuário está usando dados simulados
-  if (!subscriptionStatus || subscriptionStatus.nivelAcesso === 'simulado') {
+  if (!isPremiumUser) {
     return (
       <div className="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
         <div className="flex">

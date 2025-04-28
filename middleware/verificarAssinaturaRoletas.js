@@ -11,6 +11,8 @@ const axios = require('axios');
  */
 const verificarAssinaturaRoletas = async (req, res, next) => {
   try {
+    console.log('[API] Iniciando verificação de assinatura para roletas');
+    
     // Definir acesso padrão como 'simulado'
     req.nivelAcessoRoletas = 'simulado';
     
@@ -27,6 +29,8 @@ const verificarAssinaturaRoletas = async (req, res, next) => {
       // Verificar token JWT
       const JWT_SECRET = process.env.JWT_SECRET || 'secret_padrao_roleta';
       const decodificado = jwt.verify(token, JWT_SECRET);
+      
+      console.log(`[API] Token JWT válido para usuário: ${decodificado.email}`);
       
       // Adicionar informações do usuário à requisição
       req.usuario = {
@@ -50,17 +54,21 @@ const verificarAssinaturaRoletas = async (req, res, next) => {
         req.assinatura = assinatura;
       } else {
         console.log(`[API] Assinatura não ativa para usuário ${decodificado.email}: usando dados simulados`);
+        // Garantir que o nível de acesso seja definido explicitamente
+        req.nivelAcessoRoletas = 'simulado';
       }
       
       next();
     } catch (error) {
       // Se houver erro na validação do token, manter acesso simulado
       console.log('[API] Erro na verificação do token: usando dados simulados', error.message);
+      req.nivelAcessoRoletas = 'simulado';
       next();
     }
   } catch (error) {
     console.error('[API] Erro ao verificar assinatura:', error);
     // Em caso de erro, continuar com acesso simulado
+    req.nivelAcessoRoletas = 'simulado';
     next();
   }
 };
@@ -80,6 +88,8 @@ async function verificarAssinaturaAsaas(customerId) {
       return null;
     }
     
+    console.log(`[API] Verificando assinatura no Asaas para customer: ${customerId}`);
+    
     // Buscar assinaturas do cliente
     const response = await axios.get(
       `${ASAAS_API_URL}/subscriptions?customer=${customerId}&status=ACTIVE`,
@@ -96,10 +106,12 @@ async function verificarAssinaturaAsaas(customerId) {
         Array.isArray(response.data.data) && 
         response.data.data.length > 0) {
       
+      console.log(`[API] Assinatura ativa encontrada no Asaas para customer: ${customerId}`);
       // Retornar a primeira assinatura ativa
       return response.data.data[0];
     }
     
+    console.log(`[API] Nenhuma assinatura ativa encontrada no Asaas para customer: ${customerId}`);
     return null;
   } catch (error) {
     console.error('[API] Erro ao verificar assinatura no Asaas:', error.message);

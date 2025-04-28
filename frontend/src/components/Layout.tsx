@@ -315,7 +315,9 @@ const Layout: React.FC<LayoutProps> = ({
         {/* Área do conteúdo principal */}
         <div className="pt-4 md:pt-[70px] w-full">
           {/* Banner de assinatura */}
-          <SubscriptionBanner />
+          <div className="px-4 md:px-6 md:pl-[280px]">
+            <SubscriptionBanner />
+          </div>
           
           <main className="pb-8 px-4 md:px-6 md:pl-[280px] w-full min-h-screen bg-[#131614]">
             {children}
