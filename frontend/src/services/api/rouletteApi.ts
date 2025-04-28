@@ -34,22 +34,8 @@ export const RouletteApi = {
       });
       
       return processedRoulettes;
-    } catch (error: any) {
+    } catch (error) {
       console.error('[API] Erro ao buscar roletas:', error);
-      
-      // Verificar se o erro é devido à falta de assinatura PRO
-      if (error.response && error.response.status === 403) {
-        const errorData = error.response.data;
-        
-        if (errorData && 
-            (errorData.error === 'PLAN_UPGRADE_REQUIRED' || 
-             errorData.error === 'RESOURCE_NOT_ALLOWED' ||
-             errorData.error === 'NO_ACTIVE_SUBSCRIPTION')) {
-          // Lançar um erro específico que será tratado pelo componente
-          throw new Error('SUBSCRIPTION_REQUIRED');
-        }
-      }
-      
       return [];
     }
   },
@@ -85,7 +71,7 @@ export const RouletteApi = {
       return null;
     } catch (error) {
       console.error(`[API] Erro ao buscar roleta ${id}:`, error);
-      throw error; // Propagar o erro para que seja tratado pelo componente
+      return null;
     }
   },
   

@@ -15,14 +15,10 @@ const rouletteController = require('../controllers/rouletteController');
 /**
  * @route   GET /api/roulettes
  * @desc    Lista todas as roletas disponíveis (limitado por plano)
- * @access  Privado - Requer assinatura PRO ou superior
+ * @access  Público com limitações
  */
 router.get('/roulettes', 
-  verifyTokenAndSubscription({ 
-    required: true,
-    allowedPlans: ['PRO', 'PREMIUM']
-  }),
-  requireResourceAccess('unlimited_roulettes'),
+  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
   rouletteController.listRoulettes
 );
 

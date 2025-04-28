@@ -6,14 +6,6 @@ import { getLogger } from '../utils/logger';
 // Logger para o repositório
 const logger = getLogger('Repository');
 
-// Erro personalizado para problema de assinatura
-export class SubscriptionRequiredError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'SubscriptionRequiredError';
-  }
-}
-
 // Tipagem para os dados de roleta padronizados
 export interface RouletteData {
   id: string;
@@ -53,7 +45,6 @@ export const RouletteRepository = {
   /**
    * Busca todas as roletas disponíveis com seus números
    * @returns Array de objetos de roleta padronizados
-   * @throws SubscriptionRequiredError quando o usuário não tem assinatura adequada
    */
   async fetchAllRoulettesWithNumbers(): Promise<RouletteData[]> {
     try {
@@ -77,7 +68,7 @@ export const RouletteRepository = {
       logger.info('Buscando todas as roletas com seus números');
       
       // Criar nova requisição e armazenar a promessa
-      const requestPromise = new Promise<RouletteData[]>(async (resolve, reject) => {
+      const requestPromise = new Promise<RouletteData[]>(async (resolve) => {
         try {
           // Buscar dados da API
           const rawData = await RouletteApi.fetchAllRoulettes();
@@ -112,15 +103,9 @@ export const RouletteRepository = {
           
           logger.info(`✅ Obtidas ${transformedData.length} roletas processadas`);
           resolve(transformedData);
-        } catch (error: any) {
+        } catch (error) {
           logger.error('Erro ao buscar roletas:', error);
-          
-          // Verificar se é um erro de assinatura
-          if (error.message === 'SUBSCRIPTION_REQUIRED') {
-            reject(new SubscriptionRequiredError('Assinatura PRO ou superior necessária para acessar as roletas'));
-          } else {
-            resolve([]);
-          }
+          resolve([]);
         } finally {
           // Remover do mapa de requisições pendentes após conclusão
           pendingRequests.delete(cacheKey);
@@ -131,13 +116,8 @@ export const RouletteRepository = {
       pendingRequests.set(cacheKey, requestPromise);
       
       return requestPromise;
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Erro ao buscar roletas:', error);
-      
-      if (error instanceof SubscriptionRequiredError) {
-        throw error; // Propagar o erro de assinatura
-      }
-      
       return [];
     }
   },
@@ -176,7 +156,7 @@ export const RouletteRepository = {
       logger.info(`Buscando roleta com ID: ${numericId}`);
       
       // Criar nova requisição e armazenar a promessa
-      const requestPromise = new Promise<RouletteData | null>(async (resolve, reject) => {
+      const requestPromise = new Promise<RouletteData | null>(async (resolve) => {
         try {
           // Buscar todas as roletas e filtrar
           const roulettes = await this.fetchAllRoulettesWithNumbers();
@@ -201,15 +181,9 @@ export const RouletteRepository = {
             logger.warn(`❌ Roleta com ID ${numericId} não encontrada`);
             resolve(null);
           }
-        } catch (error: any) {
+        } catch (error) {
           logger.error(`Erro ao buscar roleta ${id}:`, error);
-          
-          // Verificar se é um erro de assinatura
-          if (error instanceof SubscriptionRequiredError) {
-            reject(error); // Propagar o erro de assinatura
-          } else {
-            resolve(null);
-          }
+          resolve(null);
         } finally {
           // Remover do mapa de requisições pendentes após conclusão
           pendingRequests.delete(cacheKey);
@@ -220,13 +194,8 @@ export const RouletteRepository = {
       pendingRequests.set(cacheKey, requestPromise);
       
       return requestPromise;
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`Erro ao buscar roleta ${id}:`, error);
-      
-      if (error instanceof SubscriptionRequiredError) {
-        throw error; // Propagar o erro de assinatura
-      }
-      
       return null;
     }
   },
