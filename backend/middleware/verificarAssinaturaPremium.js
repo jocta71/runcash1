@@ -3,9 +3,9 @@
  * Bloqueia o acesso a rotas premium para usuários sem assinatura ativa
  */
 
-const ErrorResponse = require('../../utils/errorResponse');
+const ErrorResponse = require('../utils/errorResponse');
 const Usuario = require('../models/Usuario');
-const Assinatura = require('../../models/Assinatura');
+const Assinatura = require('../models/Assinatura');
 const asyncHandler = require('./asyncHandler');
 
 const verificarAssinaturaPremium = asyncHandler(async (req, res, next) => {

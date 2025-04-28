@@ -5,6 +5,7 @@
 
 const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
+const User = require('../models/User');
 const config = require('../config/config');
 const { Usuario } = require('../models');
 
@@ -25,8 +26,7 @@ exports.gerarToken = (user) => {
     email: user.email,
     nome: user.nome,
     role: user.role || 'user',
-    isPremium: user.isPremium || false,
-    asaasCustomerId: user.asaasCustomerId || null
+    isPremium: user.isPremium || false
   };
 
   return jwt.sign(userData, JWT_SECRET, {
@@ -82,8 +82,7 @@ exports.proteger = async (req, res, next) => {
       email: usuario.email,
       tipo: usuario.tipo,
       premium: usuario.premium,
-      roles: usuario.roles || [],
-      asaasCustomerId: usuario.asaasCustomerId || null
+      roles: usuario.roles || []
     };
     
     next();
@@ -295,8 +294,8 @@ exports.authenticate = (options = { required: true }) => {
       // Verifica e decodifica o token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       
-      // Busca usuário usando o modelo Usuario em vez de User
-      const user = await Usuario.findByPk(decoded.id);
+      // Busca usuário no banco de dados
+      const user = await User.findById(decoded.userId).select('-password');
       
       if (!user) {
         if (options.required) {

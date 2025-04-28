@@ -14,21 +14,91 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Apenas aceitar solicitações POST
-  if (req.method !== 'POST') {
+  // Apenas aceitar solicitações POST ou GET
+  if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Método não permitido' });
+  }
+
+  // Para requisições GET, redirecionar para asaas-find-customer
+  if (req.method === 'GET') {
+    const { email } = req.query;
+    
+    if (!email) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Campo email é obrigatório para busca' 
+      });
+    }
+    
+    // Redirecionar para o endpoint de busca
+    try {
+      console.log(`Buscando cliente pelo email: ${email}`);
+      
+      // Configuração da API do Asaas
+      const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
+      const ASAAS_ENVIRONMENT = process.env.ASAAS_ENVIRONMENT || 'sandbox';
+      const API_URL = ASAAS_ENVIRONMENT === 'production'
+        ? 'https://api.asaas.com/v3'
+        : 'https://sandbox.asaas.com/api/v3';
+
+      if (!ASAAS_API_KEY) {
+        return res.status(500).json({ 
+          success: false,
+          error: 'Chave de API do Asaas não configurada' 
+        });
+      }
+
+      // Configuração do cliente HTTP
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'access_token': ASAAS_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const searchResponse = await apiClient.get('/customers', {
+        params: { email }
+      });
+
+      // Se encontrou cliente, retornar
+      if (searchResponse.data.data && searchResponse.data.data.length > 0) {
+        const existingCustomer = searchResponse.data.data[0];
+        console.log(`Cliente encontrado, ID: ${existingCustomer.id}`);
+        
+        return res.status(200).json({
+          success: true,
+          id: existingCustomer.id,
+          customerId: existingCustomer.id,
+          customer: existingCustomer,
+          message: 'Cliente encontrado com sucesso'
+        });
+      } else {
+        return res.status(404).json({
+          success: false,
+          error: 'Cliente não encontrado'
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao buscar cliente:', error.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar cliente',
+        message: error.message
+      });
+    }
   }
 
   let client;
   
   try {
-    const { name, email, cpfCnpj, mobilePhone, userId } = req.body;
+    const { name, email, cpfCnpj, mobilePhone, userId, externalReference } = req.body;
 
-    // Validar campos obrigatórios
-    if (!name || !email || !cpfCnpj) {
+    // Validar campos obrigatórios - agora exigindo apenas name e email
+    if (!name || !email) {
       return res.status(400).json({ 
         success: false,
-        error: 'Campos obrigatórios: name, email, cpfCnpj' 
+        error: 'Campos obrigatórios: name, email' 
       });
     }
 
@@ -55,24 +125,35 @@ module.exports = async (req, res) => {
       }
     });
 
-    // Verificar se o cliente já existe pelo CPF/CNPJ
+    // Verificar se o cliente já existe pelo email
     try {
-      console.log(`Buscando cliente pelo CPF/CNPJ: ${cpfCnpj}`);
+      console.log(`Buscando cliente pelo email: ${email}`);
       const searchResponse = await apiClient.get('/customers', {
-        params: { cpfCnpj }
+        params: { email }
       });
 
-      // Se já existir um cliente com este CPF/CNPJ, retorná-lo
+      // Se já existir um cliente com este email, retorná-lo
       if (searchResponse.data.data && searchResponse.data.data.length > 0) {
         const existingCustomer = searchResponse.data.data[0];
         console.log(`Cliente já existe, ID: ${existingCustomer.id}`);
 
         // Opcionalmente, atualizar dados do cliente se necessário
-        await apiClient.post(`/customers/${existingCustomer.id}`, {
+        const updateData = {
           name,
-          email,
           mobilePhone
-        });
+        };
+        
+        // Adicionar externalReference se foi fornecido
+        if (externalReference) {
+          updateData.externalReference = externalReference;
+        }
+        
+        // Adicionar cpfCnpj apenas se foi fornecido
+        if (cpfCnpj) {
+          updateData.cpfCnpj = cpfCnpj;
+        }
+        
+        await apiClient.post(`/customers/${existingCustomer.id}`, updateData);
 
         // Conectar ao MongoDB e registrar o cliente se necessário
         if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
@@ -103,9 +184,8 @@ module.exports = async (req, res) => {
 
         return res.status(200).json({
           success: true,
-          data: {
-            customerId: existingCustomer.id
-          },
+          id: existingCustomer.id,
+          customerId: existingCustomer.id,
           message: 'Cliente recuperado e atualizado com sucesso'
         });
       }
@@ -119,10 +199,13 @@ module.exports = async (req, res) => {
     const customerData = {
       name,
       email,
-      cpfCnpj,
-      mobilePhone,
       notificationDisabled: false
     };
+    
+    // Adicionar campos opcionais se foram fornecidos
+    if (cpfCnpj) customerData.cpfCnpj = cpfCnpj;
+    if (mobilePhone) customerData.mobilePhone = mobilePhone;
+    if (externalReference) customerData.externalReference = externalReference;
 
     const createResponse = await apiClient.post('/customers', customerData);
     const newCustomer = createResponse.data;
@@ -151,9 +234,8 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: {
-        customerId: newCustomer.id
-      },
+      id: newCustomer.id,
+      customerId: newCustomer.id,
       message: 'Cliente criado com sucesso'
     });
   } catch (error) {

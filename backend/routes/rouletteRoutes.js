@@ -5,146 +5,40 @@
 
 const express = require('express');
 const router = express.Router();
-const verificarAssinaturaRoletas = require('../../middleware/verificarAssinaturaRoletas');
-const DadosSimuladosService = require('../../services/DadosSimuladosService');
 
-// Importar middlewares simplificados
-let authMiddleware;
-let subscriptionMiddleware;
-
-try {
-  // Tentar carregar o middleware simplificado primeiro
-  authMiddleware = require('../middlewares/simpleAuthMiddleware');
-  console.log('[API] Usando middleware de autenticação simplificado em rotas de roleta');
-} catch (err) {
-  // Fallback para o middleware original se o simplificado não existir
-  try {
-    authMiddleware = require('../middlewares/authMiddleware');
-    console.log('[API] Usando middleware de autenticação padrão em rotas de roleta');
-  } catch (error) {
-    console.error('[API] Erro ao carregar middleware de autenticação:', error.message);
-    // Criar um middleware vazio que apenas passa para o próximo
-    authMiddleware = {
-      proteger: (req, res, next) => next(),
-      authenticate: () => (req, res, next) => next()
-    };
-    console.warn('[API] Usando middleware de autenticação "dummy" em rotas de roleta (nenhuma verificação)');
-  }
-}
-
-try {
-  // Tentar carregar o middleware de assinatura
-  subscriptionMiddleware = require('../middlewares/asaasSubscriptionMiddleware');
-  console.log('[API] Middleware de verificação de assinatura carregado em rotas de roleta');
-} catch (error) {
-  console.error('[API] Erro ao carregar middleware de assinatura:', error.message);
-  // Criar um middleware vazio que apenas passa para o próximo
-  subscriptionMiddleware = {
-    verificarAssinatura: () => (req, res, next) => next(),
-    verificarAssinaturaBasica: (req, res, next) => next()
-  };
-  console.warn('[API] Usando middleware de assinatura "dummy" em rotas de roleta (nenhuma verificação)');
-}
-
-// Extrair os middlewares necessários
-const { proteger } = authMiddleware;
-const { verificarAssinatura, verificarAssinaturaBasica } = subscriptionMiddleware;
+// Importar middlewares
+const { authenticate } = require('../middlewares/authMiddleware');
+const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddleware');
 
 // Importar controller
 const rouletteController = require('../controllers/rouletteController');
 
-// Verificação se o controller existe e criar um dummy se necessário
-if (!rouletteController) {
-  console.error('[API] Controller de roletas não encontrado, criando mock');
-  
-  // Criar um controller fictício que retorna dados vazios
-  rouletteController = {
-    listRoulettes: (req, res) => res.json([]),
-    getBasicRouletteData: (req, res) => res.json({}),
-    getRecentNumbers: (req, res) => res.json([]),
-    getDetailedRouletteData: (req, res) => res.json({}),
-    getRouletteStatistics: (req, res) => res.json({}),
-    getHistoricalData: (req, res) => res.json({}),
-    getNumbersBatch: (req, res) => res.json([]),
-    getFreePreview: (req, res) => res.json({})
-  };
-}
-
-/**
- * Middleware para verificar acesso a dados específicos de roletas
- * Redireciona para dados simulados ou reais com base na assinatura
- */
-const verificarAcessoRoleta = (req, res, next) => {
-  // Se não tiver nível de acesso definido, aplicar o middleware
-  if (!req.nivelAcessoRoletas) {
-    return verificarAssinaturaRoletas(req, res, () => {
-      handleRouletteAccess(req, res, next);
-    });
-  }
-  
-  // Se já tiver nível de acesso definido, verificar diretamente
-  handleRouletteAccess(req, res, next);
-};
-
-/**
- * Função auxiliar para tratar o acesso baseado no nível
- */
-const handleRouletteAccess = (req, res, next) => {
-  // Se for acesso simulado, retornar dados simulados
-  if (req.nivelAcessoRoletas === 'simulado') {
-    // Obter ID da roleta da URL
-    const roletaId = req.params.id;
-    
-    // Obter limite da query string
-    const limit = parseInt(req.query.limit) || 20;
-    
-    // Buscar dados simulados
-    const dadosSimulados = DadosSimuladosService.obterRoletaSimuladaPorId(roletaId, limit);
-    
-    // Se não encontrou dados simulados para este ID, tente usar um ID padrão
-    if (!dadosSimulados) {
-      return res.json(DadosSimuladosService.obterRoletaSimuladaPorId('sim_001', limit));
-    }
-    
-    return res.json(dadosSimulados);
-  }
-  
-  // Caso contrário, continuar para o próximo middleware (dados reais)
-  next();
-};
-
-// Aplicar verificação de assinatura a todas as rotas
-router.use(verificarAssinaturaRoletas);
-
 /**
  * @route   GET /api/roulettes
  * @desc    Lista todas as roletas disponíveis (limitado por plano)
- * @access  Privado - Requer autenticação básica
+ * @access  Público com limitações
  */
 router.get('/roulettes', 
-  proteger,
+  authenticate({ required: false }), // Autenticação opcional
   rouletteController.listRoulettes
 );
 
 /**
  * @route   GET /api/roulettes/:id/basic
  * @desc    Obtém dados básicos de uma roleta específica
- * @access  Privado - Requer autenticação básica
+ * @access  Público
  */
 router.get('/roulettes/:id/basic', 
-  proteger,
-  verificarAcessoRoleta,
   rouletteController.getBasicRouletteData
 );
 
 /**
  * @route   GET /api/roulettes/:id/recent
  * @desc    Obtém números recentes de uma roleta (limitado por plano)
- * @access  Privado - Requer autenticação básica
+ * @access  Público com limitações
  */
 router.get('/roulettes/:id/recent', 
-  proteger,
-  verificarAcessoRoleta,
+  authenticate({ required: false }), // Autenticação opcional
   rouletteController.getRecentNumbers
 );
 
@@ -154,8 +48,11 @@ router.get('/roulettes/:id/recent',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/detailed', 
-  proteger,
-  verificarAcessoRoleta,
+  authenticate({ required: true }),
+  subscriptionMiddleware.requireSubscription({ 
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
+    resourceType: 'detailed_data'
+  }),
   rouletteController.getDetailedRouletteData
 );
 
@@ -165,8 +62,11 @@ router.get('/roulettes/:id/detailed',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/stats', 
-  proteger,
-  verificarAcessoRoleta,
+  authenticate({ required: true }),
+  subscriptionMiddleware.requireSubscription({ 
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
+    resourceType: 'roulette_stats'
+  }),
   rouletteController.getRouletteStatistics
 );
 
@@ -175,9 +75,12 @@ router.get('/roulettes/:id/stats',
  * @desc    Obtém dados históricos avançados (para assinantes premium)
  * @access  Privado - Requer assinatura premium
  */
-router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical', 
-  proteger,
-  verificarAcessoRoleta,
+router.get('/roulettes/:id/historical', 
+  authenticate({ required: true }),
+  subscriptionMiddleware.requireSubscription({ 
+    allowedPlans: ['PREMIUM'],
+    resourceType: 'historical_data'
+  }),
   rouletteController.getHistoricalData
 );
 
@@ -187,21 +90,21 @@ router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/batch', 
-  proteger,
-  verificarAcessoRoleta,
+  authenticate({ required: true }),
+  subscriptionMiddleware.requireSubscription({ 
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
+    resourceType: 'numbers_batch'
+  }),
   rouletteController.getNumbersBatch
 );
 
 /**
  * @route   GET /api/roulettes/:id/preview
- * @desc    Versão gratuita para não-assinantes (limitada)
+ * @desc    Versão degradada para usuários sem assinatura
  * @access  Público
  */
 router.get('/roulettes/:id/preview', 
   rouletteController.getFreePreview
 );
-
-// Adicionar rota uppercase para compatibilidade com frontend
-router.get('/ROULETTES', proteger, rouletteController.listRoulettes);
 
 module.exports = router; 

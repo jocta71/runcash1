@@ -8,8 +8,6 @@ import EventService from '@/services/EventService';
 import RouletteFeedService from '@/services/RouletteFeedService';
 // Remover a importação do initializeRouletteSystem pois vamos usar o service diretamente
 // import { initializeRouletteSystem } from '@/hooks/useRouletteData';
-// Importar o banner de assinatura
-import SubscriptionBanner from '@/components/SubscriptionBanner';
 
 // Flag para controlar se o componente já foi inicializado
 let IS_COMPONENT_INITIALIZED = false;
@@ -42,7 +40,6 @@ const LiveRoulettePage: React.FC = () => {
     setRoulettes(prevRoulettes => {
       return prevRoulettes.map(roleta => {
         // Verificar se é a roleta certa
-        // @ts-ignore - A propriedade canonicalId pode existir em tempo de execução
         if (roleta.id === rouletteId || roleta._id === rouletteId || roleta.canonicalId === rouletteId) {
           // Criar um novo número no formato correto
           const newNumber = {
@@ -184,9 +181,6 @@ const LiveRoulettePage: React.FC = () => {
       <Helmet>
         <title>Roletas ao vivo | RunCash</title>
       </Helmet>
-      
-      {/* Mostrar banner de assinatura acima do conteúdo principal */}
-      <SubscriptionBanner />
       
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Roletas ao vivo</h1>

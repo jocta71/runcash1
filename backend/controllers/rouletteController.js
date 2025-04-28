@@ -574,15 +574,6 @@ const getFreePreview = async (req, res) => {
   }
 };
 
-/**
- * Helper para determinar a cor de um número da roleta
- */
-function determinarCorNumero(numero) {
-  if (numero === 0) return 'verde';
-  const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-  return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
-}
-
 /** 
  * FUNÇÕES AUXILIARES
  */

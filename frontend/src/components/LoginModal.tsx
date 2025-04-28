@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -36,7 +37,7 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModal
   const { toast } = useToast();
   
   // API URL
-  const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://backend-production-2f96.up.railway.app/api';
 
   // Verificar se auth Google está disponível
   useEffect(() => {
@@ -222,6 +223,7 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModal
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-4xl grid grid-cols-1 md:grid-cols-2 p-0 gap-0 overflow-hidden">
+        <DialogTitle className="sr-only">Login ou Cadastro</DialogTitle>
         {/* Lado esquerdo - Imagem */}
         <div className="relative hidden md:block">
           <div 

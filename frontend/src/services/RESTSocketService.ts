@@ -1,6 +1,5 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
-import Cookies from 'js-cookie';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -28,46 +27,34 @@ export interface HistoryData {
   error?: string;
 }
 
-// Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
-type NodeJSTimeout = ReturnType<typeof setTimeout>;
-
-interface RESTSocketServiceConfig {
-  pollingInterval?: number;
-  httpEndpoint?: string;
-  centralServiceEndpoint?: string;
-}
-
-// Tipagem para callback de eventos da roleta
-export type RouletteEventCallback = (event: any) => void;
-
 /**
  * Serviço que gerencia o acesso a dados de roletas via API REST
  * Substitui o antigo serviço de WebSocket, mantendo a mesma interface
  */
 class RESTSocketService {
   private static instance: RESTSocketService;
-  private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
-  private rouletteHistory: Map<string, number[]> = new Map();
-  private lastProcessedData: Map<string, string> = new Map();
-  private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
-  private pollingTimer: NodeJSTimeout | null = null;
-  private secondEndpointPollingTimer: NodeJSTimeout | null = null;
-  private centralServicePollingTimer: NodeJSTimeout | null = null;
+  private listeners: Map<string, Set<any>> = new Map();
   private connectionActive: boolean = false;
-  private historyLimit: number = 500;
-  private defaultPollingInterval: number = isProduction ? 10000 : 5000; // 10 segundos em produção, 5 em desenvolvimento
-  private pollingEndpoint: string = '/api/roulettes/limits';
-  private centralServiceEndpoint: string = '/api/central-service/roulettes';
-  private centralServicePollingInterval: number = 60000; // 1 minuto = 60000 ms
-  private pollingIntervals: Map<string, number> = new Map();
-  private _isLoadingHistoricalData: boolean = false;
-  private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
+  private timerId: number | null = null;
+  private _lastCreatedTimerId: number | null = null; // Adicionar para controle interno
+  private pollingInterval: number = 4000; // Intervalo de 4 segundos para polling
+  private lastReceivedData: Map<string, { timestamp: number, data: any }> = new Map();
   
   // Propriedade para simular estado de conexão
   public client?: any;
   
-  // Propriedade para armazenar o último timer ID criado
-  private _lastCreatedTimerId: NodeJSTimeout | null = null;
+  // Mapa para armazenar os intervalos de polling por roletaId
+  private pollingIntervals: Map<string, number> = new Map();
+  
+  private _isLoadingHistoricalData: boolean = false;
+  
+  // Adicionar uma propriedade para armazenar o histórico completo por roleta  
+  private rouletteHistory: Map<string, number[]> = new Map();
+  private historyLimit: number = 1000;
+  
+  // Adicionar propriedade para armazenar cache de dados das roletas
+  private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
+  private cacheTTL: number = 5 * 60 * 1000; // 5 minutos em milissegundos
   
   private constructor() {
     console.log('[RESTSocketService] Inicializando serviço REST API com polling');
@@ -81,8 +68,10 @@ class RESTSocketService {
       }
     });
 
-    // Iniciar polling diretamente
+    // Iniciar o polling da API REST
     this.startPolling();
+    
+    // Iniciar também o polling para o endpoint sem parâmetro
     this.startSecondEndpointPolling();
     
     // Adicionar event listener para quando a janela ficar visível novamente
@@ -111,9 +100,9 @@ class RESTSocketService {
   // Iniciar polling da API REST
   private startPolling() {
     // Limpar qualquer timer existente
-    if (this.pollingTimer) {
-      window.clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
+    if (this.timerId) {
+      window.clearInterval(this.timerId);
+      this.timerId = null;
     }
 
     this.connectionActive = true;
@@ -138,10 +127,10 @@ class RESTSocketService {
     }
     
     // Criar um timer de verificação para garantir que o serviço global está funcionando
-    this.pollingTimer = window.setInterval(() => {
+    this.timerId = window.setInterval(() => {
       // Verificação simples para manter o timer ativo
       this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
-    }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
+    }, this.pollingInterval);
   }
   
   // Buscar dados da API REST
@@ -289,7 +278,6 @@ class RESTSocketService {
     return RESTSocketService.instance;
   }
 
-  // Obtém a URL do servidor de eventos baseado no método atual
   private getApiBaseUrl(): string {
     // Em ambiente de produção, usar o proxy da Vercel para evitar problemas de CORS
     if (isProduction) {
@@ -352,14 +340,14 @@ class RESTSocketService {
   public disconnect(): void {
     console.log('[RESTSocketService] Desconectando serviço de polling');
     
-    if (this.pollingTimer) {
-      console.log('[RESTSocketService] Limpando timer:', this.pollingTimer);
+    if (this.timerId) {
+      console.log('[RESTSocketService] Limpando timer:', this.timerId);
       try {
-        window.clearInterval(this.pollingTimer);
+        window.clearInterval(this.timerId);
       } catch (e) {
         console.error('[RESTSocketService] Erro ao limpar timer:', e);
       }
-      this.pollingTimer = null;
+      this.timerId = null;
     }
     
     this.connectionActive = false;
@@ -370,26 +358,26 @@ class RESTSocketService {
     console.log('[RESTSocketService] Reconectando serviço de polling');
     
     // Limpar intervalo existente para garantir
-    if (this.pollingTimer) {
+    if (this.timerId) {
       console.log('[RESTSocketService] Limpando timer existente antes de reconectar');
       try {
-        window.clearInterval(this.pollingTimer);
+        window.clearInterval(this.timerId);
       } catch (e) {
         console.error('[RESTSocketService] Erro ao limpar timer existente:', e);
       }
-      this.pollingTimer = null;
+      this.timerId = null;
     }
     
-    // Reiniciar polling com certeza de intervalo fixo
+    // Reiniciar polling com certeza de intervalo fixo de 8s
     setTimeout(() => {
       this.startPolling();
       
       // Verificar se o timer foi realmente criado
-      if (!this.pollingTimer) {
+      if (!this.timerId) {
         console.warn('[RESTSocketService] Timer não foi criado na reconexão. Criando manualmente...');
-        this.pollingTimer = window.setInterval(() => {
+        this.timerId = window.setInterval(() => {
           this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
-        }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
+        }, this.pollingInterval);
       }
     }, 100); // Pequeno atraso para garantir que o timer anterior foi limpo
   }
@@ -502,9 +490,9 @@ class RESTSocketService {
     console.log('[RESTSocketService] Destruindo serviço');
     
     // Limpar intervalos
-    if (this.pollingTimer) {
-      window.clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
+    if (this.timerId) {
+      window.clearInterval(this.timerId);
+      this.timerId = null;
     }
     
     // Remover event listeners
@@ -521,8 +509,8 @@ class RESTSocketService {
   private checkTimerHealth(): void {
     console.log('[RESTSocketService] Verificando saúde do timer de polling');
     
-    if (this.connectionActive && !this.pollingTimer) {
-      console.warn('[RESTSocketService] Timer ativo mas variável pollingTimer nula. Corrigindo...');
+    if (this.connectionActive && !this.timerId) {
+      console.warn('[RESTSocketService] Timer ativo mas variável timerId nula. Corrigindo...');
       
       // Primeiro limpar qualquer timer que possa existir mas não está referenciado
       try {
@@ -532,9 +520,9 @@ class RESTSocketService {
       } catch (e) {}
       
       // Criar um novo timer
-      this.pollingTimer = window.setInterval(() => {
+      this.timerId = window.setInterval(() => {
         this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
-      }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
+      }, this.pollingInterval);
       
       // Não chamar reconnect() para evitar loop
       return;
@@ -687,44 +675,6 @@ class RESTSocketService {
     }
     
     return mergedNumbers;
-  }
-
-  // Novo método para verificar assinatura antes de iniciar polling
-  private async checkSubscriptionBeforeInit(): Promise<void> {
-    try {
-      // Verificar localmente se o usuário está autenticado
-      const token = localStorage.getItem('auth_token_backup') || Cookies.get('auth_token');
-      
-      if (!token) {
-        console.log('[RESTSocketService] Usuário não autenticado, iniciando polling padrão');
-        this.startPolling();
-        return;
-      }
-      
-      // Verificar com o backend se o usuário tem plano
-      const API_URL = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${API_URL}/subscription/status`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        console.log('[RESTSocketService] Erro ao verificar assinatura, iniciando polling padrão');
-        this.startPolling();
-        return;
-      }
-      
-      const data = await response.json();
-      
-      // Iniciar polling completo independente do status da assinatura
-      console.log('[RESTSocketService] Iniciando polling padrão');
-        this.startPolling();
-        this.startSecondEndpointPolling();
-    } catch (error) {
-      console.error('[RESTSocketService] Erro ao verificar assinatura:', error);
-      this.startPolling();
-    }
   }
 }
 
