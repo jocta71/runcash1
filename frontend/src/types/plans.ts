@@ -18,19 +18,14 @@ export interface Plan {
 
 export interface UserSubscription {
   id: string;
-  userId?: string;
-  customerId?: string;
+  userId: string;
   planId: string;
-  planType?: PlanType;
-  startDate?: Date;
-  createdAt?: string;
-  endDate?: Date | null;
+  planType: PlanType;
+  startDate: Date;
+  endDate: Date | null;
   status: string;
   paymentMethod?: string;
   paymentProvider?: 'stripe' | 'manual' | 'ASAAS';
   paymentId?: string;
   nextBillingDate?: Date | null;
-  nextDueDate?: string;
-  lastPaymentDate?: string | null;
-  value?: number;
 } 
