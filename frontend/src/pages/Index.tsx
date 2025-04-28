@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, PackageOpen, Loader2, Copy } from 'lucide-react';
+import { AlertCircle, PackageOpen, Loader2, Copy, Lock } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
 import Layout from '@/components/Layout';
-import { RouletteRepository } from '../services/data/rouletteRepository';
+import { RouletteRepository, SubscriptionRequiredError } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService, { RouletteNumberEvent, StrategyUpdateEvent } from '@/services/EventService';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
@@ -199,6 +199,9 @@ const Index = () => {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   
+  // Novo estado para controlar o erro de assinatura
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  
   // Estados para o formulário de pagamento
   const [checkoutStep, setCheckoutStep] = useState<'form' | 'pix'>('form');
   const [formData, setFormData] = useState({
@@ -219,11 +222,12 @@ const Index = () => {
 
   const { user } = useAuth();
   const { toast } = useToast();
-  const { currentSubscription, currentPlan } = useSubscription();
-  const hasActivePlan = useMemo(() => {
-    return currentSubscription?.status?.toLowerCase() === 'active' || 
-           currentSubscription?.status?.toLowerCase() === 'ativo';
-  }, [currentSubscription]);
+  const { 
+    currentSubscription, 
+    currentPlan, 
+    loadUserSubscription, 
+    hasFeatureAccess 
+  } = useSubscription();
   
   // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
@@ -369,54 +373,42 @@ const Index = () => {
     try {
       setIsLoading(true);
       setError(null);
+      setSubscriptionError(null);
       
-      // Usar o throttler para evitar múltiplas chamadas simultâneas
-      const result = await RequestThrottler.scheduleRequest(
-        'index_roulettes',
-        async () => {
-          console.log('📊 Buscando roletas disponíveis...');
-          const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
-          console.log(`✅ ${response.length} roletas encontradas`);
-          return response;
-        }
-      );
+      // Verificar se o usuário está autenticado
+      if (!user) {
+        setError("Faça login para visualizar as roletas");
+        setIsLoading(false);
+        return;
+      }
       
-      if (result && Array.isArray(result)) {
-        // Mesclar com roletas conhecidas
-        const merged = mergeRoulettes(result, knownRoulettes);
-        setRoulettes(merged);
-        
-        // Atualizar roletas conhecidas se tivermos novos dados
-        if (result.length > 0) {
-          setKnownRoulettes(prev => mergeRoulettes(prev, result));
-        }
-        
-        // Definir que os dados foram totalmente carregados
-        setDataFullyLoaded(true);
+      // Carregar informações da assinatura
+      await loadUserSubscription(true);
+      
+      // Buscar roletas
+      const data = await RouletteRepository.fetchAllRoulettesWithNumbers();
+      if (data.length === 0) {
+        setError("Nenhuma roleta disponível no momento. Tente novamente mais tarde.");
+      }
+      
+      // Armazenar roletas e ordenar por ID
+      setRoulettes(data.sort((a, b) => a.id.localeCompare(b.id)));
+      setFilteredRoulettes(data);
+      setDataFullyLoaded(true);
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Erro ao carregar roletas:", error);
+      
+      // Verificar se é um erro de assinatura
+      if (error instanceof SubscriptionRequiredError) {
+        setSubscriptionError(error.message);
       } else {
-        // Se falhar, usar roletas conhecidas
-        if (knownRoulettes.length > 0) {
-          console.log('⚠️ Usando roletas conhecidas como fallback');
-          setRoulettes(knownRoulettes);
-          setDataFullyLoaded(true);
-        } else {
-          setError('Não foi possível carregar as roletas disponíveis.');
-        }
+        setError("Ocorreu um erro ao carregar as roletas. Tente novamente.");
       }
-    } catch (err: Error | unknown) {
-      console.error('❌ Erro ao buscar roletas:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
-      setError(`Erro ao buscar roletas: ${errorMessage}`);
       
-      // Fallback para roletas conhecidas
-      if (knownRoulettes.length > 0) {
-        setRoulettes(knownRoulettes);
-        setDataFullyLoaded(true);
-      }
-    } finally {
       setIsLoading(false);
     }
-  }, [knownRoulettes, mergeRoulettes]);
+  }, [user]);
 
   // Efeito para inicialização e atualização periódica
   useEffect(() => {
@@ -814,325 +806,101 @@ const Index = () => {
     }
   };
 
-  return (
-    <Layout>
-      <div className="container mx-auto px-4 pt-4 md:pt-8 min-h-[80vh] relative">
-        {/* Mensagem de erro */}
-        {error && (
-          <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center z-50 relative">
-            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-            <p className="text-red-100">{error}</p>
-          </div>
-        )}
-        
-        {/* Layout principal */}
-        <div className={`flex flex-col lg:flex-row gap-6 ${!hasActivePlan ? 'opacity-60' : ''}`}>
-          {/* Cards de roleta à esquerda */}
-          <div className="w-full lg:w-1/2">
-            <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">
-              <div className="flex justify-between items-center">
-                <div className={`${!hasActivePlan ? 'h-8 w-32 bg-gray-800 rounded animate-pulse' : 'text-white font-bold'}`}>
-                  {hasActivePlan ? 'Roletas Disponíveis' : ''}
-                </div>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {isLoading ? renderRouletteSkeletons() : renderRouletteCards()}
-            </div>
+  // Verificar se o usuário tem um plano PRO ou superior
+  const hasRequiredPlan = useMemo(() => {
+    if (!currentSubscription || !currentPlan) return false;
+    
+    const allowedPlans = ['PRO', 'PREMIUM'];
+    return allowedPlans.includes(currentPlan.type);
+  }, [currentSubscription, currentPlan]);
+
+  // Renderizar a mensagem de erro de assinatura
+  const renderSubscriptionError = () => {
+    if (!subscriptionError) return null;
+    
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-[70vh] p-4">
+        <div className="max-w-md mx-auto text-center">
+          <div className="flex justify-center mb-4">
+            <Lock className="h-12 w-12 text-yellow-500" />
           </div>
           
-          {/* Painel lateral */}
-          <div className="w-full lg:w-1/2">
-            {selectedRoulette ? (
-              <RouletteSidePanelStats
-                roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
-                lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
-                wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
-                losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
-                providers={[]} // Se houver uma lista de provedores disponível, passe aqui
-              />
-            ) : isLoading ? (
-              <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-8 flex flex-col items-center justify-center">
-                <div className="animate-spin rounded-full h-16 w-16 border-4 border-muted border-t-[hsl(142.1,70.6%,45.3%)] mb-4"></div>
-                <p className="text-gray-400">Carregando estatísticas...</p>
-              </div>
-            ) : (
-              <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-4 flex items-center justify-center h-48">
-                <p className="text-gray-400">Selecione uma roleta para ver suas estatísticas</p>
-              </div>
-            )}
+          <h2 className="text-2xl font-bold text-white mb-4">
+            Acesso Restrito
+          </h2>
+          
+          <p className="text-gray-300 mb-6">
+            Esta funcionalidade está disponível apenas para assinantes dos planos PRO ou PREMIUM.
+            Faça upgrade da sua assinatura para acessar todas as roletas em tempo real.
+          </p>
+          
+          <Button 
+            className="bg-gradient-to-r from-green-500 to-emerald-700 hover:from-green-600 hover:to-emerald-800 text-white font-medium"
+            onClick={() => setShowCheckout(true)}
+          >
+            <PackageOpen className="h-4 w-4 mr-2" />
+            Fazer Upgrade Agora
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Layout
+      title="RunCashVIP - Monitor de Roletas"
+      showChatArea={chatOpen}
+      showSidebar={sidebarOpen && selectedRoulette !== null}
+      sidebarContent={
+        selectedRoulette && (
+          <RouletteSidePanelStats
+            roulette={selectedRoulette}
+            onClose={() => setSidebarOpen(false)}
+            historicalNumbers={historicalNumbers}
+            isLoading={isLoadingStats}
+          />
+        )
+      }
+      showMobileSearch={showMobileSearch}
+      onToggleMobileSearch={() => setShowMobileSearch(!showMobileSearch)}
+      onCloseSidebar={() => setSidebarOpen(false)}
+      mobileSearchContent={
+        <div className="p-4">
+          <div className="mb-4">
+            <h3 className="text-lg font-medium text-white mb-2">Filtros</h3>
+            {/* Filtros aqui */}
           </div>
         </div>
-        
-        {/* Sobreposição do seletor de planos - apenas para quem não tem plano */}
-        {!hasActivePlan && (
-          <div className="absolute inset-0 flex items-center justify-center z-10">
-            <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center max-w-xl w-full">
-              <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
-              <p className="text-white/80 mb-6">Escolha um plano agora e desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
-              
-              {/* Seletor de planos com design moderno */}
-              <div className="flex flex-col items-center mb-6">
-                <style>{radioInputStyles}</style>
-                
-                {/* Cards de planos */}
-                <div className="flex flex-wrap justify-center w-full gap-4 mb-8">
-                  {/* Card do Plano Mensal */}
-                  <div 
-                    className={`w-full md:w-5/12 bg-[#18181f] border-2 rounded-xl shadow-lg overflow-hidden transition-all hover:shadow-green-500/20 cursor-pointer ${selectedPlan === "basic" ? "border-[#00FF00] shadow-md shadow-green-500/20" : "border-gray-800/50 hover:border-gray-700"}`}
-                    onClick={() => setSelectedPlan("basic")}
-                  >
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-white">Mensal</h3>
-                        <div className="flex items-center">
-                          <div className={`w-5 h-5 rounded-full border border-gray-600 mr-3 flex items-center justify-center ${selectedPlan === "basic" ? "bg-[#00FF00] border-green-500" : "bg-transparent"}`}>
-                            {selectedPlan === "basic" && <div className="w-3 h-3 rounded-full bg-white"></div>}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="text-3xl font-bold text-white mb-2">
-                        R$49<span className="text-sm text-gray-400">/mês</span>
-                      </div>
-                      
-                      <div className="text-sm text-gray-400 mb-4">
-                        Renovação mensal automática
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Card do Plano Anual */}
-                  <div 
-                    className={`w-full md:w-5/12 bg-[#18181f] border-2 rounded-xl shadow-lg overflow-hidden transition-all hover:shadow-green-500/20 cursor-pointer ${selectedPlan === "premium" ? "border-[#00FF00] shadow-md shadow-green-500/20" : "border-gray-800/50 hover:border-gray-700"}`}
-                    onClick={() => setSelectedPlan("premium")}
-                  >
-                    <div className="absolute top-0 right-0 bg-[#00FF00] text-black text-xs font-bold px-3 py-1 rounded-bl-lg">
-                      MELHOR OPÇÃO
-                    </div>
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-white">Anual</h3>
-                        <div className="flex items-center">
-                          <div className={`w-5 h-5 rounded-full border border-gray-600 mr-3 flex items-center justify-center ${selectedPlan === "premium" ? "bg-[#00FF00] border-green-500" : "bg-transparent"}`}>
-                            {selectedPlan === "premium" && <div className="w-3 h-3 rounded-full bg-white"></div>}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="text-3xl font-bold text-white mb-2">
-                        R$99<span className="text-sm text-gray-400">/ano</span>
-                      </div>
-                      
-                      <div className="text-sm text-gray-400 mb-4">
-                        Economia de R$489 por ano
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Botão de ação */}
-              <Button
-                onClick={() => setShowCheckout(true)}
-                className="bg-[#00FF00] hover:bg-[#00CC00] text-black font-bold py-3 px-6 rounded-lg w-full text-center transition-all transform hover:scale-105"
-              >
-                Escolher Plano
-              </Button>
-              
-              {/* Modal de checkout */}
-              {showCheckout && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
-                  <div className="bg-[#131614] rounded-xl shadow-2xl border border-gray-800/50 max-w-md w-full overflow-hidden">
-                    {checkoutStep === 'form' ? (
-                      <>
-                        <div className="p-6 border-b border-gray-800">
-                          <h3 className="text-xl font-bold text-white">Complete sua compra</h3>
-                          <p className="text-gray-400 text-sm mt-1">
-                            {selectedPlan === 'basic' ? 'Plano Mensal - R$49/mês' : 'Plano Anual - R$99/ano'}
-                          </p>
-                        </div>
-                        
-                        <form onSubmit={handlePayment} className="p-6 space-y-4">
-                          {paymentError && (
-                            <Alert variant="destructive" className="mb-4">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertTitle>Erro no pagamento</AlertTitle>
-                              <AlertDescription>{paymentError}</AlertDescription>
-                            </Alert>
-                          )}
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Nome completo</label>
-                            <input
-                              type="text"
-                              name="name"
-                              value={formData.name}
-                              onChange={handleChange}
-                              required
-                              className="w-full px-4 py-2 rounded-lg bg-[#1E1E24] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Email</label>
-                            <input
-                              type="email"
-                              name="email"
-                              value={formData.email}
-                              onChange={handleChange}
-                              required
-                              className="w-full px-4 py-2 rounded-lg bg-[#1E1E24] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">CPF</label>
-                            <input
-                              type="text"
-                              name="cpf"
-                              value={formData.cpf}
-                              onChange={handleChange}
-                              placeholder="000.000.000-00"
-                              required
-                              className="w-full px-4 py-2 rounded-lg bg-[#1E1E24] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Telefone</label>
-                            <input
-                              type="text"
-                              name="phone"
-                              value={formData.phone}
-                              onChange={handleChange}
-                              placeholder="(00) 00000-0000"
-                              required
-                              className="w-full px-4 py-2 rounded-lg bg-[#1E1E24] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                            />
-                          </div>
-                          
-                          <div className="flex justify-end space-x-3 mt-6">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setShowCheckout(false)}
-                              className="border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white"
-                            >
-                              Cancelar
-                            </Button>
-                            
-                            <Button
-                              type="submit"
-                              disabled={isProcessingPayment}
-                              className="bg-[#00FF00] hover:bg-[#00CC00] text-black font-bold"
-                            >
-                              {isProcessingPayment ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Processando...
-                                </>
-                              ) : (
-                                'Pagar com PIX'
-                              )}
-                            </Button>
-                          </div>
-                        </form>
-                      </>
-                    ) : (
-                      <>
-                        <div className="p-6 border-b border-gray-800">
-                          <h3 className="text-xl font-bold text-white">Pagamento via PIX</h3>
-                          <p className="text-gray-400 text-sm mt-1">
-                            Escaneie o QR code ou copie o código para pagar
-                          </p>
-                        </div>
-                        
-                        <div className="p-6">
-                          {pixLoading ? (
-                            <div className="flex flex-col items-center justify-center py-8">
-                              <Loader2 className="h-10 w-10 text-[#00FF00] animate-spin mb-4" />
-                              <p className="text-white">Gerando QR Code PIX...</p>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="flex flex-col items-center mb-6">
-                                {qrCodeImage && (
-                                  <img 
-                                    src={qrCodeImage} 
-                                    alt="QR Code PIX" 
-                                    className="w-48 h-48 bg-white p-2 rounded-lg"
-                                  />
-                                )}
-                                
-                                <div className="mt-4 text-center">
-                                  <p className="text-sm text-gray-400 mb-2">
-                                    Use o aplicativo do seu banco para escanear o QR code
-                                  </p>
-                                  
-                                  <div className="relative">
-                                    <div className="border border-gray-700 bg-[#1E1E24] rounded-lg p-3 text-sm text-gray-300 max-w-xs overflow-hidden overflow-ellipsis whitespace-nowrap">
-                                      {qrCodeText && qrCodeText.substring(0, 30)}...
-                                    </div>
-                                    
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={copyPIXCode}
-                                      className="absolute top-1 right-1 h-8 px-2 bg-transparent hover:bg-gray-800 border-0"
-                                    >
-                                      <Copy className="h-4 w-4 text-gray-400" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              <div className="border-t border-gray-800 pt-4 mt-4 text-center">
-                                <p className="text-sm text-gray-400 mb-4">
-                                  Após o pagamento, você será redirecionado automaticamente
-                                </p>
-                                
-                                <div className="flex justify-center space-x-3">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setShowCheckout(false)}
-                                    className="border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white"
-                                  >
-                                    Cancelar
-                                  </Button>
-                                  
-                                  <Button
-                                    type="button"
-                                    disabled={verifyingPayment}
-                                    onClick={() => checkPaymentStatusManually(paymentId)}
-                                    className="bg-[#00FF00] hover:bg-[#00CC00] text-black font-bold"
-                                  >
-                                    {verifyingPayment ? (
-                                      <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Verificando...
-                                      </>
-                                    ) : (
-                                      'Já paguei'
-                                    )}
-                                  </Button>
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+      }
+    >
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center w-full h-[70vh]">
+          <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
+          <p className="text-gray-400">Carregando roletas...</p>
+        </div>
+      ) : subscriptionError ? (
+        renderSubscriptionError()
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center w-full h-[70vh]">
+          <Alert variant="destructive" className="max-w-md">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Erro</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      ) : (
+        <div className="container mx-auto px-4 py-6">
+          {/* Resto do conteúdo */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+            {renderRouletteCards()}
           </div>
-        )}
-      </div>
+          
+          {filteredRoulettes.length > itemsPerPage && renderPagination()}
+        </div>
+      )}
+      
+      {/* Modal de checkout */}
+      {/* ... existing code ... */}
     </Layout>
   );
 };

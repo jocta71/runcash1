@@ -142,4 +142,65 @@ npm run preview
 ## Documentação Adicional
 
 - [Frontend README](./frontend/README.md) - Detalhes da implementação do frontend
-- [Documentação de Deploy](./frontend/DEPLOY.md) - Instruções detalhadas para deploy 
+- [Documentação de Deploy](./frontend/DEPLOY.md) - Instruções detalhadas para deploy
+
+# Restrição de Acesso a Dados de Roletas para Assinantes PRO e Premium
+
+Este documento descreve as modificações feitas para restringir o acesso aos dados da API de roletas apenas para usuários com assinaturas pagas PRO ou Premium.
+
+## Alterações Realizadas
+
+### Backend (Railway)
+
+1. **Modificado middleware de autenticação**:
+   - Atualizamos a rota `/api/roulettes` em `backend/routes/rouletteRoutes.js` para exigir assinatura PRO ou PREMIUM
+   - Adicionamos o middleware `requireResourceAccess('unlimited_roulettes')` para verificar o acesso específico a esse recurso
+   - Alteramos a documentação da rota para indicar que é uma rota privada com acesso restrito
+
+### Frontend (Vercel)
+
+1. **Tratamento de Erros de Assinatura**:
+   - Implementado no `rouletteApi.ts` para detectar erros 403 relacionados a restrições de assinatura
+   - Criada uma classe personalizada `SubscriptionRequiredError` no repositório de roletas para melhor tratamento de erro
+   - Propagação do erro de assinatura através da cadeia de chamadas API → Repository → Component
+
+2. **Interface de Usuário**:
+   - Adicionado estado `subscriptionError` para controlar a exibição da mensagem de erro de assinatura
+   - Criado um componente para mostrar mensagem informativa quando o usuário não possui assinatura adequada
+   - Adicionado botão para upgrade de plano quando o acesso é negado
+
+## Como Funciona
+
+1. Quando um usuário sem assinatura PRO ou PREMIUM tenta acessar a lista de roletas:
+   - O backend retorna um erro 403 com código `PLAN_UPGRADE_REQUIRED`
+   - O frontend captura esse erro e exibe uma mensagem amigável explicando a necessidade de upgrade
+   - É apresentado um botão para o usuário fazer upgrade da assinatura
+
+2. Usuários com assinatura PRO ou PREMIUM:
+   - Têm acesso completo a todas as roletas em tempo real
+   - Podem visualizar todas as estatísticas disponíveis
+
+## Planos Disponíveis
+
+- **FREE**: Acesso apenas a funcionalidades básicas e preview de roletas
+- **BASIC**: Acesso limitado a estatísticas padrão e visualização de até 15 roletas
+- **PRO**: Acesso a todas as roletas com atualização em tempo real
+- **PREMIUM**: Acesso completo a todas as funcionalidades, incluindo dados históricos e predições de IA
+
+## Manutenção e Suporte
+
+Para dúvidas ou problemas relacionados à implementação da restrição de acesso:
+
+1. Verifique os logs do servidor no Railway para erros de autenticação
+2. Verifique os logs do cliente no console do navegador para erros de API
+3. Teste o fluxo de upgrade de assinatura para garantir que funciona corretamente
+
+## Testes 
+
+É recomendado testar os seguintes cenários:
+
+1. Acesso sem login - deve mostrar mensagem para fazer login
+2. Acesso com assinatura FREE - deve mostrar mensagem para fazer upgrade
+3. Acesso com assinatura BASIC - deve mostrar mensagem para fazer upgrade
+4. Acesso com assinatura PRO - deve mostrar todas as roletas normalmente
+5. Acesso com assinatura PREMIUM - deve mostrar todas as roletas normalmente 
