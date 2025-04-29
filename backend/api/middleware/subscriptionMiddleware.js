@@ -1,118 +1,155 @@
 /**
  * Middleware para verificar assinaturas e controlar acesso a recursos
- * Especialmente útil para proteger a rota /api/roulettes
  */
 
-const { MongoClient, ObjectId } = require('mongodb');
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/runcash';
+const getDb = require('../utils/db');
+const { ObjectId } = require('mongodb');
 
 /**
- * Middleware para verificar se o usuário tem uma assinatura ativa
- * para acessar dados das roletas
+ * Verifica se o usuário tem uma assinatura ativa
+ * @param {Object} options - Opções de configuração
+ * @param {boolean} options.required - Se a assinatura é obrigatória (padrão: true)
+ * @param {Array} options.allowedPlans - Lista de planos permitidos (opcional)
+ * @returns {Function} Middleware Express
  */
-const verificarAssinaturaRoletas = async (req, res, next) => {
-  // Pular verificação em desenvolvimento se definido
-  if (process.env.SKIP_SUBSCRIPTION_CHECK === 'true') {
-    console.log('[MiddlewareAssinatura] Verificação de assinatura ignorada (ambiente de desenvolvimento)');
-    return next();
-  }
+exports.requireSubscription = (options = { required: true }) => {
+  return async (req, res, next) => {
+    try {
+      // Verificar se o usuário está autenticado
+      if (!req.user && !req.userId) {
+        if (options.required) {
+          return res.status(401).json({
+            success: false,
+            message: 'Autenticação necessária para acessar este recurso',
+            error: 'AUTH_REQUIRED'
+          });
+        } else {
+          // Autenticação opcional, permitir acesso mesmo sem usuário
+          return next();
+        }
+      }
 
-  // Extrai o token de autorização
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      success: false,
-      message: 'Autenticação necessária para acessar dados das roletas',
-      code: 'AUTH_REQUIRED'
-    });
-  }
+      const userId = req.user?.id || req.userId;
+      
+      // Se sem usuário mas não obrigatório, continuar
+      if (!userId && !options.required) {
+        return next();
+      }
 
-  // Extrai o token do cabeçalho
-  const token = authHeader.split(' ')[1];
-  
-  try {
-    // Verificar se o token está no formato JWT decodificável
-    const tokenParts = token.split('.');
-    if (tokenParts.length !== 3) {
-      return res.status(401).json({
-        success: false, 
-        message: 'Token inválido',
-        code: 'INVALID_TOKEN'
+      // Buscar assinatura ativa no banco de dados
+      const db = await getDb();
+      const userSubscription = await db.collection('subscriptions').findOne({
+        user_id: userId,
+        status: { $in: ['active', 'ACTIVE', 'ativa'] }
       });
-    }
-    
-    // Decodificar payload do token
-    const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
-    const userId = payload.id || payload.userId || payload.sub;
-    
-    if (!userId) {
-      return res.status(401).json({
+
+      // Verificar se a assinatura existe e está ativa
+      if (!userSubscription) {
+        if (options.required) {
+          return res.status(403).json({
+            success: false,
+            message: 'Você precisa de uma assinatura ativa para acessar este recurso',
+            error: 'SUBSCRIPTION_REQUIRED'
+          });
+        } else {
+          // Assinatura opcional, continuar sem benefícios premium
+          req.hasSubscription = false;
+          return next();
+        }
+      }
+
+      // Verificar se a assinatura está expirada
+      if (userSubscription.expirationDate && new Date(userSubscription.expirationDate) < new Date()) {
+        if (options.required) {
+          return res.status(403).json({
+            success: false,
+            message: 'Sua assinatura expirou. Por favor, renove sua assinatura para continuar',
+            error: 'SUBSCRIPTION_EXPIRED'
+          });
+        } else {
+          // Expirada mas não obrigatória, continuar sem benefícios premium
+          req.hasSubscription = false;
+          return next();
+        }
+      }
+
+      // Verificar se o plano é permitido (se especificado)
+      if (options.allowedPlans && options.allowedPlans.length > 0) {
+        const userPlan = userSubscription.plan_id;
+        
+        if (!options.allowedPlans.includes(userPlan)) {
+          return res.status(403).json({
+            success: false,
+            message: `Acesso negado. Este recurso requer um plano superior`,
+            error: 'PLAN_UPGRADE_REQUIRED',
+            currentPlan: userPlan,
+            requiredPlans: options.allowedPlans
+          });
+        }
+      }
+
+      // Adicionar informações da assinatura ao objeto de requisição
+      req.subscription = userSubscription;
+      req.hasSubscription = true;
+      next();
+    } catch (error) {
+      console.error('Erro ao verificar assinatura:', error);
+      return res.status(500).json({
         success: false,
-        message: 'Identificação do usuário não encontrada no token',
-        code: 'INVALID_TOKEN'
+        message: 'Erro ao verificar assinatura',
+        error: 'INTERNAL_SERVER_ERROR'
       });
     }
-
-    // Conectar ao MongoDB
-    const client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    const db = client.db();
-
-    // Verificar se a assinatura existe e está ativa
-    const subscription = await db.collection('subscriptions').findOne({
-      user_id: userId.toString(),
-      status: { $in: ['active', 'ACTIVE', 'ativa', 'ATIVA'] }
-    });
-
-    // Se não encontrou assinatura ativa
-    if (!subscription) {
-      await client.close();
-      return res.status(403).json({
-        success: false,
-        message: 'Você precisa de uma assinatura ativa para acessar dados das roletas',
-        code: 'SUBSCRIPTION_REQUIRED'
-      });
-    }
-
-    // Verificar se a assinatura está expirada
-    if (subscription.expirationDate && new Date(subscription.expirationDate) < new Date()) {
-      await client.close();
-      return res.status(403).json({
-        success: false,
-        message: 'Sua assinatura expirou. Por favor, renove sua assinatura para continuar acessando os dados',
-        code: 'SUBSCRIPTION_EXPIRED'
-      });
-    }
-
-    // Verificar se o plano da assinatura permite acesso às roletas
-    // Aqui você pode implementar verificações específicas para diferentes planos
-    
-    // Adicionar informações da assinatura ao objeto de requisição
-    req.subscription = subscription;
-    req.userId = userId;
-    
-    // Registrar acesso à API de roletas
-    await db.collection('api_access_logs').insertOne({
-      user_id: userId,
-      subscription_id: subscription._id.toString(),
-      endpoint: req.originalUrl,
-      method: req.method,
-      timestamp: new Date(),
-      ip: req.ip || req.headers['x-forwarded-for'] || 'unknown'
-    });
-    
-    await client.close();
-    next();
-  } catch (error) {
-    console.error('Erro ao verificar assinatura:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erro ao verificar assinatura',
-      code: 'SERVER_ERROR'
-    });
-  }
+  };
 };
 
-module.exports = {
-  verificarAssinaturaRoletas
+/**
+ * Verifica se o usuário tem acesso a determinado recurso
+ * @param {String} resourceType - Tipo de recurso que requer verificação
+ * @returns {Function} Middleware Express
+ */
+exports.requireResourceAccess = (resourceType) => {
+  return async (req, res, next) => {
+    try {
+      // Verificar se a assinatura está presente
+      if (!req.hasSubscription || !req.subscription) {
+        return res.status(403).json({
+          success: false,
+          message: 'Assinatura necessária para acessar este recurso',
+          error: 'SUBSCRIPTION_REQUIRED'
+        });
+      }
+
+      // Mapeamento de recursos por plano
+      const resourceAccessMap = {
+        'BASIC': ['basic_data', 'standard_stats'],
+        'PRO': ['basic_data', 'standard_stats', 'advanced_stats', 'real_time_data'],
+        'PREMIUM': ['basic_data', 'standard_stats', 'advanced_stats', 'real_time_data', 'historical_data', 'api_access']
+      };
+
+      // Verificar se o plano do usuário permite acesso ao recurso
+      const planResources = resourceAccessMap[req.subscription.plan_id] || [];
+      
+      if (!planResources.includes(resourceType)) {
+        return res.status(403).json({
+          success: false,
+          message: `Acesso negado. Este recurso requer um plano superior`,
+          error: 'RESOURCE_NOT_ALLOWED',
+          currentPlan: req.subscription.plan_id,
+          requestedResource: resourceType
+        });
+      }
+
+      // Se chegou aqui, o usuário tem acesso ao recurso
+      next();
+    } catch (error) {
+      console.error('Erro na verificação de acesso a recurso:', error);
+      
+      return res.status(500).json({
+        success: false,
+        message: 'Erro interno durante verificação de acesso a recurso',
+        error: 'INTERNAL_SERVER_ERROR'
+      });
+    }
+  };
 }; 

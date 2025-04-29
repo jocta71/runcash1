@@ -361,16 +361,9 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Importar o middleware de verificação de assinatura
-const { verificarAssinaturaRoletas } = require('./api/middleware/subscriptionMiddleware');
-
 // Rota para listar todas as roletas (endpoint em inglês)
-// Esta rota está protegida pelo middleware verificarAssinaturaRoletas
-// que verifica se o usuário tem uma assinatura ativa no Asaas
-// O webhook /api/asaas-webhook atualiza o status das assinaturas quando eventos são recebidos
-app.get('/api/roulettes', verificarAssinaturaRoletas, async (req, res) => {
+app.get('/api/roulettes', async (req, res) => {
   console.log('[API] Requisição recebida para /api/roulettes');
-  console.log(`[API] Usuário autenticado: ${req.userId}, Assinatura: ${req.subscription._id}`);
   
   try {
     if (!isConnected || !collection) {
@@ -393,13 +386,9 @@ app.get('/api/roulettes', verificarAssinaturaRoletas, async (req, res) => {
 });
 
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
-// Esta rota está protegida pelo middleware verificarAssinaturaRoletas
-// que verifica se o usuário tem uma assinatura ativa no Asaas
-// O webhook /api/asaas-webhook atualiza o status das assinaturas quando eventos são recebidos
-app.get('/api/ROULETTES', verificarAssinaturaRoletas, async (req, res) => {
+app.get('/api/ROULETTES', async (req, res) => {
   console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
   console.log('[API] Query params:', req.query);
-  console.log(`[API] Usuário autenticado: ${req.userId}, Assinatura: ${req.subscription._id}`);
   
   // Aplicar cabeçalhos CORS explicitamente para esta rota
   res.header('Access-Control-Allow-Origin', '*');
