@@ -4,7 +4,9 @@
   "description": "Serviço de gerenciamento de assinaturas com Asaas",
   "main": "src/app.js",
   "scripts": {
-    "start": "node src/app.js",
+    "start": "bash start.sh",
+    "start:combined": "bash start-combined.sh",
+    "start:node": "node src/app.js",
     "dev": "nodemon src/app.js",
     "test": "jest"
   },

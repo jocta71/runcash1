@@ -1,0 +1,13 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "dockerfile": "./Dockerfile",
+    "buildCommand": ".railway/build.sh"
+  },
+  "deploy": {
+    "startCommand": "./start-combined.sh",
+    "healthcheckPath": "/status",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "always"
+  }
+} 
