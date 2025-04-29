@@ -17,13 +17,23 @@ console.log(`[WEBHOOK] Usando Asaas em ambiente: ${ASAAS_ENVIRONMENT}`);
  */
 async function getSubscriptionDetails(subscriptionId) {
   try {
+    console.log(`[WEBHOOK] Buscando detalhes da assinatura ${subscriptionId}`);
     const response = await axios.get(
       `${API_BASE_URL}/subscriptions/${subscriptionId}`,
       { headers: { 'access_token': ASAAS_API_KEY } }
     );
     return response.data;
   } catch (error) {
-    console.error('Erro ao buscar detalhes da assinatura:', error.message);
+    console.error('[WEBHOOK] Erro ao buscar detalhes da assinatura:', error.message);
+    
+    // Tentar obter detalhes da resposta de erro para diagnóstico
+    if (error.response) {
+      console.error('[WEBHOOK] Resposta de erro da API Asaas:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+    
     throw error;
   }
 }
@@ -49,7 +59,8 @@ module.exports = async (req, res) => {
   if (req.method === 'GET') {
     return res.status(200).json({ 
       status: 'Webhook endpoint ativo. Use POST para eventos do Asaas.',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      environment: ASAAS_ENVIRONMENT
     });
   }
 
@@ -64,17 +75,28 @@ module.exports = async (req, res) => {
     const webhookData = req.body;
     console.log('[WEBHOOK] Evento recebido do Asaas:', JSON.stringify(webhookData, null, 2));
     
+    // Responder rapidamente para o Asaas, para evitar retentativas desnecessárias
+    // Processaremos o evento de forma assíncrona após a resposta
+    const responsePromise = res.status(200).json({ 
+      success: true, 
+      message: 'Webhook recebido com sucesso',
+      received_at: new Date().toISOString()
+    });
+    
     // Conectar ao MongoDB
     client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
+    console.log('[WEBHOOK] Conectado ao MongoDB');
+    
     const db = client.db(process.env.MONGODB_DATABASE || 'runcash');
     
-    // Registrar o log do webhook
+    // Registrar o log do webhook imediatamente
     await db.collection('webhook_logs').insertOne({
       provider: 'asaas',
       event_type: webhookData.event,
       payload: webhookData,
-      created_at: new Date()
+      created_at: new Date(),
+      ip: req.ip || req.headers['x-forwarded-for'] || 'unknown'
     });
     
     // Processar diferentes tipos de eventos
@@ -82,7 +104,8 @@ module.exports = async (req, res) => {
     const payment = webhookData.payment;
     
     if (!payment) {
-      return res.status(400).json({ error: 'Dados de pagamento não fornecidos' });
+      console.error('[WEBHOOK] Dados de pagamento não fornecidos');
+      return responsePromise;
     }
     
     // Obter ID da assinatura do pagamento
@@ -90,7 +113,7 @@ module.exports = async (req, res) => {
     
     if (!subscriptionId) {
       console.log('[WEBHOOK] Pagamento não relacionado a uma assinatura', payment);
-      return res.status(200).json({ message: 'Evento ignorado - não é uma assinatura' });
+      return responsePromise;
     }
     
     // Buscar detalhes da assinatura no Asaas
@@ -100,12 +123,15 @@ module.exports = async (req, res) => {
       console.log('[WEBHOOK] Detalhes da assinatura:', JSON.stringify(subscriptionDetails, null, 2));
     } catch (error) {
       console.error('[WEBHOOK] Erro ao buscar detalhes da assinatura:', error.message);
+      // Continuar processamento mesmo sem detalhes completos
     }
     
-    // Buscar assinatura no MongoDB pelo payment_id
+    // Buscar assinatura no MongoDB pelo ID da assinatura
     const subscriptionData = await db.collection('subscriptions').findOne({
       payment_id: subscriptionId
     });
+    
+    console.log(`[WEBHOOK] Assinatura encontrada no banco: ${subscriptionData ? 'Sim' : 'Não'}`);
     
     // Se a assinatura não existir no banco, mas existir no Asaas, criar novo registro
     if (!subscriptionData && subscriptionDetails) {
@@ -113,17 +139,44 @@ module.exports = async (req, res) => {
       const userId = await getUserIdFromAsaasCustomer(db, subscriptionDetails.customer);
       
       if (userId) {
+        console.log(`[WEBHOOK] Criando nova assinatura para o usuário ${userId} com ID ${subscriptionId}`);
+        
+        // Mapear o plano com base no valor e ciclo
+        const planId = mapPlanType(subscriptionDetails.value, subscriptionDetails.cycle);
+        
+        // Calcular data de expiração com base no ciclo
+        const expirationDate = calculateExpirationDate(subscriptionDetails.cycle);
+        
         // Criar nova assinatura no banco
         await db.collection('subscriptions').insertOne({
           user_id: userId,
           payment_id: subscriptionId,
-          plan_id: mapPlanType(subscriptionDetails.value, subscriptionDetails.cycle),
+          plan_id: planId,
           status: 'pending',
+          value: subscriptionDetails.value,
+          cycle: subscriptionDetails.cycle,
+          expirationDate: expirationDate,
+          nextDueDate: subscriptionDetails.nextDueDate,
+          asaas_customer_id: subscriptionDetails.customer,
           created_at: new Date(),
           updated_at: new Date()
         });
         
         console.log(`[WEBHOOK] Nova assinatura criada para o usuário ${userId} com ID ${subscriptionId}`);
+        
+        // Adicionar log específico de criação
+        await db.collection('subscription_logs').insertOne({
+          user_id: userId,
+          subscription_id: subscriptionId,
+          action: 'create',
+          details: {
+            plan_id: planId,
+            value: subscriptionDetails.value,
+            event_type: eventType,
+            payment_id: payment.id
+          },
+          created_at: new Date()
+        });
       } else {
         console.error('[WEBHOOK] Usuário não encontrado para o customer ID:', subscriptionDetails.customer);
       }
@@ -144,10 +197,32 @@ module.exports = async (req, res) => {
           await updateOrCreateSubscription(db, subscriptionId, {
             status,
             expirationDate,
+            value: subscriptionDetails.value,
+            cycle: subscriptionDetails.cycle,
+            nextDueDate: subscriptionDetails.nextDueDate,
             updated_at: new Date()
           }, subscriptionDetails);
           
           console.log(`[WEBHOOK] Assinatura ${subscriptionId} ativada até ${expirationDate}`);
+          
+          // Adicionar log específico de ativação
+          const userId = subscriptionData?.user_id || 
+                        (await getUserIdFromAsaasCustomer(db, subscriptionDetails.customer));
+          
+          if (userId) {
+            await db.collection('subscription_logs').insertOne({
+              user_id: userId,
+              subscription_id: subscriptionId,
+              action: 'activate',
+              details: {
+                expirationDate,
+                event_type: eventType,
+                payment_id: payment.id,
+                plan_id: subscriptionData?.plan_id || mapPlanType(subscriptionDetails.value, subscriptionDetails.cycle)
+              },
+              created_at: new Date()
+            });
+          }
         } else {
           // Caso não consiga buscar detalhes, apenas atualizar status
           await updateSubscriptionStatus(db, subscriptionId, status);
@@ -170,22 +245,29 @@ module.exports = async (req, res) => {
         
       default:
         console.log(`[WEBHOOK] Evento não processado: ${eventType}`);
-        return res.status(200).json({ 
-          success: true, 
-          message: `Evento ${eventType} não requer atualização de status` 
-        });
+        break;
     }
     
-    return res.status(200).json({ 
-      success: true, 
-      message: `Evento ${eventType} processado com sucesso` 
-    });
+    console.log(`[WEBHOOK] Processamento do webhook concluído para evento ${eventType}`);
+    return responsePromise;
   } catch (error) {
     console.error('[WEBHOOK] Erro ao processar webhook do Asaas:', error);
-    return res.status(500).json({ error: 'Erro interno do servidor', message: error.message });
+    
+    // Se ainda não respondemos, enviar uma resposta de erro
+    if (!res.headersSent) {
+      return res.status(500).json({ 
+        error: 'Erro interno do servidor', 
+        message: error.message 
+      });
+    }
   } finally {
     if (client) {
-      await client.close();
+      try {
+        await client.close();
+        console.log('[WEBHOOK] Conexão com MongoDB fechada');
+      } catch (err) {
+        console.error('[WEBHOOK] Erro ao fechar conexão com MongoDB:', err);
+      }
     }
   }
 };
@@ -202,21 +284,28 @@ function calculateExpirationDate(cycle) {
     case 'MONTHLY':
     case 'monthly':
       expirationDate.setMonth(expirationDate.getMonth() + 1);
+      expirationDate.setDate(expirationDate.getDate() + 3); // 3 dias de tolerância
       break;
     case 'QUARTERLY':
     case 'quarterly':
       expirationDate.setMonth(expirationDate.getMonth() + 3);
+      expirationDate.setDate(expirationDate.getDate() + 5); // 5 dias de tolerância
       break;
     case 'YEARLY':
     case 'yearly':
     case 'annual':
       expirationDate.setFullYear(expirationDate.getFullYear() + 1);
+      expirationDate.setDate(expirationDate.getDate() + 7); // 7 dias de tolerância
       break;
     default:
       // Padrão de 30 dias se o ciclo não for reconhecido
-      expirationDate.setDate(expirationDate.getDate() + 30);
+      expirationDate.setDate(expirationDate.getDate() + 33); // 30 dias + 3 de tolerância
   }
   
+  // Definir hora para final do dia
+  expirationDate.setHours(23, 59, 59, 999);
+  
+  console.log(`[WEBHOOK] Data de expiração calculada: ${expirationDate.toISOString()} para ciclo ${cycle}`);
   return expirationDate;
 }
 
@@ -286,6 +375,18 @@ async function updateSubscriptionStatus(db, subscriptionId, status, endDate) {
         read: false,
         created_at: new Date()
       });
+      
+      // Registrar ação no log de assinaturas
+      await db.collection('subscription_logs').insertOne({
+        user_id: userId,
+        subscription_id: subscriptionId,
+        action: status === 'active' ? 'activate' : status === 'overdue' ? 'overdue' : 'cancel',
+        created_at: new Date(),
+        details: {
+          status: status,
+          end_date: endDate || null
+        }
+      });
     }
   }
 }
@@ -301,11 +402,24 @@ async function getUserIdFromAsaasCustomer(db, customerId) {
   const user = await db.collection('users').findOne({
     $or: [
       { asaasCustomerId: customerId },
-      { 'asaas.customerId': customerId }
+      { 'asaas.customerId': customerId },
+      { 'asaas.id': customerId }
     ]
   });
   
-  return user ? user._id.toString() : null;
+  if (user) {
+    return user._id.toString();
+  }
+  
+  // Tentar buscar no formato antigo
+  const legacyUser = await db.collection('usuarios').findOne({
+    $or: [
+      { 'asaas.customerId': customerId },
+      { 'asaas.id': customerId }
+    ]
+  });
+  
+  return legacyUser ? legacyUser._id.toString() : null;
 }
 
 /**
@@ -315,13 +429,17 @@ async function getUserIdFromAsaasCustomer(db, customerId) {
  * @returns {string} Identificador do plano
  */
 function mapPlanType(value, cycle) {
-  // Mapeamento básico com base no valor e ciclo
-  if (cycle === 'MONTHLY' || cycle === 'monthly') {
-    return 'BASIC';
+  // Mapeamento com base no ciclo e valor
+  if (cycle === 'YEARLY' || cycle === 'yearly' || cycle === 'annual') {
+    return 'PREMIUM';
   } else if (cycle === 'QUARTERLY' || cycle === 'quarterly') {
     return 'PRO';
-  } else if (cycle === 'YEARLY' || cycle === 'yearly' || cycle === 'annual') {
-    return 'PREMIUM';
+  } else if (cycle === 'MONTHLY' || cycle === 'monthly') {
+    if (value >= 50) {
+      return 'PRO';
+    } else {
+      return 'BASIC';
+    }
   }
   
   // Mapeamento baseado no valor (ajustar conforme necessário)
@@ -348,29 +466,56 @@ async function updateOrCreateSubscription(db, subscriptionId, updateData, subscr
   });
   
   if (existingSubscription) {
+    console.log(`[WEBHOOK] Atualizando assinatura existente: ${subscriptionId}`);
+    
     // Atualizar assinatura existente
-    await db.collection('subscriptions').updateOne(
+    const result = await db.collection('subscriptions').updateOne(
       { payment_id: subscriptionId },
       { $set: updateData }
     );
+    
+    console.log(`[WEBHOOK] Assinatura atualizada: ${result.modifiedCount} documento(s) modificado(s)`);
   } else {
     // Buscar usuário pelo customer ID
     const userId = await getUserIdFromAsaasCustomer(db, subscriptionDetails.customer);
     
     if (!userId) {
+      console.error(`[WEBHOOK] Usuário não encontrado para customer ID: ${subscriptionDetails.customer}`);
       throw new Error(`Usuário não encontrado para customer ID: ${subscriptionDetails.customer}`);
     }
     
+    console.log(`[WEBHOOK] Criando nova assinatura para usuário ${userId}`);
+    
     // Criar nova assinatura
-    await db.collection('subscriptions').insertOne({
+    const result = await db.collection('subscriptions').insertOne({
       user_id: userId,
       payment_id: subscriptionId,
       plan_id: mapPlanType(subscriptionDetails.value, subscriptionDetails.cycle),
       status: updateData.status,
       expirationDate: updateData.expirationDate,
+      nextDueDate: subscriptionDetails.nextDueDate,
+      value: subscriptionDetails.value,
+      cycle: subscriptionDetails.cycle,
+      asaas_customer_id: subscriptionDetails.customer,
       activationDate: new Date(),
       created_at: new Date(),
       updated_at: new Date()
+    });
+    
+    console.log(`[WEBHOOK] Nova assinatura criada com _id: ${result.insertedId}`);
+    
+    // Registrar ação no log de assinaturas
+    await db.collection('subscription_logs').insertOne({
+      user_id: userId,
+      subscription_id: subscriptionId,
+      action: 'create_and_activate',
+      created_at: new Date(),
+      details: {
+        plan_id: mapPlanType(subscriptionDetails.value, subscriptionDetails.cycle),
+        status: updateData.status,
+        expirationDate: updateData.expirationDate,
+        value: subscriptionDetails.value
+      }
     });
   }
 } 
