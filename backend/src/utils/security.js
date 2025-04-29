@@ -73,16 +73,24 @@ function verifyToken(req, expectedToken) {
 }
 
 /**
- * Middleware para validar segurança da requisição
+ * Cria um middleware para validar segurança da requisição
  * 
- * @param {object} config - Configuração de segurança
+ * @param {object} options - Opções de segurança
  * @returns {function} Middleware Express
  */
-function createSecurityMiddleware(config) {
+function createSecurityMiddleware(options = {}) {
+  // Configurações padrão
+  const securityConfig = {
+    validateIP: options.validateIP || false,
+    validateToken: options.validateToken || false,
+    allowedIPs: options.allowedIPs || [],
+    webhookToken: options.webhookToken || process.env.ASAAS_WEBHOOK_TOKEN
+  };
+
   return (req, res, next) => {
     // Validação de IP, se habilitada
-    if (config.validateIP && config.allowedIPs.length > 0) {
-      const ipResult = verifyIP(req, config.allowedIPs);
+    if (securityConfig.validateIP && securityConfig.allowedIPs.length > 0) {
+      const ipResult = verifyIP(req, securityConfig.allowedIPs);
       if (!ipResult.valid) {
         logger.warn('Acesso negado - IP não autorizado', { 
           ip: ipResult.ip, 
@@ -96,8 +104,8 @@ function createSecurityMiddleware(config) {
     }
     
     // Validação de token, se habilitada
-    if (config.validateToken && req.method === 'POST') {
-      const tokenResult = verifyToken(req, config.webhookToken);
+    if (securityConfig.validateToken && req.method === 'POST') {
+      const tokenResult = verifyToken(req, securityConfig.webhookToken);
       if (!tokenResult.valid) {
         logger.warn('Acesso negado - Token inválido', { 
           path: req.path, 

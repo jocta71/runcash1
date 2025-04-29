@@ -1,23 +1,49 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const config = require('./config');
 const logger = require('./utils/logger');
 const security = require('./utils/security');
 const storage = require('./utils/storage');
+
+// Configurações do servidor
+const CONFIG = {
+  port: process.env.WEBHOOK_PORT || 3030,
+  host: process.env.WEBHOOK_HOST || 'localhost',
+  routes: {
+    webhook: '/api/asaas-webhook',
+    debug: '/debug',
+    health: '/health'
+  },
+  security: {
+    validateIP: process.env.VALIDATE_IP === 'true',
+    validateToken: process.env.VALIDATE_TOKEN !== 'false',
+    webhookToken: process.env.ASAAS_WEBHOOK_TOKEN || 'seu-token-aqui',
+    allowedIPs: (process.env.ALLOWED_IPS || '').split(',').filter(ip => ip.trim().length > 0),
+    cors: {
+      origin: process.env.CORS_ORIGIN || '*',
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'asaas-access-token', 'Authorization']
+    }
+  },
+  server: {
+    maxStoredEvents: 100,
+    eventExpiryTime: 7 * 24 * 60 * 60 * 1000, // 7 dias em milissegundos
+    cleanupInterval: 60 * 60 * 1000 // 1 hora em milissegundos
+  }
+};
 
 // Inicializa o app Express
 const app = express();
 
 // Configura middleware
-app.use(cors(config.security.cors));
+app.use(cors(CONFIG.security.cors));
 app.use(bodyParser.json({ limit: '1mb' }));
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Função para limpar eventos antigos
 function cleanupOldEvents() {
   const now = Date.now();
-  const cutoffTime = now - config.server.eventExpiryTime;
+  const cutoffTime = now - CONFIG.server.eventExpiryTime;
   
   const initialCount = storage.storage.webhookEvents.length;
   storage.storage.webhookEvents = storage.storage.webhookEvents.filter(event => 
@@ -30,7 +56,10 @@ function cleanupOldEvents() {
 }
 
 // Agenda a limpeza periódica
-setInterval(cleanupOldEvents, config.server.cleanupInterval);
+setInterval(cleanupOldEvents, CONFIG.server.cleanupInterval);
+
+// Carrega dados salvos anteriormente
+storage.loadPersistedData();
 
 // Função para registrar um evento recebido
 function recordWebhookEvent(event) {
@@ -43,7 +72,7 @@ function recordWebhookEvent(event) {
   storage.storage.webhookEvents.unshift(eventWithTimestamp);
   
   // Limita o tamanho máximo
-  if (storage.storage.webhookEvents.length > config.server.maxStoredEvents) {
+  if (storage.storage.webhookEvents.length > CONFIG.server.maxStoredEvents) {
     storage.storage.webhookEvents.pop();
   }
   
@@ -205,7 +234,7 @@ function handleSubscriptionCancelled(event) {
 }
 
 // Middleware para validação de segurança
-app.use(config.routes.webhook, security.createSecurityMiddleware(config.security));
+app.use(CONFIG.routes.webhook, security.createSecurityMiddleware(CONFIG.security));
 
 // Middleware para logging de requisições
 app.use((req, res, next) => {
@@ -231,7 +260,7 @@ app.use((req, res, next) => {
 });
 
 // Rota principal para receber webhooks
-app.post(config.routes.webhook, (req, res) => {
+app.post(CONFIG.routes.webhook, (req, res) => {
   try {
     const webhookEvent = req.body;
     
@@ -297,7 +326,7 @@ app.post(config.routes.webhook, (req, res) => {
 // Rotas para consulta dos dados
 
 // Lista eventos recebidos
-app.get(`${config.routes.debug}/events`, (req, res) => {
+app.get(`${CONFIG.routes.debug}/events`, (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
     const events = storage.storage.webhookEvents.slice(0, limit);
@@ -309,7 +338,7 @@ app.get(`${config.routes.debug}/events`, (req, res) => {
 });
 
 // Verifica status de uma assinatura
-app.get(`${config.routes.debug}/subscription/:id`, (req, res) => {
+app.get(`${CONFIG.routes.debug}/subscription/:id`, (req, res) => {
   try {
     const subscriptionId = req.params.id;
     const subscription = storage.storage.subscriptions[subscriptionId];
@@ -326,7 +355,7 @@ app.get(`${config.routes.debug}/subscription/:id`, (req, res) => {
 });
 
 // Verifica status de um pagamento
-app.get(`${config.routes.debug}/payment/:id`, (req, res) => {
+app.get(`${CONFIG.routes.debug}/payment/:id`, (req, res) => {
   try {
     const paymentId = req.params.id;
     const payment = storage.storage.payments[paymentId];
@@ -343,7 +372,7 @@ app.get(`${config.routes.debug}/payment/:id`, (req, res) => {
 });
 
 // Lista assinaturas de um usuário
-app.get(`${config.routes.debug}/customer/:id/subscriptions`, (req, res) => {
+app.get(`${CONFIG.routes.debug}/customer/:id/subscriptions`, (req, res) => {
   try {
     const customerId = req.params.id;
     const customer = storage.storage.customers[customerId];
@@ -371,7 +400,7 @@ app.get(`${config.routes.debug}/customer/:id/subscriptions`, (req, res) => {
 });
 
 // Lista clientes ativos
-app.get(`${config.routes.debug}/customers/active`, (req, res) => {
+app.get(`${CONFIG.routes.debug}/customers/active`, (req, res) => {
   try {
     const activeCustomers = storage.getActiveCustomers();
     res.json({ 
@@ -385,7 +414,7 @@ app.get(`${config.routes.debug}/customers/active`, (req, res) => {
 });
 
 // Verifica status de assinatura de um cliente
-app.get(`${config.routes.debug}/customer/:id/status`, (req, res) => {
+app.get(`${CONFIG.routes.debug}/customer/:id/status`, (req, res) => {
   try {
     const customerId = req.params.id;
     const hasActiveSubscription = storage.customerHasActiveSubscription(customerId);
@@ -402,7 +431,7 @@ app.get(`${config.routes.debug}/customer/:id/status`, (req, res) => {
 });
 
 // Lista dados em memória
-app.get(`${config.routes.debug}/stats`, (req, res) => {
+app.get(`${CONFIG.routes.debug}/stats`, (req, res) => {
   try {
     res.json({
       timestamp: new Date().toISOString(),
@@ -422,7 +451,7 @@ app.get(`${config.routes.debug}/stats`, (req, res) => {
 });
 
 // Rota de health check
-app.get(config.routes.health, (req, res) => {
+app.get(CONFIG.routes.health, (req, res) => {
   res.json({
     status: 'ok',
     version: '1.0.0',
@@ -456,8 +485,8 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // Inicia o servidor
-const PORT = config.server.port;
-app.listen(PORT, config.server.host, () => {
+const PORT = CONFIG.port;
+app.listen(PORT, CONFIG.host, () => {
   logger.info(`Servidor de webhook iniciado na porta ${PORT}`);
-  logger.info(`Webhook URL: http://${config.server.host}:${PORT}${config.routes.webhook}`);
+  logger.info(`Webhook URL: http://${CONFIG.host}:${PORT}${CONFIG.routes.webhook}`);
 }); 

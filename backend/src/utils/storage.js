@@ -3,8 +3,16 @@
  */
 const fs = require('fs');
 const path = require('path');
-const config = require('../config');
 const logger = require('./logger');
+
+// Constantes de configuração
+const CONFIG = {
+  server: {
+    maxStoredEvents: 100,
+    eventExpiryTime: 7 * 24 * 60 * 60 * 1000, // 7 dias
+    cleanupInterval: 60 * 60 * 1000 // 1 hora
+  }
+};
 
 // Diretório para armazenar os dados persistentes
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -84,7 +92,7 @@ function persistData(dataType) {
  */
 function cleanupOldEvents() {
   const now = Date.now();
-  const cutoffTime = now - config.server.eventExpiryTime;
+  const cutoffTime = now - CONFIG.server.eventExpiryTime;
   
   const initialCount = storage.webhookEvents.length;
   storage.webhookEvents = storage.webhookEvents.filter(event => 
@@ -111,7 +119,7 @@ function recordWebhookEvent(event) {
   storage.webhookEvents.unshift(eventWithTimestamp);
   
   // Limita o tamanho máximo
-  if (storage.webhookEvents.length > config.server.maxStoredEvents) {
+  if (storage.webhookEvents.length > CONFIG.server.maxStoredEvents) {
     storage.webhookEvents.pop();
   }
   
@@ -251,71 +259,59 @@ function updateCustomerCache(customer) {
 }
 
 /**
- * Obtém os clientes com assinaturas ativas
+ * Retorna a lista de clientes com assinaturas ativas
  * @returns {Array} Lista de clientes com assinaturas ativas
  */
 function getActiveCustomers() {
-  return Object.values(storage.customers).filter(customer => {
-    // Verifica se o cliente tem status de assinatura ativa
-    if (customer.subscriptionStatus && 
-        config.asaas.validSubscriptionStatuses.includes(customer.subscriptionStatus)) {
-      return true;
-    }
+  const activeCustomers = [];
+  
+  // Verifica cada cliente
+  for (const customerId in storage.customers) {
+    const customer = storage.customers[customerId];
     
-    // Verifica se alguma das assinaturas do cliente está ativa
-    if (customer.subscriptions && customer.subscriptions.length > 0) {
-      return customer.subscriptions.some(subId => {
-        const sub = storage.subscriptions[subId];
-        return sub && config.asaas.validSubscriptionStatuses.includes(sub.status);
-      });
+    // Verifica se o cliente tem assinaturas ativas
+    if (customerHasActiveSubscription(customerId)) {
+      activeCustomers.push(customer);
     }
-    
-    return false;
-  });
+  }
+  
+  return activeCustomers;
 }
 
 /**
  * Verifica se um cliente tem assinatura ativa
  * @param {string} customerId - ID do cliente
- * @returns {boolean} Verdadeiro se o cliente tem assinatura ativa
+ * @returns {boolean} Verdadeiro se tiver assinatura ativa
  */
 function customerHasActiveSubscription(customerId) {
-  if (!customerId) return false;
-  
   const customer = storage.customers[customerId];
-  if (!customer) return false;
-  
-  // Verifica o status direto no cliente
-  if (customer.subscriptionStatus && 
-      config.asaas.validSubscriptionStatuses.includes(customer.subscriptionStatus)) {
-    return true;
+  if (!customer || !customer.subscriptions) {
+    return false;
   }
   
-  // Verifica nas assinaturas do cliente
-  if (customer.subscriptions && customer.subscriptions.length > 0) {
-    return customer.subscriptions.some(subId => {
-      const sub = storage.subscriptions[subId];
-      return sub && config.asaas.validSubscriptionStatuses.includes(sub.status);
-    });
+  // Verifica cada assinatura do cliente
+  for (const subscriptionId of customer.subscriptions) {
+    const subscription = storage.subscriptions[subscriptionId];
+    
+    // Verifica se a assinatura existe e está ativa
+    if (subscription && subscription.status === 'ACTIVE') {
+      return true;
+    }
   }
   
   return false;
 }
 
-// Inicia a limpeza periódica de eventos
-setInterval(cleanupOldEvents, config.server.cleanupInterval);
-
-// Carrega dados persistidos ao iniciar
-loadPersistedData();
-
-// Exporta as funções e o storage
+// Expõe funções e objetos
 module.exports = {
   storage,
+  loadPersistedData,
+  persistData,
+  cleanupOldEvents,
   recordWebhookEvent,
   updateSubscriptionCache,
   updatePaymentCache,
   updateCustomerCache,
   getActiveCustomers,
-  customerHasActiveSubscription,
-  persistData
+  customerHasActiveSubscription
 }; 
