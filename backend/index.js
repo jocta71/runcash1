@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 
 console.log('=== RunCash Unified Server ===');
-console.log(`PORT: ${PORT}`);
+console.log(`Porta: ${PORT}`);
 console.log(`MONGODB_URI: ${MONGODB_URI ? MONGODB_URI.replace(/:.*@/, ':****@') : 'Não definida'}`);
 console.log('Diretório atual:', process.cwd());
 
@@ -30,25 +30,51 @@ try {
   console.warn('[Server] Erro ao verificar callback do Google:', err.message);
 }
 
-// Inicializar Express para a API principal
+// Inicializar app Express
 const app = express();
-
-// Middlewares básicos
-app.use(cors({
-  origin: [
-    'https://runcashh11.vercel.app',
-    'https://runcash5.vercel.app', 
-    'http://localhost:3000', 
-    'http://localhost:5173', 
-    'https://runcashh1.vercel.app'
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 
-                 'ngrok-skip-browser-warning', 'bypass-tunnel-reminder', 'cache-control', 'pragma'],
-  credentials: true,
-  optionsSuccessStatus: 200
-}));
+app.use(cors());
 app.use(express.json());
+
+// Criar servidor HTTP e Socket.IO
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
+// Conectar ao MongoDB
+async function connectToMongoDB() {
+  try {
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    console.log('✅ Conectado ao MongoDB Atlas com sucesso');
+    return client.db();
+  } catch (error) {
+    console.error('❌ Erro ao conectar ao MongoDB:', error);
+    return null;
+  }
+}
+
+// Configurar Socket.IO
+io.on('connection', (socket) => {
+  console.log('🔌 Cliente conectado:', socket.id);
+  
+  socket.on('disconnect', () => {
+    console.log('🔌 Cliente desconectado:', socket.id);
+  });
+  
+  // Exemplo de evento para receber e distribuir números de roleta
+  socket.on('roulette_number', (data) => {
+    console.log('📊 Número recebido:', data);
+    
+    // Enviar para todos os clientes conectados
+    io.emit('roulette_number', data);
+  });
+  
+  // Outros eventos do socket podem ser adicionados aqui...
+});
 
 // Verificar se a pasta api existe e carregar o index.js da API
 const apiIndexPath = path.join(__dirname, 'api', 'index.js');
@@ -101,18 +127,14 @@ if (fs.existsSync(apiIndexPath)) {
 
 // Configurar endpoints base para verificação
 app.get('/', (req, res) => {
-  res.json({
-    status: 'online',
-    service: 'RunCash Unified Server',
-    timestamp: new Date().toISOString()
-  });
+  res.send('RunCash API e WebSocket Server - Online');
 });
 
-app.get('/api', (req, res) => {
+app.get('/health', (req, res) => {
   res.json({
     status: 'online',
-    service: 'RunCash API',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -128,27 +150,6 @@ app.get('/auth/google/callback', (req, res, next) => {
   // Ajustar a URL para o middleware de passport poder processar corretamente
   req.url = '/api/auth/google/callback';
   app._router.handle(req, res, next);
-});
-
-// Inicializar servidor HTTP
-const server = http.createServer(app);
-
-// Inicializar Socket.IO básico
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
-});
-
-// Configurar eventos do Socket.IO
-io.on('connection', (socket) => {
-  console.log(`[Socket.IO] Novo cliente conectado: ${socket.id}`);
-  
-  socket.on('disconnect', () => {
-    console.log(`[Socket.IO] Cliente desconectado: ${socket.id}`);
-  });
 });
 
 // Verificar se o websocket_server.js existe e deve ser carregado
@@ -216,10 +217,16 @@ try {
 }
 
 // Iniciar servidor
-server.listen(PORT, () => {
-  console.log(`[Server] Servidor unificado iniciado na porta ${PORT}`);
-  console.log('[Server] Endpoints disponíveis:');
-  console.log('- / (status do servidor)');
-  console.log('- /api (rotas da API principal)');
-  console.log('- /emit-event (compatibilidade com WebSocket, se ativado)');
-});
+async function startServer() {
+  // Conectar ao MongoDB
+  const db = await connectToMongoDB();
+  
+  // Iniciar servidor HTTP
+  server.listen(PORT, () => {
+    console.log(`🚀 Servidor rodando na porta ${PORT}`);
+    console.log(`📱 Socket.IO disponível`);
+  });
+}
+
+// Iniciar o servidor
+startServer();
