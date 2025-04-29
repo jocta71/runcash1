@@ -46,6 +46,11 @@ class GlobalRouletteDataService {
   // Construtor privado para garantir Singleton
   private constructor() {
     console.log('[GlobalRouletteService] Inicializando serviço global de roletas');
+    
+    // Verificar assinatura ASAAS em segundo plano
+    this.updateSubscriptionStatus();
+    
+    // Iniciar polling para dados
     this.startPolling();
   }
 
@@ -76,6 +81,12 @@ class GlobalRouletteDataService {
     }, POLLING_INTERVAL) as unknown as number;
     
     console.log(`[GlobalRouletteService] Polling iniciado com intervalo de ${POLLING_INTERVAL}ms`);
+    
+    // Configurar verificação periódica de assinatura ASAAS (a cada 5 minutos)
+    setInterval(() => {
+      console.log('[GlobalRouletteService] Verificando status de assinatura ASAAS periodicamente');
+      this.updateSubscriptionStatus();
+    }, 5 * 60 * 1000); // 5 minutos = 300000ms
     
     // Adicionar manipuladores de visibilidade para pausar quando a página não estiver visível
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
@@ -118,38 +129,233 @@ class GlobalRouletteDataService {
   private hasActivePlan(): boolean {
     // Se já temos o estado em memória, usar esse
     if (this._hasPaidPlan) {
+      console.log('[GlobalRouletteService] Usando flag em memória: usuário tem plano ativo');
       return true;
     }
     
-    // Verificar no localStorage
-    const userDataStr = localStorage.getItem('auth_user_cache');
-    if (!userDataStr) {
-      return false;
+    // ETAPA 1: Verificar subscription_cache que é usado pelo SubscriptionContext
+    const subscriptionCacheStr = localStorage.getItem('subscription_cache');
+    if (subscriptionCacheStr) {
+      try {
+        const subscriptionCache = JSON.parse(subscriptionCacheStr);
+        
+        // Verificar se há uma assinatura ativa no formato do SubscriptionContext
+        if (subscriptionCache && 
+            (subscriptionCache.status === 'active' || 
+             subscriptionCache.status === 'ativo' ||
+             subscriptionCache.planId === 'premium' ||
+             subscriptionCache.planId === 'pro' ||
+             subscriptionCache.planId === 'basic')) {
+          
+          console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via subscription_cache: ${subscriptionCache.planId})`);
+          this._hasPaidPlan = true;
+          return true;
+        }
+      } catch (e) {
+        console.warn('[GlobalRouletteService] Erro ao analisar subscription_cache:', e);
+      }
     }
     
+    // ETAPA 1.1: Verificar asaas_subscription_cache que é mantido por este serviço
+    const asaasSubscriptionCacheStr = localStorage.getItem('asaas_subscription_cache');
+    if (asaasSubscriptionCacheStr) {
+      try {
+        const asaasCache = JSON.parse(asaasSubscriptionCacheStr);
+        
+        // Verificar se a assinatura está ativa e se o cache não é muito antigo (max 1 hora)
+        const cacheAge = Date.now() - (asaasCache.timestamp || 0);
+        if (asaasCache.isActive && cacheAge < 3600000) {
+          console.log('[GlobalRouletteService] Verificação de plano: Tem plano ativo (via asaas_subscription_cache)');
+          this._hasPaidPlan = true;
+          return true;
+        }
+      } catch (e) {
+        console.warn('[GlobalRouletteService] Erro ao analisar asaas_subscription_cache:', e);
+      }
+    }
+    
+    // Iniciar verificação de assinatura ASAAS em segundo plano para atualizar o estado
+    this.updateSubscriptionStatus();
+    
+    // ETAPA 2: Verificar no localStorage padrão usado por este serviço
+    const userDataStr = localStorage.getItem('auth_user_cache');
+    if (userDataStr) {
+      try {
+        const userData = JSON.parse(userDataStr);
+        
+        // Verificar se o usuário tem um plano ativo baseado nos dados do cache
+        const hasPlan = !!(
+          // Verificar formatos padrão
+          userData.subscription?.active || 
+          userData.subscription?.status === 'active' || 
+          userData.subscription?.status === 'ativo' || 
+          userData.plan?.active || 
+          userData.hasPaidPlan || 
+          userData.isSubscribed ||
+          
+          // Verificar formato ASAAS
+          (userData.asaasCustomerId && userData.subscription) ||
+          
+          // Verificar permissões administrativas
+          userData.isAdmin
+        );
+        
+        if (hasPlan) {
+          console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via auth_user_cache)`);
+          this._hasPaidPlan = true;
+          return true;
+        }
+      } catch (e) {
+        console.error('[GlobalRouletteService] Erro ao verificar plano:', e);
+      }
+    }
+    
+    // ETAPA 3: Verificar assinatura diretamente no sessionStorage e localStorage
     try {
-      const userData = JSON.parse(userDataStr);
+      // Lista de chaves possíveis onde os dados de assinatura podem estar armazenados
+      const possibleKeys = [
+        'user_subscription',
+        'asaas_subscription',
+        'subscription_data',
+        'subscription_status'
+      ];
       
-      // Verificar se o usuário tem um plano ativo baseado nos dados do cache
-      const hasPlan = !!(
-        userData.subscription?.active || 
-        userData.subscription?.status === 'active' || 
-        userData.plan?.active || 
-        userData.hasPaidPlan || 
-        userData.isSubscribed ||
-        userData.isAdmin // Permitir acesso para administradores
-      );
-      
-      console.log(`[GlobalRouletteService] Verificação de plano: ${hasPlan ? 'Tem plano ativo' : 'Sem plano ativo'}`);
-      
-      // Atualizar o estado em memória
-      this._hasPaidPlan = hasPlan;
-      
-      return hasPlan;
+      for (const key of possibleKeys) {
+        // Verificar no localStorage
+        const localData = localStorage.getItem(key);
+        if (localData) {
+          try {
+            const parsedData = JSON.parse(localData);
+            
+            // Verificar diversos formatos de status de assinatura
+            if (parsedData && 
+                (parsedData.status === 'active' || 
+                 parsedData.status === 'ativo' ||
+                 parsedData.active === true ||
+                 parsedData.isActive === true)) {
+              
+              console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via ${key})`);
+              this._hasPaidPlan = true;
+              return true;
+            }
+          } catch (e) {
+            // Ignorar erros de parsing
+          }
+        }
+        
+        // Verificar no sessionStorage
+        const sessionData = sessionStorage.getItem(key);
+        if (sessionData) {
+          try {
+            const parsedData = JSON.parse(sessionData);
+            
+            // Verificar diversos formatos de status de assinatura
+            if (parsedData && 
+                (parsedData.status === 'active' || 
+                 parsedData.status === 'ativo' ||
+                 parsedData.active === true ||
+                 parsedData.isActive === true)) {
+              
+              console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via sessionStorage.${key})`);
+              this._hasPaidPlan = true;
+              return true;
+            }
+          } catch (e) {
+            // Ignorar erros de parsing
+          }
+        }
+      }
     } catch (e) {
-      console.error('[GlobalRouletteService] Erro ao verificar plano:', e);
+      console.error('[GlobalRouletteService] Erro ao verificar planos em armazenamentos alternativos:', e);
+    }
+    
+    // Se chegamos aqui, não encontramos nenhuma evidência de plano ativo
+    console.log('[GlobalRouletteService] Verificação de plano: Sem plano ativo (após verificar todas as fontes)');
+    return false;
+  }
+  
+  /**
+   * Verifica especificamente a assinatura ASAAS do usuário
+   * Método especializado para lidar com o formato de assinatura ASAAS
+   * @returns Promise<boolean> indicando se o usuário tem plano ASAAS ativo
+   */
+  private async checkAsaasSubscription(): Promise<boolean> {
+    try {
+      // Obter ID do cliente do usuário atual
+      const customerIdStr = localStorage.getItem('auth_user_cache');
+      if (!customerIdStr) {
+        console.log('[GlobalRouletteService] Sem dados de usuário disponíveis para verificar ASAAS');
+        return false;
+      }
+      
+      const userData = JSON.parse(customerIdStr);
+      const customerId = userData.asaasCustomerId;
+      
+      if (!customerId) {
+        console.log('[GlobalRouletteService] Usuário não possui asaasCustomerId');
+        return false;
+      }
+      
+      console.log(`[GlobalRouletteService] Verificando assinatura ASAAS para cliente: ${customerId}`);
+      
+      // Buscar assinatura do API
+      const API_URL = window.location.origin;
+      const subscriptionResponse = await fetch(`${API_URL}/api/asaas-find-subscription?customerId=${customerId}&_t=${Date.now()}`);
+      
+      // Se ocorrer um erro na API, manter qualquer status de assinatura anterior
+      if (!subscriptionResponse.ok) {
+        console.warn(`[GlobalRouletteService] Erro ao verificar assinatura ASAAS: ${subscriptionResponse.status}`);
+        return false; 
+      }
+      
+      const data = await subscriptionResponse.json();
+      
+      // Verificar se há uma assinatura ativa
+      if (data && data.success && data.subscriptions && data.subscriptions.length > 0) {
+        const subscription = data.subscriptions[0];
+        const isActive = subscription.status?.toLowerCase() === 'active' || 
+                        subscription.status?.toLowerCase() === 'ativo';
+        
+        // Salvar informações da assinatura no localStorage para uso futuro
+        localStorage.setItem('asaas_subscription_cache', JSON.stringify({
+          id: subscription.id,
+          status: subscription.status,
+          value: subscription.value,
+          nextDueDate: subscription.nextDueDate,
+          isActive: isActive,
+          timestamp: Date.now()
+        }));
+        
+        if (isActive) {
+          console.log('[GlobalRouletteService] Assinatura ASAAS ativa encontrada e salva no cache');
+          this._hasPaidPlan = true;
+          return true;
+        }
+      }
+      
+      console.log('[GlobalRouletteService] Nenhuma assinatura ASAAS ativa encontrada');
+      return false;
+    } catch (error) {
+      console.error('[GlobalRouletteService] Erro ao verificar assinatura ASAAS:', error);
       return false;
     }
+  }
+  
+  /**
+   * Atualiza o estado de verificação de plano usando ASAAS
+   * Este método é chamado em segundo plano para manter o estado atualizado
+   */
+  private updateSubscriptionStatus(): void {
+    // Tentar verificar em segundo plano, sem bloquear a execução
+    this.checkAsaasSubscription().then(hasActivePlan => {
+      if (hasActivePlan && !this._hasPaidPlan) {
+        console.log('[GlobalRouletteService] Estado de assinatura atualizado: usuário tem plano ativo');
+        this._hasPaidPlan = true;
+      } else if (!hasActivePlan && this._hasPaidPlan) {
+        console.log('[GlobalRouletteService] Estado de assinatura atualizado: usuário não tem plano ativo');
+        this._hasPaidPlan = false;
+      }
+    });
   }
   
   /**
