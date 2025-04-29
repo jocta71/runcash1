@@ -142,4 +142,128 @@ npm run preview
 ## Documentação Adicional
 
 - [Frontend README](./frontend/README.md) - Detalhes da implementação do frontend
-- [Documentação de Deploy](./frontend/DEPLOY.md) - Instruções detalhadas para deploy 
+- [Documentação de Deploy](./frontend/DEPLOY.md) - Instruções detalhadas para deploy
+
+# API RunCash - Handlers Consolidados
+
+Este projeto contém a implementação de handlers consolidados para a API RunCash, otimizados para o plano gratuito da Vercel. A consolidação foi realizada para reduzir o número de funções serverless necessárias, atendendo às limitações do plano.
+
+## Estrutura de Handlers Consolidados
+
+Os seguintes handlers foram implementados:
+
+### 1. `user-handler.js`
+
+Handler para operações relacionadas a usuários.
+
+**Operações disponíveis:**
+- `update`: Atualiza informações do usuário
+- `get`: Busca informações de um usuário específico
+- `test`: Retorna uma página HTML para testar a API
+
+**Exemplo de uso:**
+```
+GET /api/user?operation=get&id=12345
+POST /api/user?operation=update
+```
+
+### 2. `webhook-handler.js`
+
+Handler para recebimento e processamento de webhooks, especialmente de integração com Asaas.
+
+**Operações disponíveis:**
+- `manager`: Recebe e processa webhooks
+  - `PAYMENT_CONFIRMED`
+  - `PAYMENT_RECEIVED`
+  - `PAYMENT_OVERDUE`
+  - `SUBSCRIPTION_CANCELED`
+
+**Exemplo de uso:**
+```
+POST /api/webhook?operation=manager
+```
+
+### 3. `payment-handler.js`
+
+Handler para operações relacionadas a pagamentos.
+
+**Operações disponíveis:**
+- `find-payment`: Busca informações de um pagamento específico
+- `pix-qrcode`: Gera QR Code PIX para um pagamento
+- `test`: Retorna uma página HTML para testar a API
+
+**Exemplo de uso:**
+```
+GET /api/payment?operation=find-payment&id=pay_12345
+GET /api/payment?operation=pix-qrcode&id=pay_12345
+```
+
+### 4. `subscription-handler.js`
+
+Handler para operações relacionadas a assinaturas.
+
+**Operações disponíveis:**
+- `create`: Cria uma nova assinatura
+- `find`: Busca informações de uma assinatura específica
+- `cancel`: Cancela uma assinatura existente
+- `test`: Retorna uma página HTML para testar a API
+
+**Exemplo de uso:**
+```
+POST /api/subscription?operation=create
+GET /api/subscription?operation=find&id=sub_12345
+DELETE /api/subscription?operation=cancel&id=sub_12345
+```
+
+### 5. `customer-handler.js`
+
+Handler para operações relacionadas a clientes.
+
+**Operações disponíveis:**
+- `create`: Cria um novo cliente
+- `find`: Busca informações de um cliente específico
+- `test`: Retorna uma página HTML para testar a API
+
+**Exemplo de uso:**
+```
+POST /api/customer?operation=create
+GET /api/customer?operation=find&id=cus_12345
+```
+
+### 6. `health-handler.js`
+
+Handler para verificação de saúde do sistema.
+
+**Operações disponíveis:**
+- `check`: Verificação básica de saúde da API
+- `status`: Status detalhado do sistema e seus serviços
+- `test`: Retorna uma página HTML para testar a API
+
+**Exemplo de uso:**
+```
+GET /api/health?operation=check
+GET /api/health?operation=status
+```
+
+### 7. `asaas-handler.js`
+
+Handler para operações diversas de integração com o Asaas.
+
+## Configuração
+
+O arquivo `vercel.json` foi configurado para rotear as requisições para os handlers consolidados. Cada handler possui configurações específicas de memória e duração máxima.
+
+## Variáveis de Ambiente
+
+As seguintes variáveis de ambiente devem ser configuradas:
+
+- `MONGODB_URI`: URI de conexão com o MongoDB
+- `MONGODB_ENABLED`: Habilita ou desabilita a conexão com o MongoDB ('true' ou 'false')
+- `MONGODB_DB_NAME`: Nome do banco de dados MongoDB (padrão: 'runcash')
+- `ASAAS_API_KEY`: Chave de API do Asaas
+- `ASAAS_API_URL`: URL da API do Asaas (padrão: 'https://api.asaas.com/v3')
+- `JWT_SECRET`: Chave secreta para geração e validação de tokens JWT
+
+## Otimização para Vercel
+
+Este projeto foi otimizado para o plano gratuito da Vercel, reduzindo o número de funções serverless para 12, conforme as limitações do plano. 

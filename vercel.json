@@ -1,17 +1,79 @@
 {
   "version": 2,
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
-  "functions": {
-    "api/asaas-handler.js": {
-      "memory": 1024,
-      "maxDuration": 10
+  "builds": [
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
     },
+    {
+      "src": "public/**/*",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/user",
+      "dest": "/api/user-handler.js"
+    },
+    {
+      "src": "/api/webhook",
+      "dest": "/api/webhook-handler.js"
+    },
+    {
+      "src": "/api/payment",
+      "dest": "/api/payment-handler.js"
+    },
+    {
+      "src": "/api/subscription",
+      "dest": "/api/subscription-handler.js"
+    },
+    {
+      "src": "/api/customer",
+      "dest": "/api/customer-handler.js"
+    },
+    {
+      "src": "/api/health",
+      "dest": "/api/health-handler.js"
+    },
+    {
+      "src": "/api/asaas",
+      "dest": "/api/asaas-handler.js"
+    },
+    {
+      "src": "/api/ai/query",
+      "dest": "/api/ai/query.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/$1"
+    }
+  ],
+  "functions": {
     "api/user-handler.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/webhook-manager.js": {
+    "api/webhook-handler.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/payment-handler.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/subscription-handler.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/customer-handler.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/health-handler.js": {
+      "memory": 512,
+      "maxDuration": 5
+    },
+    "api/asaas-handler.js": {
       "memory": 1024,
       "maxDuration": 10
     },
