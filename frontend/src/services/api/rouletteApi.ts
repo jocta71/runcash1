@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { ENDPOINTS } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
+import globalRouletteDataService from '../GlobalRouletteDataService';
 
 /**
  * Cliente de API para comunicação com os endpoints de roleta
@@ -14,25 +15,19 @@ export const RouletteApi = {
     try {
       console.log('[API] Buscando todas as roletas disponíveis');
       
-      // Obter token de autenticação
-      const authToken = getAuthToken();
+      // Usar GlobalRouletteDataService para garantir verificação de plano/autenticação
+      // Isso centralizará as chamadas à API e garantirá consistência nas verificações
+      const data = await globalRouletteDataService.getAllRoulettes();
       
-      // Configurar headers com token de autenticação
-      const headers = authToken ? {
-        'Authorization': `Bearer ${authToken}`
-      } : undefined;
-      
-      const response = await axios.get(ENDPOINTS.ROULETTES, { headers });
-      
-      if (!response.data || !Array.isArray(response.data)) {
-        console.error('[API] Resposta inválida da API de roletas:', response.data);
+      if (!data || !Array.isArray(data)) {
+        console.error('[API] Resposta inválida da API de roletas');
         return [];
       }
       
-      console.log(`[API] ✅ Obtidas ${response.data.length} roletas`);
+      console.log(`[API] ✅ Obtidas ${data.length} roletas`);
       
       // Processar cada roleta para extrair campos relevantes
-      const processedRoulettes = response.data.map((roulette: any) => {
+      const processedRoulettes = data.map((roulette: any) => {
         // Garantir que temos o campo roleta_id em cada objeto
         if (!roulette.roleta_id && roulette._id) {
           const numericId = getNumericId(roulette._id);
