@@ -108,13 +108,6 @@ class GlobalRouletteDataService {
    * @returns Promise com dados das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
-    // Desativando requisições à API
-    console.log('[GlobalRouletteService] Requisições API desativadas por configuração');
-    
-    // Retornar dados existentes (ou array vazio se não há dados)
-    return this.rouletteData.length > 0 ? this.rouletteData : [];
-    
-    /* REQUISIÇÕES DESATIVADAS
     // Evitar requisições simultâneas
     if (this.isFetching) {
       console.log('[GlobalRouletteService] Requisição já em andamento, aguardando...');
@@ -182,7 +175,6 @@ class GlobalRouletteDataService {
       this.isFetching = false;
       this._currentFetchPromise = null;
     }
-    */
   }
   
   /**
