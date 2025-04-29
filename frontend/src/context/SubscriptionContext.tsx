@@ -138,6 +138,103 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const maxRetries = forceRefresh ? 3 : 1;
     let lastError = null;
 
+    // Tentar primeiro o endpoint principal de status de assinatura
+    try {
+      console.log('[SubscriptionContext] Tentando obter status de assinatura via /api/subscription/status');
+      const statusResponse = await axios.get(`${API_URL}/api/subscription/status`);
+      
+      if (statusResponse.data && statusResponse.data.success) {
+        // Processar resposta do serviço de assinaturas
+        const subscriptionData = statusResponse.data.subscription;
+        const apiAccessData = statusResponse.data.apiAccess;
+        
+        console.log('[SubscriptionContext] Status de assinatura recebido:', subscriptionData);
+        
+        if (subscriptionData) {
+          // Mapear status do Asaas para o tipo de plano no frontend
+          let planType = PlanType.FREE;
+          
+          // Se o status for ACTIVE e apiAccess tiver um plano, use-o
+          if (subscriptionData.status === 'ACTIVE' && apiAccessData && apiAccessData.plan) {
+            switch (apiAccessData.plan.toUpperCase()) {
+              case 'PREMIUM': planType = PlanType.PREMIUM; break;
+              case 'PRO': planType = PlanType.PRO; break;
+              case 'BASIC': planType = PlanType.BASIC; break;
+              default: planType = PlanType.FREE;
+            }
+          } else if (subscriptionData.status === 'PENDING') {
+            // Assinatura pendente (pagamento não confirmado)
+            planType = PlanType.PENDING;
+          } else {
+            // Outros status (CANCELED, INACTIVE, etc) vão para FREE
+            planType = PlanType.FREE;
+          }
+          
+          // Encontrar o plano correspondente
+          const plan = availablePlans.find(p => p.type === planType) || availablePlans[0];
+          
+          // Atualizar estado
+          setCurrentSubscription({
+            id: subscriptionData.id || '',
+            planType: planType,
+            status: subscriptionData.status || 'INACTIVE',
+            startDate: new Date(subscriptionData.createdAt || Date.now()),
+            endDate: subscriptionData.nextDueDate ? new Date(subscriptionData.nextDueDate) : null,
+            paymentMethod: subscriptionData.billingType || 'UNDEFINED',
+            value: subscriptionData.value || 0,
+            interval: subscriptionData.cycle?.toLowerCase() || 'monthly',
+          });
+          
+          setCurrentPlan(plan);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch (statusError: any) {
+      console.error('[SubscriptionContext] Erro ao acessar /api/subscription/status:', statusError);
+      console.log('[SubscriptionContext] Tentando usar endpoints alternativos...');
+      
+      // Se o erro for 404, tentar o endpoint de fallback
+      if (statusError.response && statusError.response.status === 404) {
+        try {
+          console.log('[SubscriptionContext] Tentando obter status via fallback');
+          const fallbackResponse = await axios.get(`${API_URL}/api/subscription-fallback/status`);
+          
+          if (fallbackResponse.data && fallbackResponse.data.success) {
+            console.log('[SubscriptionContext] Usando dados de fallback:', fallbackResponse.data);
+            
+            // Processar resposta do fallback
+            const subscriptionData = fallbackResponse.data.subscription;
+            const apiAccessData = fallbackResponse.data.apiAccess;
+            
+            // Mapear para o tipo de plano (fallback geralmente é BASIC)
+            const planType = apiAccessData.plan === 'BASIC' ? PlanType.BASIC : PlanType.FREE;
+            const plan = availablePlans.find(p => p.type === planType) || availablePlans[0];
+            
+            setCurrentSubscription({
+              id: 'fallback-mode',
+              planType: planType,
+              status: 'FALLBACK_MODE',
+              startDate: new Date(),
+              endDate: null,
+              paymentMethod: 'UNDEFINED',
+              value: 0,
+              interval: 'monthly',
+            });
+            
+            setCurrentPlan(plan);
+            setLoading(false);
+            return;
+          }
+        } catch (fallbackError) {
+          console.error('[SubscriptionContext] Erro no fallback:', fallbackError);
+          // Continuar com o fluxo original de tentativa pelo Asaas diretamente
+        }
+      }
+    }
+
+    // Se o endpoint /api/subscription/status falhou, continuar com o fluxo original
+    // que usa a API diretamente com o Asaas
     while (retryCount < maxRetries) {
       try {
         // Adicionar um parâmetro de timestamp para evitar cache
