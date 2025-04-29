@@ -365,36 +365,24 @@ app.get('/api/status', (req, res) => {
 app.get('/api/roulettes', async (req, res) => {
   console.log('[API] Requisição recebida para /api/roulettes');
   
-  // Importar middleware de verificação de assinatura Asaas
-  const { verifyTokenAndSubscription } = require('./middlewares/asaasAuthMiddleware');
-  
-  // Executar middleware de verificação de assinatura
-  const middleware = verifyTokenAndSubscription({
-    required: true, // A autenticação é obrigatória
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] // Planos permitidos
-  });
-
-  // Chamar o middleware manualmente
-  middleware(req, res, async () => {
-    try {
-      if (!isConnected || !collection) {
-        console.log('[API] MongoDB não conectado, retornando array vazio');
-        return res.json([]);
-      }
-      
-      // Obter roletas únicas da coleção
-      const roulettes = await collection.aggregate([
-        { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-        { $project: { _id: 0, id: 1, nome: "$_id" } }
-      ]).toArray();
-      
-      console.log(`[API] Processadas ${roulettes.length} roletas`);
-      res.json(roulettes);
-    } catch (error) {
-      console.error('[API] Erro ao listar roletas:', error);
-      res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json([]);
     }
-  });
+    
+    // Obter roletas únicas da coleção
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
+    
+    console.log(`[API] Processadas ${roulettes.length} roletas`);
+    res.json(roulettes);
+  } catch (error) {
+    console.error('[API] Erro ao listar roletas:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+  }
 });
 
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
@@ -407,116 +395,70 @@ app.get('/api/ROULETTES', async (req, res) => {
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
-  // Importar middleware de verificação de assinatura Asaas
-  const { verifyTokenAndSubscription } = require('./middlewares/asaasAuthMiddleware');
-  
-  // Executar middleware de verificação de assinatura
-  const middleware = verifyTokenAndSubscription({
-    required: true, // A autenticação é obrigatória
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] // Planos permitidos
-  });
-
-  // Chamar o middleware manualmente
-  middleware(req, res, async () => {
-    try {
-      if (!isConnected || !collection) {
-        console.log('[API] MongoDB não conectado, retornando array vazio');
-        return res.json([]);
-      }
-      
-      // Verificar se a coleção tem dados
-      const count = await collection.countDocuments();
-      console.log(`[API] Total de documentos na coleção: ${count}`);
-      
-      if (count === 0) {
-        console.log('[API] Nenhum dado encontrado na coleção');
-        return res.json([]);
-      }
-      
-      // Parâmetros de paginação
-      const limit = parseInt(req.query.limit) || 200;
-      console.log(`[API] Usando limit: ${limit}`);
-      
-      // Limitação de acordo com o plano do usuário
-      let maxLimit = 200; // Padrão para BASIC
-      
-      // Ajustar limite com base no plano
-      if (req.subscription && req.subscription.plan) {
-        switch (req.subscription.plan) {
-          case 'PRO':
-            maxLimit = 500;
-            break;
-          case 'PREMIUM':
-            maxLimit = 1000;
-            break;
-          default:
-            maxLimit = 200; // BASIC
-        }
-      }
-      
-      // Limitar o valor do limit ao máximo permitido pelo plano
-      const finalLimit = Math.min(limit, maxLimit);
-      console.log(`[API] Limite ajustado para plano ${req.subscription?.plan || 'BASIC'}: ${finalLimit}`);
-      
-      // Buscar histórico de números ordenados por timestamp
-      const numeros = await collection
-        .find({})
-        .sort({ timestamp: -1 })
-        .limit(finalLimit)
-        .toArray();
-      
-      console.log(`[API] Retornando ${numeros.length} números do histórico`);
-      
-      // Verificar se temos dados para retornar
-      if (numeros.length === 0) {
-        console.log('[API] Nenhum número encontrado');
-        return res.json([]);
-      }
-      
-      // Log de alguns exemplos para diagnóstico
-      console.log('[API] Exemplos de dados retornados:');
-      console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
-      
-      return res.json(numeros);
-    } catch (error) {
-      console.error('[API] Erro ao listar roletas ou histórico:', error);
-      res.status(500).json({ error: 'Erro interno ao buscar dados' });
+  try {
+    if (!isConnected || !collection) {
+      console.log('[API] MongoDB não conectado, retornando array vazio');
+      return res.json([]);
     }
-  });
+    
+    // Verificar se a coleção tem dados
+    const count = await collection.countDocuments();
+    console.log(`[API] Total de documentos na coleção: ${count}`);
+    
+    if (count === 0) {
+      console.log('[API] Nenhum dado encontrado na coleção');
+      return res.json([]);
+    }
+    
+    // Parâmetros de paginação
+    const limit = parseInt(req.query.limit) || 200;
+    console.log(`[API] Usando limit: ${limit}`);
+    
+    // Buscar histórico de números ordenados por timestamp
+    const numeros = await collection
+      .find({})
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .toArray();
+    
+    console.log(`[API] Retornando ${numeros.length} números do histórico`);
+    
+    // Verificar se temos dados para retornar
+    if (numeros.length === 0) {
+      console.log('[API] Nenhum número encontrado');
+      return res.json([]);
+    }
+    
+    // Log de alguns exemplos para diagnóstico
+    console.log('[API] Exemplos de dados retornados:');
+    console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
+    
+    return res.json(numeros);
+  } catch (error) {
+    console.error('[API] Erro ao listar roletas ou histórico:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar dados' });
+  }
 });
 
 // Rota para listar todas as roletas (endpoint em português - compatibilidade)
 app.get('/api/roletas', async (req, res) => {
   console.log('[API] Endpoint de compatibilidade /api/roletas acessado');
-  
-  // Importar middleware de verificação de assinatura Asaas
-  const { verifyTokenAndSubscription } = require('./middlewares/asaasAuthMiddleware');
-  
-  // Executar middleware de verificação de assinatura
-  const middleware = verifyTokenAndSubscription({
-    required: true, // A autenticação é obrigatória
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] // Planos permitidos
-  });
-
-  // Chamar o middleware manualmente
-  middleware(req, res, async () => {
-    try {
-      if (!isConnected) {
-        return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
-      }
-      
-      // Obter roletas únicas da coleção
-      const roulettes = await collection.aggregate([
-        { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-        { $project: { _id: 0, id: 1, nome: "$_id" } }
-      ]).toArray();
-      
-      res.json(roulettes);
-    } catch (error) {
-      console.error('Erro ao listar roletas:', error);
-      res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+  try {
+    if (!isConnected) {
+      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
     }
-  });
+    
+    // Obter roletas únicas da coleção
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
+    
+    res.json(roulettes);
+  } catch (error) {
+    console.error('Erro ao listar roletas:', error);
+    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+  }
 });
 
 // Rota para buscar números por nome da roleta

@@ -62,15 +62,8 @@ export const fetchRoulettes = async (): Promise<RouletteData[]> => {
       return cache['roulettes'].data;
     }
 
-    // Obter token de autenticação
-    const authToken = getAuthToken();
-    
     console.log(`[API] Buscando roletas em: ${apiBaseUrl}/ROULETTES`);
-    const response = await axios.get(`${apiBaseUrl}/ROULETTES`, {
-      headers: authToken ? {
-        'Authorization': `Bearer ${authToken}`
-      } : {}
-    });
+    const response = await axios.get(`${apiBaseUrl}/ROULETTES`);
     
     if (response.data && Array.isArray(response.data)) {
       // Mapear dados recebidos para o formato com IDs canônicos
@@ -103,11 +96,7 @@ export const fetchRoulettes = async (): Promise<RouletteData[]> => {
     console.warn('[API] Resposta inválida da API de roletas');
     return [];
   } catch (error) {
-    if (error.response && error.response.status === 403) {
-      console.warn('[API] Acesso negado ao endpoint de roletas. Usuário não possui assinatura ativa.');
-    } else {
-      console.error('[API] Erro ao buscar roletas:', error);
-    }
+    console.error('[API] Erro ao buscar roletas:', error);
     return [];
   }
 };
@@ -124,15 +113,8 @@ export const fetchRoulettesWithRealNumbers = async (): Promise<RouletteData[]> =
       return cache[cacheKey].data;
     }
 
-    // Obter token de autenticação
-    const authToken = getAuthToken();
-
     console.log(`[API] Buscando roletas em: ${apiBaseUrl}/ROULETTES`);
-    const response = await axios.get(`${apiBaseUrl}/ROULETTES`, {
-      headers: authToken ? {
-        'Authorization': `Bearer ${authToken}`
-      } : {}
-    });
+    const response = await axios.get(`${apiBaseUrl}/ROULETTES`);
     
     if (!response.data || !Array.isArray(response.data)) {
       console.warn('[API] Resposta inválida da API de roletas');
@@ -187,11 +169,7 @@ export const fetchRoulettesWithRealNumbers = async (): Promise<RouletteData[]> =
     console.log(`[API] ✅ Processadas ${roletas.length} roletas com números reais`);
     return roletas;
   } catch (error) {
-    if (error.response && error.response.status === 403) {
-      console.warn('[API] Acesso negado ao endpoint de roletas. Usuário não possui assinatura ativa.');
-    } else {
-      console.error('[API] Erro ao buscar roletas com números:', error);
-    }
+    console.error('[API] Erro ao buscar roletas com números:', error);
     return [];
   }
 };
@@ -204,9 +182,6 @@ async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Pro
     // Buscar dados da coleção roleta_numeros
     console.log(`[API] Buscando números para ${roletaNome} (ID MongoDB: ${mongoId})`);
     
-    // Obter token de autenticação
-    const authToken = getAuthToken();
-    
     // Usar o endpoint relativo para aproveitar o proxy
     const url = `${apiBaseUrl}/ROULETTES`;
     
@@ -215,8 +190,7 @@ async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Pro
         mode: 'no-cors', // Usar modo no-cors para evitar bloqueio de CORS
         cache: 'no-store',
         headers: {
-          'Cache-Control': 'no-cache',
-          'Authorization': authToken ? `Bearer ${authToken}` : '',
+          'Cache-Control': 'no-cache'
         }
       });
       
@@ -227,11 +201,7 @@ async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Pro
       }
       
       if (!response.ok) {
-        if (response.status === 403) {
-          console.warn(`[API] Acesso negado. Usuário não possui assinatura ativa.`);
-        } else {
-          console.warn(`[API] Resposta com erro (${response.status}) para ${roletaNome}`);
-        }
+        console.warn(`[API] Resposta com erro (${response.status}) para ${roletaNome}`);
         return [];
       }
       
@@ -390,26 +360,4 @@ export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteS
     console.error(`[API] Erro ao buscar estratégia da roleta ${roletaId}:`, error);
     return null;
   }
-}
-
-/**
- * Obtém o token de autenticação do localStorage ou cookies
- */
-function getAuthToken(): string | null {
-  // Tentar obter do localStorage
-  let token = localStorage.getItem('auth_token');
-  
-  // Se não encontrar no localStorage, tentar obter dos cookies
-  if (!token) {
-    const cookies = document.cookie.split(';');
-    for (const cookie of cookies) {
-      const [name, value] = cookie.trim().split('=');
-      if (name === 'auth_token' || name === 'token') {
-        token = value;
-        break;
-      }
-    }
-  }
-  
-  return token;
 }

@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { ENDPOINTS } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
-import globalRouletteDataService from '../GlobalRouletteDataService';
 
 /**
  * Cliente de API para comunicação com os endpoints de roleta
@@ -14,20 +13,17 @@ export const RouletteApi = {
   async fetchAllRoulettes() {
     try {
       console.log('[API] Buscando todas as roletas disponíveis');
+      const response = await axios.get(ENDPOINTS.ROULETTES);
       
-      // Usar GlobalRouletteDataService para garantir verificação de plano/autenticação
-      // Isso centralizará as chamadas à API e garantirá consistência nas verificações
-      const data = await globalRouletteDataService.getAllRoulettes();
-      
-      if (!data || !Array.isArray(data)) {
-        console.error('[API] Resposta inválida da API de roletas');
+      if (!response.data || !Array.isArray(response.data)) {
+        console.error('[API] Resposta inválida da API de roletas:', response.data);
         return [];
       }
       
-      console.log(`[API] ✅ Obtidas ${data.length} roletas`);
+      console.log(`[API] ✅ Obtidas ${response.data.length} roletas`);
       
       // Processar cada roleta para extrair campos relevantes
-      const processedRoulettes = data.map((roulette: any) => {
+      const processedRoulettes = response.data.map((roulette: any) => {
         // Garantir que temos o campo roleta_id em cada objeto
         if (!roulette.roleta_id && roulette._id) {
           const numericId = getNumericId(roulette._id);
@@ -39,11 +35,7 @@ export const RouletteApi = {
       
       return processedRoulettes;
     } catch (error) {
-      if (error.response && error.response.status === 403) {
-        console.warn('[API] Acesso negado. Usuário não possui assinatura ativa.');
-      } else {
-        console.error('[API] Erro ao buscar roletas:', error);
-      }
+      console.error('[API] Erro ao buscar roletas:', error);
       return [];
     }
   },
@@ -144,26 +136,4 @@ export const RouletteApi = {
       return [];
     }
   }
-};
-
-/**
- * Obtém o token de autenticação do localStorage ou cookies
- */
-function getAuthToken(): string | null {
-  // Tentar obter do localStorage
-  let token = localStorage.getItem('auth_token');
-  
-  // Se não encontrar no localStorage, tentar obter dos cookies
-  if (!token) {
-    const cookies = document.cookie.split(';');
-    for (const cookie of cookies) {
-      const [name, value] = cookie.trim().split('=');
-      if (name === 'auth_token' || name === 'token') {
-        token = value;
-        break;
-      }
-    }
-  }
-  
-  return token;
-} 
+}; 

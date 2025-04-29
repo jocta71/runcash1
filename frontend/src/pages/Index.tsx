@@ -22,15 +22,7 @@ import {
 } from '@/integrations/asaas/client';
 import { useSubscription } from '@/context/SubscriptionContext';
 
-// Declarar tipos para Window global
-declare global {
-  interface Window {
-    RESTSocketService?: any;
-    globalSocketService?: any;
-    isRouletteSystemInitialized?: () => boolean;
-    getRouletteSystem?: () => any;
-  }
-}
+
 
 interface ChatMessage {
   id: string;
@@ -487,140 +479,72 @@ const Index = () => {
     }).slice(0, 3);
   }, [roulettes]);
 
-  // Forçar exibição de cards mesmo sem verificação de plano
-  useEffect(() => {
-    console.log('[EMERGENCY FIX] Adicionando hook para forçar exibição de cards');
-    
-    // Monitorar eventos do socket
-    const handleSocketData = () => {
-      console.log('[EMERGENCY FIX] Evento de socket recebido, verificando se há dados de roletas');
-      
-      // Se já temos dados via socket, usar
-      const socketService = window.RESTSocketService || window.globalSocketService;
-      if (socketService && typeof socketService.getData === 'function') {
-        try {
-          const socketData = socketService.getData();
-          if (socketData && Array.isArray(socketData) && socketData.length > 0) {
-            console.log(`[EMERGENCY FIX] Dados de socket encontrados: ${socketData.length} roletas`);
-            
-            // Mapear para o formato esperado por RouletteData
-            const formattedData = socketData.map((item: any) => ({
-              id: item.id || item._id || Math.random().toString(36).substring(2, 9),
-              nome: item.nome || item.name || 'Roleta',
-              name: item.name || item.nome || 'Roleta',
-              numeros: item.numero || item.numeros || [],
-              lastNumber: Array.isArray(item.numero) && item.numero.length > 0 ? item.numero[0] : null
-            }));
-            
-            setRoulettes(prevState => {
-              // Só atualizar se não tivermos dados ainda
-              if (prevState.length === 0) {
-                console.log('[EMERGENCY FIX] Definindo roletas a partir de dados do socket');
-                return formattedData;
-              }
-              return prevState;
-            });
-            
-            setDataFullyLoaded(true);
-            setIsLoading(false);
-          }
-        } catch (err) {
-          console.error('[EMERGENCY FIX] Erro ao acessar dados do socket:', err);
-        }
-      }
-    };
-    
-    // Registrar para eventos de atualização
-    EventService.on('socket:data-received', handleSocketData);
-    EventService.on('roulette:data-updated', handleSocketData);
-    
-    // Chamar imediatamente para verificar dados existentes
-    setTimeout(handleSocketData, 500);
-    
-    // Forçar atualização após 3 segundos
-    setTimeout(handleSocketData, 3000);
-    
-    return () => {
-      EventService.off('socket:data-received', handleSocketData);
-      EventService.off('roulette:data-updated', handleSocketData);
-    };
-  }, []);
-
   // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
-    console.log(`[Index] Renderizando ${filteredRoulettes.length} cards de roletas`);
-    
-    // MODIFICAÇÃO EMERGENCIAL: Tentar renderizar cards mesmo que não haja dados filtrados
-    const dataToRender = filteredRoulettes.length > 0 ? filteredRoulettes : roulettes;
-    
-    // Se ainda não temos dados, tentar buscar de outras fontes
-    if (dataToRender.length === 0) {
-      console.log('[EMERGENCY FIX] Nenhum dado para renderizar, tentando obter de outras fontes');
-      
-      // Tentar obter do RESTSocketService
-      const socketService = window.RESTSocketService || window.globalSocketService;
-      if (socketService && typeof socketService.getData === 'function') {
-        try {
-          const socketData = socketService.getData();
-          if (socketData && Array.isArray(socketData) && socketData.length > 0) {
-            console.log(`[EMERGENCY FIX] Usando ${socketData.length} roletas do socketService`);
-            return (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {socketData.map((roulette: any) => (
-                  <RouletteCard 
-                    key={roulette.id || Math.random().toString(36).substring(2, 9)}
-                    data={{
-                      id: roulette.id || Math.random().toString(36).substring(2, 9),
-                      nome: roulette.nome || roulette.name || 'Roleta',
-                      name: roulette.name || roulette.nome || 'Roleta',
-                      numeros: roulette.numero || roulette.numeros || [],
-                      lastNumber: Array.isArray(roulette.numero) && roulette.numero.length > 0 ? roulette.numero[0] : null
-                    }}
-                  />
-                ))}
-              </div>
-            );
-          }
-        } catch (err) {
-          console.error('[EMERGENCY FIX] Erro ao renderizar dados do socket:', err);
-        }
-      }
-      
-      // Se chegamos aqui e não temos dados, exibir mensagem explicativa
-      return (
-        <div className="flex flex-col items-center justify-center p-8 bg-gray-800 rounded-lg mx-auto max-w-md text-center">
-          <AlertCircle className="h-12 w-12 text-yellow-500 mb-4" />
-          <h3 className="text-xl font-semibold text-white mb-2">Carregando roletas...</h3>
-          <p className="text-gray-400 mb-4">
-            Os dados das roletas estão sendo carregados. Este processo pode levar alguns segundos.
-          </p>
-          <Button 
-            onClick={() => window.location.reload()} 
-            variant="outline"
-            className="mt-2"
-          >
-            Recarregar página
-          </Button>
-        </div>
-      );
+    if (!Array.isArray(filteredRoulettes) || filteredRoulettes.length === 0) {
+      return null;
     }
     
-    // Calcular índices para paginação
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const displayedRoulettes = dataToRender.slice(startIndex, endIndex);
+    console.log(`[Index] Renderizando ${filteredRoulettes.length} roletas disponíveis`);
     
-    // Renderizar os cards de roleta
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {displayedRoulettes.map((roulette) => (
-          <RouletteCard 
-            key={roulette.id} 
-            data={roulette}
+    // Mais logs para depuração - mostrar o total de roletas
+    console.log(`[Index] Exibindo todas as ${filteredRoulettes.length} roletas disponíveis`);
+    
+    // MODIFICAÇÃO CRÍTICA: Mostrar todas as roletas sem paginação
+    const allRoulettes = filteredRoulettes;
+    
+    console.log(`[Index] Exibindo todas as ${allRoulettes.length} roletas disponíveis`);
+
+    return allRoulettes.map(roulette => {
+      // Garantir que temos números válidos
+      let safeNumbers: number[] = [];
+      
+      // Tentar extrair números do campo numero
+      if (Array.isArray(roulette.numero)) {
+        safeNumbers = roulette.numero
+          .filter(item => item !== null && item !== undefined)
+          .map(item => {
+            // Aqui sabemos que item não é null ou undefined após o filtro
+            const nonNullItem = item as unknown; // Usar unknown em vez de any
+            // Se for um objeto com a propriedade numero
+            if (typeof nonNullItem === 'object' && nonNullItem !== null && 'numero' in nonNullItem) {
+              return (nonNullItem as {numero: number}).numero;
+            }
+            // Se for um número diretamente
+            return Number(nonNullItem);
+          });
+      } 
+      // Tentar extrair de lastNumbers se ainda estiver vazio
+      else if (Array.isArray(roulette.lastNumbers) && roulette.lastNumbers.length > 0) {
+        safeNumbers = roulette.lastNumbers;
+      } 
+      // Tentar extrair de numeros se ainda estiver vazio
+      else if (Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
+        safeNumbers = roulette.numeros;
+      }
+      
+      return (
+        <div 
+          key={roulette.id} 
+          className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === roulette.id ? 'border-2 border-green-500 shadow-lg shadow-green-500/20' : 'p-0.5'}`}
+          onClick={() => setSelectedRoulette(roulette)}
+        >
+          <RouletteCard
+            data={{
+              id: roulette.id || '',
+              _id: roulette._id || roulette.id || '',
+              name: roulette.name || roulette.nome || 'Roleta sem nome',
+              nome: roulette.nome || roulette.name || 'Roleta sem nome',
+              lastNumbers: safeNumbers,
+              numeros: safeNumbers,
+              vitorias: typeof roulette.vitorias === 'number' ? roulette.vitorias : 0,
+              derrotas: typeof roulette.derrotas === 'number' ? roulette.derrotas : 0,
+              estado_estrategia: roulette.estado_estrategia || ''
+            }}
           />
-        ))}
-      </div>
-    );
+        </div>
+      );
+    });
   };
   
   // Função para renderizar a paginação

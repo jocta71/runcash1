@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Loader2, LockIcon, MailIcon, UserIcon, CreditCard } from 'lucide-react';
+import { AlertCircle, Loader2, LockIcon, MailIcon, UserIcon } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,10 +19,9 @@ interface LoginModalProps {
   onClose: () => void;
   redirectAfterLogin?: string;
   message?: string;
-  requiresSubscription?: boolean;
 }
 
-const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message, requiresSubscription = false }: LoginModalProps) => {
+const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModalProps) => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,7 +32,7 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message, requiresSubs
   const [isGoogleAuthEnabled, setIsGoogleAuthEnabled] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [activeTab, setActiveTab] = useState('login');
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp } = useAuth();
   const { toast } = useToast();
   
   // API URL
@@ -62,17 +61,6 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message, requiresSubs
       setErrorMessage(message);
     }
   }, [message]);
-
-  // Definir a aba ativa com base na necessidade de assinatura
-  useEffect(() => {
-    if (requiresSubscription && user) {
-      // Se requer assinatura e o usuário já está logado, mostrar a aba de assinatura
-      setActiveTab('subscription');
-    } else {
-      // Caso contrário, mostrar a aba de login
-      setActiveTab('login');
-    }
-  }, [requiresSubscription, user]);
 
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,13 +92,6 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message, requiresSubs
           title: "Login bem-sucedido",
           description: "Bem-vindo de volta!",
         });
-        
-        // Se requer assinatura, mudar para a aba de assinatura ao invés de fechar o modal
-        if (requiresSubscription) {
-          setActiveTab('subscription');
-          setIsLoading(false);
-          return;
-        }
         
         // Atraso para garantir que os cookies sejam definidos
         // O setTimeout também evita problemas com redirecionamentos muito rápidos
@@ -180,13 +161,6 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message, requiresSubs
           description: "Você já pode usar sua conta para acessar o sistema.",
         });
         
-        // Se requer assinatura, mudar para a aba de assinatura ao invés de fechar o modal
-        if (requiresSubscription) {
-          setActiveTab('subscription');
-          setIsLoading(false);
-          return;
-        }
-        
         // Atraso para garantir que os cookies sejam definidos
         setTimeout(() => {
           // Primeiro fechar o modal
@@ -245,21 +219,6 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message, requiresSubs
     }
   };
 
-  // Navegar para página de assinatura
-  const handleNavigateToSubscription = () => {
-    // Fechar o modal
-    onClose();
-    
-    // Navegar para a página de assinaturas
-    navigate('/subscription', {
-      state: { 
-        fromLoginModal: true, 
-        timestamp: Date.now(),
-        returnTo: redirectAfterLogin
-      }
-    });
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-4xl grid grid-cols-1 md:grid-cols-2 p-0 gap-0 overflow-hidden">
@@ -293,278 +252,276 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message, requiresSubs
               <TabsTrigger value="register" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
                 Cadastro
               </TabsTrigger>
-              {/* Aba oculta para assinatura */}
-              {requiresSubscription && (
-                <TabsTrigger value="subscription" className="hidden">
-                  Assinatura
-                </TabsTrigger>
-              )}
             </TabsList>
-
-            {/* Conteúdo da Aba de Login */}
-            <TabsContent value="login" className="mt-6">
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold text-white">Bem-vindo de volta</h2>
-                <p className="text-gray-400">Acesse sua conta para continuar</p>
-                
-                {errorMessage && (
-                  <Alert variant="destructive" className="bg-red-900/50 border-red-800 text-white">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{errorMessage}</AlertDescription>
-                  </Alert>
-                )}
-
-                <form onSubmit={handleManualLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-gray-200">Email</Label>
-                    <div className="relative">
-                      <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <Input
-                        type="email"
-                        id="email"
-                        placeholder="seu@email.com"
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="password" className="text-gray-200">Senha</Label>
-                    <div className="relative">
-                      <LockIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <Input
-                        type="password"
-                        id="password"
-                        placeholder="••••••••"
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-vegas-green text-gray-900 hover:bg-vegas-green/90"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processando...
-                      </>
-                    ) : "Entrar"}
-                  </Button>
-                </form>
-
-                {isGoogleAuthEnabled && (
-                  <>
-                    <div className="relative my-6">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-gray-700"></div>
-                      </div>
-                      <div className="relative flex justify-center text-xs">
-                        <span className="bg-gray-900 px-2 text-gray-400">ou continue com</span>
-                      </div>
-                    </div>
-
-                    <Button 
-                      type="button" 
-                      className="w-full border border-gray-700 text-white hover:bg-gray-800"
-                      onClick={handleGoogleLogin}
-                      disabled={isLoading || isCheckingAuth}
-                    >
-                      {isCheckingAuth ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <svg className="h-5 w-5 mr-2" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12.545 10.239v3.821h5.445c-.712 2.315-2.647 3.972-5.445 3.972a6.033 6.033 0 110-12.064c1.498 0 2.866.549 3.921 1.453l2.814-2.814A9.969 9.969 0 0012.545 2C6.421 2 1.545 6.876 1.545 13s4.876 11 11 11c6.139 0 10.393-4.007 10.393-10.993 0-.695-.092-1.452-.228-2.104l-9.165.335z" />
-                        </svg>
-                      )}
-                      Google
-                    </Button>
-                  </>
-                )}
+            
+            {/* Conteúdo da aba de Login */}
+            <TabsContent value="login" className="space-y-4 mt-4">
+              <div className="flex flex-col space-y-2 text-center">
+                <h1 className="text-2xl font-semibold tracking-tight text-white">Entre na sua conta</h1>
+                <p className="text-sm text-gray-400">
+                  Digite suas credenciais para acessar
+                  {redirectAfterLogin && ' e continuar'}
+                </p>
               </div>
-            </TabsContent>
 
-            {/* Conteúdo da Aba de Cadastro */}
-            <TabsContent value="register" className="mt-6">
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold text-white">Criar uma conta</h2>
-                <p className="text-gray-400">Preencha os dados para começar</p>
+              {errorMessage && activeTab === 'login' && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
+              )}
+              
+              <form onSubmit={handleManualLogin} className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="email" className="text-white">Email</Label>
+                  <div className="relative">
+                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="nome@exemplo.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
+                </div>
                 
-                {errorMessage && (
-                  <Alert variant="destructive" className="bg-red-900/50 border-red-800 text-white">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{errorMessage}</AlertDescription>
-                  </Alert>
-                )}
-
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="username" className="text-gray-200">Nome de usuário</Label>
-                    <div className="relative">
-                      <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <Input
-                        type="text"
-                        id="username"
-                        placeholder="seu_username"
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        value={username}
-                        onChange={e => setUsername(e.target.value)}
-                        required
-                      />
-                    </div>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-white">Senha</Label>
+                    <a href="#" className="text-xs text-vegas-green hover:underline">
+                      Esqueceu a senha?
+                    </a>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email" className="text-gray-200">Email</Label>
-                    <div className="relative">
-                      <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <Input
-                        type="email"
-                        id="signup-email"
-                        placeholder="seu@email.com"
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        required
-                      />
-                    </div>
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password" className="text-gray-200">Senha</Label>
-                    <div className="relative">
-                      <LockIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <Input
-                        type="password"
-                        id="signup-password"
-                        placeholder="••••••••"
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        required
-                      />
-                    </div>
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
+                  disabled={isLoading}
+                >
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
+                </Button>
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-gray-700" />
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-password" className="text-gray-200">Confirmar Senha</Label>
-                    <div className="relative">
-                      <LockIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <Input
-                        type="password"
-                        id="confirm-password"
-                        placeholder="••••••••"
-                        className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                        value={confirmPassword}
-                        onChange={e => setConfirmPassword(e.target.value)}
-                        required
-                      />
-                    </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-gray-900 px-2 text-gray-400">Ou continue com</span>
                   </div>
-
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-vegas-green text-gray-900 hover:bg-vegas-green/90"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processando...
-                      </>
-                    ) : "Criar Conta"}
-                  </Button>
-                </form>
-
-                {isGoogleAuthEnabled && (
-                  <>
-                    <div className="relative my-6">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-gray-700"></div>
-                      </div>
-                      <div className="relative flex justify-center text-xs">
-                        <span className="bg-gray-900 px-2 text-gray-400">ou continue com</span>
-                      </div>
-                    </div>
-
-                    <Button 
-                      type="button" 
-                      className="w-full border border-gray-700 text-white hover:bg-gray-800"
-                      onClick={handleGoogleLogin}
-                      disabled={isLoading || isCheckingAuth}
+                </div>
+                
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
+                  disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
+                  onClick={handleGoogleLogin}
+                >
+                  {isCheckingAuth ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      className="w-5 h-5 mr-2"
                     >
-                      {isCheckingAuth ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <svg className="h-5 w-5 mr-2" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12.545 10.239v3.821h5.445c-.712 2.315-2.647 3.972-5.445 3.972a6.033 6.033 0 110-12.064c1.498 0 2.866.549 3.921 1.453l2.814-2.814A9.969 9.969 0 0012.545 2C6.421 2 1.545 6.876 1.545 13s4.876 11 11 11c6.139 0 10.393-4.007 10.393-10.993 0-.695-.092-1.452-.228-2.104l-9.165.335z" />
-                        </svg>
-                      )}
-                      Google
-                    </Button>
-                  </>
+                      <path
+                        fill="#EA4335"
+                        d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
+                      />
+                      <path
+                        fill="#4A90E2"
+                        d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
+                      />
+                    </svg>
+                  )}
+                  Continuar com Google
+                </Button>
+                {!isGoogleAuthEnabled && !isCheckingAuth && (
+                  <div className="text-center text-xs text-red-400 mt-2">
+                    Login com Google está desativado no momento
+                  </div>
                 )}
-              </div>
+              </form>
             </TabsContent>
             
-            {/* Conteúdo da Aba de Assinatura */}
-            {requiresSubscription && (
-              <TabsContent value="subscription" className="mt-6">
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <CreditCard className="mx-auto h-12 w-12 text-vegas-green" />
-                    <h2 className="mt-4 text-2xl font-bold text-white">Assinatura necessária</h2>
-                    <p className="mt-2 text-gray-400">Para acessar este conteúdo, você precisa de uma assinatura ativa.</p>
+            {/* Conteúdo da aba de Cadastro */}
+            <TabsContent value="register" className="space-y-4 mt-4">
+              <div className="flex flex-col space-y-2 text-center">
+                <h1 className="text-2xl font-semibold tracking-tight text-white">Criar uma conta</h1>
+                <p className="text-sm text-gray-400">
+                  Preencha seus dados para se cadastrar
+                  {redirectAfterLogin && ' e continuar'}
+                </p>
+              </div>
+
+              {errorMessage && activeTab === 'register' && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
+              )}
+              
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="username" className="text-white">Nome de Usuário</Label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="username"
+                      type="text"
+                      placeholder="seunome"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
                   </div>
-                  
-                  <div className="bg-gray-800/50 p-4 rounded-lg">
-                    <h3 className="text-lg font-semibold text-white">Benefícios da assinatura:</h3>
-                    <ul className="mt-2 space-y-2 text-gray-300">
-                      <li className="flex items-start">
-                        <svg className="h-5 w-5 mr-2 text-vegas-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Acesso a todos os dados em tempo real
-                      </li>
-                      <li className="flex items-start">
-                        <svg className="h-5 w-5 mr-2 text-vegas-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Análises avançadas e insights
-                      </li>
-                      <li className="flex items-start">
-                        <svg className="h-5 w-5 mr-2 text-vegas-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Alertas e notificações personalizadas
-                      </li>
-                      <li className="flex items-start">
-                        <svg className="h-5 w-5 mr-2 text-vegas-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Suporte prioritário
-                      </li>
-                    </ul>
-                  </div>
-                  
-                  <Button 
-                    onClick={handleNavigateToSubscription}
-                    className="w-full bg-vegas-green text-gray-900 hover:bg-vegas-green/90"
-                  >
-                    Ver planos de assinatura
-                  </Button>
                 </div>
-              </TabsContent>
-            )}
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="register-email" className="text-white">Email</Label>
+                  <div className="relative">
+                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="register-email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="register-password" className="text-white">Senha</Label>
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="register-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="confirm-password" className="text-white">Confirmar Senha</Label>
+                  <div className="relative">
+                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
+                  disabled={isLoading}
+                >
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Criar Conta'}
+                </Button>
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-gray-700" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-gray-900 px-2 text-gray-400">Ou inscreva-se com</span>
+                  </div>
+                </div>
+                
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
+                  disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
+                  onClick={handleGoogleLogin}
+                >
+                  {isCheckingAuth ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      className="w-5 h-5 mr-2"
+                    >
+                      <path
+                        fill="#EA4335"
+                        d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
+                      />
+                      <path
+                        fill="#4A90E2"
+                        d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
+                      />
+                    </svg>
+                  )}
+                  Google
+                </Button>
+                {!isGoogleAuthEnabled && !isCheckingAuth && (
+                  <div className="text-center text-xs text-red-400 mt-2">
+                    Login com Google está desativado no momento
+                  </div>
+                )}
+              </form>
+            </TabsContent>
           </Tabs>
+          
+          <p className="text-center text-xs text-gray-400 mt-6">
+            Ao clicar em continuar, você concorda com nossos{' '}
+            <a href="#" className="text-vegas-green hover:underline">
+              Termos
+            </a>{' '}
+            e{' '}
+            <a href="#" className="text-vegas-green hover:underline">
+              Privacidade
+            </a>
+          </p>
         </div>
       </DialogContent>
     </Dialog>

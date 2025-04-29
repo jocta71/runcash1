@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
 
 // Debug flag - set to false to disable logs in production
-const DEBUG_ENABLED = true;
+const DEBUG_ENABLED = false;
 
 // Helper function for controlled logging
 const debugLog = (...args: any[]) => {
@@ -40,82 +40,37 @@ class GlobalRouletteDataManager {
     console.log(`[RouletteCard] Novo assinante registrado: ${id}`);
     this.updateCallbacks.set(id, callback);
     
-    // EMERGENCY FIX: Tentar obter dados diretamente
-    try {
-      // Tentar obter dados do serviço global
-      if (globalRouletteDataService && typeof globalRouletteDataService.getAllRoulettes === 'function') {
-        const currentData = globalRouletteDataService.getAllRoulettes();
-        if (currentData && currentData.length > 0) {
-          console.log(`[EMERGENCY FIX] Obtidos ${currentData.length} roletas diretamente do serviço global`);
-          callback(currentData);
-          this.initialDataLoaded = true;
-        } else {
-          console.log('[EMERGENCY FIX] Nenhum dado encontrado no serviço global, forçando atualização');
-          
-          // Ativar bypass de emergência para garantir acesso
-          if (globalRouletteDataService.activateEmergencyBypass) {
-            console.log('[EMERGENCY FIX] Ativando bypass de emergência para garantir acesso');
-            globalRouletteDataService.activateEmergencyBypass(24); // 24 horas
-          }
-          
-          // Forçar atualização
-          if (globalRouletteDataService.forceUpdate) {
-            globalRouletteDataService.forceUpdate();
-          }
-          
-          // Tentar verificar novamente após um curto período
-          setTimeout(() => {
-            const updatedData = globalRouletteDataService.getAllRoulettes();
-            if (updatedData && updatedData.length > 0) {
-              console.log(`[EMERGENCY FIX] Obtidos ${updatedData.length} roletas após forçar atualização`);
-              callback(updatedData);
-              this.initialDataLoaded = true;
-            }
-          }, 1000);
-        }
-      } else {
-        console.warn('[EMERGENCY FIX] Serviço global não está disponível');
-      }
-    } catch (err) {
-      console.error('[EMERGENCY FIX] Erro ao tentar obter dados do serviço global:', err);
+    // Usar o globalRouletteDataService para obter dados
+    const currentData = globalRouletteDataService.getAllRoulettes();
+    
+    // Se já temos dados, notificar imediatamente
+    if (currentData && currentData.length > 0) {
+      callback(currentData);
+      this.initialDataLoaded = true;
+    } else {
+      // Forçar uma atualização usando o serviço global
+      globalRouletteDataService.forceUpdate();
     }
     
     // Registrar callback no serviço global para receber atualizações
-    try {
-      globalRouletteDataService.subscribe(id, () => {
-        try {
-          const rouletteData = globalRouletteDataService.getAllRoulettes();
-          if (rouletteData && rouletteData.length > 0) {
-            callback(rouletteData);
-          }
-        } catch (e) {
-          console.error('[EMERGENCY FIX] Erro ao processar dados de atualização:', e);
-        }
-      });
-    } catch (err) {
-      console.error('[EMERGENCY FIX] Erro ao se inscrever para atualizações:', err);
-    }
+    globalRouletteDataService.subscribe(id, () => {
+      const rouletteData = globalRouletteDataService.getAllRoulettes();
+      if (rouletteData && rouletteData.length > 0) {
+        callback(rouletteData);
+      }
+    });
     
     // Retornar função para cancelar inscrição
     return () => {
       this.updateCallbacks.delete(id);
-      try {
-        globalRouletteDataService.unsubscribe(id);
-      } catch (err) {
-        console.error('[EMERGENCY FIX] Erro ao cancelar inscrição:', err);
-      }
+      globalRouletteDataService.unsubscribe(id);
       console.log(`[RouletteCard] Assinante removido: ${id}`);
     };
   }
 
   // Obter dados mais recentes (sem garantia de atualização)
   public getData(): any[] {
-    try {
-      return globalRouletteDataService.getAllRoulettes();
-    } catch (err) {
-      console.error('[EMERGENCY FIX] Erro ao obter dados do serviço global:', err);
-      return [];
-    }
+    return globalRouletteDataService.getAllRoulettes();
   }
   
   // Obter timestamp da última atualização
