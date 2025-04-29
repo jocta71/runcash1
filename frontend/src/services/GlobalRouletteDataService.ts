@@ -140,16 +140,29 @@ class GlobalRouletteDataService {
         const subscriptionCache = JSON.parse(subscriptionCacheStr);
         
         // Verificar se há uma assinatura ativa no formato do SubscriptionContext
+        // CORREÇÃO: Agora exigimos que o status seja active/ativo E o planId seja válido
         if (subscriptionCache && 
+            // Primeiro verificar se o status é ativo
             (subscriptionCache.status === 'active' || 
-             subscriptionCache.status === 'ativo' ||
-             subscriptionCache.planId === 'premium' ||
-             subscriptionCache.planId === 'pro' ||
+             subscriptionCache.status === 'ativo') && 
+            // Depois verificar se o planId é válido
+            (subscriptionCache.planId === 'premium' || 
+             subscriptionCache.planId === 'pro' || 
              subscriptionCache.planId === 'basic')) {
           
           console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via subscription_cache: ${subscriptionCache.planId})`);
           this._hasPaidPlan = true;
           return true;
+        }
+        
+        // Se o status não for ACTIVE, logar informação para debug
+        if (subscriptionCache && 
+            (subscriptionCache.planId === 'premium' || 
+             subscriptionCache.planId === 'pro' || 
+             subscriptionCache.planId === 'basic') &&
+            subscriptionCache.status !== 'active' && 
+            subscriptionCache.status !== 'ativo') {
+          console.log(`[GlobalRouletteService] Assinatura encontrada mas com status não ativo: ${subscriptionCache.status}`);
         }
       } catch (e) {
         console.warn('[GlobalRouletteService] Erro ao analisar subscription_cache:', e);
@@ -164,10 +177,25 @@ class GlobalRouletteDataService {
         
         // Verificar se a assinatura está ativa e se o cache não é muito antigo (max 1 hora)
         const cacheAge = Date.now() - (asaasCache.timestamp || 0);
-        if (asaasCache.isActive && cacheAge < 3600000) {
+        
+        // CORREÇÃO: Validar explicitamente que status deve ser ACTIVE e não PENDING
+        const statusAtivo = asaasCache.status?.toLowerCase() === 'active' || 
+                           asaasCache.status?.toLowerCase() === 'ativo';
+                           
+        // Verificar explicitamente que o status não seja PENDING
+        if (asaasCache.isActive && statusAtivo && 
+            asaasCache.status?.toLowerCase() !== 'pending' && 
+            asaasCache.status?.toLowerCase() !== 'pendente' && 
+            cacheAge < 3600000) {
           console.log('[GlobalRouletteService] Verificação de plano: Tem plano ativo (via asaas_subscription_cache)');
           this._hasPaidPlan = true;
           return true;
+        }
+        
+        // Logar quando uma assinatura PENDING for encontrada
+        if (asaasCache.status?.toLowerCase() === 'pending' || 
+            asaasCache.status?.toLowerCase() === 'pendente') {
+          console.log('[GlobalRouletteService] Assinatura com status PENDING encontrada, acesso negado');
         }
       } catch (e) {
         console.warn('[GlobalRouletteService] Erro ao analisar asaas_subscription_cache:', e);
@@ -183,27 +211,30 @@ class GlobalRouletteDataService {
       try {
         const userData = JSON.parse(userDataStr);
         
+        // CORREÇÃO: Verificar explicitamente o status da assinatura
         // Verificar se o usuário tem um plano ativo baseado nos dados do cache
         const hasPlan = !!(
-          // Verificar formatos padrão
-          userData.subscription?.active || 
-          userData.subscription?.status === 'active' || 
-          userData.subscription?.status === 'ativo' || 
-          userData.plan?.active || 
-          userData.hasPaidPlan || 
-          userData.isSubscribed ||
-          
-          // Verificar formato ASAAS
-          (userData.asaasCustomerId && userData.subscription) ||
-          
-          // Verificar permissões administrativas
-          userData.isAdmin
+          // Verificar formatos padrão COM status ativo
+          (userData.subscription?.active === true) || 
+          (userData.subscription?.status === 'active') || 
+          (userData.subscription?.status === 'ativo' && userData.subscription?.status !== 'pending') || 
+          (userData.plan?.active === true) || 
+          userData.isAdmin // Administradores sempre têm acesso
         );
         
         if (hasPlan) {
           console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via auth_user_cache)`);
           this._hasPaidPlan = true;
           return true;
+        }
+        
+        // Se tiver asaasCustomerId com subscription mas status for pending, negar acesso
+        if (userData.asaasCustomerId && 
+            userData.subscription && 
+            (userData.subscription.status === 'pending' || 
+             userData.subscription.status === 'pendente')) {
+          console.log('[GlobalRouletteService] Assinatura ASAAS com status PENDING encontrada, acesso negado');
+          return false;
         }
       } catch (e) {
         console.error('[GlobalRouletteService] Erro ao verificar plano:', e);
@@ -227,16 +258,26 @@ class GlobalRouletteDataService {
           try {
             const parsedData = JSON.parse(localData);
             
-            // Verificar diversos formatos de status de assinatura
-            if (parsedData && 
+            // CORREÇÃO: Verificar explicitamente que o status não seja PENDING
+            const isActive = parsedData && 
                 (parsedData.status === 'active' || 
                  parsedData.status === 'ativo' ||
                  parsedData.active === true ||
-                 parsedData.isActive === true)) {
-              
+                 parsedData.isActive === true);
+                 
+            const isPending = parsedData && 
+                (parsedData.status === 'pending' || 
+                 parsedData.status === 'pendente');
+            
+            if (isActive && !isPending) {
               console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via ${key})`);
               this._hasPaidPlan = true;
               return true;
+            }
+            
+            // Logar status PENDING encontrados
+            if (isPending) {
+              console.log(`[GlobalRouletteService] Assinatura com status PENDING encontrada em ${key}, acesso negado`);
             }
           } catch (e) {
             // Ignorar erros de parsing
@@ -249,13 +290,18 @@ class GlobalRouletteDataService {
           try {
             const parsedData = JSON.parse(sessionData);
             
-            // Verificar diversos formatos de status de assinatura
-            if (parsedData && 
+            // CORREÇÃO: Verificar explicitamente que o status não seja PENDING
+            const isActive = parsedData && 
                 (parsedData.status === 'active' || 
                  parsedData.status === 'ativo' ||
                  parsedData.active === true ||
-                 parsedData.isActive === true)) {
-              
+                 parsedData.isActive === true);
+                 
+            const isPending = parsedData && 
+                (parsedData.status === 'pending' || 
+                 parsedData.status === 'pendente');
+            
+            if (isActive && !isPending) {
               console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via sessionStorage.${key})`);
               this._hasPaidPlan = true;
               return true;
@@ -313,8 +359,20 @@ class GlobalRouletteDataService {
       // Verificar se há uma assinatura ativa
       if (data && data.success && data.subscriptions && data.subscriptions.length > 0) {
         const subscription = data.subscriptions[0];
-        const isActive = subscription.status?.toLowerCase() === 'active' || 
-                        subscription.status?.toLowerCase() === 'ativo';
+        
+        // Verificar explicitamente que o status é ACTIVE e não é PENDING
+        const isActive = 
+          (subscription.status?.toLowerCase() === 'active' || subscription.status?.toLowerCase() === 'ativo') && 
+          subscription.status?.toLowerCase() !== 'pending' && 
+          subscription.status?.toLowerCase() !== 'pendente';
+        
+        // Verificar se há pagamentos e se o primeiro está com status CONFIRMED
+        const hasConfirmedPayment = data.payments && 
+          data.payments.length > 0 && 
+          data.payments[0].status?.toLowerCase() === 'confirmed';
+          
+        const isPending = subscription.status?.toLowerCase() === 'pending' || 
+                        subscription.status?.toLowerCase() === 'pendente';
         
         // Salvar informações da assinatura no localStorage para uso futuro
         localStorage.setItem('asaas_subscription_cache', JSON.stringify({
@@ -323,13 +381,22 @@ class GlobalRouletteDataService {
           value: subscription.value,
           nextDueDate: subscription.nextDueDate,
           isActive: isActive,
+          isPending: isPending,
+          hasConfirmedPayment: hasConfirmedPayment,
           timestamp: Date.now()
         }));
+        
+        // Logar status para depuração
+        console.log(`[GlobalRouletteService] Status da assinatura ASAAS: ${subscription.status} (isActive=${isActive}, isPending=${isPending})`);
         
         if (isActive) {
           console.log('[GlobalRouletteService] Assinatura ASAAS ativa encontrada e salva no cache');
           this._hasPaidPlan = true;
           return true;
+        } else if (isPending) {
+          console.log('[GlobalRouletteService] Assinatura ASAAS com status PENDING, acesso negado');
+          this._hasPaidPlan = false;
+          return false;
         }
       }
       
