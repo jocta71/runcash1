@@ -11,11 +11,6 @@ const config = require('../config/config');
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3';
 
-// Status de assinatura válidos
-const VALID_SUBSCRIPTION_STATUSES = ['ACTIVE', 'active'];
-// Status de assinatura inválidos que devem ser explicitamente rejeitados
-const INVALID_SUBSCRIPTION_STATUSES = ['PENDING', 'pending', 'INACTIVE', 'inactive', 'CANCELLED', 'cancelled'];
-
 /**
  * Middleware para validar token JWT e verificar assinatura no Asaas
  * @param {Object} options - Opções de configuração
@@ -33,7 +28,6 @@ exports.verifyTokenAndSubscription = (options = {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         if (options.required) {
-          console.log(`[Auth] Requisição sem token de autenticação: ${req.originalUrl}`);
           return res.status(401).json({
             success: false,
             message: 'Autenticação necessária para acessar este recurso',
@@ -54,7 +48,6 @@ exports.verifyTokenAndSubscription = (options = {
 
         // Verificar se o payload tem as informações necessárias
         if (!decoded.id) {
-          console.warn(`[Auth] Token inválido ou mal formado: ${req.originalUrl}`);
           return res.status(401).json({
             success: false,
             message: 'Token inválido ou mal formado',
@@ -64,7 +57,6 @@ exports.verifyTokenAndSubscription = (options = {
 
         // Adicionar informações do usuário à requisição
         req.usuario = decoded;
-        console.log(`[Auth] Usuário autenticado: ${decoded.id} (${decoded.email})`);
 
         // Se não precisamos verificar assinatura, retornar aqui
         if (!options.allowedPlans || options.allowedPlans.length === 0) {
@@ -73,7 +65,6 @@ exports.verifyTokenAndSubscription = (options = {
 
         // Verificar se o usuário tem um asaasCustomerId
         if (!decoded.asaasCustomerId) {
-          console.warn(`[Auth] Usuário ${decoded.id} não possui asaasCustomerId configurado`);
           return res.status(403).json({
             success: false,
             message: 'Usuário não possui assinatura configurada',
@@ -82,7 +73,6 @@ exports.verifyTokenAndSubscription = (options = {
         }
 
         // Consultar API do Asaas para verificar assinatura
-        console.log(`[Auth] Verificando assinatura para usuário ${decoded.id} (asaasCustomerId: ${decoded.asaasCustomerId})`);
         const asaasResponse = await axios.get(
           `${ASAAS_API_URL}/subscriptions?customer=${decoded.asaasCustomerId}`, 
           {
@@ -94,7 +84,6 @@ exports.verifyTokenAndSubscription = (options = {
 
         // Verificar se a consulta retornou assinaturas
         if (!asaasResponse.data || !asaasResponse.data.data || asaasResponse.data.data.length === 0) {
-          console.warn(`[Auth] Nenhuma assinatura encontrada para o usuário ${decoded.id}`);
           return res.status(403).json({
             success: false,
             message: 'Assinatura não encontrada',
@@ -104,57 +93,14 @@ exports.verifyTokenAndSubscription = (options = {
 
         // Verificar se há alguma assinatura ativa
         const activeSubscription = asaasResponse.data.data.find(sub => 
-          VALID_SUBSCRIPTION_STATUSES.includes(sub.status)
+          sub.status === 'ACTIVE' || sub.status === 'active'
         );
 
         if (!activeSubscription) {
-          // Verificar se há assinaturas em estado PENDING
-          const pendingSubscription = asaasResponse.data.data.find(sub => 
-            INVALID_SUBSCRIPTION_STATUSES.includes(sub.status)
-          );
-          
-          if (pendingSubscription) {
-            console.warn(`[Auth] Usuário ${decoded.id} possui assinatura em estado ${pendingSubscription.status}, acesso negado`);
-            return res.status(403).json({
-              success: false,
-              message: `Assinatura encontrada com status "${pendingSubscription.status}". Aguarde a confirmação.`,
-              error: 'SUBSCRIPTION_PENDING',
-              subscriptionStatus: pendingSubscription.status
-            });
-          }
-          
-          console.warn(`[Auth] Nenhuma assinatura ativa encontrada para o usuário ${decoded.id}`);
           return res.status(403).json({
             success: false,
             message: 'Nenhuma assinatura ativa encontrada',
             error: 'NO_ACTIVE_SUBSCRIPTION'
-          });
-        }
-
-        // Verificar se há pagamento confirmado
-        console.log(`[Auth] Verificando pagamentos da assinatura ${activeSubscription.id}`);
-        const paymentsResponse = await axios.get(
-          `${ASAAS_API_URL}/subscriptions/${activeSubscription.id}/payments`,
-          {
-            headers: {
-              'access_token': ASAAS_API_KEY
-            }
-          }
-        );
-        
-        // Validar pagamentos
-        const payments = paymentsResponse.data?.data || [];
-        const hasConfirmedPayment = payments.some(payment => 
-          payment.status === 'CONFIRMED' || payment.status === 'RECEIVED'
-        );
-        
-        if (!hasConfirmedPayment && payments.length > 0) {
-          console.warn(`[Auth] Usuário ${decoded.id} possui assinatura ativa mas sem pagamento confirmado`);
-          return res.status(403).json({
-            success: false,
-            message: 'Assinatura ativa encontrada, mas aguardando confirmação de pagamento',
-            error: 'PAYMENT_NOT_CONFIRMED',
-            paymentStatus: payments[0]?.status
           });
         }
 
@@ -169,15 +115,10 @@ exports.verifyTokenAndSubscription = (options = {
         };
 
         // Verificar tipo de plano da assinatura
-        const billingType = activeSubscription.billingType?.toLowerCase() || '';
-        const planId = activeSubscription.planId || '';
-        
-        // Tentar determinar o plano com base em diferentes propriedades
-        let userPlan = planMap[billingType] || planMap[planId] || 'BASIC';
+        const userPlan = planMap[activeSubscription.billingType] || activeSubscription.billingType;
         
         // Verificar se o plano está entre os permitidos
         if (!options.allowedPlans.includes(userPlan)) {
-          console.warn(`[Auth] Usuário ${decoded.id} possui plano ${userPlan} mas precisa de um dos seguintes: ${options.allowedPlans.join(', ')}`);
           return res.status(403).json({
             success: false,
             message: `Acesso negado. Este recurso requer um plano superior`,
@@ -190,18 +131,14 @@ exports.verifyTokenAndSubscription = (options = {
         // Adicionar informações da assinatura à requisição
         req.subscription = {
           ...activeSubscription,
-          plan: userPlan,
-          hasConfirmedPayment
+          plan: userPlan
         };
 
-        console.log(`[Auth] Usuário ${decoded.id} autenticado com sucesso e possui assinatura ativa (plano: ${userPlan})`);
-        
         // Continuar com o middleware seguinte
         next();
       } catch (jwtError) {
         // Erro na verificação do JWT
         if (jwtError.name === 'TokenExpiredError') {
-          console.warn(`[Auth] Token expirado: ${req.originalUrl}`);
           return res.status(401).json({
             success: false,
             message: 'Token expirado, faça login novamente',
@@ -209,7 +146,6 @@ exports.verifyTokenAndSubscription = (options = {
           });
         }
 
-        console.warn(`[Auth] Token inválido: ${jwtError.message}`);
         return res.status(401).json({
           success: false,
           message: 'Token inválido',
@@ -256,7 +192,6 @@ exports.requireResourceAccess = (resourceType) => {
       const planResources = resourceAccessMap[req.subscription.plan] || [];
       
       if (!planResources.includes(resourceType)) {
-        console.warn(`[Auth] Usuário ${req.usuario.id} com plano ${req.subscription.plan} tentou acessar recurso restrito: ${resourceType}`);
         return res.status(403).json({
           success: false,
           message: `Acesso negado. Este recurso requer um plano superior`,

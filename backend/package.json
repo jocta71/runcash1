@@ -1,33 +1,30 @@
 {
-  "name": "asaas-webhook-server",
+  "name": "runcash-backend",
   "version": "1.0.0",
-  "description": "Servidor para receber e processar webhooks da plataforma Asaas",
-  "main": "src/webhook-server.js",
+  "description": "Backend unificado do RunCash - API e WebSocket",
+  "main": "index.js",
   "scripts": {
-    "start": "node src/webhook-server.js",
-    "dev": "nodemon src/webhook-server.js",
-    "test": "jest"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "start:websocket": "node websocket_server.js",
+    "dev:websocket": "nodemon websocket_server.js",
+    "test": "node test_insert_number.js"
   },
-  "keywords": [
-    "asaas",
-    "webhook",
-    "payments",
-    "subscriptions"
-  ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
-    "axios": "^1.6.2",
-    "body-parser": "^1.20.2",
+    "axios": "^1.8.3",
+    "compression": "^1.8.0",
+    "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "express-async-handler": "^1.2.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.16.0",
+    "mongoose": "^8.13.3",
     "socket.io": "^4.8.1",
-    "winston": "^3.11.0"
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
-    "jest": "^29.7.0",
-    "nodemon": "^3.0.1",
-    "supertest": "^6.3.3"
+    "nodemon": "^3.0.1"
   }
 }
