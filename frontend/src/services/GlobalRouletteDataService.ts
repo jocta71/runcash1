@@ -426,7 +426,6 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados das roletas da API (usando limit=1000) - método principal
    * @returns Promise com dados das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
@@ -492,13 +491,16 @@ class GlobalRouletteDataService {
       console.log('[GlobalRouletteService] Buscando dados atualizados da API (limit=1000)');
       
       // Criar e armazenar a promessa atual
-      this._currentFetchPromise = (async () => {
-        // Usar a função utilitária com suporte a CORS - com limit=1000 para todos os casos
-        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`, {
+      const currentFetchPromise = async () => {
+        const requestUrl = `/api/ROULETTES?limit=${DEFAULT_LIMIT}`;
+        const requestOptions = {
           headers: authToken ? {
             'Authorization': `Bearer ${authToken}`
           } : undefined
-        });
+        };
+        
+        // Usar a função utilitária com suporte a CORS
+        const data = await fetchWithCorsSupport<any[]>(requestUrl, requestOptions);
         
         // Verificar se os dados são válidos
         if (data && Array.isArray(data)) {
@@ -523,8 +525,10 @@ class GlobalRouletteDataService {
           console.error('[GlobalRouletteService] Resposta inválida da API');
           return this.rouletteData;
         }
-      })();
+      };
       
+      // Armazenar a promessa e executá-la
+      this._currentFetchPromise = currentFetchPromise();
       return await this._currentFetchPromise;
     } catch (error) {
       // Verificar se o erro é de autenticação (401)
