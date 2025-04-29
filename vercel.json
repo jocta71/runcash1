@@ -3,11 +3,11 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "functions": {
-    "api/asaas-create-customer.js": {
+    "api/asaas-handler.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-create-subscription.js": {
+    "api/user-handler.js": {
       "memory": 1024,
       "maxDuration": 10
     },
@@ -15,37 +15,9 @@
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-find-payment.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-pix-qrcode.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-cancel-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/update-user.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
     "api/ai/query.js": {
       "memory": 1024,
       "maxDuration": 30
-    },
-    "api/test-page.js": {
-      "memory": 1024,
-      "maxDuration": 10
     }
   },
   "rewrites": [
@@ -63,35 +35,35 @@
     },
     {
       "source": "/api/asaas-create-customer",
-      "destination": "/api/asaas-create-customer.js"
+      "destination": "/api/asaas-handler.js?operation=create-customer"
     },
     {
       "source": "/api/asaas-create-subscription",
-      "destination": "/api/asaas-create-subscription.js"
+      "destination": "/api/asaas-handler.js?operation=create-subscription"
     },
     {
       "source": "/api/asaas-find-payment",
-      "destination": "/api/asaas-find-payment.js"
+      "destination": "/api/asaas-handler.js?operation=find-payment"
     },
     {
       "source": "/api/asaas-pix-qrcode",
-      "destination": "/api/asaas-pix-qrcode.js"
+      "destination": "/api/asaas-handler.js?operation=pix-qrcode"
     },
     {
       "source": "/api/asaas-find-subscription",
-      "destination": "/api/asaas-find-subscription.js"
+      "destination": "/api/asaas-handler.js?operation=find-subscription"
     },
     {
       "source": "/api/asaas-cancel-subscription",
-      "destination": "/api/asaas-cancel-subscription.js"
+      "destination": "/api/asaas-handler.js?operation=cancel-subscription"
     },
     {
       "source": "/api/asaas-find-customer",
-      "destination": "/api/asaas-find-customer.js"
+      "destination": "/api/asaas-handler.js?operation=find-customer"
     },
     {
       "source": "/api/update-user",
-      "destination": "/api/update-user.js"
+      "destination": "/api/user-handler.js?operation=update"
     },
     {
       "source": "/api/ai/query",
@@ -103,7 +75,7 @@
     },
     {
       "source": "/test",
-      "destination": "/api/test-page"
+      "destination": "/api/user-handler.js?operation=test-page"
     },
     {
       "source": "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg|logo.png|img/).*)",
