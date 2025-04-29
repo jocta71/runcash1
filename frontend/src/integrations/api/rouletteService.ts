@@ -55,6 +55,18 @@ const CACHE_TTL = 60000; // 1 minuto em milissegundos
  * Busca todas as roletas através do endpoint /api/ROULETTES
  */
 export const fetchRoulettes = async (): Promise<RouletteData[]> => {
+  console.log('[API] Requisições para api/ROULETTES desativadas');
+  
+  // Verificar se temos dados em cache mesmo com requisições desativadas
+  if (cache['roulettes'] && Date.now() - cache['roulettes'].timestamp < CACHE_TTL) {
+    console.log('[API] Usando dados de roletas em cache');
+    return cache['roulettes'].data;
+  }
+  
+  // Retornar array vazio quando requisições estão desativadas
+  return [];
+  
+  /* REQUISIÇÕES DESATIVADAS
   try {
     // Verificar se temos dados em cache
     if (cache['roulettes'] && Date.now() - cache['roulettes'].timestamp < CACHE_TTL) {
@@ -99,12 +111,26 @@ export const fetchRoulettes = async (): Promise<RouletteData[]> => {
     console.error('[API] Erro ao buscar roletas:', error);
     return [];
   }
+  */
 };
 
 /**
  * Busca todas as roletas através do endpoint /api/ROULETTES e adiciona números reais a cada uma
  */
 export const fetchRoulettesWithRealNumbers = async (): Promise<RouletteData[]> => {
+  console.log('[API] Requisições para api/ROULETTES com números desativadas');
+  
+  // Verificar se temos dados em cache mesmo com requisições desativadas
+  const cacheKey = 'roulettes_with_numbers';
+  if (cache[cacheKey] && Date.now() - cache[cacheKey].timestamp < CACHE_TTL) {
+    console.log('[API] Usando dados de roletas com números em cache');
+    return cache[cacheKey].data;
+  }
+  
+  // Retornar array vazio quando requisições estão desativadas
+  return [];
+  
+  /* REQUISIÇÕES DESATIVADAS
   try {
     // Verificar se temos dados em cache
     const cacheKey = 'roulettes_with_numbers';
@@ -172,12 +198,17 @@ export const fetchRoulettesWithRealNumbers = async (): Promise<RouletteData[]> =
     console.error('[API] Erro ao buscar roletas com números:', error);
     return [];
   }
+  */
 };
 
 /**
  * Busca números reais de uma roleta específica do MongoDB
  */
 async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Promise<any[]> {
+  console.log(`[API] Requisições para buscar números desativadas para ${roletaNome} (ID: ${mongoId})`);
+  return []; // Retorna array vazio, requisições desativadas
+  
+  /* REQUISIÇÕES DESATIVADAS
   try {
     // Buscar dados da coleção roleta_numeros
     console.log(`[API] Buscando números para ${roletaNome} (ID MongoDB: ${mongoId})`);
@@ -231,6 +262,7 @@ async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Pro
     console.error(`[API] Erro ao buscar números do MongoDB para ${roletaNome}:`, error);
     return [];
   }
+  */
 }
 
 /**

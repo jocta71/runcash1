@@ -11,6 +11,10 @@ export const RouletteApi = {
    * @returns Array de objetos de roleta
    */
   async fetchAllRoulettes() {
+    console.log('[API] Requisições para ROULETTES desativadas por configuração');
+    return []; // Retorna array vazio, requisições desativadas
+    
+    /* REQUISIÇÕES DESATIVADAS
     try {
       console.log('[API] Buscando todas as roletas disponíveis');
       const response = await axios.get(ENDPOINTS.ROULETTES);
@@ -38,6 +42,7 @@ export const RouletteApi = {
       console.error('[API] Erro ao buscar roletas:', error);
       return [];
     }
+    */
   },
 
   /**

@@ -139,6 +139,10 @@ class FetchService {
    * Busca todas as roletas disponíveis
    */
   private async fetchAllRoulettes(): Promise<any[]> {
+    logger.info('Requisições para api/roulettes desativadas');
+    return []; // Retorna array vazio, requisições desativadas
+    
+    /* REQUISIÇÕES DESATIVADAS
     try {
       const response = await this.get<any[]>(`${this.apiBaseUrl}/roulettes`, {
         throttleKey: 'all_roulettes',
@@ -154,12 +158,17 @@ class FetchService {
       logger.error('Erro ao buscar lista de roletas:', error);
       return [];
     }
+    */
   }
   
   /**
    * Busca números para uma roleta específica
    */
   private async fetchRouletteNumbers(roletaId: string): Promise<number[]> {
+    logger.info(`Requisições para api/ROULETTES e api/roulettes/${roletaId} desativadas`);
+    return []; // Retorna array vazio, requisições desativadas
+    
+    /* REQUISIÇÕES DESATIVADAS
     try {
       // Usar o endpoint único /api/ROULETTES e filtrar a roleta desejada
       try {
@@ -226,6 +235,7 @@ class FetchService {
       logger.error(`Erro ao buscar números para roleta ${roletaId}:`, error);
       return [];
     }
+    */
   }
   
   /**
