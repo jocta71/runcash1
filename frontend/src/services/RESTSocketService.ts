@@ -56,8 +56,8 @@ class RESTSocketService {
   private connectionActive: boolean = false;
   private historyLimit: number = 500;
   private defaultPollingInterval: number = isProduction ? 10000 : 5000; // 10 segundos em produção, 5 em desenvolvimento
-  private pollingEndpoint: string = '/api/roulettes/limits';
-  private centralServiceEndpoint: string = '/api/central-service/roulettes';
+  private pollingEndpoint: string = '';
+  private centralServiceEndpoint: string = '';
   private centralServicePollingInterval: number = 60000; // 1 minuto = 60000 ms
   private pollingIntervals: Map<string, number> = new Map();
   private _isLoadingHistoricalData: boolean = false;
@@ -118,24 +118,7 @@ class RESTSocketService {
 
     this.connectionActive = true;
     
-    console.log('[RESTSocketService] Não criando timer próprio - usando serviço global centralizado');
-    
-    // Registrar para receber atualizações do serviço global
-    globalRouletteDataService.subscribe('RESTSocketService-main', () => {
-      console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
-      // Reprocessar dados do serviço global quando houver atualização
-      const data = globalRouletteDataService.getAllRoulettes();
-      if (data && Array.isArray(data)) {
-        this.processDataAsEvents(data);
-      }
-    });
-    
-    // Processar dados iniciais se disponíveis
-    const initialData = globalRouletteDataService.getAllRoulettes();
-    if (initialData && initialData.length > 0) {
-      console.log('[RESTSocketService] Processando dados iniciais do serviço global');
-      this.processDataAsEvents(initialData);
-    }
+    console.log('[RESTSocketService] Requisições a api/roulettes foram desativadas');
     
     // Criar um timer de verificação para garantir que o serviço global está funcionando
     this.pollingTimer = window.setInterval(() => {
@@ -554,122 +537,13 @@ class RESTSocketService {
     }
   }
 
-  // Método para iniciar o polling do segundo endpoint (/api/ROULETTES sem parâmetro)
+  // Método para iniciar o polling do segundo endpoint (desativado)
   private startSecondEndpointPolling() {
-    console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
+    console.log('[RESTSocketService] Requisições a api/roulettes foram desativadas');
     
-    // Usar o GlobalRouletteDataService para obter dados
-    globalRouletteDataService.subscribe('RESTSocketService', () => {
-      console.log('[RESTSocketService] Recebendo dados do serviço centralizado');
-      this.processDataFromCentralService();
-    });
-    
-    // Executar imediatamente a primeira vez
-    this.processDataFromCentralService();
+    // Não iniciar polling para endpoint desativado
   }
   
-  // Método para processar dados do serviço centralizado
-  private async processDataFromCentralService() {
-    try {
-      const startTime = Date.now();
-      console.log('[RESTSocketService] Processando dados do serviço centralizado: ' + startTime);
-      
-      // Obter dados do serviço global
-      const data = globalRouletteDataService.getAllRoulettes();
-      
-      if (!data || !Array.isArray(data) || data.length === 0) {
-        console.log('[RESTSocketService] Sem dados disponíveis no serviço centralizado, aguardando...');
-        return;
-      }
-      
-      console.log(`[RESTSocketService] Processando ${data.length} roletas do serviço centralizado`);
-      
-      // Registrar esta chamada como bem-sucedida
-      const now = Date.now();
-      this.lastReceivedData.set('endpoint-base', { timestamp: now, data: { count: data.length } });
-      
-      // Salvar no cache com uma chave diferente para não conflitar
-      localStorage.setItem('roulettes_data_cache_base', JSON.stringify({
-        timestamp: Date.now(),
-        data: data
-      }));
-      
-      // Para cada roleta, processar os dados
-      data.forEach(roulette => {
-        if (!roulette || !roulette.id) return;
-        
-        // Registrar timestamp para cada roleta
-        this.lastReceivedData.set(`base-${roulette.id}`, { timestamp: now, data: roulette });
-        
-        // Atualizar o histórico da roleta se houver números
-        if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
-          // Mapear apenas os números para um array simples
-          const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
-          
-          // Obter histórico existente 
-          const existingHistory = this.rouletteHistory.get(roulette.id) || [];
-          
-          // Verificar se já existe o primeiro número na lista para evitar duplicação
-          const isNewData = existingHistory.length === 0 || 
-                            existingHistory[0] !== numbers[0] ||
-                            !existingHistory.includes(numbers[0]);
-          
-          if (isNewData) {
-            console.log(`[RESTSocketService] Novos números detectados para roleta ${roulette.nome || roulette.id} (central-service)`);
-            
-            // Mesclar, evitando duplicações e preservando ordem
-            const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
-            
-            // Atualizar o histórico com mesclagem para preservar números antigos
-            this.setRouletteHistory(roulette.id, mergedNumbers);
-            
-            // Emitir evento com o número mais recente
-            const lastNumber = roulette.numero[0];
-            
-            const event: any = {
-              type: 'new_number',
-              roleta_id: roulette.id,
-              roleta_nome: roulette.nome,
-              numero: lastNumber.numero || lastNumber.number || 0,
-              cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
-              timestamp: lastNumber.timestamp || new Date().toISOString(),
-              source: 'central-service' // Marcar a origem para depuração
-            };
-            
-            // Notificar os listeners sobre o novo número
-            this.notifyListeners(event);
-          }
-        }
-        
-        // Emitir evento de estratégia se houver
-        if (roulette.estado_estrategia) {
-          const strategyEvent: any = {
-            type: 'strategy_update',
-            roleta_id: roulette.id,
-            roleta_nome: roulette.nome,
-            estado: roulette.estado_estrategia,
-            numero_gatilho: roulette.numero_gatilho || 0,
-            vitorias: roulette.vitorias || 0,
-            derrotas: roulette.derrotas || 0,
-            terminais_gatilho: roulette.terminais_gatilho || [],
-            source: 'central-service' // Marcar a origem para depuração
-          };
-          
-          // Notificar os listeners sobre a atualização de estratégia
-          this.notifyListeners(strategyEvent);
-        }
-      });
-      
-      const endTime = Date.now();
-      console.log(`[RESTSocketService] Processamento concluído em ${endTime - startTime}ms`);
-      
-      return true;
-    } catch (error) {
-      console.error('[RESTSocketService] Erro ao processar dados do serviço centralizado:', error);
-      return false;
-    }
-  }
-
   // Função auxiliar para mesclar arrays de números sem duplicações
   private mergeNumbersWithoutDuplicates(newNumbers: number[], existingNumbers: number[]): number[] {
     // Criar um Set a partir dos números existentes para verificação rápida
@@ -687,44 +561,6 @@ class RESTSocketService {
     }
     
     return mergedNumbers;
-  }
-
-  // Novo método para verificar assinatura antes de iniciar polling
-  private async checkSubscriptionBeforeInit(): Promise<void> {
-    try {
-      // Verificar localmente se o usuário está autenticado
-      const token = localStorage.getItem('auth_token_backup') || Cookies.get('auth_token');
-      
-      if (!token) {
-        console.log('[RESTSocketService] Usuário não autenticado, iniciando polling padrão');
-        this.startPolling();
-        return;
-      }
-      
-      // Verificar com o backend se o usuário tem plano
-      const API_URL = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${API_URL}/subscription/status`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        console.log('[RESTSocketService] Erro ao verificar assinatura, iniciando polling padrão');
-        this.startPolling();
-        return;
-      }
-      
-      const data = await response.json();
-      
-      // Iniciar polling completo independente do status da assinatura
-      console.log('[RESTSocketService] Iniciando polling padrão');
-      this.startPolling();
-      this.startSecondEndpointPolling();
-    } catch (error) {
-      console.error('[RESTSocketService] Erro ao verificar assinatura:', error);
-      this.startPolling();
-    }
   }
 }
 

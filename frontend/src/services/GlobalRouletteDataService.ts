@@ -104,72 +104,38 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados das roletas da API (usando limit=1000) - método principal
-   * @returns Promise com dados das roletas
+   * Busca dados das roletas da API REST
+   * @returns Array com dados das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
-    // Evitar requisições simultâneas
-    if (this.isFetching) {
-      console.log('[GlobalRouletteService] Requisição já em andamento, aguardando...');
-      
-      // Aguardar a conclusão da requisição atual
-      if (this._currentFetchPromise) {
-        return this._currentFetchPromise;
-      }
-      
-      return this.rouletteData;
-    }
-    
-    // Verificar se já fizemos uma requisição recentemente
     const now = Date.now();
-    if (now - this.lastFetchTime < MIN_FORCE_INTERVAL) {
-      console.log(`[GlobalRouletteService] Última requisição foi feita há ${Math.round((now - this.lastFetchTime)/1000)}s. Aguardando intervalo mínimo de ${MIN_FORCE_INTERVAL/1000}s.`);
-      return this.rouletteData;
-    }
     
     try {
       this.isFetching = true;
       
-      // Removendo a verificação de cache para sempre buscar dados frescos
-      console.log('[GlobalRouletteService] Buscando dados atualizados da API (limit=1000)');
+      // Não buscar mais dados da API conforme solicitado
+      console.log('[GlobalRouletteService] Requisições a api/roulettes foram desativadas');
       
-      // Criar e armazenar a promessa atual
+      // Criar e armazenar a promessa atual que retorna dados vazios ou existentes
       this._currentFetchPromise = (async () => {
-        // Usar a função utilitária com suporte a CORS - com limit=1000 para todos os casos
-        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+        console.log('[GlobalRouletteService] Retornando dados existentes ou array vazio');
         
-        // Verificar se os dados são válidos
-        if (data && Array.isArray(data)) {
-          console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
-          this.rouletteData = data;
-          this.lastFetchTime = now;
-          
-          // Remover armazenamento no localStorage
-          // localStorage.setItem('global_roulette_data', JSON.stringify({
-          //   timestamp: now,
-          //   data: data
-          // }));
-          
-          // Notificar todos os assinantes sobre a atualização
-          this.notifySubscribers();
-          
-          // Emitir evento global para outros componentes que possam estar ouvindo
-          EventService.emit('roulette:data-updated', {
-            timestamp: new Date().toISOString(),
-            count: data.length,
-            source: 'central-service'
-          });
-          
-          return data;
-        } else {
-          console.error('[GlobalRouletteService] Resposta inválida da API');
-          return this.rouletteData;
-        }
+        // Notificar todos os assinantes sobre a atualização
+        this.notifySubscribers();
+        
+        // Emitir evento global para outros componentes que possam estar ouvindo
+        EventService.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          count: this.rouletteData.length,
+          source: 'central-service'
+        });
+        
+        return this.rouletteData;
       })();
       
       return await this._currentFetchPromise;
     } catch (error) {
-      console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
+      console.error('[GlobalRouletteService] Erro ao processar dados:', error);
       return this.rouletteData;
     } finally {
       this.isFetching = false;

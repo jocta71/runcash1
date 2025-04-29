@@ -1,10 +1,10 @@
 // URLs para os endpoints da API
 export const ENDPOINTS = {
   // Endpoint principal para roletas (agora unificado)
-  ROULETTES: '/api/ROULETTES',
+  // ROULETTES: '/api/ROULETTES', // Removido conforme solicitado
   
   // Endpoint para histórico de roletas
-  ROULETTE_HISTORY: '/api/roulettes/history',
+  // ROULETTE_HISTORY: '/api/roulettes/history', // Removido conforme solicitado
   
   // Endpoint para eventos em tempo real
   EVENTS: '/api/events',
