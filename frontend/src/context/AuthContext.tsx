@@ -10,6 +10,20 @@ interface User {
   isAdmin: boolean;
   profilePicture?: string;
   asaasCustomerId?: string; // ID do cliente no Asaas
+  // Propriedades relacionadas a assinatura
+  subscription?: {
+    active?: boolean;
+    status?: string;
+    plan?: string;
+    expiresAt?: string;
+  };
+  plan?: {
+    active?: boolean;
+    name?: string;
+    expiresAt?: string;
+  };
+  hasPaidPlan?: boolean;
+  isSubscribed?: boolean;
 }
 
 interface AuthContextType {

@@ -2,13 +2,13 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import LoginModal from '@/components/LoginModal';
 import { useAuth } from './AuthContext';
 import { useNavigate } from 'react-router-dom';
-import EventService from '@/services/EventService';
 
 type LoginModalContextType = {
-  showLoginModal: (options?: { redirectAfterLogin?: string; message?: string; showUpgradeOption?: boolean }) => void;
+  showLoginModal: (options?: { redirectAfterLogin?: string; message?: string; requiresSubscription?: boolean }) => void;
   hideLoginModal: () => void;
   isModalOpen: boolean;
   resetModalClosed: () => void;
+  isSubscriptionRequired: boolean;
 };
 
 const LoginModalContext = createContext<LoginModalContextType>({
@@ -16,6 +16,7 @@ const LoginModalContext = createContext<LoginModalContextType>({
   hideLoginModal: () => {},
   isModalOpen: false,
   resetModalClosed: () => {},
+  isSubscriptionRequired: false,
 });
 
 /**
@@ -26,13 +27,17 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [redirectPath, setRedirectPath] = useState<string | undefined>(undefined);
   const [modalMessage, setModalMessage] = useState<string | undefined>(undefined);
-  const [showUpgradeOption, setShowUpgradeOption] = useState(false);
+  const [isSubscriptionRequired, setIsSubscriptionRequired] = useState(false);
   
   const { user } = useAuth();
   const navigate = useNavigate();
   
   // Função para mostrar o modal
-  const showLoginModal = (options?: { redirectAfterLogin?: string; message?: string; showUpgradeOption?: boolean }) => {
+  const showLoginModal = (options?: { 
+    redirectAfterLogin?: string; 
+    message?: string; 
+    requiresSubscription?: boolean 
+  }) => {
     // Armazenar o caminho de redirecionamento, se fornecido
     if (options?.redirectAfterLogin) {
       setRedirectPath(options.redirectAfterLogin);
@@ -45,15 +50,36 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setModalMessage(undefined); // Usar a mensagem padrão
     }
     
-    // Armazenar a opção de mostrar upgrade
-    setShowUpgradeOption(options?.showUpgradeOption || false);
+    // Definir se requer assinatura
+    setIsSubscriptionRequired(!!options?.requiresSubscription);
     
     setIsModalOpen(true);
   };
   
   // Fechar o modal automaticamente quando o usuário estiver autenticado
   useEffect(() => {
-    if (user && isModalOpen && !showUpgradeOption) {
+    if (user && isModalOpen) {
+      // Se requer assinatura, verificar se o usuário tem assinatura
+      if (isSubscriptionRequired) {
+        // Verificar se o usuário tem um plano ativo baseado nos dados do usuário
+        const hasActivePlan = !!(
+          user.subscription?.active || 
+          user.subscription?.status === 'active' || 
+          user.plan?.active || 
+          user.hasPaidPlan || 
+          user.isSubscribed ||
+          user.isAdmin // Permitir acesso para administradores
+        );
+        
+        // Se não tem plano, manter o modal aberto com a mensagem sobre assinatura
+        if (!hasActivePlan) {
+          console.log('[LoginModal] Usuário logado, mas sem plano ativo');
+          setModalMessage('Você precisa de uma assinatura para acessar este conteúdo.');
+          return;
+        }
+      }
+      
+      // Se chegou aqui, o usuário está autenticado e tem assinatura (ou não é necessária)
       setIsModalOpen(false);
       
       // Se temos um caminho de redirecionamento, navegar para ele
@@ -62,7 +88,7 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setRedirectPath(undefined);
       }
     }
-  }, [user, isModalOpen, redirectPath, navigate, showUpgradeOption]);
+  }, [user, isModalOpen, redirectPath, navigate, isSubscriptionRequired]);
 
   // Listener para eventos de "login necessário"
   useEffect(() => {
@@ -71,18 +97,13 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       if (event.detail) {
         // Extrair detalhes do evento
-        const { message, redirectAfterLogin, requiresUpgrade } = event.detail;
-        
-        // Verificar se é necessário upgrade
-        const needsUpgrade = requiresUpgrade === true;
+        const { message, redirectAfterLogin, requiresSubscription } = event.detail;
         
         // Mostrar o modal com as opções do evento
         showLoginModal({
-          message: message || (needsUpgrade 
-            ? 'É necessário ter um plano para acessar esta funcionalidade' 
-            : 'É necessário fazer login para continuar'),
+          message: message || 'É necessário fazer login para continuar',
           redirectAfterLogin: redirectAfterLogin || window.location.pathname,
-          showUpgradeOption: needsUpgrade
+          requiresSubscription: !!requiresSubscription
         });
       } else {
         // Caso o evento não tenha detalhes, mostrar o modal com mensagem padrão
@@ -101,23 +122,34 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   
   // Listener para eventos de "assinatura necessária"
   useEffect(() => {
-    const handleSubscriptionRequired = (event: any) => {
+    const handleSubscriptionRequired = (event: CustomEvent) => {
       console.log('[LoginModal] Evento subscription:required recebido:', event);
       
-      // Mostrar o modal de login com opção de upgrade
-      showLoginModal({
-        message: event.message || 'É necessário ter um plano para acessar esta funcionalidade',
-        redirectAfterLogin: '/plans', // Redirecionar para página de planos
-        showUpgradeOption: true
-      });
+      if (event.detail) {
+        // Extrair detalhes do evento
+        const { message, redirectAfterLogin } = event.detail;
+        
+        // Mostrar o modal com as opções do evento
+        showLoginModal({
+          message: message || 'É necessária uma assinatura para acessar este conteúdo',
+          redirectAfterLogin: redirectAfterLogin || window.location.pathname,
+          requiresSubscription: true
+        });
+      } else {
+        // Caso o evento não tenha detalhes, mostrar o modal com mensagem padrão
+        showLoginModal({
+          requiresSubscription: true,
+          message: 'É necessária uma assinatura para acessar este conteúdo'
+        });
+      }
     };
     
     // Registrar o listener
-    EventService.on('subscription:required', handleSubscriptionRequired);
+    document.addEventListener('subscription:required', handleSubscriptionRequired as EventListener);
     
     // Remover o listener ao desmontar
     return () => {
-      EventService.off('subscription:required', handleSubscriptionRequired);
+      document.removeEventListener('subscription:required', handleSubscriptionRequired as EventListener);
     };
   }, []);
 
@@ -128,7 +160,7 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const resetModalClosed = () => {
     setRedirectPath(undefined);
     setModalMessage(undefined);
-    setShowUpgradeOption(false);
+    setIsSubscriptionRequired(false);
   };
 
   return (
@@ -138,6 +170,7 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         hideLoginModal,
         isModalOpen,
         resetModalClosed,
+        isSubscriptionRequired,
       }}
     >
       {children}
@@ -146,7 +179,7 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         onClose={hideLoginModal} 
         redirectAfterLogin={redirectPath}
         message={modalMessage}
-        showUpgradeOption={showUpgradeOption}
+        requiresSubscription={isSubscriptionRequired}
       />
     </LoginModalContext.Provider>
   );
