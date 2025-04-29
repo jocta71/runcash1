@@ -16,6 +16,9 @@ const DEFAULT_LIMIT = 1000;
 // Limite para requisições detalhadas (1000 itens)
 const DETAILED_LIMIT = 1000;
 
+// Flag para controle de acesso (padrão: verdadeiro para compatibilidade com versões anteriores)
+const REQUIRE_AUTHENTICATION = true;
+
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
 
@@ -34,6 +37,7 @@ class GlobalRouletteDataService {
   private pollingTimer: number | null = null;
   private subscribers: Map<string, SubscriberCallback> = new Map();
   private _currentFetchPromise: Promise<any[]> | null = null;
+  private _isAuthenticated: boolean = false;
   
   // Construtor privado para garantir Singleton
   private constructor() {
@@ -127,6 +131,22 @@ class GlobalRouletteDataService {
       return this.rouletteData;
     }
     
+    // Obter token de autenticação (do localStorage ou cookies)
+    const authToken = this.getAuthToken();
+    
+    // Se a autenticação for obrigatória e não houver token, não fazer a requisição
+    if (REQUIRE_AUTHENTICATION && !authToken) {
+      console.log('[GlobalRouletteService] Usuário não autenticado, requisição cancelada');
+      
+      // Emitir evento para notificar que usuário precisa autenticar
+      EventService.emit('auth:required', {
+        message: 'Autenticação necessária para acessar os dados das roletas',
+        timestamp: new Date().toISOString()
+      });
+      
+      return this.rouletteData;
+    }
+    
     try {
       this.isFetching = true;
       
@@ -135,9 +155,6 @@ class GlobalRouletteDataService {
       
       // Criar e armazenar a promessa atual
       this._currentFetchPromise = (async () => {
-        // Obter token de autenticação (do localStorage ou cookies)
-        const authToken = this.getAuthToken();
-        
         // Usar a função utilitária com suporte a CORS - com limit=1000 para todos os casos
         const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`, {
           headers: authToken ? {
@@ -150,6 +167,7 @@ class GlobalRouletteDataService {
           console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
           this.rouletteData = data;
           this.lastFetchTime = now;
+          this._isAuthenticated = true; // Marcar que autenticação está ok
           
           // Notificar todos os assinantes sobre a atualização
           this.notifySubscribers();
@@ -170,7 +188,21 @@ class GlobalRouletteDataService {
       
       return await this._currentFetchPromise;
     } catch (error) {
-      console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
+      // Verificar se o erro é de autenticação (401)
+      if (error.response && error.response.status === 401) {
+        console.error('[GlobalRouletteService] Erro de autenticação (401)');
+        this._isAuthenticated = false;
+        
+        // Emitir evento para notificar que usuário precisa autenticar
+        EventService.emit('auth:required', {
+          message: 'Sessão expirada ou inválida',
+          timestamp: new Date().toISOString(),
+          status: 401
+        });
+      } else {
+        console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
+      }
+      
       return this.rouletteData;
     } finally {
       this.isFetching = false;
@@ -198,6 +230,14 @@ class GlobalRouletteDataService {
     }
     
     return token;
+  }
+  
+  /**
+   * Verifica se o usuário está autenticado
+   * @returns true se estiver autenticado, false caso contrário
+   */
+  public isAuthenticated(): boolean {
+    return this._isAuthenticated || this.getAuthToken() !== null;
   }
   
   /**

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import Cookies from 'js-cookie';
+import EventService from '@/services/EventService';
 
 interface User {
   id: string;
@@ -683,6 +684,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logAuthFlow(`Erro ao chamar logout na API: ${error}`);
     });
   };
+
+  // Efeito para registrar listener do evento auth:required
+  useEffect(() => {
+    const handleAuthRequired = (event: any) => {
+      console.log('[AUTH] Evento auth:required recebido:', event);
+      
+      // Se não estamos autenticados, mostrar mensagem e redirecionar para login
+      if (!token) {
+        // Limpar dados locais
+        clearAuthData();
+        
+        // Notificar outros componentes via eventos
+        document.dispatchEvent(
+          new CustomEvent('auth:login_required', { 
+            detail: {
+              message: event.message || 'É necessário fazer login para acessar esta funcionalidade',
+              timestamp: new Date().toISOString(),
+              source: event.source || 'auth_service'
+            }
+          })
+        );
+      }
+    };
+    
+    // Registrar o listener
+    EventService.on('auth:required', handleAuthRequired);
+    
+    // Limpar o listener ao desmontar
+    return () => {
+      EventService.off('auth:required', handleAuthRequired);
+    };
+  }, [token]);
 
   // Criar objeto de contexto a ser fornecido
   const contextValue: AuthContextType = {

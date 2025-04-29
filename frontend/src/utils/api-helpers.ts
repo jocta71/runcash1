@@ -44,6 +44,21 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
           }
         });
         
+        // Tratar erros de autenticação explicitamente
+        if (response.status === 401) {
+          console.error('[API] Erro de autenticação (401): Token inválido ou expirado');
+          const error = new Error('Não autorizado: Token inválido ou expirado');
+          (error as any).response = { status: 401 };
+          throw error;
+        }
+        
+        if (response.status === 403) {
+          console.error('[API] Erro de permissão (403): Acesso negado ou assinatura necessária');
+          const error = new Error('Acesso negado: É necessária uma assinatura válida para acessar este recurso');
+          (error as any).response = { status: 403 };
+          throw error;
+        }
+        
         if (!response.ok) throw new Error(`Status: ${response.status}`);
         return await response.json();
       }
@@ -65,6 +80,21 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
             ...(options?.headers || {})
           }
         });
+        
+        // Tratar erros de autenticação explicitamente
+        if (response.status === 401) {
+          console.error('[API] Erro de autenticação (401): Token inválido ou expirado');
+          const error = new Error('Não autorizado: Token inválido ou expirado');
+          (error as any).response = { status: 401 };
+          throw error;
+        }
+        
+        if (response.status === 403) {
+          console.error('[API] Erro de permissão (403): Acesso negado ou assinatura necessária');
+          const error = new Error('Acesso negado: É necessária uma assinatura válida para acessar este recurso');
+          (error as any).response = { status: 403 };
+          throw error;
+        }
         
         if (!response.ok) throw new Error(`Status: ${response.status}`);
         return await response.json();
@@ -91,6 +121,21 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
           }
         });
         
+        // Tratar erros de autenticação explicitamente
+        if (response.status === 401) {
+          console.error('[API] Erro de autenticação (401): Token inválido ou expirado');
+          const error = new Error('Não autorizado: Token inválido ou expirado');
+          (error as any).response = { status: 401 };
+          throw error;
+        }
+        
+        if (response.status === 403) {
+          console.error('[API] Erro de permissão (403): Acesso negado ou assinatura necessária');
+          const error = new Error('Acesso negado: É necessária uma assinatura válida para acessar este recurso');
+          (error as any).response = { status: 403 };
+          throw error;
+        }
+        
         if (!response.ok) throw new Error(`Status: ${response.status}`);
         return await response.json();
       }
@@ -111,6 +156,12 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
       }
     } catch (error) {
       console.error(`[API] Método '${method.name}' falhou:`, error);
+      
+      // Se for erro de autenticação, propagar imediatamente
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        throw error;
+      }
+      
       lastError = error;
     }
   }
@@ -119,7 +170,43 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
   console.error('[API] Todos os métodos falharam');
   throw lastError || new Error('Falha ao buscar dados da API');
   } catch (error) {
-    console.error(`[API] Erro geral na requisição para ${endpoint}:`, error);
+    // Verificar se é um erro de autenticação e formatar adequadamente
+    if (error.response && error.response.status === 401) {
+      console.error(`[API] Erro de autenticação (401) na requisição para ${endpoint}`);
+      
+      // Disparar evento de autenticação necessária
+      if (typeof document !== 'undefined') {
+        document.dispatchEvent(
+          new CustomEvent('auth:login_required', { 
+            detail: {
+              message: 'Sua sessão expirou. Por favor, faça login novamente.',
+              timestamp: new Date().toISOString(),
+              source: 'api_helper'
+            }
+          })
+        );
+      }
+    } 
+    else if (error.response && error.response.status === 403) {
+      console.error(`[API] Acesso negado (403) na requisição para ${endpoint}`);
+      
+      // Disparar evento de autenticação necessária (potencialmente assinatura necessária)
+      if (typeof document !== 'undefined') {
+        document.dispatchEvent(
+          new CustomEvent('auth:login_required', { 
+            detail: {
+              message: 'É necessária uma assinatura para acessar este conteúdo.',
+              timestamp: new Date().toISOString(),
+              source: 'api_helper'
+            }
+          })
+        );
+      }
+    }
+    else {
+      console.error(`[API] Erro geral na requisição para ${endpoint}:`, error);
+    }
+    
     throw error;
   }
 } 
