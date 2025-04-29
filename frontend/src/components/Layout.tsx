@@ -12,6 +12,8 @@ import AnimatedInsights from './AnimatedInsights';
 import Footer from './Footer';
 import GlowingCubeLoader from './GlowingCubeLoader';
 import { useLoginModal } from '@/context/LoginModalContext';
+import SubscriptionAlert from './SubscriptionAlert';
+import EventService from '@/services/EventService';
 
 // Interface estendida para o usuário com firstName e lastName
 interface ExtendedUser {
@@ -292,6 +294,9 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
       
       {/* Barra flutuante da IA */}
       <AIFloatingBar />
+      
+      {/* Alerta de assinatura pulsante */}
+      <SubscriptionAlert />
     </div>
   );
 };
