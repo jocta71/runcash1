@@ -25,6 +25,12 @@ async function checkSubscriptionPayment(subscriptionId) {
     const cachedData = await getFromCache(cacheKey);
     
     if (cachedData && !isExpired(cachedData.updatedAt, 300)) {
+      // Adicionar log para maior visibilidade da decisão
+      logger.debug(`Usando cache para verificação de pagamento da assinatura ${subscriptionId}`, {
+        hasConfirmedPayment: cachedData.hasConfirmedPayment,
+        lastPaymentStatus: cachedData.lastPaymentStatus,
+        cacheAge: Math.round((Date.now() - new Date(cachedData.updatedAt).getTime()) / 1000) + 's'
+      });
       return cachedData.hasConfirmedPayment;
     }
     
@@ -50,10 +56,21 @@ async function checkSubscriptionPayment(subscriptionId) {
     });
     
     // 4. Verificar se há pagamento confirmado
+    // Lista de status válidos para pagamentos confirmados
+    const VALID_PAYMENT_STATUSES = ['CONFIRMED', 'RECEIVED'];
+    
     const hasConfirmedPayment = paymentsData.some(payment => 
-      payment.status === 'CONFIRMED' || 
-      payment.status === 'RECEIVED'
+      VALID_PAYMENT_STATUSES.includes(payment.status)
     );
+    
+    // Registrar informações dos pagamentos para depuração
+    const lastPayment = paymentsData.length > 0 ? paymentsData[0] : null;
+    logger.info(`Verificação de pagamento da assinatura ${subscriptionId}`, {
+      hasConfirmedPayment,
+      paymentsCount: paymentsData.length,
+      lastPaymentStatus: lastPayment?.status,
+      lastPaymentId: lastPayment?.id
+    });
     
     // 5. Salvar em cache
     await saveToCache(cacheKey, {
@@ -66,7 +83,7 @@ async function checkSubscriptionPayment(subscriptionId) {
     return hasConfirmedPayment;
     
   } catch (error) {
-    console.error(`[Assinatura] Erro ao verificar pagamentos da assinatura ${subscriptionId}:`, error);
+    logger.error(`Erro ao verificar pagamentos da assinatura ${subscriptionId}:`, error);
     return false;
   }
 }
@@ -209,14 +226,43 @@ async function hasActivePlan(customerId) {
     // 1. Verificar cache de acesso primeiro (mais rápido)
     const accessData = userAccess.get(customerId);
     if (accessData && !isExpired(accessData.updatedAt, 600)) { // 10 minutos
+      logger.debug(`Usando cache para acesso do cliente ${customerId}`, {
+        hasAccess: accessData.hasAccess,
+        cacheAge: Math.round((Date.now() - new Date(accessData.updatedAt).getTime()) / 1000) + 's'
+      });
       return accessData.hasAccess;
     }
     
     // 2. Verificar status da assinatura
     const subscription = await getCustomerSubscription(customerId);
     
-    if (!subscription || subscription.status !== 'ACTIVE') {
-      // Atualizar acesso
+    // Lista explícita de status válidos para assinaturas ativas
+    const VALID_SUBSCRIPTION_STATUSES = ['ACTIVE'];
+    const INVALID_SUBSCRIPTION_STATUSES = ['PENDING', 'INACTIVE', 'CANCELLED', 'EXPIRED'];
+    
+    // Verificação mais explícita do status da assinatura
+    if (!subscription) {
+      logger.info(`Cliente ${customerId} não possui assinatura`);
+      await updateUserAccess(customerId, false);
+      return false;
+    }
+    
+    // Verificar explicitamente se o status da assinatura é válido
+    if (!VALID_SUBSCRIPTION_STATUSES.includes(subscription.status)) {
+      logger.info(`Cliente ${customerId} possui assinatura com status inválido: ${subscription.status}`, {
+        subscriptionId: subscription.id,
+        status: subscription.status 
+      });
+      
+      // Se o status for PENDING, registrar informação adicional para monitoramento
+      if (INVALID_SUBSCRIPTION_STATUSES.includes(subscription.status)) {
+        logger.warn(`Cliente ${customerId} possui assinatura com status ${subscription.status}, acesso negado`, {
+          subscriptionId: subscription.id,
+          value: subscription.value,
+          nextDueDate: subscription.nextDueDate
+        });
+      }
+      
       await updateUserAccess(customerId, false);
       return false;
     }
@@ -224,13 +270,21 @@ async function hasActivePlan(customerId) {
     // 3. CRUCIAL: Verificar se há pagamento confirmado
     const hasConfirmedPayment = await checkSubscriptionPayment(subscription.id);
     
-    // 4. Atualizar acesso
-    await updateUserAccess(customerId, hasConfirmedPayment);
+    // 4. Atualizar acesso - acesso concedido APENAS se ambas as condições forem atendidas
+    const hasAccess = subscription.status === 'ACTIVE' && hasConfirmedPayment;
     
-    return hasConfirmedPayment;
+    if (!hasConfirmedPayment) {
+      logger.warn(`Cliente ${customerId} possui assinatura ACTIVE mas sem pagamento confirmado, acesso negado`, {
+        subscriptionId: subscription.id
+      });
+    }
+    
+    await updateUserAccess(customerId, hasAccess);
+    
+    return hasAccess;
     
   } catch (error) {
-    console.error(`[Assinatura] Erro ao verificar plano ativo para ${customerId}:`, error);
+    logger.error(`Erro ao verificar plano ativo para ${customerId}:`, error);
     return false;
   }
 }
