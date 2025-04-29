@@ -47,6 +47,21 @@ class GlobalRouletteDataService {
   private constructor() {
     console.log('[GlobalRouletteService] Inicializando serviço global de roletas');
     
+    // CORREÇÃO DE EMERGÊNCIA: Verificar se devemos ativar o bypass de emergência
+    try {
+      // Verificar se há algum problema crítico que exige bypass
+      const lastErrorsStr = localStorage.getItem('roulette_service_errors');
+      const hasErrors = !!lastErrorsStr;
+      
+      // Se houver erros ou falha recente na API, ativar bypass
+      if (hasErrors || this.shouldActivateBypass()) {
+        console.log('[GlobalRouletteService] Ativando bypass de emergência automaticamente devido a erros anteriores');
+        this.activateEmergencyBypass(24); // 24 horas
+      }
+    } catch (e) {
+      console.warn('[GlobalRouletteService] Erro ao verificar necessidade de bypass:', e);
+    }
+    
     // Verificar assinatura ASAAS em segundo plano
     this.updateSubscriptionStatus();
     
@@ -1090,6 +1105,28 @@ class GlobalRouletteDataService {
     
     this.subscribers.clear();
     console.log('[GlobalRouletteService] Serviço encerrado e recursos liberados');
+  }
+
+  /**
+   * Verifica se deve ativar o bypass de emergência
+   */
+  private shouldActivateBypass(): boolean {
+    try {
+      // Verificar se temos dados em memória mas nenhuma roleta
+      const noDataWhenExpected = 
+        localStorage.getItem('socket_data_received') === 'true' && 
+        this.rouletteData.length === 0;
+      
+      // Verificar se houve erro recente
+      const recentErrorTime = parseInt(localStorage.getItem('last_api_error_time') || '0');
+      const errorIsRecent = Date.now() - recentErrorTime < 5 * 60 * 1000; // 5 minutos
+      
+      // Ativar se alguma condição for verdadeira
+      return noDataWhenExpected || errorIsRecent;
+    } catch (e) {
+      // Em caso de erro, não ativar
+      return false;
+    }
   }
 }
 
