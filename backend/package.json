@@ -8,23 +8,30 @@
     "dev": "nodemon index.js",
     "start:websocket": "node websocket_server.js",
     "dev:websocket": "nodemon websocket_server.js",
-    "test": "node test_insert_number.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "axios": "^1.8.3",
+    "axios": "^1.5.0",
     "compression": "^1.8.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
-    "express": "^4.21.2",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "express-async-handler": "^1.2.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.16.0",
-    "mongoose": "^8.13.3",
+    "mongoose": "^7.5.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
+  },
+  "config": {
+    "env": {
+      "SUBSCRIPTION_SERVICE_URL": "http://localhost:3000",
+      "SUBSCRIPTION_SERVICE_API_KEY": "development_api_key",
+      "STRICT_SUBSCRIPTION_CHECK": "false"
+    }
   }
 }

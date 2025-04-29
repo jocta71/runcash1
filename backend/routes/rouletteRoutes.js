@@ -8,102 +8,76 @@ const router = express.Router();
 
 // Importar middlewares
 const { verifyTokenAndSubscription, requireResourceAccess } = require('../middlewares/asaasAuthMiddleware');
+const authMiddleware = require('../middleware/auth.middleware');
+const subscriptionMiddleware = require('../middleware/subscription.middleware');
 
 // Importar controller
 const rouletteController = require('../controllers/rouletteController');
 
+// Aplicar middleware de autenticação e verificação de assinatura em todas as rotas
+router.use(authMiddleware);
+router.use(subscriptionMiddleware);
+
 /**
  * @route   GET /api/roulettes
- * @desc    Lista todas as roletas disponíveis (limitado por plano)
- * @access  Público com limitações
+ * @desc    Retorna todas as roletas disponíveis
+ * @access  Private (requer assinatura ativa)
  */
-router.get('/roulettes', 
-  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
-  rouletteController.listRoulettes
-);
+router.get('/', rouletteController.getAllRoulettes);
 
 /**
  * @route   GET /api/roulettes/:id/basic
- * @desc    Obtém dados básicos de uma roleta específica
- * @access  Público
+ * @desc    Retorna informações básicas de uma roleta específica
+ * @access  Private (requer assinatura ativa)
  */
-router.get('/roulettes/:id/basic', 
-  rouletteController.getBasicRouletteData
-);
+router.get('/:id/basic', rouletteController.getRouletteBasic);
 
 /**
  * @route   GET /api/roulettes/:id/recent
- * @desc    Obtém números recentes de uma roleta (limitado por plano)
- * @access  Público com limitações
+ * @desc    Retorna números recentes de uma roleta específica
+ * @access  Private (requer assinatura ativa)
  */
-router.get('/roulettes/:id/recent', 
-  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
-  rouletteController.getRecentNumbers
-);
+router.get('/:id/recent', rouletteController.getRouletteRecent);
 
 /**
  * @route   GET /api/roulettes/:id/detailed
- * @desc    Obtém dados detalhados da roleta (para assinantes)
- * @access  Privado - Requer assinatura
+ * @desc    Retorna informações detalhadas de uma roleta específica
+ * @access  Private (requer assinatura ativa)
  */
-router.get('/roulettes/:id/detailed', 
-  verifyTokenAndSubscription({ 
-    required: true,
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
-  }),
-  requireResourceAccess('standard_stats'),
-  rouletteController.getDetailedRouletteData
-);
+router.get('/:id/detailed', rouletteController.getRouletteDetailed);
 
 /**
  * @route   GET /api/roulettes/:id/stats
- * @desc    Obtém estatísticas detalhadas da roleta (para assinantes)
- * @access  Privado - Requer assinatura
+ * @desc    Retorna estatísticas de uma roleta específica
+ * @access  Private (requer assinatura ativa)
  */
-router.get('/roulettes/:id/stats', 
-  verifyTokenAndSubscription({
-    required: true,
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
-  }),
-  requireResourceAccess('standard_stats'),
-  rouletteController.getRouletteStatistics
-);
+router.get('/:id/stats', rouletteController.getRouletteStats);
 
 /**
  * @route   GET /api/roulettes/:id/historical
- * @desc    Obtém dados históricos avançados (para assinantes premium)
- * @access  Privado - Requer assinatura premium
+ * @desc    Retorna dados históricos de uma roleta específica
+ * @access  Private (requer assinatura ativa)
  */
-router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical', 
-  verifyTokenAndSubscription({ 
-    required: true,
-    allowedPlans: ['PREMIUM']
-  }),
-  requireResourceAccess('historical_data'),
-  rouletteController.getHistoricalData
-);
+router.get('/:id/historical', rouletteController.getRouletteHistorical);
 
 /**
  * @route   GET /api/roulettes/:id/batch
- * @desc    Obtém lote de números (últimos 1000) - requer assinatura
- * @access  Privado - Requer assinatura
+ * @desc    Retorna dados em lote para uma roleta específica
+ * @access  Private (requer assinatura ativa)
  */
-router.get('/roulettes/:id/batch', 
-  verifyTokenAndSubscription({
-    required: true,
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
-  }),
-  requireResourceAccess('standard_stats'),
-  rouletteController.getNumbersBatch
-);
+router.get('/:id/batch', rouletteController.getBatchData);
 
 /**
  * @route   GET /api/roulettes/:id/preview
- * @desc    Versão degradada para usuários sem assinatura
- * @access  Público
+ * @desc    Retorna uma prévia de uma roleta específica (versão limitada)
+ * @access  Public (não requer assinatura)
  */
-router.get('/roulettes/:id/preview', 
-  rouletteController.getFreePreview
-);
+router.get('/:id/preview', (req, res, next) => {
+  // Skip subscription check for preview endpoint
+  const originalMiddleware = req.subscription;
+  next();
+  // Restaurar estado original após o endpoint
+  req.subscription = originalMiddleware;
+}, rouletteController.getRoulettePreview);
 
 module.exports = router; 
