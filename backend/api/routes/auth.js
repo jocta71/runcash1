@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
@@ -7,6 +8,49 @@ const passport = require('../config/passport');
 
 // Verificar se as credenciais do Google estão disponíveis
 const isGoogleAuthEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+
+// Configuração CORS específica para rotas de autenticação
+const corsOptions = {
+  origin: function(origin, callback) {
+    // Permitir requisições sem origem (local, Postman)
+    if (!origin) return callback(null, true);
+    
+    // Lista de origens permitidas
+    const allowedOrigins = [
+      process.env.FRONTEND_URL || 'https://runcashh11.vercel.app',
+      'http://localhost:3000',       // Desenvolvimento local
+      'http://localhost:5173',       // Vite dev server
+      'https://runcashh11.vercel.app', // Produção
+      /\.vercel\.app$/              // Qualquer ambiente Vercel
+    ];
+    
+    // Verificar se a origem é permitida
+    const allowed = allowedOrigins.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return origin === allowedOrigin;
+      } else if (allowedOrigin instanceof RegExp) {
+        return allowedOrigin.test(origin);
+      }
+      return false;
+    });
+    
+    if (allowed) {
+      callback(null, true);
+    } else {
+      console.warn(`[Auth] Origem CORS bloqueada: ${origin}`);
+      callback(new Error('Não permitido pela política CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+// Aplicar CORS específico às rotas de autenticação
+router.use(cors(corsOptions));
+
+// Configurações especiais para rotas de preflight OPTIONS
+router.options('*', cors(corsOptions));
 
 // @desc    Registrar novo usuário
 // @route   POST /api/auth/register

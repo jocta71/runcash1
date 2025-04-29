@@ -1,6 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const { corsMiddleware } = require('./utils/corsConfig');
 const logger = require('./utils/logger');
 const security = require('./utils/security');
 const storage = require('./utils/storage');
@@ -19,26 +20,23 @@ const CONFIG = {
     validateToken: process.env.VALIDATE_TOKEN !== 'false',
     webhookToken: process.env.ASAAS_WEBHOOK_TOKEN || 'seu-token-aqui',
     allowedIPs: (process.env.ALLOWED_IPS || '').split(',').filter(ip => ip.trim().length > 0),
-    cors: {
-      origin: process.env.CORS_ORIGIN || '*',
-      methods: ['GET', 'POST', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'asaas-access-token', 'Authorization']
-    }
   },
   server: {
     maxStoredEvents: 100,
     eventExpiryTime: 7 * 24 * 60 * 60 * 1000, // 7 dias em milissegundos
     cleanupInterval: 60 * 60 * 1000 // 1 hora em milissegundos
+  },
+  frontend: {
+    url: process.env.FRONTEND_URL || 'https://runcashh11.vercel.app'
   }
 };
 
 // Inicializa o app Express
 const app = express();
 
-// Configura middleware
-app.use(cors(CONFIG.security.cors));
-app.use(bodyParser.json({ limit: '1mb' }));
-app.use(bodyParser.urlencoded({ extended: true }));
+// Configurar middlewares
+app.use(bodyParser.json());
+app.use(corsMiddleware()); // Usar o middleware CORS personalizado
 
 // Função para limpar eventos antigos
 function cleanupOldEvents() {
@@ -234,7 +232,12 @@ function handleSubscriptionCancelled(event) {
 }
 
 // Middleware para validação de segurança
-app.use(CONFIG.routes.webhook, security.createSecurityMiddleware(CONFIG.security));
+app.use(CONFIG.routes.webhook, security.createSecurityMiddleware({
+  validateIP: CONFIG.security.validateIP,
+  validateToken: CONFIG.security.validateToken,
+  allowedIPs: CONFIG.security.allowedIPs,
+  webhookToken: CONFIG.security.webhookToken
+}));
 
 // Middleware para logging de requisições
 app.use((req, res, next) => {
@@ -259,8 +262,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Configurações especiais para rotas de preflight OPTIONS
+app.options('*', cors(corsOptions));
+
 // Rota principal para receber webhooks
-app.post(CONFIG.routes.webhook, (req, res) => {
+app.post(CONFIG.routes.webhook, async (req, res) => {
   try {
     const webhookEvent = req.body;
     
@@ -274,52 +280,78 @@ app.post(CONFIG.routes.webhook, (req, res) => {
       event: webhookEvent.event
     });
     
-    // Registra o evento
-    storage.recordWebhookEvent(webhookEvent);
-    
-    // Processa com base no tipo de evento
-    switch (webhookEvent.event) {
-      case 'PAYMENT_CONFIRMED':
-        handlePaymentConfirmed(webhookEvent);
-        break;
-      case 'PAYMENT_RECEIVED':
-        handlePaymentConfirmed(webhookEvent); // Trata da mesma forma que confirmado
-        break;
-      case 'PAYMENT_OVERDUE':
-        handlePaymentOverdue(webhookEvent);
-        break;
-      case 'PAYMENT_DELETED':
-      case 'PAYMENT_REFUNDED':
-      case 'PAYMENT_REFUND_FAILED':
-        storage.updatePaymentCache({
-          ...webhookEvent.payment,
-          status: webhookEvent.event.replace('PAYMENT_', '')
-        });
-        break;
-      case 'SUBSCRIPTION_CREATED':
-        handleSubscriptionCreated(webhookEvent);
-        break;
-      case 'SUBSCRIPTION_UPDATED':
-        handleSubscriptionUpdated(webhookEvent);
-        break;
-      case 'SUBSCRIPTION_CANCELLED':
-        handleSubscriptionCancelled(webhookEvent);
-        break;
-      case 'SUBSCRIPTION_EXPIRED':
-        storage.updateSubscriptionCache({
-          ...webhookEvent.subscription,
-          status: 'EXPIRED'
-        });
-        break;
-      default:
-        logger.info(`Evento não processado: ${webhookEvent.event}`, { eventId: webhookEvent.id });
+    // Implementação de idempotência - verificar se este evento já foi processado
+    // Verificar se o webhook já foi processado (idempotência)
+    const eventId = webhookEvent.id;
+    const eventExists = storage.storage.webhookEvents.some(event => 
+      event.id === eventId
+    );
+
+    if (eventExists) {
+      logger.info(`Webhook já processado anteriormente (idempotência): ${eventId}`);
+      return res.status(200).json({ status: 'success', idempotent: true });
     }
     
-    // Responde com sucesso
-    res.status(200).json({ status: 'success' });
+    // Registra o evento ANTES de qualquer processamento
+    storage.recordWebhookEvent(webhookEvent);
+    
+    // Responder rapidamente para evitar timeout (10s) do Asaas
+    // Vamos enviar a resposta ANTES de processar completamente o evento
+    res.status(200).json({ status: 'success', received: true });
+    
+    // Continue processando o evento APÓS enviar a resposta
+    // Neste ponto, o Asaas já recebeu a resposta e considera o webhook entregue
+    
+    // Processamento com base no tipo de evento
+    try {
+      switch (webhookEvent.event) {
+        case 'PAYMENT_CONFIRMED':
+          handlePaymentConfirmed(webhookEvent);
+          break;
+        case 'PAYMENT_RECEIVED':
+          handlePaymentConfirmed(webhookEvent); // Trata da mesma forma que confirmado
+          break;
+        case 'PAYMENT_OVERDUE':
+          handlePaymentOverdue(webhookEvent);
+          break;
+        case 'PAYMENT_DELETED':
+        case 'PAYMENT_REFUNDED':
+        case 'PAYMENT_REFUND_FAILED':
+          storage.updatePaymentCache({
+            ...webhookEvent.payment,
+            status: webhookEvent.event.replace('PAYMENT_', '')
+          });
+          break;
+        case 'SUBSCRIPTION_CREATED':
+          handleSubscriptionCreated(webhookEvent);
+          break;
+        case 'SUBSCRIPTION_UPDATED':
+          handleSubscriptionUpdated(webhookEvent);
+          break;
+        case 'SUBSCRIPTION_CANCELLED':
+          handleSubscriptionCancelled(webhookEvent);
+          break;
+        case 'SUBSCRIPTION_EXPIRED':
+          storage.updateSubscriptionCache({
+            ...webhookEvent.subscription,
+            status: 'EXPIRED'
+          });
+          break;
+        default:
+          logger.info(`Evento não processado: ${webhookEvent.event}`, { eventId: webhookEvent.id });
+      }
+    } catch (processingError) {
+      // Isso não afeta a resposta ao Asaas, pois já respondemos
+      logger.errorWithStack('Erro durante o processamento assíncrono do webhook', processingError);
+      // Aqui poderíamos implementar uma fila de retry para eventos com falha
+    }
+    
   } catch (error) {
     logger.errorWithStack('Erro ao processar webhook', error);
-    res.status(500).json({ error: 'Erro interno ao processar webhook' });
+    // Só envia a resposta de erro se ainda não enviamos uma resposta
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Erro interno ao processar webhook' });
+    }
   }
 });
 

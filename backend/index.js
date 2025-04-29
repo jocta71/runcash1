@@ -16,10 +16,12 @@ dotenv.config();
 // Configuração
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://runcashh11.vercel.app";
 
 console.log('=== RunCash Unified Server ===');
 console.log(`Porta: ${PORT}`);
 console.log(`MONGODB_URI: ${MONGODB_URI ? MONGODB_URI.replace(/:.*@/, ':****@') : 'Não definida'}`);
+console.log(`Frontend URL: ${FRONTEND_URL}`);
 console.log('Diretório atual:', process.cwd());
 
 // Verificar e atualizar configuração do callback do Google
@@ -32,15 +34,55 @@ try {
 
 // Inicializar app Express
 const app = express();
-app.use(cors());
+
+// Configuração CORS correta para suportar credenciais
+const corsOptions = {
+  origin: function(origin, callback) {
+    // Permitir requisições de desenvolvimento sem origem (como Postman)
+    if (!origin) return callback(null, true);
+    
+    // Lista de origens permitidas
+    const allowedOrigins = [
+      FRONTEND_URL,                         // Frontend principal
+      'http://localhost:3000',              // Desenvolvimento local
+      'http://localhost:5173',              // Desenvolvimento local (Vite)
+      'https://runcashh11.vercel.app',      // Frontend em produção
+      /\.vercel\.app$/                      // Qualquer ambiente Vercel (para previews)
+    ];
+    
+    // Verificar se a origem é permitida
+    const allowed = allowedOrigins.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return origin === allowedOrigin;
+      } else if (allowedOrigin instanceof RegExp) {
+        return allowedOrigin.test(origin);
+      }
+      return false;
+    });
+    
+    if (allowed) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS] Origem não permitida: ${origin}`);
+      callback(new Error('Não permitido pela política CORS'));
+    }
+  },
+  credentials: true,                        // Habilitar credenciais (cookies, auth headers)
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'asaas-access-token', 'x-requested-with']
+};
+
+// Aplicar CORS à aplicação principal
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Criar servidor HTTP e Socket.IO
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
+    origin: corsOptions.origin,
+    methods: corsOptions.methods,
+    credentials: true
   }
 });
 
