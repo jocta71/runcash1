@@ -108,13 +108,6 @@ class GlobalRouletteDataService {
    * @returns Promise com dados das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
-    // Desativando requisições à API
-    console.log('[GlobalRouletteService] Requisições API desativadas por configuração');
-    
-    // Retornar dados existentes (ou array vazio se não há dados)
-    return this.rouletteData.length > 0 ? this.rouletteData : [];
-    
-    /* REQUISIÇÕES DESATIVADAS
     // Evitar requisições simultâneas
     if (this.isFetching) {
       console.log('[GlobalRouletteService] Requisição já em andamento, aguardando...');
@@ -142,20 +135,21 @@ class GlobalRouletteDataService {
       
       // Criar e armazenar a promessa atual
       this._currentFetchPromise = (async () => {
+        // Obter token de autenticação (do localStorage ou cookies)
+        const authToken = this.getAuthToken();
+        
         // Usar a função utilitária com suporte a CORS - com limit=1000 para todos os casos
-        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`, {
+          headers: authToken ? {
+            'Authorization': `Bearer ${authToken}`
+          } : undefined
+        });
         
         // Verificar se os dados são válidos
         if (data && Array.isArray(data)) {
           console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
           this.rouletteData = data;
           this.lastFetchTime = now;
-          
-          // Remover armazenamento no localStorage
-          // localStorage.setItem('global_roulette_data', JSON.stringify({
-          //   timestamp: now,
-          //   data: data
-          // }));
           
           // Notificar todos os assinantes sobre a atualização
           this.notifySubscribers();
@@ -182,7 +176,28 @@ class GlobalRouletteDataService {
       this.isFetching = false;
       this._currentFetchPromise = null;
     }
-    */
+  }
+  
+  /**
+   * Obtém o token de autenticação do localStorage ou cookies
+   */
+  private getAuthToken(): string | null {
+    // Tentar obter do localStorage
+    let token = localStorage.getItem('auth_token');
+    
+    // Se não encontrar no localStorage, tentar obter dos cookies
+    if (!token) {
+      const cookies = document.cookie.split(';');
+      for (const cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'auth_token' || name === 'token') {
+          token = value;
+          break;
+        }
+      }
+    }
+    
+    return token;
   }
   
   /**

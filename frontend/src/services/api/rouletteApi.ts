@@ -11,13 +11,18 @@ export const RouletteApi = {
    * @returns Array de objetos de roleta
    */
   async fetchAllRoulettes() {
-    console.log('[API] Requisições para ROULETTES desativadas por configuração');
-    return []; // Retorna array vazio, requisições desativadas
-    
-    /* REQUISIÇÕES DESATIVADAS
     try {
       console.log('[API] Buscando todas as roletas disponíveis');
-      const response = await axios.get(ENDPOINTS.ROULETTES);
+      
+      // Obter token de autenticação
+      const authToken = getAuthToken();
+      
+      // Configurar headers com token de autenticação
+      const headers = authToken ? {
+        'Authorization': `Bearer ${authToken}`
+      } : undefined;
+      
+      const response = await axios.get(ENDPOINTS.ROULETTES, { headers });
       
       if (!response.data || !Array.isArray(response.data)) {
         console.error('[API] Resposta inválida da API de roletas:', response.data);
@@ -39,10 +44,13 @@ export const RouletteApi = {
       
       return processedRoulettes;
     } catch (error) {
-      console.error('[API] Erro ao buscar roletas:', error);
+      if (error.response && error.response.status === 403) {
+        console.warn('[API] Acesso negado. Usuário não possui assinatura ativa.');
+      } else {
+        console.error('[API] Erro ao buscar roletas:', error);
+      }
       return [];
     }
-    */
   },
 
   /**
@@ -141,4 +149,26 @@ export const RouletteApi = {
       return [];
     }
   }
-}; 
+};
+
+/**
+ * Obtém o token de autenticação do localStorage ou cookies
+ */
+function getAuthToken(): string | null {
+  // Tentar obter do localStorage
+  let token = localStorage.getItem('auth_token');
+  
+  // Se não encontrar no localStorage, tentar obter dos cookies
+  if (!token) {
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'auth_token' || name === 'token') {
+        token = value;
+        break;
+      }
+    }
+  }
+  
+  return token;
+} 
