@@ -368,6 +368,12 @@ class SocketService {
   
   // Método para carregar dados históricos via REST API
   async loadHistoricalRouletteNumbers(): Promise<void> {
+    console.log(`[SocketService] Requisições para api/ROULETTES desativadas`);
+    
+    // Carregar dados simulados como alternativa
+    this.loadMockData();
+    
+    /* REQUISIÇÕES DESATIVADAS
     try {
       const apiBaseUrl = getApiBaseUrl();
       console.log(`[SocketService] Carregando dados históricos das roletas`);
@@ -430,10 +436,17 @@ class SocketService {
       // Tentar endpoints alternativos se o principal falhar
       this.tryAlternativeHistoricalEndpoints();
     }
+    */
   }
   
   // Método para tentar endpoints alternativos
   private async tryAlternativeHistoricalEndpoints(): Promise<void> {
+    console.log(`[SocketService] Requisições para endpoints alternativos desativadas`);
+    
+    // Carregar dados simulados como alternativa
+    this.loadMockData();
+    
+    /* REQUISIÇÕES DESATIVADAS
     try {
       const apiBaseUrl = getApiBaseUrl();
       console.log(`[SocketService] Tentando endpoints alternativos para dados históricos`);
@@ -479,6 +492,7 @@ class SocketService {
         this.loadMockData();
       }
     }
+    */
   }
   
   // Método para carregar dados simulados em desenvolvimento
