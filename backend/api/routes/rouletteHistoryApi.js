@@ -8,6 +8,9 @@ const express = require('express');
 const router = express.Router();
 const { MongoClient } = require('mongodb');
 
+// Importar middleware de assinatura
+const { requireSubscription, requireResourceAccess } = require('../middleware/subscriptionMiddleware');
+
 // Middleware para verificar se o MongoDB está disponível
 const checkMongoDB = (req, res, next) => {
   if (!req.app.locals.db) {
@@ -22,98 +25,102 @@ const checkMongoDB = (req, res, next) => {
 /**
  * @route   GET /api/roulettes/history/:rouletteName
  * @desc    Obtém até 1000 números históricos de uma roleta pelo nome
- * @access  Public
+ * @access  Requer assinatura
  */
-router.get('/:rouletteName', checkMongoDB, async (req, res) => {
-  try {
-    const { rouletteName } = req.params;
-    const db = req.app.locals.db;
-    
-    if (!rouletteName) {
-      return res.status(400).json({ 
-        error: 'Parâmetro inválido', 
-        message: 'O nome da roleta é obrigatório' 
-      });
-    }
-    
-    console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
-    
-    // Buscar primeiro na coleção roulette_history pelo nome
-    const historyDoc = await db.collection('roulette_history').findOne(
-      { roletaNome: { $regex: new RegExp(rouletteName, 'i') } }
-    );
-    
-    if (historyDoc && historyDoc.numeros && historyDoc.numeros.length > 0) {
-      console.log(`[API] Encontrados ${historyDoc.numeros.length} números no histórico para ${rouletteName}`);
+router.get('/:rouletteName', 
+  checkMongoDB, 
+  requireSubscription({ required: true, allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] }),
+  requireResourceAccess('api_access'),
+  async (req, res) => {
+    try {
+      const { rouletteName } = req.params;
+      const db = req.app.locals.db;
       
-      // Extrair apenas os números (sem timestamps) para simplificar a resposta
-      const numerosSimples = historyDoc.numeros.map(item => item.numero);
+      if (!rouletteName) {
+        return res.status(400).json({ 
+          error: 'Parâmetro inválido', 
+          message: 'O nome da roleta é obrigatório' 
+        });
+      }
       
-      return res.json(numerosSimples);
-    }
-    
-    // Se não encontrou na coleção específica, buscar na coleção de roletas
-    console.log(`[API] Histórico não encontrado na coleção principal, buscando na coleção de roletas`);
-    
-    // Tentar encontrar a roleta pelo nome
-    const roleta = await db.collection('roletas').findOne(
-      { $or: [
-        { nome: { $regex: new RegExp(rouletteName, 'i') } },
-        { name: { $regex: new RegExp(rouletteName, 'i') } }
-      ]}
-    );
-    
-    // Se não encontrou na coleção 'roletas', tentar na coleção 'roulettes'
-    let roletaId = null;
-    if (!roleta) {
-      const roleta2 = await db.collection('roulettes').findOne(
+      console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
+      
+      // Buscar primeiro na coleção roulette_history pelo nome
+      const historyDoc = await db.collection('roulette_history').findOne(
+        { roletaNome: { $regex: new RegExp(rouletteName, 'i') } }
+      );
+      
+      if (historyDoc && historyDoc.numeros && historyDoc.numeros.length > 0) {
+        console.log(`[API] Encontrados ${historyDoc.numeros.length} números no histórico para ${rouletteName}`);
+        
+        // Extrair apenas os números (sem timestamps) para simplificar a resposta
+        const numerosSimples = historyDoc.numeros.map(item => item.numero);
+        
+        return res.json(numerosSimples);
+      }
+      
+      // Se não encontrou na coleção específica, buscar na coleção de roletas
+      console.log(`[API] Histórico não encontrado na coleção principal, buscando na coleção de roletas`);
+      
+      // Tentar encontrar a roleta pelo nome
+      const roleta = await db.collection('roletas').findOne(
         { $or: [
           { nome: { $regex: new RegExp(rouletteName, 'i') } },
           { name: { $regex: new RegExp(rouletteName, 'i') } }
         ]}
       );
       
-      if (roleta2) {
-        roletaId = roleta2.id || roleta2._id;
+      // Se não encontrou na coleção 'roletas', tentar na coleção 'roulettes'
+      let roletaId = null;
+      if (!roleta) {
+        const roleta2 = await db.collection('roulettes').findOne(
+          { $or: [
+            { nome: { $regex: new RegExp(rouletteName, 'i') } },
+            { name: { $regex: new RegExp(rouletteName, 'i') } }
+          ]}
+        );
+        
+        if (roleta2) {
+          roletaId = roleta2.id || roleta2._id;
+        }
+      } else {
+        roletaId = roleta.id || roleta._id;
       }
-    } else {
-      roletaId = roleta.id || roleta._id;
-    }
-    
-    if (!roletaId) {
-      console.log(`[API] Roleta '${rouletteName}' não encontrada em nenhuma coleção`);
+      
+      if (!roletaId) {
+        console.log(`[API] Roleta '${rouletteName}' não encontrada em nenhuma coleção`);
+        return res.json([]);
+      }
+      
+      // Buscar números na coleção de números
+      console.log(`[API] Buscando números para roleta ID: ${roletaId}`);
+      
+      const numeros = await db.collection('roleta_numeros')
+        .find({ roleta_id: roletaId.toString() })
+        .sort({ timestamp: -1 })
+        .limit(1000)
+        .toArray();
+      
+      if (numeros && numeros.length > 0) {
+        console.log(`[API] Encontrados ${numeros.length} números para roleta ${rouletteName}`);
+        
+        // Extrair apenas os números
+        const numerosSimples = numeros.map(item => item.numero);
+        
+        return res.json(numerosSimples);
+      }
+      
+      // Se não encontrou nada, retornar array vazio
+      console.log(`[API] Nenhum número encontrado para roleta ${rouletteName}`);
       return res.json([]);
-    }
-    
-    // Buscar números na coleção de números
-    console.log(`[API] Buscando números para roleta ID: ${roletaId}`);
-    
-    const numeros = await db.collection('roleta_numeros')
-      .find({ roleta_id: roletaId.toString() })
-      .sort({ timestamp: -1 })
-      .limit(1000)
-      .toArray();
-    
-    if (numeros && numeros.length > 0) {
-      console.log(`[API] Encontrados ${numeros.length} números para roleta ${rouletteName}`);
       
-      // Extrair apenas os números
-      const numerosSimples = numeros.map(item => item.numero);
-      
-      return res.json(numerosSimples);
+    } catch (error) {
+      console.error('[API] Erro ao buscar histórico da roleta:', error);
+      res.status(500).json({ 
+        error: 'Erro interno', 
+        message: error.message 
+      });
     }
-    
-    // Se não encontrou nada, retornar array vazio
-    console.log(`[API] Nenhum número encontrado para roleta ${rouletteName}`);
-    return res.json([]);
-    
-  } catch (error) {
-    console.error('[API] Erro ao buscar histórico da roleta:', error);
-    res.status(500).json({ 
-      error: 'Erro interno', 
-      message: error.message 
-    });
-  }
 });
 
 /**
@@ -139,7 +146,7 @@ router.get('/', checkMongoDB, async (req, res) => {
         roulettes: roulettesCount,
         roleta_numeros: numerosCount
       },
-      message: 'Use a rota /api/roulettes/history/:rouletteName para obter o histórico específico de uma roleta'
+      message: 'Use a rota /api/roulettes/history/:rouletteName para obter o histórico específico de uma roleta. É necessário ter uma assinatura ativa.'
     });
     
   } catch (error) {

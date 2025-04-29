@@ -3,6 +3,9 @@ const router = express.Router();
 const itemController = require('../controllers/itemController');
 const { validateCreateItem, validateUpdateItem, validateIdParam } = require('../middleware/validateItem');
 
+// Importar handlers de pagamento
+const asaasWebhookHandler = require('../payment/asaas-webhook');
+
 /**
  * @route   GET /api/rest/items
  * @desc    Get all items
@@ -37,5 +40,12 @@ router.put('/items/:id', validateIdParam, validateUpdateItem, itemController.upd
  * @access  Public
  */
 router.delete('/items/:id', validateIdParam, itemController.deleteItem);
+
+/**
+ * Webhook para receber eventos do Asaas
+ * @route POST /api/webhook/asaas
+ * @access Público
+ */
+router.post('/webhook/asaas', asaasWebhookHandler);
 
 module.exports = router; 
