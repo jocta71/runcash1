@@ -141,13 +141,8 @@ class GlobalRouletteDataService {
         const invoicesStatus = JSON.parse(invoicesStatusStr);
         const cacheAge = Date.now() - (invoicesStatus.timestamp || 0);
         
-        // Se o endpoint de faturas não foi encontrado, não bloquear o acesso por causa disso
-        if (invoicesStatus.endpointNotFound && cacheAge < 3600000) {
-          console.log('[GlobalRouletteService] Verificação de faturas ignorada: endpoint não encontrado');
-          // Não bloqueamos aqui, continuamos para verificar a assinatura
-        }
         // Se houver faturas vencidas e o cache não for muito antigo, bloquear acesso
-        else if (invoicesStatus.hasOverdueInvoices && cacheAge < 3600000) {
+        if (invoicesStatus.hasOverdueInvoices && cacheAge < 3600000) {
           console.log('[GlobalRouletteService] Verificação de plano: Bloqueado devido a faturas vencidas');
           this._hasPaidPlan = false;
           return false;
@@ -488,25 +483,54 @@ class GlobalRouletteDataService {
       const API_URL = window.location.origin;
       const invoicesResponse = await fetch(`${API_URL}/api/asaas-list-payments?customerId=${customerId}&_t=${Date.now()}`);
       
-      // IMPORTANTE: Se o endpoint não existir (404), não bloquear o acesso
-      // Isso pode acontecer se a API ainda não implementou este endpoint
+      // FALLBACK: Se o endpoint retornar 404, consideramos que não há API para verificar faturas
+      // Neste caso, permitimos o acesso se a assinatura estiver ativa
       if (invoicesResponse.status === 404) {
-        console.log('[GlobalRouletteService] Endpoint asaas-list-payments não encontrado (404), permitindo acesso');
+        console.log('[GlobalRouletteService] Endpoint de verificação de faturas não encontrado (404). Utilizando fallback.');
         
-        // Salvar informação no localStorage para evitar novas requisições
+        // Salvar informação no localStorage para uso futuro
         localStorage.setItem('asaas_invoices_status', JSON.stringify({
-          hasOverdueInvoices: false, // Assumindo que não há faturas vencidas
-          endpointNotFound: true,
+          hasOverdueInvoices: false,
+          message: 'Endpoint não disponível - utilizando fallback',
           timestamp: Date.now()
         }));
         
-        return true; // Permitir acesso mesmo sem conseguir verificar as faturas
+        // Permitir acesso mesmo sem poder verificar faturas
+        return true;
       }
       
-      // Para outros erros, seguir o comportamento padrão
+      // Para outros erros, verificamos se temos um cache recente
       if (!invoicesResponse.ok) {
         console.warn(`[GlobalRouletteService] Erro ao verificar faturas: ${invoicesResponse.status}`);
-        return false;
+        
+        // Verificar se temos um cache recente de status de fatura (menos de 24h)
+        const cachedStatusStr = localStorage.getItem('asaas_invoices_status');
+        if (cachedStatusStr) {
+          try {
+            const cachedStatus = JSON.parse(cachedStatusStr);
+            const cacheAge = Date.now() - (cachedStatus.timestamp || 0);
+            
+            // Se o cache for recente (menos de 24h), confiar nele
+            if (cacheAge < 24 * 60 * 60 * 1000) {
+              console.log('[GlobalRouletteService] Usando cache de status de faturas devido a erro na API');
+              return !cachedStatus.hasOverdueInvoices;
+            }
+          } catch (e) {
+            // Se houver erro ao analisar o cache, ignorar
+          }
+        }
+        
+        // Se não houver cache recente, permitir acesso temporário por 1h
+        console.log('[GlobalRouletteService] Permitindo acesso temporário devido a erro na verificação de faturas');
+        
+        localStorage.setItem('asaas_invoices_status', JSON.stringify({
+          hasOverdueInvoices: false,
+          message: 'Acesso temporário devido a erro na API',
+          isTemporary: true,
+          timestamp: Date.now()
+        }));
+        
+        return true;
       }
       
       const data = await invoicesResponse.json();
@@ -551,7 +575,18 @@ class GlobalRouletteDataService {
       return true;
     } catch (error) {
       console.error('[GlobalRouletteService] Erro ao verificar faturas:', error);
-      // Em caso de erro, permitir acesso para não prejudicar a experiência do usuário
+      
+      // Em caso de erro, permitir acesso temporário
+      console.log('[GlobalRouletteService] Permitindo acesso temporário devido a erro inesperado na verificação de faturas');
+      
+      // Salvar informação no localStorage para uso futuro
+      localStorage.setItem('asaas_invoices_status', JSON.stringify({
+        hasOverdueInvoices: false,
+        isTemporary: true,
+        errorMessage: error.message,
+        timestamp: Date.now()
+      }));
+      
       return true;
     }
   }
@@ -569,30 +604,29 @@ class GlobalRouletteDataService {
           if (hasActivePlan && invoicesOk) {
             console.log('[GlobalRouletteService] Estado de assinatura atualizado: usuário tem plano ativo e faturas em dia');
             this._hasPaidPlan = true;
-          } else if (!invoicesOk) {
-            // Verificar se a falha na verificação das faturas foi porque o endpoint não existe
-            try {
-              const invoicesStatusStr = localStorage.getItem('asaas_invoices_status');
-              if (invoicesStatusStr) {
-                const invoicesStatus = JSON.parse(invoicesStatusStr);
-                if (invoicesStatus.endpointNotFound) {
-                  console.log('[GlobalRouletteService] Estado de assinatura atualizado: usuário tem plano ativo (ignorando verificação de faturas)');
-                  this._hasPaidPlan = true;
-                  return;
-                }
-              }
-            } catch (e) {
-              // Ignorar erros na verificação do cache
-            }
             
+            // Atualizar tag de data para indicar última verificação bem-sucedida
+            localStorage.setItem('last_subscription_check', Date.now().toString());
+          } else if (hasActivePlan) {
             console.log('[GlobalRouletteService] Estado de assinatura atualizado: usuário tem plano ativo mas possui faturas vencidas');
+            
+            // Verificar se REQUIRE_PAID_PLAN está em modo estrito que exige faturas em dia
+            if (!this.isStrictPlanMode()) {
+              console.log('[GlobalRouletteService] Permitindo acesso mesmo com faturas vencidas (modo não-estrito)');
+              this._hasPaidPlan = true;
+            } else {
+              this._hasPaidPlan = false;
+            }
+          } else {
+            console.log('[GlobalRouletteService] Estado de assinatura atualizado: assinatura não está ativa');
             this._hasPaidPlan = false;
           }
         }).catch(error => {
-          // Em caso de erro na verificação de faturas, usar apenas o status da assinatura
-          console.warn('[GlobalRouletteService] Erro ao verificar faturas, usando apenas status da assinatura:', error);
+          // Em caso de erro na verificação de faturas, confiar no status da assinatura
+          console.error('[GlobalRouletteService] Erro na verificação de faturas, confiando apenas no status da assinatura:', error);
+          
           if (hasActivePlan) {
-            console.log('[GlobalRouletteService] Estado de assinatura atualizado: usuário tem plano ativo (ignorando verificação de faturas devido a erro)');
+            console.log('[GlobalRouletteService] Permitindo acesso baseado apenas no status da assinatura');
             this._hasPaidPlan = true;
           }
         });
@@ -601,8 +635,27 @@ class GlobalRouletteDataService {
         this._hasPaidPlan = false;
       }
     }).catch(error => {
-      console.error('[GlobalRouletteService] Erro ao verificar assinatura:', error);
+      console.error('[GlobalRouletteService] Erro ao atualizar estado da assinatura:', error);
+      
+      // Se houver erro na verificação, manter o estado atual
+      // Isso evita bloqueios acidentais por falhas temporárias
     });
+  }
+  
+  /**
+   * Verifica se o sistema está em modo estrito para verificação de planos
+   * No modo estrito, faturas vencidas impedem o acesso
+   * No modo normal, apenas o status da assinatura é verificado
+   */
+  private isStrictPlanMode(): boolean {
+    // Verificar se há configuração específica no localStorage
+    const strictModeConfig = localStorage.getItem('subscription_strict_mode');
+    if (strictModeConfig) {
+      return strictModeConfig === 'true';
+    }
+    
+    // Por padrão, não bloquear por faturas vencidas
+    return false;
   }
   
   /**
@@ -632,6 +685,9 @@ class GlobalRouletteDataService {
     // Obter token de autenticação (do localStorage ou cookies)
     const authToken = this.getAuthToken();
     
+    // Fazer logging do status de autenticação para diagnóstico
+    console.log(`[GlobalRouletteService] Status de autenticação: token presente=${!!authToken}, _isAuthenticated=${this._isAuthenticated}`);
+    
     // Se a autenticação for obrigatória e não houver token, não fazer a requisição
     if (REQUIRE_AUTHENTICATION && !authToken) {
       console.log('[GlobalRouletteService] Usuário não autenticado, requisição cancelada');
@@ -645,8 +701,9 @@ class GlobalRouletteDataService {
       return this.rouletteData;
     }
     
-    // NOVA VERIFICAÇÃO: Se o plano for obrigatório e o usuário não tiver plano, não fazer a requisição
-    if (REQUIRE_PAID_PLAN && !this.hasActivePlan()) {
+    // NOVA VERIFICAÇÃO: Verificar se o plano é obrigatório e se o usuário tem plano
+    // Adicionamos suporte para bypass de emergência via localStorage
+    if (REQUIRE_PAID_PLAN && !this.hasActivePlan() && !this.hasEmergencyBypass()) {
       console.log('[GlobalRouletteService] Usuário sem plano ativo, requisição cancelada');
       
       // Emitir evento para notificar que usuário precisa de plano
@@ -750,76 +807,136 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Obtém o token de autenticação do localStorage, sessionStorage ou cookies
+   * Verifica se existe um bypass de emergência ativado
+   * Este método permite que em situações de problemas persistentes, 
+   * o acesso possa ser desbloqueado temporariamente
+   */
+  private hasEmergencyBypass(): boolean {
+    try {
+      // Verificar se há um bypass de emergência no localStorage
+      const bypass = localStorage.getItem('emergency_subscription_bypass');
+      if (bypass) {
+        const bypassData = JSON.parse(bypass);
+        const now = Date.now();
+        
+        // Verificar se o bypass ainda é válido (não expirou)
+        if (bypassData.expiry && bypassData.expiry > now) {
+          console.log('[GlobalRouletteService] Bypass de emergência ativo, expira em:', new Date(bypassData.expiry).toLocaleString());
+          return true;
+        } else if (bypassData.expiry) {
+          console.log('[GlobalRouletteService] Bypass de emergência expirado');
+          localStorage.removeItem('emergency_subscription_bypass');
+        }
+      }
+    } catch (e) {
+      console.warn('[GlobalRouletteService] Erro ao verificar bypass de emergência:', e);
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Ativa o bypass de emergência por um período limitado
+   * Este método pode ser chamado via console para desbloquear o acesso em situações críticas
+   * @param hours Número de horas para manter o bypass ativo (padrão: 24 horas)
+   */
+  public activateEmergencyBypass(hours: number = 24): void {
+    const now = Date.now();
+    const expiry = now + (hours * 60 * 60 * 1000);
+    
+    localStorage.setItem('emergency_subscription_bypass', JSON.stringify({
+      activatedAt: now,
+      expiry: expiry,
+      reason: 'Ativado manualmente para resolver problemas técnicos'
+    }));
+    
+    console.log(`[GlobalRouletteService] Bypass de emergência ativado por ${hours} horas, expira em:`, new Date(expiry).toLocaleString());
+    this._hasPaidPlan = true;
+  }
+  
+  /**
+   * Obtém o token de autenticação do localStorage ou cookies
    */
   private getAuthToken(): string | null {
-    // Verificar no localStorage (várias chaves possíveis)
-    const possibleLocalStorageKeys = ['auth_token', 'token', 'jwt_token', 'access_token'];
-    for (const key of possibleLocalStorageKeys) {
+    // Lista de chaves possíveis no localStorage
+    const localStorageKeys = [
+      'auth_token',
+      'token',
+      'accessToken',
+      'access_token',
+      'idToken'
+    ];
+    
+    // Tentar obter do localStorage - várias chaves possíveis
+    for (const key of localStorageKeys) {
       const token = localStorage.getItem(key);
       if (token) {
-        console.log(`[GlobalRouletteService] Token encontrado no localStorage (${key})`);
         return token;
       }
     }
     
-    // Verificar no sessionStorage (várias chaves possíveis)
-    for (const key of possibleLocalStorageKeys) {
+    // Tentar obter no sessionStorage também
+    for (const key of localStorageKeys) {
       const token = sessionStorage.getItem(key);
       if (token) {
-        console.log(`[GlobalRouletteService] Token encontrado no sessionStorage (${key})`);
         return token;
       }
     }
     
-    // Verificar cookies (padrão e alternativo)
+    // Obter todos os cookies e verificar vários formatos possíveis
     const cookies = document.cookie.split(';');
-    const possibleCookieNames = ['auth_token', 'token', 'jwt_token', 'access_token', 'auth_token_backup', 'auth_token_alt'];
+    const cookieNamePatterns = [
+      'auth_token',
+      'token',
+      'access_token',
+      'accessToken',
+      'idToken',
+      'id_token',
+      'auth'
+    ];
     
     for (const cookie of cookies) {
       const [name, value] = cookie.trim().split('=');
-      if (possibleCookieNames.includes(name)) {
-        console.log(`[GlobalRouletteService] Token encontrado no cookie (${name})`);
-        return value;
+      
+      // Verificar se o nome do cookie corresponde a algum padrão conhecido
+      for (const pattern of cookieNamePatterns) {
+        if (name === pattern || name.toLowerCase().includes(pattern.toLowerCase())) {
+          return value;
+        }
       }
     }
     
-    // Verificar objeto auth_user_cache no localStorage
+    // Verificar objeto de contexto de autenticação em localStorage
     try {
-      const userCacheStr = localStorage.getItem('auth_user_cache');
-      if (userCacheStr) {
-        const userData = JSON.parse(userCacheStr);
-        if (userData.token) {
-          console.log('[GlobalRouletteService] Token encontrado no auth_user_cache');
-          return userData.token;
+      const authContext = localStorage.getItem('auth_context');
+      if (authContext) {
+        const parsed = JSON.parse(authContext);
+        if (parsed.token || parsed.accessToken || parsed.idToken) {
+          return parsed.token || parsed.accessToken || parsed.idToken;
+        }
+      }
+      
+      // Verificar cache de usuário em localStorage
+      const userDataStr = localStorage.getItem('auth_user_cache');
+      if (userDataStr) {
+        const userData = JSON.parse(userDataStr);
+        if (userData.token || userData.accessToken || userData.idToken) {
+          return userData.token || userData.accessToken || userData.idToken;
         }
       }
     } catch (e) {
-      console.error('[GlobalRouletteService] Erro ao verificar token no auth_user_cache:', e);
+      console.warn('[GlobalRouletteService] Erro ao buscar token em objetos armazenados:', e);
     }
     
-    // Verificar se existe um elemento DOM oculto com o token (técnica às vezes usada)
-    const tokenElement = document.getElementById('auth-token');
-    if (tokenElement && tokenElement.getAttribute('data-token')) {
-      console.log('[GlobalRouletteService] Token encontrado em elemento DOM');
-      return tokenElement.getAttribute('data-token');
-    }
-    
-    // Verificar objeto AuthContext no cache do React
+    // Verificar token no objeto window, se existir
     try {
-      const authContextStr = localStorage.getItem('auth_context_state');
-      if (authContextStr) {
-        const authContextData = JSON.parse(authContextStr);
-        if (authContextData.token) {
-          console.log('[GlobalRouletteService] Token encontrado no auth_context_state');
-          return authContextData.token;
-        }
+      if (window['authToken'] || window['accessToken'] || window['idToken']) {
+        return window['authToken'] || window['accessToken'] || window['idToken'];
       }
     } catch (e) {
-      // Ignorar erros
+      // Ignorar erros ao acessar propriedades window
     }
     
-    console.log('[GlobalRouletteService] Nenhum token de autenticação encontrado');
     return null;
   }
   
