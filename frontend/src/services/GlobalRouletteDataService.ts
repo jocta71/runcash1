@@ -150,21 +150,9 @@ class GlobalRouletteDataService {
              subscriptionCache.planId === 'pro' || 
              subscriptionCache.planId === 'basic')) {
           
-          // NOVA VERIFICAÇÃO: Verificar se há indicação de pagamento confirmado
-          if (subscriptionCache.hasConfirmedPayment === true) {
-            console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo com pagamento confirmado (via subscription_cache: ${subscriptionCache.planId})`);
-            this._hasPaidPlan = true;
-            return true;
-          }
-          
-          // Se não tiver confirmação de pagamento explícita, mas tiver informação legacy confiável
-          if (subscriptionCache.paymentConfirmed === true || subscriptionCache.confirmed === true) {
-            console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo com pagamento confirmado via flags legacy (via subscription_cache: ${subscriptionCache.planId})`);
-            this._hasPaidPlan = true;
-            return true;
-          }
-          
-          console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo mas SEM confirmação de pagamento (via subscription_cache: ${subscriptionCache.planId})`);
+          console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via subscription_cache: ${subscriptionCache.planId})`);
+          this._hasPaidPlan = true;
+          return true;
         }
         
         // Se o status não for ACTIVE, logar informação para debug
@@ -194,22 +182,14 @@ class GlobalRouletteDataService {
         const statusAtivo = asaasCache.status?.toLowerCase() === 'active' || 
                            asaasCache.status?.toLowerCase() === 'ativo';
                            
-        // NOVA VERIFICAÇÃO: Verificar pagamento confirmado
-        const pagamentoConfirmado = asaasCache.hasConfirmedPayment === true;
-        
         // Verificar explicitamente que o status não seja PENDING
         if (asaasCache.isActive && statusAtivo && 
             asaasCache.status?.toLowerCase() !== 'pending' && 
-            asaasCache.status?.toLowerCase() !== 'pendente') {
-            
-          // VERIFICAÇÃO ADICIONAL: Exigir confirmação de pagamento
-          if (pagamentoConfirmado) {
-            console.log('[GlobalRouletteService] Verificação de plano: Tem plano ativo com pagamento confirmado (via asaas_subscription_cache)');
-            this._hasPaidPlan = true;
-            return true;
-          } else {
-            console.log('[GlobalRouletteService] Assinatura ACTIVE mas sem pagamento confirmado, negando acesso');
-          }
+            asaasCache.status?.toLowerCase() !== 'pendente' && 
+            cacheAge < 3600000) {
+          console.log('[GlobalRouletteService] Verificação de plano: Tem plano ativo (via asaas_subscription_cache)');
+          this._hasPaidPlan = true;
+          return true;
         }
         
         // Logar quando uma assinatura PENDING for encontrada
@@ -231,19 +211,19 @@ class GlobalRouletteDataService {
       try {
         const userData = JSON.parse(userDataStr);
         
-        // CORREÇÃO: Verificar explicitamente o status da assinatura e confirmação de pagamento
+        // CORREÇÃO: Verificar explicitamente o status da assinatura
         // Verificar se o usuário tem um plano ativo baseado nos dados do cache
         const hasPlan = !!(
-          // Verificar formatos padrão COM status ativo e pagamento confirmado
-          (userData.subscription?.active === true && userData.subscription?.paymentConfirmed === true) || 
-          (userData.subscription?.status === 'active' && userData.subscription?.paymentConfirmed === true) || 
-          (userData.subscription?.status === 'ativo' && userData.subscription?.status !== 'pending' && userData.subscription?.paymentConfirmed === true) || 
-          (userData.plan?.active === true && userData.plan?.paymentConfirmed === true) || 
+          // Verificar formatos padrão COM status ativo
+          (userData.subscription?.active === true) || 
+          (userData.subscription?.status === 'active') || 
+          (userData.subscription?.status === 'ativo' && userData.subscription?.status !== 'pending') || 
+          (userData.plan?.active === true) || 
           userData.isAdmin // Administradores sempre têm acesso
         );
         
         if (hasPlan) {
-          console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo com pagamento confirmado (via auth_user_cache)`);
+          console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via auth_user_cache)`);
           this._hasPaidPlan = true;
           return true;
         }
@@ -254,15 +234,6 @@ class GlobalRouletteDataService {
             (userData.subscription.status === 'pending' || 
              userData.subscription.status === 'pendente')) {
           console.log('[GlobalRouletteService] Assinatura ASAAS com status PENDING encontrada, acesso negado');
-          return false;
-        }
-        
-        // Se tiver assinatura active mas sem confirmação de pagamento, negar acesso
-        if (userData.asaasCustomerId && 
-            userData.subscription && 
-            (userData.subscription.status === 'active' || userData.subscription.status === 'ativo') &&
-            userData.subscription.paymentConfirmed !== true) {
-          console.log('[GlobalRouletteService] Assinatura ACTIVE mas sem pagamento confirmado, acesso negado');
           return false;
         }
       } catch (e) {
@@ -297,15 +268,9 @@ class GlobalRouletteDataService {
             const isPending = parsedData && 
                 (parsedData.status === 'pending' || 
                  parsedData.status === 'pendente');
-                 
-            // NOVA VERIFICAÇÃO: Verificar pagamento confirmado
-            const hasConfirmedPayment = parsedData && 
-                (parsedData.paymentConfirmed === true ||
-                 parsedData.hasConfirmedPayment === true ||
-                 parsedData.confirmed === true);
             
-            if (isActive && !isPending && hasConfirmedPayment) {
-              console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo com pagamento confirmado (via ${key})`);
+            if (isActive && !isPending) {
+              console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via ${key})`);
               this._hasPaidPlan = true;
               return true;
             }
@@ -313,11 +278,6 @@ class GlobalRouletteDataService {
             // Logar status PENDING encontrados
             if (isPending) {
               console.log(`[GlobalRouletteService] Assinatura com status PENDING encontrada em ${key}, acesso negado`);
-            }
-            
-            // Logar assinaturas ativas sem pagamento confirmado
-            if (isActive && !isPending && !hasConfirmedPayment) {
-              console.log(`[GlobalRouletteService] Assinatura ACTIVE mas sem pagamento confirmado em ${key}, acesso negado`);
             }
           } catch (e) {
             // Ignorar erros de parsing
@@ -340,15 +300,9 @@ class GlobalRouletteDataService {
             const isPending = parsedData && 
                 (parsedData.status === 'pending' || 
                  parsedData.status === 'pendente');
-                 
-            // NOVA VERIFICAÇÃO: Verificar pagamento confirmado
-            const hasConfirmedPayment = parsedData && 
-                (parsedData.paymentConfirmed === true ||
-                 parsedData.hasConfirmedPayment === true ||
-                 parsedData.confirmed === true);
             
-            if (isActive && !isPending && hasConfirmedPayment) {
-              console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo com pagamento confirmado (via sessionStorage.${key})`);
+            if (isActive && !isPending) {
+              console.log(`[GlobalRouletteService] Verificação de plano: Tem plano ativo (via sessionStorage.${key})`);
               this._hasPaidPlan = true;
               return true;
             }
@@ -412,40 +366,10 @@ class GlobalRouletteDataService {
           subscription.status?.toLowerCase() !== 'pending' && 
           subscription.status?.toLowerCase() !== 'pendente';
         
-        // NOVO: Verificar também os pagamentos associados a esta assinatura
-        let hasConfirmedPayment = false;
-        
-        // Se temos dados de pagamento na resposta
-        if (data.payments && data.payments.length > 0) {
-          // Verificar se há pelo menos um pagamento confirmado
-          hasConfirmedPayment = data.payments.some(payment => 
-            payment.status?.toLowerCase() === 'confirmed' || 
-            payment.status?.toLowerCase() === 'received'
-          );
-          
-          console.log(`[GlobalRouletteService] Verificação de pagamentos: ${hasConfirmedPayment ? 'Pagamento confirmado encontrado' : 'Nenhum pagamento confirmado'}`);
-        } else {
-          // Se não temos dados, buscar pagamentos específicos
-          try {
-            const paymentsResponse = await fetch(`${API_URL}/api/asaas-find-payments?subscriptionId=${subscription.id}&_t=${Date.now()}`);
-            
-            if (paymentsResponse.ok) {
-              const paymentsData = await paymentsResponse.json();
-              
-              if (paymentsData && paymentsData.success && paymentsData.payments && paymentsData.payments.length > 0) {
-                // Verificar pagamentos
-                hasConfirmedPayment = paymentsData.payments.some(payment => 
-                  payment.status?.toLowerCase() === 'confirmed' || 
-                  payment.status?.toLowerCase() === 'received'
-                );
-                
-                console.log(`[GlobalRouletteService] Verificação adicional de pagamentos: ${hasConfirmedPayment ? 'Pagamento confirmado encontrado' : 'Nenhum pagamento confirmado'}`);
-              }
-            }
-          } catch (error) {
-            console.error('[GlobalRouletteService] Erro ao buscar pagamentos da assinatura:', error);
-          }
-        }
+        // Verificar se há pagamentos e se o primeiro está com status CONFIRMED
+        const hasConfirmedPayment = data.payments && 
+          data.payments.length > 0 && 
+          data.payments[0].status?.toLowerCase() === 'confirmed';
           
         const isPending = subscription.status?.toLowerCase() === 'pending' || 
                         subscription.status?.toLowerCase() === 'pendente';
@@ -463,17 +387,12 @@ class GlobalRouletteDataService {
         }));
         
         // Logar status para depuração
-        console.log(`[GlobalRouletteService] Status da assinatura ASAAS: ${subscription.status} (isActive=${isActive}, isPending=${isPending}, hasConfirmedPayment=${hasConfirmedPayment})`);
+        console.log(`[GlobalRouletteService] Status da assinatura ASAAS: ${subscription.status} (isActive=${isActive}, isPending=${isPending})`);
         
-        // MODIFICAÇÃO: Agora exigimos tanto isActive quanto hasConfirmedPayment
-        if (isActive && hasConfirmedPayment) {
-          console.log('[GlobalRouletteService] Assinatura ASAAS ativa COM pagamento confirmado, acesso liberado');
+        if (isActive) {
+          console.log('[GlobalRouletteService] Assinatura ASAAS ativa encontrada e salva no cache');
           this._hasPaidPlan = true;
           return true;
-        } else if (isActive && !hasConfirmedPayment) {
-          console.log('[GlobalRouletteService] Assinatura ASAAS ativa mas SEM pagamento confirmado, acesso negado');
-          this._hasPaidPlan = false;
-          return false;
         } else if (isPending) {
           console.log('[GlobalRouletteService] Assinatura ASAAS com status PENDING, acesso negado');
           this._hasPaidPlan = false;
