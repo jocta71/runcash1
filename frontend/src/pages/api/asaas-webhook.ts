@@ -42,6 +42,39 @@ interface AsaasWebhookEvent {
   };
 }
 
+// Funções auxiliares para manipulação de localStorage
+// No ambiente serverless, precisamos simular o localStorage
+let memoryStorage: Record<string, any> = {};
+
+function getLocalStorage(key: string): any {
+  // No lado do servidor, usamos memória
+  if (typeof window === 'undefined') {
+    return memoryStorage[key] ? JSON.parse(memoryStorage[key]) : null;
+  }
+  // No lado do cliente, usamos localStorage
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : null;
+  } catch (error) {
+    console.error(`Erro ao ler ${key} do localStorage:`, error);
+    return null;
+  }
+}
+
+function setLocalStorage(key: string, value: any): void {
+  // No lado do servidor, usamos memória
+  if (typeof window === 'undefined') {
+    memoryStorage[key] = JSON.stringify(value);
+    return;
+  }
+  // No lado do cliente, usamos localStorage
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`Erro ao salvar ${key} no localStorage:`, error);
+  }
+}
+
 // Processador de eventos para webhooks da Asaas
 export default async function handler(
   req: ApiRequest,
@@ -62,8 +95,10 @@ export default async function handler(
     // Processar o evento de acordo com o tipo
     switch (event.event) {
       case 'PAYMENT_CONFIRMED':
-      case 'PAYMENT_RECEIVED':
         await handlePaymentConfirmed(event);
+        break;
+      case 'PAYMENT_RECEIVED':
+        await handlePaymentReceived(event);
         break;
       case 'PAYMENT_OVERDUE':
         await handlePaymentOverdue(event);
@@ -115,26 +150,53 @@ function recordWebhookEvent(event: AsaasWebhookEvent) {
   }
 }
 
-// Processa pagamento confirmado
-async function handlePaymentConfirmed(event: AsaasWebhookEvent) {
-  if (!event.payment) return;
-  
+// Gerencia pagamento confirmado
+function handlePaymentConfirmed(event: AsaasWebhookEvent) {
   try {
-    // Se esse pagamento for de uma assinatura, atualizar cache da assinatura
-    if (event.payment.subscription) {
-      // Buscar dados completos da assinatura na API (opcional, depende da implementação)
-      // const subscriptionData = await fetchSubscriptionData(event.payment.subscription);
-      
-      // Atualizar cache de assinatura
-      updateSubscriptionCache(event.payment.subscription, 'active', event.payment.customer);
-    }
+    console.log(`[ASAAS Webhook] Pagamento confirmado: ${event.payment.id}`);
     
-    // Atualizar status de pagamento
+    // Atualizar cache de pagamento
     updatePaymentCache(event.payment.id, 'confirmed', event.payment.customer);
     
-    console.log(`[ASAAS Webhook] Pagamento ${event.payment.id} confirmado para assinatura ${event.payment.subscription}`);
+    // Se o pagamento estiver associado a uma assinatura
+    if (event.payment.subscription) {
+      console.log(`[ASAAS Webhook] Pagamento ${event.payment.id} associado à assinatura ${event.payment.subscription}`);
+      
+      // Atualizar cache de assinatura com pagamento confirmado = true
+      updateSubscriptionCache(
+        event.payment.customer,
+        event.payment.subscription, 
+        'active', 
+        true // Explicitamente marcar pagamento como confirmado
+      );
+    }
   } catch (error) {
     console.error('[ASAAS Webhook] Erro ao processar pagamento confirmado:', error);
+  }
+}
+
+// Gerencia pagamento recebido
+function handlePaymentReceived(event: AsaasWebhookEvent) {
+  try {
+    console.log(`[ASAAS Webhook] Pagamento recebido: ${event.payment.id}`);
+    
+    // Atualizar cache de pagamento
+    updatePaymentCache(event.payment.id, 'received', event.payment.customer);
+    
+    // Se o pagamento estiver associado a uma assinatura
+    if (event.payment.subscription) {
+      console.log(`[ASAAS Webhook] Pagamento ${event.payment.id} recebido para assinatura ${event.payment.subscription}`);
+      
+      // Atualizar cache de assinatura com pagamento confirmado = true
+      updateSubscriptionCache(
+        event.payment.customer,
+        event.payment.subscription, 
+        'active', 
+        true // Marcar pagamento como confirmado
+      );
+    }
+  } catch (error) {
+    console.error('[ASAAS Webhook] Erro ao processar pagamento recebido:', error);
   }
 }
 
@@ -146,7 +208,12 @@ async function handlePaymentOverdue(event: AsaasWebhookEvent) {
     // Se esse pagamento for de uma assinatura, atualizar cache da assinatura
     if (event.payment.subscription) {
       // Atualizar cache de assinatura
-      updateSubscriptionCache(event.payment.subscription, 'inactive', event.payment.customer);
+      updateSubscriptionCache(
+        event.payment.customer,
+        event.payment.subscription, 
+        'inactive', 
+        false // Explicitamente marcar pagamento como não confirmado
+      );
     }
     
     // Atualizar status de pagamento
@@ -165,9 +232,10 @@ async function handleSubscriptionCreated(event: AsaasWebhookEvent) {
   try {
     // Atualizar cache de assinatura - iniciando com status da assinatura
     updateSubscriptionCache(
+      event.subscription.customer,
       event.subscription.id, 
       event.subscription.status.toLowerCase(), 
-      event.subscription.customer
+      false // Explicitamente marcar pagamento como não confirmado
     );
     
     console.log(`[ASAAS Webhook] Assinatura ${event.subscription.id} criada com status ${event.subscription.status}`);
@@ -183,9 +251,10 @@ async function handleSubscriptionUpdated(event: AsaasWebhookEvent) {
   try {
     // Atualizar cache de assinatura com o status atual
     updateSubscriptionCache(
+      event.subscription.customer,
       event.subscription.id, 
       event.subscription.status.toLowerCase(), 
-      event.subscription.customer
+      false // Explicitamente marcar pagamento como não confirmado
     );
     
     console.log(`[ASAAS Webhook] Assinatura ${event.subscription.id} atualizada para status ${event.subscription.status}`);
@@ -200,7 +269,12 @@ async function handleSubscriptionCancelled(event: AsaasWebhookEvent) {
   
   try {
     // Atualizar cache de assinatura para inativa
-    updateSubscriptionCache(event.subscription.id, 'inactive', event.subscription.customer);
+    updateSubscriptionCache(
+      event.subscription.customer,
+      event.subscription.id, 
+      'inactive', 
+      false // Explicitamente marcar pagamento como não confirmado
+    );
     
     console.log(`[ASAAS Webhook] Assinatura ${event.subscription.id} cancelada`);
   } catch (error) {
@@ -210,38 +284,26 @@ async function handleSubscriptionCancelled(event: AsaasWebhookEvent) {
 
 // Atualiza o cache de assinatura
 function updateSubscriptionCache(
-  subscriptionId: string, 
-  status: string, 
-  customerId: string
+  customerId: string,
+  subscriptionId: string,
+  status: string,
+  paymentConfirmed: boolean = false
 ) {
-  try {
-    const cacheData = {
-      id: subscriptionId,
-      status: status,
-      isActive: status === 'active' || status === 'ativo',
-      isPending: status === 'pending' || status === 'pendente',
-      customerId: customerId,
-      updatedAt: new Date().toISOString(),
-      timestamp: Date.now()
-    };
-    
-    // Salvar no cache específico da assinatura
-    localStorage.setItem(`asaas_subscription_${subscriptionId}`, JSON.stringify(cacheData));
-    
-    // Atualizar cache global de assinaturas do usuário
-    const userSubscriptionsStr = localStorage.getItem(`asaas_user_subscriptions_${customerId}`);
-    const userSubscriptions = userSubscriptionsStr ? JSON.parse(userSubscriptionsStr) : {};
-    
-    userSubscriptions[subscriptionId] = cacheData;
-    localStorage.setItem(`asaas_user_subscriptions_${customerId}`, JSON.stringify(userSubscriptions));
-    
-    // Atualizar cache global de assinatura (usado pelo GlobalRouletteDataService)
-    localStorage.setItem('asaas_subscription_cache', JSON.stringify(cacheData));
-    
-    console.log(`[ASAAS Webhook] Cache de assinatura ${subscriptionId} atualizado para status ${status}`);
-  } catch (error) {
-    console.error('[ASAAS Webhook] Erro ao atualizar cache de assinatura:', error);
-  }
+  console.log(`Atualizando cache de assinatura: Cliente ${customerId}, Assinatura ${subscriptionId}, Status ${status}, Pagamento Confirmado: ${paymentConfirmed}`);
+  
+  // Obtém o cache atual ou cria um novo
+  const subscriptionCache = getLocalStorage('asaas_subscription_cache') || {};
+  
+  // Atualiza a entrada para este cliente
+  subscriptionCache[customerId] = {
+    id: subscriptionId,
+    status: status,
+    updatedAt: new Date().toISOString(),
+    hasConfirmedPayment: paymentConfirmed
+  };
+  
+  // Salva o cache atualizado
+  setLocalStorage('asaas_subscription_cache', subscriptionCache);
 }
 
 // Atualiza o cache de pagamento
