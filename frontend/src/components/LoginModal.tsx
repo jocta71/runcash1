@@ -1,17 +1,15 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { AlertCircle, Loader2, LockIcon, MailIcon, UserIcon } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useToast } from '@/components/ui/use-toast';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Label } from '@/components/ui/label';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import axios from 'axios';
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { FiMail, FiLock, FiUser } from 'react-icons/fi';
+import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 interface LoginModalProps {
@@ -19,513 +17,195 @@ interface LoginModalProps {
   onClose: () => void;
   redirectAfterLogin?: string;
   message?: string;
+  showUpgradeOption?: boolean;
 }
 
-const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModalProps) => {
-  const navigate = useNavigate();
+const LoginModal: React.FC<LoginModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  redirectAfterLogin = '/',
+  message,
+  showUpgradeOption = false
+}) => {
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(message || '');
-  const [isGoogleAuthEnabled, setIsGoogleAuthEnabled] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [activeTab, setActiveTab] = useState('login');
-  const { signIn, signUp } = useAuth();
-  const { toast } = useToast();
   
-  // API URL
-  const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
-
-  // Verificar se auth Google está disponível
-  useEffect(() => {
-    const checkAuthStatus = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/auth/google/status`);
-        setIsGoogleAuthEnabled(response.data.enabled);
-      } catch (error) {
-        console.error('Erro ao verificar status da autenticação:', error);
-        setIsGoogleAuthEnabled(false);
-      } finally {
-        setIsCheckingAuth(false);
-      }
-    };
-    
-    checkAuthStatus();
-  }, [API_URL]);
-
-  // Atualizar mensagem de erro quando ela for passada como prop
-  useEffect(() => {
-    if (message) {
-      setErrorMessage(message);
-    }
-  }, [message]);
-
-  const handleManualLogin = async (e: React.FormEvent) => {
+  const { signIn, signUp } = useAuth();
+  const navigate = useNavigate();
+  
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!email || !validateEmail(email)) {
-      setErrorMessage('Por favor, forneça um email válido.');
-      return;
-    }
-    
-    if (!password || password.length < 6) {
-      setErrorMessage('A senha deve ter pelo menos 6 caracteres.');
-      return;
-    }
-    
-    setIsLoading(true);
     setErrorMessage('');
+    setIsLoading(true);
     
     try {
-      console.log('[LoginModal] Iniciando processo de login');
-      const { error } = await signIn(email, password);
-      
-      if (error) {
-        setErrorMessage(error.message || 'Erro ao fazer login. Tente novamente.');
-      } else {
-        // Garantir que o token seja persistido antes de continuar
-        console.log('[LoginModal] Login bem-sucedido, persistindo sessão');
-        
-        toast({
-          title: "Login bem-sucedido",
-          description: "Bem-vindo de volta!",
-        });
-        
-        // Atraso para garantir que os cookies sejam definidos
-        // O setTimeout também evita problemas com redirecionamentos muito rápidos
-        setTimeout(() => {
-          // Primeiro fechar o modal
+      if (isLogin) {
+        // Processo de login
+        const { error } = await signIn(email, password);
+        if (error) {
+          setErrorMessage(error.message || 'Erro ao fazer login');
+        } else {
           onClose();
-          
-          // Se houver uma URL de redirecionamento, navegar para lá
+          // Navegar para a página de redirecionamento após login bem-sucedido
           if (redirectAfterLogin) {
-            console.log(`[LoginModal] Redirecionando para: ${redirectAfterLogin}`);
-            
-            // Atraso adicional para redirecionamento
-            setTimeout(() => {
-              // Usar navigate com state para indicar que é um redirecionamento pós-login
-              navigate(redirectAfterLogin, {
-                state: { fromLogin: true, timestamp: Date.now() }
-              });
-            }, 300);
+            navigate(redirectAfterLogin);
           }
-        }, 800);
+        }
+      } else {
+        // Processo de cadastro
+        if (!username.trim()) {
+          setErrorMessage('Nome de usuário é obrigatório');
+          setIsLoading(false);
+          return;
+        }
+        
+        const { error } = await signUp(username, email, password);
+        if (error) {
+          setErrorMessage(error.message || 'Erro ao criar conta');
+        } else {
+          onClose();
+          // Navegar para a página de redirecionamento após cadastro bem-sucedido
+          if (redirectAfterLogin) {
+            navigate(redirectAfterLogin);
+          }
+        }
       }
     } catch (err) {
-      console.error('[LoginModal] Erro durante login:', err);
-      setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
+      setErrorMessage('Ocorreu um erro inesperado');
+      console.error('Erro na autenticação:', err);
     } finally {
       setIsLoading(false);
     }
   };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!username || username.length < 3) {
-      setErrorMessage('O nome de usuário deve ter pelo menos 3 caracteres.');
-      return;
-    }
-    
-    if (!email || !validateEmail(email)) {
-      setErrorMessage('Por favor, forneça um email válido.');
-      return;
-    }
-    
-    if (!password || password.length < 6) {
-      setErrorMessage('A senha deve ter pelo menos 6 caracteres.');
-      return;
-    }
-    
-    if (password !== confirmPassword) {
-      setErrorMessage('As senhas não coincidem.');
-      return;
-    }
-    
-    setIsLoading(true);
+  
+  const toggleMode = () => {
+    setIsLogin(!isLogin);
     setErrorMessage('');
-    
-    try {
-      console.log('[LoginModal] Iniciando processo de cadastro');
-      const { error } = await signUp(username, email, password);
-      
-      if (error) {
-        setErrorMessage(error.message || 'Erro ao criar conta. Tente novamente.');
-      } else {
-        console.log('[LoginModal] Cadastro bem-sucedido, persistindo sessão');
-        
-        toast({
-          title: "Conta criada com sucesso",
-          description: "Você já pode usar sua conta para acessar o sistema.",
-        });
-        
-        // Atraso para garantir que os cookies sejam definidos
-        setTimeout(() => {
-          // Primeiro fechar o modal
-          onClose();
-          
-          // Se houver uma URL de redirecionamento, navegar para lá após cadastro bem-sucedido
-          if (redirectAfterLogin) {
-            console.log(`[LoginModal] Redirecionando para: ${redirectAfterLogin}`);
-            
-            // Atraso adicional para redirecionamento
-            setTimeout(() => {
-              // Usar navigate com state para indicar que é um redirecionamento pós-signup
-              navigate(redirectAfterLogin, {
-                state: { fromSignup: true, timestamp: Date.now() }
-              });
-            }, 300);
-          }
-        }, 800);
-      }
-    } catch (err) {
-      console.error('[LoginModal] Erro durante cadastro:', err);
-      setErrorMessage('Ocorreu um erro inesperado. Tente novamente mais tarde.');
-    } finally {
-      setIsLoading(false);
-    }
   };
-
-  // Validar formato de email
-  const validateEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  
+  const handleUpgrade = () => {
+    onClose();
+    navigate('/plans');
   };
-
-  const handleGoogleLogin = () => {
-    if (isGoogleAuthEnabled) {
-      console.log('Redirecionando para autenticação Google:', `${API_URL}/auth/google`);
-      
-      // Antes de redirecionar, mostrar loading state
-      setIsLoading(true);
-      
-      // Armazenar a informação que o login via Google foi iniciado
-      localStorage.setItem('googleAuthInProgress', 'true');
-      
-      // Armazenar o redirecionamento, se existir
-      if (redirectAfterLogin) {
-        localStorage.setItem('redirectAfterGoogleLogin', redirectAfterLogin);
-      }
-      
-      // Redirecionar para a URL de autenticação Google
-      window.location.href = `${API_URL}/auth/google`;
-    } else {
-      toast({
-        title: "Login com Google desativado",
-        description: "Esta funcionalidade não está disponível no momento.",
-        variant: "destructive"
-      });
-    }
-  };
-
+  
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl grid grid-cols-1 md:grid-cols-2 p-0 gap-0 overflow-hidden">
-        {/* Lado esquerdo - Imagem */}
-        <div className="relative hidden md:block">
-          <div 
-            className="absolute inset-0 bg-cover bg-center" 
-            style={{ backgroundImage: "url('/img/login-imagem.png')" }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70 flex flex-col justify-between p-8">
-            <div>
-              <h2 className="text-white text-3xl font-bold drop-shadow-md">RunCash</h2>
-              <p className="text-gray-200 mt-2 drop-shadow-md max-w-xs">A maneira mais inteligente de acompanhar seus resultados</p>
-            </div>
-            <div className="bg-black/30 p-4 rounded-lg backdrop-blur-sm">
-              <blockquote className="italic text-white drop-shadow-md text-sm">
-                "Esta plataforma revolucionou a maneira como eu analiso meus resultados e aumentou meus ganhos significativamente."
-              </blockquote>
-              <p className="text-gray-200 mt-2 font-semibold drop-shadow-md text-sm">João Silva</p>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md bg-gray-900 text-white border-gray-800">
+        <DialogTitle className="text-xl font-bold text-white">
+          {showUpgradeOption 
+            ? 'Acesso Restrito' 
+            : (isLogin ? 'Entrar na sua conta' : 'Criar uma nova conta')}
+        </DialogTitle>
+        
+        <DialogDescription className="text-gray-400">
+          {message || (showUpgradeOption 
+            ? 'Para acessar este conteúdo, você precisa ter um plano ativo' 
+            : (isLogin 
+                ? 'Digite suas credenciais para acessar a plataforma' 
+                : 'Preencha os campos abaixo para criar sua conta')
+          )}
+        </DialogDescription>
+        
+        {showUpgradeOption ? (
+          <div className="flex flex-col space-y-4 py-4">
+            <p className="text-sm text-gray-300">
+              Adquira um plano para ter acesso a todos os recursos e estatísticas das roletas.
+            </p>
+            
+            <div className="flex flex-col space-y-2">
+              <Button 
+                onClick={handleUpgrade} 
+                className="bg-green-600 hover:bg-green-700"
+              >
+                Ver planos disponíveis
+              </Button>
+              
+              <Button 
+                onClick={onClose} 
+                className="border-gray-700 bg-transparent hover:bg-gray-800"
+              >
+                Voltar
+              </Button>
             </div>
           </div>
-        </div>
-
-        {/* Lado direito - Formulário */}
-        <div className="p-6 md:p-8 bg-gray-900">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-gray-800/50">
-              <TabsTrigger value="login" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
-                Login
-              </TabsTrigger>
-              <TabsTrigger value="register" className="data-[state=active]:bg-vegas-green data-[state=active]:text-gray-900">
-                Cadastro
-              </TabsTrigger>
-            </TabsList>
-            
-            {/* Conteúdo da aba de Login */}
-            <TabsContent value="login" className="space-y-4 mt-4">
-              <div className="flex flex-col space-y-2 text-center">
-                <h1 className="text-2xl font-semibold tracking-tight text-white">Entre na sua conta</h1>
-                <p className="text-sm text-gray-400">
-                  Digite suas credenciais para acessar
-                  {redirectAfterLogin && ' e continuar'}
-                </p>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <div className="relative">
+                <FiUser className="absolute left-3 top-3 text-gray-500" />
+                <Input
+                  type="text"
+                  id="username"
+                  placeholder="Nome de usuário"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                  required
+                />
               </div>
-
-              {errorMessage && activeTab === 'login' && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{errorMessage}</AlertDescription>
-                </Alert>
-              )}
-              
-              <form onSubmit={handleManualLogin} className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="email" className="text-white">Email</Label>
-                  <div className="relative">
-                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="nome@exemplo.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-white">Senha</Label>
-                    <a href="#" className="text-xs text-vegas-green hover:underline">
-                      Esqueceu a senha?
-                    </a>
-                  </div>
-                  <div className="relative">
-                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <Button 
-                  type="submit" 
-                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
-                  disabled={isLoading}
-                >
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
-                </Button>
-                
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-gray-700" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-gray-900 px-2 text-gray-400">Ou continue com</span>
-                  </div>
-                </div>
-                
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
-                  disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
-                  onClick={handleGoogleLogin}
-                >
-                  {isCheckingAuth ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      className="w-5 h-5 mr-2"
-                    >
-                      <path
-                        fill="#EA4335"
-                        d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
-                      />
-                      <path
-                        fill="#4A90E2"
-                        d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
-                      />
-                    </svg>
-                  )}
-                  Continuar com Google
-                </Button>
-                {!isGoogleAuthEnabled && !isCheckingAuth && (
-                  <div className="text-center text-xs text-red-400 mt-2">
-                    Login com Google está desativado no momento
-                  </div>
-                )}
-              </form>
-            </TabsContent>
+            )}
             
-            {/* Conteúdo da aba de Cadastro */}
-            <TabsContent value="register" className="space-y-4 mt-4">
-              <div className="flex flex-col space-y-2 text-center">
-                <h1 className="text-2xl font-semibold tracking-tight text-white">Criar uma conta</h1>
-                <p className="text-sm text-gray-400">
-                  Preencha seus dados para se cadastrar
-                  {redirectAfterLogin && ' e continuar'}
-                </p>
+            <div className="relative">
+              <FiMail className="absolute left-3 top-3 text-gray-500" />
+              <Input
+                type="email"
+                id="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                required
+              />
+            </div>
+            
+            <div className="relative">
+              <FiLock className="absolute left-3 top-3 text-gray-500" />
+              <Input
+                type="password"
+                id="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pl-10 bg-gray-900/50 border-gray-700 text-white"
+                required
+              />
+            </div>
+            
+            {errorMessage && (
+              <div className="p-2 text-sm text-red-500 bg-red-950/20 rounded border border-red-900">
+                {errorMessage}
               </div>
-
-              {errorMessage && activeTab === 'register' && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{errorMessage}</AlertDescription>
-                </Alert>
-              )}
+            )}
+            
+            <DialogFooter className="flex sm:justify-between flex-col sm:flex-row gap-2">
+              <Button
+                type="button"
+                className="text-blue-400 hover:text-blue-300 bg-transparent"
+                onClick={toggleMode}
+                disabled={isLoading}
+              >
+                {isLogin ? 'Criar uma conta' : 'Já tem uma conta? Entrar'}
+              </Button>
               
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="username" className="text-white">Nome de Usuário</Label>
-                  <div className="relative">
-                    <UserIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="username"
-                      type="text"
-                      placeholder="seunome"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="register-email" className="text-white">Email</Label>
-                  <div className="relative">
-                    <MailIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="register-email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="register-password" className="text-white">Senha</Label>
-                  <div className="relative">
-                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="register-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="confirm-password" className="text-white">Confirmar Senha</Label>
-                  <div className="relative">
-                    <LockIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="confirm-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="pl-10 bg-gray-900/50 border-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <Button 
-                  type="submit" 
-                  className="w-full bg-vegas-green hover:bg-vegas-green/90 text-gray-900 font-medium"
-                  disabled={isLoading}
-                >
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Criar Conta'}
-                </Button>
-                
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-gray-700" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-gray-900 px-2 text-gray-400">Ou inscreva-se com</span>
-                  </div>
-                </div>
-                
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full border-gray-700 bg-gray-900/50 text-white hover:bg-gray-800"
-                  disabled={isCheckingAuth || isLoading || !isGoogleAuthEnabled}
-                  onClick={handleGoogleLogin}
-                >
-                  {isCheckingAuth ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      className="w-5 h-5 mr-2"
-                    >
-                      <path
-                        fill="#EA4335"
-                        d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2970142 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"
-                      />
-                      <path
-                        fill="#4A90E2"
-                        d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5818182 23.1272727,9.90909091 L12,9.90909091 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7301709 1.23746264,17.3349879 L5.27698177,14.2678769 Z"
-                      />
-                    </svg>
-                  )}
-                  Google
-                </Button>
-                {!isGoogleAuthEnabled && !isCheckingAuth && (
-                  <div className="text-center text-xs text-red-400 mt-2">
-                    Login com Google está desativado no momento
-                  </div>
-                )}
-              </form>
-            </TabsContent>
-          </Tabs>
-          
-          <p className="text-center text-xs text-gray-400 mt-6">
-            Ao clicar em continuar, você concorda com nossos{' '}
-            <a href="#" className="text-vegas-green hover:underline">
-              Termos
-            </a>{' '}
-            e{' '}
-            <a href="#" className="text-vegas-green hover:underline">
-              Privacidade
-            </a>
-          </p>
-        </div>
+              <Button 
+                type="submit"
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={isLoading}
+              >
+                {isLoading 
+                  ? 'Processando...' 
+                  : (isLogin ? 'Entrar' : 'Cadastrar')}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );
 };
 
-export default LoginModal; 
+export default LoginModal;

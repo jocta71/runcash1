@@ -19,6 +19,9 @@ const DETAILED_LIMIT = 1000;
 // Flag para controle de acesso (padrão: verdadeiro para compatibilidade com versões anteriores)
 const REQUIRE_AUTHENTICATION = true;
 
+// Flag para verificar plano do usuário
+const REQUIRE_PAID_PLAN = true;
+
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
 
@@ -38,6 +41,7 @@ class GlobalRouletteDataService {
   private subscribers: Map<string, SubscriberCallback> = new Map();
   private _currentFetchPromise: Promise<any[]> | null = null;
   private _isAuthenticated: boolean = false;
+  private _hasPaidPlan: boolean = false;
   
   // Construtor privado para garantir Singleton
   private constructor() {
@@ -108,6 +112,45 @@ class GlobalRouletteDataService {
   }
   
   /**
+   * Verifica se o usuário tem um plano ativo
+   * @returns true se tiver plano, false caso contrário
+   */
+  private checkUserPlan(): boolean {
+    // Verificar no localStorage por dados de plano do usuário
+    const userDataStr = localStorage.getItem('auth_user_cache');
+    if (!userDataStr) return false;
+    
+    try {
+      const userData = JSON.parse(userDataStr);
+      
+      // Verificar se o usuário tem alguma informação de plano
+      if (userData.plan || userData.subscription || userData.isPaidUser || userData.isSubscribed) {
+        return true;
+      }
+      
+      // Verificar se o usuário é administrador (acesso total)
+      if (userData.isAdmin === true) {
+        return true;
+      }
+      
+      // Verificar campos específicos da aplicação
+      if (userData.roles && (userData.roles.includes('premium') || userData.roles.includes('paid'))) {
+        return true;
+      }
+      
+      // Se tiver um campo específico para o plano verificar
+      if (userData.planStatus === 'active' || userData.subscriptionStatus === 'active') {
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('[GlobalRouletteService] Erro ao verificar plano do usuário:', error);
+      return false;
+    }
+  }
+  
+  /**
    * Busca dados das roletas da API (usando limit=1000) - método principal
    * @returns Promise com dados das roletas
    */
@@ -147,6 +190,30 @@ class GlobalRouletteDataService {
       return this.rouletteData;
     }
     
+    // Verificar se o usuário tem plano pago se for obrigatório
+    if (REQUIRE_PAID_PLAN) {
+      this._hasPaidPlan = this.checkUserPlan();
+      
+      if (!this._hasPaidPlan) {
+        console.log('[GlobalRouletteService] Usuário sem plano pago, requisição cancelada');
+        
+        // Emitir evento para notificar que usuário precisa de plano pago
+        EventService.emit('subscription:required', {
+          message: 'É necessário ter um plano para acessar os dados das roletas',
+          timestamp: new Date().toISOString()
+        });
+        
+        // Também emitir evento de autenticação para exibir modal de login/upgrade
+        EventService.emit('auth:required', {
+          message: 'É necessário ter um plano para acessar os dados das roletas',
+          timestamp: new Date().toISOString(),
+          requiresUpgrade: true
+        });
+        
+        return this.rouletteData;
+      }
+    }
+    
     try {
       this.isFetching = true;
       
@@ -168,6 +235,7 @@ class GlobalRouletteDataService {
           this.rouletteData = data;
           this.lastFetchTime = now;
           this._isAuthenticated = true; // Marcar que autenticação está ok
+          this._hasPaidPlan = true;    // Marcar que o plano está ok, já que recebemos dados
           
           // Notificar todos os assinantes sobre a atualização
           this.notifySubscribers();
@@ -199,7 +267,27 @@ class GlobalRouletteDataService {
           timestamp: new Date().toISOString(),
           status: 401
         });
-      } else {
+      } 
+      // Verificar se o erro é de autorização (403)
+      else if (error.response && error.response.status === 403) {
+        console.error('[GlobalRouletteService] Erro de autorização (403): Usuário sem permissão ou plano');
+        this._hasPaidPlan = false;
+        
+        // Emitir evento para notificar que usuário precisa de plano pago
+        EventService.emit('subscription:required', {
+          message: 'É necessário ter um plano para acessar os dados das roletas',
+          timestamp: new Date().toISOString(),
+          status: 403
+        });
+        
+        // Também emitir evento de autenticação para exibir modal de login/upgrade
+        EventService.emit('auth:required', {
+          message: 'É necessário ter um plano para acessar os dados das roletas',
+          timestamp: new Date().toISOString(),
+          requiresUpgrade: true
+        });
+      } 
+      else {
         console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
       }
       
@@ -238,6 +326,15 @@ class GlobalRouletteDataService {
    */
   public isAuthenticated(): boolean {
     return this._isAuthenticated || this.getAuthToken() !== null;
+  }
+  
+  /**
+   * Verifica se o usuário tem plano pago ativo
+   * @returns true se tiver plano pago, false caso contrário
+   */
+  public hasPaidPlan(): boolean {
+    if (this._hasPaidPlan) return true;
+    return this.checkUserPlan();
   }
   
   /**
