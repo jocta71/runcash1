@@ -105,7 +105,20 @@ class ApiService {
    * @returns Promise com a resposta
    */
   public async getRoulette<T = any>(id: string, dataType: string = 'basic'): Promise<AxiosResponse<T>> {
-    return this.get<T>(`/roulettes/${id}/${dataType}`);
+    // Requisição a api/roulettes desativada
+    console.log('[API] Requisições a api/roulettes foram desativadas');
+    
+    // Retornar uma resposta simulada vazia
+    return {
+      data: {} as T,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as any
+    };
+    
+    // Código original comentado
+    // return this.get<T>(`/roulettes/${id}/${dataType}`);
   }
   
   /**
