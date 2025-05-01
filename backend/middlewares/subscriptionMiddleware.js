@@ -33,6 +33,14 @@ exports.requireSubscription = (options = {
       // Obter detalhes de assinatura do usuário
       const subscription = req.user.subscription || {};
       
+      // Normalizar tipos de planos permitidos para comparação case-insensitive
+      const normalizedAllowedTypes = options.allowedTypes.map(type => 
+        typeof type === 'string' ? type.toLowerCase() : type
+      );
+      
+      // Adicionar informação de diagnóstico
+      console.log(`[subscriptionMiddleware] Verificando assinatura: status=${subscription.status}, type=${subscription.type}, allowedTypes=${JSON.stringify(normalizedAllowedTypes)}`);
+      
       // Verificar se o usuário tem uma assinatura ativa
       // Garantir que pagamentos pendentes não contem como ativos
       const hasActiveSubscription = subscription.status && 
@@ -42,8 +50,11 @@ exports.requireSubscription = (options = {
       // Adicionar informação de diagnóstico 
       console.log(`[subscriptionMiddleware] Verificando assinatura: status=${subscription.status}, type=${subscription.type}, active=${hasActiveSubscription}`);
       
-      // Verificar se o tipo de assinatura é permitido
-      const hasAllowedType = options.allowedTypes.includes(subscription.type);
+      // Verificar se o tipo de assinatura é permitido (usando comparação case-insensitive)
+      const subscriptionType = subscription.type ? subscription.type.toLowerCase() : '';
+      const hasAllowedType = normalizedAllowedTypes.includes(subscriptionType);
+      
+      console.log(`[subscriptionMiddleware] Tipo de assinatura: ${subscriptionType}, permitido: ${hasAllowedType}, tipos permitidos: ${normalizedAllowedTypes.join(', ')}`);
       
       // Verificar se requer assinatura ativa
       if (options.requireActive && !hasActiveSubscription) {

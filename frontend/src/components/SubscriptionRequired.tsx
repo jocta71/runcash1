@@ -14,11 +14,17 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
   message = 'Para acessar os dados de roletas em tempo real, é necessário ter uma assinatura ativa.' 
 }) => {
   const [isVisible, setIsVisible] = useState(false);
+  const [errorDetails, setErrorDetails] = useState<any>(null);
   
   useEffect(() => {
     // Registrar listener para eventos de assinatura requerida
     const handleSubscriptionRequired = (event: CustomEvent<any>) => {
+      console.log('[SubscriptionRequired] Evento subscription:required recebido:', event.detail);
       setIsVisible(true);
+      // Armazenar detalhes do erro para exibição
+      if (event.detail) {
+        setErrorDetails(event.detail);
+      }
     };
     
     window.addEventListener('subscription:required', handleSubscriptionRequired as EventListener);
@@ -40,6 +46,9 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
   
   if (!isVisible) return null;
   
+  // Determinar a mensagem a ser exibida
+  const displayMessage = errorDetails?.message || message;
+  
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-lg mx-4 shadow-xl">
@@ -57,11 +66,26 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
           <div className="text-yellow-500 mb-4 text-center text-6xl">
             🔒
           </div>
-          <p className="text-gray-700 mb-4">{message}</p>
+          <p className="text-gray-700 mb-4">{displayMessage}</p>
           <p className="text-gray-600 text-sm mb-4">
             Com uma assinatura ativa, você terá acesso a todas as roletas, estatísticas avançadas 
             e dados históricos completos para melhorar seus resultados.
           </p>
+          
+          {/* Exibir detalhes de erro se disponíveis */}
+          {errorDetails && (
+            <div className="bg-gray-100 p-3 rounded-md text-xs text-gray-600 mb-4">
+              <p><strong>Tipo:</strong> {errorDetails.error || 'Acesso restrito'}</p>
+              {errorDetails.requiredTypes && (
+                <p><strong>Planos necessários:</strong> {Array.isArray(errorDetails.requiredTypes) 
+                  ? errorDetails.requiredTypes.join(', ') 
+                  : errorDetails.requiredTypes}</p>
+              )}
+              {errorDetails.currentType && (
+                <p><strong>Seu plano atual:</strong> {errorDetails.currentType}</p>
+              )}
+            </div>
+          )}
         </div>
         
         <div className="flex justify-end space-x-3">

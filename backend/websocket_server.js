@@ -368,7 +368,7 @@ app.get('/api/status', (req, res) => {
 app.get('/api/roulettes', 
   verifyTokenAndSubscription({ 
     required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] 
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
   }), 
   async (req, res) => {
     console.log('[API] Requisição recebida para /api/roulettes');
@@ -397,11 +397,13 @@ app.get('/api/roulettes',
 app.get('/api/ROULETTES', 
   verifyTokenAndSubscription({ 
     required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] 
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
   }), 
   async (req, res) => {
     console.log('[API] Requisição recebida para /api/ROULETTES (maiúsculas)');
     console.log('[API] Query params:', req.query);
+    console.log('[API] Usuário:', req.user?.username);
+    console.log('[API] Assinatura:', req.user?.subscription ? JSON.stringify(req.user.subscription) : 'Nenhuma');
     
     // Aplicar cabeçalhos CORS explicitamente para esta rota
     res.header('Access-Control-Allow-Origin', '*');
@@ -457,7 +459,7 @@ app.get('/api/ROULETTES',
 app.get('/api/roletas', 
   verifyTokenAndSubscription({ 
     required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] 
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
   }), 
   async (req, res) => {
     console.log('[API] Endpoint de compatibilidade /api/roletas acessado');
@@ -483,7 +485,7 @@ app.get('/api/roletas',
 app.get('/api/numbers/:roletaNome', 
   verifyTokenAndSubscription({ 
     required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] 
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
   }), 
   async (req, res) => {
     try {
@@ -512,7 +514,7 @@ app.get('/api/numbers/:roletaNome',
 app.get('/api/numbers/byid/:roletaId', 
   verifyTokenAndSubscription({ 
     required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] 
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
   }), 
   async (req, res) => {
     try {
@@ -541,7 +543,7 @@ app.get('/api/numbers/byid/:roletaId',
 app.get('/api/roletas/:id', 
   verifyTokenAndSubscription({ 
     required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] 
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
   }), 
   async (req, res) => {
     console.log('[API] Endpoint de compatibilidade /api/roletas/:id acessado');

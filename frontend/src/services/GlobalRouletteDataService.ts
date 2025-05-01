@@ -113,93 +113,152 @@ class GlobalRouletteDataService {
     const apiServiceModule = await import('../services/apiService');
     const apiService = apiServiceModule.default;
     
-    const { hasSubscription } = await apiService.checkSubscriptionStatus();
-    
-    if (!hasSubscription) {
-      console.log('[GlobalRouletteService] Requisição a api/roulettes bloqueada - usuário sem assinatura');
+    try {
+      console.log('[GlobalRouletteService] Verificando status da assinatura...');
+      const { hasSubscription, subscription } = await apiService.checkSubscriptionStatus();
       
-      // Disparar evento para exibir modal de assinatura
-      window.dispatchEvent(new CustomEvent('subscription:required', { 
-        detail: {
-          error: 'SUBSCRIPTION_REQUIRED',
-          message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.'
+      if (!hasSubscription) {
+        console.log('[GlobalRouletteService] Requisição a api/roulettes bloqueada - usuário sem assinatura');
+        
+        // Verificar se temos dados em cache em localStorage como medida de fallback
+        try {
+          const cachedData = localStorage.getItem('roulette_data_cache');
+          if (cachedData) {
+            const parsedData = JSON.parse(cachedData);
+            const cacheAge = Date.now() - (parsedData.timestamp || 0);
+            
+            // Usar cache se tiver menos de 1 hora
+            if (cacheAge < 3600000) {
+              console.log('[GlobalRouletteService] Usando dados em cache como fallback (idade: ' + 
+                Math.round(cacheAge/60000) + ' minutos)');
+              
+              // Notificar com dados do cache
+              this.notifySubscribers();
+              
+              return parsedData.data || [];
+            }
+          }
+        } catch (cacheError) {
+          console.error('[GlobalRouletteService] Erro ao acessar cache:', cacheError);
         }
-      }));
-      
-      // Notificar os assinantes mesmo sem dados novos para evitar travamentos na interface
-      this.notifySubscribers();
-      
-      // Emitir evento global para outros componentes que possam estar ouvindo
-      EventService.emit('roulette:data-updated', {
-        timestamp: new Date().toISOString(),
-        count: 0,
-        source: 'central-service',
-        error: 'SUBSCRIPTION_REQUIRED'
-      });
-      
-      return [];
-    }
-    
-    // Evitar requisições simultâneas
-    if (this.isFetching) {
-      console.log('[GlobalRouletteService] Requisição já em andamento, aguardando...');
-      
-      // Aguardar a conclusão da requisição atual
-      if (this._currentFetchPromise) {
-        return this._currentFetchPromise;
+        
+        // Disparar evento para exibir modal de assinatura
+        window.dispatchEvent(new CustomEvent('subscription:required', { 
+          detail: {
+            error: 'SUBSCRIPTION_REQUIRED',
+            message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.'
+          }
+        }));
+        
+        // Notificar os assinantes mesmo sem dados novos para evitar travamentos na interface
+        this.notifySubscribers();
+        
+        // Emitir evento global para outros componentes que possam estar ouvindo
+        const EventService = (await import('./EventService')).default;
+        EventService.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          count: 0,
+          source: 'central-service',
+          error: 'SUBSCRIPTION_REQUIRED'
+        });
+        
+        return [];
       }
       
-      return this.rouletteData;
-    }
-    
-    // Verificar se já fizemos uma requisição recentemente
-    const now = Date.now();
-    if (now - this.lastFetchTime < MIN_FORCE_INTERVAL) {
-      console.log(`[GlobalRouletteService] Última requisição foi feita há ${Math.round((now - this.lastFetchTime)/1000)}s. Aguardando intervalo mínimo de ${MIN_FORCE_INTERVAL/1000}s.`);
-      return this.rouletteData;
-    }
-    
-    try {
-      this.isFetching = true;
+      // Log do plano do usuário para diagnóstico
+      if (subscription) {
+        console.log(`[GlobalRouletteService] Usuário com assinatura ativa: Plano ${subscription.plan || 'Desconhecido'}`);
+      }
       
-      // Removendo a verificação de cache para sempre buscar dados frescos
-      console.log('[GlobalRouletteService] Buscando dados atualizados da API (limit=1000)');
-      
-      // Criar e armazenar a promessa atual
-      this._currentFetchPromise = (async () => {
-        // Usar a função utilitária com suporte a CORS - com limit=1000 para todos os casos
-        const data = await fetchWithCorsSupport<any[]>(`/api/ROULETTES?limit=${DEFAULT_LIMIT}`);
+      // Evitar requisições simultâneas
+      if (this.isFetching) {
+        console.log('[GlobalRouletteService] Requisição já em andamento, aguardando...');
         
-        // Verificar se os dados são válidos
-        if (data && Array.isArray(data)) {
-          console.log(`[GlobalRouletteService] Dados recebidos com sucesso: ${data.length} roletas com um total de ${this.contarNumerosTotais(data)} números`);
-          this.rouletteData = data;
-          this.lastFetchTime = now;
-          
-          // Notificar todos os assinantes sobre a atualização
-          this.notifySubscribers();
-          
-          // Emitir evento global para outros componentes que possam estar ouvindo
-          EventService.emit('roulette:data-updated', {
-            timestamp: new Date().toISOString(),
-            count: data.length,
-            source: 'central-service'
-          });
-          
-          return data;
-        } else {
-          console.error('[GlobalRouletteService] Resposta inválida da API');
-          return this.rouletteData;
+        // Aguardar a conclusão da requisição atual
+        if (this._currentFetchPromise) {
+          return this._currentFetchPromise;
         }
-      })();
+        
+        return this.rouletteData;
+      }
       
-      return await this._currentFetchPromise;
+      // Verificar se já fizemos uma requisição recentemente
+      const now = Date.now();
+      const timeSinceLastRequest = now - this.lastFetchTime;
+      
+      if (timeSinceLastRequest < 2000 && this.rouletteData.length > 0) {
+        console.log('[GlobalRouletteService] Requisição recente (${timeSinceLastRequest}ms atrás), retornando dados em cache');
+        return this.rouletteData;
+      }
+      
+      // Sinalizar que estamos buscando dados
+      this.isFetching = true;
+      this.lastFetchTime = now;
+      
+      const axiosInstance = apiService.getInstance();
+      
+      try {
+        this._currentFetchPromise = new Promise<any[]>(async (resolve) => {
+          try {
+            console.log('[GlobalRouletteService] Buscando dados de roletas...');
+            
+            // Usar o endpoint ROULETTES em vez de roulettes, pois o primeiro tem suporte a verificação de assinatura
+            const response = await axiosInstance.get('/api/ROULETTES', {
+              headers: {
+                'bypass-tunnel-reminder': 'true',
+                'cache-control': 'no-cache',
+                'pragma': 'no-cache'
+              }
+            });
+            
+            if (response.status === 200 && Array.isArray(response.data)) {
+              console.log(`[GlobalRouletteService] Recebidos ${response.data.length} registros da API`);
+              
+              // Processar e armazenar os dados
+              this.rouletteData = response.data;
+              
+              // Salvar em cache para utilização offline
+              try {
+                localStorage.setItem('roulette_data_cache', JSON.stringify({
+                  timestamp: Date.now(),
+                  data: response.data
+                }));
+              } catch (storageError) {
+                console.warn('[GlobalRouletteService] Erro ao salvar cache:', storageError);
+              }
+              
+              // Notificar assinantes sobre os novos dados
+              this.notifySubscribers();
+              
+              resolve(response.data);
+            } else {
+              console.warn('[GlobalRouletteService] Resposta inesperada da API:', response.status);
+              resolve(this.rouletteData);
+            }
+          } catch (error) {
+            console.error('[GlobalRouletteService] Erro ao buscar dados da API:', error);
+            resolve(this.rouletteData);
+          } finally {
+            this.isFetching = false;
+            this._currentFetchPromise = null;
+          }
+        });
+        
+        return await this._currentFetchPromise;
+      } catch (err) {
+        console.error('[GlobalRouletteService] Erro ao buscar dados:', err);
+        this.isFetching = false;
+        this._currentFetchPromise = null;
+        return this.rouletteData;
+      }
     } catch (error) {
-      console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
-      return this.rouletteData;
-    } finally {
+      console.error('[GlobalRouletteService] Erro ao verificar assinatura:', error);
       this.isFetching = false;
-      this._currentFetchPromise = null;
+      
+      // Notificar assinantes para evitar travamentos na interface
+      this.notifySubscribers();
+      
+      return this.rouletteData;
     }
   }
   

@@ -104,16 +104,56 @@ class ApiService {
    */
   public async checkSubscriptionStatus(): Promise<{ hasSubscription: boolean; subscription?: any }> {
     try {
+      console.log('[API] Verificando status da assinatura...');
       const response = await this.get<any>('/subscription/status');
       // Extrair diretamente os dados da resposta
       const data = response.data || {};
       
+      // Log detalhado para diagnóstico
+      console.log('[API] Resposta da verificação de assinatura:', JSON.stringify(data, null, 2));
+      
+      // Verificar se o usuário tem assinatura ativa baseado nos dados recebidos
+      const hasActiveSubscription = !!(
+        data.success && 
+        data.hasSubscription && 
+        data.subscription?.status?.toLowerCase() === 'active'
+      );
+      
+      console.log(`[API] Status da assinatura: ${hasActiveSubscription ? 'ATIVA' : 'INATIVA/INEXISTENTE'}`);
+      if (data.subscription) {
+        console.log(`[API] Tipo do plano: ${data.subscription.plan}, Status: ${data.subscription.status}`);
+      }
+      
       return {
-        hasSubscription: data.success && data.hasSubscription,
+        hasSubscription: hasActiveSubscription,
         subscription: data.subscription
       };
     } catch (error) {
       console.error('[API] Erro ao verificar status da assinatura:', error);
+      
+      // Tentar usar dados do contexto local como fallback
+      try {
+        // Importação dinâmica para evitar dependência circular
+        const { useSubscription } = await import('../context/SubscriptionContext');
+        if (typeof useSubscription === 'function') {
+          // Não podemos usar hooks diretamente, então verificamos localStorage
+          const storedSubscription = localStorage.getItem('user_subscription_cache');
+          if (storedSubscription) {
+            const subData = JSON.parse(storedSubscription);
+            const isActive = subData.status?.toLowerCase() === 'active' || 
+                           subData.status?.toLowerCase() === 'ativo';
+            
+            console.log('[API] Usando dados de assinatura em cache:', isActive ? 'ATIVA' : 'INATIVA');
+            return { 
+              hasSubscription: isActive,
+              subscription: subData
+            };
+          }
+        }
+      } catch (fallbackError) {
+        console.error('[API] Erro ao usar fallback de assinatura:', fallbackError);
+      }
+      
       return { hasSubscription: false };
     }
   }

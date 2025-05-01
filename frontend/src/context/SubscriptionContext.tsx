@@ -291,6 +291,26 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // Buscar plano correspondente na lista de planos disponíveis
     const plan = availablePlans.find(p => p.id === planId) || null;
     setCurrentPlan(plan);
+    
+    // Armazenar dados da assinatura no localStorage para uso como fallback
+    try {
+      // Criar um objeto simplificado para armazenar
+      const cacheData = {
+        ...formattedSubscription,
+        // Converter datas para string para facilitar armazenamento
+        startDate: formattedSubscription.startDate?.toISOString(),
+        endDate: formattedSubscription.endDate?.toISOString(),
+        nextBillingDate: formattedSubscription.nextBillingDate?.toISOString(),
+        // Adicionar informações extras
+        cachedAt: new Date().toISOString(),
+        planName: plan?.name || 'Desconhecido'
+      };
+      
+      localStorage.setItem('user_subscription_cache', JSON.stringify(cacheData));
+      console.log('[SubscriptionContext] Assinatura armazenada em cache local');
+    } catch (cacheError) {
+      console.error('[SubscriptionContext] Erro ao cache de assinatura:', cacheError);
+    }
   };
 
   // Função auxiliar para lidar com caso de nenhuma assinatura encontrada
