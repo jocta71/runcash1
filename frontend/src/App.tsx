@@ -33,6 +33,10 @@ const BillingPage = lazy(() => import("@/pages/BillingPage"));
 // Comentando a importação da página de teste do Asaas
 // const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 
+// Novas páginas de teste para verificação de assinatura
+const SubscriptionTestPage = lazy(() => import("@/pages/SubscriptionTestPage"));
+const PaymentTestPage = lazy(() => import("@/pages/PaymentTestPage"));
+
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
   defaultOptions: {
@@ -301,6 +305,19 @@ const App = () => {
                                 <LiveRoulettePage />
                               </Suspense>
                             </ProtectedRoute>
+                          } />
+                          
+                          {/* Novas rotas para testes de assinatura */}
+                          <Route path="/subscription-test" element={
+                            <Suspense fallback={<LoadingScreen />}>
+                              <SubscriptionTestPage />
+                            </Suspense>
+                          } />
+                          
+                          <Route path="/payment-test" element={
+                            <Suspense fallback={<LoadingScreen />}>
+                              <PaymentTestPage />
+                            </Suspense>
                           } />
                           
                           {/* Rota para a página de teste do Asaas - DESATIVADA */}
