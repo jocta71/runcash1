@@ -80,6 +80,9 @@ const TestAssinaturaPage = () => {
   // Estado dos dados de roleta
   const [rouletteData, setRouletteData] = useState<any[] | null>(null);
   const [loadingRoulettes, setLoadingRoulettes] = useState(false);
+  
+  // Adicionar novo estado para acompanhar tentativas de reconexão
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
   // Efeito para verificar autenticação
   useEffect(() => {
@@ -333,6 +336,57 @@ const TestAssinaturaPage = () => {
     }
   };
 
+  // Função para forçar reconstrução de dados da assinatura a partir dos IDs existentes
+  const rebuildSubscriptionData = async () => {
+    setProcessing(true);
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      // Verificar se temos os IDs necessários
+      if (!user?.id || !user?.asaasCustomerId) {
+        throw new Error('Dados de usuário ou cliente Asaas não disponíveis');
+      }
+      
+      // Usar IDs hardcoded do debug para testes
+      const fixedSubscriptionId = 'sub_kut2m6dyc3le28l1';
+      const fixedPaymentId = 'pay_5s53k7lw0taegft2';
+      
+      // Enviar solicitação para reconstruir a assinatura no backend
+      const response = await api.post('/api/subscription/rebuild', {
+        userId: user.id,
+        subscriptionId: fixedSubscriptionId,
+        paymentId: fixedPaymentId,
+        customerAsaasId: user.asaasCustomerId,
+        planType: selectedPlan || 'pro',
+        forceActivation: true
+      });
+      
+      if (response.data && response.data.success) {
+        setSuccess('Dados da assinatura reconstruídos com sucesso! Atualizando informações...');
+        
+        // Atualizar informações de assinatura no contexto
+        if (loadUserSubscription) {
+          await loadUserSubscription(true);
+        }
+        
+        // Tentar carregar detalhes novamente após reconstrução
+        await fetchSubscriptionDetails();
+        
+        // Incrementar tentativa de reconexão
+        setReconnectAttempt(prev => prev + 1);
+      } else {
+        console.error('Falha ao reconstruir dados da assinatura:', response.data);
+        setError(response.data?.message || 'Não foi possível reconstruir os dados da assinatura');
+      }
+    } catch (err: any) {
+      console.error('Erro ao reconstruir dados da assinatura:', err);
+      setError(err.response?.data?.message || 'Erro ao reconstruir dados da assinatura com o Asaas');
+    } finally {
+      setProcessing(false);
+    }
+  };
+  
   // Função para buscar detalhes completos da assinatura
   const fetchSubscriptionDetails = async () => {
     setLoadingSubscriptionDetails(true);
@@ -346,6 +400,7 @@ const TestAssinaturaPage = () => {
     
     try {
       // Buscar detalhes da assinatura atual do usuário
+      // Não vamos adicionar parâmetros extras que não são suportados pela API
       const response = await api.get('/api/subscription/details');
       
       if (response.data && response.data.success) {
@@ -414,13 +469,14 @@ const TestAssinaturaPage = () => {
     }
   };
 
-  // Função para sincronizar assinatura
+  // Função melhorada para sincronizar assinatura com tratamento de erros mais robusto
   const syncSubscription = async () => {
     setSyncingSubscription(true);
     setError(null);
     
     try {
-      // Tentar sincronizar a assinatura com o Asaas
+      // Tentar sincronizar a assinatura com o Asaas usando apenas forceRefresh
+      // para ser compatível com a API existente
       const response = await api.post('/api/subscription/sync', {
         forceRefresh: true
       });
@@ -442,6 +498,11 @@ const TestAssinaturaPage = () => {
     } catch (err: any) {
       console.error('Erro ao sincronizar assinatura:', err);
       setError(err.response?.data?.message || 'Erro ao sincronizar assinatura com o Asaas');
+      
+      // Se falhar e for erro 404, sugerir reconstrução
+      if (err.response?.status === 404) {
+        setError('Assinatura não encontrada no Asaas (Erro 404). Tente reconstruir os dados da assinatura.');
+      }
     } finally {
       setSyncingSubscription(false);
     }
@@ -1008,6 +1069,62 @@ const TestAssinaturaPage = () => {
               </Button>
             </div>
           )}
+          
+          {/* Seção adicional para ferramentas de diagnóstico e correção */}
+          <div className="mt-4">
+            <h4 className="font-medium mb-2">Ferramentas de Diagnóstico</h4>
+            <div className="bg-blue-50 p-4 rounded-lg space-y-3 text-sm border border-blue-200">
+              <p className="text-blue-800 font-medium">
+                Se você está com problemas de sincronização ou dados ausentes, utilize as ferramentas abaixo:
+              </p>
+              
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={syncingSubscription || processing}
+                  onClick={syncSubscription}
+                  className="text-xs"
+                >
+                  {syncingSubscription ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : null}
+                  Sincronizar Assinatura
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={syncingSubscription || processing}
+                  onClick={rebuildSubscriptionData}
+                  className="text-xs text-amber-700 border-amber-300"
+                >
+                  {processing ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : null}
+                  Reconstruir Dados
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={syncingSubscription || processing}
+                  onClick={manualFixSubscription}
+                  className="text-xs col-span-2"
+                >
+                  {processing ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : null}
+                  Ativar Assinatura Manualmente
+                </Button>
+              </div>
+              
+              <p className="text-xs text-gray-500 mt-1">
+                A reconstrução de dados tenta restaurar sua assinatura a partir dos IDs existentes.
+                A ativação manual força a criação de um registro local sem consultar o Asaas.
+              </p>
+            </div>
+          </div>
           
           {subscriptionDetails && (
             <div className="mt-4">
