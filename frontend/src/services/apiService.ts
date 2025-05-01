@@ -6,6 +6,11 @@ import { API_URL } from '@/config/constants';
  */
 class ApiService {
   private api: AxiosInstance;
+  private subscriptionCheckCache: {
+    timestamp: number;
+    result: { hasSubscription: boolean; subscription?: any };
+  } | null = null;
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutos em milissegundos
   
   constructor() {
     this.api = axios.create({
@@ -44,6 +49,19 @@ class ApiService {
         if (error.response && error.response.status === 403) {
           if (error.response.data?.error === 'NO_ACTIVE_SUBSCRIPTION' || 
               error.response.data?.error === 'SUBSCRIPTION_REQUIRED') {
+            // Verificar se o modal já foi mostrado recentemente
+            const lastDismissedTime = localStorage.getItem('subscription_modal_dismissed');
+            if (lastDismissedTime) {
+              const currentTime = Date.now();
+              const dismissedTime = parseInt(lastDismissedTime, 10);
+              
+              // Se o modal foi fechado nos últimos 10 minutos, não mostrar novamente
+              if (currentTime - dismissedTime < 600000) {
+                console.log('[API] Erro de assinatura detectado, mas modal foi fechado recentemente. Ignorando.');
+                return Promise.reject(error);
+              }
+            }
+            
             // Disparar evento para mostrar modal de assinatura
             window.dispatchEvent(new CustomEvent('subscription:required', { 
               detail: error.response.data 
@@ -100,9 +118,20 @@ class ApiService {
   
   /**
    * Verifica se o usuário possui assinatura ativa
+   * @param forceRefresh Forçar atualização dos dados, ignorando o cache
    * @returns Promise com o status da assinatura
    */
-  public async checkSubscriptionStatus(): Promise<{ hasSubscription: boolean; subscription?: any }> {
+  public async checkSubscriptionStatus(forceRefresh: boolean = false): Promise<{ hasSubscription: boolean; subscription?: any }> {
+    // Verificar o cache se não estiver forçando atualização
+    if (!forceRefresh && this.subscriptionCheckCache) {
+      const now = Date.now();
+      if (now - this.subscriptionCheckCache.timestamp < this.CACHE_DURATION) {
+        console.log('[API] Usando cache de verificação de assinatura:', 
+          this.subscriptionCheckCache.result.hasSubscription ? 'ATIVA' : 'INATIVA');
+        return this.subscriptionCheckCache.result;
+      }
+    }
+    
     try {
       console.log('[API] Verificando status da assinatura...');
       const response = await this.get<any>('/subscription/status');
@@ -124,14 +153,46 @@ class ApiService {
         console.log(`[API] Tipo do plano: ${data.subscription.plan}, Status: ${data.subscription.status}`);
       }
       
-      return {
+      const result = {
         hasSubscription: hasActiveSubscription,
         subscription: data.subscription
       };
+      
+      // Atualizar o cache
+      this.subscriptionCheckCache = {
+        timestamp: Date.now(),
+        result
+      };
+      
+      // Também armazenar no localStorage para persistência
+      localStorage.setItem('api_subscription_cache', JSON.stringify({
+        timestamp: this.subscriptionCheckCache.timestamp,
+        result
+      }));
+      
+      return result;
     } catch (error) {
       console.error('[API] Erro ao verificar status da assinatura:', error);
       
-      // Tentar usar dados do contexto local como fallback
+      // Tentar usar dados do cache local mesmo em caso de erro
+      if (this.subscriptionCheckCache) {
+        console.log('[API] Usando cache de verificação de assinatura após erro');
+        return this.subscriptionCheckCache.result;
+      }
+      
+      // Tentar recuperar do localStorage
+      const storedCache = localStorage.getItem('api_subscription_cache');
+      if (storedCache) {
+        try {
+          const cacheData = JSON.parse(storedCache);
+          console.log('[API] Usando cache do localStorage após erro');
+          return cacheData.result;
+        } catch (e) {
+          console.error('[API] Erro ao processar cache do localStorage:', e);
+        }
+      }
+      
+      // Tentar usar dados do contexto local como segundo fallback
       try {
         // Importação dinâmica para evitar dependência circular
         const { useSubscription } = await import('../context/SubscriptionContext');
@@ -169,9 +230,19 @@ class ApiService {
     const { hasSubscription } = await this.checkSubscriptionStatus();
     
     if (!hasSubscription) {
-      // Usuário sem assinatura - retornar resposta simulada com mensagem de erro
-      console.log('[API] Requisição a api/roulettes bloqueada - usuário sem assinatura');
+      // Verificar se o modal já foi mostrado recentemente
+      const lastDismissedTime = localStorage.getItem('subscription_modal_dismissed');
+      if (lastDismissedTime) {
+        const currentTime = Date.now();
+        const dismissedTime = parseInt(lastDismissedTime, 10);
+        
+        // Mostrar essa mensagem só se o modal não foi fechado recentemente
+        if (currentTime - dismissedTime > 600000) {
+          console.log('[API] Requisição a api/roulettes bloqueada - usuário sem assinatura');
+        }
+      }
       
+      // Usuário sem assinatura - retornar resposta simulada com mensagem de erro
       return {
         data: {
           success: false,
