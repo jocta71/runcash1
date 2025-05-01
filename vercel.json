@@ -6,7 +6,7 @@
       "use": "@vercel/node"
     },
     {
-      "src": "frontend/dist/**/*",
+      "src": "public/**/*",
       "use": "@vercel/static"
     }
   ],
@@ -45,7 +45,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/frontend/dist/$1"
+      "dest": "/public/$1"
     }
   ],
   "functions": {
@@ -141,7 +141,7 @@
     },
     {
       "source": "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg|logo.png|img/).*)",
-      "destination": "/frontend/dist/index.html"
+      "destination": "/index.html"
     }
   ],
   "env": {
