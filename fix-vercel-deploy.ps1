@@ -8,60 +8,38 @@ $rootVercelFixed = $false
 if (!$rootVercelExists) {
     Write-Host "Arquivo vercel.json na raiz não encontrado. Criando..." -ForegroundColor Yellow
     
-    $rootVercelJson = @{
-        "version" = 2
-        "builds" = @(
-            @{
-                "src" = "api/**/*.js"
-                "use" = "@vercel/node"
-            },
-            @{
-                "src" = "frontend/dist/**/*"
-                "use" = "@vercel/static"
-            }
-        )
-        "routes" = @(
-            @{
-                "src" = "/api/(.*)"
-                "dest" = "/api/$1"
-            },
-            @{
-                "src" = "/(.*)"
-                "dest" = "/frontend/dist/$1"
-            }
-        )
-    }
+    $rootVercelJson = @"
+{
+    "version": 2,
+    "builds": [
+        {
+            "src": "api/**/*.js",
+            "use": "@vercel/node"
+        },
+        {
+            "src": "frontend/dist/**/*",
+            "use": "@vercel/static"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/api/(.*)",
+            "dest": "/api/\$1"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/frontend/dist/\$1"
+        }
+    ]
+}
+"@
     
-    $rootVercelJson | ConvertTo-Json -Depth 10 | Set-Content -Path ".\vercel.json"
+    Set-Content -Path ".\vercel.json" -Value $rootVercelJson
     Write-Host "Arquivo vercel.json na raiz criado com sucesso!" -ForegroundColor Green
     $rootVercelFixed = $true
 } else {
-    Write-Host "Arquivo vercel.json na raiz existe. Verificando configuração..." -ForegroundColor Cyan
-    $vercelContent = Get-Content -Path ".\vercel.json" -Raw | ConvertFrom-Json
-    
-    # Verificar se a configuração de build para frontend está correta
-    $frontendBuildFound = $false
-    foreach ($build in $vercelContent.builds) {
-        if ($build.src -eq "frontend/dist/**/*" -or $build.src -eq "frontend/**/*" -or $build.src -eq "public/**/*") {
-            $frontendBuildFound = $true
-            break
-        }
-    }
-    
-    if (!$frontendBuildFound) {
-        Write-Host "Configuração de build para frontend não encontrada. Atualizando..." -ForegroundColor Yellow
-        
-        # Adicionar configuração de build para frontend
-        $newBuilds = $vercelContent.builds + @{
-            "src" = "frontend/dist/**/*"
-            "use" = "@vercel/static"
-        }
-        
-        $vercelContent.builds = $newBuilds
-        $vercelContent | ConvertTo-Json -Depth 10 | Set-Content -Path ".\vercel.json"
-        Write-Host "Configuração de build para frontend adicionada com sucesso!" -ForegroundColor Green
-        $rootVercelFixed = $true
-    }
+    Write-Host "Arquivo vercel.json na raiz existe. Verificando conteúdo manualmente..." -ForegroundColor Cyan
+    Write-Host "Recomendamos verificar se o arquivo contém a configuração de build para o frontend (frontend/dist/**/*)" -ForegroundColor Yellow
 }
 
 # 2. Verificar o package.json para build scripts
@@ -70,17 +48,13 @@ $packageJsonFixed = $false
 
 if ($packageJsonExists) {
     Write-Host "Verificando package.json na raiz..." -ForegroundColor Cyan
-    $packageJson = Get-Content -Path ".\package.json" -Raw | ConvertFrom-Json
+    $packageJsonContent = Get-Content -Path ".\package.json" -Raw
     
     # Verificar se há scripts de build adequados
-    if (!$packageJson.scripts.build -or !$packageJson.scripts.build.Contains("cd frontend && npm run build")) {
-        Write-Host "Script de build não configurado corretamente. Atualizando..." -ForegroundColor Yellow
-        
-        $packageJson.scripts.build = "cd frontend && npm run build"
-        
-        $packageJson | ConvertTo-Json -Depth 10 | Set-Content -Path ".\package.json"
-        Write-Host "Script de build atualizado com sucesso!" -ForegroundColor Green
-        $packageJsonFixed = $true
+    if (!$packageJsonContent.Contains('"build": "cd frontend && npm run build"')) {
+        Write-Host "Script de build não configurado corretamente. Atualizando manualmente..." -ForegroundColor Yellow
+        Write-Host "Recomendamos editar o package.json e garantir que contenha:" -ForegroundColor White
+        Write-Host '"build": "cd frontend && npm run build"' -ForegroundColor Cyan
     }
 }
 
@@ -119,33 +93,30 @@ $frontendVercelFixed = $false
 
 if ($frontendVercelExists) {
     Write-Host "Verificando vercel.json no frontend..." -ForegroundColor Cyan
-    $frontendVercel = Get-Content -Path ".\frontend\vercel.json" -Raw | ConvertFrom-Json
-    
-    # Verificar se a configuração está correta
-    if (!$frontendVercel.framework -or $frontendVercel.framework -ne "vite" -or !$frontendVercel.outputDirectory -or $frontendVercel.outputDirectory -ne "dist") {
-        Write-Host "Configuração do vercel.json no frontend não está correta. Atualizando..." -ForegroundColor Yellow
-        
-        $frontendVercel.framework = "vite"
-        $frontendVercel.buildCommand = "vite build"
-        $frontendVercel.outputDirectory = "dist"
-        
-        $frontendVercel | ConvertTo-Json -Depth 10 | Set-Content -Path ".\frontend\vercel.json"
-        Write-Host "Configuração do vercel.json no frontend atualizada com sucesso!" -ForegroundColor Green
-        $frontendVercelFixed = $true
-    }
+    Write-Host "Recomendamos verificar se o arquivo contém as configurações:" -ForegroundColor Yellow
+    Write-Host '"framework": "vite",' -ForegroundColor White
+    Write-Host '"buildCommand": "npm run build",' -ForegroundColor White
+    Write-Host '"outputDirectory": "dist",' -ForegroundColor White
 } else {
     Write-Host "Arquivo vercel.json não encontrado no frontend. Criando..." -ForegroundColor Yellow
     
-    $frontendVercelJson = @{
-        "framework" = "vite"
-        "buildCommand" = "vite build"
-        "outputDirectory" = "dist"
-        "rewrites" = @(
-            @{ "source" = "/(.*)", "destination" = "/index.html" }
-        )
+    $frontendVercelJson = @"
+{
+    "framework": "vite",
+    "buildCommand": "npm run build",
+    "outputDirectory": "dist",
+    "installCommand": "npm install",
+    "devCommand": "npm run dev",
+    "rewrites": [
+        { "source": "/(.*)", "destination": "/index.html" }
+    ],
+    "github": {
+        "silent": true
     }
+}
+"@
     
-    $frontendVercelJson | ConvertTo-Json -Depth 10 | Set-Content -Path ".\frontend\vercel.json"
+    Set-Content -Path ".\frontend\vercel.json" -Value $frontendVercelJson
     Write-Host "Arquivo vercel.json no frontend criado com sucesso!" -ForegroundColor Green
     $frontendVercelFixed = $true
 }
@@ -158,20 +129,22 @@ if ($viteConfigExists) {
     
     # Verificar se a configuração tem base e outDir
     if (!$viteConfig.Contains("base:") -or !$viteConfig.Contains("outDir:")) {
-        Write-Host "Configuração do Vite pode precisar de ajustes. Verifique manualmente." -ForegroundColor Yellow
+        Write-Host "Configuração do Vite pode precisar de ajustes. Recomendamos adicionar:" -ForegroundColor Yellow
+        Write-Host "base: '/'," -ForegroundColor White
+        Write-Host "build: { outDir: 'dist', ... }" -ForegroundColor White
     }
 }
 
 # Resumo das alterações
 Write-Host "`nResumo das correções:" -ForegroundColor Green
 if ($rootVercelFixed) {
-    Write-Host "- vercel.json na raiz foi atualizado" -ForegroundColor Cyan
+    Write-Host "- vercel.json na raiz foi criado" -ForegroundColor Cyan
 }
 if ($packageJsonFixed) {
     Write-Host "- package.json foi atualizado com script de build correto" -ForegroundColor Cyan
 }
 if ($frontendVercelFixed) {
-    Write-Host "- vercel.json no frontend foi atualizado" -ForegroundColor Cyan
+    Write-Host "- vercel.json no frontend foi criado" -ForegroundColor Cyan
 }
 
 # Instruções para deploy
