@@ -87,6 +87,7 @@ const TestFluxoCompleto: React.FC = () => {
   const [checkoutUrl, setCheckoutUrl] = useState('');
   const [processando, setProcessando] = useState(false);
   const [simulationMode, setSimulationMode] = useState(false); // Nova flag para modo de simulação
+  const [cpf, setCpf] = useState(''); // Novo estado para CPF
 
   // Estados para status dos passos
   const [registroStatus, setRegistroStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -219,10 +220,113 @@ const TestFluxoCompleto: React.FC = () => {
     setActiveTab('pagamento');
   };
 
+  // Função para gerar um CPF válido para testes
+  const generateValidCPF = () => {
+    // Esta função gera um CPF válido para testes
+    // Não usar em produção - apenas para fins de teste!
+    
+    // Gera os 9 primeiros dígitos aleatórios
+    const randomDigits = Array.from({ length: 9 }, () => 
+      Math.floor(Math.random() * 10)
+    );
+    
+    // Calcula o primeiro dígito verificador
+    let sum = randomDigits.reduce((acc, digit, index) => {
+      return acc + digit * (10 - index);
+    }, 0);
+    
+    const firstVerifier = 11 - (sum % 11);
+    const digit1 = firstVerifier >= 10 ? 0 : firstVerifier;
+    
+    // Adiciona o primeiro dígito verificador
+    randomDigits.push(digit1);
+    
+    // Calcula o segundo dígito verificador
+    sum = randomDigits.reduce((acc, digit, index) => {
+      return acc + digit * (11 - index);
+    }, 0);
+    
+    const secondVerifier = 11 - (sum % 11);
+    const digit2 = secondVerifier >= 10 ? 0 : secondVerifier;
+    
+    // Adiciona o segundo dígito verificador
+    randomDigits.push(digit2);
+    
+    // Formata o CPF como XXX.XXX.XXX-XX
+    return `${randomDigits.slice(0, 3).join('')}.${randomDigits.slice(3, 6).join('')}.${randomDigits.slice(6, 9).join('')}-${randomDigits.slice(9).join('')}`;
+  };
+  
+  // Função para formatar o CPF durante a digitação
+  const formatCPF = (value: string) => {
+    // Remove todos os caracteres não numéricos
+    const cpfNumbers = value.replace(/\D/g, '');
+    
+    // Limita a 11 dígitos
+    const cpfLimited = cpfNumbers.slice(0, 11);
+    
+    // Formata como XXX.XXX.XXX-XX
+    if (cpfLimited.length <= 3) {
+      return cpfLimited;
+    } else if (cpfLimited.length <= 6) {
+      return `${cpfLimited.slice(0, 3)}.${cpfLimited.slice(3)}`;
+    } else if (cpfLimited.length <= 9) {
+      return `${cpfLimited.slice(0, 3)}.${cpfLimited.slice(3, 6)}.${cpfLimited.slice(6)}`;
+    } else {
+      return `${cpfLimited.slice(0, 3)}.${cpfLimited.slice(3, 6)}.${cpfLimited.slice(6, 9)}-${cpfLimited.slice(9)}`;
+    }
+  };
+
+  // Função para limpar a formatação do CPF
+  const cleanCPF = (formattedCPF: string) => {
+    return formattedCPF.replace(/\D/g, '');
+  };
+
+  // Função para lidar com a mudança no campo de CPF
+  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formattedCPF = formatCPF(e.target.value);
+    setCpf(formattedCPF);
+  };
+
+  // Função para gerar e definir um CPF válido de teste
+  const handleGenerateCPF = () => {
+    const validCPF = generateValidCPF();
+    setCpf(validCPF);
+    
+    toast({
+      title: "CPF de teste gerado",
+      description: `Foi gerado um CPF válido para testes: ${validCPF}`
+    });
+  };
+
   // Função para criar checkout
   const handleCriarCheckout = async () => {
     setPagamentoStatus('loading');
     setPagamentoError('');
+    
+    // Verificar se o CPF foi fornecido
+    if (!cpf) {
+      toast({
+        variant: "destructive",
+        title: "CPF obrigatório",
+        description: "O Asaas exige o CPF para criar a assinatura. Por favor, preencha o campo de CPF."
+      });
+      setPagamentoStatus('error');
+      setPagamentoError('CPF obrigatório para criar a assinatura');
+      return;
+    }
+    
+    // Verifica se o CPF tem o formato correto (apenas números, total de 11 dígitos)
+    const cleanedCPF = cleanCPF(cpf);
+    if (cleanedCPF.length !== 11) {
+      toast({
+        variant: "destructive",
+        title: "CPF inválido",
+        description: "Por favor, forneça um CPF válido com 11 dígitos."
+      });
+      setPagamentoStatus('error');
+      setPagamentoError('CPF inválido. Deve conter 11 dígitos.');
+      return;
+    }
     
     // Usar o modo de simulação se ativado pelo usuário
     if (simulationMode) {
@@ -274,7 +378,8 @@ const TestFluxoCompleto: React.FC = () => {
         customerId: userWithName.asaasCustomerId || '', // Usar string vazia se não existir
         billingType: 'PIX',
         name: userWithName.name || username || email, // Garantir que temos um nome
-        email: email || userWithName.email || '' // Garantir que temos um email
+        email: email || userWithName.email || '', // Garantir que temos um email
+        cpfCnpj: cleanedCPF // Adicionar CPF/CNPJ para o Asaas
       };
       
       console.log('[Checkout] Enviando dados para criação de assinatura:', checkoutData);
@@ -860,6 +965,41 @@ const TestFluxoCompleto: React.FC = () => {
                   )}
                 </div>
               )}
+
+              {/* Campo para CPF - obrigatório para o Asaas */}
+              <div className="mb-4">
+                <div className="mb-2 flex justify-between items-center">
+                  <label htmlFor="cpf" className="text-sm font-medium text-gray-700">
+                    CPF <span className="text-red-500">*</span>
+                  </label>
+                  {simulationMode && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-xs"
+                      onClick={handleGenerateCPF}
+                    >
+                      Gerar CPF válido
+                    </Button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Input 
+                    id="cpf" 
+                    type="text" 
+                    placeholder="123.456.789-00" 
+                    value={cpf} 
+                    onChange={handleCPFChange} 
+                    required 
+                    className={cpf ? "" : "border-red-300"}
+                  />
+                  {!cpf && (
+                    <p className="text-xs text-red-500 mt-1">
+                      O Asaas exige CPF para criar assinatura
+                    </p>
+                  )}
+                </div>
+              </div>
 
               {!checkoutUrl ? (
                 <div className="space-y-4">
