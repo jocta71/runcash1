@@ -1,85 +1,51 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "public/**/*",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/user",
-      "dest": "/api/user-handler.js"
-    },
-    {
-      "src": "/api/webhook",
-      "dest": "/api/webhook-handler.js"
-    },
-    {
-      "src": "/api/payment",
-      "dest": "/api/payment-handler.js"
-    },
-    {
-      "src": "/api/subscription",
-      "dest": "/api/subscription-handler.js"
-    },
-    {
-      "src": "/api/customer",
-      "dest": "/api/customer-handler.js"
-    },
-    {
-      "src": "/api/health",
-      "dest": "/api/health-handler.js"
-    },
-    {
-      "src": "/api/asaas",
-      "dest": "/api/asaas-handler.js"
-    },
-    {
-      "src": "/api/ai/query",
-      "dest": "/api/ai/query.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
-    }
-  ],
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
   "functions": {
-    "api/user-handler.js": {
+    "api/asaas-create-customer.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/webhook-handler.js": {
+    "api/asaas-create-subscription.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/payment-handler.js": {
+    "api/webhook-manager.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/subscription-handler.js": {
+    "api/asaas-find-payment.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/customer-handler.js": {
+    "api/asaas-pix-qrcode.js": {
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/health-handler.js": {
-      "memory": 512,
-      "maxDuration": 5
+    "api/asaas-find-subscription.js": {
+      "memory": 1024,
+      "maxDuration": 10
     },
-    "api/asaas-handler.js": {
+    "api/asaas-cancel-subscription.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-find-customer.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/update-user.js": {
       "memory": 1024,
       "maxDuration": 10
     },
     "api/ai/query.js": {
       "memory": 1024,
       "maxDuration": 30
+    },
+    "api/test-page.js": {
+      "memory": 1024,
+      "maxDuration": 10
     }
   },
   "rewrites": [
@@ -97,35 +63,35 @@
     },
     {
       "source": "/api/asaas-create-customer",
-      "destination": "/api/asaas-handler.js?operation=create-customer"
+      "destination": "/api/asaas-create-customer.js"
     },
     {
       "source": "/api/asaas-create-subscription",
-      "destination": "/api/asaas-handler.js?operation=create-subscription"
+      "destination": "/api/asaas-create-subscription.js"
     },
     {
       "source": "/api/asaas-find-payment",
-      "destination": "/api/asaas-handler.js?operation=find-payment"
+      "destination": "/api/asaas-find-payment.js"
     },
     {
       "source": "/api/asaas-pix-qrcode",
-      "destination": "/api/asaas-handler.js?operation=pix-qrcode"
+      "destination": "/api/asaas-pix-qrcode.js"
     },
     {
       "source": "/api/asaas-find-subscription",
-      "destination": "/api/asaas-handler.js?operation=find-subscription"
+      "destination": "/api/asaas-find-subscription.js"
     },
     {
       "source": "/api/asaas-cancel-subscription",
-      "destination": "/api/asaas-handler.js?operation=cancel-subscription"
+      "destination": "/api/asaas-cancel-subscription.js"
     },
     {
       "source": "/api/asaas-find-customer",
-      "destination": "/api/asaas-handler.js?operation=find-customer"
+      "destination": "/api/asaas-find-customer.js"
     },
     {
       "source": "/api/update-user",
-      "destination": "/api/user-handler.js?operation=update"
+      "destination": "/api/update-user.js"
     },
     {
       "source": "/api/ai/query",
@@ -137,7 +103,7 @@
     },
     {
       "source": "/test",
-      "destination": "/api/user-handler.js?operation=test-page"
+      "destination": "/api/test-page"
     },
     {
       "source": "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg|logo.png|img/).*)",
@@ -158,4 +124,4 @@
     "GEMINI_MODEL": "gemini-2.0-flash",
     "ADMIN_API_KEY": "rcwh_secret_key_123"
   }
-} 
+}

@@ -2,8 +2,7 @@ export enum PlanType {
   FREE = 'FREE',
   BASIC = 'BASIC',
   PRO = 'PRO',
-  PREMIUM = 'PREMIUM',
-  PENDING = 'PENDING'
+  PREMIUM = 'PREMIUM'
 }
 
 export interface Plan {
@@ -19,8 +18,8 @@ export interface Plan {
 
 export interface UserSubscription {
   id: string;
-  userId?: string;
-  planId?: string;
+  userId: string;
+  planId: string;
   planType: PlanType;
   startDate: Date;
   endDate: Date | null;
@@ -29,6 +28,4 @@ export interface UserSubscription {
   paymentProvider?: 'stripe' | 'manual' | 'ASAAS';
   paymentId?: string;
   nextBillingDate?: Date | null;
-  value?: number;
-  interval?: string;
 } 

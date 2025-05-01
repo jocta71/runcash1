@@ -1,26 +1,24 @@
 {
   "name": "asaas-subscription-service",
   "version": "1.0.0",
-  "main": "src/index.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["asaas", "subscription", "payment", "api"],
+  "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "Serviço para gerenciar assinaturas com a plataforma Asaas",
+  "description": "",
   "dependencies": {
-    "axios": "^1.6.8",
+    "axios": "^1.9.0",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.2.3"
+    "mongoose": "^8.14.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.10"
   }
 }
