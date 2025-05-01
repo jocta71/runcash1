@@ -48,6 +48,7 @@ interface CustomWindow extends Window {
     };
   };
   _lastSuccessfulResponse?: number;
+  _lastSubscriptionEventTime?: number;
 }
 
 declare const window: CustomWindow;
@@ -495,7 +496,38 @@ export default class RouletteFeedService {
         if (!hasSubscription) {
           logger.debug('⛔ Requisição a api/roulettes bloqueada - usuário sem assinatura');
           
+          // Verificar se já enviamos um evento recentemente
+          const now = Date.now();
+          const lastEventTime = window._lastSubscriptionEventTime || 0;
+          const cooldownPeriod = 15000; // 15 segundos
+          
+          if (now - lastEventTime < cooldownPeriod) {
+            logger.debug(`⏱️ Evento de assinatura em cooldown (${Math.round((now - lastEventTime) / 1000)}s / ${cooldownPeriod / 1000}s)`);
+            return this.roulettes;
+          }
+          
+          // Verificar se o modal foi fechado recentemente pelo usuário
+          try {
+            const modalClosedTime = localStorage.getItem('subscription_modal_closed');
+            if (modalClosedTime) {
+              const closedAt = parseInt(modalClosedTime, 10);
+              const timeSinceClosed = now - closedAt;
+              
+              // Se o usuário fechou o modal nos últimos 2 minutos, não mostrar novamente
+              if (timeSinceClosed < 2 * 60 * 1000) {
+                logger.debug('🔒 Modal fechado pelo usuário nos últimos 2 minutos, não mostrando novamente');
+                return this.roulettes;
+              }
+            }
+          } catch (e) {
+            logger.error('❌ Erro ao verificar estado de fechamento do modal:', e);
+          }
+          
+          // Atualizar o timestamp do último evento
+          window._lastSubscriptionEventTime = now;
+          
           // Disparar evento para exibir modal de assinatura
+          logger.debug('📲 Disparando evento subscription:required');
           window.dispatchEvent(new CustomEvent('subscription:required', { 
             detail: {
               error: 'SUBSCRIPTION_REQUIRED',

@@ -6,6 +6,8 @@ import { API_URL } from '@/config/constants';
  */
 class ApiService {
   private api: AxiosInstance;
+  private lastSubscriptionEventTime: number = 0;
+  private subscriptionEventCooldown: number = 10000; // 10 segundos de cooldown entre eventos
   
   constructor() {
     this.api = axios.create({
@@ -44,7 +46,40 @@ class ApiService {
         if (error.response && error.response.status === 403) {
           if (error.response.data?.error === 'NO_ACTIVE_SUBSCRIPTION' || 
               error.response.data?.error === 'SUBSCRIPTION_REQUIRED') {
+            
+            // Verificar se o modal foi exibido recentemente para evitar múltiplos eventos
+            const now = Date.now();
+            const timeSinceLastEvent = now - this.lastSubscriptionEventTime;
+            
+            // Se já foi mostrado um evento recentemente, não mostrar novamente
+            if (timeSinceLastEvent < this.subscriptionEventCooldown) {
+              console.log('[API] Cooldown ativo para eventos de assinatura:', 
+                `Último: ${Math.round(timeSinceLastEvent/1000)}s atrás, Limite: ${this.subscriptionEventCooldown/1000}s`);
+              return Promise.reject(error);
+            }
+            
+            // Atualizar o timestamp do último evento
+            this.lastSubscriptionEventTime = now;
+            
+            // Verificar se o modal já foi fechado recentemente pelo usuário
+            try {
+              const modalClosedTime = localStorage.getItem('subscription_modal_closed');
+              if (modalClosedTime) {
+                const closedAt = parseInt(modalClosedTime, 10);
+                const timeSinceClosed = now - closedAt;
+                
+                // Se o usuário fechou o modal nos últimos 2 minutos, não mostrar novamente
+                if (timeSinceClosed < 2 * 60 * 1000) {
+                  console.log('[API] Modal fechado recentemente pelo usuário, não mostrando novamente');
+                  return Promise.reject(error);
+                }
+              }
+            } catch (e) {
+              console.error('[API] Erro ao verificar estado de fechamento do modal:', e);
+            }
+            
             // Disparar evento para mostrar modal de assinatura
+            console.log('[API] Disparando evento subscription:required');
             window.dispatchEvent(new CustomEvent('subscription:required', { 
               detail: error.response.data 
             }));

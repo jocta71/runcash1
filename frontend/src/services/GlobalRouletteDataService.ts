@@ -19,6 +19,13 @@ const DETAILED_LIMIT = 1000;
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
 
+// Adicionar a declaração para estender a interface Window
+declare global {
+  interface Window {
+    _lastSubscriptionEventTime?: number;
+  }
+}
+
 /**
  * Serviço Global para centralizar requisições de dados das roletas
  * Este serviço implementa o padrão Singleton para garantir apenas uma instância
@@ -108,64 +115,23 @@ class GlobalRouletteDataService {
    * @returns Promise com dados das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
-    // Verificar antes se o usuário tem assinatura ativa
-    // Importar dinamicamente para evitar dependência circular
-    const apiServiceModule = await import('../services/apiService');
-    const apiService = apiServiceModule.default;
-    
     try {
-      console.log('[GlobalRouletteService] Verificando status da assinatura...');
+      // Importar o serviço de API
+      const apiServiceModule = await import('./apiService');
+      const apiService = apiServiceModule.default;
+      
+      // Verificar se o usuário tem uma assinatura válida
       const { hasSubscription, subscription } = await apiService.checkSubscriptionStatus();
       
-      // Detectar se o usuário tem uma assinatura mas está inativa
-      const hasInactiveSubscription = !hasSubscription && subscription && subscription.status;
-      
-      if (hasInactiveSubscription) {
-        console.log(`[GlobalRouletteService] Usuário possui assinatura INATIVA com status: ${subscription.status}`);
-        
-        // Verificar se temos dados em cache como plano de contingência
-        try {
-          const cachedData = localStorage.getItem('roulette_data_cache');
-          if (cachedData) {
-            const parsedData = JSON.parse(cachedData);
-            const cacheAge = Date.now() - (parsedData.timestamp || 0);
-            
-            // Usar cache para assinaturas inativas mesmo se for mais antigo (48 horas)
-            if (cacheAge < 172800000) {
-              console.log('[GlobalRouletteService] Usando dados em cache para assinatura inativa (idade: ' + 
-                Math.round(cacheAge/60000) + ' minutos)');
-              this.rouletteData = parsedData.data || [];
-              this.notifySubscribers();
-              
-              // Disparar evento de assinatura inativa
-              window.dispatchEvent(new CustomEvent('subscription:inactive', { 
-                detail: {
-                  subscription,
-                  message: 'Sua assinatura está inativa. Usando dados em cache limitados.',
-                  cacheAge: Math.round(cacheAge/60000)
-                }
-              }));
-              
-              return this.rouletteData;
-            }
-          }
-        } catch (cacheError) {
-          console.error('[GlobalRouletteService] Erro ao acessar cache para assinatura inativa:', cacheError);
-        }
-      }
-      
       if (!hasSubscription) {
-        console.log('[GlobalRouletteService] Requisição a api/roulettes bloqueada - usuário sem assinatura ativa');
+        console.log('[GlobalRouletteService] Usuário sem assinatura ativa');
         
-        // Verificar se temos dados em cache em localStorage como medida de fallback
+        // Tentar usar o cache se disponível
         try {
           const cachedData = localStorage.getItem('roulette_data_cache');
           if (cachedData) {
             const parsedData = JSON.parse(cachedData);
             const cacheAge = Date.now() - (parsedData.timestamp || 0);
-            
-            // Para diagnosticar melhor o conteúdo do cache
-            console.log(`[GlobalRouletteService] Cache disponível com ${parsedData.data?.length || 0} roletas e idade de ${Math.round(cacheAge/60000)} minutos`);
             
             // Usar cache mesmo se for antigo em caso de erro no servidor (aumentar para 24 horas)
             if (cacheAge < 86400000) {
@@ -183,17 +149,78 @@ class GlobalRouletteDataService {
           console.error('[GlobalRouletteService] Erro ao acessar cache:', cacheError);
         }
         
-        // Disparar evento para exibir modal de assinatura
-        window.dispatchEvent(new CustomEvent('subscription:required', { 
-          detail: {
-            error: 'SUBSCRIPTION_REQUIRED',
-            message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.',
-            userDetails: {
-              hasSubscription: false,
-              subscriptionStatus: subscription?.status || 'none'
+        // Verificar se já enviamos um evento recentemente
+        const currentTime = Date.now();
+        const lastEventTime = window._lastSubscriptionEventTime || 0;
+        const cooldownPeriod = 15000; // 15 segundos
+        
+        if (currentTime - lastEventTime < cooldownPeriod) {
+          console.log(`[GlobalRouletteService] Evento de assinatura em cooldown (${Math.round((currentTime - lastEventTime) / 1000)}s / ${cooldownPeriod / 1000}s)`);
+        } else {
+          // Verificar se o modal foi fechado recentemente pelo usuário
+          try {
+            const modalClosedTime = localStorage.getItem('subscription_modal_closed');
+            if (modalClosedTime) {
+              const closedAt = parseInt(modalClosedTime, 10);
+              const timeSinceClosed = currentTime - closedAt;
+              
+              // Se o usuário fechou o modal nos últimos 2 minutos, não mostrar novamente
+              if (timeSinceClosed < 2 * 60 * 1000) {
+                console.log('[GlobalRouletteService] Modal fechado pelo usuário nos últimos 2 minutos, não mostrando novamente');
+              } else {
+                // Atualizar o timestamp do último evento e disparar evento
+                window._lastSubscriptionEventTime = currentTime;
+                
+                // Disparar evento para exibir modal de assinatura
+                console.log('[GlobalRouletteService] Disparando evento subscription:required');
+                window.dispatchEvent(new CustomEvent('subscription:required', { 
+                  detail: {
+                    error: 'SUBSCRIPTION_REQUIRED',
+                    message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.',
+                    userDetails: {
+                      hasSubscription: false,
+                      subscriptionStatus: subscription?.status || 'none'
+                    }
+                  }
+                }));
+              }
+            } else {
+              // Não há registro de fechamento, pode disparar evento
+              window._lastSubscriptionEventTime = currentTime;
+              
+              // Disparar evento para exibir modal de assinatura
+              console.log('[GlobalRouletteService] Disparando evento subscription:required - sem registro prévio');
+              window.dispatchEvent(new CustomEvent('subscription:required', { 
+                detail: {
+                  error: 'SUBSCRIPTION_REQUIRED',
+                  message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.',
+                  userDetails: {
+                    hasSubscription: false,
+                    subscriptionStatus: subscription?.status || 'none'
+                  }
+                }
+              }));
             }
+          } catch (e) {
+            console.error('[GlobalRouletteService] Erro ao verificar estado de fechamento do modal:', e);
+            
+            // Em caso de erro, ainda assim enviar um evento com cooldown
+            window._lastSubscriptionEventTime = currentTime;
+            
+            // Disparar evento para exibir modal de assinatura
+            console.log('[GlobalRouletteService] Disparando evento subscription:required após erro');
+            window.dispatchEvent(new CustomEvent('subscription:required', { 
+              detail: {
+                error: 'SUBSCRIPTION_REQUIRED',
+                message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.',
+                userDetails: {
+                  hasSubscription: false,
+                  subscriptionStatus: subscription?.status || 'none'
+                }
+              }
+            }));
           }
-        }));
+        }
         
         // Notificar os assinantes mesmo sem dados novos para evitar travamentos na interface
         this.notifySubscribers();
@@ -228,8 +255,8 @@ class GlobalRouletteDataService {
       }
       
       // Verificar se já fizemos uma requisição recentemente
-      const now = Date.now();
-      const timeSinceLastRequest = now - this.lastFetchTime;
+      const currentTime = Date.now();
+      const timeSinceLastRequest = currentTime - this.lastFetchTime;
       
       if (timeSinceLastRequest < 2000 && this.rouletteData.length > 0) {
         console.log(`[GlobalRouletteService] Requisição recente (${timeSinceLastRequest}ms atrás), retornando dados em cache`);
@@ -238,7 +265,7 @@ class GlobalRouletteDataService {
       
       // Sinalizar que estamos buscando dados
       this.isFetching = true;
-      this.lastFetchTime = now;
+      this.lastFetchTime = currentTime;
       
       const axiosInstance = apiService.getInstance();
       
