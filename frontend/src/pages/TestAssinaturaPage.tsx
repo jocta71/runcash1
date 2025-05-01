@@ -63,6 +63,13 @@ const TestAssinaturaPage = () => {
   const [webhookEvents, setWebhookEvents] = useState<any[]>([]);
   const [loadingWebhooks, setLoadingWebhooks] = useState(false);
   
+  // Estado para sincronização de assinatura
+  const [syncingSubscription, setSyncingSubscription] = useState(false);
+  
+  // Estado para debug
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
+  const [loadingAttempts, setLoadingAttempts] = useState<{timestamp: Date; success: boolean; error?: string}[]>([]);
+  
   // QR Code PIX
   const [pixQrCode, setPixQrCode] = useState<{
     image: string;
@@ -331,6 +338,12 @@ const TestAssinaturaPage = () => {
     setLoadingSubscriptionDetails(true);
     setError(null);
     
+    const attempt = {
+      timestamp: new Date(),
+      success: false,
+      error: ''
+    };
+    
     try {
       // Buscar detalhes da assinatura atual do usuário
       const response = await api.get('/api/subscription/details');
@@ -339,27 +352,42 @@ const TestAssinaturaPage = () => {
         setSubscriptionDetails(response.data.subscription);
         setSuccess('Detalhes da assinatura carregados com sucesso');
         
+        // Atualizar histórico de tentativas
+        attempt.success = true;
+        
         // Tentar carregar logs de webhook também
         await fetchWebhookEvents(response.data.subscription.id);
       } else {
         console.error('Resposta inválida ao buscar detalhes da assinatura:', response.data);
         setError('Não foi possível obter detalhes completos da assinatura');
+        
+        // Atualizar histórico de tentativas
+        attempt.error = 'Resposta inválida ao buscar detalhes da assinatura';
       }
     } catch (err: any) {
       console.error('Erro ao buscar detalhes da assinatura:', err);
       // Interpretar códigos de erro comuns do Asaas
+      let errorMessage = '';
+      
       if (err.response?.status === 400) {
-        setError('Solicitação inválida ao buscar assinatura (Erro 400). Verifique os dados fornecidos.');
+        errorMessage = 'Solicitação inválida ao buscar assinatura (Erro 400). Verifique os dados fornecidos.';
       } else if (err.response?.status === 403) {
-        setError('Acesso não autorizado (Erro 403). Verifique suas permissões.');
+        errorMessage = 'Acesso não autorizado (Erro 403). Verifique suas permissões.';
       } else if (err.response?.status === 404) {
-        setError('Assinatura não encontrada (Erro 404). Verifique se o ID da assinatura está correto.');
+        errorMessage = 'Assinatura não encontrada (Erro 404). Verifique se o ID da assinatura está correto.';
       } else if (err.response?.status === 500) {
-        setError('Erro interno do servidor Asaas (Erro 500). Tente novamente mais tarde.');
+        errorMessage = 'Erro interno do servidor Asaas (Erro 500). Tente novamente mais tarde.';
       } else {
-        setError(err.response?.data?.message || 'Erro ao carregar detalhes da assinatura');
+        errorMessage = err.response?.data?.message || 'Erro ao carregar detalhes da assinatura';
       }
+      
+      setError(errorMessage);
+      
+      // Atualizar histórico de tentativas
+      attempt.error = errorMessage;
     } finally {
+      // Salvar esta tentativa no histórico
+      setLoadingAttempts(prev => [...prev, attempt]);
       setLoadingSubscriptionDetails(false);
     }
   };
@@ -383,6 +411,74 @@ const TestAssinaturaPage = () => {
       console.error('Erro ao buscar eventos de webhook:', err);
     } finally {
       setLoadingWebhooks(false);
+    }
+  };
+
+  // Função para sincronizar assinatura
+  const syncSubscription = async () => {
+    setSyncingSubscription(true);
+    setError(null);
+    
+    try {
+      // Tentar sincronizar a assinatura com o Asaas
+      const response = await api.post('/api/subscription/sync', {
+        forceRefresh: true
+      });
+      
+      if (response.data && response.data.success) {
+        setSuccess('Assinatura sincronizada com sucesso! Atualizando dados...');
+        
+        // Atualizar informações de assinatura no contexto
+        if (loadUserSubscription) {
+          await loadUserSubscription(true);
+        }
+        
+        // Tentar carregar detalhes novamente após sincronização
+        await fetchSubscriptionDetails();
+      } else {
+        console.error('Falha ao sincronizar assinatura:', response.data);
+        setError(response.data?.message || 'Não foi possível sincronizar a assinatura');
+      }
+    } catch (err: any) {
+      console.error('Erro ao sincronizar assinatura:', err);
+      setError(err.response?.data?.message || 'Erro ao sincronizar assinatura com o Asaas');
+    } finally {
+      setSyncingSubscription(false);
+    }
+  };
+
+  // Função para forçar a atualização manual da assinatura
+  const manualFixSubscription = async () => {
+    setSyncingSubscription(true);
+    setError(null);
+    
+    try {
+      // Enviar solicitação para corrigir a assinatura manualmente
+      const response = await api.post('/api/subscription/fix', {
+        userId: user?.id,
+        paymentConfirmed: true,
+        planType: selectedPlan || 'pro'
+      });
+      
+      if (response.data && response.data.success) {
+        setSuccess('Assinatura atualizada manualmente com sucesso! Atualizando dados...');
+        
+        // Atualizar informações de assinatura no contexto
+        if (loadUserSubscription) {
+          await loadUserSubscription(true);
+        }
+        
+        // Tentar carregar detalhes novamente após correção
+        await fetchSubscriptionDetails();
+      } else {
+        console.error('Falha ao corrigir assinatura:', response.data);
+        setError(response.data?.message || 'Não foi possível corrigir a assinatura manualmente');
+      }
+    } catch (err: any) {
+      console.error('Erro ao corrigir assinatura:', err);
+      setError(err.response?.data?.message || 'Erro ao aplicar correção manual na assinatura');
+    } finally {
+      setSyncingSubscription(false);
     }
   };
 
@@ -894,6 +990,25 @@ const TestAssinaturaPage = () => {
             </Button>
           </div>
           
+          {error && error.includes('404') && (
+            <div className="flex justify-end">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={syncingSubscription}
+                onClick={syncSubscription}
+                className="text-xs"
+              >
+                {syncingSubscription ? (
+                  <>
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    Sincronizando...
+                  </>
+                ) : "Sincronizar Assinatura"}
+              </Button>
+            </div>
+          )}
+          
           {subscriptionDetails && (
             <div className="mt-4">
               <h4 className="font-medium mb-2">Informações Detalhadas da Assinatura</h4>
@@ -1015,6 +1130,22 @@ const TestAssinaturaPage = () => {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Erro</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
+              {error.includes('404') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={syncSubscription}
+                  disabled={syncingSubscription}
+                  className="mt-2 w-full text-xs"
+                >
+                  {syncingSubscription ? (
+                    <>
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      Sincronizando...
+                    </>
+                  ) : "Sincronizar Dados da Assinatura"}
+                </Button>
+              )}
             </Alert>
           )}
           
@@ -1038,6 +1169,77 @@ const TestAssinaturaPage = () => {
                     null, 2
                   )}
                 </pre>
+              </div>
+            </div>
+          )}
+          
+          {(!subscriptionDetails && error && error.includes('404')) && (
+            <div className="mt-4">
+              <h4 className="font-medium mb-2">Resolução de Problemas</h4>
+              <div className="bg-amber-50 p-4 rounded-lg space-y-3 text-sm border border-amber-200">
+                <p className="text-amber-800">
+                  <strong>Problema Detectado:</strong> Sua assinatura não foi encontrada, mas existe um pagamento confirmado.
+                </p>
+                
+                <p className="text-gray-700">Este problema geralmente ocorre quando:</p>
+                <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700">
+                  <li>O webhook do Asaas não conseguiu comunicar a confirmação do pagamento</li>
+                  <li>Houve uma falha na sincronização entre o pagamento e a criação da assinatura</li>
+                  <li>O ID da assinatura salvo no seu perfil está incorreto</li>
+                </ul>
+                
+                <div className="flex flex-col space-y-2">
+                  <p className="text-gray-700 font-medium">Ações recomendadas:</p>
+                  <Button
+                    onClick={syncSubscription}
+                    disabled={syncingSubscription}
+                    className="w-full"
+                  >
+                    {syncingSubscription ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sincronizando assinatura...
+                      </>
+                    ) : "Sincronizar Assinatura com Asaas"}
+                  </Button>
+                  
+                  <p className="text-xs text-gray-500 mt-1">
+                    Este processo irá verificar seu pagamento no Asaas e atualizar sua assinatura no sistema.
+                  </p>
+                  
+                  <div className="border-t border-amber-200 my-2 pt-2">
+                    <p className="text-gray-700 font-medium mb-2">Se o problema persistir:</p>
+                    <Button
+                      variant="outline"
+                      onClick={manualFixSubscription}
+                      disabled={syncingSubscription}
+                      className="w-full text-amber-700 border-amber-300"
+                    >
+                      {syncingSubscription ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Aplicando correção...
+                        </>
+                      ) : "Aplicar Correção Manual"}
+                    </Button>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Esta opção força a atualização da assinatura no sistema, baseada nos dados de pagamento.
+                    </p>
+                  </div>
+                  
+                  <div className="border-t border-amber-200 my-2 pt-2">
+                    <p className="text-gray-700 font-medium mb-2">Código de diagnóstico:</p>
+                    <div className="bg-gray-100 p-2 rounded text-xs font-mono overflow-auto">
+                      Plan: {currentPlan?.name || 'undefined'}<br/>
+                      Status: {
+                        // @ts-ignore - Propriedade status pode existir em runtime
+                        currentPlan?.status || 'undefined'
+                      }<br/>
+                      User ID: {user?.id || 'undefined'}<br/>
+                      Payment: {success?.includes('confirmado') ? 'CONFIRMED' : 'UNKNOWN'}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1099,6 +1301,125 @@ const TestAssinaturaPage = () => {
               </div>
             </div>
           )}
+          
+          {(currentPlan?.name && 
+             // @ts-ignore - Propriedade status pode existir em runtime
+             (!currentPlan?.status || currentPlan?.status === 'Desconhecido') && 
+             success?.includes('confirmado')) && (
+            <div className="mt-4">
+              <h4 className="font-medium mb-2">Inconsistência Detectada</h4>
+              <div className="bg-blue-50 p-4 rounded-lg space-y-2 text-sm border border-blue-200">
+                <p className="text-blue-800">
+                  <strong>Observação:</strong> Seu plano aparece como "{currentPlan?.name}", mas o status está como "Desconhecido".
+                </p>
+                
+                <p className="text-gray-700">
+                  Isso geralmente indica um problema de sincronização entre o frontend e o backend.
+                </p>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (loadUserSubscription) {
+                      loadUserSubscription(true);
+                      setSuccess('Dados da assinatura atualizados do servidor.');
+                    }
+                  }}
+                  className="w-full mt-2"
+                >
+                  Atualizar Dados do Servidor
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          <div className="mt-6">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-gray-500">Informações Avançadas</h4>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowDebugInfo(!showDebugInfo)}
+                className="h-6 text-xs"
+              >
+                {showDebugInfo ? "Ocultar" : "Mostrar"}
+              </Button>
+            </div>
+            
+            {showDebugInfo && (
+              <div className="mt-2 space-y-3">
+                <div className="bg-gray-100 p-3 rounded-md text-xs font-mono">
+                  <p><strong>Usuário:</strong> {user?.username} (ID: {user?.id})</p>
+                  <p><strong>Cliente Asaas:</strong> {user?.asaasCustomerId || 'N/A'}</p>
+                  <p><strong>Plano:</strong> {currentPlan?.name} ({
+                    // @ts-ignore
+                    currentPlan?.id || 'N/A'
+                  })</p>
+                  <p><strong>Status da Assinatura:</strong> {
+                    // @ts-ignore
+                    currentPlan?.status || 'Desconhecido'
+                  }</p>
+                  <p><strong>Subscription ID:</strong> {subscriptionId || 'N/A'}</p>
+                  <p><strong>Payment ID:</strong> {paymentId || 'N/A'}</p>
+                </div>
+                
+                {loadingAttempts.length > 0 && (
+                  <div>
+                    <h5 className="text-sm font-medium">Histórico de Solicitações</h5>
+                    <div className="bg-gray-100 p-3 rounded-md text-xs max-h-40 overflow-y-auto">
+                      {loadingAttempts.map((attempt, index) => (
+                        <div key={index} className={`mb-2 pb-2 border-b ${
+                          attempt.success ? 'border-green-200' : 'border-red-200'
+                        }`}>
+                          <p className={attempt.success ? 'text-green-600' : 'text-red-600'}>
+                            <strong>{attempt.success ? '✓ Sucesso' : '✗ Falha'}</strong> - {
+                              attempt.timestamp.toLocaleTimeString()
+                            }
+                          </p>
+                          {attempt.error && <p className="mt-1">{attempt.error}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex space-x-2 mt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      console.log('Debug Info', {
+                        user,
+                        currentPlan,
+                        subscriptionDetails,
+                        webhookEvents,
+                        error,
+                        success,
+                        loadingAttempts
+                      });
+                      setSuccess('Informações de debug registradas no console do navegador');
+                    }}
+                    className="flex-1 text-xs"
+                  >
+                    Log no Console
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setLoadingAttempts([]);
+                      setError(null);
+                      setSuccess('Histórico de debug limpo');
+                    }}
+                    className="flex-1 text-xs"
+                  >
+                    Limpar Histórico
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
