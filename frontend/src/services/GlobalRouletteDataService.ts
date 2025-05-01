@@ -108,22 +108,38 @@ class GlobalRouletteDataService {
    * @returns Promise com dados das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
-    // Requisição a api/roulettes desativada
-    console.log('[GlobalRouletteService] Requisições a api/roulettes foram desativadas');
+    // Verificar antes se o usuário tem assinatura ativa
+    // Importar dinamicamente para evitar dependência circular
+    const apiServiceModule = await import('../services/apiService');
+    const apiService = apiServiceModule.default;
     
-    // Notificar os assinantes mesmo sem dados novos para evitar travamentos na interface
-    this.notifySubscribers();
+    const { hasSubscription } = await apiService.checkSubscriptionStatus();
     
-    // Emitir evento global para outros componentes que possam estar ouvindo
-    EventService.emit('roulette:data-updated', {
-      timestamp: new Date().toISOString(),
-      count: 0,
-      source: 'central-service'
-    });
+    if (!hasSubscription) {
+      console.log('[GlobalRouletteService] Requisição a api/roulettes bloqueada - usuário sem assinatura');
+      
+      // Disparar evento para exibir modal de assinatura
+      window.dispatchEvent(new CustomEvent('subscription:required', { 
+        detail: {
+          error: 'SUBSCRIPTION_REQUIRED',
+          message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.'
+        }
+      }));
+      
+      // Notificar os assinantes mesmo sem dados novos para evitar travamentos na interface
+      this.notifySubscribers();
+      
+      // Emitir evento global para outros componentes que possam estar ouvindo
+      EventService.emit('roulette:data-updated', {
+        timestamp: new Date().toISOString(),
+        count: 0,
+        source: 'central-service',
+        error: 'SUBSCRIPTION_REQUIRED'
+      });
+      
+      return [];
+    }
     
-    return [];
-    
-    /* Código original comentado
     // Evitar requisições simultâneas
     if (this.isFetching) {
       console.log('[GlobalRouletteService] Requisição já em andamento, aguardando...');
@@ -160,12 +176,6 @@ class GlobalRouletteDataService {
           this.rouletteData = data;
           this.lastFetchTime = now;
           
-          // Remover armazenamento no localStorage
-          // localStorage.setItem('global_roulette_data', JSON.stringify({
-          //   timestamp: now,
-          //   data: data
-          // }));
-          
           // Notificar todos os assinantes sobre a atualização
           this.notifySubscribers();
           
@@ -191,7 +201,6 @@ class GlobalRouletteDataService {
       this.isFetching = false;
       this._currentFetchPromise = null;
     }
-    */
   }
   
   /**

@@ -487,137 +487,153 @@ export default class RouletteFeedService {
    * @returns Promise com os dados mais recentes
    */
   public fetchLatestData(): Promise<any> {
-    // Requisição a api/roulettes desativada
-    logger.debug('⛔ Requisições a api/roulettes foram desativadas');
-    return Promise.resolve(this.roulettes);
-    
-    /* Código original comentado
-    // Verificar se podemos fazer a requisição
-    if (!this.canMakeRequest()) {
-      logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
-      return Promise.resolve(this.roulettes);
-    }
-    
-    // Atualizar estado
-    this.IS_FETCHING_DATA = true;
-    window._requestInProgress = true;
-    
-    // Criar ID único para esta requisição
-    const requestId = this.generateRequestId();
-    
-    // Registrar requisição pendente para monitoramento
-    if (typeof window !== 'undefined') {
-      if (!window._pendingRequests) {
-        window._pendingRequests = {};
-      }
+    // Verificar antes se o usuário tem assinatura ativa, utilizando o apiService
+    return import('../services/apiService').then(apiServiceModule => {
+      const apiService = apiServiceModule.default;
       
-      window._pendingRequests[requestId] = {
-        timestamp: Date.now(),
-        url: '/api/ROULETTES-via-centralService',
-        service: 'RouletteFeed'
-      };
-    }
-    
-    logger.debug(`📡 Buscando dados mais recentes através do serviço centralizado (ID: ${requestId})`);
-    
-    // Usar o serviço global para obter os dados
-    return globalRouletteDataService.fetchRouletteData()
-      .then(data => {
-        // Atualizar estatísticas e estado
-        this.requestStats.total++;
-        this.requestStats.success++;
-        this.lastSuccessfulResponse = Date.now();
-        this.lastCacheUpdate = this.lastSuccessfulResponse;
-        this.IS_FETCHING_DATA = false;
-        
-        // Se era a primeira requisição, marcar como feita
-        if (!this.hasFetchedInitialData) {
-          this.hasFetchedInitialData = true;
-        }
-        
-        // Limpar a requisição pendente
-        if (typeof window !== 'undefined' && window._pendingRequests) {
-          delete window._pendingRequests[requestId];
-        }
-        
-        // Liberar a trava global
-        window._requestInProgress = false;
-        
-        // Processar os dados recebidos
-        if (data && Array.isArray(data)) {
-          // Transformar dados para o formato esperado
-          const liveTables: { [key: string]: any } = {};
-          data.forEach(roleta => {
-            if (roleta && roleta.id) {
-              // Certifique-se de que estamos lidando corretamente com o campo numero
-              // Na API, o 'numero' é um array de objetos com propriedade 'numero'
-              const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-              
-              liveTables[roleta.id] = {
-                GameID: roleta.id,
-                Name: roleta.name || roleta.nome,
-                ativa: roleta.ativa,
-                // Manter a estrutura do campo numero exatamente como está na API
-                numero: numeroArray,
-                // Incluir outras propriedades da roleta
-                ...roleta
-              };
+      return apiService.checkSubscriptionStatus().then(({ hasSubscription }) => {
+        if (!hasSubscription) {
+          logger.debug('⛔ Requisição a api/roulettes bloqueada - usuário sem assinatura');
+          
+          // Disparar evento para exibir modal de assinatura
+          window.dispatchEvent(new CustomEvent('subscription:required', { 
+            detail: {
+              error: 'SUBSCRIPTION_REQUIRED',
+              message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.'
             }
+          }));
+          
+          return this.roulettes;
+        }
+        
+        // Usuário tem assinatura, continuar com a busca normal
+        // Verificar se podemos fazer a requisição
+        if (!this.canMakeRequest()) {
+          logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
+          return this.roulettes;
+        }
+        
+        // Atualizar estado
+        this.IS_FETCHING_DATA = true;
+        window._requestInProgress = true;
+        
+        // Criar ID único para esta requisição
+        const requestId = this.generateRequestId();
+        
+        // Registrar requisição pendente para monitoramento
+        if (typeof window !== 'undefined') {
+          if (!window._pendingRequests) {
+            window._pendingRequests = {};
+          }
+          
+          window._pendingRequests[requestId] = {
+            timestamp: Date.now(),
+            url: '/api/ROULETTES-via-centralService',
+            service: 'RouletteFeed'
+          };
+        }
+        
+        logger.debug(`📡 Buscando dados mais recentes através do serviço centralizado (ID: ${requestId})`);
+        
+        // Usar o serviço global para obter os dados
+        return globalRouletteDataService.fetchRouletteData()
+          .then(data => {
+            // Atualizar estatísticas e estado
+            this.requestStats.total++;
+            this.requestStats.success++;
+            this.lastSuccessfulResponse = Date.now();
+            this.lastCacheUpdate = this.lastSuccessfulResponse;
+            this.IS_FETCHING_DATA = false;
+            
+            // Se era a primeira requisição, marcar como feita
+            if (!this.hasFetchedInitialData) {
+              this.hasFetchedInitialData = true;
+            }
+            
+            // Limpar a requisição pendente
+            if (typeof window !== 'undefined' && window._pendingRequests) {
+              delete window._pendingRequests[requestId];
+            }
+            
+            // Liberar a trava global
+            window._requestInProgress = false;
+            
+            // Processar os dados recebidos
+            if (data && Array.isArray(data)) {
+              // Transformar dados para o formato esperado
+              const liveTables: { [key: string]: any } = {};
+              data.forEach(roleta => {
+                if (roleta && roleta.id) {
+                  // Certifique-se de que estamos lidando corretamente com o campo numero
+                  // Na API, o 'numero' é um array de objetos com propriedade 'numero'
+                  const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+                  
+                  liveTables[roleta.id] = {
+                    GameID: roleta.id,
+                    Name: roleta.name || roleta.nome,
+                    ativa: roleta.ativa,
+                    // Manter a estrutura do campo numero exatamente como está na API
+                    numero: numeroArray,
+                    // Incluir outras propriedades da roleta
+                    ...roleta
+                  };
+                }
+              });
+              
+              // Atualizar cache
+              this.lastUpdateTime = Date.now();
+              this.hasCachedData = true;
+              this.roulettes = liveTables;
+              
+              // Sinalizar melhora na saúde do sistema
+              GLOBAL_SYSTEM_HEALTH = true;
+              this.consecutiveSuccesses++;
+              this.consecutiveErrors = 0;
+              this.lastSuccessTimestamp = Date.now();
+              
+              // Notificar que temos novos dados
+              this.notifySubscribers(liveTables);
+              
+              // Notificar outros serviços
+              this.notifyDataUpdate();
+              
+              return liveTables;
+            } else {
+              logger.warn('⚠️ Resposta inválida do serviço global');
+              return this.roulettes;
+            }
+          })
+          .catch(error => {
+            // Atualizar estatísticas e estado
+            this.requestStats.total++;
+            this.requestStats.failed++;
+            this.IS_FETCHING_DATA = false;
+            
+            // Limpar a requisição pendente
+            if (typeof window !== 'undefined' && window._pendingRequests) {
+              delete window._pendingRequests[requestId];
+            }
+            
+            // Liberar a trava global
+            window._requestInProgress = false;
+            
+            // Registrar erro
+            logger.error(`❌ Erro ao buscar dados mais recentes: ${error.message || 'Desconhecido'}`);
+            
+            // Atualizar contadores de erro
+            this.consecutiveErrors++;
+            this.consecutiveSuccesses = 0;
+            
+            // Se houver um erro grave de conectividade, atualizar saúde do sistema
+            if (this.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+              GLOBAL_SYSTEM_HEALTH = false;
+            }
+            
+            // Retornar dados em cache se existirem
+            return this.roulettes;
           });
-          
-          // Atualizar cache
-          this.lastUpdateTime = Date.now();
-          this.hasCachedData = true;
-          this.roulettes = liveTables;
-          
-          // Sinalizar melhora na saúde do sistema
-          GLOBAL_SYSTEM_HEALTH = true;
-          this.consecutiveSuccesses++;
-          this.consecutiveErrors = 0;
-          this.lastSuccessTimestamp = Date.now();
-          
-          // Notificar que temos novos dados
-          this.notifySubscribers(liveTables);
-          
-          // Notificar outros serviços
-        this.notifyDataUpdate();
-        
-          return liveTables;
-        } else {
-          logger.warn('⚠️ Resposta inválida do serviço global');
-        return this.roulettes;
-        }
-      })
-      .catch(error => {
-        // Atualizar estatísticas e estado
-        this.requestStats.total++;
-        this.requestStats.failed++;
-        this.IS_FETCHING_DATA = false;
-        
-        // Limpar a requisição pendente
-        if (typeof window !== 'undefined' && window._pendingRequests) {
-          delete window._pendingRequests[requestId];
-        }
-        
-        // Liberar a trava global
-        window._requestInProgress = false;
-        
-        // Registrar erro
-        logger.error(`❌ Erro ao buscar dados mais recentes: ${error.message || 'Desconhecido'}`);
-        
-        // Atualizar contadores de erro
-        this.consecutiveErrors++;
-        this.consecutiveSuccesses = 0;
-        
-        // Se houver um erro grave de conectividade, atualizar saúde do sistema
-        if (this.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-          GLOBAL_SYSTEM_HEALTH = false;
-        }
-        
-        // Retornar dados em cache se existirem
-        return this.roulettes;
       });
-    */
+    });
   }
 
   /**

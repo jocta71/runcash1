@@ -99,26 +99,55 @@ class ApiService {
   }
   
   /**
+   * Verifica se o usuário possui assinatura ativa
+   * @returns Promise com o status da assinatura
+   */
+  public async checkSubscriptionStatus(): Promise<{ hasSubscription: boolean; subscription?: any }> {
+    try {
+      const response = await this.get<any>('/subscription/status');
+      // Extrair diretamente os dados da resposta
+      const data = response.data || {};
+      
+      return {
+        hasSubscription: data.success && data.hasSubscription,
+        subscription: data.subscription
+      };
+    } catch (error) {
+      console.error('[API] Erro ao verificar status da assinatura:', error);
+      return { hasSubscription: false };
+    }
+  }
+  
+  /**
    * Requisição específica para obter dados de roletas
    * @param id ID da roleta
    * @param dataType Tipo de dados (basic, detailed, stats, historical, batch)
    * @returns Promise com a resposta
    */
   public async getRoulette<T = any>(id: string, dataType: string = 'basic'): Promise<AxiosResponse<T>> {
-    // Requisição a api/roulettes desativada
-    console.log('[API] Requisições a api/roulettes foram desativadas');
+    // Verificar primeiro se o usuário tem assinatura ativa
+    const { hasSubscription } = await this.checkSubscriptionStatus();
     
-    // Retornar uma resposta simulada vazia
-    return {
-      data: {} as T,
-      status: 200,
-      statusText: 'OK',
-      headers: {},
-      config: {} as any
-    };
+    if (!hasSubscription) {
+      // Usuário sem assinatura - retornar resposta simulada com mensagem de erro
+      console.log('[API] Requisição a api/roulettes bloqueada - usuário sem assinatura');
+      
+      return {
+        data: {
+          success: false,
+          message: 'Para acessar estes dados, é necessário ter uma assinatura ativa',
+          error: 'SUBSCRIPTION_REQUIRED',
+          requiresSubscription: true
+        } as any as T,
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {},
+        config: {} as any
+      };
+    }
     
-    // Código original comentado
-    // return this.get<T>(`/roulettes/${id}/${dataType}`);
+    // Usuário com assinatura - fazer a requisição normal
+    return this.get<T>(`/roulettes/${id}/${dataType}`);
   }
   
   /**
