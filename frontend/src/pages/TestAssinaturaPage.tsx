@@ -69,10 +69,26 @@ const TestAssinaturaPage = () => {
   // Efeito para verificar autenticação
   useEffect(() => {
     if (user) {
-      setStep('subscription');
-      setCustomerId(user.asaasCustomerId || null);
+      // Se o usuário já está com o customerId do Asaas mas não tem CPF/CNPJ preenchido,
+      // vamos para a etapa de cliente para garantir que o CPF seja informado
+      if (user.asaasCustomerId && !cpfCnpj) {
+        setStep('customer');
+        setCustomerId(user.asaasCustomerId);
+        console.log('Cliente já existe no Asaas, mas precisamos do CPF/CNPJ para criar a assinatura');
+      } 
+      // Se já tem o customerId e o CPF/CNPJ já está preenchido, vamos para assinatura
+      else if (user.asaasCustomerId && cpfCnpj) {
+        setStep('subscription');
+        setCustomerId(user.asaasCustomerId);
+        console.log('Cliente já existe e CPF/CNPJ já preenchido, indo para etapa de escolha de plano');
+      }
+      // Se não tem o customerId, vamos para a etapa de cliente
+      else {
+        setStep('customer');
+        console.log('Usuário logado, mas precisamos criar o cliente no Asaas');
+      }
     }
-  }, [user]);
+  }, [user, cpfCnpj]);
 
   // Método de login
   const login = async (email: string, password: string) => {
@@ -433,9 +449,12 @@ const TestAssinaturaPage = () => {
   const renderCustomerCreation = () => (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle>Criar Cliente no Asaas</CardTitle>
+        <CardTitle>{customerId ? 'Informações Adicionais' : 'Criar Cliente no Asaas'}</CardTitle>
         <CardDescription>
-          Crie seu cadastro no Asaas para processar pagamentos
+          {customerId 
+            ? 'Precisamos do seu CPF/CNPJ para finalizar a assinatura'
+            : 'Crie seu cadastro no Asaas para processar pagamentos'
+          }
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -448,6 +467,7 @@ const TestAssinaturaPage = () => {
               value={username || (user?.username || '')}
               onChange={(e) => setUsername(e.target.value)}
               required
+              disabled={!!customerId} // Desabilitar se o cliente já existir
             />
           </div>
           
@@ -459,11 +479,12 @@ const TestAssinaturaPage = () => {
               value={email || (user?.email || '')}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={!!customerId} // Desabilitar se o cliente já existir
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="cpfCnpj">CPF/CNPJ</Label>
+            <Label htmlFor="cpfCnpj">CPF/CNPJ <span className="text-red-500">*</span></Label>
             <Input
               id="cpfCnpj"
               type="text"
@@ -472,6 +493,12 @@ const TestAssinaturaPage = () => {
               required
               maxLength={18}
             />
+            {customerId && (
+              <p className="text-sm text-amber-600">
+                <AlertCircle className="h-3 w-3 inline mr-1" />
+                O CPF/CNPJ é obrigatório para processar a assinatura
+              </p>
+            )}
           </div>
           
           <div className="space-y-2">
@@ -482,6 +509,7 @@ const TestAssinaturaPage = () => {
               value={phone}
               onChange={(e) => setPhone(formatPhone(e.target.value))}
               maxLength={15}
+              disabled={!!customerId} // Desabilitar se o cliente já existir
             />
           </div>
           
@@ -503,15 +531,15 @@ const TestAssinaturaPage = () => {
           
           <Button 
             className="w-full" 
-            disabled={processing} 
-            onClick={handleCreateCustomer}
+            disabled={processing || (customerId && !cpfCnpj)} 
+            onClick={customerId ? () => setStep('subscription') : handleCreateCustomer}
           >
             {processing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Processando...
               </>
-            ) : "Criar Cliente no Asaas"}
+            ) : customerId ? "Continuar para Escolha do Plano" : "Criar Cliente no Asaas"}
           </Button>
         </div>
       </CardContent>
@@ -738,8 +766,14 @@ const TestAssinaturaPage = () => {
             <h4 className="font-medium">Status da assinatura</h4>
             <div className="mt-2">
               <p><strong>Plano atual:</strong> {currentPlan?.name || 'Carregando...'}</p>
-              <p><strong>Status:</strong> {currentPlan?.status || 'Desconhecido'}</p>
-              <p><strong>Validade:</strong> {currentPlan?.expirationDate ? new Date(currentPlan.expirationDate).toLocaleDateString() : 'N/A'}</p>
+              <p><strong>Status:</strong> {
+                // @ts-ignore - Propriedade status pode existir em runtime
+                currentPlan?.status || 'Desconhecido'
+              }</p>
+              <p><strong>Validade:</strong> {
+                // @ts-ignore - Propriedade expirationDate pode existir em runtime
+                currentPlan?.expirationDate ? new Date(currentPlan.expirationDate).toLocaleDateString() : 'N/A'
+              }</p>
             </div>
           </div>
           
@@ -757,11 +791,10 @@ const TestAssinaturaPage = () => {
           </Button>
           
           {accessStatus && (
-            <Alert variant={accessStatus.canAccess ? "success" : "destructive"} className={
-              accessStatus.canAccess 
-                ? "bg-green-50 text-green-800 border-green-200" 
-                : ""
-            }>
+            <Alert 
+              variant={accessStatus.canAccess ? "default" : "destructive"} 
+              className={accessStatus.canAccess ? "bg-green-50 text-green-800 border-green-200" : ""}
+            >
               {accessStatus.canAccess 
                 ? <CheckCircle className="h-4 w-4" />
                 : <AlertCircle className="h-4 w-4" />
