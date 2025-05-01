@@ -173,12 +173,20 @@ const TestAssinaturaPage = () => {
     setError(null);
     
     try {
+      // Validação do CPF/CNPJ
+      if (!cpfCnpj) {
+        throw new Error('CPF/CNPJ é obrigatório para criar uma assinatura');
+      }
+      
       // Criar assinatura no Asaas
       const subscriptionResult = await createAsaasSubscription(
         selectedPlan,
         user.id,
         customerId,
-        'PIX' // Método de pagamento
+        'PIX',  // Método de pagamento
+        undefined,  // Dados de cartão de crédito (não utilizado aqui)
+        undefined,  // Dados do titular do cartão (não utilizado aqui)
+        cpfCnpj.replace(/[^\d]/g, '')  // CPF/CNPJ limpo, sem caracteres especiais
       );
       
       setSubscriptionId(subscriptionResult.subscriptionId);
@@ -860,61 +868,21 @@ const TestAssinaturaPage = () => {
     </div>
   );
 
-  // Renderização condicional com base na etapa atual
-  const renderCurrentStep = () => {
-    switch (step) {
-      case 'register':
-        return renderRegisterForm();
-      case 'customer':
-        return renderCustomerCreation();
-      case 'subscription':
-        return renderSubscriptionSelection();
-      case 'payment':
-        return renderPayment();
-      case 'verification':
-        return renderVerification();
-      default:
-        return null;
-    }
-  };
-
-  if (authLoading || subscriptionLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout>
-      <div className="container py-8 space-y-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-2">Teste de Assinatura Completo</h1>
-          <p className="text-gray-500">
-            Esta página permite testar todo o fluxo de assinatura, desde o cadastro até o acesso aos dados
-          </p>
-        </div>
-        
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4">Teste de Assinatura</h1>
+
+        {step === 'register' && renderRegisterForm()}
+        {step === 'customer' && renderCustomerCreation()}
+        {step === 'subscription' && renderSubscriptionSelection()}
+        {step === 'payment' && renderPayment()}
+        {step === 'verification' && renderVerification()}
+
         {renderProgress()}
-        
-        <div className="flex justify-center">
-          {renderCurrentStep()}
-        </div>
-        
-        {/* Se estiver logado e ainda estiver na etapa de registro */}
-        {user && step === 'register' && (
-          <div className="flex justify-center mt-4">
-            <Button variant="outline" onClick={() => setStep('customer')}>
-              Pular para criação de cliente <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-        )}
       </div>
     </Layout>
   );
 };
 
-export default TestAssinaturaPage; 
+export default TestAssinaturaPage;
