@@ -1,7 +1,9 @@
 {
   "framework": "vite",
-  "buildCommand": "vite build",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
   "rewrites": [
     { "source": "/api/events", "destination": "/api/proxy?path=/api/events" },
     { "source": "/api/strategies", "destination": "/api/proxy?path=/api/strategies" },
@@ -14,10 +16,7 @@
     { "source": "/api/asaas-create-subscription", "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-subscription" },
     { "source": "/api/asaas-webhook", "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/webhook" }
   ],
-  "env": {
-    "VITE_WS_URL": "https://runcash1-production.up.railway.app",
-    "VITE_SSE_SERVER_URL": "https://runcash1-production.up.railway.app/api/events",
-    "VITE_API_BASE_URL": "https://runcash5.vercel.app/api",
-    "BACKEND_URL": "https://runcash1-production.up.railway.app"
+   "github": {
+    "silent": true
   }
 }

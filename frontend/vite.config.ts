@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => ({
     mode === 'development' && 
     componentTagger(),
   ].filter(Boolean),
+  base: '/', // Importante para o Vercel reconhecer o path base
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -40,6 +41,9 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: "dist",
     assetsDir: "assets",
+    // Importante para o Vercel: garantir que o build tenha um output adequado para SPA
+    emptyOutDir: true, // Limpar antes de fazer build
+    sourcemap: false, // Desativa sourcemap em produção para reduzir tamanho
     rollupOptions: {
       external: ['@rollup/rollup-linux-x64-gnu'],
       output: {
