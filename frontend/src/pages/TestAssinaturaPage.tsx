@@ -55,6 +55,14 @@ const TestAssinaturaPage = () => {
     data?: any;
   } | null>(null);
   
+  // Estado para informações detalhadas da assinatura
+  const [subscriptionDetails, setSubscriptionDetails] = useState<any>(null);
+  const [loadingSubscriptionDetails, setLoadingSubscriptionDetails] = useState(false);
+  
+  // Estado para eventos de webhook recentes
+  const [webhookEvents, setWebhookEvents] = useState<any[]>([]);
+  const [loadingWebhooks, setLoadingWebhooks] = useState(false);
+  
   // QR Code PIX
   const [pixQrCode, setPixQrCode] = useState<{
     image: string;
@@ -318,6 +326,66 @@ const TestAssinaturaPage = () => {
     }
   };
 
+  // Função para buscar detalhes completos da assinatura
+  const fetchSubscriptionDetails = async () => {
+    setLoadingSubscriptionDetails(true);
+    setError(null);
+    
+    try {
+      // Buscar detalhes da assinatura atual do usuário
+      const response = await api.get('/api/subscription/details');
+      
+      if (response.data && response.data.success) {
+        setSubscriptionDetails(response.data.subscription);
+        setSuccess('Detalhes da assinatura carregados com sucesso');
+        
+        // Tentar carregar logs de webhook também
+        await fetchWebhookEvents(response.data.subscription.id);
+      } else {
+        console.error('Resposta inválida ao buscar detalhes da assinatura:', response.data);
+        setError('Não foi possível obter detalhes completos da assinatura');
+      }
+    } catch (err: any) {
+      console.error('Erro ao buscar detalhes da assinatura:', err);
+      // Interpretar códigos de erro comuns do Asaas
+      if (err.response?.status === 400) {
+        setError('Solicitação inválida ao buscar assinatura (Erro 400). Verifique os dados fornecidos.');
+      } else if (err.response?.status === 403) {
+        setError('Acesso não autorizado (Erro 403). Verifique suas permissões.');
+      } else if (err.response?.status === 404) {
+        setError('Assinatura não encontrada (Erro 404). Verifique se o ID da assinatura está correto.');
+      } else if (err.response?.status === 500) {
+        setError('Erro interno do servidor Asaas (Erro 500). Tente novamente mais tarde.');
+      } else {
+        setError(err.response?.data?.message || 'Erro ao carregar detalhes da assinatura');
+      }
+    } finally {
+      setLoadingSubscriptionDetails(false);
+    }
+  };
+  
+  // Função para buscar eventos de webhook recentes
+  const fetchWebhookEvents = async (subscriptionId: string) => {
+    if (!subscriptionId) return;
+    
+    setLoadingWebhooks(true);
+    
+    try {
+      // Buscar eventos de webhook relacionados à assinatura
+      const response = await api.get(`/api/webhook-logs?subscriptionId=${subscriptionId}`);
+      
+      if (response.data && response.data.success) {
+        setWebhookEvents(response.data.events || []);
+      } else {
+        console.error('Resposta inválida ao buscar eventos de webhook:', response.data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar eventos de webhook:', err);
+    } finally {
+      setLoadingWebhooks(false);
+    }
+  };
+
   // Formatador de CPF/CNPJ
   const formatCpfCnpj = (value: string) => {
     const numbers = value.replace(/\D/g, '');
@@ -346,6 +414,26 @@ const TestAssinaturaPage = () => {
       .replace(/(\d{2})(\d)/, '($1) $2')
       .replace(/(\d{5})(\d)/, '$1-$2')
       .replace(/(-\d{4})(\d+?)$/, '$1');
+  };
+
+  // Decodificar mensagem de erro com base no código
+  const decodeAsaasError = (code: string): string => {
+    switch (code) {
+      case 'invalid_billingType':
+        return 'Tipo de cobrança inválido. Verifique se todos os dados comerciais estão preenchidos.';
+      case 'WALLET_UNABLE_TO_RECEIVE':
+        return 'Conta não habilitada para receber pagamentos. Verifique sua configuração no Asaas.';
+      case 'VALUE_DIVERGENCE':
+        return 'Divergência de valores no split de pagamento.';
+      case 'SUBSCRIPTION_INACTIVE':
+        return 'Assinatura inativa. Verifique o status do pagamento.';
+      case 'NO_ACTIVE_SUBSCRIPTION': 
+        return 'Não há assinatura ativa. Confirme o pagamento pendente.';
+      case 'SUBSCRIPTION_REQUIRED':
+        return 'É necessário ter uma assinatura para acessar este recurso.';
+      default:
+        return `Erro: ${code}`;
+    }
   };
 
   // Renderizar formulário de cadastro
@@ -777,18 +865,136 @@ const TestAssinaturaPage = () => {
             </div>
           </div>
           
-          <Button 
-            className="w-full" 
-            disabled={loadingRoulettes} 
-            onClick={testRouletteAccess}
-          >
-            {loadingRoulettes ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Verificando acesso...
-              </>
-            ) : "Testar Acesso às Roletas"}
-          </Button>
+          <div className="flex space-x-2">
+            <Button 
+              className="flex-1" 
+              disabled={loadingRoulettes} 
+              onClick={testRouletteAccess}
+            >
+              {loadingRoulettes ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verificando acesso...
+                </>
+              ) : "Testar Acesso às Roletas"}
+            </Button>
+            
+            <Button
+              className="flex-1"
+              variant="outline"
+              disabled={loadingSubscriptionDetails}
+              onClick={fetchSubscriptionDetails}
+            >
+              {loadingSubscriptionDetails ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Carregando...
+                </>
+              ) : "Detalhes da Assinatura"}
+            </Button>
+          </div>
+          
+          {subscriptionDetails && (
+            <div className="mt-4">
+              <h4 className="font-medium mb-2">Informações Detalhadas da Assinatura</h4>
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
+                <p><strong>ID da Assinatura:</strong> {subscriptionDetails.id || 'N/A'}</p>
+                <p><strong>Data de Criação:</strong> {subscriptionDetails.dateCreated ? new Date(subscriptionDetails.dateCreated).toLocaleDateString() : 'N/A'}</p>
+                <p><strong>Próximo Vencimento:</strong> {subscriptionDetails.nextDueDate ? new Date(subscriptionDetails.nextDueDate).toLocaleDateString() : 'N/A'}</p>
+                <p><strong>Valor:</strong> R$ {subscriptionDetails.value?.toFixed(2) || 'N/A'}</p>
+                <p><strong>Ciclo:</strong> {
+                  subscriptionDetails.cycle === 'MONTHLY' ? 'Mensal' :
+                  subscriptionDetails.cycle === 'YEARLY' ? 'Anual' :
+                  subscriptionDetails.cycle === 'WEEKLY' ? 'Semanal' :
+                  subscriptionDetails.cycle === 'BIWEEKLY' ? 'Quinzenal' :
+                  subscriptionDetails.cycle === 'QUARTERLY' ? 'Trimestral' :
+                  subscriptionDetails.cycle === 'SEMIANNUALLY' ? 'Semestral' :
+                  subscriptionDetails.cycle || 'N/A'
+                }</p>
+                <p><strong>Forma de Pagamento:</strong> {
+                  subscriptionDetails.billingType === 'BOLETO' ? 'Boleto' :
+                  subscriptionDetails.billingType === 'CREDIT_CARD' ? 'Cartão de Crédito' :
+                  subscriptionDetails.billingType === 'PIX' ? 'PIX' :
+                  subscriptionDetails.billingType || 'N/A'
+                }</p>
+                <p><strong>Status:</strong> {
+                  subscriptionDetails.status === 'ACTIVE' ? 'Ativa' :
+                  subscriptionDetails.status === 'INACTIVE' ? 'Inativa' :
+                  subscriptionDetails.status === 'CANCELLED' ? 'Cancelada' :
+                  subscriptionDetails.status === 'OVERDUE' ? 'Em atraso' :
+                  subscriptionDetails.status || 'N/A'
+                }</p>
+                <p><strong>Descrição:</strong> {subscriptionDetails.description || 'N/A'}</p>
+                
+                {subscriptionDetails.fine && (
+                  <p><strong>Multa:</strong> {subscriptionDetails.fine}%</p>
+                )}
+                
+                {subscriptionDetails.interest && (
+                  <p><strong>Juros:</strong> {subscriptionDetails.interest}% ao mês</p>
+                )}
+                
+                {subscriptionDetails.discount && (
+                  <div>
+                    <p><strong>Desconto:</strong> {
+                      subscriptionDetails.discount.type === 'FIXED' ? 
+                      `R$ ${subscriptionDetails.discount.value?.toFixed(2)}` : 
+                      `${subscriptionDetails.discount.value}%`
+                    }</p>
+                    <p><strong>Validade do desconto:</strong> {
+                      subscriptionDetails.discount.dueDateLimitDays ? 
+                      `Até ${subscriptionDetails.discount.dueDateLimitDays} dias antes do vencimento` : 
+                      'Sem limite'
+                    }</p>
+                  </div>
+                )}
+                
+                {subscriptionDetails.errorCode && (
+                  <div className="mt-2 text-red-600">
+                    <p><strong>Código de Erro:</strong> {subscriptionDetails.errorCode}</p>
+                    <p><strong>Mensagem:</strong> {decodeAsaasError(subscriptionDetails.errorCode)}</p>
+                  </div>
+                )}
+              </div>
+              
+              {subscriptionDetails.creditCard && (
+                <div className="mt-4">
+                  <h4 className="font-medium mb-2">Informações do Cartão</h4>
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
+                    <p><strong>Bandeira:</strong> {subscriptionDetails.creditCard.creditCardBrand || 'N/A'}</p>
+                    <p><strong>Últimos dígitos:</strong> {subscriptionDetails.creditCard.creditCardNumber || 'N/A'}</p>
+                    <p><strong>Validade:</strong> {
+                      subscriptionDetails.creditCard.creditCardExpiryMonth && 
+                      subscriptionDetails.creditCard.creditCardExpiryYear ? 
+                      `${subscriptionDetails.creditCard.creditCardExpiryMonth}/${subscriptionDetails.creditCard.creditCardExpiryYear}` : 
+                      'N/A'
+                    }</p>
+                  </div>
+                </div>
+              )}
+              
+              {webhookEvents && webhookEvents.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="font-medium mb-2">Eventos Recentes da Assinatura</h4>
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-4 text-sm max-h-60 overflow-y-auto">
+                    {webhookEvents.map((event, index) => (
+                      <div key={index} className="border-b pb-2 last:border-b-0 last:pb-0">
+                        <p><strong>Evento:</strong> {event.event || 'N/A'}</p>
+                        <p><strong>Data:</strong> {event.timestamp ? new Date(event.timestamp).toLocaleString() : 'N/A'}</p>
+                        {event.status && <p><strong>Status:</strong> {event.status}</p>}
+                        {event.value && <p><strong>Valor:</strong> R$ {parseFloat(event.value).toFixed(2)}</p>}
+                        {event.errorCode && (
+                          <p className="text-red-600">
+                            <strong>Erro:</strong> {decodeAsaasError(event.errorCode)}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           
           {accessStatus && (
             <Alert 
@@ -804,6 +1010,22 @@ const TestAssinaturaPage = () => {
             </Alert>
           )}
           
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Erro</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
+          {success && (
+            <Alert className="bg-green-50 text-green-800 border-green-200">
+              <CheckCircle className="h-4 w-4" />
+              <AlertTitle>Sucesso</AlertTitle>
+              <AlertDescription>{success}</AlertDescription>
+            </Alert>
+          )}
+          
           {rouletteData && (
             <div>
               <h4 className="font-medium mb-2">Dados de Roletas (Amostra)</h4>
@@ -816,6 +1038,64 @@ const TestAssinaturaPage = () => {
                     null, 2
                   )}
                 </pre>
+              </div>
+            </div>
+          )}
+          
+          {subscriptionDetails && (
+            <div className="mt-4">
+              <h4 className="font-medium mb-2">Diagnóstico de Assinatura</h4>
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
+                <p className={`${
+                  subscriptionDetails.status === 'ACTIVE' 
+                    ? 'text-green-600' 
+                    : 'text-amber-600'
+                }`}>
+                  <strong>Status de Verificação:</strong> {
+                    subscriptionDetails.status === 'ACTIVE' 
+                      ? '✅ Assinatura ativa e válida.' 
+                      : subscriptionDetails.status === 'INACTIVE'
+                        ? '⚠️ Assinatura inativa. Verifique o pagamento.'
+                        : subscriptionDetails.status === 'CANCELLED'
+                          ? '❌ Assinatura cancelada. Nova assinatura é necessária.'
+                          : '⚠️ Status desconhecido. Verifique junto ao suporte.'
+                  }
+                </p>
+                
+                <p className={`${
+                  subscriptionDetails.nextDueDate && new Date(subscriptionDetails.nextDueDate) > new Date()
+                    ? 'text-green-600'
+                    : 'text-amber-600'
+                }`}>
+                  <strong>Validade:</strong> {
+                    subscriptionDetails.nextDueDate 
+                      ? new Date(subscriptionDetails.nextDueDate) > new Date()
+                        ? `✅ Válida até ${new Date(subscriptionDetails.nextDueDate).toLocaleDateString()}`
+                        : `⚠️ Vencida em ${new Date(subscriptionDetails.nextDueDate).toLocaleDateString()}`
+                      : '❓ Data de vencimento não disponível'
+                  }
+                </p>
+                
+                <p className="mt-2 text-sm">
+                  <strong>Ações recomendadas:</strong>
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-sm">
+                  {subscriptionDetails.status !== 'ACTIVE' && (
+                    <li>Verificar status do pagamento no sistema Asaas</li>
+                  )}
+                  {subscriptionDetails.errorCode && (
+                    <li>Resolver problema: {decodeAsaasError(subscriptionDetails.errorCode)}</li>
+                  )}
+                  {(!subscriptionDetails.nextDueDate || new Date(subscriptionDetails.nextDueDate) <= new Date()) && (
+                    <li>Renovar assinatura ou verificar pagamento pendente</li>
+                  )}
+                  {webhookEvents && webhookEvents.length === 0 && (
+                    <li>Verificar configuração de webhooks no Asaas</li>
+                  )}
+                  {webhookEvents && webhookEvents.some(event => event.errorCode) && (
+                    <li>Resolver erros de webhook reportados no painel Asaas</li>
+                  )}
+                </ul>
               </div>
             </div>
           )}
