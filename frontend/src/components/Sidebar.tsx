@@ -55,7 +55,6 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   
   const otherOptions = [
     { id: 'support', label: 'Suporte', icon: LifeBuoy, path: '/suporte' },
-    { id: 'test-flow', label: 'Teste Fluxo Completo', icon: ChevronDown, path: '/teste-fluxo-completo' },
   ];
   
   const handleOtherItemClick = (path: string) => {
