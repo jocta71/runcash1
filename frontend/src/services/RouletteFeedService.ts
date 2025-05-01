@@ -495,19 +495,6 @@ export default class RouletteFeedService {
         if (!hasSubscription) {
           logger.debug('⛔ Requisição a api/roulettes bloqueada - usuário sem assinatura');
           
-          // Verificar se o modal foi fechado recentemente para evitar mostrar repetidamente
-          const lastDismissedTime = localStorage.getItem('subscription_modal_dismissed');
-          if (lastDismissedTime) {
-            const currentTime = Date.now();
-            const dismissedTime = parseInt(lastDismissedTime, 10);
-            
-            // Se o modal foi fechado nos últimos 10 minutos, não mostrar novamente
-            if (currentTime - dismissedTime < 600000) {
-              logger.debug('⏭️ Modal de assinatura foi fechado recentemente, não exibindo novamente');
-              return this.roulettes;
-            }
-          }
-          
           // Disparar evento para exibir modal de assinatura
           window.dispatchEvent(new CustomEvent('subscription:required', { 
             detail: {

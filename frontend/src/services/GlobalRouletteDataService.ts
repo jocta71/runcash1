@@ -137,19 +137,6 @@ class GlobalRouletteDataService {
               this.rouletteData = parsedData.data || [];
               this.notifySubscribers();
               
-              // Verificar se o modal foi fechado recentemente
-              const lastDismissedTime = localStorage.getItem('subscription_modal_dismissed');
-              if (lastDismissedTime) {
-                const currentTime = Date.now();
-                const dismissedTime = parseInt(lastDismissedTime, 10);
-                
-                // Se o modal foi fechado nos últimos 10 minutos, não mostrar novamente
-                if (currentTime - dismissedTime < 600000) {
-                  console.log('[GlobalRouletteService] Modal de assinatura foi fechado recentemente, não exibindo alerta de assinatura inativa');
-                  return this.rouletteData;
-                }
-              }
-              
               // Disparar evento de assinatura inativa
               window.dispatchEvent(new CustomEvent('subscription:inactive', { 
                 detail: {
@@ -194,21 +181,6 @@ class GlobalRouletteDataService {
           }
         } catch (cacheError) {
           console.error('[GlobalRouletteService] Erro ao acessar cache:', cacheError);
-        }
-        
-        // Verificar se o modal foi fechado recentemente para evitar mostrar repetidamente
-        const lastDismissedTime = localStorage.getItem('subscription_modal_dismissed');
-        if (lastDismissedTime) {
-          const currentTime = Date.now();
-          const dismissedTime = parseInt(lastDismissedTime, 10);
-          
-          // Se o modal foi fechado nos últimos 10 minutos, não mostrar novamente
-          if (currentTime - dismissedTime < 600000) {
-            console.log('[GlobalRouletteService] Modal de assinatura foi fechado recentemente, não exibindo novamente');
-            // Notificar os assinantes mesmo sem dados novos para evitar travamentos na interface
-            this.notifySubscribers();
-            return this.rouletteData;
-          }
         }
         
         // Disparar evento para exibir modal de assinatura

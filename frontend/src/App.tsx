@@ -30,12 +30,9 @@ const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
+const TestFluxoCompleto = lazy(() => import("@/pages/TestFluxoCompleto"));
 // Comentando a importação da página de teste do Asaas
 // const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
-
-// Novas páginas de teste para verificação de assinatura
-const SubscriptionTestPage = lazy(() => import("@/pages/SubscriptionTestPage"));
-const PaymentTestPage = lazy(() => import("@/pages/PaymentTestPage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -307,16 +304,10 @@ const App = () => {
                             </ProtectedRoute>
                           } />
                           
-                          {/* Novas rotas para testes de assinatura */}
-                          <Route path="/subscription-test" element={
+                          {/* Rota para a página de teste do fluxo completo */}
+                          <Route path="/teste-fluxo-completo" element={
                             <Suspense fallback={<LoadingScreen />}>
-                              <SubscriptionTestPage />
-                            </Suspense>
-                          } />
-                          
-                          <Route path="/payment-test" element={
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PaymentTestPage />
+                              <TestFluxoCompleto />
                             </Suspense>
                           } />
                           

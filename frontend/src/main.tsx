@@ -9,13 +9,6 @@ import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
 import globalRouletteDataService from './services/GlobalRouletteDataService'
-import mockApiService from './services/mockApiService'
-
-// Inicializar o Mock API Service para testes
-if (import.meta.env.MODE === 'development' || window.location.pathname === '/subscription-test') {
-  console.log('Inicializando Mock API para ambiente de testes');
-  mockApiService.init();
-}
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
