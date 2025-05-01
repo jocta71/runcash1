@@ -117,8 +117,45 @@ class GlobalRouletteDataService {
       console.log('[GlobalRouletteService] Verificando status da assinatura...');
       const { hasSubscription, subscription } = await apiService.checkSubscriptionStatus();
       
+      // Detectar se o usuário tem uma assinatura mas está inativa
+      const hasInactiveSubscription = !hasSubscription && subscription && subscription.status;
+      
+      if (hasInactiveSubscription) {
+        console.log(`[GlobalRouletteService] Usuário possui assinatura INATIVA com status: ${subscription.status}`);
+        
+        // Verificar se temos dados em cache como plano de contingência
+        try {
+          const cachedData = localStorage.getItem('roulette_data_cache');
+          if (cachedData) {
+            const parsedData = JSON.parse(cachedData);
+            const cacheAge = Date.now() - (parsedData.timestamp || 0);
+            
+            // Usar cache para assinaturas inativas mesmo se for mais antigo (48 horas)
+            if (cacheAge < 172800000) {
+              console.log('[GlobalRouletteService] Usando dados em cache para assinatura inativa (idade: ' + 
+                Math.round(cacheAge/60000) + ' minutos)');
+              this.rouletteData = parsedData.data || [];
+              this.notifySubscribers();
+              
+              // Disparar evento de assinatura inativa
+              window.dispatchEvent(new CustomEvent('subscription:inactive', { 
+                detail: {
+                  subscription,
+                  message: 'Sua assinatura está inativa. Usando dados em cache limitados.',
+                  cacheAge: Math.round(cacheAge/60000)
+                }
+              }));
+              
+              return this.rouletteData;
+            }
+          }
+        } catch (cacheError) {
+          console.error('[GlobalRouletteService] Erro ao acessar cache para assinatura inativa:', cacheError);
+        }
+      }
+      
       if (!hasSubscription) {
-        console.log('[GlobalRouletteService] Requisição a api/roulettes bloqueada - usuário sem assinatura');
+        console.log('[GlobalRouletteService] Requisição a api/roulettes bloqueada - usuário sem assinatura ativa');
         
         // Verificar se temos dados em cache em localStorage como medida de fallback
         try {
@@ -127,15 +164,19 @@ class GlobalRouletteDataService {
             const parsedData = JSON.parse(cachedData);
             const cacheAge = Date.now() - (parsedData.timestamp || 0);
             
-            // Usar cache se tiver menos de 1 hora
-            if (cacheAge < 3600000) {
+            // Para diagnosticar melhor o conteúdo do cache
+            console.log(`[GlobalRouletteService] Cache disponível com ${parsedData.data?.length || 0} roletas e idade de ${Math.round(cacheAge/60000)} minutos`);
+            
+            // Usar cache mesmo se for antigo em caso de erro no servidor (aumentar para 24 horas)
+            if (cacheAge < 86400000) {
               console.log('[GlobalRouletteService] Usando dados em cache como fallback (idade: ' + 
                 Math.round(cacheAge/60000) + ' minutos)');
               
               // Notificar com dados do cache
+              this.rouletteData = parsedData.data || [];
               this.notifySubscribers();
               
-              return parsedData.data || [];
+              return this.rouletteData;
             }
           }
         } catch (cacheError) {
@@ -146,7 +187,11 @@ class GlobalRouletteDataService {
         window.dispatchEvent(new CustomEvent('subscription:required', { 
           detail: {
             error: 'SUBSCRIPTION_REQUIRED',
-            message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.'
+            message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.',
+            userDetails: {
+              hasSubscription: false,
+              subscriptionStatus: subscription?.status || 'none'
+            }
           }
         }));
         
@@ -162,12 +207,12 @@ class GlobalRouletteDataService {
           error: 'SUBSCRIPTION_REQUIRED'
         });
         
-        return [];
+        return this.rouletteData;
       }
       
       // Log do plano do usuário para diagnóstico
       if (subscription) {
-        console.log(`[GlobalRouletteService] Usuário com assinatura ativa: Plano ${subscription.plan || 'Desconhecido'}`);
+        console.log(`[GlobalRouletteService] Usuário com assinatura ativa: Plano ${subscription.plan || 'Desconhecido'}, Status: ${subscription.status}`);
       }
       
       // Evitar requisições simultâneas
@@ -187,7 +232,7 @@ class GlobalRouletteDataService {
       const timeSinceLastRequest = now - this.lastFetchTime;
       
       if (timeSinceLastRequest < 2000 && this.rouletteData.length > 0) {
-        console.log('[GlobalRouletteService] Requisição recente (${timeSinceLastRequest}ms atrás), retornando dados em cache');
+        console.log(`[GlobalRouletteService] Requisição recente (${timeSinceLastRequest}ms atrás), retornando dados em cache`);
         return this.rouletteData;
       }
       
@@ -202,17 +247,43 @@ class GlobalRouletteDataService {
           try {
             console.log('[GlobalRouletteService] Buscando dados de roletas...');
             
-            // Usar o endpoint ROULETTES em vez de roulettes, pois o primeiro tem suporte a verificação de assinatura
-            const response = await axiosInstance.get('/api/ROULETTES', {
-              headers: {
-                'bypass-tunnel-reminder': 'true',
-                'cache-control': 'no-cache',
-                'pragma': 'no-cache'
-              }
-            });
+            // Tentar vários endpoints diferentes para aumentar as chances de sucesso
+            // Adicionar timestamp para evitar cache
+            const timestamp = Date.now();
+            const endpoints = [
+              `/api/ROULETTES?_t=${timestamp}`,
+              `/api/roulettes?_t=${timestamp}`,
+              `/api/roletas?_t=${timestamp}`
+            ];
             
-            if (response.status === 200 && Array.isArray(response.data)) {
-              console.log(`[GlobalRouletteService] Recebidos ${response.data.length} registros da API`);
+            let response = null;
+            let successEndpoint = '';
+            
+            // Tentar cada endpoint em sequência
+            for (const endpoint of endpoints) {
+              try {
+                console.log(`[GlobalRouletteService] Tentando endpoint: ${endpoint}`);
+                response = await axiosInstance.get(endpoint, {
+                  headers: {
+                    'bypass-tunnel-reminder': 'true',
+                    'cache-control': 'no-cache',
+                    'pragma': 'no-cache'
+                  },
+                  timeout: 5000 // Timeout mais curto para evitar esperar muito tempo
+                });
+                
+                if (response.status === 200 && Array.isArray(response.data)) {
+                  successEndpoint = endpoint;
+                  break;
+                }
+              } catch (endpointError) {
+                console.warn(`[GlobalRouletteService] Falha ao acessar ${endpoint}:`, endpointError.message);
+                // Continuar para o próximo endpoint
+              }
+            }
+            
+            if (response && response.status === 200 && Array.isArray(response.data)) {
+              console.log(`[GlobalRouletteService] Recebidos ${response.data.length} registros da API via ${successEndpoint}`);
               
               // Processar e armazenar os dados
               this.rouletteData = response.data;
@@ -223,6 +294,7 @@ class GlobalRouletteDataService {
                   timestamp: Date.now(),
                   data: response.data
                 }));
+                console.log('[GlobalRouletteService] Dados salvos em cache para uso offline');
               } catch (storageError) {
                 console.warn('[GlobalRouletteService] Erro ao salvar cache:', storageError);
               }
@@ -232,11 +304,41 @@ class GlobalRouletteDataService {
               
               resolve(response.data);
             } else {
-              console.warn('[GlobalRouletteService] Resposta inesperada da API:', response.status);
+              console.warn('[GlobalRouletteService] Resposta inesperada da API, tentando usar cache');
+              
+              // Tentar usar cache se disponível
+              try {
+                const cachedData = localStorage.getItem('roulette_data_cache');
+                if (cachedData) {
+                  const parsedData = JSON.parse(cachedData);
+                  const cacheAge = Date.now() - (parsedData.timestamp || 0);
+                  
+                  console.log(`[GlobalRouletteService] Usando cache com ${parsedData.data?.length || 0} roletas e idade de ${Math.round(cacheAge/60000)} minutos`);
+                  this.rouletteData = parsedData.data || [];
+                  this.notifySubscribers();
+                }
+              } catch (cacheError) {
+                console.error('[GlobalRouletteService] Erro ao usar cache:', cacheError);
+              }
+              
               resolve(this.rouletteData);
             }
           } catch (error) {
             console.error('[GlobalRouletteService] Erro ao buscar dados da API:', error);
+            
+            // Tentar usar cache se disponível
+            try {
+              const cachedData = localStorage.getItem('roulette_data_cache');
+              if (cachedData) {
+                const parsedData = JSON.parse(cachedData);
+                console.log('[GlobalRouletteService] Usando dados em cache devido a erro na API');
+                this.rouletteData = parsedData.data || [];
+                this.notifySubscribers();
+              }
+            } catch (cacheError) {
+              console.error('[GlobalRouletteService] Erro ao usar cache:', cacheError);
+            }
+            
             resolve(this.rouletteData);
           } finally {
             this.isFetching = false;
@@ -254,6 +356,18 @@ class GlobalRouletteDataService {
     } catch (error) {
       console.error('[GlobalRouletteService] Erro ao verificar assinatura:', error);
       this.isFetching = false;
+      
+      // Tentar usar cache em caso de erro
+      try {
+        const cachedData = localStorage.getItem('roulette_data_cache');
+        if (cachedData) {
+          const parsedData = JSON.parse(cachedData);
+          console.log('[GlobalRouletteService] Usando dados em cache devido a erro na verificação de assinatura');
+          this.rouletteData = parsedData.data || [];
+        }
+      } catch (cacheError) {
+        console.error('[GlobalRouletteService] Erro ao usar cache:', cacheError);
+      }
       
       // Notificar assinantes para evitar travamentos na interface
       this.notifySubscribers();

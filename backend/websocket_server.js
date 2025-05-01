@@ -364,6 +364,75 @@ app.get('/api/status', (req, res) => {
   });
 });
 
+// Rota para verificar status da assinatura
+app.get('/api/subscription/status', verifyToken, async (req, res) => {
+  // Configurar cabeçalhos CORS
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Configurar cabeçalhos de cache
+  res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.header('Pragma', 'no-cache');
+  res.header('Expires', '0');
+  
+  console.log('[API] Verificação de status de assinatura solicitada pelo usuário:', 
+    req.user ? `${req.user.username} (ID: ${req.user.id})` : 'Não autenticado');
+  
+  try {
+    // Verificar se o usuário está autenticado
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuário não autenticado',
+        error: 'NOT_AUTHENTICATED',
+        hasSubscription: false
+      });
+    }
+    
+    // Verificar se o usuário tem informações de assinatura
+    if (!req.user.subscription) {
+      console.log('[API] Usuário sem informações de assinatura:', req.user.username);
+      return res.json({
+        success: true,
+        hasSubscription: false,
+        message: 'Usuário não possui assinatura',
+        error: 'NO_SUBSCRIPTION'
+      });
+    }
+    
+    // Normalizar o status da assinatura para minúsculas
+    const subscriptionStatus = req.user.subscription.status ? 
+      req.user.subscription.status.toLowerCase() : 'inactive';
+    
+    // Verificar se a assinatura está ativa
+    const isActive = subscriptionStatus === 'active' || subscriptionStatus === 'ativo';
+    
+    console.log(`[API] Status da assinatura de ${req.user.username}: ${isActive ? 'ATIVA' : 'INATIVA'} (${subscriptionStatus})`);
+    console.log(`[API] Detalhes da assinatura:`, JSON.stringify(req.user.subscription));
+    
+    return res.json({
+      success: true,
+      hasSubscription: isActive,
+      subscription: {
+        ...req.user.subscription,
+        status: subscriptionStatus, // Usar o status normalizado
+        user: req.user.username,  // Incluir informações do usuário
+        userId: req.user.id
+      },
+      message: isActive ? 'Assinatura ativa' : 'Assinatura inativa ou inexistente'
+    });
+  } catch (error) {
+    console.error('[API] Erro ao verificar status da assinatura:', error);
+    return res.status(500).json({
+      success: false,
+      hasSubscription: false,
+      message: 'Erro interno ao verificar assinatura',
+      error: 'INTERNAL_ERROR'
+    });
+  }
+});
+
 // Rota para listar todas as roletas (endpoint em inglês)
 app.get('/api/roulettes', 
   verifyTokenAndSubscription({ 
@@ -372,6 +441,13 @@ app.get('/api/roulettes',
   }), 
   async (req, res) => {
     console.log('[API] Requisição recebida para /api/roulettes');
+    console.log('[API] Usuário:', req.user?.username);
+    console.log('[API] Assinatura:', req.user?.subscription ? JSON.stringify(req.user.subscription) : 'Nenhuma');
+    
+    // Aplicar cabeçalhos CORS explicitamente para esta rota
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     
     try {
       if (!isConnected || !collection) {
@@ -385,7 +461,7 @@ app.get('/api/roulettes',
         { $project: { _id: 0, id: 1, nome: "$_id" } }
       ]).toArray();
       
-      console.log(`[API] Processadas ${roulettes.length} roletas`);
+      console.log(`[API] Processadas ${roulettes.length} roletas para ${req.user?.username}`);
       res.json(roulettes);
     } catch (error) {
       console.error('[API] Erro ao listar roletas:', error);
@@ -436,7 +512,7 @@ app.get('/api/ROULETTES',
         .limit(limit)
         .toArray();
       
-      console.log(`[API] Retornando ${numeros.length} números do histórico`);
+      console.log(`[API] Retornando ${numeros.length} números do histórico para ${req.user?.username}`);
       
       // Verificar se temos dados para retornar
       if (numeros.length === 0) {
@@ -444,9 +520,11 @@ app.get('/api/ROULETTES',
         return res.json([]);
       }
       
-      // Log de alguns exemplos para diagnóstico
-      console.log('[API] Exemplos de dados retornados:');
-      console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
+      // Log de alguns exemplos para diagnóstico (apenas em desenvolvimento)
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[API] Exemplos de dados retornados:');
+        console.log(JSON.stringify(numeros.slice(0, 2), null, 2));
+      }
       
       return res.json(numeros);
     } catch (error) {
@@ -981,53 +1059,4 @@ app.get('/api/status', async (req, res) => {
       error: error.message
     });
   }
-});
-
-// Rota para verificar o status da assinatura do usuário
-app.get('/api/subscription/status', 
-  verifyTokenAndSubscription({ 
-    required: true,
-    allowedPlans: [] // Verificar apenas o token, sem exigir plano específico
-  }), 
-  async (req, res) => {
-    try {
-      console.log('[API] Verificação de status de assinatura solicitada');
-      
-      // Se chegou até aqui, o middleware já verificou o token e a assinatura
-      // Verificar se há uma assinatura válida em req.subscription (adicionada pelo middleware)
-      if (!req.subscription) {
-        return res.json({
-          success: false,
-          hasSubscription: false,
-          message: 'Usuário não possui assinatura ativa',
-          code: 'NO_SUBSCRIPTION'
-        });
-      }
-      
-      // Retornar informações da assinatura (adicionadas pelo middleware)
-      return res.json({
-        success: true,
-        hasSubscription: true,
-        subscription: {
-          id: req.subscription.id,
-          status: req.subscription.status,
-          plan: req.subscription.plan,
-          nextDueDate: req.subscription.nextDueDate,
-          value: req.subscription.value
-        },
-        user: {
-          id: req.usuario.id,
-          name: req.usuario.name,
-          email: req.usuario.email
-        },
-        message: 'Assinatura ativa encontrada'
-      });
-    } catch (error) {
-      console.error('[API] Erro ao verificar status da assinatura:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Erro interno ao verificar status da assinatura',
-        error: error.message
-      });
-    }
 });

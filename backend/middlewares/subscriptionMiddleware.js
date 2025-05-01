@@ -25,7 +25,8 @@ exports.requireSubscription = (options = {
       
       return res.status(401).json({
         success: false,
-        message: 'Acesso negado. Autenticação necessária'
+        message: 'Acesso negado. Autenticação necessária',
+        error: 'NOT_AUTHENTICATED'
       });
     }
     
@@ -34,27 +35,41 @@ exports.requireSubscription = (options = {
       const subscription = req.user.subscription || {};
       
       // Normalizar tipos de planos permitidos para comparação case-insensitive
-      const normalizedAllowedTypes = options.allowedTypes.map(type => 
-        typeof type === 'string' ? type.toLowerCase() : type
+      const normalizedAllowedTypes = (options.allowedTypes || []).map(type => 
+        typeof type === 'string' ? type.toLowerCase() : String(type).toLowerCase()
       );
       
       // Adicionar informação de diagnóstico
-      console.log(`[subscriptionMiddleware] Verificando assinatura: status=${subscription.status}, type=${subscription.type}, allowedTypes=${JSON.stringify(normalizedAllowedTypes)}`);
+      console.log(`[subscriptionMiddleware] Verificando assinatura: user=${req.user.username}, status=${subscription.status}, type=${subscription.type}, allowedTypes=${JSON.stringify(normalizedAllowedTypes)}`);
       
       // Verificar se o usuário tem uma assinatura ativa
       // Garantir que pagamentos pendentes não contem como ativos
-      const hasActiveSubscription = subscription.status && 
-        ['active', 'ativo'].includes(subscription.status.toLowerCase()) && 
-        !['pending', 'pendente'].includes(subscription.status.toLowerCase());
+      const statusLowerCase = (subscription.status || '').toLowerCase();
+      const hasActiveSubscription = statusLowerCase && 
+        ['active', 'ativo'].includes(statusLowerCase) && 
+        !['pending', 'pendente', 'inactive', 'inativo', 'cancelled', 'cancelado'].includes(statusLowerCase);
       
       // Adicionar informação de diagnóstico 
       console.log(`[subscriptionMiddleware] Verificando assinatura: status=${subscription.status}, type=${subscription.type}, active=${hasActiveSubscription}`);
       
       // Verificar se o tipo de assinatura é permitido (usando comparação case-insensitive)
-      const subscriptionType = subscription.type ? subscription.type.toLowerCase() : '';
-      const hasAllowedType = normalizedAllowedTypes.includes(subscriptionType);
+      // Extrair o tipo da assinatura com tratamento para diferentes formatos possíveis
+      let subscriptionType = '';
+      if (subscription) {
+        if (subscription.type) {
+          subscriptionType = subscription.type.toLowerCase();
+        } else if (subscription.plan) {
+          subscriptionType = subscription.plan.toLowerCase();
+        } else if (subscription.planId) {
+          subscriptionType = subscription.planId.toLowerCase(); 
+        }
+      }
       
-      console.log(`[subscriptionMiddleware] Tipo de assinatura: ${subscriptionType}, permitido: ${hasAllowedType}, tipos permitidos: ${normalizedAllowedTypes.join(', ')}`);
+      // Se não temos tipos permitidos definidos, qualquer tipo é válido
+      const hasAllowedType = normalizedAllowedTypes.length === 0 || 
+                             normalizedAllowedTypes.includes(subscriptionType);
+      
+      console.log(`[subscriptionMiddleware] Tipo de assinatura: ${subscriptionType}, permitido: ${hasAllowedType}, tipos permitidos: ${normalizedAllowedTypes.join(', ') || 'qualquer'}`);
       
       // Verificar se requer assinatura ativa
       if (options.requireActive && !hasActiveSubscription) {
@@ -67,6 +82,7 @@ exports.requireSubscription = (options = {
         return res.status(403).json({
           success: false,
           message: 'Acesso negado. Assinatura inativa ou expirada',
+          error: 'NO_ACTIVE_SUBSCRIPTION',
           subscriptionRequired: true,
           status: subscription.status || 'none'
         });
@@ -83,9 +99,10 @@ exports.requireSubscription = (options = {
         return res.status(403).json({
           success: false,
           message: `Acesso negado. Necessário assinatura: ${options.allowedTypes.join(' ou ')}`,
+          error: 'SUBSCRIPTION_TYPE_NOT_ALLOWED',
           subscriptionRequired: true,
           requiredTypes: options.allowedTypes,
-          currentType: subscription.type || 'none'
+          currentType: subscriptionType || 'none'
         });
       }
       
@@ -96,7 +113,8 @@ exports.requireSubscription = (options = {
       console.error('Erro ao verificar assinatura:', error);
       return res.status(500).json({
         success: false,
-        message: 'Erro interno no servidor durante verificação de assinatura'
+        message: 'Erro interno no servidor durante verificação de assinatura',
+        error: 'SUBSCRIPTION_CHECK_ERROR'
       });
     }
   };

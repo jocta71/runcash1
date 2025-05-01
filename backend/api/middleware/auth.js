@@ -33,7 +33,8 @@ exports.protect = async (req, res, next) => {
 
     try {
       // Verificar se o token é válido
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'runcash-default-secret');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
       console.log('Token verificado com sucesso, usuário:', decoded.id);
       
       // Adicionar o usuário decodificado ao objeto de requisição
