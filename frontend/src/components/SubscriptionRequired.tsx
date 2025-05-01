@@ -17,10 +17,32 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [isRetrying, setIsRetrying] = useState(false);
   
+  // Verificar se o modal foi fechado nos últimos 10 minutos
+  const checkIfModalDismissedRecently = () => {
+    const lastDismissedTime = localStorage.getItem('subscription_modal_dismissed');
+    if (lastDismissedTime) {
+      const currentTime = Date.now();
+      const dismissedTime = parseInt(lastDismissedTime, 10);
+      
+      // 10 minutos em milissegundos = 10 * 60 * 1000 = 600000
+      if (currentTime - dismissedTime < 600000) {
+        return true; // Modal foi fechado nos últimos 10 minutos
+      }
+    }
+    return false; // Modal não foi fechado recentemente
+  };
+  
   useEffect(() => {
     // Registrar listener para eventos de assinatura requerida
     const handleSubscriptionRequired = (event: CustomEvent<any>) => {
       console.log('[SubscriptionRequired] Evento subscription:required recebido:', event.detail);
+      
+      // Verificar se o modal foi fechado recentemente
+      if (checkIfModalDismissedRecently()) {
+        console.log('[SubscriptionRequired] Modal foi fechado recentemente, ignorando evento');
+        return;
+      }
+      
       setIsVisible(true);
       // Armazenar detalhes do erro para exibição
       if (event.detail) {
@@ -34,6 +56,13 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
     // Registrar listener para eventos de assinatura inativa
     const handleSubscriptionInactive = (event: CustomEvent<any>) => {
       console.log('[SubscriptionRequired] Evento subscription:inactive recebido:', event.detail);
+      
+      // Verificar se o modal foi fechado recentemente
+      if (checkIfModalDismissedRecently()) {
+        console.log('[SubscriptionRequired] Modal foi fechado recentemente, ignorando evento');
+        return;
+      }
+      
       setIsVisible(true);
       // Armazenar detalhes do erro para exibição
       if (event.detail) {
@@ -57,6 +86,10 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
   
   const handleClose = () => {
     setIsVisible(false);
+    
+    // Armazenar timestamp de quando o modal foi fechado
+    localStorage.setItem('subscription_modal_dismissed', Date.now().toString());
+    
     if (onClose) onClose();
   };
   
