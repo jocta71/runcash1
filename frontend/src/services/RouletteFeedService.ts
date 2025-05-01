@@ -483,9 +483,15 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Busca os dados mais recentes das roletas
+   * Busca os dados mais recentes
+   * @returns Promise com os dados mais recentes
    */
   public fetchLatestData(): Promise<any> {
+    // Requisição a api/roulettes desativada
+    logger.debug('⛔ Requisições a api/roulettes foram desativadas');
+    return Promise.resolve(this.roulettes);
+    
+    /* Código original comentado
     // Verificar se podemos fazer a requisição
     if (!this.canMakeRequest()) {
       logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
@@ -611,6 +617,7 @@ export default class RouletteFeedService {
         // Retornar dados em cache se existirem
         return this.roulettes;
       });
+    */
   }
 
   /**
