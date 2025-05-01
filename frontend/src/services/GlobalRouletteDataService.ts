@@ -34,11 +34,19 @@ class GlobalRouletteDataService {
   private pollingTimer: number | null = null;
   private subscribers: Map<string, SubscriberCallback> = new Map();
   private _currentFetchPromise: Promise<any[]> | null = null;
+  // Flag para controlar se o polling está pausado devido a problemas de assinatura
+  private isPollingPaused: boolean = false;
   
   // Construtor privado para garantir Singleton
   private constructor() {
     console.log('[GlobalRouletteService] Inicializando serviço global de roletas');
     this.startPolling();
+    
+    // Adicionar listener para pausar polling quando solicitado
+    window.addEventListener('roulette:pause-polling', this.handlePausePollingEvent);
+    
+    // Adicionar listener para forçar atualização quando solicitado
+    window.addEventListener('roulette:force-update', this.handleForceUpdateEvent);
   }
 
   /**
@@ -49,6 +57,44 @@ class GlobalRouletteDataService {
       GlobalRouletteDataService.instance = new GlobalRouletteDataService();
     }
     return GlobalRouletteDataService.instance;
+  }
+
+  // Manipulador de evento para pausar o polling
+  private handlePausePollingEvent = (event: Event): void => {
+    const customEvent = event as CustomEvent;
+    console.log('[GlobalRouletteService] Evento roulette:pause-polling recebido:', customEvent.detail);
+    this.pausePolling(customEvent.detail?.reason || 'user-requested');
+  }
+  
+  // Manipulador de evento para forçar atualização
+  private handleForceUpdateEvent = (event: Event): void => {
+    const customEvent = event as CustomEvent;
+    console.log('[GlobalRouletteService] Evento roulette:force-update recebido:', customEvent.detail);
+    this.forceUpdate();
+  }
+  
+  /**
+   * Pausa o polling por solicitação externa
+   * @param reason Motivo da pausa
+   */
+  public pausePolling(reason: string = 'unspecified'): void {
+    if (this.pollingTimer) {
+      console.log(`[GlobalRouletteService] Pausando polling. Motivo: ${reason}`);
+      window.clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+      this.isPollingPaused = true;
+    }
+  }
+  
+  /**
+   * Retoma o polling manualmente
+   */
+  public resumePollingManually(): void {
+    if (this.isPollingPaused) {
+      console.log('[GlobalRouletteService] Retomando polling manualmente');
+      this.isPollingPaused = false;
+      this.resumePolling();
+    }
   }
 
   /**
@@ -94,6 +140,12 @@ class GlobalRouletteDataService {
    * Retoma o polling quando a página fica visível novamente
    */
   private resumePolling = (): void => {
+    // Não retomar o polling se foi pausado explicitamente por problemas de assinatura
+    if (this.isPollingPaused) {
+      console.log('[GlobalRouletteService] Polling permanece pausado devido a problema de assinatura');
+      return;
+    }
+    
     if (!this.pollingTimer) {
       console.log('[GlobalRouletteService] Retomando polling');
       this.fetchRouletteData(); // Buscar dados imediatamente
@@ -507,6 +559,8 @@ class GlobalRouletteDataService {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     window.removeEventListener('focus', this.resumePolling);
     window.removeEventListener('blur', this.handleVisibilityChange);
+    window.removeEventListener('roulette:pause-polling', this.handlePausePollingEvent);
+    window.removeEventListener('roulette:force-update', this.handleForceUpdateEvent);
     
     this.subscribers.clear();
     console.log('[GlobalRouletteService] Serviço encerrado e recursos liberados');
