@@ -11,11 +11,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Loader2, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { createAsaasCustomer, createAsaasSubscription } from '@/integrations/asaas/client';
-import { api } from '@/apiService';
+import axios from 'axios';
+
+// API client
+const api = {
+  post: async (url: string, data: any) => {
+    return axios.post(url, data);
+  },
+  get: async (url: string) => {
+    return axios.get(url);
+  }
+};
 
 const TestAssinaturaPage = () => {
-  const { user, login, isAuthenticated, loading: authLoading } = useAuth();
-  const { currentPlan, checkSubscription, loading: subscriptionLoading } = useSubscription();
+  const { user, loading: authLoading } = useAuth();
+  const { currentPlan, availablePlans, loading: subscriptionLoading, loadUserSubscription } = useSubscription();
   const navigate = useNavigate();
   
   // Estados do usuário
@@ -26,7 +36,7 @@ const TestAssinaturaPage = () => {
   const [phone, setPhone] = useState('');
   
   // Estados do processo
-  const [step, setStep] = useState(isAuthenticated ? 'subscription' : 'register');
+  const [step, setStep] = useState(user ? 'subscription' : 'register');
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -58,11 +68,34 @@ const TestAssinaturaPage = () => {
 
   // Efeito para verificar autenticação
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (user) {
       setStep('subscription');
       setCustomerId(user.asaasCustomerId || null);
     }
-  }, [isAuthenticated, user]);
+  }, [user]);
+
+  // Método de login
+  const login = async (email: string, password: string) => {
+    try {
+      const response = await axios.post('/api/auth/login', { email, password });
+      
+      if (response.data && response.data.success) {
+        // Atualizará automaticamente o contexto de autenticação
+        return { success: true };
+      }
+      
+      return { 
+        success: false, 
+        message: response.data?.message || 'Erro de autenticação' 
+      };
+    } catch (error: any) {
+      console.error('Erro no login:', error);
+      return { 
+        success: false, 
+        message: error.response?.data?.message || 'Erro ao efetuar login' 
+      };
+    }
+  };
 
   // Função para cadastrar o usuário
   const handleRegister = async (e: React.FormEvent) => {
@@ -207,7 +240,9 @@ const TestAssinaturaPage = () => {
             setStep('verification');
             
             // Atualizar informações de assinatura no contexto
-            await checkSubscription();
+            if (loadUserSubscription) {
+              await loadUserSubscription(true);
+            }
           }
           
           // Se o pagamento foi cancelado ou expirou
@@ -366,7 +401,7 @@ const TestAssinaturaPage = () => {
           )}
           
           {success && (
-            <Alert variant="success" className="bg-green-50 text-green-800 border-green-200">
+            <Alert className="bg-green-50 text-green-800 border-green-200">
               <CheckCircle className="h-4 w-4" />
               <AlertTitle>Sucesso</AlertTitle>
               <AlertDescription>{success}</AlertDescription>
@@ -451,7 +486,7 @@ const TestAssinaturaPage = () => {
           )}
           
           {success && (
-            <Alert variant="success" className="bg-green-50 text-green-800 border-green-200">
+            <Alert className="bg-green-50 text-green-800 border-green-200">
               <CheckCircle className="h-4 w-4" />
               <AlertTitle>Sucesso</AlertTitle>
               <AlertDescription>{success}</AlertDescription>
@@ -572,7 +607,7 @@ const TestAssinaturaPage = () => {
           )}
           
           {success && (
-            <Alert variant="success" className="bg-green-50 text-green-800 border-green-200">
+            <Alert className="bg-green-50 text-green-800 border-green-200">
               <CheckCircle className="h-4 w-4" />
               <AlertTitle>Sucesso</AlertTitle>
               <AlertDescription>{success}</AlertDescription>
@@ -669,7 +704,7 @@ const TestAssinaturaPage = () => {
           )}
           
           {success && (
-            <Alert variant="success" className="bg-green-50 text-green-800 border-green-200">
+            <Alert className="bg-green-50 text-green-800 border-green-200">
               <CheckCircle className="h-4 w-4" />
               <AlertTitle>Sucesso</AlertTitle>
               <AlertDescription>{success}</AlertDescription>
@@ -870,7 +905,7 @@ const TestAssinaturaPage = () => {
         </div>
         
         {/* Se estiver logado e ainda estiver na etapa de registro */}
-        {isAuthenticated && step === 'register' && (
+        {user && step === 'register' && (
           <div className="flex justify-center mt-4">
             <Button variant="outline" onClick={() => setStep('customer')}>
               Pular para criação de cliente <ArrowRight className="ml-2 h-4 w-4" />
