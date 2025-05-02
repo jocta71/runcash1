@@ -55,11 +55,6 @@ const CACHE_TTL = 60000; // 1 minuto em milissegundos
  * Busca todas as roletas através do endpoint /api/ROULETTES
  */
 export const fetchRoulettes = async (): Promise<RouletteData[]> => {
-  // Requisição a api/roulettes desativada
-  console.log('[API] Requisições a api/roulettes foram desativadas');
-  return [];
-  
-  /* Código original comentado
   try {
     // Verificar se temos dados em cache
     if (cache['roulettes'] && Date.now() - cache['roulettes'].timestamp < CACHE_TTL) {
@@ -104,7 +99,6 @@ export const fetchRoulettes = async (): Promise<RouletteData[]> => {
     console.error('[API] Erro ao buscar roletas:', error);
     return [];
   }
-  */
 };
 
 /**
