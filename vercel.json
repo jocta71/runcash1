@@ -3,109 +3,12 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "functions": {
-    "api/asaas-create-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-create-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/webhook-manager.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-payment.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-pix-qrcode.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-cancel-subscription.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/asaas-find-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/update-user.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
-    "api/ai/query.js": {
-      "memory": 1024,
-      "maxDuration": 30
-    },
-    "api/test-page.js": {
-      "memory": 1024,
-      "maxDuration": 10
+   
     }
   },
   "rewrites": [
-    {
-      "source": "/api/asaas-webhook",
-      "destination": "/api/webhook-manager.js"
-    },
-    {
-      "source": "/api/subscription-reconciliation",
-      "destination": "/api/webhook-manager.js?operation=reconciliation"
-    },
-    {
-      "source": "/api/retry-failed-webhooks",
-      "destination": "/api/webhook-manager.js?operation=retry"
-    },
-    
-    {
-      "source": "/api/asaas-create-subscription",
-      "destination": "/api/asaas-create-subscription.js"
-    },
-    {
-      "source": "/api/asaas-find-payment",
-      "destination": "/api/asaas-find-payment.js"
-    },
-    {
-      "source": "/api/asaas-pix-qrcode",
-      "destination": "/api/asaas-pix-qrcode.js"
-    },
-    {
-      "source": "/api/asaas-find-subscription",
-      "destination": "/api/asaas-find-subscription.js"
-    },
-    {
-      "source": "/api/asaas-cancel-subscription",
-      "destination": "/api/asaas-cancel-subscription.js"
-    },
-    {
-      "source": "/api/asaas-find-customer",
-      "destination": "/api/asaas-find-customer.js"
-    },
-    {
-      "source": "/api/update-user",
-      "destination": "/api/update-user.js"
-    },
-    {
-      "source": "/api/ai/query",
-      "destination": "/api/ai/query.js"
-    },
-    {
-      "source": "/api/((?!asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|update-user|ai/query|test-page).*)",
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/$1"
-    },
-    {
-      "source": "/test",
-      "destination": "/api/test-page"
-    },
-    {
-      "source": "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg|logo.png|img/).*)",
-      "destination": "/index.html"
-    }
+   
+
   ],
   "env": {
     "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash",
@@ -121,4 +24,4 @@
     "GEMINI_MODEL": "gemini-2.0-flash",
     "ADMIN_API_KEY": "rcwh_secret_key_123"
   }
-}
+
