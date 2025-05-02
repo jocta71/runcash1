@@ -25,18 +25,6 @@ O fluxo de pagamento segue estas etapas:
 7. A página `/account` serve como um redirecionador para `/minha-conta/assinatura`
 8. Na página de assinatura, o usuário pode ver todos os detalhes da assinatura e pagamentos
 
-## Status de Assinatura
-
-O acesso aos recursos premium, especialmente à API de roletas, é determinado pelo status da assinatura:
-
-1. **ACTIVE**: Assinatura ativa e com pagamentos em dia
-2. **RECEIVED**: Pagamento recebido mas ainda em processamento - permite acesso à API de roletas
-3. **CONFIRMED**: Pagamento confirmado - permite acesso à API de roletas
-4. **OVERDUE**: Pagamento atrasado - acesso restrito
-5. **CANCELED**: Assinatura cancelada - acesso negado
-
-Os status RECEIVED, CONFIRMED e ACTIVE são considerados válidos para acesso aos recursos premium, incluindo a API de roletas.
-
 ## Estrutura de Arquivos Relevantes
 
 - **`/frontend/src/pages/PlansPage.tsx`**: Exibe os planos disponíveis
@@ -70,14 +58,6 @@ O sistema oferece feedback visual em vários pontos:
    - Próxima data de cobrança
    - Histórico de pagamentos
    - Opções para gerenciar a assinatura
-
-## Webhook e Atualização de Status
-
-O sistema usa webhooks do Asaas para atualizar automaticamente o status da assinatura quando ocorrem eventos:
-
-1. Quando um pagamento é recebido (status RECEIVED), a assinatura é marcada como ACTIVE
-2. Quando um pagamento é confirmado (status CONFIRMED), a assinatura é mantida como ACTIVE
-3. Os webhooks são processados pelo endpoint `/api/webhook-manager.js`
 
 ## Considerações para o Futuro
 

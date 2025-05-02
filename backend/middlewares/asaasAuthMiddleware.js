@@ -91,19 +91,16 @@ exports.verifyTokenAndSubscription = (options = {
           });
         }
 
-        // Verificar se há alguma assinatura válida (ACTIVE, RECEIVED ou CONFIRMED)
+        // Verificar se há alguma assinatura ativa
         const activeSubscription = asaasResponse.data.data.find(sub => 
-          sub.status === 'ACTIVE' || 
-          sub.status === 'active' || 
-          sub.status === 'RECEIVED' || 
-          sub.status === 'CONFIRMED'
+          sub.status === 'ACTIVE' || sub.status === 'active'
         );
 
         if (!activeSubscription) {
           return res.status(403).json({
             success: false,
-            message: 'Nenhuma assinatura válida encontrada',
-            error: 'NO_VALID_SUBSCRIPTION'
+            message: 'Nenhuma assinatura ativa encontrada',
+            error: 'NO_ACTIVE_SUBSCRIPTION'
           });
         }
 
