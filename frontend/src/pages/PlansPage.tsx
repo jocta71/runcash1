@@ -26,7 +26,7 @@ interface Plan {
 
 const PlansPage = () => {
   const { currentPlan, loading: subscriptionLoading } = useSubscription();
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -184,13 +184,14 @@ const PlansPage = () => {
       return;
     }
     
-    if (!isAuthenticated) {
+    if (!user) {
       toast({
         title: "Login necessário",
         description: "Você precisa estar logado para assinar um plano.",
         variant: "destructive"
       });
-      navigate('/auth', { state: { returnUrl: '/planos' } });
+      // Redirecionando para a página inicial com indicação para exibir o modal de login
+      navigate('/', { state: { showLoginModal: true } });
       return;
     }
 
