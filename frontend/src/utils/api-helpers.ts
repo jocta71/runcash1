@@ -4,7 +4,7 @@
 
 /**
  * Função que tenta vários métodos de requisição até que um funcione
- * @param endpoint Endpoint relativo (ex: '/api/events')
+ * @param endpoint Endpoint relativo (ex: '/api/ROULETTES')
  * @param options Opções para fetch (opcional)
  */
 export async function fetchWithCorsSupport<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -51,8 +51,10 @@ export async function fetchWithCorsSupport<T>(endpoint: string, options?: Reques
     {
       name: 'Next.js API Route',
       fn: async () => {
-        // Este proxy não deve mais ser usado para roletas
-        const nextApiUrl = '/api/proxy';
+        // Se o endpoint for para roletas, usar o proxy dedicado
+        const nextApiUrl = endpoint.includes('ROULETTES') ? 
+          '/api/proxy-roulette' : 
+          '/api/proxy';
         
         console.log(`[API] Tentando método Next.js API Route: ${nextApiUrl}`);
         

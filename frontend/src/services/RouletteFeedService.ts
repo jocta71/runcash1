@@ -1616,7 +1616,7 @@ export default class RouletteFeedService {
       // Array com endpoints alternativos para verificar a saúde da API
       const healthEndpoints = [
         '/api/health',
-        '/api/status', // Substituindo a referência antiga ao webhook
+        '/api/asaas-webhook', // Usar um endpoint existente como fallback
         '/api' // Tentar apenas o path base como último recurso
       ];
       

@@ -63,25 +63,10 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados de roletas usando axios
+   * Busca dados das roletas da API
+   * @returns Promise com dados das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
-    // Verificar se já existe uma requisição em andamento
-    if (this._currentFetchPromise) {
-      console.log('[GlobalRouletteService] Já existe uma requisição em andamento, retornando a mesma promise');
-      return this._currentFetchPromise;
-    }
-    
-    // Verificar tempo desde a última requisição
-    const now = Date.now();
-    if (now - this.lastFetchTime < MIN_FORCE_INTERVAL) {
-      console.log(`[GlobalRouletteService] Última requisição foi há ${now - this.lastFetchTime}ms, retornando dados em cache`);
-      return this.rouletteData;
-    }
-    
-    // Atualizar timestamp da última requisição
-    this.lastFetchTime = now;
-    
     if (this.isFetching) {
       console.log('[GlobalRouletteService] Requisição já em andamento, aguardando...');
       return this.rouletteData;
@@ -90,24 +75,40 @@ class GlobalRouletteDataService {
     this.isFetching = true;
     
     try {
-      // ENDPOINT DESCONTINUADO - Não mais acessar /api/roulettes
-      console.warn('[GlobalRouletteService] ATENÇÃO: O endpoint /api/roulettes está descontinuado.');
-      console.log('[GlobalRouletteService] Retornando dados em cache conforme política de descontinuação.');
+      const axiosInstance = (await import('axios')).default.create();
+      const timestamp = Date.now();
+      const endpoint = `/api/roulettes?_t=${timestamp}`;
       
-      // Emitir evento global para notificar componentes que tentamos buscar dados
-      EventService.emit('roulette:data-updated', {
-        timestamp: new Date().toISOString(),
-        count: this.rouletteData.length,
-        fromCache: true
+      console.log(`[GlobalRouletteService] Buscando dados em: ${endpoint}`);
+      
+      const response = await axiosInstance.get(endpoint, {
+        headers: {
+          'bypass-tunnel-reminder': 'true',
+          'cache-control': 'no-cache'
+        },
+        timeout: 5000
       });
       
-      return this.rouletteData;
+      if (response.status === 200 && Array.isArray(response.data)) {
+        console.log(`[GlobalRouletteService] Recebidos ${response.data.length} registros da API`);
+        this.rouletteData = response.data;
+        
+        // Emitir evento global para notificar componentes
+        EventService.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          count: response.data.length
+        });
+        
+        return response.data;
+      } else {
+        console.warn('[GlobalRouletteService] Resposta inesperada da API');
+        return this.rouletteData;
+      }
     } catch (error) {
       console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
       return this.rouletteData;
     } finally {
       this.isFetching = false;
-      this._currentFetchPromise = null;
     }
   }
   

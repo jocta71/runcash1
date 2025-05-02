@@ -5,15 +5,9 @@ const mongoose = require('mongoose');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
-const cors = require('cors');
-const logger = require('./utils/logger');
-const asaasProcessedWebhooks = require('./models/asaasProcessedWebhooks');
 
 // Importar o inicializador do MongoDB
 const mongoInitializer = require('./utils/mongoInitializer');
-
-// Importar rotas da API
-const apiRoutes = require('./routes/api');
 
 // Logs para monitorar o carregamento da aplicação
 console.log("=== RunCash Server Iniciando ===");
@@ -154,22 +148,9 @@ async function initializeServer() {
     // Configurar rotas da API após a conexão ser estabelecida
     configureRoutes();
     
-    // Adicionar roteador à URL base '/api'
-    app.use('/api', apiRoutes);
-    
     // Iniciar servidor
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, async () => {
-      logger.info(`Servidor rodando na porta ${PORT}`);
-      
-      // Inicializar coleção de webhooks do Asaas
-      try {
-        await asaasProcessedWebhooks.setupCollection();
-        logger.info('Coleção de webhooks do Asaas inicializada com sucesso');
-      } catch (error) {
-        logger.error('Erro ao inicializar coleção de webhooks:', error);
-      }
-      
+    app.listen(PORT, () => {
       console.log(`=== RunCash Server Iniciado na porta ${PORT} ===`);
       console.log(`Webhook URL: ${process.env.PUBLIC_WEBHOOK_URL || 'não configurada'}`);
       console.log(`Status do MongoDB: ${mongoose.connection.readyState === 1 ? 'CONECTADO' : 'NÃO CONECTADO'}`);

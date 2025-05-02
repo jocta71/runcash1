@@ -564,19 +564,114 @@ class RESTSocketService {
 
   // Método para iniciar o polling do segundo endpoint (/api/ROULETTES sem parâmetro)
   private startSecondEndpointPolling() {
-    console.warn('[RESTSocketService] ATENÇÃO: O endpoint /api/ROULETTES está descontinuado.');
-    console.log('[RESTSocketService] O polling para este endpoint foi desativado conforme política de descontinuação.');
+    console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
     
-    // Não mais iniciar polling para este endpoint
-    return;
+    // Usar o EventService para escutar eventos de atualização de dados
+    EventService.on('roulette:data-updated', () => {
+      console.log('[RESTSocketService] Recebendo dados do serviço centralizado');
+      this.processDataFromCentralService();
+    });
+    
+    // Executar imediatamente a primeira vez
+    this.processDataFromCentralService();
   }
   
   // Método para processar dados do serviço centralizado
   private async processDataFromCentralService() {
     try {
-      console.warn('[RESTSocketService] ATENÇÃO: O processamento de dados de /api/ROULETTES está descontinuado.');
-      console.log('[RESTSocketService] Esta funcionalidade não está mais disponível conforme política de descontinuação.');
-      return false;
+      const startTime = Date.now();
+      console.log('[RESTSocketService] Processando dados do serviço centralizado: ' + startTime);
+      
+      // Obter dados do serviço global
+      const data = globalRouletteDataService.getAllRoulettes();
+      
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        console.log('[RESTSocketService] Sem dados disponíveis no serviço centralizado, aguardando...');
+        return;
+      }
+      
+      console.log(`[RESTSocketService] Processando ${data.length} roletas do serviço centralizado`);
+      
+      // Registrar esta chamada como bem-sucedida
+      const now = Date.now();
+      this.lastReceivedData.set('endpoint-base', { timestamp: now, data: { count: data.length } });
+      
+      // Salvar no cache com uma chave diferente para não conflitar
+      localStorage.setItem('roulettes_data_cache_base', JSON.stringify({
+        timestamp: Date.now(),
+        data: data
+      }));
+      
+      // Para cada roleta, processar os dados
+      data.forEach(roulette => {
+        if (!roulette || !roulette.id) return;
+        
+        // Registrar timestamp para cada roleta
+        this.lastReceivedData.set(`base-${roulette.id}`, { timestamp: now, data: roulette });
+        
+        // Atualizar o histórico da roleta se houver números
+        if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
+          // Mapear apenas os números para um array simples
+          const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
+          
+          // Obter histórico existente 
+          const existingHistory = this.rouletteHistory.get(roulette.id) || [];
+          
+          // Verificar se já existe o primeiro número na lista para evitar duplicação
+          const isNewData = existingHistory.length === 0 || 
+                            existingHistory[0] !== numbers[0] ||
+                            !existingHistory.includes(numbers[0]);
+          
+          if (isNewData) {
+            console.log(`[RESTSocketService] Novos números detectados para roleta ${roulette.nome || roulette.id} (central-service)`);
+            
+            // Mesclar, evitando duplicações e preservando ordem
+            const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
+            
+            // Atualizar o histórico com mesclagem para preservar números antigos
+            this.setRouletteHistory(roulette.id, mergedNumbers);
+            
+            // Emitir evento com o número mais recente
+            const lastNumber = roulette.numero[0];
+            
+            const event: any = {
+              type: 'new_number',
+              roleta_id: roulette.id,
+              roleta_nome: roulette.nome,
+              numero: lastNumber.numero || lastNumber.number || 0,
+              cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
+              timestamp: lastNumber.timestamp || new Date().toISOString(),
+              source: 'central-service' // Marcar a origem para depuração
+            };
+            
+            // Notificar os listeners sobre o novo número
+            this.notifyListeners(event);
+          }
+        }
+        
+        // Emitir evento de estratégia se houver
+        if (roulette.estado_estrategia) {
+          const strategyEvent: any = {
+            type: 'strategy_update',
+            roleta_id: roulette.id,
+            roleta_nome: roulette.nome,
+            estado: roulette.estado_estrategia,
+            numero_gatilho: roulette.numero_gatilho || 0,
+            vitorias: roulette.vitorias || 0,
+            derrotas: roulette.derrotas || 0,
+            terminais_gatilho: roulette.terminais_gatilho || [],
+            source: 'central-service' // Marcar a origem para depuração
+          };
+          
+          // Notificar os listeners sobre a atualização de estratégia
+          this.notifyListeners(strategyEvent);
+        }
+      });
+      
+      const endTime = Date.now();
+      console.log(`[RESTSocketService] Processamento concluído em ${endTime - startTime}ms`);
+      
+      return true;
     } catch (error) {
       console.error('[RESTSocketService] Erro ao processar dados do serviço centralizado:', error);
       return false;

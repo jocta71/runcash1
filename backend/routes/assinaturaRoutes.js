@@ -6,7 +6,6 @@ const express = require('express');
 const router = express.Router();
 const { proteger } = require('../middlewares/authMiddleware');
 const subscriptionMiddleware = require('../middlewares/unifiedSubscriptionMiddleware');
-const asaasController = require('../controllers/asaasController');
 
 // Controlador temporário para assinaturas
 const assinaturaController = {
@@ -59,10 +58,9 @@ const assinaturaController = {
             intervalo: 'mensal',
             descricao: 'Acesso a recursos premium por 1 mês',
             recursos: [
-              'Acesso aos dados de todas as roletas',
-              'Histórico de números das roletas',
-              'Estatísticas básicas',
-              'Exportação de dados CSV'
+              'Relatórios financeiros avançados',
+              'Exportação de dados',
+              'Análise de tendências'
             ]
           },
           {
@@ -72,11 +70,10 @@ const assinaturaController = {
             intervalo: 'trimestral',
             descricao: 'Acesso a recursos premium por 3 meses',
             recursos: [
-              'Acesso aos dados de todas as roletas',
-              'Histórico de números das roletas',
-              'Estatísticas avançadas',
-              'Exportação de dados CSV',
-              'Alerta de números quentes'
+              'Relatórios financeiros avançados',
+              'Exportação de dados',
+              'Análise de tendências',
+              'Sugestões de investimento'
             ],
             economia: '11% de desconto em relação ao plano mensal'
           },
@@ -87,13 +84,11 @@ const assinaturaController = {
             intervalo: 'anual',
             descricao: 'Acesso a recursos premium por 12 meses',
             recursos: [
-              'Acesso aos dados de todas as roletas',
-              'Histórico de números das roletas',
-              'Estatísticas avançadas',
-              'Exportação de dados CSV',
-              'Alerta de números quentes',
-              'Atualização em tempo real',
-              'Análise de padrões com IA',
+              'Relatórios financeiros avançados',
+              'Exportação de dados',
+              'Análise de tendências',
+              'Sugestões de investimento',
+              'Dados em tempo real',
               'Suporte prioritário'
             ],
             economia: '16% de desconto em relação ao plano mensal'
@@ -150,13 +145,9 @@ const assinaturaController = {
 // Rotas públicas (não requerem autenticação)
 router.get('/planos', assinaturaController.listarPlanos);
 
-// Rota para checar status da assinatura
-router.get('/status', proteger, asaasController.checkSubscriptionStatus);
-
-// Rota para criar checkout de assinatura
-router.post('/checkout', proteger, asaasController.createCheckout);
-
-// Rota para receber webhooks do Asaas
-router.post('/webhook', asaasController.handleWebhook);
+// Rotas que requerem autenticação
+router.get('/status', proteger, assinaturaController.obterStatus);
+router.post('/assinar', proteger, assinaturaController.assinarPlano);
+router.post('/cancelar', proteger, assinaturaController.cancelarAssinatura);
 
 module.exports = router; 

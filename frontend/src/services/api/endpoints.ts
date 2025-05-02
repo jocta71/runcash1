@@ -1,5 +1,8 @@
 // URLs para os endpoints da API
 export const ENDPOINTS = {
+  // Endpoint principal para roletas (agora unificado)
+  ROULETTES: '/api/ROULETTES',
+  
   // Endpoint para histórico de roletas
   ROULETTE_HISTORY: '/api/roulettes/history',
   
@@ -17,9 +20,5 @@ export const getApiBaseUrl = (): string => {
 
 // Obtém a URL completa para um endpoint
 export const getFullUrl = (endpoint: string): string => {
-  // Se o endpoint já for uma URL completa, retorná-la diretamente
-  if (endpoint.startsWith('http')) {
-    return endpoint;
-  }
   return `${getApiBaseUrl()}${endpoint}`;
 }; 

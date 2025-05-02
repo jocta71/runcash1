@@ -15,7 +15,6 @@ const logger = getLogger('FetchService');
 // Configurações
 const POLLING_INTERVAL = 5000; // 5 segundos entre cada verificação
 const MAX_RETRIES = 3; // Número máximo de tentativas antes de desistir
-const RETRY_INTERVAL = 2000; // 2 segundos entre tentativas de retry
 const ALLOWED_ROULETTES = ROLETAS_PERMITIDAS;
 
 // Mapear nomes para IDs canônicos
@@ -141,9 +140,16 @@ class FetchService {
    */
   private async fetchAllRoulettes(): Promise<any[]> {
     try {
-      // Este método não deve mais acessar o endpoint /api/roulettes
-      logger.warn('Método fetchAllRoulettes está descontinuado nesta versão');
-      return [];
+      const response = await this.get<any[]>(`${this.apiBaseUrl}/roulettes`, {
+        throttleKey: 'all_roulettes',
+        forceRefresh: false
+      });
+      
+      if (response && Array.isArray(response)) {
+        return response;
+      }
+      
+      throw new Error(`Resposta inválida ao buscar roletas`);
     } catch (error) {
       logger.error('Erro ao buscar lista de roletas:', error);
       return [];
@@ -155,10 +161,67 @@ class FetchService {
    */
   private async fetchRouletteNumbers(roletaId: string): Promise<number[]> {
     try {
-      // Endpoint de roletas está desativado
-      // Este método não deve mais ser usado
-      logger.warn(`Método fetchRouletteNumbers está descontinuado e não deve mais ser usado para roleta ${roletaId}`);
-      return [];
+      // Usar o endpoint único /api/ROULETTES e filtrar a roleta desejada
+      try {
+        const response = await this.get<any[]>(`${this.apiBaseUrl}/ROULETTES`, {
+          throttleKey: 'all_roulettes_data',
+          forceRefresh: false
+        });
+        
+        if (response && Array.isArray(response)) {
+          // Encontrar a roleta específica pelo ID canônico
+          const targetRoulette = response.find((roleta: any) => {
+            // Verificar se roleta existe e tem propriedades antes de acessá-las
+            if (!roleta) return false;
+            
+            // Usar valores padrão seguros se as propriedades forem undefined
+            const roletaId = roleta.id || '';
+            const roletaNome = roleta.nome || '';
+            
+            const roletaCanonicalId = roleta.canonical_id || 
+              this.getCanonicalId(roletaId, roletaNome);
+            
+            return roletaCanonicalId === roletaId || roleta.id === roletaId;
+          });
+          
+          if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+            // Extrair apenas os números numéricos do array de objetos
+            return targetRoulette.numero.map((item: any) => {
+              // Verificar se o item é um objeto com propriedade numero
+              if (typeof item === 'object' && item !== null && 'numero' in item) {
+                if (typeof item.numero === 'number' && !isNaN(item.numero)) {
+                  return item.numero;
+                } else if (typeof item.numero === 'string' && item.numero.trim() !== '') {
+                  const parsedValue = parseInt(item.numero, 10);
+                  if (!isNaN(parsedValue)) return parsedValue;
+                }
+              } 
+              // Caso o item seja diretamente um número
+              else if (typeof item === 'number' && !isNaN(item)) {
+                return item;
+              }
+              
+              // Se chegou aqui, é um valor inválido, retornar 0
+              logger.warn(`Valor inválido de número para ${roletaId}: ${JSON.stringify(item)}, usando 0`);
+              return 0;
+            });
+          }
+        }
+      } catch (error) {
+        logger.warn(`Erro no endpoint principal para ${roletaId}, tentando fallback:`, error);
+      }
+      
+      // Se falhar, tentar o endpoint de roletas legado (mais lento)
+      const response = await this.get<any>(`${this.apiBaseUrl}/roulettes/${roletaId}`, {
+        throttleKey: `roulette_${roletaId}`,
+        forceRefresh: false
+      });
+      
+      if (response && response.numeros && Array.isArray(response.numeros)) {
+        return response.numeros;
+      }
+      
+      throw new Error(`Resposta inválida ao buscar números para roleta ${roletaId}`);
     } catch (error) {
       logger.error(`Erro ao buscar números para roleta ${roletaId}:`, error);
       return [];
@@ -504,11 +567,33 @@ class FetchService {
     // Função para buscar dados da roleta
     const fetchRouletteData = async () => {
       try {
-        // Endpoint de roletas está desativado
-        logger.warn(`Método fetchRouletteData no startPolling está descontinuado para roleta ${roletaId}`);
-        // Não há mais chamadas ao endpoint de roletas
-        // Avisar o callback que não há dados
-        callback(null);
+        const endpoint = `${config.API_URL}/api/ROULETTES`;
+        logger.debug(`Buscando dados da roleta ${roletaId} em ${endpoint}`);
+        
+        const data = await this.fetchData<any[]>(endpoint);
+        
+        if (!Array.isArray(data)) {
+          logger.warn(`Resposta inválida para roleta ${roletaId}: não é um array`);
+          return;
+        }
+        
+        // Encontrar a roleta específica
+        const roleta = data.find(r => r.id === roletaId || r._id === roletaId);
+        
+        if (roleta) {
+          logger.debug(`Dados obtidos para roleta ${roleta.nome || roletaId}`);
+          
+          // Emitir evento sinalizando que os dados foram carregados com sucesso
+          EventService.emitGlobalEvent('roulettes_loaded', {
+            success: true,
+            count: data.length,
+            timestamp: new Date().toISOString()
+          });
+          
+          callback(roleta);
+        } else {
+          logger.warn(`Roleta ${roletaId} não encontrada na resposta`);
+        }
       } catch (error) {
         logger.error(`Erro ao buscar dados da roleta ${roletaId}: ${error.message}`);
       }
@@ -534,14 +619,38 @@ class FetchService {
     }
   }
 
-  /**
-   * Método descontinuado - não deve mais ser usado
-   * @deprecated Use fetchAllRoulettes em vez disso
-   */
   async getAllRoulettes() {
     try {
-      logger.warn('Método getAllRoulettes está descontinuado e não deve mais ser usado');
-      return [];
+      logger.debug('Buscando todas as roletas disponíveis');
+      
+      // Construir URL com base nas configurações
+      const url = `${this.apiBaseUrl}/ROULETTES`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar roletas: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!Array.isArray(data)) {
+        throw new Error('Resposta inválida da API: não é um array');
+      }
+      
+      // Processar dados com o transformador de objetos
+      const processedData = data.map(this.processRouletteData);
+      
+      logger.info(`✅ Encontradas ${processedData.length} roletas`);
+      
+      // Emitir evento que os dados de roletas foram carregados completamente
+      EventService.emitGlobalEvent('roulettes_loaded', {
+        success: true,
+        count: processedData.length,
+        timestamp: new Date().toISOString()
+      });
+      
+      return processedData;
     } catch (error) {
       logger.error(`Erro ao buscar roletas: ${error.message}`);
       throw error;
