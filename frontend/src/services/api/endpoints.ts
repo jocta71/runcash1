@@ -1,7 +1,7 @@
 // URLs para os endpoints da API
 export const ENDPOINTS = {
   // Endpoint principal para roletas (descontinuado)
-  ROULETTES: 'https://backendapi-production-36b5.up.railway.app/api/roulettes',
+  ROULETTES: '/api/roulettes',
   
   // Endpoint para histórico de roletas
   ROULETTE_HISTORY: '/api/roulettes/history',

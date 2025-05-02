@@ -161,57 +161,8 @@ class FetchService {
    */
   private async fetchRouletteNumbers(roletaId: string): Promise<number[]> {
     try {
-      // Usar o endpoint único /api/ROULETTES e filtrar a roleta desejada
-      try {
-        const response = await this.get<any[]>(`${this.apiBaseUrl}/ROULETTES`, {
-          throttleKey: 'all_roulettes_data',
-          forceRefresh: false
-        });
-        
-        if (response && Array.isArray(response)) {
-          // Encontrar a roleta específica pelo ID canônico
-          const targetRoulette = response.find((roleta: any) => {
-            // Verificar se roleta existe e tem propriedades antes de acessá-las
-            if (!roleta) return false;
-            
-            // Usar valores padrão seguros se as propriedades forem undefined
-            const roletaId = roleta.id || '';
-            const roletaNome = roleta.nome || '';
-            
-            const roletaCanonicalId = roleta.canonical_id || 
-              this.getCanonicalId(roletaId, roletaNome);
-            
-            return roletaCanonicalId === roletaId || roleta.id === roletaId;
-          });
-          
-          if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-            // Extrair apenas os números numéricos do array de objetos
-            return targetRoulette.numero.map((item: any) => {
-              // Verificar se o item é um objeto com propriedade numero
-              if (typeof item === 'object' && item !== null && 'numero' in item) {
-                if (typeof item.numero === 'number' && !isNaN(item.numero)) {
-                  return item.numero;
-                } else if (typeof item.numero === 'string' && item.numero.trim() !== '') {
-                  const parsedValue = parseInt(item.numero, 10);
-                  if (!isNaN(parsedValue)) return parsedValue;
-                }
-              } 
-              // Caso o item seja diretamente um número
-              else if (typeof item === 'number' && !isNaN(item)) {
-                return item;
-              }
-              
-              // Se chegou aqui, é um valor inválido, retornar 0
-              logger.warn(`Valor inválido de número para ${roletaId}: ${JSON.stringify(item)}, usando 0`);
-              return 0;
-            });
-          }
-        }
-      } catch (error) {
-        logger.warn(`Erro no endpoint principal para ${roletaId}, tentando fallback:`, error);
-      }
-      
-      // Se falhar, tentar o endpoint de roletas legado (mais lento)
+      // Endpoint descontinuado - não usar mais /api/ROULETTES
+      // Tentar diretamente o endpoint de roletas padrão
       const response = await this.get<any>(`${this.apiBaseUrl}/roulettes/${roletaId}`, {
         throttleKey: `roulette_${roletaId}`,
         forceRefresh: false
@@ -625,9 +576,8 @@ class FetchService {
     try {
       logger.debug('Buscando todas as roletas disponíveis');
       
-      // Construir URL com base nas configurações
-      const RAILWAY_API_URL = 'https://backendapi-production-36b5.up.railway.app';
-      const url = `${RAILWAY_API_URL}/api/roulettes`;
+      // Construir URL para o endpoint de roletas (endpoint /api/ROULETTES descontinuado)
+      const url = `${this.apiBaseUrl}/roulettes`;
       
       const response = await fetch(url);
       
@@ -641,19 +591,16 @@ class FetchService {
         throw new Error('Resposta inválida da API: não é um array');
       }
       
-      // Processar dados com o transformador de objetos
-      const processedData = data.map(this.processRouletteData);
-      
-      logger.info(`✅ Encontradas ${processedData.length} roletas`);
+      logger.info(`✅ Encontradas ${data.length} roletas`);
       
       // Emitir evento que os dados de roletas foram carregados completamente
       EventService.emitGlobalEvent('roulettes_loaded', {
         success: true,
-        count: processedData.length,
+        count: data.length,
         timestamp: new Date().toISOString()
       });
       
-      return processedData;
+      return data;
     } catch (error) {
       logger.error(`Erro ao buscar roletas: ${error.message}`);
       throw error;
