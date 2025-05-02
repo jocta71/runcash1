@@ -8,6 +8,9 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import axios from 'axios';
 
+// URL da API do Railway
+const API_URL = "https://backendapi-production-36b5.up.railway.app/api";
+
 const PlansPage = () => {
   const { availablePlans, currentPlan, loading, refetchSubscription } = useSubscription();
   const { user } = useAuth();
@@ -26,8 +29,10 @@ const PlansPage = () => {
         throw new Error("Plano não encontrado");
       }
       
+      console.log(`Chamando API ${API_URL}/checkout/subscription`);
+      
       const response = await axios.post(
-        '/api/checkout/subscription', 
+        `${API_URL}/checkout/subscription`, 
         { 
           planType: planId.toUpperCase(),
           planPrice: plan.price

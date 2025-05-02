@@ -4,6 +4,9 @@ import axios from 'axios';
 import { FiCheckCircle, FiAlertTriangle, FiLoader } from 'react-icons/fi';
 import { Toaster, toast } from 'react-hot-toast';
 
+// URL da API do Railway
+const API_URL = "https://backendapi-production-36b5.up.railway.app/api";
+
 /**
  * Página de redirecionamento após o checkout do Asaas
  * Processa os parâmetros de retorno e exibe mensagem apropriada
@@ -35,7 +38,7 @@ const CheckoutRedirect = () => {
         // Verificar o status no backend
         if (result === 'success') {
           // Verificar o status do checkout no backend
-          const response = await axios.get(`/api/checkout/${checkoutId}/status`, {
+          const response = await axios.get(`${API_URL}/checkout/${checkoutId}/status`, {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
