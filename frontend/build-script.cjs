@@ -61,6 +61,14 @@ function main() {
     console.log('react-toastify já está instalado');
   }
   
+  // Verificar e instalar @mui/icons-material se necessário
+  if (!isDependencyInstalled('@mui/icons-material')) {
+    console.log('Instalando @mui/icons-material...');
+    runCommand('npm install @mui/icons-material');
+  } else {
+    console.log('@mui/icons-material já está instalado');
+  }
+  
   // 3. Verificar se existe o componente use-toast
   const useToastComponentPath = path.resolve(process.cwd(), 'src', 'components', 'ui', 'use-toast.ts');
   const useToastHookPath = path.resolve(process.cwd(), 'src', 'hooks', 'use-toast.ts');

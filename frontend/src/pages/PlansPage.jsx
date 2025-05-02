@@ -19,7 +19,17 @@ import {
   ListItemText,
   CircularProgress
 } from '@mui/material';
-import CheckIcon from '@mui/icons-material/Check';
+// Importação com fallback para o ícone Check
+import FallbackCheckIcon from '../components/icons/CheckIcon';
+let CheckIcon;
+try {
+  // Tentar importar do Material UI Icons
+  CheckIcon = require('@mui/icons-material/Check').default;
+} catch (error) {
+  // Se falhar, usar o componente fallback
+  console.warn('Usando ícone Check fallback');
+  CheckIcon = FallbackCheckIcon;
+}
 import useAuth from '../hooks/useAuth';
 
 const PlansPage = () => {

@@ -17,7 +17,10 @@ export default defineConfig({
       '@emotion/styled',
       'lodash',
       'react-bootstrap',
-      'react-bootstrap-icons'
+      'react-bootstrap-icons',
+      '@mui/material',
+      '@mui/system',
+      '@mui/icons-material'
     ],
     force: true // Forçar otimização mesmo se já estiver em cache
   },
@@ -28,7 +31,8 @@ export default defineConfig({
         // Ignorar avisos específicos que não afetam a build
         if (warning.code === 'MODULE_LEVEL_DIRECTIVE' || 
             warning.message.includes('use client') || 
-            warning.message.includes('@/components/ui/use-toast')) {
+            warning.message.includes('@/components/ui/use-toast') ||
+            warning.message.includes('@mui/icons-material')) {
           return;
         }
         warn(warning);
