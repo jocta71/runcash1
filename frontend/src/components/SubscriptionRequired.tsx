@@ -8,6 +8,8 @@ interface SubscriptionRequiredProps {
 /**
  * Componente que exibe uma mensagem quando o usuário precisa de assinatura
  * para acessar os dados de roletas.
+ * 
+ * ATENÇÃO: Este componente foi modificado para não exibir o modal de assinatura.
  */
 const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({ 
   onClose, 
@@ -25,76 +27,36 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
     const handleSubscriptionRequired = (event: CustomEvent<any>) => {
       console.log('[SubscriptionRequired] Evento subscription:required recebido:', event.detail);
       
-      // Verificar se o modal foi exibido recentemente (nos últimos 30 segundos)
-      const now = Date.now();
-      const timeSinceLastShown = now - lastShownTimeRef.current;
+      // Modal desativado - Apenas registramos o evento mas não exibimos o modal
+      // Isso permite que a aplicação continue funcionando sem interrupções
       
-      // Ignorar eventos repetidos em um curto período de tempo
-      if (ignoreEventsTimeoutRef.current || timeSinceLastShown < 30000) {
-        console.log('[SubscriptionRequired] Ignorando evento repetido para evitar modal pegajoso');
-        return;
+      // Armazenar no localStorage que o modal seria exibido (para manter compatibilidade)
+      try {
+        localStorage.setItem('subscription_modal_closed', Date.now().toString());
+      } catch (e) {
+        console.error('[SubscriptionRequired] Erro ao salvar estado no localStorage:', e);
       }
       
-      // Atualizar o timestamp da última exibição
-      lastShownTimeRef.current = now;
-      
-      // Definir um período de tempo em que eventos adicionais serão ignorados
-      ignoreEventsTimeoutRef.current = true;
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current);
-      }
-      
-      timeoutIdRef.current = setTimeout(() => {
-        ignoreEventsTimeoutRef.current = false;
-      }, 10000); // Ignorar novos eventos por 10 segundos
-      
-      setIsVisible(true);
-      // Armazenar detalhes do erro para exibição
-      if (event.detail) {
-        setErrorDetails({
-          ...event.detail,
-          errorType: 'required'
-        });
-      }
+      // Se necessário, podemos executar alguma lógica aqui, mas não exibimos o modal
+      return;
     };
     
     // Registrar listener para eventos de assinatura inativa
     const handleSubscriptionInactive = (event: CustomEvent<any>) => {
       console.log('[SubscriptionRequired] Evento subscription:inactive recebido:', event.detail);
       
-      // Verificar se o modal foi exibido recentemente
-      const now = Date.now();
-      const timeSinceLastShown = now - lastShownTimeRef.current;
+      // Modal desativado - Apenas registramos o evento mas não exibimos o modal
+      // Isso permite que a aplicação continue funcionando sem interrupções
       
-      // Ignorar eventos repetidos em um curto período de tempo
-      if (ignoreEventsTimeoutRef.current || timeSinceLastShown < 30000) {
-        console.log('[SubscriptionRequired] Ignorando evento inactive repetido para evitar modal pegajoso');
-        return;
+      // Armazenar no localStorage que o modal seria exibido (para manter compatibilidade)
+      try {
+        localStorage.setItem('subscription_modal_closed', Date.now().toString());
+      } catch (e) {
+        console.error('[SubscriptionRequired] Erro ao salvar estado no localStorage:', e);
       }
       
-      // Atualizar o timestamp da última exibição
-      lastShownTimeRef.current = now;
-      
-      // Definir um período de tempo em que eventos adicionais serão ignorados
-      ignoreEventsTimeoutRef.current = true;
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current);
-      }
-      
-      timeoutIdRef.current = setTimeout(() => {
-        ignoreEventsTimeoutRef.current = false;
-      }, 10000); // Ignorar novos eventos por 10 segundos
-      
-      setIsVisible(true);
-      // Armazenar detalhes do erro para exibição
-      if (event.detail) {
-        setErrorDetails({
-          ...event.detail,
-          error: 'SUBSCRIPTION_INACTIVE',
-          message: event.detail.message || 'Sua assinatura existe mas não está ativa. Verifique o status do pagamento.',
-          errorType: 'inactive'
-        });
-      }
+      // Se necessário, podemos executar alguma lógica aqui, mas não exibimos o modal
+      return;
     };
     
     window.addEventListener('subscription:required', handleSubscriptionRequired as EventListener);
@@ -111,16 +73,6 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
   
   const handleClose = () => {
     setIsVisible(false);
-    
-    // Definir um timeout mais longo após o fechamento manual
-    ignoreEventsTimeoutRef.current = true;
-    if (timeoutIdRef.current) {
-      clearTimeout(timeoutIdRef.current);
-    }
-    
-    timeoutIdRef.current = setTimeout(() => {
-      ignoreEventsTimeoutRef.current = false;
-    }, 60000); // Ignorar novos eventos por 1 minuto após fechar manualmente
     
     if (onClose) onClose();
     
@@ -221,7 +173,11 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
     return null;
   };
   
+  // O modal nunca será exibido porque isVisible nunca será true
   if (!isVisible) return null;
+  
+  // Este código abaixo não será executado devido ao return acima,
+  // mas o mantemos para caso a aplicação seja atualizada no futuro
   
   // Determinar a mensagem a ser exibida
   const displayMessage = errorDetails?.message || message;
@@ -249,45 +205,43 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
             e dados históricos completos para melhorar seus resultados.
           </p>
           
-          {/* Exibir detalhes de erro se disponíveis */}
           {errorDetails && (
-            <div className="bg-gray-100 p-3 rounded-md text-xs text-gray-600 mb-4">
-              <p><strong>Tipo:</strong> {errorDetails.error || 'Acesso restrito'}</p>
-              {errorDetails.requiredTypes && (
-                <p><strong>Planos necessários:</strong> {Array.isArray(errorDetails.requiredTypes) 
-                  ? errorDetails.requiredTypes.join(', ') 
-                  : errorDetails.requiredTypes}</p>
-              )}
-              {errorDetails.currentType && (
-                <p><strong>Seu plano atual:</strong> {errorDetails.currentType}</p>
-              )}
-              {errorDetails.userDetails?.subscriptionStatus && (
-                <p><strong>Status da assinatura:</strong> {errorDetails.userDetails.subscriptionStatus}</p>
-              )}
+            <div className="bg-gray-100 p-3 rounded-md text-xs text-gray-700 mt-2">
+              <p className="font-medium">Tipo: {errorDetails.error || 'SUBSCRIPTION_REQUIRED'}</p>
+              <p>Status da assinatura: {errorDetails.userDetails?.subscriptionStatus || 'none'}</p>
             </div>
           )}
           
-          {/* Mostrar sugestões de solução baseadas no tipo de erro */}
           {getErrorSolution()}
         </div>
         
-        <div className="flex justify-end space-x-3">
+        <div className="flex flex-col sm:flex-row gap-2 justify-end">
           <button
             onClick={handleClose}
-            className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-100"
+            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
           >
             Fechar
           </button>
+          
           <button
             onClick={retryConnection}
             disabled={isRetrying}
-            className={`px-4 py-2 border rounded ${isRetrying ? 'bg-gray-200 text-gray-500' : 'bg-gray-600 text-white hover:bg-gray-700'}`}
+            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center"
           >
-            {isRetrying ? 'Tentando...' : 'Tentar Novamente'}
+            {isRetrying ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Tentando novamente...
+              </>
+            ) : 'Tentar Novamente'}
           </button>
+          
           <button
             onClick={redirectToSubscription}
-            className="px-4 py-2 bg-blue-600 rounded text-white hover:bg-blue-700"
+            className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
           >
             Ver Planos
           </button>
