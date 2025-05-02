@@ -94,7 +94,7 @@ export function useSubscription(): SubscriptionHook {
 
     try {
       setLoading(true);
-      const response = await axios.get('/api/subscription/status');
+      const response = await axios.get('/api/subscriptions/status');
       
       if (response.data && response.data.success) {
         setCurrentSubscription(response.data.subscription || null);
