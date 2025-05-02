@@ -365,6 +365,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         </div>
       </CardContent>
 
+
       {/* Toast de notificação */}
       {toastVisible && (
         <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
