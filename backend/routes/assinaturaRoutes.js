@@ -57,26 +57,29 @@ const assinaturaController = {
             nome: 'Plano Mensal',
             valor: 29.90,
             intervalo: 'mensal',
-            descricao: 'Acesso a recursos premium por 1 mês',
+            descricao: 'Acesso completo por 1 mês',
             recursos: [
               'Acesso aos dados de todas as roletas',
               'Histórico de números das roletas',
-              'Estatísticas básicas',
-              'Exportação de dados CSV'
+              'Estatísticas básicas em tempo real',
+              'Exportação de dados para CSV',
+              'Suporte por e-mail'
             ]
           },
           {
             id: 'trimestral',
             nome: 'Plano Trimestral',
             valor: 79.90,
-            intervalo: 'trimestral',
-            descricao: 'Acesso a recursos premium por 3 meses',
+            intervalo: 'trimestre',
+            descricao: 'Acesso completo por 3 meses',
             recursos: [
               'Acesso aos dados de todas as roletas',
               'Histórico de números das roletas',
-              'Estatísticas avançadas',
-              'Exportação de dados CSV',
-              'Alerta de números quentes'
+              'Estatísticas avançadas em tempo real',
+              'Exportação de dados para CSV',
+              'Alerta de números quentes',
+              'Identificação de padrões',
+              'Suporte prioritário'
             ],
             economia: '11% de desconto em relação ao plano mensal'
           },
@@ -84,17 +87,18 @@ const assinaturaController = {
             id: 'anual',
             nome: 'Plano Anual',
             valor: 299.90,
-            intervalo: 'anual',
-            descricao: 'Acesso a recursos premium por 12 meses',
+            intervalo: 'ano',
+            descricao: 'Acesso completo por 12 meses',
             recursos: [
               'Acesso aos dados de todas as roletas',
               'Histórico de números das roletas',
-              'Estatísticas avançadas',
-              'Exportação de dados CSV',
+              'Estatísticas avançadas em tempo real',
+              'Exportação de dados para CSV',
               'Alerta de números quentes',
-              'Atualização em tempo real',
-              'Análise de padrões com IA',
-              'Suporte prioritário'
+              'Identificação de padrões',
+              'Análise preditiva com IA',
+              'Suporte prioritário 24/7',
+              'Acesso antecipado a novas funcionalidades'
             ],
             economia: '16% de desconto em relação ao plano mensal'
           }
