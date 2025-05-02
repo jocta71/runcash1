@@ -36,6 +36,69 @@ const PLANS = {
 };
 
 /**
+ * Lista os planos disponíveis para o frontend
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ */
+exports.listPlans = async (req, res) => {
+  try {
+    // Converter os planos para o formato esperado pelo frontend
+    const formattedPlans = Object.entries(PLANS).map(([id, plan]) => ({
+      id,
+      name: plan.name,
+      price: plan.value,
+      interval: plan.cycle === 'MONTHLY' ? 'monthly' : 'yearly',
+      description: plan.description,
+      features: getFeaturesByPlanId(id)
+    }));
+
+    return res.json({
+      success: true,
+      plans: formattedPlans
+    });
+  } catch (error) {
+    console.error('Erro ao listar planos:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro interno ao listar planos',
+      error: 'INTERNAL_SERVER_ERROR'
+    });
+  }
+};
+
+/**
+ * Retorna features específicas de cada plano
+ * @param {string} planId - ID do plano 
+ * @returns {Array} Array de strings com as features
+ */
+function getFeaturesByPlanId(planId) {
+  const features = {
+    'basic': [
+      'Acesso a todas as roletas',
+      'Estatísticas básicas',
+      'Números recentes',
+      'Suporte por email'
+    ],
+    'pro': [
+      'Acesso a todas as roletas',
+      'Estatísticas avançadas',
+      'Histórico completo',
+      'Atualizações em tempo real',
+      'Suporte prioritário'
+    ],
+    'premium': [
+      'Tudo do plano Profissional',
+      'Dados históricos avançados',
+      'Acesso prioritário ao suporte',
+      'Previsões com IA',
+      'Sem limitações de uso'
+    ]
+  };
+
+  return features[planId] || [];
+}
+
+/**
  * Cria um checkout de assinatura no Asaas
  * @param {Object} req - Request object
  * @param {Object} res - Response object

@@ -15,8 +15,53 @@ interface CheckoutResponse {
   error?: string;
 }
 
+// Planos padrão para garantir que algo será exibido
+const defaultPlans = [
+  {
+    id: 'basic',
+    name: 'Plano Básico',
+    price: 49.90,
+    interval: 'monthly',
+    description: 'Ideal para iniciantes',
+    features: [
+      'Acesso a todas as roletas',
+      'Estatísticas básicas',
+      'Números recentes',
+      'Suporte por email'
+    ]
+  },
+  {
+    id: 'pro',
+    name: 'Plano Profissional',
+    price: 49.90,
+    interval: 'monthly',
+    description: 'Melhor custo-benefício',
+    features: [
+      'Acesso a todas as roletas',
+      'Estatísticas avançadas',
+      'Histórico completo',
+      'Atualizações em tempo real',
+      'Suporte prioritário'
+    ]
+  },
+  {
+    id: 'premium',
+    name: 'Plano Premium',
+    price: 99.90,
+    interval: 'monthly',
+    description: 'Para profissionais exigentes',
+    features: [
+      'Tudo do plano Profissional',
+      'Dados históricos avançados',
+      'Acesso prioritário ao suporte',
+      'Previsões com IA',
+      'Sem limitações de uso'
+    ]
+  }
+];
+
 const PlansPage = () => {
-  const { availablePlans, currentPlan, loading, refreshSubscription } = useSubscription();
+  const { availablePlans = [], currentPlan, loading, refreshSubscription } = useSubscription();
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -37,7 +82,9 @@ const PlansPage = () => {
         // Limpar URL
         window.history.replaceState({}, document.title, window.location.pathname);
         // Atualizar dados da assinatura
-        refreshSubscription();
+        if (refreshSubscription) {
+          refreshSubscription();
+        }
       } else if (paymentStatus === 'pending') {
         toast({
           title: "Pagamento pendente",
@@ -125,9 +172,10 @@ const PlansPage = () => {
     );
   }
 
-  // Filtrar apenas os planos Profissional (49,90) e Premium (99,90)
-  const filteredPlans = availablePlans
-    .filter(plan => (plan.price === 49.90 || plan.price === 99.90) && plan.interval === 'monthly');
+  // Usar planos padrão se availablePlans estiver vazio
+  const plansToShow = availablePlans.length > 0 
+    ? availablePlans.filter(plan => (plan.price === 49.90 || plan.price === 99.90) && plan.interval === 'monthly')
+    : defaultPlans;
 
   return (
     <Layout>
@@ -145,7 +193,7 @@ const PlansPage = () => {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {filteredPlans.map(plan => (
+          {plansToShow.map(plan => (
             <div 
               key={plan.id}
               className={`border rounded-lg p-6 flex flex-col ${

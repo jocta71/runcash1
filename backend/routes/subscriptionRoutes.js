@@ -14,7 +14,8 @@ const {
   createCheckout, 
   handleWebhook, 
   cancelSubscription, 
-  listUserSubscriptions 
+  listUserSubscriptions,
+  listPlans 
 } = require('../controllers/subscriptionController');
 
 /**
@@ -23,6 +24,13 @@ const {
  * @access  Privado - Requer autenticação
  */
 router.get('/status', protect, getSubscriptionStatus);
+
+/**
+ * @route   GET /api/subscriptions/plans
+ * @desc    Lista planos disponíveis para assinatura
+ * @access  Público - Não requer autenticação
+ */
+router.get('/plans', listPlans);
 
 /**
  * @route   POST /api/subscriptions/checkout
