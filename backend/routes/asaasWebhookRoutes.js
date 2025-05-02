@@ -1,6 +1,6 @@
 /**
- * Rotas para receber webhooks do Asaas
- * Implementa endpoints seguros para receber notificações de pagamentos e assinaturas
+ * Rotas para webhooks do Asaas
+ * Processa eventos de pagamento, assinatura e checkout
  */
 
 const express = require('express');
@@ -52,5 +52,8 @@ router.post('/webhooks/asaas/subscriptions',
   express.json({type: 'application/json'}),
   asaasWebhookController.processWebhook
 );
+
+// Rota que recebe os webhooks do Asaas
+router.post('/webhook/asaas', asaasWebhookController.processWebhook);
 
 module.exports = router; 

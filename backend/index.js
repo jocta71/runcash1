@@ -104,6 +104,15 @@ if (fs.existsSync(apiIndexPath)) {
     } catch (err) {
       console.log('Rotas de webhook do Asaas não disponíveis:', err.message);
     }
+    
+    // Carregar rotas de checkout do Asaas
+    try {
+      const asaasCheckoutRoutes = require('./routes/asaasCheckoutRoutes');
+      app.use('/api', asaasCheckoutRoutes);
+      console.log('Rotas de checkout do Asaas carregadas');
+    } catch (err) {
+      console.log('Rotas de checkout do Asaas não disponíveis:', err.message);
+    }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
   }

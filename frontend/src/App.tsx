@@ -26,6 +26,8 @@ const PlansPage = lazy(() => import("@/pages/PlansPage"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
+// Página de redirecionamento do checkout do Asaas
+const CheckoutRedirect = lazy(() => import("@/pages/CheckoutRedirect"));
 // Comentando a importação da página de teste do Asaas
 // const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 // Importação da nossa nova página de teste de assinatura
@@ -178,6 +180,15 @@ const AppContent = () => {
           <ProtectedRoute>
             <Suspense fallback={<LoadingScreen />}>
               <BillingPage />
+            </Suspense>
+          </ProtectedRoute>
+        } />
+        
+        {/* Rota de redirecionamento do checkout do Asaas */}
+        <Route path="/checkout/redirect" element={
+          <ProtectedRoute>
+            <Suspense fallback={<LoadingScreen />}>
+              <CheckoutRedirect />
             </Suspense>
           </ProtectedRoute>
         } />

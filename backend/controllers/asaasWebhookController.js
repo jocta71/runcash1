@@ -5,6 +5,7 @@
 
 const getDb = require('../services/database');
 const { ObjectId } = require('mongodb');
+const { clearSubscriptionCache } = require('../middlewares/asaasSubscriptionMiddleware');
 
 /**
  * Processa os webhooks recebidos do Asaas
@@ -73,6 +74,14 @@ const processWebhook = async (req, res) => {
         await handleSubscriptionDeleted(body, db);
         break;
         
+      case 'CHECKOUT_COMPLETED':
+        await handleCheckoutCompleted(body, db);
+        break;
+        
+      case 'CHECKOUT_CREATED':
+        await handleCheckoutCreated(body, db);
+        break;
+        
       default:
         console.log(`[AsaasWebhook] Evento não tratado: ${body.event}`);
     }
@@ -103,6 +112,133 @@ const processWebhook = async (req, res) => {
     });
   }
 };
+
+/**
+ * Trata evento de checkout completo
+ */
+async function handleCheckoutCompleted(body, db) {
+  try {
+    const checkout = body.checkout;
+    
+    if (!checkout || !checkout.id) {
+      console.log('[AsaasWebhook] Dados de checkout incompletos');
+      return;
+    }
+    
+    console.log(`[AsaasWebhook] Processando checkout completo: ${checkout.id}`);
+    
+    // Atualizar registro de checkout na nossa base
+    const result = await db.collection('asaas_checkouts').updateOne(
+      { checkout_id: checkout.id },
+      {
+        $set: {
+          status: 'COMPLETED',
+          updated_at: new Date(),
+          payment_id: checkout.payment?.id || null,
+          subscription_id: checkout.subscription?.id || null
+        }
+      }
+    );
+    
+    if (result.matchedCount === 0) {
+      console.log(`[AsaasWebhook] Checkout ${checkout.id} não encontrado na base local`);
+      
+      // Tentar buscar o usuário pelo customer_id
+      if (checkout.customer) {
+        const user = await db.collection('users').findOne({
+          asaas_customer_id: checkout.customer
+        });
+        
+        if (user) {
+          console.log(`[AsaasWebhook] Usuário encontrado pelo customer_id: ${user._id}`);
+          
+          // Criar registro do checkout
+          await db.collection('asaas_checkouts').insertOne({
+            user_id: user._id.toString(),
+            asaas_customer_id: checkout.customer,
+            checkout_id: checkout.id,
+            payment_id: checkout.payment?.id || null,
+            subscription_id: checkout.subscription?.id || null,
+            value: checkout.value,
+            status: 'COMPLETED',
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+          
+          // Limpar cache de assinatura para forçar verificação na próxima requisição
+          clearSubscriptionCache(user._id.toString());
+        }
+      }
+    } else {
+      console.log(`[AsaasWebhook] Checkout ${checkout.id} atualizado com sucesso`);
+      
+      // Buscar o checkout atualizado
+      const checkoutRecord = await db.collection('asaas_checkouts').findOne({ checkout_id: checkout.id });
+      
+      if (checkoutRecord && checkoutRecord.user_id) {
+        console.log(`[AsaasWebhook] Limpando cache de assinatura para usuário: ${checkoutRecord.user_id}`);
+        
+        // Limpar cache de assinatura para forçar verificação na próxima requisição
+        clearSubscriptionCache(checkoutRecord.user_id);
+      }
+    }
+  } catch (error) {
+    console.error('[AsaasWebhook] Erro ao processar checkout completo:', error);
+    throw error;
+  }
+}
+
+/**
+ * Trata evento de checkout criado
+ */
+async function handleCheckoutCreated(body, db) {
+  try {
+    const checkout = body.checkout;
+    
+    if (!checkout || !checkout.id) {
+      console.log('[AsaasWebhook] Dados de checkout incompletos');
+      return;
+    }
+    
+    console.log(`[AsaasWebhook] Processando checkout criado: ${checkout.id}`);
+    
+    // Verificar se já existe na nossa base
+    const existingCheckout = await db.collection('asaas_checkouts').findOne({
+      checkout_id: checkout.id
+    });
+    
+    if (!existingCheckout) {
+      // Buscar usuário pelo customer_id
+      const user = await db.collection('users').findOne({
+        asaas_customer_id: checkout.customer
+      });
+      
+      if (user) {
+        console.log(`[AsaasWebhook] Usuário encontrado pelo customer_id: ${user._id}`);
+        
+        // Criar registro do checkout
+        await db.collection('asaas_checkouts').insertOne({
+          user_id: user._id.toString(),
+          asaas_customer_id: checkout.customer,
+          checkout_id: checkout.id,
+          value: checkout.value,
+          status: 'PENDING',
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+        
+        console.log(`[AsaasWebhook] Checkout ${checkout.id} registrado para o usuário ${user._id}`);
+      } else {
+        console.log(`[AsaasWebhook] Usuário não encontrado para customer_id: ${checkout.customer}`);
+      }
+    } else {
+      console.log(`[AsaasWebhook] Checkout ${checkout.id} já existe na base local`);
+    }
+  } catch (error) {
+    console.error('[AsaasWebhook] Erro ao processar checkout criado:', error);
+    throw error;
+  }
+}
 
 /**
  * Trata evento de pagamento confirmado
@@ -170,6 +306,9 @@ async function handlePaymentConfirmed(body, db) {
       { upsert: true }
     );
     
+    // Limpar cache de assinatura
+    clearSubscriptionCache(user._id.toString());
+    
     console.log(`[AsaasWebhook] Assinatura ativada para usuário: ${user._id}, plano: ${planType}`);
   } catch (error) {
     console.error('[AsaasWebhook] Erro ao processar pagamento confirmado:', error);
@@ -214,6 +353,9 @@ async function handlePaymentOverdue(body, db) {
       }
     );
     
+    // Limpar cache de assinatura
+    clearSubscriptionCache(user._id.toString());
+    
     console.log(`[AsaasWebhook] Assinatura marcada como atrasada para usuário: ${user._id}`);
   } catch (error) {
     console.error('[AsaasWebhook] Erro ao processar pagamento atrasado:', error);
@@ -257,6 +399,9 @@ async function handlePaymentRefunded(body, db) {
         }
       }
     );
+    
+    // Limpar cache de assinatura
+    clearSubscriptionCache(user._id.toString());
     
     console.log(`[AsaasWebhook] Pagamento reembolsado para usuário: ${user._id}`);
   } catch (error) {
@@ -315,6 +460,9 @@ async function handleSubscriptionCreated(body, db) {
       { upsert: true }
     );
     
+    // Limpar cache de assinatura
+    clearSubscriptionCache(user._id.toString());
+    
     console.log(`[AsaasWebhook] Assinatura criada para usuário: ${user._id}, plano: ${planType}`);
   } catch (error) {
     console.error('[AsaasWebhook] Erro ao processar criação de assinatura:', error);
@@ -367,6 +515,9 @@ async function handleSubscriptionUpdated(body, db) {
       }
     );
     
+    // Limpar cache de assinatura
+    clearSubscriptionCache(user._id.toString());
+    
     console.log(`[AsaasWebhook] Assinatura atualizada para usuário: ${user._id}, status: ${subscription.status}`);
   } catch (error) {
     console.error('[AsaasWebhook] Erro ao processar atualização de assinatura:', error);
@@ -404,6 +555,9 @@ async function handleSubscriptionCancelled(body, db) {
       }
     );
     
+    // Limpar cache de assinatura
+    clearSubscriptionCache(user._id.toString());
+    
     console.log(`[AsaasWebhook] Assinatura cancelada para usuário: ${user._id}`);
   } catch (error) {
     console.error('[AsaasWebhook] Erro ao processar cancelamento de assinatura:', error);
@@ -440,6 +594,9 @@ async function handleSubscriptionDeleted(body, db) {
         }
       }
     );
+    
+    // Limpar cache de assinatura
+    clearSubscriptionCache(user._id.toString());
     
     console.log(`[AsaasWebhook] Assinatura excluída para usuário: ${user._id}`);
   } catch (error) {
