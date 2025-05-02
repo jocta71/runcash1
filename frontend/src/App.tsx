@@ -46,7 +46,7 @@ const MinhaContaRedirect = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
-    navigate('/', { replace: true });
+    navigate('/billing', { replace: true });
   }, [navigate]);
   
   return <LoadingScreen />;
@@ -57,7 +57,7 @@ const MinhaContaAssinaturaRedirect = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
-    navigate('/', { replace: true });
+    navigate('/billing', { replace: true });
   }, [navigate]);
   
   return <LoadingScreen />;
@@ -68,7 +68,7 @@ const AccountRouteRedirect = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
-    navigate('/', { replace: true });
+    navigate('/billing', { replace: true });
   }, [navigate]);
   
   return <LoadingScreen />;
@@ -216,7 +216,7 @@ const App = () => {
                           </ProtectedRoute>
                         } />
                         
-                        {/* Página de detalhes da assinatura - agora redirecionando para / */}
+                        {/* Página de detalhes da assinatura - agora redirecionando para /billing */}
                         <Route path="/minha-conta/assinatura" element={
                           <ProtectedRoute>
                             <Suspense fallback={<LoadingScreen />}>
@@ -225,7 +225,7 @@ const App = () => {
                           </ProtectedRoute>
                         } />
                         
-                        {/* Rota para /minha-conta que redireciona para / */}
+                        {/* Rota para /minha-conta que redireciona para /minha-conta/assinatura */}
                         <Route path="/minha-conta" element={
                           <ProtectedRoute>
                             <Suspense fallback={<LoadingScreen />}>
@@ -241,7 +241,13 @@ const App = () => {
                           </Suspense>
                         } />
                         
-                        {/* Removida a rota /billing */}
+                        <Route path="/billing" element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<LoadingScreen />}>
+                              <BillingPage />
+                            </Suspense>
+                          </ProtectedRoute>
+                        } />
                         
                         <Route path="/planos" element={
                           <ProtectedRoute>

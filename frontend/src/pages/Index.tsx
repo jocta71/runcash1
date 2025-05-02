@@ -55,7 +55,7 @@ const Index = () => {
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
-  
+
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -77,7 +77,7 @@ const Index = () => {
       EventService.off('roulette:real-data-loaded', handleRealDataLoaded);
     };
   }, []);
-
+  
   // Remover verificação por usuário, todos têm acesso
   useEffect(() => {
     loadRoulettes();
@@ -87,7 +87,7 @@ const Index = () => {
       // Limpeza se necessário
     };
   }, []);
-
+  
   const handleRouletteExists = (event: RouletteNumberEvent | StrategyUpdateEvent) => {
     // Ajustar acesso às propriedades usando as propriedades corretas do evento
     const roletaId = 'roleta_id' in event ? event.roleta_id : '';
@@ -220,18 +220,18 @@ const Index = () => {
     }
     
     return roulettesToShow.map((roulette) => (
-      <div 
-        key={roulette.id} 
+        <div 
+          key={roulette.id} 
         onClick={() => handleRouletteSelect(roulette)}
         className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === roulette.id ? 'border-2 border-green-500' : ''}`}
-      >
-        <RouletteCard
+        >
+          <RouletteCard
           data={roulette}
-        />
-      </div>
+          />
+        </div>
     ));
   };
-
+  
   const renderPagination = () => {
     const totalPages = Math.ceil(filteredRoulettes.length / itemsPerPage);
     
@@ -283,9 +283,9 @@ const Index = () => {
               <div className="h-4 bg-gray-700 rounded w-1/2"></div>
             </div>
             <div className="h-6 bg-gray-700 rounded w-1/4"></div>
-          </div>
         </div>
-      ));
+      </div>
+    ));
   };
 
   return (
@@ -299,47 +299,47 @@ const Index = () => {
           </div>
         )}
         
-        {/* Layout principal */}
+          {/* Layout principal */}
         <div className="flex flex-col lg:flex-row gap-6">
-          {/* Cards de roleta à esquerda */}
-          <div className="w-full lg:w-1/2">
-            <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">
-              <div className="flex justify-between items-center">
+            {/* Cards de roleta à esquerda */}
+            <div className="w-full lg:w-1/2">
+              <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">
+                <div className="flex justify-between items-center">
                 <div className="text-white font-bold">
                   Roletas Disponíveis
                 </div>
+                </div>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {isLoading ? renderRouletteSkeletons() : renderRouletteCards()}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {isLoading ? renderRouletteSkeletons() : renderRouletteCards()}
             </div>
             
             {/* Paginação */}
             {renderPagination()}
-          </div>
-          
-          {/* Painel lateral */}
-          <div className="w-full lg:w-1/2">
-            {selectedRoulette ? (
-              <RouletteSidePanelStats
-                roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
-                lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
-                wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
-                losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
-                providers={[]} // Se houver uma lista de provedores disponível, passe aqui
-              />
-            ) : isLoading ? (
-              <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-8 flex flex-col items-center justify-center">
-                <div className="animate-spin rounded-full h-16 w-16 border-4 border-muted border-t-[hsl(142.1,70.6%,45.3%)] mb-4"></div>
-                <p className="text-gray-400">Carregando estatísticas...</p>
-              </div>
-            ) : (
-              <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-4 flex items-center justify-center h-48">
-                <p className="text-gray-400">Selecione uma roleta para ver suas estatísticas</p>
-              </div>
-            )}
-          </div>
+            </div>
+            
+            {/* Painel lateral */}
+            <div className="w-full lg:w-1/2">
+              {selectedRoulette ? (
+                <RouletteSidePanelStats
+                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
+                  lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
+                  wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
+                  losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
+                  providers={[]} // Se houver uma lista de provedores disponível, passe aqui
+                />
+              ) : isLoading ? (
+                <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-8 flex flex-col items-center justify-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-muted border-t-[hsl(142.1,70.6%,45.3%)] mb-4"></div>
+                  <p className="text-gray-400">Carregando estatísticas...</p>
+                </div>
+              ) : (
+                <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-4 flex items-center justify-center h-48">
+                  <p className="text-gray-400">Selecione uma roleta para ver suas estatísticas</p>
+                </div>
+              )}
+            </div>
         </div>
       </div>
     </Layout>
