@@ -1,5 +1,6 @@
 // Removendo a importação do mapeamento canônico que pode estar filtrando roletas
 // import { mapToCanonicalRouletteId } from './rouletteService';
+import axios from 'axios';
 
 // Cache para otimizar as requisições
 const cache: Record<string, { data: any, timestamp: number }> = {};
@@ -10,10 +11,6 @@ const CACHE_TTL = 60000; // 1 minuto em milissegundos
  * Esta API combina os dados que normalmente seriam buscados separadamente.
  */
 export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
-  console.log('[API] ⛔ DESATIVADO: Requisição para buscar roletas com números bloqueada para diagnóstico');
-  return [];
-  
-  /* CÓDIGO ORIGINAL DESATIVADO
   try {
     // Verificar cache
     const cacheKey = `roulettes_with_numbers_${limit}`;
@@ -82,17 +79,12 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
     console.error('[API] Erro ao buscar roletas com números:', error);
     return [];
   }
-  */
 };
 
 /**
  * Busca uma roleta específica por ID e inclui seus números mais recentes
  */
 export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Promise<any | null> => {
-  console.log(`[API] ⛔ DESATIVADO: Requisição para buscar roleta ${roletaId} com números bloqueada para diagnóstico`);
-  return null;
-  
-  /* CÓDIGO ORIGINAL DESATIVADO
   try {
     // Verificar cache
     const cacheKey = `roulette_with_numbers_${roletaId}_${limit}`;
@@ -142,5 +134,4 @@ export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Pr
     console.error(`[API] Erro ao buscar roleta ${roletaId} com números:`, error);
     return null;
   }
-  */
 }; 
