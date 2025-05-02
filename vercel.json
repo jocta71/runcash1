@@ -4,11 +4,9 @@
   "outputDirectory": "frontend/dist",
   "functions": {
    
-    }
   },
   "rewrites": [
    
-
   ],
   "env": {
     "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash",
@@ -24,4 +22,5 @@
     "GEMINI_MODEL": "gemini-2.0-flash",
     "ADMIN_API_KEY": "rcwh_secret_key_123"
   }
+}
 
