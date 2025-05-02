@@ -4,37 +4,64 @@ const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-// Função para executar comandos
+/**
+ * Executa um comando no sistema
+ * @param {string} command Comando a ser executado
+ */
 function runCommand(command) {
-  console.log(`Executando comando: ${command}`);
   try {
-    execSync(command, { stdio: 'inherit' });
-    return true;
+    console.log(`Executando comando: ${command}`);
+    const output = execSync(command, { stdio: 'inherit' });
+    return output;
   } catch (error) {
-    console.log(`Erro ao executar comando: ${command}`);
+    console.error(`Erro ao executar comando: ${command}`);
     throw error;
   }
 }
 
-// Função principal
+/**
+ * Verifica se uma dependência está instalada
+ * @param {string} packageName Nome do pacote
+ * @returns {boolean} true se o pacote estiver instalado
+ */
+function isDependencyInstalled(packageName) {
+  try {
+    // Verifica se o diretório do node_modules/packageName existe
+    const packagePath = path.resolve(process.cwd(), 'node_modules', packageName);
+    return fs.existsSync(packagePath);
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Função principal
+ */
 function main() {
   console.log('Iniciando processo de build personalizado...');
   console.log(`Diretório atual: ${process.cwd()}`);
   
-  // Verificar dependências
+  // 1. Verificar e instalar dependências
   console.log('Verificando dependências...');
   runCommand('npm install');
   
-  // Verificar e instalar react-bootstrap se necessário
-  try {
-    require.resolve('react-bootstrap');
-    console.log('react-bootstrap já está instalado');
-  } catch (e) {
+  // 2. Verificar dependências específicas
+  if (!isDependencyInstalled('react-bootstrap')) {
     console.log('Instalando react-bootstrap...');
     runCommand('npm install react-bootstrap');
+  } else {
+    console.log('react-bootstrap já está instalado');
+  }
+
+  // Verificar e instalar react-toastify se necessário
+  if (!isDependencyInstalled('react-toastify')) {
+    console.log('Instalando react-toastify...');
+    runCommand('npm install react-toastify');
+  } else {
+    console.log('react-toastify já está instalado');
   }
   
-  // Executar build
+  // 3. Iniciar build
   console.log('Iniciando build do projeto...');
   runCommand('node ./node_modules/vite/bin/vite.js build');
   
@@ -96,7 +123,7 @@ function main() {
   console.log('Build concluído com sucesso!');
 }
 
-// Executar script
+// Executar função principal
 try {
   main();
 } catch (error) {
