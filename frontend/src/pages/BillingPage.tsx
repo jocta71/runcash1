@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { CreditCard, ExternalLink } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useSubscription } from '@/hooks/useSubscription';
 import ProfileSubscription from './ProfileSubscription';

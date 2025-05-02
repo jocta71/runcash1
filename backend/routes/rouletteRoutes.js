@@ -7,8 +7,7 @@ const express = require('express');
 const router = express.Router();
 
 // Importar middlewares
-const authMiddleware = require('../middlewares/authMiddleware');
-const subscriptionMiddleware = require('../middlewares/subscriptionMiddleware');
+const { verifyTokenAndSubscription, requireResourceAccess } = require('../middlewares/asaasAuthMiddleware');
 
 // Importar controller
 const rouletteController = require('../controllers/rouletteController');
@@ -16,11 +15,15 @@ const rouletteController = require('../controllers/rouletteController');
 /**
  * @route   GET /api/roulettes
  * @desc    Lista todas as roletas disponíveis (limitado por plano)
- * @access  Público com limitações
+ * @access  Privado - Requer assinatura ativa no Asaas
  */
 router.get('/roulettes', 
-  authMiddleware.verifyToken,
-  subscriptionMiddleware.checkSubscription,
+  verifyTokenAndSubscription({ 
+    required: true, 
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
+    degradedPreview: true 
+  }),
+  requireResourceAccess('roulette_data'),
   rouletteController.listRoulettes
 );
 
@@ -39,8 +42,10 @@ router.get('/roulettes/:id/basic',
  * @access  Público com limitações
  */
 router.get('/roulettes/:id/recent', 
-  authMiddleware.verifyToken,
-  subscriptionMiddleware.checkSubscription,
+  verifyTokenAndSubscription({ 
+    required: false,
+    degradedPreview: true
+  }),
   rouletteController.getRecentNumbers
 );
 
@@ -50,8 +55,11 @@ router.get('/roulettes/:id/recent',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/detailed', 
-  authMiddleware.verifyToken,
-  subscriptionMiddleware.requireSubscription,
+  verifyTokenAndSubscription({ 
+    required: true,
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
+  }),
+  requireResourceAccess('standard_stats'),
   rouletteController.getDetailedRouletteData
 );
 
@@ -61,8 +69,11 @@ router.get('/roulettes/:id/detailed',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/stats', 
-  authMiddleware.verifyToken,
-  subscriptionMiddleware.requireSubscription,
+  verifyTokenAndSubscription({
+    required: true,
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
+  }),
+  requireResourceAccess('standard_stats'),
   rouletteController.getRouletteStatistics
 );
 
@@ -71,7 +82,7 @@ router.get('/roulettes/:id/stats',
  * @desc    Obtém dados históricos avançados (para assinantes premium)
  * @access  Privado - Requer assinatura premium
  */
-router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical', 
+router.get('/roulettes/:id/historical', 
   verifyTokenAndSubscription({ 
     required: true,
     allowedPlans: ['PREMIUM']
@@ -86,8 +97,11 @@ router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/batch', 
-  authMiddleware.verifyToken,
-  subscriptionMiddleware.requireSubscription,
+  verifyTokenAndSubscription({
+    required: true,
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
+  }),
+  requireResourceAccess('standard_stats'),
   rouletteController.getNumbersBatch
 );
 

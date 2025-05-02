@@ -16,11 +16,13 @@ const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3';
  * @param {Object} options - Opções de configuração
  * @param {boolean} options.required - Se a autenticação é obrigatória
  * @param {Array} options.allowedPlans - Lista de planos permitidos ('BASIC', 'PRO', 'PREMIUM')
+ * @param {boolean} options.degradedPreview - Se true, permite acesso degradado para não assinantes
  * @returns {Function} Middleware Express
  */
 exports.verifyTokenAndSubscription = (options = { 
   required: true,
-  allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
+  allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
+  degradedPreview: false
 }) => {
   return async (req, res, next) => {
     try {
@@ -31,10 +33,16 @@ exports.verifyTokenAndSubscription = (options = {
           return res.status(401).json({
             success: false,
             message: 'Autenticação necessária para acessar este recurso',
-            error: 'TOKEN_MISSING'
+            error: 'TOKEN_MISSING',
+            subscriptionRequired: true
           });
         } else {
-          // Token não é obrigatório, continuar sem autenticação
+          // Token não é obrigatório, marcar acesso como degradado se permitido
+          if (options.degradedPreview) {
+            req.degradedAccess = true;
+            return next();
+          }
+          // Continuar sem autenticação para recursos públicos
           return next();
         }
       }
@@ -65,10 +73,16 @@ exports.verifyTokenAndSubscription = (options = {
 
         // Verificar se o usuário tem um asaasCustomerId
         if (!decoded.asaasCustomerId) {
+          if (options.degradedPreview) {
+            req.degradedAccess = true;
+            return next();
+          }
+
           return res.status(403).json({
             success: false,
             message: 'Usuário não possui assinatura configurada',
-            error: 'NO_ASAAS_CUSTOMER'
+            error: 'NO_ASAAS_CUSTOMER',
+            subscriptionRequired: true
           });
         }
 
@@ -84,26 +98,53 @@ exports.verifyTokenAndSubscription = (options = {
 
         // Verificar se a consulta retornou assinaturas
         if (!asaasResponse.data || !asaasResponse.data.data || asaasResponse.data.data.length === 0) {
+          if (options.degradedPreview) {
+            req.degradedAccess = true;
+            return next();
+          }
+
           return res.status(403).json({
             success: false,
             message: 'Assinatura não encontrada',
-            error: 'NO_SUBSCRIPTION_FOUND'
+            error: 'NO_SUBSCRIPTION_FOUND',
+            subscriptionRequired: true
           });
         }
 
-        // Verificar se há alguma assinatura válida (ACTIVE, RECEIVED ou CONFIRMED)
+        // Verificar se há alguma assinatura válida (ACTIVE)
         const activeSubscription = asaasResponse.data.data.find(sub => 
           sub.status === 'ACTIVE' || 
-          sub.status === 'active' || 
-          sub.status === 'RECEIVED' || 
-          sub.status === 'CONFIRMED'
+          sub.status === 'active'
         );
 
         if (!activeSubscription) {
+          // Verificar se há assinatura pendente ou em processamento
+          const pendingSubscription = asaasResponse.data.data.find(sub => 
+            sub.status === 'PENDING' || 
+            sub.status === 'pending' ||
+            sub.status === 'RECEIVED' || 
+            sub.status === 'CONFIRMED'
+          );
+
+          if (pendingSubscription) {
+            return res.status(403).json({
+              success: false,
+              message: 'Sua assinatura está pendente de confirmação de pagamento',
+              error: 'PENDING_SUBSCRIPTION',
+              subscriptionStatus: 'pending'
+            });
+          }
+
+          if (options.degradedPreview) {
+            req.degradedAccess = true;
+            return next();
+          }
+
           return res.status(403).json({
             success: false,
             message: 'Nenhuma assinatura válida encontrada',
-            error: 'NO_VALID_SUBSCRIPTION'
+            error: 'NO_VALID_SUBSCRIPTION',
+            subscriptionRequired: true
           });
         }
 
@@ -118,16 +159,34 @@ exports.verifyTokenAndSubscription = (options = {
         };
 
         // Verificar tipo de plano da assinatura
-        const userPlan = planMap[activeSubscription.billingType] || activeSubscription.billingType;
+        let userPlan = 'BASIC'; // Default
+
+        // Tentar extrair o plano do billingType primeiro
+        if (activeSubscription.billingType && planMap[activeSubscription.billingType.toLowerCase()]) {
+          userPlan = planMap[activeSubscription.billingType.toLowerCase()];
+        } 
+        // Depois verificar se há um valor explícito no campo de descrição
+        else if (activeSubscription.description) {
+          const lowerDesc = activeSubscription.description.toLowerCase();
+          if (lowerDesc.includes('premium')) userPlan = 'PREMIUM';
+          else if (lowerDesc.includes('pro')) userPlan = 'PRO';
+          else if (lowerDesc.includes('basic')) userPlan = 'BASIC';
+        }
         
         // Verificar se o plano está entre os permitidos
-        if (!options.allowedPlans.includes(userPlan)) {
+        if (options.allowedPlans.length > 0 && !options.allowedPlans.includes(userPlan)) {
+          if (options.degradedPreview) {
+            req.degradedAccess = true;
+            return next();
+          }
+
           return res.status(403).json({
             success: false,
             message: `Acesso negado. Este recurso requer um plano superior`,
             error: 'PLAN_UPGRADE_REQUIRED',
             currentPlan: userPlan,
-            requiredPlans: options.allowedPlans
+            requiredPlans: options.allowedPlans,
+            subscriptionRequired: true
           });
         }
 
@@ -180,15 +239,16 @@ exports.requireResourceAccess = (resourceType) => {
         return res.status(401).json({
           success: false,
           message: 'Usuário não autenticado ou assinatura não verificada',
-          error: 'AUTH_REQUIRED'
+          error: 'AUTH_REQUIRED',
+          subscriptionRequired: true
         });
       }
 
       // Mapeamento de recursos por plano
       const resourceAccessMap = {
-        'BASIC': ['basic_data', 'standard_stats', 'limited_roulettes'],
-        'PRO': ['basic_data', 'standard_stats', 'limited_roulettes', 'advanced_stats', 'unlimited_roulettes', 'real_time_updates'],
-        'PREMIUM': ['basic_data', 'standard_stats', 'limited_roulettes', 'advanced_stats', 'unlimited_roulettes', 'real_time_updates', 'historical_data', 'ai_predictions', 'api_access']
+        'BASIC': ['basic_data', 'standard_stats', 'limited_roulettes', 'roulette_data'],
+        'PRO': ['basic_data', 'standard_stats', 'limited_roulettes', 'advanced_stats', 'unlimited_roulettes', 'real_time_updates', 'roulette_data'],
+        'PREMIUM': ['basic_data', 'standard_stats', 'limited_roulettes', 'advanced_stats', 'unlimited_roulettes', 'real_time_updates', 'historical_data', 'ai_predictions', 'api_access', 'roulette_data']
       };
 
       // Verificar se o plano do usuário permite acesso ao recurso
@@ -200,7 +260,8 @@ exports.requireResourceAccess = (resourceType) => {
           message: `Acesso negado. Este recurso requer um plano superior`,
           error: 'RESOURCE_NOT_ALLOWED',
           currentPlan: req.subscription.plan,
-          requestedResource: resourceType
+          requestedResource: resourceType,
+          subscriptionRequired: true
         });
       }
 

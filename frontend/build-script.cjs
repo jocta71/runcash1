@@ -4,114 +4,37 @@ const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-/**
- * Executa um comando no sistema
- * @param {string} command Comando a ser executado
- */
+// Função para executar comandos
 function runCommand(command) {
+  console.log(`Executando comando: ${command}`);
   try {
-    console.log(`Executando comando: ${command}`);
-    const output = execSync(command, { stdio: 'inherit' });
-    return output;
+    execSync(command, { stdio: 'inherit' });
+    return true;
   } catch (error) {
-    console.error(`Erro ao executar comando: ${command}`);
+    console.log(`Erro ao executar comando: ${command}`);
     throw error;
   }
 }
 
-/**
- * Verifica se uma dependência está instalada
- * @param {string} packageName Nome do pacote
- * @returns {boolean} true se o pacote estiver instalado
- */
-function isDependencyInstalled(packageName) {
-  try {
-    // Verifica se o diretório do node_modules/packageName existe
-    const packagePath = path.resolve(process.cwd(), 'node_modules', packageName);
-    return fs.existsSync(packagePath);
-  } catch (error) {
-    return false;
-  }
-}
-
-/**
- * Função principal
- */
+// Função principal
 function main() {
   console.log('Iniciando processo de build personalizado...');
   console.log(`Diretório atual: ${process.cwd()}`);
   
-  // 1. Verificar e instalar dependências
+  // Verificar dependências
   console.log('Verificando dependências...');
   runCommand('npm install');
   
-  // 2. Verificar dependências específicas
-  if (!isDependencyInstalled('react-bootstrap')) {
+  // Verificar e instalar react-bootstrap se necessário
+  try {
+    require.resolve('react-bootstrap');
+    console.log('react-bootstrap já está instalado');
+  } catch (e) {
     console.log('Instalando react-bootstrap...');
     runCommand('npm install react-bootstrap');
-  } else {
-    console.log('react-bootstrap já está instalado');
-  }
-
-  // Verificar e instalar react-toastify se necessário
-  if (!isDependencyInstalled('react-toastify')) {
-    console.log('Instalando react-toastify...');
-    runCommand('npm install react-toastify');
-  } else {
-    console.log('react-toastify já está instalado');
   }
   
-  // Verificar e instalar @mui/icons-material se necessário
-  if (!isDependencyInstalled('@mui/icons-material')) {
-    console.log('Instalando @mui/icons-material...');
-    runCommand('npm install @mui/icons-material');
-  } else {
-    console.log('@mui/icons-material já está instalado');
-  }
-  
-  // 3. Verificar se existe o componente use-toast
-  const useToastComponentPath = path.resolve(process.cwd(), 'src', 'components', 'ui', 'use-toast.ts');
-  const useToastHookPath = path.resolve(process.cwd(), 'src', 'hooks', 'use-toast.ts');
-  
-  if (!fs.existsSync(useToastComponentPath)) {
-    console.log('Criando fallback para use-toast em components/ui...');
-    try {
-      // Criar o diretório ui se necessário
-      fs.mkdirSync(path.resolve(process.cwd(), 'src', 'components', 'ui'), { recursive: true });
-      
-      // Verificar se o hook existe
-      if (fs.existsSync(useToastHookPath)) {
-        console.log('Hook use-toast encontrado, criando re-export...');
-        // Criar arquivo de re-export
-        const reExportContent = `// Re-export do use-toast do diretório hooks
-// Este arquivo serve como fallback para importações existentes
-// que ainda referenciam este caminho
-
-export * from '@/hooks/use-toast';`;
-        fs.writeFileSync(useToastComponentPath, reExportContent);
-      } else {
-        console.log('Hook use-toast não encontrado, criando stub...');
-        // Criar um stub mínimo do componente
-        const stubContent = `// Stub para use-toast
-export const useToast = () => {
-  return {
-    toast: (props) => console.log('Toast (stub):', props)
-  };
-};
-
-export const toast = (props) => console.log('Toast (stub):', props);`;
-        fs.writeFileSync(useToastComponentPath, stubContent);
-      }
-      
-      console.log('Arquivo use-toast.ts criado em components/ui');
-    } catch (error) {
-      console.error('Erro ao criar fallback para use-toast:', error);
-    }
-  } else {
-    console.log('Componente use-toast já existe em components/ui');
-  }
-  
-  // 4. Iniciar build
+  // Executar build
   console.log('Iniciando build do projeto...');
   runCommand('node ./node_modules/vite/bin/vite.js build');
   
@@ -173,7 +96,7 @@ export const toast = (props) => console.log('Toast (stub):', props);`;
   console.log('Build concluído com sucesso!');
 }
 
-// Executar função principal
+// Executar script
 try {
   main();
 } catch (error) {

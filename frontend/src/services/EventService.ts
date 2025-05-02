@@ -1,5 +1,5 @@
 // Serviço para gerenciar eventos em tempo real usando Socket.IO
-import { toast } from '@/hooks/use-toast';
+import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
 import SocketService from '@/services/SocketService';
 import RESTSocketService from './RESTSocketService';

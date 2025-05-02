@@ -5,18 +5,51 @@
 
 const express = require('express');
 const router = express.Router();
-const subscriptionController = require('../controllers/subscriptionController');
-const authMiddleware = require('../middlewares/authMiddleware');
-const subscriptionMiddleware = require('../middlewares/subscriptionMiddleware');
+const { protect } = require('../middlewares/auth');
+const { verifyTokenAndSubscription } = require('../middlewares/asaasAuthMiddleware');
 
-// Rotas públicas
-router.get('/plans', subscriptionController.listPlans);
+// Importar controllers
+const { getSubscriptionStatus } = require('../api/subscription/status');
+const { 
+  createCheckout, 
+  handleWebhook, 
+  cancelSubscription, 
+  listUserSubscriptions 
+} = require('../controllers/subscriptionController');
 
-// Rotas que exigem autenticação
-router.post('/create', authMiddleware.verifyToken, subscriptionController.createSubscription);
-router.get('/status', authMiddleware.verifyToken, subscriptionMiddleware.checkSubscription, subscriptionController.checkUserSubscription);
+/**
+ * @route   GET /api/subscription/status
+ * @desc    Verifica status da assinatura do usuário
+ * @access  Privado - Requer autenticação
+ */
+router.get('/status', protect, getSubscriptionStatus);
 
-// Webhook do Asaas (sem autenticação - usado pelo Asaas)
-router.post('/webhook/asaas', express.json(), subscriptionController.processWebhook);
+/**
+ * @route   POST /api/subscriptions/checkout
+ * @desc    Cria um checkout de assinatura no Asaas
+ * @access  Privado - Requer autenticação
+ */
+router.post('/checkout', protect, createCheckout);
+
+/**
+ * @route   POST /api/subscriptions/webhook
+ * @desc    Recebe eventos de webhook do Asaas
+ * @access  Público - Não requer autenticação
+ */
+router.post('/webhook', handleWebhook);
+
+/**
+ * @route   POST /api/subscriptions/cancel
+ * @desc    Cancela uma assinatura ativa
+ * @access  Privado - Requer autenticação
+ */
+router.post('/cancel', protect, cancelSubscription);
+
+/**
+ * @route   GET /api/subscriptions
+ * @desc    Lista assinaturas do usuário atual
+ * @access  Privado - Requer autenticação
+ */
+router.get('/', protect, listUserSubscriptions);
 
 module.exports = router; 
