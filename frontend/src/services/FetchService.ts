@@ -140,16 +140,9 @@ class FetchService {
    */
   private async fetchAllRoulettes(): Promise<any[]> {
     try {
-      const response = await this.get<any[]>(`${this.apiBaseUrl}/roulettes`, {
-        throttleKey: 'all_roulettes',
-        forceRefresh: false
-      });
-      
-      if (response && Array.isArray(response)) {
-        return response;
-      }
-      
-      throw new Error(`Resposta inválida ao buscar roletas`);
+      // Este método não deve mais acessar o endpoint /api/roulettes
+      logger.warn('Método fetchAllRoulettes está descontinuado nesta versão');
+      return [];
     } catch (error) {
       logger.error('Erro ao buscar lista de roletas:', error);
       return [];
@@ -161,18 +154,10 @@ class FetchService {
    */
   private async fetchRouletteNumbers(roletaId: string): Promise<number[]> {
     try {
-      // Endpoint descontinuado - não usar mais /api/ROULETTES
-      // Tentar diretamente o endpoint de roletas padrão
-      const response = await this.get<any>(`${this.apiBaseUrl}/roulettes/${roletaId}`, {
-        throttleKey: `roulette_${roletaId}`,
-        forceRefresh: false
-      });
-      
-      if (response && response.numeros && Array.isArray(response.numeros)) {
-        return response.numeros;
-      }
-      
-      throw new Error(`Resposta inválida ao buscar números para roleta ${roletaId}`);
+      // Endpoint de roletas está desativado
+      // Este método não deve mais ser usado
+      logger.warn(`Método fetchRouletteNumbers está descontinuado e não deve mais ser usado para roleta ${roletaId}`);
+      return [];
     } catch (error) {
       logger.error(`Erro ao buscar números para roleta ${roletaId}:`, error);
       return [];
@@ -572,35 +557,14 @@ class FetchService {
     }
   }
 
+  /**
+   * Método descontinuado - não deve mais ser usado
+   * @deprecated Use fetchAllRoulettes em vez disso
+   */
   async getAllRoulettes() {
     try {
-      logger.debug('Buscando todas as roletas disponíveis');
-      
-      // Construir URL para o endpoint de roletas (endpoint /api/ROULETTES descontinuado)
-      const url = `${this.apiBaseUrl}/roulettes`;
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar roletas: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!Array.isArray(data)) {
-        throw new Error('Resposta inválida da API: não é um array');
-      }
-      
-      logger.info(`✅ Encontradas ${data.length} roletas`);
-      
-      // Emitir evento que os dados de roletas foram carregados completamente
-      EventService.emitGlobalEvent('roulettes_loaded', {
-        success: true,
-        count: data.length,
-        timestamp: new Date().toISOString()
-      });
-      
-      return data;
+      logger.warn('Método getAllRoulettes está descontinuado e não deve mais ser usado');
+      return [];
     } catch (error) {
       logger.error(`Erro ao buscar roletas: ${error.message}`);
       throw error;
