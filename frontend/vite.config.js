@@ -16,9 +16,10 @@ export default defineConfig({
     open: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'https://backendapi-production-36b5.up.railway.app',
         changeOrigin: true,
-        secure: false
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api/, '/api')
       }
     }
   },

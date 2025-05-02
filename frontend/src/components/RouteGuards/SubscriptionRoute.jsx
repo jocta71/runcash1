@@ -4,6 +4,9 @@ import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import LoadingScreen from '../LoadingScreen.jsx';
 
+// Obter a URL base da API
+const API_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app/api';
+
 /**
  * Componente que protege rotas que requerem assinatura ativa
  */
@@ -23,7 +26,7 @@ const SubscriptionRoute = ({ children }) => {
       }
 
       try {
-        const response = await axios.get('/api/subscriptions/status', {
+        const response = await axios.get(`${API_URL}/subscriptions/status`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 

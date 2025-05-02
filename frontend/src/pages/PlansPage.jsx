@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './PlansPage.css';
 
+// Obter a URL base da API
+const API_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app/api';
+
 const PlansPage = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,7 +19,7 @@ const PlansPage = () => {
     const fetchPlans = async () => {
       try {
         setLoading(true);
-        const response = await axios.get('/api/plans');
+        const response = await axios.get(`${API_URL}/plans`);
         setPlans(response.data.data || []);
         setLoading(false);
       } catch (err) {
@@ -49,7 +52,7 @@ const PlansPage = () => {
       setLoading(true);
       
       // Criar assinatura no backend
-      const response = await axios.post('/api/subscriptions/create', {
+      const response = await axios.post(`${API_URL}/subscriptions/create`, {
         planId: selectedPlan.id
       }, {
         headers: { Authorization: `Bearer ${token}` }
