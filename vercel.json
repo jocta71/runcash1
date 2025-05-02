@@ -3,7 +3,8 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
-   
+    { "source": "/api/assinatura/:path*", "destination": "/api/assinatura/:path*" },
+    { "source": "/(.*)", "destination": "/" }
   ],
   "env": {
     "MONGODB_URI": "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash",
