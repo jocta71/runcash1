@@ -3,7 +3,7 @@
  * Esta versão não depende do Supabase e apenas simula a inserção de dados
  */
 
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 
 interface SeedRoulettesOptions {
   count?: number;

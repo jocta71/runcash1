@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { Pencil, X, CreditCard, ChevronRight } from 'lucide-react';
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/Layout';
 import { useSubscription } from '@/hooks/useSubscription';

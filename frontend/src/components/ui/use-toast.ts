@@ -1,3 +1,5 @@
-import { useToast, toast } from "@/hooks/use-toast";
+// Re-export do use-toast do diretório hooks
+// Este arquivo serve como fallback para importações existentes
+// que ainda referenciam este caminho
 
-export { useToast, toast };
+export * from '@/hooks/use-toast';
