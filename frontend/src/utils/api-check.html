@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verificação de API de Roletas</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    h1 {
+      color: #333;
+      margin-top: 0;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    
+    .buttons {
+      margin: 20px 0;
+    }
+    
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      margin-right: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    #results {
+      background-color: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+    
+    .success {
+      color: #4CAF50;
+    }
+    
+    .error {
+      color: #f44336;
+    }
+    
+    .warning {
+      color: #ff9800;
+    }
+    
+    #token-info {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #e9f7ef;
+      border-radius: 4px;
+    }
+    
+    #token-display {
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 12px;
+      background-color: #f1f1f1;
+      padding: 5px;
+      border-radius: 2px;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Verificação de API de Roletas</h1>
+    
+    <p>
+      Esta ferramenta verifica o funcionamento dos endpoints de API para roletas e status de assinatura.
+    </p>
+    
+    <div class="buttons">
+      <button id="check-auth">Verificar Autenticação</button>
+      <button id="check-subscription">Verificar Assinatura</button>
+      <button id="check-roulettes">Verificar API de Roletas</button>
+      <button id="check-all">Verificar Tudo</button>
+      <button id="clear-results">Limpar Resultados</button>
+    </div>
+    
+    <div id="results">
+      Os resultados dos testes serão exibidos aqui.
+    </div>
+    
+    <div id="token-info">
+      <h3>Informações de Autenticação</h3>
+      <div id="token-status">Nenhum token encontrado</div>
+      <div id="token-display"></div>
+    </div>
+  </div>
+  
+  <script>
+    // Função para obter o token de autenticação
+    function getToken() {
+      // Tenta encontrar o token em várias fontes possíveis
+      const tokenFromLocalStorage = localStorage.getItem('auth_token');
+      const tokenFromBackupLocalStorage = localStorage.getItem('auth_token_backup');
+      
+      // Procura em cookies
+      let tokenFromCookie = null;
+      document.cookie.split(';').forEach(cookie => {
+        const parts = cookie.trim().split('=');
+        if (parts[0] === 'auth_token') {
+          tokenFromCookie = parts[1];
+        }
+      });
+      
+      return tokenFromLocalStorage || tokenFromBackupLocalStorage || tokenFromCookie;
+    }
+    
+    // Função para mostrar token na interface
+    function displayToken() {
+      const token = getToken();
+      const tokenStatus = document.getElementById('token-status');
+      const tokenDisplay = document.getElementById('token-display');
+      
+      if (token) {
+        tokenStatus.textContent = '✅ Token encontrado';
+        tokenStatus.className = 'success';
+        
+        // Exibir token truncado para segurança
+        const truncatedToken = token.substring(0, 20) + '...' + token.substring(token.length - 10);
+        tokenDisplay.textContent = truncatedToken;
+      } else {
+        tokenStatus.textContent = '❌ Nenhum token encontrado';
+        tokenStatus.className = 'error';
+        tokenDisplay.textContent = '';
+      }
+    }
+    
+    // Função para verificar autenticação
+    async function checkAuth() {
+      const resultsDiv = document.getElementById('results');
+      const token = getToken();
+      
+      resultsDiv.innerHTML = ''; // Limpar resultados anteriores
+      
+      if (token) {
+        appendToResults(`✅ Token encontrado: ${token.substring(0, 10)}...`, 'success');
+      } else {
+        appendToResults('❌ Nenhum token de autenticação encontrado', 'error');
+      }
+      
+      displayToken();
+    }
+    
+    // Função para verificar status da assinatura
+    async function checkSubscription() {
+      const resultsDiv = document.getElementById('results');
+      const token = getToken();
+      
+      resultsDiv.innerHTML = ''; // Limpar resultados anteriores
+      
+      if (!token) {
+        appendToResults('❌ Nenhum token de autenticação encontrado', 'error');
+        return;
+      }
+      
+      appendToResults('🔍 Verificando status da assinatura...');
+      
+      try {
+        const response = await fetch('/subscription/status', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        const data = await response.json();
+        appendToResults(`📊 Resposta do servidor: ${JSON.stringify(data, null, 2)}`);
+        
+        if (data.hasSubscription) {
+          appendToResults(`✅ Assinatura ativa (${data.subscription?.status})`, 'success');
+        } else {
+          appendToResults('❌ Assinatura inativa ou inexistente', 'error');
+        }
+      } catch (error) {
+        appendToResults(`❌ Erro ao verificar assinatura: ${error.message}`, 'error');
+        appendToResults('Detalhes do erro:', 'error');
+        appendToResults(JSON.stringify(error, null, 2));
+      }
+    }
+    
+    // Função para verificar API de roletas
+    async function checkRoulettes() {
+      const resultsDiv = document.getElementById('results');
+      const token = getToken();
+      
+      resultsDiv.innerHTML = ''; // Limpar resultados anteriores
+      
+      if (!token) {
+        appendToResults('❌ Nenhum token de autenticação encontrado', 'error');
+        return;
+      }
+      
+      appendToResults('🔍 Verificando acesso à API de roletas...');
+      
+      // Tentar acessar diferentes endpoints
+      const endpoints = [
+        '/api/ROULETTES',
+        '/api/roulettes',
+        '/api/roletas'
+      ];
+      
+      let success = false;
+      
+      for (const endpoint of endpoints) {
+        appendToResults(`🔄 Tentando endpoint: ${endpoint}`);
+        
+        try {
+          const response = await fetch(endpoint, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            if (Array.isArray(data)) {
+              appendToResults(`✅ Endpoint ${endpoint} funcionando: ${data.length} roletas`, 'success');
+              appendToResults(`Primeira roleta:`);
+              
+              if (data.length > 0) {
+                const firstRoulette = data[0];
+                appendToResults(JSON.stringify({
+                  id: firstRoulette.id,
+                  nome: firstRoulette.nome || firstRoulette.name,
+                  numeroCount: firstRoulette.numero?.length || 0
+                }, null, 2));
+              } else {
+                appendToResults(`(Nenhuma roleta disponível)`, 'warning');
+              }
+              
+              success = true;
+              break;
+            } else {
+              appendToResults(`⚠️ Endpoint ${endpoint} respondeu, mas formato inválido`, 'warning');
+            }
+          } else {
+            appendToResults(`❌ Endpoint ${endpoint} retornou status ${response.status}`, 'error');
+          }
+        } catch (error) {
+          appendToResults(`❌ Erro no endpoint ${endpoint}: ${error.message}`, 'error');
+        }
+      }
+      
+      if (!success) {
+        appendToResults('❌ Nenhum endpoint de roletas funcionou', 'error');
+      }
+    }
+    
+    // Função para verificar tudo
+    async function checkAll() {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = ''; // Limpar resultados anteriores
+      
+      appendToResults('==========================================');
+      appendToResults('  VERIFICAÇÃO COMPLETA DE API DE ROLETAS  ');
+      appendToResults('==========================================');
+      
+      // Verificar autenticação
+      const token = getToken();
+      if (token) {
+        appendToResults(`✅ Autenticação: Token encontrado`, 'success');
+      } else {
+        appendToResults('❌ Autenticação: Nenhum token encontrado', 'error');
+        appendToResults('==========================================');
+        appendToResults('❌ Verificação interrompida: Sem autenticação', 'error');
+        return;
+      }
+      
+      displayToken();
+      
+      // Verificar assinatura
+      appendToResults('🔍 Verificando status da assinatura...');
+      try {
+        const subscriptionResponse = await fetch('/subscription/status', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (subscriptionResponse.ok) {
+          const subscriptionData = await subscriptionResponse.json();
+          
+          if (subscriptionData.hasSubscription) {
+            appendToResults(`✅ Assinatura: Ativa (${subscriptionData.subscription?.status})`, 'success');
+          } else {
+            appendToResults('❌ Assinatura: Inativa', 'error');
+          }
+        } else {
+          appendToResults(`❌ Assinatura: Erro ao verificar (${subscriptionResponse.status})`, 'error');
+        }
+      } catch (error) {
+        appendToResults(`❌ Assinatura: Erro - ${error.message}`, 'error');
+      }
+      
+      // Verificar API de roletas
+      appendToResults('🔍 Verificando acesso à API de roletas...');
+      
+      const endpoints = [
+        '/api/ROULETTES',
+        '/api/roulettes',
+        '/api/roletas'
+      ];
+      
+      let roulettesSuccess = false;
+      let successEndpoint = '';
+      let rouletteCount = 0;
+      
+      for (const endpoint of endpoints) {
+        appendToResults(`🔄 Tentando endpoint: ${endpoint}`);
+        
+        try {
+          const response = await fetch(endpoint, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            if (Array.isArray(data)) {
+              roulettesSuccess = true;
+              successEndpoint = endpoint;
+              rouletteCount = data.length;
+              
+              appendToResults(`✅ Endpoint ${endpoint} funcionando: ${data.length} roletas`, 'success');
+              break;
+            } else {
+              appendToResults(`⚠️ Endpoint ${endpoint} respondeu, mas formato inválido`, 'warning');
+            }
+          } else {
+            appendToResults(`❌ Endpoint ${endpoint} retornou status ${response.status}`, 'error');
+          }
+        } catch (error) {
+          appendToResults(`❌ Erro no endpoint ${endpoint}: ${error.message}`, 'error');
+        }
+      }
+      
+      // Resumo final
+      appendToResults('==========================================');
+      appendToResults('  RESUMO DA VERIFICAÇÃO  ');
+      appendToResults('==========================================');
+      
+      appendToResults(`Autenticação: ${token ? '✅' : '❌'}`);
+      
+      try {
+        const subscriptionResponse = await fetch('/subscription/status', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (subscriptionResponse.ok) {
+          const subscriptionData = await subscriptionResponse.json();
+          appendToResults(`Assinatura: ${subscriptionData.hasSubscription ? '✅' : '❌'}`);
+        } else {
+          appendToResults(`Assinatura: ❌ (Erro ${subscriptionResponse.status})`);
+        }
+      } catch (error) {
+        appendToResults(`Assinatura: ❌ (Erro)`);
+      }
+      
+      appendToResults(`API de Roletas: ${roulettesSuccess ? `✅ (${successEndpoint}: ${rouletteCount} roletas)` : '❌'}`);
+      appendToResults('==========================================');
+    }
+    
+    // Função auxiliar para adicionar texto aos resultados
+    function appendToResults(text, className = '') {
+      const resultsDiv = document.getElementById('results');
+      const line = document.createElement('div');
+      line.textContent = text;
+      
+      if (className) {
+        line.className = className;
+      }
+      
+      resultsDiv.appendChild(line);
+      resultsDiv.scrollTop = resultsDiv.scrollHeight; // Auto-scroll para o final
+    }
+    
+    // Adicionar listeners aos botões
+    document.getElementById('check-auth').addEventListener('click', checkAuth);
+    document.getElementById('check-subscription').addEventListener('click', checkSubscription);
+    document.getElementById('check-roulettes').addEventListener('click', checkRoulettes);
+    document.getElementById('check-all').addEventListener('click', checkAll);
+    document.getElementById('clear-results').addEventListener('click', () => {
+      document.getElementById('results').innerHTML = '';
+    });
+    
+    // Executar verificação de token ao carregar
+    displayToken();
+  </script>
+</body>
+</html> 
