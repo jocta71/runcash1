@@ -61,11 +61,11 @@
       "source": "/api/retry-failed-webhooks",
       "destination": "/api/webhook-manager.js?operation=retry"
     },
+    
     {
-      "source": "/api/asaas-create-customer",
-      "destination": "/api/asaas-create-customer.js"
+      "source": "/api/asaas-create-subscription",
+      "destination": "/api/asaas-create-subscription.js"
     },
-  
     {
       "source": "/api/asaas-find-payment",
       "destination": "/api/asaas-find-payment.js"
