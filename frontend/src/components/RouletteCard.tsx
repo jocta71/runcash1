@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import RouletteNumber from './RouletteNumber';
-import { Tooltip } from 'react-tooltip';
+import { Box, Grid, Typography, Card, CardContent, Skeleton, Tooltip as MuiTooltip } from '@mui/material';
 import { formatDateTime } from '@/utils/formatters';
 import LinkButton from './LinkButton';
 import RESTSocketService from '@/services/RESTSocketService';
-import { Box, Grid, Typography, Card, CardContent, Skeleton } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import clsx from 'clsx';
 
@@ -194,7 +193,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
       <StyledCard 
         className={clsx(className, { selected: isSelected, draggable: isDraggable })}
         onClick={handleCardClick}
-        data-tooltip-id={`roulette-tooltip-${roletaId}`}
       >
         <CardContent>
           <Typography variant="h6">
@@ -235,59 +233,64 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
   // Renderizar o componente principal
   return (
     <>
-      <StyledCard 
-        className={clsx(className, { selected: isSelected, draggable: isDraggable })}
-        onClick={handleCardClick}
-        data-tooltip-id={`roulette-tooltip-${roletaId}`}
-        variant={variant === 'default' ? 'outlined' : 'elevation'}
+      <MuiTooltip 
+        title={
+          <div>
+            <span>{roletaNome}</span>
+            {numeros.length > 0 && (
+              <div>
+                <strong>Últimos números:</strong> {numeros.slice(0, 10).join(', ')}
+              </div>
+            )}
+          </div>
+        }
+        arrow
+        placement="top"
       >
-        <CardContent>
-          {showHeader && (
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-              <Typography variant="h6" component="h2" noWrap>
-                {roletaNome || 'Roleta'}
-              </Typography>
-              {showControls && showRefreshButton && (
-                <LinkButton onClick={handleRefresh} disabled={isRefreshing}>
-                  {isRefreshing ? 'Atualizando...' : 'Atualizar'}
-                </LinkButton>
+        <StyledCard 
+          className={clsx(className, { selected: isSelected, draggable: isDraggable })}
+          onClick={handleCardClick}
+          variant={variant === 'default' ? 'outlined' : 'elevation'}
+        >
+          <CardContent>
+            {showHeader && (
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="h6" component="h2" noWrap>
+                  {roletaNome || 'Roleta'}
+                </Typography>
+                {showControls && showRefreshButton && (
+                  <LinkButton onClick={handleRefresh} disabled={isRefreshing}>
+                    {isRefreshing ? 'Atualizando...' : 'Atualizar'}
+                  </LinkButton>
+                )}
+              </Box>
+            )}
+            
+            <Box display="flex" flexWrap="wrap" gap={1}>
+              {numeros.length > 0 ? (
+                numeros.slice(0, numNumbersToShow).map((numero, index) => (
+                  <RouletteNumber 
+                    key={`${roletaId}-${numero}-${index}`} 
+                    number={numero} 
+                    isHighContrast={isHighContrast}
+                    size={viewMode === 'compact' ? 'small' : viewMode === 'mini' ? 'mini' : 'medium'}
+                  />
+                ))
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  Sem números disponíveis
+                </Typography>
               )}
             </Box>
-          )}
-          
-          <Box display="flex" flexWrap="wrap" gap={1}>
-            {numeros.length > 0 ? (
-              numeros.slice(0, numNumbersToShow).map((numero, index) => (
-                <RouletteNumber 
-                  key={`${roletaId}-${numero}-${index}`} 
-                  number={numero} 
-                  isHighContrast={isHighContrast}
-                  size={viewMode === 'compact' ? 'small' : viewMode === 'mini' ? 'mini' : 'medium'}
-                />
-              ))
-            ) : (
-              <Typography variant="body2" color="textSecondary">
-                Sem números disponíveis
+            
+            {showTimestamp && lastUpdateTime && (
+              <Typography variant="caption" display="block" color="textSecondary" mt={1}>
+                Última atualização: {formatDateTime(lastUpdateTime)}
               </Typography>
             )}
-          </Box>
-          
-          {showTimestamp && lastUpdateTime && (
-            <Typography variant="caption" display="block" color="textSecondary" mt={1}>
-              Última atualização: {formatDateTime(lastUpdateTime)}
-            </Typography>
-          )}
-        </CardContent>
-      </StyledCard>
-      
-      <Tooltip id={`roulette-tooltip-${roletaId}`} place="top" effect="solid">
-        <span>{roletaNome}</span>
-        {numeros.length > 0 && (
-          <div>
-            <strong>Últimos números:</strong> {numeros.slice(0, 10).join(', ')}
-          </div>
-        )}
-      </Tooltip>
+          </CardContent>
+        </StyledCard>
+      </MuiTooltip>
     </>
   );
 };
