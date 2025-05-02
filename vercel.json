@@ -70,14 +70,6 @@
       "destination": "/api/asaas-create-subscription.js"
     },
     {
-      "source": "/api/checkout/subscription",
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/checkout/subscription"
-    },
-    {
-      "source": "/api/checkout/:checkoutId/status",
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/checkout/:checkoutId/status"
-    },
-    {
       "source": "/api/asaas-find-payment",
       "destination": "/api/asaas-find-payment.js"
     },

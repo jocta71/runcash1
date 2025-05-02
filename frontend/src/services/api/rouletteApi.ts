@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { ENDPOINTS } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
+import { showSubscriptionRequiredModal } from '../ui/components/SubscriptionModal';
+import { getAuthToken } from '../auth/tokenService';
 
 /**
  * Cliente de API para comunicação com os endpoints de roleta
@@ -13,7 +15,19 @@ export const RouletteApi = {
   async fetchAllRoulettes() {
     try {
       console.log('[API] Buscando todas as roletas disponíveis');
-      const response = await axios.get(ENDPOINTS.ROULETTES);
+      
+      // Configurar headers com token de autenticação
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Adicionar token de autenticação se disponível
+      const token = getAuthToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await axios.get(ENDPOINTS.ROULETTES, { headers });
       
       if (!response.data || !Array.isArray(response.data)) {
         console.error('[API] Resposta inválida da API de roletas:', response.data);
@@ -35,6 +49,18 @@ export const RouletteApi = {
       
       return processedRoulettes;
     } catch (error) {
+      // Verificar se o erro é de acesso negado por falta de assinatura
+      if (axios.isAxiosError(error) && error.response?.status === 403 && 
+          error.response?.data?.code === 'SUBSCRIPTION_REQUIRED') {
+        console.warn('[API] Acesso negado - assinatura necessária');
+        
+        // Mostrar modal de assinatura
+        showSubscriptionRequiredModal();
+        
+        // Retornar array vazio
+        return [];
+      }
+      
       console.error('[API] Erro ao buscar roletas:', error);
       return [];
     }
@@ -50,6 +76,17 @@ export const RouletteApi = {
       console.log(`[API] Buscando roleta com ID: ${id}`);
       // Converter para ID numérico para normalização
       const numericId = getNumericId(id);
+      
+      // Configurar headers com token de autenticação
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Adicionar token de autenticação se disponível
+      const token = getAuthToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       
       // Buscar todas as roletas e filtrar localmente
       // Este método é mais eficiente do que fazer múltiplas requisições
@@ -70,6 +107,17 @@ export const RouletteApi = {
       console.warn(`[API] ❌ Roleta com ID ${numericId} não encontrada`);
       return null;
     } catch (error) {
+      // Verificar se o erro é de acesso negado por falta de assinatura
+      if (axios.isAxiosError(error) && error.response?.status === 403 && 
+          error.response?.data?.code === 'SUBSCRIPTION_REQUIRED') {
+        console.warn(`[API] Acesso negado à roleta ${id} - assinatura necessária`);
+        
+        // Mostrar modal de assinatura
+        showSubscriptionRequiredModal();
+        
+        return null;
+      }
+      
       console.error(`[API] Erro ao buscar roleta ${id}:`, error);
       return null;
     }

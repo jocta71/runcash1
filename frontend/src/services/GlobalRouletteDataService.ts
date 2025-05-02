@@ -26,7 +26,6 @@ class GlobalRouletteDataService {
   private isFetching: boolean = false;
   private pollingTimer: number | null = null;
   private _currentFetchPromise: Promise<any[]> | null = null;
-  private subscriptionRequired: boolean = false;
   
   // Construtor privado para garantir Singleton
   private constructor() {
@@ -82,38 +81,17 @@ class GlobalRouletteDataService {
       
       console.log(`[GlobalRouletteService] Buscando dados em: ${endpoint}`);
       
-      // Obter token do local storage
-      const token = localStorage.getItem('token');
-      
-      // Configurar headers
-      const headers: Record<string, string> = {
-        'bypass-tunnel-reminder': 'true',
-        'cache-control': 'no-cache'
-      };
-      
-      // Adicionar token se disponível
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
       const response = await axiosInstance.get(endpoint, {
-        headers,
+        headers: {
+          'bypass-tunnel-reminder': 'true',
+          'cache-control': 'no-cache'
+        },
         timeout: 5000
       });
       
       if (response.status === 200 && Array.isArray(response.data)) {
         console.log(`[GlobalRouletteService] Recebidos ${response.data.length} registros da API`);
         this.rouletteData = response.data;
-        
-        // Se recuperamos dados com sucesso, resetar a flag de assinatura obrigatória
-        if (this.subscriptionRequired) {
-          this.subscriptionRequired = false;
-          
-          // Emitir evento informando que o problema de assinatura foi resolvido
-          EventService.emit('roulette:subscription-resolved', {
-            timestamp: new Date().toISOString()
-          });
-        }
         
         // Emitir evento global para notificar componentes
         EventService.emit('roulette:data-updated', {
@@ -128,50 +106,10 @@ class GlobalRouletteDataService {
       }
     } catch (error) {
       console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
-      
-      // Verificar se é erro de permissão (assinatura necessária)
-      if (error.response) {
-        if (error.response.status === 403) {
-          this.handleSubscriptionError(error.response.data);
-        } else if (error.response.status === 401) {
-          this.handleAuthenticationError();
-        }
-      }
-      
       return this.rouletteData;
     } finally {
       this.isFetching = false;
     }
-  }
-  
-  /**
-   * Processa erro de assinatura
-   */
-  private handleSubscriptionError(errorData: any): void {
-    console.log('[GlobalRouletteService] Erro de assinatura detectado');
-    
-    // Marcar que assinatura é necessária
-    this.subscriptionRequired = true;
-    
-    // Emitir evento para notificar componentes sobre necessidade de assinatura
-    EventService.emit('roulette:subscription-required', {
-      message: errorData?.message || 'Você precisa de uma assinatura para acessar todos os dados',
-      code: errorData?.code || 'SUBSCRIPTION_REQUIRED',
-      details: errorData
-    });
-  }
-  
-  /**
-   * Processa erro de autenticação
-   */
-  private handleAuthenticationError(): void {
-    console.log('[GlobalRouletteService] Erro de autenticação detectado');
-    
-    // Emitir evento para notificar componentes sobre necessidade de login
-    EventService.emit('auth:login-required', {
-      message: 'Você precisa estar logado para acessar estes dados',
-      redirectTo: '/login'
-    });
   }
   
   /**
@@ -264,14 +202,6 @@ class GlobalRouletteDataService {
       console.error(`[GlobalRouletteDataService] Erro ao buscar dados com axios:`, error);
       return null;
     }
-  }
-  
-  /**
-   * Verificar se é necessário assinatura
-   * @returns true se assinatura é necessária
-   */
-  public isSubscriptionRequired(): boolean {
-    return this.subscriptionRequired;
   }
 }
 

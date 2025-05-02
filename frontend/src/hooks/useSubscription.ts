@@ -36,12 +36,6 @@ export const useSubscription = () => {
     console.log('[useSubscription] Carregamento de assinatura solicitado (funcionalidade desativada)');
     return Promise.resolve();
   };
-  
-  // Método para forçar recarregamento da assinatura
-  const refetchSubscription = async (): Promise<void> => {
-    console.log('[useSubscription] Recarregamento da assinatura solicitado');
-    return loadUserSubscription(true);
-  };
 
   return {
     currentSubscription: {
@@ -55,44 +49,12 @@ export const useSubscription = () => {
       cancelAtPeriodEnd: false
     },
     currentPlan: mockPlan,
-    availablePlans: [
-      {
-        id: 'basic',
-        name: 'Básico',
-        type: PlanType.BASIC,
-        price: 0,
-        interval: 'monthly',
-        features: ['Acesso às roletas básicas', 'Suporte básico'],
-        allowedFeatures: ['basic_roulettes'],
-        description: 'Ideal para quem está começando'
-      },
-      {
-        id: 'pro',
-        name: 'Profissional',
-        type: PlanType.PRO,
-        price: 49.90,
-        interval: 'monthly',
-        features: ['Todas as roletas básicas', 'Acesso às roletas profissionais', 'Suporte prioritário'],
-        allowedFeatures: ['basic_roulettes', 'pro_roulettes'],
-        description: 'Perfeito para apostadores intermediários'
-      },
-      {
-        id: 'premium',
-        name: 'Premium',
-        type: PlanType.PREMIUM,
-        price: 99.90,
-        interval: 'monthly',
-        features: ['Acesso a todas as roletas', 'Estatísticas avançadas', 'Suporte VIP 24/7'],
-        allowedFeatures: ['*'],
-        description: 'Completo para apostadores profissionais'
-      }
-    ],
+    availablePlans: [mockPlan],
     loading: false,
     error: null,
     hasFeatureAccess,
     upgradePlan,
     cancelSubscription,
-    loadUserSubscription,
-    refetchSubscription
+    loadUserSubscription
   };
 }; 

@@ -1,608 +1,231 @@
 /**
  * Controlador para processar webhooks do Asaas
- * Implementa idempotência e processamento de eventos de pagamento/assinatura
+ * Lida com eventos de pagamento e assinatura
  */
 
 const getDb = require('../services/database');
-const { ObjectId } = require('mongodb');
-const { clearSubscriptionCache } = require('../middlewares/asaasSubscriptionMiddleware');
 
 /**
- * Processa os webhooks recebidos do Asaas
- * Implementa idempotência para evitar processamento duplicado
+ * Processa um webhook do Asaas
+ * Verifica idempotência e atualiza o status da assinatura conforme o evento
  */
 const processWebhook = async (req, res) => {
   try {
-    const body = req.body;
-    const eventId = body.id;
+    const { body } = req;
     
-    // Validação básica do webhook
-    if (!eventId || !body.event) {
+    // Validar payload mínimo necessário
+    if (!body || !body.event || !body.id) {
       return res.status(400).json({
         success: false,
-        message: 'Webhook inválido: ID ou evento ausente'
+        message: 'Payload inválido'
       });
     }
     
-    console.log(`[AsaasWebhook] Recebido evento: ${body.event}, ID: ${eventId}`);
+    console.log(`[Asaas Webhook] Evento recebido: ${body.event}, ID: ${body.id}`);
     
+    const eventId = body.id;
     const db = await getDb();
     
-    // Verificar se o evento já foi processado (idempotência)
-    const eventExists = await db.collection('asaas_processed_webhooks').findOne({
-      asaas_evt_id: eventId
-    });
-    
-    if (eventExists) {
-      console.log(`[AsaasWebhook] Evento ${eventId} já foi processado anteriormente.`);
-      return res.json({
-        success: true,
-        message: 'Evento já processado anteriormente',
-        received: true
+    // Verificar idempotência: se o evento já foi processado
+    try {
+      await db.collection('processedWebhooks').insertOne({
+        eventId,
+        event: body.event,
+        receivedAt: new Date(),
+        processedAt: new Date()
       });
+    } catch (error) {
+      // Se o documento já existe (erro de chave duplicada)
+      if (error.code === 11000) {
+        console.log(`[Asaas Webhook] Evento ${eventId} já foi processado anteriormente.`);
+        return res.status(200).json({ 
+          received: true, 
+          processed: false,
+          message: 'Evento já processado anteriormente'
+        });
+      }
+      throw error;
     }
-
-    // Processar o evento conforme seu tipo
+    
+    // Processar o evento com base no tipo
+    let processed = false;
+    let subscriptionId = null;
+    let userId = null;
+    
     switch (body.event) {
+      // Eventos de pagamento
       case 'PAYMENT_RECEIVED':
       case 'PAYMENT_CONFIRMED':
-        await handlePaymentConfirmed(body, db);
+      case 'PAYMENT_RECEIVED_IN_CASH':
+        // Verificar se o pagamento é de uma assinatura
+        if (body.payment && body.payment.subscription) {
+          subscriptionId = body.payment.subscription;
+          
+          // Buscar a assinatura no banco
+          const subscription = await db.collection('userSubscriptions').findOne({
+            asaasSubscriptionId: subscriptionId
+          });
+          
+          if (subscription) {
+            userId = subscription.userId;
+            
+            // Atualizar status da assinatura para ativo
+            await db.collection('userSubscriptions').updateOne(
+              { asaasSubscriptionId: subscriptionId },
+              { 
+                $set: { 
+                  status: 'ACTIVE',
+                  nextDueDate: new Date(body.payment.dueDate),
+                  updatedAt: new Date() 
+                } 
+              }
+            );
+            
+            console.log(`[Asaas Webhook] Assinatura ${subscriptionId} ativada para o usuário ${userId}`);
+            processed = true;
+          }
+        }
         break;
         
       case 'PAYMENT_OVERDUE':
-        await handlePaymentOverdue(body, db);
+        // Pagamento atrasado
+        if (body.payment && body.payment.subscription) {
+          subscriptionId = body.payment.subscription;
+          
+          const subscription = await db.collection('userSubscriptions').findOne({
+            asaasSubscriptionId: subscriptionId
+          });
+          
+          if (subscription) {
+            userId = subscription.userId;
+            
+            // Atualizar status da assinatura para atrasado
+            await db.collection('userSubscriptions').updateOne(
+              { asaasSubscriptionId: subscriptionId },
+              { 
+                $set: { 
+                  status: 'OVERDUE',
+                  updatedAt: new Date() 
+                } 
+              }
+            );
+            
+            console.log(`[Asaas Webhook] Assinatura ${subscriptionId} marcada como atrasada para o usuário ${userId}`);
+            processed = true;
+          }
+        }
         break;
         
-      case 'PAYMENT_REFUNDED':
-      case 'PAYMENT_REFUND_CONFIRMED':
-        await handlePaymentRefunded(body, db);
-        break;
-        
-      case 'SUBSCRIPTION_CREATED':
-        await handleSubscriptionCreated(body, db);
-        break;
-        
-      case 'SUBSCRIPTION_UPDATED':
-        await handleSubscriptionUpdated(body, db);
-        break;
-        
+      // Eventos específicos de assinatura
       case 'SUBSCRIPTION_CANCELLED':
-        await handleSubscriptionCancelled(body, db);
+      case 'SUBSCRIPTION_ENDED':
+        if (body.subscription && body.subscription.id) {
+          subscriptionId = body.subscription.id;
+          
+          const subscription = await db.collection('userSubscriptions').findOne({
+            asaasSubscriptionId: subscriptionId
+          });
+          
+          if (subscription) {
+            userId = subscription.userId;
+            
+            // Atualizar status da assinatura para cancelado
+            await db.collection('userSubscriptions').updateOne(
+              { asaasSubscriptionId: subscriptionId },
+              { 
+                $set: { 
+                  status: 'CANCELLED',
+                  updatedAt: new Date() 
+                } 
+              }
+            );
+            
+            console.log(`[Asaas Webhook] Assinatura ${subscriptionId} cancelada para o usuário ${userId}`);
+            processed = true;
+          }
+        }
         break;
         
-      case 'SUBSCRIPTION_DELETED':
-        await handleSubscriptionDeleted(body, db);
-        break;
-        
-      case 'CHECKOUT_COMPLETED':
-        await handleCheckoutCompleted(body, db);
-        break;
-        
-      case 'CHECKOUT_CREATED':
-        await handleCheckoutCreated(body, db);
+      // Criação de assinatura
+      case 'SUBSCRIPTION_CREATED':
+        if (body.subscription && body.subscription.id) {
+          subscriptionId = body.subscription.id;
+          
+          // Verificar se esta assinatura já existe no sistema
+          const existingSubscription = await db.collection('userSubscriptions').findOne({
+            asaasSubscriptionId: subscriptionId
+          });
+          
+          if (!existingSubscription && body.subscription.customer) {
+            // Buscar usuário pelo ID do cliente no Asaas
+            const user = await db.collection('users').findOne({
+              asaasCustomerId: body.subscription.customer
+            });
+            
+            if (user) {
+              // Criar nova entrada de assinatura
+              await db.collection('userSubscriptions').insertOne({
+                userId: user._id.toString(),
+                asaasCustomerId: body.subscription.customer,
+                asaasSubscriptionId: subscriptionId,
+                status: 'PENDING', // Começa como pendente até o primeiro pagamento
+                planType: mapPlanFromValue(body.subscription.value),
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+              
+              console.log(`[Asaas Webhook] Nova assinatura ${subscriptionId} criada para o usuário ${user._id}`);
+              processed = true;
+            }
+          }
+        }
         break;
         
       default:
-        console.log(`[AsaasWebhook] Evento não tratado: ${body.event}`);
+        console.log(`[Asaas Webhook] Evento ${body.event} não processado (não implementado)`);
     }
     
-    // Registrar que o evento foi processado (garantir idempotência)
-    await db.collection('asaas_processed_webhooks').insertOne({
-      asaas_evt_id: eventId,
-      event_type: body.event,
-      processed_at: new Date(),
-      raw_payload: JSON.stringify(body)
+    // Atualizar o documento de webhook com as informações de processamento
+    await db.collection('processedWebhooks').updateOne(
+      { eventId },
+      { 
+        $set: { 
+          processed,
+          subscriptionId,
+          userId,
+          processedAt: new Date() 
+        } 
+      }
+    );
+    
+    return res.status(200).json({ 
+      received: true, 
+      processed,
+      message: processed ? 'Evento processado com sucesso' : 'Evento recebido, mas não processado'
     });
     
-    return res.json({
-      success: true,
-      message: 'Webhook processado com sucesso',
-      received: true
-    });
   } catch (error) {
-    console.error('[AsaasWebhook] Erro ao processar webhook:', error);
-    
-    // Mesmo em caso de erro, retornar 200 para o Asaas não reenviar
-    // o erro interno será registrado para debug
-    return res.status(200).json({
+    console.error('[Asaas Webhook] Erro ao processar webhook:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Erro ao processar webhook, mas recebido',
-      received: true,
+      message: 'Erro ao processar webhook',
       error: error.message
     });
   }
 };
 
 /**
- * Trata evento de checkout completo
+ * Mapeia o valor da assinatura para o tipo de plano
+ * @param {number} value - Valor da assinatura
+ * @returns {string} - Tipo do plano
  */
-async function handleCheckoutCompleted(body, db) {
-  try {
-    const checkout = body.checkout;
-    
-    if (!checkout || !checkout.id) {
-      console.log('[AsaasWebhook] Dados de checkout incompletos');
-      return;
-    }
-    
-    console.log(`[AsaasWebhook] Processando checkout completo: ${checkout.id}`);
-    
-    // Atualizar registro de checkout na nossa base
-    const result = await db.collection('asaas_checkouts').updateOne(
-      { checkout_id: checkout.id },
-      {
-        $set: {
-          status: 'COMPLETED',
-          updated_at: new Date(),
-          payment_id: checkout.payment?.id || null,
-          subscription_id: checkout.subscription?.id || null
-        }
-      }
-    );
-    
-    if (result.matchedCount === 0) {
-      console.log(`[AsaasWebhook] Checkout ${checkout.id} não encontrado na base local`);
-      
-      // Tentar buscar o usuário pelo customer_id
-      if (checkout.customer) {
-        const user = await db.collection('users').findOne({
-          asaas_customer_id: checkout.customer
-        });
-        
-        if (user) {
-          console.log(`[AsaasWebhook] Usuário encontrado pelo customer_id: ${user._id}`);
-          
-          // Criar registro do checkout
-          await db.collection('asaas_checkouts').insertOne({
-            user_id: user._id.toString(),
-            asaas_customer_id: checkout.customer,
-            checkout_id: checkout.id,
-            payment_id: checkout.payment?.id || null,
-            subscription_id: checkout.subscription?.id || null,
-            value: checkout.value,
-            status: 'COMPLETED',
-            created_at: new Date(),
-            updated_at: new Date()
-          });
-          
-          // Limpar cache de assinatura para forçar verificação na próxima requisição
-          clearSubscriptionCache(user._id.toString());
-        }
-      }
-    } else {
-      console.log(`[AsaasWebhook] Checkout ${checkout.id} atualizado com sucesso`);
-      
-      // Buscar o checkout atualizado
-      const checkoutRecord = await db.collection('asaas_checkouts').findOne({ checkout_id: checkout.id });
-      
-      if (checkoutRecord && checkoutRecord.user_id) {
-        console.log(`[AsaasWebhook] Limpando cache de assinatura para usuário: ${checkoutRecord.user_id}`);
-        
-        // Limpar cache de assinatura para forçar verificação na próxima requisição
-        clearSubscriptionCache(checkoutRecord.user_id);
-      }
-    }
-  } catch (error) {
-    console.error('[AsaasWebhook] Erro ao processar checkout completo:', error);
-    throw error;
-  }
-}
-
-/**
- * Trata evento de checkout criado
- */
-async function handleCheckoutCreated(body, db) {
-  try {
-    const checkout = body.checkout;
-    
-    if (!checkout || !checkout.id) {
-      console.log('[AsaasWebhook] Dados de checkout incompletos');
-      return;
-    }
-    
-    console.log(`[AsaasWebhook] Processando checkout criado: ${checkout.id}`);
-    
-    // Verificar se já existe na nossa base
-    const existingCheckout = await db.collection('asaas_checkouts').findOne({
-      checkout_id: checkout.id
-    });
-    
-    if (!existingCheckout) {
-      // Buscar usuário pelo customer_id
-      const user = await db.collection('users').findOne({
-        asaas_customer_id: checkout.customer
-      });
-      
-      if (user) {
-        console.log(`[AsaasWebhook] Usuário encontrado pelo customer_id: ${user._id}`);
-        
-        // Criar registro do checkout
-        await db.collection('asaas_checkouts').insertOne({
-          user_id: user._id.toString(),
-          asaas_customer_id: checkout.customer,
-          checkout_id: checkout.id,
-          value: checkout.value,
-          status: 'PENDING',
-          created_at: new Date(),
-          updated_at: new Date()
-        });
-        
-        console.log(`[AsaasWebhook] Checkout ${checkout.id} registrado para o usuário ${user._id}`);
-      } else {
-        console.log(`[AsaasWebhook] Usuário não encontrado para customer_id: ${checkout.customer}`);
-      }
-    } else {
-      console.log(`[AsaasWebhook] Checkout ${checkout.id} já existe na base local`);
-    }
-  } catch (error) {
-    console.error('[AsaasWebhook] Erro ao processar checkout criado:', error);
-    throw error;
-  }
-}
-
-/**
- * Trata evento de pagamento confirmado
- * Atualiza o status da assinatura do usuário
- */
-async function handlePaymentConfirmed(body, db) {
-  try {
-    const payment = body.payment;
-    
-    // Verificar se o pagamento está relacionado a uma assinatura
-    if (!payment.subscription) {
-      console.log('[AsaasWebhook] Pagamento não está associado a uma assinatura');
-      return;
-    }
-    
-    // Buscar o cliente associado ao pagamento
-    const customerId = payment.customer;
-    
-    // Buscar usuário pelo customerId do Asaas
-    const user = await db.collection('users').findOne({
-      asaas_customer_id: customerId
-    });
-    
-    if (!user) {
-      console.log(`[AsaasWebhook] Usuário não encontrado para customer_id: ${customerId}`);
-      return;
-    }
-    
-    // Determinar data de validade da assinatura
-    const validUntil = new Date(payment.dueDate);
-    // Adicionar um mês à data de validade (ou o período específico do plano)
-    validUntil.setMonth(validUntil.getMonth() + 1);
-    
-    // Determinar o tipo de plano com base na descrição ou valor
-    let planType = 'BASIC'; // Padrão
-    
-    if (payment.description && payment.description.includes('PRO')) {
-      planType = 'PRO';
-    } else if (payment.description && payment.description.includes('PREMIUM')) {
-      planType = 'PREMIUM';
-    } else if (payment.value >= 99.90) {
-      planType = 'PREMIUM';
-    } else if (payment.value >= 49.90) {
-      planType = 'PRO';
-    }
-    
-    // Atualizar ou criar registro de assinatura
-    await db.collection('user_subscriptions').updateOne(
-      { user_id: user._id.toString() },
-      {
-        $set: {
-          asaas_subscription_id: payment.subscription,
-          asaas_customer_id: customerId,
-          status: 'ACTIVE',
-          plan_type: planType,
-          valid_until: validUntil,
-          last_payment_date: new Date(payment.confirmedDate || payment.receivedDate),
-          last_payment_id: payment.id,
-          updated_at: new Date()
-        },
-        $setOnInsert: {
-          created_at: new Date()
-        }
-      },
-      { upsert: true }
-    );
-    
-    // Limpar cache de assinatura
-    clearSubscriptionCache(user._id.toString());
-    
-    console.log(`[AsaasWebhook] Assinatura ativada para usuário: ${user._id}, plano: ${planType}`);
-  } catch (error) {
-    console.error('[AsaasWebhook] Erro ao processar pagamento confirmado:', error);
-    throw error;
-  }
-}
-
-/**
- * Trata evento de pagamento atrasado
- */
-async function handlePaymentOverdue(body, db) {
-  try {
-    const payment = body.payment;
-    
-    // Verificar se o pagamento está relacionado a uma assinatura
-    if (!payment.subscription) {
-      console.log('[AsaasWebhook] Pagamento não está associado a uma assinatura');
-      return;
-    }
-    
-    // Buscar o cliente associado ao pagamento
-    const customerId = payment.customer;
-    
-    // Buscar usuário pelo customerId do Asaas
-    const user = await db.collection('users').findOne({
-      asaas_customer_id: customerId
-    });
-    
-    if (!user) {
-      console.log(`[AsaasWebhook] Usuário não encontrado para customer_id: ${customerId}`);
-      return;
-    }
-    
-    // Atualizar status da assinatura para "OVERDUE"
-    await db.collection('user_subscriptions').updateOne(
-      { user_id: user._id.toString() },
-      {
-        $set: {
-          status: 'OVERDUE',
-          updated_at: new Date()
-        }
-      }
-    );
-    
-    // Limpar cache de assinatura
-    clearSubscriptionCache(user._id.toString());
-    
-    console.log(`[AsaasWebhook] Assinatura marcada como atrasada para usuário: ${user._id}`);
-  } catch (error) {
-    console.error('[AsaasWebhook] Erro ao processar pagamento atrasado:', error);
-    throw error;
-  }
-}
-
-/**
- * Trata evento de pagamento reembolsado
- */
-async function handlePaymentRefunded(body, db) {
-  try {
-    const payment = body.payment;
-    
-    // Verificar se o pagamento está relacionado a uma assinatura
-    if (!payment.subscription) {
-      console.log('[AsaasWebhook] Pagamento não está associado a uma assinatura');
-      return;
-    }
-    
-    // Buscar o cliente associado ao pagamento
-    const customerId = payment.customer;
-    
-    // Buscar usuário pelo customerId do Asaas
-    const user = await db.collection('users').findOne({
-      asaas_customer_id: customerId
-    });
-    
-    if (!user) {
-      console.log(`[AsaasWebhook] Usuário não encontrado para customer_id: ${customerId}`);
-      return;
-    }
-    
-    // Atualizar status da assinatura para "REFUNDED"
-    await db.collection('user_subscriptions').updateOne(
-      { user_id: user._id.toString() },
-      {
-        $set: {
-          status: 'REFUNDED',
-          updated_at: new Date()
-        }
-      }
-    );
-    
-    // Limpar cache de assinatura
-    clearSubscriptionCache(user._id.toString());
-    
-    console.log(`[AsaasWebhook] Pagamento reembolsado para usuário: ${user._id}`);
-  } catch (error) {
-    console.error('[AsaasWebhook] Erro ao processar reembolso:', error);
-    throw error;
-  }
-}
-
-/**
- * Trata evento de assinatura criada
- */
-async function handleSubscriptionCreated(body, db) {
-  try {
-    const subscription = body.subscription;
-    const customerId = subscription.customer;
-    
-    // Buscar usuário pelo customerId do Asaas
-    const user = await db.collection('users').findOne({
-      asaas_customer_id: customerId
-    });
-    
-    if (!user) {
-      console.log(`[AsaasWebhook] Usuário não encontrado para customer_id: ${customerId}`);
-      return;
-    }
-    
-    // Determinar o tipo de plano com base na descrição ou valor
-    let planType = 'BASIC'; // Padrão
-    
-    if (subscription.description && subscription.description.includes('PRO')) {
-      planType = 'PRO';
-    } else if (subscription.description && subscription.description.includes('PREMIUM')) {
-      planType = 'PREMIUM';
-    } else if (subscription.value >= 99.90) {
-      planType = 'PREMIUM';
-    } else if (subscription.value >= 49.90) {
-      planType = 'PRO';
-    }
-    
-    // Atualizar ou criar registro de assinatura
-    await db.collection('user_subscriptions').updateOne(
-      { user_id: user._id.toString() },
-      {
-        $set: {
-          asaas_subscription_id: subscription.id,
-          asaas_customer_id: customerId,
-          status: subscription.status,
-          plan_type: planType,
-          next_due_date: new Date(subscription.nextDueDate),
-          updated_at: new Date()
-        },
-        $setOnInsert: {
-          created_at: new Date()
-        }
-      },
-      { upsert: true }
-    );
-    
-    // Limpar cache de assinatura
-    clearSubscriptionCache(user._id.toString());
-    
-    console.log(`[AsaasWebhook] Assinatura criada para usuário: ${user._id}, plano: ${planType}`);
-  } catch (error) {
-    console.error('[AsaasWebhook] Erro ao processar criação de assinatura:', error);
-    throw error;
-  }
-}
-
-/**
- * Trata evento de assinatura atualizada
- */
-async function handleSubscriptionUpdated(body, db) {
-  try {
-    const subscription = body.subscription;
-    const customerId = subscription.customer;
-    
-    // Buscar usuário pelo customerId do Asaas
-    const user = await db.collection('users').findOne({
-      asaas_customer_id: customerId
-    });
-    
-    if (!user) {
-      console.log(`[AsaasWebhook] Usuário não encontrado para customer_id: ${customerId}`);
-      return;
-    }
-    
-    // Determinar o tipo de plano com base na descrição ou valor
-    let planType = 'BASIC'; // Padrão
-    
-    if (subscription.description && subscription.description.includes('PRO')) {
-      planType = 'PRO';
-    } else if (subscription.description && subscription.description.includes('PREMIUM')) {
-      planType = 'PREMIUM';
-    } else if (subscription.value >= 99.90) {
-      planType = 'PREMIUM';
-    } else if (subscription.value >= 49.90) {
-      planType = 'PRO';
-    }
-    
-    // Atualizar registro de assinatura
-    await db.collection('user_subscriptions').updateOne(
-      { user_id: user._id.toString() },
-      {
-        $set: {
-          asaas_subscription_id: subscription.id,
-          status: subscription.status,
-          plan_type: planType,
-          next_due_date: new Date(subscription.nextDueDate),
-          updated_at: new Date()
-        }
-      }
-    );
-    
-    // Limpar cache de assinatura
-    clearSubscriptionCache(user._id.toString());
-    
-    console.log(`[AsaasWebhook] Assinatura atualizada para usuário: ${user._id}, status: ${subscription.status}`);
-  } catch (error) {
-    console.error('[AsaasWebhook] Erro ao processar atualização de assinatura:', error);
-    throw error;
-  }
-}
-
-/**
- * Trata evento de assinatura cancelada
- */
-async function handleSubscriptionCancelled(body, db) {
-  try {
-    const subscription = body.subscription;
-    const customerId = subscription.customer;
-    
-    // Buscar usuário pelo customerId do Asaas
-    const user = await db.collection('users').findOne({
-      asaas_customer_id: customerId
-    });
-    
-    if (!user) {
-      console.log(`[AsaasWebhook] Usuário não encontrado para customer_id: ${customerId}`);
-      return;
-    }
-    
-    // Atualizar status da assinatura para "CANCELLED"
-    await db.collection('user_subscriptions').updateOne(
-      { user_id: user._id.toString() },
-      {
-        $set: {
-          status: 'CANCELLED',
-          cancelled_at: new Date(),
-          updated_at: new Date()
-        }
-      }
-    );
-    
-    // Limpar cache de assinatura
-    clearSubscriptionCache(user._id.toString());
-    
-    console.log(`[AsaasWebhook] Assinatura cancelada para usuário: ${user._id}`);
-  } catch (error) {
-    console.error('[AsaasWebhook] Erro ao processar cancelamento de assinatura:', error);
-    throw error;
-  }
-}
-
-/**
- * Trata evento de assinatura excluída
- */
-async function handleSubscriptionDeleted(body, db) {
-  try {
-    const subscription = body.subscription;
-    const customerId = subscription.customer;
-    
-    // Buscar usuário pelo customerId do Asaas
-    const user = await db.collection('users').findOne({
-      asaas_customer_id: customerId
-    });
-    
-    if (!user) {
-      console.log(`[AsaasWebhook] Usuário não encontrado para customer_id: ${customerId}`);
-      return;
-    }
-    
-    // Atualizar status da assinatura para "DELETED"
-    await db.collection('user_subscriptions').updateOne(
-      { user_id: user._id.toString() },
-      {
-        $set: {
-          status: 'DELETED',
-          deleted_at: new Date(),
-          updated_at: new Date()
-        }
-      }
-    );
-    
-    // Limpar cache de assinatura
-    clearSubscriptionCache(user._id.toString());
-    
-    console.log(`[AsaasWebhook] Assinatura excluída para usuário: ${user._id}`);
-  } catch (error) {
-    console.error('[AsaasWebhook] Erro ao processar exclusão de assinatura:', error);
-    throw error;
-  }
+function mapPlanFromValue(value) {
+  // Valores são exemplos, ajuste conforme sua estrutura de preços
+  if (!value) return 'BASIC';
+  
+  if (value <= 19.90) return 'BASIC';
+  if (value <= 39.90) return 'PRO';
+  return 'PREMIUM';
 }
 
 module.exports = {

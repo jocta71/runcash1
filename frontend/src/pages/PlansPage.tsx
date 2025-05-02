@@ -6,62 +6,15 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
-import axios from 'axios';
-
-// URL da API do Railway
-const API_URL = "https://backendapi-production-36b5.up.railway.app/api";
 
 const PlansPage = () => {
-  const { availablePlans, currentPlan, loading, refetchSubscription } = useSubscription();
+  const { availablePlans, currentPlan, loading } = useSubscription();
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [processingPlan, setProcessingPlan] = useState<string | null>(null);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   
-  // Função para criar um checkout para assinatura
-  const createSubscriptionCheckout = async (planId: string) => {
-    try {
-      setProcessingPlan(planId);
-      
-      // Obter o preço do plano
-      const plan = availablePlans.find(p => p.id === planId);
-      if (!plan) {
-        throw new Error("Plano não encontrado");
-      }
-      
-      console.log(`Chamando API ${API_URL}/checkout/subscription`);
-      
-      const response = await axios.post(
-        `${API_URL}/checkout/subscription`, 
-        { 
-          planType: planId.toUpperCase(),
-          planPrice: plan.price
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
-      
-      if (response.data.success && response.data.checkoutUrl) {
-        // Redirecionar o usuário para o checkout do Asaas
-        window.location.href = response.data.checkoutUrl;
-      } else {
-        throw new Error(response.data.message || "Erro ao criar checkout");
-      }
-    } catch (error: any) {
-      console.error("Erro ao criar checkout:", error);
-      toast({
-        title: "Erro ao processar pagamento",
-        description: error.response?.data?.message || error.message || "Ocorreu um erro ao processar o pagamento.",
-        variant: "destructive"
-      });
-    } finally {
-      setProcessingPlan(null);
-    }
-  };
-
   const handleSelectPlan = (planId: string) => {
     // Se já for o plano atual, apenas mostrar mensagem
     if (currentPlan?.id === planId) {
@@ -82,8 +35,15 @@ const PlansPage = () => {
       return;
     }
     
-    // Iniciar o processo de checkout
-    createSubscriptionCheckout(planId);
+    // Mostrar toast informando que a funcionalidade de pagamento foi desativada
+    toast({
+      title: "Funcionalidade desativada",
+      description: "A página de pagamentos foi desativada nesta versão do aplicativo.",
+      variant: "default"
+    });
+    
+    // Redirecionar para o dashboard/início
+    navigate('/');
   };
 
   if (loading) {
@@ -96,8 +56,9 @@ const PlansPage = () => {
     );
   }
 
-  // Remover plano gratuito (basic) da exibição
-  const displayPlans = availablePlans.filter(plan => plan.id !== 'basic');
+  // Filtrar apenas os planos Profissional (49,90) e Premium (99,90)
+  const filteredPlans = availablePlans
+    .filter(plan => (plan.price === 49.90 || plan.price === 99.90) && plan.interval === 'monthly');
 
   return (
     <Layout>
@@ -108,7 +69,7 @@ const PlansPage = () => {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {displayPlans.map(plan => (
+          {filteredPlans.map(plan => (
             <div 
               key={plan.id}
               className={`border rounded-lg p-6 flex flex-col ${
@@ -163,12 +124,10 @@ const PlansPage = () => {
                       ? "bg-vegas-gold hover:bg-vegas-gold/80 text-black"
                       : "bg-vegas-gold/80 hover:bg-vegas-gold text-black"
                 }
-                disabled={currentPlan?.id === plan.id || processingPlan === plan.id}
+                disabled={currentPlan?.id === plan.id}
               >
                 {currentPlan?.id === plan.id 
                   ? "Plano Atual" 
-                  : processingPlan === plan.id
-                  ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Processando</>
                   : "Assinar Agora"}
               </Button>
             </div>
@@ -182,7 +141,7 @@ const PlansPage = () => {
             <div>
               <h3 className="font-semibold mb-2">Como funciona o sistema de assinatura?</h3>
               <p className="text-sm text-gray-400">
-                Nossas assinaturas são cobradas mensalmente e o pagamento é processado através da plataforma Asaas, oferecendo opções de pagamento via PIX, boleto ou cartão de crédito.
+                Nossas assinaturas são cobradas mensalmente e o pagamento é processado via PIX através da plataforma Asaas.
               </p>
             </div>
             
@@ -190,13 +149,6 @@ const PlansPage = () => {
               <h3 className="font-semibold mb-2">Posso cancelar a qualquer momento?</h3>
               <p className="text-sm text-gray-400">
                 Sim, você pode cancelar sua assinatura a qualquer momento. O acesso aos recursos premium permanecerá ativo até o final do período pago.
-              </p>
-            </div>
-            
-            <div>
-              <h3 className="font-semibold mb-2">Quais formas de pagamento são aceitas?</h3>
-              <p className="text-sm text-gray-400">
-                Aceitamos pagamentos via PIX, boleto bancário e cartão de crédito, todos processados de forma segura pela plataforma Asaas.
               </p>
             </div>
           </div>

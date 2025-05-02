@@ -6,14 +6,9 @@
     { "source": "/api/events", "destination": "/api/proxy?path=/api/events" },
     { "source": "/api/roulettes", "destination": "/api/proxy?path=/api/roulettes" },
     { "source": "/api/strategies", "destination": "/api/proxy?path=/api/strategies" },
-    { "source": "/api/checkout/subscription", "destination": "https://backendapi-production-36b5.up.railway.app/api/checkout/subscription" },
-    { "source": "/api/checkout/:checkoutId/status", "destination": "https://backendapi-production-36b5.up.railway.app/api/checkout/:checkoutId/status" },
     { "source": "/emit-event", "destination": "/api/proxy?path=/emit-event" },
     { "source": "/test-cors", "destination": "/api/proxy?path=/test-cors" },
     { "source": "/socket-status", "destination": "/api/proxy?path=/socket-status" },
-    { "source": "/api/asaas-create-customer", "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-customer" },
-    { "source": "/api/asaas-create-subscription", "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-subscription" },
-    { "source": "/api/asaas-webhook", "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/webhook" },
     { "source": "/historico/:roletaId", "destination": "/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
@@ -24,3 +19,18 @@
     "BACKEND_URL": "https://runcash1-production.up.railway.app"
   }
 }
+,
+  "rewrites": [
+    { 
+      "source": "/api/asaas-create-customer",
+      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-customer"
+    },
+    { 
+      "source": "/api/asaas-create-subscription", 
+      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-subscription"
+    },
+    { 
+      "source": "/api/asaas-webhook",
+      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/webhook"
+    }
+  ]

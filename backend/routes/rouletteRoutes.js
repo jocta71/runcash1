@@ -8,7 +8,7 @@ const router = express.Router();
 
 // Importar middlewares
 const { verifyToken } = require('../middlewares/authMiddleware');
-const { verifyAsaasSubscription, requireResourceAccess } = require('../middlewares/asaasSubscriptionMiddleware');
+const { checkActiveSubscription, addSubscriptionInfo } = require('../middlewares/subscriptionMiddleware');
 
 // Importar controller
 const rouletteController = require('../controllers/rouletteController');
@@ -16,11 +16,22 @@ const rouletteController = require('../controllers/rouletteController');
 /**
  * @route   GET /api/roulettes
  * @desc    Lista todas as roletas disponíveis (limitado por plano)
- * @access  Público com limitações / Premium para lista completa
+ * @access  Público com limitações
  */
 router.get('/roulettes', 
-  verifyToken, // Autenticação obrigatória
-  verifyAsaasSubscription({ required: false }), // Assinatura opcional
+  verifyToken, // Autenticação
+  addSubscriptionInfo, // Adiciona info de assinatura, mas não bloqueia
+  rouletteController.listRoulettes
+);
+
+/**
+ * @route   GET /api/roulettes/premium
+ * @desc    Lista todas as roletas disponíveis (acesso premium)
+ * @access  Privado - Requer assinatura
+ */
+router.get('/roulettes/premium', 
+  verifyToken, // Autenticação
+  checkActiveSubscription, // Verifica assinatura ativa
   rouletteController.listRoulettes
 );
 
@@ -39,8 +50,8 @@ router.get('/roulettes/:id/basic',
  * @access  Público com limitações
  */
 router.get('/roulettes/:id/recent', 
-  verifyToken, // Autenticação obrigatória
-  verifyAsaasSubscription({ required: false }), // Assinatura opcional
+  verifyToken, // Autenticação
+  addSubscriptionInfo, // Adiciona info de assinatura, mas não bloqueia
   rouletteController.getRecentNumbers
 );
 
@@ -50,12 +61,8 @@ router.get('/roulettes/:id/recent',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/detailed', 
-  verifyToken,
-  verifyAsaasSubscription({ 
-    required: true,
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
-  }),
-  requireResourceAccess('standard_stats'),
+  verifyToken, // Autenticação
+  checkActiveSubscription, // Verifica assinatura ativa
   rouletteController.getDetailedRouletteData
 );
 
@@ -65,12 +72,8 @@ router.get('/roulettes/:id/detailed',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/stats', 
-  verifyToken,
-  verifyAsaasSubscription({
-    required: true,
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
-  }),
-  requireResourceAccess('standard_stats'),
+  verifyToken, // Autenticação
+  checkActiveSubscription, // Verifica assinatura ativa
   rouletteController.getRouletteStatistics
 );
 
@@ -80,12 +83,19 @@ router.get('/roulettes/:id/stats',
  * @access  Privado - Requer assinatura premium
  */
 router.get('/roulettes/:id/historical', 
-  verifyToken,
-  verifyAsaasSubscription({ 
-    required: true,
-    allowedPlans: ['PREMIUM']
-  }),
-  requireResourceAccess('historical_data'),
+  verifyToken, // Autenticação
+  checkActiveSubscription, // Verifica assinatura ativa
+  // Verificar se o plano do usuário é premium (adicional)
+  (req, res, next) => {
+    if (req.userPlan && req.userPlan.type === 'PREMIUM') {
+      return next();
+    }
+    return res.status(403).json({
+      success: false,
+      message: 'Este recurso requer uma assinatura premium',
+      code: 'PREMIUM_REQUIRED'
+    });
+  },
   rouletteController.getHistoricalData
 );
 
@@ -95,12 +105,8 @@ router.get('/roulettes/:id/historical',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/batch', 
-  verifyToken,
-  verifyAsaasSubscription({
-    required: true,
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
-  }),
-  requireResourceAccess('standard_stats'),
+  verifyToken, // Autenticação
+  checkActiveSubscription, // Verifica assinatura ativa
   rouletteController.getNumbersBatch
 );
 
