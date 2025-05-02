@@ -371,9 +371,65 @@ app.get('/api/roulettes',
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
   }), 
   async (req, res) => {
-    console.log('[API] Requisição recebida para /api/roulettes');
-    console.log('[API] Usuário:', req.usuario?.id);
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[API ${requestId}] Requisição recebida para /api/roulettes`);
+    console.log(`[API ${requestId}] Usuário: ${req.usuario?.id}`);
+    console.log(`[API ${requestId}] Plano: ${req.userPlan?.type}`);
+    console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[API ${requestId}] Query: ${JSON.stringify(req.query)}`);
+    
+    // Verificação dupla de assinatura válida
+    if (!req.subscription) {
+      console.log(`[API ${requestId}] Bloqueando acesso - assinatura não encontrada`);
+      return res.status(403).json({
+        success: false,
+        message: 'Você precisa de uma assinatura ativa para acessar este recurso',
+        code: 'SUBSCRIPTION_REQUIRED',
+        requestId: requestId
+      });
+    }
+    
+    // Aplicar cabeçalhos CORS explicitamente para esta rota
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    
+    try {
+      if (!isConnected || !collection) {
+        console.log(`[API ${requestId}] MongoDB não conectado, retornando array vazio`);
+        return res.json([]);
+      }
+      
+      // Obter roletas únicas da coleção
+      const roulettes = await collection.aggregate([
+        { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+        { $project: { _id: 0, id: 1, nome: "$_id" } }
+      ]).toArray();
+      
+      console.log(`[API ${requestId}] Processadas ${roulettes.length} roletas para usuário ${req.usuario?.id} com plano ${req.userPlan?.type}`);
+      res.json(roulettes);
+    } catch (error) {
+      console.error(`[API ${requestId}] Erro ao listar roletas:`, error);
+      res.status(500).json({ 
+        error: 'Erro interno ao buscar roletas',
+        message: error.message,
+        requestId: requestId 
+      });
+    }
+});
+
+// Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
+app.get('/api/ROULETTES', 
+  verifyTokenAndSubscription({ 
+    required: true, 
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
+  }),
+  async (req, res) => {
+    console.log('[API] Requisição processada diretamente em /api/ROULETTES');
+    console.log('[API] Usuário autenticado:', req.usuario?.id);
     console.log('[API] Plano do usuário:', req.userPlan?.type);
+    console.log('[API] Headers:', JSON.stringify(req.headers));
+    console.log('[API] Query params:', JSON.stringify(req.query));
     
     // Verificação dupla de assinatura válida
     if (!req.subscription) {
@@ -391,49 +447,26 @@ app.get('/api/roulettes',
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     
     try {
+      // Em vez de redirecionar, processamos a requisição aqui diretamente
       if (!isConnected || !collection) {
         console.log('[API] MongoDB não conectado, retornando array vazio');
         return res.json([]);
       }
       
-      // Obter roletas únicas da coleção
+      // Obter roletas únicas da coleção - código idêntico ao endpoint /api/roulettes
       const roulettes = await collection.aggregate([
         { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
         { $project: { _id: 0, id: 1, nome: "$_id" } }
       ]).toArray();
       
       console.log(`[API] Processadas ${roulettes.length} roletas para usuário ${req.usuario?.id} com plano ${req.userPlan?.type}`);
-      res.json(roulettes);
+      
+      // Retornar diretamente os dados, sem redirecionamento
+      return res.json(roulettes);
     } catch (error) {
-      console.error('[API] Erro ao listar roletas:', error);
-      res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+      console.error('[API] Erro ao listar roletas (endpoint maiúsculas):', error);
+      return res.status(500).json({ error: 'Erro interno ao buscar roletas' });
     }
-});
-
-// Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
-app.get('/api/ROULETTES', 
-  verifyTokenAndSubscription({ 
-    required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
-  }),
-  (req, res) => {
-    console.log('[API] Requisição validada para /api/ROULETTES');
-    console.log('[API] Usuário autenticado:', req.usuario?.id);
-    console.log('[API] Plano do usuário:', req.userPlan?.type);
-    
-    // Verificação dupla de assinatura válida
-    if (!req.subscription) {
-      console.log('[API] Bloqueando acesso - assinatura não encontrada');
-      return res.status(403).json({
-        success: false,
-        message: 'Você precisa de uma assinatura ativa para acessar este recurso',
-        code: 'SUBSCRIPTION_REQUIRED'
-      });
-    }
-    
-    // Redirecionar para a rota correta com status 307 (redirecionamento temporário que preserva o método e o corpo)
-    console.log('[API] Redirecionando /api/ROULETTES para /api/roulettes (com autenticação validada)');
-    res.redirect(307, '/api/roulettes');
 });
 
 // Rota para listar todas as roletas (endpoint em português - compatibilidade)
@@ -742,17 +775,21 @@ app.get('/api/ROULETTES/historico',
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
   }),
   async (req, res) => {
-    console.log('[API] Requisição recebida para /api/ROULETTES/historico');
-    console.log('[API] Usuário:', req.usuario?.id);
-    console.log('[API] Plano do usuário:', req.userPlan?.type);
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[API ${requestId}] Requisição recebida para /api/ROULETTES/historico`);
+    console.log(`[API ${requestId}] Usuário: ${req.usuario?.id}`);
+    console.log(`[API ${requestId}] Plano: ${req.userPlan?.type}`);
+    console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[API ${requestId}] Query: ${JSON.stringify(req.query)}`);
     
     // Verificação dupla de assinatura válida
     if (!req.subscription) {
-      console.log('[API] Bloqueando acesso - assinatura não encontrada');
+      console.log(`[API ${requestId}] Bloqueando acesso - assinatura não encontrada`);
       return res.status(403).json({
         success: false,
         message: 'Você precisa de uma assinatura ativa para acessar este recurso',
-        code: 'SUBSCRIPTION_REQUIRED'
+        code: 'SUBSCRIPTION_REQUIRED',
+        requestId: requestId
       });
     }
     
@@ -762,7 +799,7 @@ app.get('/api/ROULETTES/historico',
     // Responder com o histórico
     try {
       if (!isConnected || !collection) {
-        console.log('[API] MongoDB não conectado, retornando array vazio');
+        console.log(`[API ${requestId}] MongoDB não conectado, retornando array vazio`);
         return res.json([]);
       }
       
@@ -774,29 +811,38 @@ app.get('/api/ROULETTES/historico',
         .toArray();
       
       if (historico.length > 0) {
-        console.log(`[API] Retornando histórico com ${historico.length} entradas para usuário ${req.usuario?.id}`);
+        console.log(`[API ${requestId}] Retornando histórico com ${historico.length} entradas para usuário ${req.usuario?.id}`);
         res.json(historico);
       } else {
-        console.log('[API] Histórico vazio');
-        res.status(404).json({ error: 'Histórico vazio' });
+        console.log(`[API ${requestId}] Histórico vazio`);
+        res.status(404).json({ 
+          error: 'Histórico vazio',
+          requestId: requestId
+        });
       }
     } catch (error) {
-      console.error('[API] Erro ao buscar histórico:', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      console.error(`[API ${requestId}] Erro ao buscar histórico:`, error);
+      res.status(500).json({ 
+        error: 'Erro interno do servidor',
+        message: error.message,
+        requestId: requestId 
+      });
     }
 });
 
 // Manipulador OPTIONS específico para /api/ROULETTES
 app.options('/api/ROULETTES', (req, res) => {
-  console.log('[CORS] Requisição OPTIONS recebida para /api/ROULETTES');
+  const requestId = Math.random().toString(36).substring(2, 15);
+  console.log(`[CORS ${requestId}] Requisição OPTIONS recebida para /api/ROULETTES`);
   
   // Aplicar cabeçalhos CORS necessários
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
   
   // Responder imediatamente com sucesso
+  console.log(`[CORS ${requestId}] Resposta OPTIONS enviada com status 204`);
   res.status(204).end();
 });
 
@@ -1005,4 +1051,53 @@ app.get('/api/subscription/status',
         ? `Assinatura ativa: plano ${plano}` 
         : 'Usuário não possui assinatura ativa'
     });
+});
+
+// Endpoint para diagnóstico de autenticação e assinatura
+app.get('/api/auth-test', 
+  verifyTokenAndSubscription({ required: false }), 
+  (req, res) => {
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[API ${requestId}] Requisição para diagnóstico de autenticação`);
+    
+    // Coletar informações sobre o request e a autenticação
+    const info = {
+      requestId: requestId,
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      method: req.method,
+      authenticated: !!req.usuario,
+      hasSubscription: !!req.subscription,
+      userInfo: req.usuario ? {
+        id: req.usuario.id,
+        username: req.usuario.username,
+        email: req.usuario.email
+      } : null,
+      subscriptionInfo: req.subscription ? {
+        id: req.subscription.id || req.subscription._id,
+        status: req.subscription.status,
+        plan: req.userPlan?.type,
+        expiresAt: req.subscription.validade || req.subscription.expiresAt
+      } : null,
+      headers: {
+        authorization: req.headers.authorization ? 'Bearer [redacted]' : null,
+        userAgent: req.headers['user-agent'],
+        origin: req.headers.origin,
+        host: req.headers.host
+      },
+      client: {
+        ip: req.ip,
+        protocol: req.protocol
+      }
+    };
+    
+    console.log(`[API ${requestId}] Resultado do diagnóstico:`, 
+      JSON.stringify({
+        authenticated: info.authenticated,
+        hasSubscription: info.hasSubscription,
+        plan: info.subscriptionInfo?.plan
+      })
+    );
+    
+    res.json(info);
 });

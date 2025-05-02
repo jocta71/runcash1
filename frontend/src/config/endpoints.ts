@@ -13,6 +13,7 @@ export const ROULETTE_ENDPOINTS = {
   LIST: `${API_BASE_URL}/api/roulettes`,
   
   // Endpoint alternativo para compatibilidade com versões anteriores
+  // IMPORTANTE: Use apenas LIST (minúsculas) pois este será depreciado
   LEGACY_LIST: `${API_BASE_URL}/api/ROULETTES`,
   
   // Informações detalhadas de uma roleta
@@ -22,7 +23,10 @@ export const ROULETTE_ENDPOINTS = {
   HISTORY: (id: string) => `${API_BASE_URL}/api/numbers/byid/${id}`,
   
   // Endpoint para verificar status de assinatura
-  SUBSCRIPTION_STATUS: `${API_BASE_URL}/api/subscription/status`
+  SUBSCRIPTION_STATUS: `${API_BASE_URL}/api/subscription/status`,
+  
+  // Endpoint para diagnóstico de autenticação
+  AUTH_TEST: `${API_BASE_URL}/api/auth-test`
 };
 
 // Endpoints para autenticação
@@ -30,7 +34,8 @@ export const AUTH_ENDPOINTS = {
   LOGIN: `${API_BASE_URL}/api/auth/login`,
   REGISTER: `${API_BASE_URL}/api/auth/register`,
   PROFILE: `${API_BASE_URL}/api/auth/profile`,
-  REFRESH: `${API_BASE_URL}/api/auth/refresh-token`
+  REFRESH: `${API_BASE_URL}/api/auth/refresh-token`,
+  TEST: `${API_BASE_URL}/api/auth-test`
 };
 
 // Endpoints para assinaturas
@@ -40,11 +45,64 @@ export const SUBSCRIPTION_ENDPOINTS = {
   PLANS: `${API_BASE_URL}/api/subscription/plans`
 };
 
+// Tipo para a função de diagnóstico
+type TestAuthFunction = () => Promise<any>;
+
+// Tipo da interface de endpoints
+interface ApiEndpoints {
+  ROULETTES: typeof ROULETTE_ENDPOINTS;
+  AUTH: typeof AUTH_ENDPOINTS;
+  SUBSCRIPTION: typeof SUBSCRIPTION_ENDPOINTS;
+  testAuth?: TestAuthFunction;
+}
+
 // Configuração global de endpoints
-export const API_ENDPOINTS = {
+export const API_ENDPOINTS: ApiEndpoints = {
   ROULETTES: ROULETTE_ENDPOINTS,
   AUTH: AUTH_ENDPOINTS,
   SUBSCRIPTION: SUBSCRIPTION_ENDPOINTS,
 };
+
+/**
+ * Função para verificar e diagnosticar problemas de autenticação
+ * Use no console do navegador para diagnosticar problemas:
+ * 
+ * import endpoints from './endpoints';
+ * endpoints.testAuth();
+ */
+export async function testAuth(): Promise<any> {
+  try {
+    console.log('Iniciando diagnóstico de autenticação...');
+    
+    // Tentar fazer a requisição com as credenciais atuais
+    const response = await fetch(AUTH_ENDPOINTS.TEST, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': localStorage.getItem('auth_token') 
+          ? `Bearer ${localStorage.getItem('auth_token')}`
+          : ''
+      }
+    });
+    
+    const data = await response.json();
+    
+    console.log('Resultado do diagnóstico:', data);
+    console.log('Status de autenticação:', data.authenticated ? 'Autenticado' : 'Não autenticado');
+    console.log('Status da assinatura:', data.hasSubscription ? 'Ativa' : 'Inativa ou inexistente');
+    
+    if (data.authenticated && !data.hasSubscription) {
+      console.warn('⚠️ Você está autenticado mas não possui uma assinatura ativa!');
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Erro ao executar diagnóstico:', error);
+    return { error: error.message };
+  }
+}
+
+// Adicionar a função de teste ao objeto exportado
+API_ENDPOINTS.testAuth = testAuth;
 
 export default API_ENDPOINTS; 
