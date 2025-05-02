@@ -44,7 +44,8 @@ app.use(cors({
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 
-                 'ngrok-skip-browser-warning', 'bypass-tunnel-reminder', 'cache-control', 'pragma'],
+                 'ngrok-skip-browser-warning', 'bypass-tunnel-reminder', 'cache-control', 'pragma',
+                 'asaas-access-token'],
   credentials: true,
   optionsSuccessStatus: 200
 }));
@@ -93,6 +94,15 @@ if (fs.existsSync(apiIndexPath)) {
       console.log('Rotas de roleta carregadas do diretório principal');
     } catch (err) {
       console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
+    }
+    
+    // Carregar rotas de webhook do Asaas
+    try {
+      const asaasWebhookRoutes = require('./routes/asaasWebhookRoutes');
+      app.use('/api', asaasWebhookRoutes);
+      console.log('Rotas de webhook do Asaas carregadas');
+    } catch (err) {
+      console.log('Rotas de webhook do Asaas não disponíveis:', err.message);
     }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
@@ -222,4 +232,13 @@ server.listen(PORT, () => {
   console.log('- / (status do servidor)');
   console.log('- /api (rotas da API principal)');
   console.log('- /emit-event (compatibilidade com WebSocket, se ativado)');
+  
+  // Verificar conexão com MongoDB
+  MongoClient.connect(MONGODB_URI, { useUnifiedTopology: true })
+    .then(() => {
+      console.log('Conexão com MongoDB estabelecida com sucesso!');
+    })
+    .catch(err => {
+      console.error('Erro ao conectar com MongoDB:', err);
+    });
 });

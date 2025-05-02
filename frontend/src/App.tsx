@@ -14,6 +14,7 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import SoundManager from "./components/SoundManager";
 import { LoginModalProvider, useLoginModal } from "./context/LoginModalContext";
+import SubscriptionRequiredModal from "./components/SubscriptionRequiredModal";
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -141,6 +142,99 @@ const AuthStateManager = () => {
   return null; // Este componente não renderiza nada
 };
 
+// Componente para gerenciar os recursos do aplicativo que precisam do Router
+const AppContent = () => {
+  const navigate = useNavigate();
+  
+  // Função para redirecionar para a página de planos
+  const handleUpgrade = () => {
+    navigate('/plans');
+  };
+  
+  return (
+    <>
+      <GoogleAuthHandler />
+      <AuthStateManager />
+      {/* Modal de assinatura requerida */}
+      <SubscriptionRequiredModal onUpgrade={handleUpgrade} />
+      <Routes>
+        {/* Páginas principais - Acessíveis mesmo sem login, mas mostram modal se necessário */}
+        <Route index element={
+          <ProtectedRoute>
+            <Suspense fallback={<LoadingScreen />}>
+              <Index />
+            </Suspense>
+          </ProtectedRoute>
+        } />
+        
+        {/* Rotas de planos e assinatura */}
+        <Route path="/plans" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <PlansPage />
+          </Suspense>
+        } />
+        
+        <Route path="/billing" element={
+          <ProtectedRoute>
+            <Suspense fallback={<LoadingScreen />}>
+              <BillingPage />
+            </Suspense>
+          </ProtectedRoute>
+        } />
+        
+        {/* Rota de testes */}
+        <Route path="/test" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <TestPage />
+          </Suspense>
+        } />
+        
+        {/* Rotas de redirecionamento para compatibilidade */}
+        <Route path="/minha-conta" element={<MinhaContaRedirect />} />
+        <Route path="/minha-conta/assinatura" element={<MinhaContaAssinaturaRedirect />} />
+        <Route path="/account" element={<AccountRouteRedirect />} />
+        <Route path="/account/redirect" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <AccountRedirect />
+          </Suspense>
+        } />
+        
+        {/* Rotas de perfil */}
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <Suspense fallback={<LoadingScreen />}>
+              <ProfilePage />
+            </Suspense>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/profile/subscription" element={
+          <ProtectedRoute>
+            <Suspense fallback={<LoadingScreen />}>
+              <ProfileSubscription />
+            </Suspense>
+          </ProtectedRoute>
+        } />
+        
+        {/* Rota de roleta ao vivo */}
+        <Route path="/live/:rouletteId" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <LiveRoulettePage />
+          </Suspense>
+        } />
+        
+        {/* Rota 404 para páginas não encontradas */}
+        <Route path="*" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <NotFound />
+          </Suspense>
+        } />
+      </Routes>
+      <Toaster />
+    </>
+  );
+};
+
 // Componente principal da aplicação
 const App = () => {
   // Criar uma única instância do QueryClient com useRef para mantê-la durante re-renders
@@ -184,98 +278,9 @@ const App = () => {
               <NotificationsProvider>
                 <SoundManager>
                   <BrowserRouter>
-                    <GoogleAuthHandler />
                     <LoginModalProvider>
-                      <AuthStateManager />
-                      <Routes>
-                        {/* Remover rota explícita de login e sempre usar o modal */}
-                        
-                        {/* Páginas principais - Acessíveis mesmo sem login, mas mostram modal se necessário */}
-                        <Route index element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <Index />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Rota para a página de teste de assinatura - removida */}
-                        {/* <Route path="/teste-assinatura" element={
-                          <Suspense fallback={<LoadingScreen />}>
-                            <TestAssinaturaPage />
-                          </Suspense>
-                        } /> */}
-                        
-                        {/* Removidas as rotas: /roulettes, /history, /analysis, /strategies, /strategy/:id */}
-                        
-                        <Route path="/profile" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <ProfilePage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Página de detalhes da assinatura - agora redirecionando para /billing */}
-                        <Route path="/minha-conta/assinatura" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <MinhaContaAssinaturaRedirect />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Rota para /minha-conta que redireciona para /minha-conta/assinatura */}
-                        <Route path="/minha-conta" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <MinhaContaRedirect />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Redirecionamento da rota /account (usada após pagamento) */}
-                        <Route path="/account" element={
-                          <Suspense fallback={<LoadingScreen />}>
-                            <AccountRouteRedirect />
-                          </Suspense>
-                        } />
-                        
-                        <Route path="/billing" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <BillingPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/planos" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PlansPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/live" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <LiveRoulettePage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Rota para página não encontrada */}
-                        <Route path="*" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <NotFound />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                      </Routes>
+                      <AppContent />
                     </LoginModalProvider>
-                    <Toaster />
                   </BrowserRouter>
                 </SoundManager>
               </NotificationsProvider>

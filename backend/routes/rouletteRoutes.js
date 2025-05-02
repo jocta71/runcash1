@@ -7,7 +7,8 @@ const express = require('express');
 const router = express.Router();
 
 // Importar middlewares
-const { verifyTokenAndSubscription, requireResourceAccess } = require('../middlewares/asaasAuthMiddleware');
+const { verifyToken } = require('../middlewares/authMiddleware');
+const { verifyAsaasSubscription, requireResourceAccess } = require('../middlewares/asaasSubscriptionMiddleware');
 
 // Importar controller
 const rouletteController = require('../controllers/rouletteController');
@@ -15,10 +16,11 @@ const rouletteController = require('../controllers/rouletteController');
 /**
  * @route   GET /api/roulettes
  * @desc    Lista todas as roletas disponíveis (limitado por plano)
- * @access  Público com limitações
+ * @access  Público com limitações / Premium para lista completa
  */
 router.get('/roulettes', 
-  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
+  verifyToken, // Autenticação obrigatória
+  verifyAsaasSubscription({ required: false }), // Assinatura opcional
   rouletteController.listRoulettes
 );
 
@@ -37,7 +39,8 @@ router.get('/roulettes/:id/basic',
  * @access  Público com limitações
  */
 router.get('/roulettes/:id/recent', 
-  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
+  verifyToken, // Autenticação obrigatória
+  verifyAsaasSubscription({ required: false }), // Assinatura opcional
   rouletteController.getRecentNumbers
 );
 
@@ -47,7 +50,8 @@ router.get('/roulettes/:id/recent',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/detailed', 
-  verifyTokenAndSubscription({ 
+  verifyToken,
+  verifyAsaasSubscription({ 
     required: true,
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
   }),
@@ -61,7 +65,8 @@ router.get('/roulettes/:id/detailed',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/stats', 
-  verifyTokenAndSubscription({
+  verifyToken,
+  verifyAsaasSubscription({
     required: true,
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
   }),
@@ -74,8 +79,9 @@ router.get('/roulettes/:id/stats',
  * @desc    Obtém dados históricos avançados (para assinantes premium)
  * @access  Privado - Requer assinatura premium
  */
-router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical', 
-  verifyTokenAndSubscription({ 
+router.get('/roulettes/:id/historical', 
+  verifyToken,
+  verifyAsaasSubscription({ 
     required: true,
     allowedPlans: ['PREMIUM']
   }),
@@ -89,7 +95,8 @@ router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/batch', 
-  verifyTokenAndSubscription({
+  verifyToken,
+  verifyAsaasSubscription({
     required: true,
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
   }),
