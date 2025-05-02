@@ -556,10 +556,6 @@ class RESTSocketService {
 
   // Método para iniciar o polling do segundo endpoint (/api/ROULETTES sem parâmetro)
   private startSecondEndpointPolling() {
-    console.log('[RESTSocketService] Requisições a api/roulettes foram desativadas');
-    
-    // Código original comentado
-    /*
     console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
     
     // Usar o GlobalRouletteDataService para obter dados
@@ -570,7 +566,6 @@ class RESTSocketService {
     
     // Executar imediatamente a primeira vez
     this.processDataFromCentralService();
-    */
   }
   
   // Método para processar dados do serviço centralizado
@@ -677,59 +672,17 @@ class RESTSocketService {
 
   // Função auxiliar para mesclar arrays de números sem duplicações
   private mergeNumbersWithoutDuplicates(newNumbers: number[], existingNumbers: number[]): number[] {
-    // Criar um Set a partir dos números existentes para verificação rápida
-    const existingSet = new Set(existingNumbers);
+    // Mesclar sem duplicar, preservando a ordem (novos números primeiro)
+    const merged = [...newNumbers];
     
-    // Array para armazenar os números mesclados
-    const mergedNumbers = [...existingNumbers];
+    // Adicionar números existentes que não estão no novo conjunto
+    existingNumbers.forEach(num => {
+      if (!merged.includes(num)) {
+        merged.push(num);
+      }
+    });
     
-    // Adicionar apenas números novos
-    for (const num of newNumbers) {
-      if (!existingSet.has(num)) {
-        mergedNumbers.unshift(num); // Adicionar no início para manter os mais recentes primeiro
-        existingSet.add(num);
-      }
-    }
-    
-    return mergedNumbers;
-  }
-
-  // Novo método para verificar assinatura antes de iniciar polling
-  private async checkSubscriptionBeforeInit(): Promise<void> {
-    try {
-      // Verificar localmente se o usuário está autenticado
-      const token = localStorage.getItem('auth_token_backup') || Cookies.get('auth_token');
-      
-      if (!token) {
-        console.log('[RESTSocketService] Usuário não autenticado, iniciando polling padrão');
-        this.startPolling();
-        return;
-      }
-      
-      // Verificar com o backend se o usuário tem plano
-      const API_URL = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${API_URL}/subscription/status`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        console.log('[RESTSocketService] Erro ao verificar assinatura, iniciando polling padrão');
-        this.startPolling();
-        return;
-      }
-      
-      const data = await response.json();
-      
-      // Iniciar polling completo independente do status da assinatura
-      console.log('[RESTSocketService] Iniciando polling padrão');
-      this.startPolling();
-      this.startSecondEndpointPolling();
-    } catch (error) {
-      console.error('[RESTSocketService] Erro ao verificar assinatura:', error);
-      this.startPolling();
-    }
+    return merged;
   }
 }
 
