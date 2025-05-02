@@ -43,8 +43,12 @@ class FetchService {
   private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
   
   constructor() {
-    this.apiBaseUrl = config.apiBaseUrl;
-    logger.info('Inicializado com URL base:', this.apiBaseUrl);
+    // Forçar uso da URL correta do Railway independente do config
+    this.apiBaseUrl = 'https://backendapi-production-36b5.up.railway.app/api';
+    
+    // Log para depuração
+    console.log('[FetchService] Inicializado com URL base fixa:', this.apiBaseUrl);
+    logger.info('Inicializado com URL base fixa: ' + this.apiBaseUrl);
   }
   
   public static getInstance(): FetchService {

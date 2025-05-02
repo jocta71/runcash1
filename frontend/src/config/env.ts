@@ -31,7 +31,7 @@ interface EnvConfig {
 
 // Configuração para ambiente de produção
 const productionConfig: EnvConfig = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backend-production-2f96.up.railway.app',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'https://backendapi-production-36b5.up.railway.app/api',
   websocketUrl: import.meta.env.VITE_WEBSOCKET_URL || 'wss://backend-production-2f96.up.railway.app',
   debugMode: false,
   env: 'production',
@@ -52,6 +52,11 @@ const developmentConfig: EnvConfig = {
  * @returns URL base da API
  */
 export function getApiBaseUrl(): string {
+  // IMPORTANTE: Sempre garantir que estamos usando a URL correta da API
+  // Forçar o uso da URL do Railway, mesmo em produção
+  return 'https://backendapi-production-36b5.up.railway.app/api';
+  
+  /* Código original comentado para debug
   // Primeiro tentar obter VITE_API_BASE_URL
   try {
     const apiUrl = getRequiredEnvVar('VITE_API_BASE_URL');
@@ -76,6 +81,7 @@ export function getApiBaseUrl(): string {
       return 'https://backendapi-production-36b5.up.railway.app/api';
     }
   }
+  */
 }
 
 /**
@@ -85,6 +91,12 @@ export function getApiBaseUrl(): string {
  * @throws Error se a variável não estiver definida
  */
 export function getRequiredEnvVar(name: string): string {
+  // Se estivermos buscando uma URL de API, forçar o valor correto
+  if (name === 'VITE_API_URL' || name === 'VITE_API_BASE_URL') {
+    console.log('[ENV] Usando URL padrão da API: https://backendapi-production-36b5.up.railway.app/api');
+    return 'https://backendapi-production-36b5.up.railway.app/api';
+  }
+  
   // Primeiro, tentar obter do import.meta.env (Vite)
   const value = import.meta.env[name];
   
@@ -141,8 +153,8 @@ export default {
   
   // Atalhos para as principais URLs
   wsUrl: getRequiredEnvVar('VITE_WS_URL'),
-  apiUrl: getRequiredEnvVar('VITE_API_URL') || getRequiredEnvVar('VITE_API_BASE_URL'),
-  apiBaseUrl: getApiBaseUrl(),
+  apiUrl: 'https://backendapi-production-36b5.up.railway.app/api', // Forçar URL correta
+  apiBaseUrl: 'https://backendapi-production-36b5.up.railway.app/api', // Forçar URL correta
   
   // Novas propriedades
   optimizePollingForVisibility: isProduction
