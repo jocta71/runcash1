@@ -5,29 +5,10 @@ const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
-// Importar modelos antes de tudo
-console.log('[API] Inicializando modelos...');
-try {
-  // Carregar modelos de forma explícita e ordenada
-  require('../models/index').ensureModelsLoaded();
-} catch (modelError) {
-  console.error('[API] Erro ao inicializar modelos:', modelError);
-}
-
 // Importar roteadores
 const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
 const strategiesRouter = require('./routes/strategies');
 const authRouter = require('./routes/auth');
-
-// Importar rota de webhook do Asaas
-console.log('[API] Carregando webhook do Asaas...');
-let asaasWebhookRouter;
-try {
-  asaasWebhookRouter = require('./webhooks/asaas');
-  console.log('[API] Webhook do Asaas carregado com sucesso');
-} catch (error) {
-  console.error('[API] Erro ao carregar webhook do Asaas:', error);
-}
 
 // Configuração MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -95,58 +76,6 @@ apiApp.locals.db = db;
 apiApp.use('/roulettes/history', rouletteHistoryRouter);
 apiApp.use('/strategies', strategiesRouter);
 apiApp.use('/auth', authRouter);
-
-// Registrar rota de webhook do Asaas
-if (asaasWebhookRouter) {
-  try {
-    // Adicionar middleware específico para esta rota para capturar erros de JSON
-    const rawBodyParser = express.raw({ 
-      type: 'application/json',
-      limit: '500kb'
-    });
-    
-    apiApp.post('/webhooks/asaas-raw', rawBodyParser, (req, res) => {
-      console.log('[API] Webhook raw do Asaas recebido');
-      console.log('[API] Content-Type:', req.headers['content-type']);
-      console.log('[API] Tamanho do payload:', req.body ? req.body.length : 0, 'bytes');
-      
-      try {
-        // Tentar analisar o JSON manualmente
-        const jsonData = req.body ? JSON.parse(req.body.toString()) : {};
-        console.log('[API] JSON analisado com sucesso:', jsonData.event || 'sem evento');
-        return res.status(200).json({ 
-          success: true, 
-          message: 'Webhook recebido e analisado com sucesso',
-          timestamp: new Date().toISOString()
-        });
-      } catch (jsonError) {
-        console.error('[API] Erro ao analisar JSON do webhook:', jsonError.message);
-        console.log('[API] Dados brutos recebidos:', req.body ? req.body.toString().substring(0, 200) + '...' : 'nenhum');
-        return res.status(200).json({ 
-          success: false, 
-          message: 'Erro ao analisar JSON do webhook',
-          error: jsonError.message,
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
-    
-    apiApp.use('/webhooks/asaas', asaasWebhookRouter);
-    console.log('[API] Rota de webhook do Asaas registrada em /api/webhooks/asaas');
-  } catch (routeError) {
-    console.error('[API] Erro ao registrar rota de webhook do Asaas:', routeError);
-  }
-}
-
-// Rota de teste para webhook do Asaas
-apiApp.post('/webhooks/asaas-test', (req, res) => {
-  console.log('[API] Webhook de teste do Asaas recebido:', JSON.stringify(req.body, null, 2));
-  return res.status(200).json({ 
-    success: true, 
-    message: 'Webhook de teste recebido com sucesso',
-    timestamp: new Date().toISOString()
-  });
-});
 
 // Adicionar mapeamento de nomes para IDs de roletas conhecidas
 const NOME_PARA_ID = {

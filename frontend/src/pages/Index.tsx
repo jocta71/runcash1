@@ -826,6 +826,9 @@ const Index = () => {
           </div>
         )}
         
+        {/* Modal de assinatura requerida */}
+        <SubscriptionRequired />
+        
         {/* Reset de estilo para evitar conflitos */}
         <style>{radioInputStyles}</style>
         

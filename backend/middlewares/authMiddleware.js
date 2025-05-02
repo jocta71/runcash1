@@ -10,7 +10,7 @@ const config = require('../config/config');
 const { Usuario } = require('../models');
 
 // Configuração do JWT - deve ser obtida do arquivo de configuração
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'seu_segredo_super_secreto';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 /**

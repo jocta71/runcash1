@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface SubscriptionRequiredProps {
   onClose?: () => void;
@@ -16,38 +16,11 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [errorDetails, setErrorDetails] = useState<any>(null);
   const [isRetrying, setIsRetrying] = useState(false);
-  const lastShownTimeRef = useRef<number>(0);
-  const ignoreEventsTimeoutRef = useRef<boolean>(false);
-  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     // Registrar listener para eventos de assinatura requerida
     const handleSubscriptionRequired = (event: CustomEvent<any>) => {
       console.log('[SubscriptionRequired] Evento subscription:required recebido:', event.detail);
-      
-      // Verificar se o modal foi exibido recentemente (nos últimos 30 segundos)
-      const now = Date.now();
-      const timeSinceLastShown = now - lastShownTimeRef.current;
-      
-      // Ignorar eventos repetidos em um curto período de tempo
-      if (ignoreEventsTimeoutRef.current || timeSinceLastShown < 30000) {
-        console.log('[SubscriptionRequired] Ignorando evento repetido para evitar modal pegajoso');
-        return;
-      }
-      
-      // Atualizar o timestamp da última exibição
-      lastShownTimeRef.current = now;
-      
-      // Definir um período de tempo em que eventos adicionais serão ignorados
-      ignoreEventsTimeoutRef.current = true;
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current);
-      }
-      
-      timeoutIdRef.current = setTimeout(() => {
-        ignoreEventsTimeoutRef.current = false;
-      }, 10000); // Ignorar novos eventos por 10 segundos
-      
       setIsVisible(true);
       // Armazenar detalhes do erro para exibição
       if (event.detail) {
@@ -61,30 +34,6 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
     // Registrar listener para eventos de assinatura inativa
     const handleSubscriptionInactive = (event: CustomEvent<any>) => {
       console.log('[SubscriptionRequired] Evento subscription:inactive recebido:', event.detail);
-      
-      // Verificar se o modal foi exibido recentemente
-      const now = Date.now();
-      const timeSinceLastShown = now - lastShownTimeRef.current;
-      
-      // Ignorar eventos repetidos em um curto período de tempo
-      if (ignoreEventsTimeoutRef.current || timeSinceLastShown < 30000) {
-        console.log('[SubscriptionRequired] Ignorando evento inactive repetido para evitar modal pegajoso');
-        return;
-      }
-      
-      // Atualizar o timestamp da última exibição
-      lastShownTimeRef.current = now;
-      
-      // Definir um período de tempo em que eventos adicionais serão ignorados
-      ignoreEventsTimeoutRef.current = true;
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current);
-      }
-      
-      timeoutIdRef.current = setTimeout(() => {
-        ignoreEventsTimeoutRef.current = false;
-      }, 10000); // Ignorar novos eventos por 10 segundos
-      
       setIsVisible(true);
       // Armazenar detalhes do erro para exibição
       if (event.detail) {
@@ -103,33 +52,12 @@ const SubscriptionRequired: React.FC<SubscriptionRequiredProps> = ({
     return () => {
       window.removeEventListener('subscription:required', handleSubscriptionRequired as EventListener);
       window.removeEventListener('subscription:inactive', handleSubscriptionInactive as EventListener);
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current);
-      }
     };
   }, []);
   
   const handleClose = () => {
     setIsVisible(false);
-    
-    // Definir um timeout mais longo após o fechamento manual
-    ignoreEventsTimeoutRef.current = true;
-    if (timeoutIdRef.current) {
-      clearTimeout(timeoutIdRef.current);
-    }
-    
-    timeoutIdRef.current = setTimeout(() => {
-      ignoreEventsTimeoutRef.current = false;
-    }, 60000); // Ignorar novos eventos por 1 minuto após fechar manualmente
-    
     if (onClose) onClose();
-    
-    // Armazenar no localStorage que o usuário fechou o modal
-    try {
-      localStorage.setItem('subscription_modal_closed', Date.now().toString());
-    } catch (e) {
-      console.error('[SubscriptionRequired] Erro ao salvar estado no localStorage:', e);
-    }
   };
   
   const redirectToSubscription = () => {
