@@ -26,11 +26,17 @@ exports.verifyTokenAndSubscription = (options = {
 }) => {
   return async (req, res, next) => {
     try {
+      // Log detalhado para depuração
+      console.log(`[AUTH DEBUG] Verificando acesso à rota: ${req.method} ${req.path}`);
+      console.log(`[AUTH DEBUG] Token presente: ${!!req.headers.authorization}`);
+      console.log(`[AUTH DEBUG] IP do cliente: ${req.ip}`);
+      console.log(`[AUTH DEBUG] User-Agent: ${req.headers['user-agent']}`);
+      
       // Verificar se o token está presente no cabeçalho
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.log('[AUTH] Acesso negado - token não fornecido');
         if (options.required) {
-          console.log('Acesso negado - token não fornecido');
           return res.status(401).json({
             success: false,
             message: 'Autenticação necessária para acessar este recurso',
@@ -40,20 +46,23 @@ exports.verifyTokenAndSubscription = (options = {
           // Token não é obrigatório, continuar sem autenticação
           req.userPlan = { type: 'FREE' };
           req.subscription = null;
+          console.log('[AUTH] Acesso sem token permitido (modo não obrigatório)');
           return next();
         }
       }
 
       // Extrair o token
       const token = authHeader.split(' ')[1];
+      console.log(`[AUTH DEBUG] Token: ${token.substring(0, 10)}...`);
 
       try {
         // Verificar e decodificar o token
         const decoded = jwt.verify(token, config.jwt.secret);
+        console.log(`[AUTH DEBUG] Token verificado para usuário ID: ${decoded.id}`);
 
         // Verificar se o payload tem as informações necessárias
         if (!decoded.id) {
-          console.log('Token inválido - acesso negado');
+          console.log('[AUTH] Token inválido - acesso negado');
           return res.status(401).json({
             success: false,
             message: 'Token inválido ou mal formado',
@@ -66,22 +75,29 @@ exports.verifyTokenAndSubscription = (options = {
         
         // Buscar assinatura do usuário no banco de dados
         const db = await getDb();
+        console.log(`[AUTH DEBUG] Buscando assinatura para usuário ID: ${decoded.id}`);
         const userSubscription = await db.collection('subscriptions').findOne({
           user_id: decoded.id,
           status: { $in: ['active', 'ACTIVE', 'ativa'] }
         });
         
+        console.log(`[AUTH DEBUG] Assinatura encontrada: ${!!userSubscription}`);
+        
         // Se não encontrar assinatura no formato das collections, tentar o modelo mongoose
         if (!userSubscription) {
           // Verificar em modelos mongoose se não encontrou na collection
+          console.log(`[AUTH DEBUG] Buscando assinatura em formato alternativo`);
           const assinatura = await db.collection('assinaturas').findOne({
             usuario: ObjectId.isValid(decoded.id) ? new ObjectId(decoded.id) : decoded.id,
             status: 'ativa',
             validade: { $gt: new Date() }
           });
 
+          console.log(`[AUTH DEBUG] Assinatura alternativa encontrada: ${!!assinatura}`);
+
           // Se não encontrou assinatura e é obrigatória
           if (!assinatura && options.required) {
+            console.log('[AUTH] Acesso negado - assinatura não encontrada');
             return res.status(403).json({
               success: false,
               message: 'Você precisa de uma assinatura ativa para acessar este recurso',
@@ -101,6 +117,7 @@ exports.verifyTokenAndSubscription = (options = {
             const userPlanType = planoMap[assinatura.plano] || 'BASIC';
             
             if (!options.allowedPlans.includes(userPlanType)) {
+              console.log(`[AUTH] Acesso negado - plano insuficiente: ${userPlanType}`);
               return res.status(403).json({
                 success: false,
                 message: `É necessário um plano superior para acessar este recurso. Planos permitidos: ${options.allowedPlans.join(', ')}`,
@@ -111,10 +128,12 @@ exports.verifyTokenAndSubscription = (options = {
             // Definir plano do usuário
             req.userPlan = { type: userPlanType };
             req.subscription = assinatura;
+            console.log(`[AUTH] Acesso permitido com plano: ${userPlanType}`);
           } else if (!options.required) {
             // Assinatura não encontrada, mas não é obrigatória
             req.userPlan = { type: 'FREE' };
             req.subscription = null;
+            console.log('[AUTH] Acesso permitido com plano gratuito (sem assinatura)');
           }
           
           return next();
@@ -125,6 +144,7 @@ exports.verifyTokenAndSubscription = (options = {
           const userPlanType = userSubscription.plan_id || 'BASIC';
           
           if (!options.allowedPlans.includes(userPlanType)) {
+            console.log(`[AUTH] Acesso negado - plano insuficiente: ${userPlanType}`);
             return res.status(403).json({
               success: false,
               message: `É necessário um plano superior para acessar este recurso. Planos permitidos: ${options.allowedPlans.join(', ')}`,
@@ -136,13 +156,14 @@ exports.verifyTokenAndSubscription = (options = {
         // Definir plano do usuário
         req.userPlan = { type: userSubscription.plan_id || 'BASIC' };
         req.subscription = userSubscription;
+        console.log(`[AUTH] Acesso permitido com plano: ${req.userPlan.type}`);
         
         // Continuar com o middleware seguinte
         return next();
         
       } catch (jwtError) {
         // Erro na verificação do JWT
-        console.log('Erro JWT - acesso negado:', jwtError.message);
+        console.log(`[AUTH] Erro JWT - acesso negado: ${jwtError.message}`);
         return res.status(401).json({
           success: false,
           message: 'Token inválido ou expirado',
@@ -151,7 +172,7 @@ exports.verifyTokenAndSubscription = (options = {
         });
       }
     } catch (error) {
-      console.error('Erro na verificação de token e assinatura:', error);
+      console.error(`[AUTH] Erro na verificação de token e assinatura: ${error.message}`);
       return res.status(500).json({
         success: false,
         message: 'Erro interno ao verificar autenticação',
@@ -171,6 +192,7 @@ exports.requireResourceAccess = (resourceType) => {
   return async (req, res, next) => {
     // Verificar se o usuário está autenticado e tem assinatura
     if (!req.usuario || !req.subscription) {
+      console.log(`[AUTH] Acesso a recurso negado - sem autenticação ou assinatura: ${resourceType}`);
       return res.status(401).json({
         success: false,
         message: 'Autenticação e assinatura necessárias para acessar este recurso',
@@ -183,9 +205,11 @@ exports.requireResourceAccess = (resourceType) => {
     
     // Buscar recursos permitidos para o plano do usuário
     const planoUsuario = req.userPlan?.type || 'FREE';
+    console.log(`[AUTH] Verificando acesso ao recurso ${resourceType} para plano ${planoUsuario}`);
     const plano = await db.collection('plans').findOne({ type: planoUsuario });
     
     if (!plano || !plano.allowedFeatures || !plano.allowedFeatures.includes(resourceType)) {
+      console.log(`[AUTH] Acesso a recurso negado - plano não permite: ${resourceType}`);
       return res.status(403).json({
         success: false,
         message: `Seu plano atual não permite acesso a este recurso. Faça upgrade para um plano superior.`,
@@ -194,6 +218,7 @@ exports.requireResourceAccess = (resourceType) => {
       });
     }
     
+    console.log(`[AUTH] Acesso permitido ao recurso: ${resourceType}`);
     return next();
   };
 }; 

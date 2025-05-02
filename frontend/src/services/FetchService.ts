@@ -567,7 +567,7 @@ class FetchService {
     // Função para buscar dados da roleta
     const fetchRouletteData = async () => {
       try {
-        const endpoint = `${config.API_URL}/api/ROULETTES`;
+        const endpoint = `${config.API_URL}/api/roulettes`;
         logger.debug(`Buscando dados da roleta ${roletaId} em ${endpoint}`);
         
         const data = await this.fetchData<any[]>(endpoint);
@@ -624,7 +624,7 @@ class FetchService {
       logger.debug('Buscando todas as roletas disponíveis');
       
       // Construir URL com base nas configurações
-      const url = `${this.apiBaseUrl}/ROULETTES`;
+      const url = `${this.apiBaseUrl}/roulettes`;
       
       const response = await fetch(url);
       

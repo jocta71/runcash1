@@ -235,9 +235,9 @@ class GlobalRouletteDataService {
             // Adicionar timestamp para evitar cache
             const timestamp = Date.now();
             const endpoints = [
-              `/api/ROULETTES?_t=${timestamp}`,
               `/api/roulettes?_t=${timestamp}`,
-              `/api/roletas?_t=${timestamp}`
+              `/api/roletas?_t=${timestamp}`,
+              `/api/ROULETTES?_t=${timestamp}`
             ];
             
             let response = null;

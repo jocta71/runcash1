@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getRouletteTypeByName } from '../../utils/roulette-utils';
 
 // Tipos para a API
 export interface RouletteData {
@@ -35,13 +36,37 @@ export interface RouletteStrategy {
 export const ROLETAS_CANONICAS: any[] = [];
 
 /**
- * Mapeia um UUID de roleta para seu ID canônico (ID numérico usado no banco)
- * Esta função é crucial para garantir que as solicitações à API usem sempre o ID correto
+ * Mapeamento de IDs de roletas para o formato canônico
+ * Cada roleta deve ter um ID único e consistente
  */
-export function mapToCanonicalRouletteId(uuid: string): string {
-  // Simplesmente retorna o ID original sem mapeamento
-  // Isso garante que todas as roletas sejam exibidas sem filtragem
-  return uuid;
+const rouletteIdMappings: Record<string, string> = {
+  // Mapeamentos conhecidos
+  'immersive_roulette': 'immersive',
+  'roulette_lobby': 'lobby',
+  'auto_roulette': 'auto',
+  'lightning_roulette': 'lightning',
+  'speed_roulette': 'speed',
+  'vivo_roleta_zeus': 'zeus_vivo',
+  'vivo_roleta_brasileira': 'brasileira_vivo',
+  'roleta_brasileira': 'brasileira'
+};
+
+/**
+ * Mapeia o ID da roleta para o formato canônico
+ * @param originalId ID original ou nome da roleta
+ * @returns ID canônico normalizado
+ */
+export function mapToCanonicalRouletteId(originalId: string): string {
+  // Se o ID já estiver no mapeamento, retornar o valor mapeado
+  if (rouletteIdMappings[originalId.toLowerCase()]) {
+    return rouletteIdMappings[originalId.toLowerCase()];
+  }
+  
+  // Para IDs não mapeados, normalizar para lowercase e remover espaços/caracteres especiais
+  return originalId
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
 }
 
 // Configuração básica para todas as APIs
@@ -52,186 +77,67 @@ const cache: Record<string, { data: any, timestamp: number }> = {};
 const CACHE_TTL = 60000; // 1 minuto em milissegundos
 
 /**
- * Busca todas as roletas através do endpoint /api/ROULETTES
+ * Busca todas as roletas através do endpoint /api/roulettes
+ * @returns Array com todas as roletas disponíveis
  */
-export const fetchRoulettes = async (): Promise<RouletteData[]> => {
+export const fetchAllRoulettes = async (): Promise<any[]> => {
   try {
-    // Verificar se temos dados em cache
-    if (cache['roulettes'] && Date.now() - cache['roulettes'].timestamp < CACHE_TTL) {
-      console.log('[API] Usando dados de roletas em cache');
-      return cache['roulettes'].data;
-    }
-
-    console.log(`[API] Buscando roletas em: ${apiBaseUrl}/ROULETTES`);
-    const response = await axios.get(`${apiBaseUrl}/ROULETTES`);
+    // Aqui usaremos a API rouletteApi para buscar as roletas
+    const { fetchRoulettesWithNumbers } = await import('./rouletteApi');
+    const roulettes = await fetchRoulettesWithNumbers();
     
-    if (response.data && Array.isArray(response.data)) {
-      // Mapear dados recebidos para o formato com IDs canônicos
-      const roletas = response.data.map((roleta: any) => {
-        const uuid = roleta.id;
-        const canonicalId = mapToCanonicalRouletteId(uuid);
-        
-        // Se vier como "numeros", converter para "numero"
-        const numerosArray = Array.isArray(roleta.numeros) ? roleta.numeros : [];
-        
-        return {
-          ...roleta,
-          _id: canonicalId,       // Adicionar o ID canônico
-          uuid: uuid,             // Preservar o UUID original
-          numero: numerosArray,   // Usar sempre o campo "numero" (singular)
-          numeros: undefined      // Remover campo "numeros" (plural)
-        };
-      });
-      
-      // Armazenar em cache
-      cache['roulettes'] = {
-        data: roletas,
-        timestamp: Date.now()
-      };
-      
-      console.log(`[API] ✅ Recebidas ${roletas.length} roletas da API`);
-      return roletas;
-    }
-    
-    console.warn('[API] Resposta inválida da API de roletas');
-    return [];
+    return roulettes.map(processRouletteData);
   } catch (error) {
-    console.error('[API] Erro ao buscar roletas:', error);
+    console.error('Error fetching roulettes:', error);
     return [];
   }
 };
 
 /**
- * Busca todas as roletas através do endpoint /api/ROULETTES e adiciona números reais a cada uma
+ * Função para processar dados brutos da roleta e adicionar informações úteis
+ * @param roleta Dados brutos da roleta da API
+ * @returns Roleta processada com dados adicionais
  */
-export const fetchRoulettesWithRealNumbers = async (): Promise<RouletteData[]> => {
-  try {
-    // Verificar se temos dados em cache
-    const cacheKey = 'roulettes_with_numbers';
-    if (cache[cacheKey] && Date.now() - cache[cacheKey].timestamp < CACHE_TTL) {
-      console.log('[API] Usando dados de roletas com números em cache');
-      return cache[cacheKey].data;
-    }
-
-    console.log(`[API] Buscando roletas em: ${apiBaseUrl}/ROULETTES`);
-    const response = await axios.get(`${apiBaseUrl}/ROULETTES`);
-    
-    if (!response.data || !Array.isArray(response.data)) {
-      console.warn('[API] Resposta inválida da API de roletas');
-      return [];
-    }
-    
-    // Array para armazenar as promessas de busca de números
-    const fetchPromises = [];
-    
-    // Para cada roleta, criar uma promessa de busca de números
-    const roletas = response.data.map((roleta: any, index: number) => {
-      // Usar o ID original da roleta diretamente
-      const roletaId = roleta.id;
-      
-      // Criar uma promessa para buscar números desta roleta
-      const fetchPromise = fetchNumbersFromMongoDB(roletaId, roleta.nome)
-        .then(numbers => {
-          console.log(`[API] ✅ Recebidos ${numbers.length} números para ${roleta.nome}`);
-          return { index, numbers };
-        })
-        .catch(error => {
-          console.error(`[API] ❌ Erro ao buscar números para ${roleta.nome}:`, error);
-          return { index, numbers: [] }; // Retornar array vazio em caso de erro
-        });
-      
-      fetchPromises.push(fetchPromise);
-      
-      // Retornar roleta inicialmente sem números (serão adicionados depois)
-      return {
-        ...roleta,
-        _id: roletaId,
-        numero: []
-      };
-    });
-    
-    // Aguardar todas as promessas de busca de números
-    const numbersResults = await Promise.all(fetchPromises);
-    
-    // Adicionar os números às roletas correspondentes
-    numbersResults.forEach(result => {
-      if (result && typeof result.index === 'number' && Array.isArray(result.numbers)) {
-        roletas[result.index].numero = result.numbers;
-      }
-    });
-    
-    // Armazenar em cache
-    cache[cacheKey] = {
-      data: roletas,
-      timestamp: Date.now()
-    };
-    
-    console.log(`[API] ✅ Processadas ${roletas.length} roletas com números reais`);
-    return roletas;
-  } catch (error) {
-    console.error('[API] Erro ao buscar roletas com números:', error);
-    return [];
-  }
+export const processRouletteData = (roleta: any): any => {
+  if (!roleta) return null;
+  
+  // Normalizar propriedades
+  const nome = roleta.nome || roleta.name || 'Sem nome';
+  const id = roleta.id || roleta._id || mapToCanonicalRouletteId(nome);
+  
+  // Adicionar tipo da roleta
+  const rouletteType = getRouletteTypeByName(nome);
+  
+  return {
+    ...roleta,
+    id: id,
+    nome: nome,
+    nome_canonico: nome.toLowerCase().trim(),
+    id_canonico: mapToCanonicalRouletteId(id),
+    tipo: rouletteType,
+    imagem: roleta.imagem || `/images/roulettes/${mapToCanonicalRouletteId(id)}.png`,
+    // Certificar-se de que números seja um array
+    numeros: Array.isArray(roleta.numeros) ? roleta.numeros : 
+             Array.isArray(roleta.numero) ? roleta.numero : []
+  };
 };
 
 /**
- * Busca números reais de uma roleta específica do MongoDB
+ * Busca todas as roletas através do endpoint /api/roulettes e adiciona números reais a cada uma
+ * @returns Array com todas as roletas disponíveis, incluindo números
  */
-async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Promise<any[]> {
+export const fetchAllRoulettesWithNumbers = async (): Promise<any[]> => {
   try {
-    // Buscar dados da coleção roleta_numeros
-    console.log(`[API] Buscando números para ${roletaNome} (ID MongoDB: ${mongoId})`);
+    // Aqui usaremos a API rouletteApi para buscar as roletas com números
+    const { fetchRoulettesWithNumbers } = await import('./rouletteApi');
+    const roulettes = await fetchRoulettesWithNumbers();
     
-    // Usar o endpoint relativo para aproveitar o proxy
-    const url = `${apiBaseUrl}/ROULETTES`;
-    
-    try {
-      const response = await fetch(url, {
-        mode: 'no-cors', // Usar modo no-cors para evitar bloqueio de CORS
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache'
-        }
-      });
-      
-      // Com o modo no-cors, a resposta será do tipo 'opaque' e não poderemos acessar seu conteúdo
-      if (response.type === 'opaque') {
-        console.log(`[API] Resposta opaque devido a CORS, usando dados locais para ${roletaNome}`);
-        return [];
-      }
-      
-      if (!response.ok) {
-        console.warn(`[API] Resposta com erro (${response.status}) para ${roletaNome}`);
-        return [];
-      }
-      
-      const data = await response.json();
-      
-      if (data && Array.isArray(data)) {
-        // Encontrar a roleta específica pelo ID canônico
-        const targetRoulette = data.find((roleta: any) => {
-          const roletaCanonicalId = roleta.canonical_id || mapToCanonicalRouletteId(roleta.id || '');
-          return roletaCanonicalId === mongoId || roleta.id === mongoId;
-        });
-        
-        if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-          console.log(`[API] ✅ Extraídos ${targetRoulette.numero.length} números para roleta ${mongoId}`);
-          return targetRoulette.numero;
-        }
-      }
-      
-      // Se não houver dados, retornar array de números simulados
-      console.warn(`[API] Roleta ${mongoId} não encontrada nos dados retornados, usando simulação`);
-      return [];
-    } catch (error) {
-      console.error(`[API] Erro ao buscar dados da API para ${roletaNome}:`, error);
-      return [];
-    }
+    return roulettes.map(processRouletteData);
   } catch (error) {
-    console.error(`[API] Erro ao buscar números do MongoDB para ${roletaNome}:`, error);
+    console.error('Error fetching roulettes with numbers:', error);
     return [];
   }
-}
+};
 
 /**
  * Busca uma roleta específica pelo ID usando o resultado de fetchRoulettes
@@ -239,7 +145,7 @@ async function fetchNumbersFromMongoDB(mongoId: string, roletaNome: string): Pro
 export const fetchRouletteById = async (roletaId: string): Promise<RouletteData | null> => {
   try {
     // Buscar todas as roletas
-    const roletas = await fetchRoulettes();
+    const roletas = await fetchAllRoulettes();
     
     // Encontrar a roleta específica
     const roleta = roletas.find(r => 
@@ -297,7 +203,7 @@ export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100)
     console.log(`[API] Buscando roletas para extrair números da roleta ${canonicalId}`);
     
     // Agora buscamos todas as roletas e filtramos a que precisamos
-    const response = await axios.get(`${apiBaseUrl}/ROULETTES`);
+    const response = await axios.get(`${apiBaseUrl}/roulettes`);
     
     if (response.data && Array.isArray(response.data)) {
       // Encontrar a roleta específica pelo ID canônico
