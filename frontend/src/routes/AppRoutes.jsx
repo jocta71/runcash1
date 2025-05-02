@@ -8,8 +8,8 @@ import Layout from '../components/Layout/Layout';
 import HomePage from '../pages/HomePage';
 import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
-import PlansPage from '../pages/PlansPage';
-import SubscriptionRequiredPage from '../pages/SubscriptionRequiredPage';
+import PlansPage from '../pages/PlansPage.jsx';
+import SubscriptionRequiredPage from '../pages/SubscriptionRequiredPage.jsx';
 import RoulettePreviewPage from '../pages/RoulettePreviewPage';
 
 // Páginas protegidas por autenticação e assinatura
@@ -21,7 +21,7 @@ import MySubscriptionPage from '../pages/MySubscriptionPage';
 
 // Guards de rotas
 import PrivateRoute from '../components/RouteGuards/PrivateRoute';
-import SubscriptionRoute from '../components/RouteGuards/SubscriptionRoute';
+import SubscriptionRoute from '../components/RouteGuards/SubscriptionRoute.jsx';
 
 const AppRoutes = () => {
   return (

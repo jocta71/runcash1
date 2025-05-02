@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
-import LoadingScreen from '../LoadingScreen';
+import LoadingScreen from '../LoadingScreen.jsx';
 
 /**
  * Componente que protege rotas que requerem assinatura ativa

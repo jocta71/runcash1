@@ -3,7 +3,7 @@ import { BrowserRouter, Route, Routes, useNavigate, useLocation } from "react-ro
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { useEffect, lazy, Suspense, useRef, useState } from "react";
-import LoadingScreen from './components/LoadingScreen';
+import LoadingScreen from './components/LoadingScreen.jsx';
 import './App.css';
 import { ThemeProvider } from './components/theme-provider';
 import { ErrorBoundary } from 'react-error-boundary';

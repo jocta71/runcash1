@@ -34,6 +34,15 @@ function main() {
     runCommand('npm install react-bootstrap');
   }
   
+  // Verificar se @vitejs/plugin-react está instalado 
+  try {
+    require.resolve('@vitejs/plugin-react');
+    console.log('@vitejs/plugin-react já está instalado');
+  } catch (e) {
+    console.log('Instalando @vitejs/plugin-react...');
+    runCommand('npm install --save-dev @vitejs/plugin-react');
+  }
+  
   // Executar build
   console.log('Iniciando build do projeto...');
   runCommand('node ./node_modules/vite/bin/vite.js build');
