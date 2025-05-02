@@ -489,182 +489,211 @@ export default class RouletteFeedService {
    */
   public fetchLatestData(): Promise<any> {
     // Verificar antes se o usuário tem assinatura ativa, utilizando o apiService
-    return import('../services/apiService').then(apiServiceModule => {
-      const apiService = apiServiceModule.default;
+    return import('axios').then(axiosModule => {
+      const axios = axiosModule.default;
+      const token = localStorage.getItem('token');
+      const API_URL = window.location.origin;
       
-      return apiService.checkSubscriptionStatus().then(({ hasSubscription }) => {
-        if (!hasSubscription) {
-          logger.debug('⛔ Requisição a api/roulettes bloqueada - usuário sem assinatura');
-          
-          // Verificar se já enviamos um evento recentemente
-          const now = Date.now();
-          const lastEventTime = window._lastSubscriptionEventTime || 0;
-          const cooldownPeriod = 15000; // 15 segundos
-          
-          if (now - lastEventTime < cooldownPeriod) {
-            logger.debug(`⏱️ Evento de assinatura em cooldown (${Math.round((now - lastEventTime) / 1000)}s / ${cooldownPeriod / 1000}s)`);
-            return this.roulettes;
-          }
-          
-          // Verificar se o modal foi fechado recentemente pelo usuário
-          try {
-            const modalClosedTime = localStorage.getItem('subscription_modal_closed');
-            if (modalClosedTime) {
-              const closedAt = parseInt(modalClosedTime, 10);
-              const timeSinceClosed = now - closedAt;
-              
-              // Se o usuário fechou o modal nos últimos 2 minutos, não mostrar novamente
-              if (timeSinceClosed < 2 * 60 * 1000) {
-                logger.debug('🔒 Modal fechado pelo usuário nos últimos 2 minutos, não mostrando novamente');
-                return this.roulettes;
-              }
-            }
-          } catch (e) {
-            logger.error('❌ Erro ao verificar estado de fechamento do modal:', e);
-          }
-          
-          // Atualizar o timestamp do último evento
-          window._lastSubscriptionEventTime = now;
-          
-          // Disparar evento para exibir modal de assinatura
-          logger.debug('📲 Disparando evento subscription:required');
-          window.dispatchEvent(new CustomEvent('subscription:required', { 
-            detail: {
-              error: 'SUBSCRIPTION_REQUIRED',
-              message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.'
-            }
-          }));
-          
+      if (!token) {
+        return { hasSubscription: false };
+      }
+      
+      return axios.get(`${API_URL}/subscription/status?_t=${Date.now()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }).then(response => {
+        const data = response.data || {};
+        
+        // Verificar se o usuário tem assinatura ativa baseado nos dados recebidos
+        const status = data.subscription?.status?.toLowerCase() || '';
+        const hasActiveSubscription = !!(
+          data.success && 
+          data.hasSubscription && 
+          (status === 'active' || status === 'ativo' || 
+           status === 'received' || status === 'recebido' || 
+           status === 'confirmed' || status === 'confirmado')
+        );
+        
+        return { 
+          hasSubscription: hasActiveSubscription,
+          subscription: data.subscription
+        };
+      }).catch(() => {
+        return { hasSubscription: false };
+      });
+    }).then(({ hasSubscription }) => {
+      if (!hasSubscription) {
+        logger.debug('⛔ Requisição a api/roulettes bloqueada - usuário sem assinatura');
+        
+        // Verificar se já enviamos um evento recentemente
+        const now = Date.now();
+        const lastEventTime = window._lastSubscriptionEventTime || 0;
+        const cooldownPeriod = 15000; // 15 segundos
+        
+        if (now - lastEventTime < cooldownPeriod) {
+          logger.debug(`⏱️ Evento de assinatura em cooldown (${Math.round((now - lastEventTime) / 1000)}s / ${cooldownPeriod / 1000}s)`);
           return this.roulettes;
         }
         
-        // Usuário tem assinatura, continuar com a busca normal
-        // Verificar se podemos fazer a requisição
-        if (!this.canMakeRequest()) {
-          logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
-          return this.roulettes;
-        }
-        
-        // Atualizar estado
-        this.IS_FETCHING_DATA = true;
-        window._requestInProgress = true;
-        
-        // Criar ID único para esta requisição
-        const requestId = this.generateRequestId();
-        
-        // Registrar requisição pendente para monitoramento
-        if (typeof window !== 'undefined') {
-          if (!window._pendingRequests) {
-            window._pendingRequests = {};
-          }
-          
-          window._pendingRequests[requestId] = {
-            timestamp: Date.now(),
-            url: '/api/ROULETTES-via-centralService',
-            service: 'RouletteFeed'
-          };
-        }
-        
-        logger.debug(`📡 Buscando dados mais recentes através do serviço centralizado (ID: ${requestId})`);
-        
-        // Usar o serviço global para obter os dados
-        return globalRouletteDataService.fetchRouletteData()
-          .then(data => {
-            // Atualizar estatísticas e estado
-            this.requestStats.total++;
-            this.requestStats.success++;
-            this.lastSuccessfulResponse = Date.now();
-            this.lastCacheUpdate = this.lastSuccessfulResponse;
-            this.IS_FETCHING_DATA = false;
+        // Verificar se o modal foi fechado recentemente pelo usuário
+        try {
+          const modalClosedTime = localStorage.getItem('subscription_modal_closed');
+          if (modalClosedTime) {
+            const closedAt = parseInt(modalClosedTime, 10);
+            const timeSinceClosed = now - closedAt;
             
-            // Se era a primeira requisição, marcar como feita
-            if (!this.hasFetchedInitialData) {
-              this.hasFetchedInitialData = true;
-            }
-            
-            // Limpar a requisição pendente
-            if (typeof window !== 'undefined' && window._pendingRequests) {
-              delete window._pendingRequests[requestId];
-            }
-            
-            // Liberar a trava global
-            window._requestInProgress = false;
-            
-            // Processar os dados recebidos
-            if (data && Array.isArray(data)) {
-              // Transformar dados para o formato esperado
-              const liveTables: { [key: string]: any } = {};
-              data.forEach(roleta => {
-                if (roleta && roleta.id) {
-                  // Certifique-se de que estamos lidando corretamente com o campo numero
-                  // Na API, o 'numero' é um array de objetos com propriedade 'numero'
-                  const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-                  
-                  liveTables[roleta.id] = {
-                    GameID: roleta.id,
-                    Name: roleta.name || roleta.nome,
-                    ativa: roleta.ativa,
-                    // Manter a estrutura do campo numero exatamente como está na API
-                    numero: numeroArray,
-                    // Incluir outras propriedades da roleta
-                    ...roleta
-                  };
-                }
-              });
-              
-              // Atualizar cache
-              this.lastUpdateTime = Date.now();
-              this.hasCachedData = true;
-              this.roulettes = liveTables;
-              
-              // Sinalizar melhora na saúde do sistema
-              GLOBAL_SYSTEM_HEALTH = true;
-              this.consecutiveSuccesses++;
-              this.consecutiveErrors = 0;
-              this.lastSuccessTimestamp = Date.now();
-              
-              // Notificar que temos novos dados
-              this.notifySubscribers(liveTables);
-              
-              // Notificar outros serviços
-              this.notifyDataUpdate();
-              
-              return liveTables;
-            } else {
-              logger.warn('⚠️ Resposta inválida do serviço global');
+            // Se o usuário fechou o modal nos últimos 2 minutos, não mostrar novamente
+            if (timeSinceClosed < 2 * 60 * 1000) {
+              logger.debug('🔒 Modal fechado pelo usuário nos últimos 2 minutos, não mostrando novamente');
               return this.roulettes;
             }
-          })
-          .catch(error => {
-            // Atualizar estatísticas e estado
-            this.requestStats.total++;
-            this.requestStats.failed++;
-            this.IS_FETCHING_DATA = false;
+          }
+        } catch (e) {
+          logger.error('❌ Erro ao verificar estado de fechamento do modal:', e);
+        }
+        
+        // Atualizar o timestamp do último evento
+        window._lastSubscriptionEventTime = now;
+        
+        // Disparar evento para exibir modal de assinatura
+        logger.debug('📲 Disparando evento subscription:required');
+        window.dispatchEvent(new CustomEvent('subscription:required', { 
+          detail: {
+            error: 'SUBSCRIPTION_REQUIRED',
+            message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.'
+          }
+        }));
+        
+        return this.roulettes;
+      }
+      
+      // Usuário tem assinatura, continuar com a busca normal
+      // Verificar se podemos fazer a requisição
+      if (!this.canMakeRequest()) {
+        logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
+        return this.roulettes;
+      }
+      
+      // Atualizar estado
+      this.IS_FETCHING_DATA = true;
+      window._requestInProgress = true;
+      
+      // Criar ID único para esta requisição
+      const requestId = this.generateRequestId();
+      
+      // Registrar requisição pendente para monitoramento
+      if (typeof window !== 'undefined') {
+        if (!window._pendingRequests) {
+          window._pendingRequests = {};
+        }
+        
+        window._pendingRequests[requestId] = {
+          timestamp: Date.now(),
+          url: '/api/ROULETTES-via-centralService',
+          service: 'RouletteFeed'
+        };
+      }
+      
+      logger.debug(`📡 Buscando dados mais recentes através do serviço centralizado (ID: ${requestId})`);
+      
+      // Usar o serviço global para obter os dados
+      return globalRouletteDataService.fetchRouletteData()
+        .then(data => {
+          // Atualizar estatísticas e estado
+          this.requestStats.total++;
+          this.requestStats.success++;
+          this.lastSuccessfulResponse = Date.now();
+          this.lastCacheUpdate = this.lastSuccessfulResponse;
+          this.IS_FETCHING_DATA = false;
+          
+          // Se era a primeira requisição, marcar como feita
+          if (!this.hasFetchedInitialData) {
+            this.hasFetchedInitialData = true;
+          }
+          
+          // Limpar a requisição pendente
+          if (typeof window !== 'undefined' && window._pendingRequests) {
+            delete window._pendingRequests[requestId];
+          }
+          
+          // Liberar a trava global
+          window._requestInProgress = false;
+          
+          // Processar os dados recebidos
+          if (data && Array.isArray(data)) {
+            // Transformar dados para o formato esperado
+            const liveTables: { [key: string]: any } = {};
+            data.forEach(roleta => {
+              if (roleta && roleta.id) {
+                // Certifique-se de que estamos lidando corretamente com o campo numero
+                // Na API, o 'numero' é um array de objetos com propriedade 'numero'
+                const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+                
+                liveTables[roleta.id] = {
+                  GameID: roleta.id,
+                  Name: roleta.name || roleta.nome,
+                  ativa: roleta.ativa,
+                  // Manter a estrutura do campo numero exatamente como está na API
+                  numero: numeroArray,
+                  // Incluir outras propriedades da roleta
+                  ...roleta
+                };
+              }
+            });
             
-            // Limpar a requisição pendente
-            if (typeof window !== 'undefined' && window._pendingRequests) {
-              delete window._pendingRequests[requestId];
-            }
+            // Atualizar cache
+            this.lastUpdateTime = Date.now();
+            this.hasCachedData = true;
+            this.roulettes = liveTables;
             
-            // Liberar a trava global
-            window._requestInProgress = false;
+            // Sinalizar melhora na saúde do sistema
+            GLOBAL_SYSTEM_HEALTH = true;
+            this.consecutiveSuccesses++;
+            this.consecutiveErrors = 0;
+            this.lastSuccessTimestamp = Date.now();
             
-            // Registrar erro
-            logger.error(`❌ Erro ao buscar dados mais recentes: ${error.message || 'Desconhecido'}`);
+            // Notificar que temos novos dados
+            this.notifySubscribers(liveTables);
             
-            // Atualizar contadores de erro
-            this.consecutiveErrors++;
-            this.consecutiveSuccesses = 0;
+            // Notificar outros serviços
+            this.notifyDataUpdate();
             
-            // Se houver um erro grave de conectividade, atualizar saúde do sistema
-            if (this.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-              GLOBAL_SYSTEM_HEALTH = false;
-            }
-            
-            // Retornar dados em cache se existirem
+            return liveTables;
+          } else {
+            logger.warn('⚠️ Resposta inválida do serviço global');
             return this.roulettes;
-          });
-      });
+          }
+        })
+        .catch(error => {
+          // Atualizar estatísticas e estado
+          this.requestStats.total++;
+          this.requestStats.failed++;
+          this.IS_FETCHING_DATA = false;
+          
+          // Limpar a requisição pendente
+          if (typeof window !== 'undefined' && window._pendingRequests) {
+            delete window._pendingRequests[requestId];
+          }
+          
+          // Liberar a trava global
+          window._requestInProgress = false;
+          
+          // Registrar erro
+          logger.error(`❌ Erro ao buscar dados mais recentes: ${error.message || 'Desconhecido'}`);
+          
+          // Atualizar contadores de erro
+          this.consecutiveErrors++;
+          this.consecutiveSuccesses = 0;
+          
+          // Se houver um erro grave de conectividade, atualizar saúde do sistema
+          if (this.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            GLOBAL_SYSTEM_HEALTH = false;
+          }
+          
+          // Retornar dados em cache se existirem
+          return this.roulettes;
+        });
     });
   }
 

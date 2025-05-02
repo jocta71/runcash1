@@ -116,12 +116,8 @@ class GlobalRouletteDataService {
    */
   public async fetchRouletteData(): Promise<any[]> {
     try {
-      // Importar o serviço de API
-      const apiServiceModule = await import('./apiService');
-      const apiService = apiServiceModule.default;
-      
       // Verificar se o usuário tem uma assinatura válida
-      const { hasSubscription, subscription } = await apiService.checkSubscriptionStatus();
+      const { hasSubscription, subscription } = await this.checkSubscriptionStatus();
       
       if (!hasSubscription) {
         console.log('[GlobalRouletteService] Usuário sem assinatura ativa');
@@ -267,7 +263,7 @@ class GlobalRouletteDataService {
       this.isFetching = true;
       this.lastFetchTime = currentTime;
       
-      const axiosInstance = apiService.getInstance();
+      const axiosInstance = (await import('axios')).default.create();
       
       try {
         this._currentFetchPromise = new Promise<any[]>(async (resolve) => {
@@ -537,6 +533,76 @@ class GlobalRouletteDataService {
     
     this.subscribers.clear();
     console.log('[GlobalRouletteService] Serviço encerrado e recursos liberados');
+  }
+
+  async checkSubscriptionStatus(): Promise<{ hasSubscription: boolean; subscription?: any }> {
+    try {
+      console.log('[GlobalRouletteDataService] Verificando status da assinatura');
+      
+      // Importar axios para fazer a requisição diretamente
+      const axios = (await import('axios')).default;
+      const token = localStorage.getItem('token');
+      const API_URL = window.location.origin;
+      
+      if (!token) {
+        console.log('[GlobalRouletteDataService] Usuário não autenticado');
+        return { hasSubscription: false };
+      }
+      
+      // Fazer a requisição
+      const response = await axios.get(`${API_URL}/subscription/status?_t=${Date.now()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      const data = response.data || {};
+      
+      // Verificar se o usuário tem assinatura ativa baseado nos dados recebidos
+      const status = data.subscription?.status?.toLowerCase() || '';
+      const hasActiveSubscription = !!(
+        data.success && 
+        data.hasSubscription && 
+        (status === 'active' || status === 'ativo' || 
+         status === 'received' || status === 'recebido' || 
+         status === 'confirmed' || status === 'confirmado')
+      );
+      
+      return {
+        hasSubscription: hasActiveSubscription,
+        subscription: data.subscription
+      };
+    } catch (error) {
+      console.error('[GlobalRouletteDataService] Erro ao verificar status da assinatura:', error);
+      return { hasSubscription: false };
+    }
+  }
+
+  fetchRouletteDataWithAxios = async (url: string): Promise<any> => {
+    console.log(`[GlobalRouletteDataService] Fetchando dados do URL: ${url}`);
+    
+    // Importar axios para fazer a requisição
+    const axios = (await import('axios')).default;
+    const token = localStorage.getItem('token');
+    
+    try {
+      const axiosConfig = {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      };
+      
+      // Adicionar token se existir
+      if (token) {
+        axiosConfig.headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await axios.get(url, axiosConfig);
+      return response.data || null;
+    } catch (error) {
+      console.error(`[GlobalRouletteDataService] Erro ao buscar dados com axios:`, error);
+      return null;
+    }
   }
 }
 

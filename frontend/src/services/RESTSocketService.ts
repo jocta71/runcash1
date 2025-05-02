@@ -689,38 +689,41 @@ class RESTSocketService {
     return mergedNumbers;
   }
 
-  // Novo método para verificar assinatura antes de iniciar polling
-  private async checkSubscriptionBeforeInit(): Promise<void> {
+  // Usar o apiService para verificar a assinatura (aproveitando o mecanismo de cache)
+  async checkSubscriptionBeforeInit(): Promise<void> {
     try {
-      // Verificar localmente se o usuário está autenticado
-      const token = localStorage.getItem('auth_token_backup') || Cookies.get('auth_token');
-      
+      console.log('[RESTSocketService] Verificando status da assinatura antes de iniciar polling');
+
+      // Verificar se o usuário tem autenticação
+      const token = localStorage.getItem('token');
       if (!token) {
-        console.log('[RESTSocketService] Usuário não autenticado, iniciando polling padrão');
-        this.startPolling();
+        console.log('[RESTSocketService] Usuário não autenticado, continuando sem verificar assinatura');
         return;
       }
-      
-      // Usar o apiService para verificar a assinatura (aproveitando o mecanismo de cache)
-      try {
-        // Importação dinâmica para evitar dependência circular
-        const apiServiceModule = await import('./apiService');
-        const apiService = apiServiceModule.default;
-        
-        await apiService.checkSubscriptionStatus();
-        
-        // Iniciar polling completo independente do status da assinatura
-        console.log('[RESTSocketService] Iniciando polling padrão');
-        this.startPolling();
-        this.startSecondEndpointPolling();
-      } catch (apiError) {
-        console.error('[RESTSocketService] Erro ao verificar assinatura via apiService:', apiError);
-        this.startPolling();
+
+      // Importar axios para fazer a requisição diretamente
+      const axios = (await import('axios')).default;
+      const API_URL = window.location.origin;
+
+      // Fazer a requisição para verificar o status da assinatura
+      const response = await axios.get(`${API_URL}/subscription/status?_t=${Date.now()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      // Checar se a resposta é válida
+      if (response.data && response.data.success) {
+        console.log('[RESTSocketService] Status da assinatura verificado com sucesso');
+      } else {
+        console.log('[RESTSocketService] Verificação de assinatura retornou status inválido');
       }
-    } catch (error) {
-      console.error('[RESTSocketService] Erro ao verificar assinatura:', error);
-      this.startPolling();
+    } catch (apiError) {
+      console.error('[RESTSocketService] Erro ao verificar assinatura via axios:', apiError);
     }
+
+    // Independente do resultado, continuar com a inicialização do polling
+    console.log('[RESTSocketService] Continuando inicialização do polling');
   }
 }
 
