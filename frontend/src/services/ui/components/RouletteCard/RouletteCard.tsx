@@ -3,6 +3,8 @@ import NumberHistory from '../NumberHistory';
 import globalRouletteDataService from '../../../../services/GlobalRouletteDataService';
 import EventService from '../../../../services/EventService';
 import './RouletteCard.css';
+import { useNavigate } from 'react-router-dom';
+import { AlertCircle } from 'lucide-react';
 
 // Adiciona regra global para corrigir posicionamento de dropdowns
 const addDropdownStyles = () => {
@@ -37,6 +39,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
   const [isNewNumber, setIsNewNumber] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showSubscriptionMessage, setShowSubscriptionMessage] = useState(false);
   
   // Referências
   const lastNumberRef = useRef<number | null>(null);
@@ -162,6 +167,35 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s atrás`;
   };
   
+  const navigate = useNavigate();
+  
+  const renderMissingSubscriptionMessage = () => {
+    return (
+      <div className="p-4 bg-gray-800/90 rounded-lg shadow-md flex flex-col items-center gap-4 text-center absolute inset-0 backdrop-blur-sm z-10">
+        <AlertCircle className="w-12 h-12 text-amber-500" />
+        <h3 className="text-lg font-semibold text-white">Acesso Restrito</h3>
+        <p className="text-gray-300 max-w-xs">
+          Para acessar os dados detalhados das roletas, você precisa ter uma assinatura ativa.
+        </p>
+        <button 
+          onClick={() => navigate('/planos')}
+          className="mt-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+        >
+          Ver Planos
+        </button>
+      </div>
+    );
+  };
+  
+  // Adicionar na função render ou no componente principal
+  useEffect(() => {
+    if (error && error.includes('Assinatura necessária')) {
+      setHasError(true);
+      setErrorMessage('Você precisa ter uma assinatura ativa para acessar estes dados.');
+      setShowSubscriptionMessage(true);
+    }
+  }, [error]);
+  
   // Renderizar estado de carregamento inicial
   if (loading && !rouletteData) {
     return (
@@ -198,7 +232,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
   
   // Renderizar a roleta
   return (
-    <div className={cardClassName}>
+    <div className={`relative bg-slate-800 rounded-lg shadow-md overflow-hidden ${cardClassName || ''}`}>
       <div className="roulette-header">
         <h3 className="roulette-name">{name}</h3>
         <div className="status-container">
@@ -245,6 +279,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
       <div className="card-footer">
         {/* Rodapé sem informação de sincronização */}
       </div>
+      
+      {showSubscriptionMessage && renderMissingSubscriptionMessage()}
     </div>
   );
 };
