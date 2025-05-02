@@ -14,8 +14,6 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import SoundManager from "./components/SoundManager";
 import { LoginModalProvider, useLoginModal } from "./context/LoginModalContext";
-import PlanosPage from './pages/PlanosPage';
-import CheckoutPage from './pages/CheckoutPage';
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -254,15 +252,7 @@ const App = () => {
                         <Route path="/planos" element={
                           <ProtectedRoute>
                             <Suspense fallback={<LoadingScreen />}>
-                              <PlanosPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/checkout/:planoId" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <CheckoutPage />
+                              <PlansPage />
                             </Suspense>
                           </ProtectedRoute>
                         } />
