@@ -1,242 +1,168 @@
-import React, { useState, useEffect, useRef } from 'react';
-import NumberHistory from '../NumberHistory';
-import globalRouletteDataService from '../../../../services/GlobalRouletteDataService';
+import React, { useEffect, useState, useRef } from 'react';
+import RESTSocketService from '../../../../services/RESTSocketService';
 import './RouletteCard.css';
 
-// Adiciona regra global para corrigir posicionamento de dropdowns
-const addDropdownStyles = () => {
-  // Adicionar estilo global para garantir que dropdowns não sejam cortados
-  const styleTag = document.createElement('style');
-  styleTag.innerHTML = `
-    .roulette-card {
-      overflow: visible !important;
-    }
-    .roulette-card .dropdown-content {
-      z-index: 1000;
-      position: absolute;
-    }
-  `;
-  document.head.appendChild(styleTag);
-};
-
-// Interface para as props do componente
 interface RouletteCardProps {
-  rouletteId: string;
-  onError?: (error: string) => void;
+  roletaId: string;
+  roletaNome?: string;
+  onSelect?: (id: string, nome: string) => void;
+  isSelected?: boolean;
+  className?: string;
 }
 
-/**
- * Componente que exibe um cartão com informações de uma roleta
- * Implementa sincronização automática a cada 8 segundos
- */
-const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
-  // Estados
-  const [rouletteData, setRouletteData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
-  const [isNewNumber, setIsNewNumber] = useState(false);
+const RouletteCard: React.FC<RouletteCardProps> = ({ 
+  roletaId, 
+  roletaNome, 
+  onSelect, 
+  isSelected,
+  className
+}) => {
+  const [numeros, setNumeros] = useState<number[]>([]);
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const socketService = useRef<any>(null);
+  const subscriberId = useRef<string>(`roulette-ui-card-${roletaId}-${Date.now()}`);
   
-  // Referências
-  const lastNumberRef = useRef<number | null>(null);
-  const fetchCountRef = useRef(0);
-  const subscriberId = useRef(`roulette-card-${rouletteId}-${Date.now()}`);
+  // Função para determinar a cor de um número
+  const getCorNumero = (num: number): string => {
+    if (num === 0) return 'verde';
+    if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
+      return 'vermelho';
+    }
+    return 'preto';
+  };
   
-  // Função para processar dados da roleta do serviço centralizado
-  const processRouletteData = () => {
+  // Função para buscar números da roleta
+  const fetchRouletteNumbers = async () => {
     try {
-      fetchCountRef.current += 1;
-      const fetchCount = fetchCountRef.current;
+      // Obter serviço de socket
+      socketService.current = RESTSocketService.getInstance();
       
-      console.log(`[RouletteCard] Processando dados da roleta (ID: ${rouletteId}) - Atualização #${fetchCount}`);
-      
-      // Obter todos os dados das roletas do serviço global
-      const allRoulettes = globalRouletteDataService.getAllRoulettes();
-      
-      // Encontrar a roleta específica pelo ID
-      const apiData = allRoulettes.find((roulette: any) => {
-        const rouletteIdentifier = roulette.id || roulette.name || '';
-        return rouletteIdentifier.toLowerCase() === rouletteId.toLowerCase();
-      });
-      
-      // Verificar se encontramos a roleta
-      if (!apiData) {
-        console.warn(`[RouletteCard] Roleta com ID ${rouletteId} não encontrada nos dados globais`);
+      // Verificar se o serviço está disponível
+      if (!socketService.current) {
+        console.error('Serviço de roleta não disponível');
         return;
       }
       
-      console.log(`[RouletteCard] Dados recebidos para roleta ${rouletteId} [${fetchCount}]`);
+      // Obter histórico da roleta diretamente do serviço
+      const history = socketService.current.getRouletteHistory(roletaId);
       
-      // Adaptar formato de dados do serviço global para o formato esperado pelo componente
-      const processedData = {
-        name: apiData.nome || apiData.name || rouletteId,
-        numbers: Array.isArray(apiData.numero) 
-          ? apiData.numero.map((n: any) => ({
-              value: n.numero,
-              color: getNumberColor(n.numero),
-              timestamp: n.timestamp || new Date().toISOString()
-            }))
-          : [],
-        active: true,
-        strategyState: apiData.strategyState || 'Neutro',
-        wins: apiData.wins || 0,
-        losses: apiData.losses || 0
-      };
-      
-      // Verificar se há um novo número
-      if (processedData.numbers && processedData.numbers.length > 0) {
-        const latestNumber = processedData.numbers[0].value;
-        
-        // Se é um novo número, mostrar efeito visual
-        if (lastNumberRef.current !== latestNumber) {
-          console.log(`[RouletteCard] Novo número detectado: ${latestNumber} (anterior: ${lastNumberRef.current})`);
-          lastNumberRef.current = latestNumber;
-          setIsNewNumber(true);
-          
-          // Remover efeito visual após 2 segundos
-          setTimeout(() => setIsNewNumber(false), 2000);
-        }
+      // Se não houver histórico, solicitar busca específica
+      if (!history || history.length === 0) {
+        await socketService.current.requestRouletteNumbers(roletaId);
+        // Buscar o histórico atualizado
+        const updatedHistory = socketService.current.getRouletteHistory(roletaId);
+        setNumeros(updatedHistory.slice(0, 12));
+      } else {
+        // Usar o histórico existente
+        setNumeros(history.slice(0, 12));
       }
       
-      // Atualizar estados
-      setRouletteData(processedData);
-      setLastUpdateTime(Date.now());
-      setError(null);
-      setLoading(false);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
-      console.error('[RouletteCard] Erro ao processar dados:', err);
-      
-      // Só definir erro se ainda não tivermos dados
-      if (!rouletteData) {
-        setError(errorMsg);
-        if (onError) onError(errorMsg);
-      }
+      setUltimaAtualizacao(new Date());
+      setIsLoading(false);
+    } catch (error) {
+      console.error(`Erro ao buscar números para roleta ${roletaId}:`, error);
+      setIsLoading(false);
     }
   };
   
-  // Função auxiliar para determinar a cor de um número
-  const getNumberColor = (numero: number): string => {
-    if (numero === 0) return 'green';
-    return [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(numero) ? 'red' : 'black';
+  // Processar dados de roleta quando houver atualização
+  const processRouletteData = () => {
+    if (!roletaId || !socketService.current) return;
+    
+    // Obter dados atualizados
+    const roulettes = socketService.current.getAllRoulettes();
+    const rouletteData = roulettes.find((r: any) => r.id === roletaId);
+    
+    if (rouletteData && rouletteData.numero && Array.isArray(rouletteData.numero)) {
+      // Extrair apenas os números
+      const numerosArray = rouletteData.numero.map((n: any) => 
+        typeof n === 'object' ? (n.numero || n.number || 0) : n
+      );
+      
+      setNumeros(numerosArray.slice(0, 12));
+      setUltimaAtualizacao(new Date());
+    }
   };
   
-  // Efeito para se inscrever no serviço global de dados
+  // Efeito para buscar dados e configurar assinatura
   useEffect(() => {
-    // Aplicar estilos para corrigir dropdowns
-    addDropdownStyles();
+    // Inicializar o serviço
+    socketService.current = RESTSocketService.getInstance();
     
-    console.log(`[RouletteCard] Inscrevendo-se no serviço global para roleta ${rouletteId}`);
-    setLoading(true);
+    // Buscar dados iniciais
+    fetchRouletteNumbers();
     
-    // Registrar no serviço global para receber atualizações
-    globalRouletteDataService.subscribe(subscriberId.current, processRouletteData);
+    // Assinar para atualizações
+    if (socketService.current) {
+      socketService.current.subscribe(subscriberId.current, processRouletteData);
+      
+      // Forçar uma atualização inicial
+      socketService.current.forceUpdate();
+    }
     
-    // Forçar uma atualização inicial imediata
-    // Isso também vai disparar uma requisição limit=1000 se ainda não foi feita
-    globalRouletteDataService.forceUpdate();
+    // Configurar timer para atualização periódica
+    timerRef.current = setInterval(() => {
+      fetchRouletteNumbers();
+    }, 15000); // Atualizar a cada 15 segundos
     
-    // Limpar inscrição ao desmontar
+    // Limpeza ao desmontar
     return () => {
-      console.log(`[RouletteCard] Cancelando inscrição para roleta ${rouletteId}`);
-      globalRouletteDataService.unsubscribe(subscriberId.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      
+      if (socketService.current) {
+        socketService.current.unsubscribe(subscriberId.current);
+      }
     };
-  }, [rouletteId]); // Recriar efeito se o ID da roleta mudar
+  }, [roletaId]);
   
-  // Formatar timestamp
-  const formatTimestamp = (timestamp: string | number) => {
-    return new Date(timestamp).toLocaleTimeString();
+  // Função para lidar com seleção da roleta
+  const handleClick = () => {
+    if (onSelect) {
+      onSelect(roletaId, roletaNome || '');
+    }
   };
   
-  // Calcular tempo desde a última atualização
-  const getTimeElapsed = () => {
-    const seconds = Math.floor((Date.now() - lastUpdateTime) / 1000);
-    if (seconds < 60) return `${seconds}s atrás`;
-    return `${Math.floor(seconds / 60)}m ${seconds % 60}s atrás`;
-  };
-  
-  // Renderizar estado de carregamento inicial
-  if (loading && !rouletteData) {
-    return (
-      <div className="roulette-card loading">
-        <div className="loading-indicator">Carregando...</div>
-      </div>
-    );
-  }
-  
-  // Renderizar estado de erro inicial
-  if (error && !rouletteData) {
-    return (
-      <div className="roulette-card error">
-        <div className="error-message">{error}</div>
-      </div>
-    );
-  }
-  
-  // Se não temos dados ainda, mostrar placeholder
-  if (!rouletteData) {
-    return (
-      <div className="roulette-card">
-        <div className="loading-indicator">Aguardando dados...</div>
-      </div>
-    );
-  }
-  
-  // Extrair dados da roleta
-  const { name, numbers, active, strategyState, wins, losses } = rouletteData;
-  const latestNumber = numbers && numbers.length > 0 ? numbers[0] : null;
-  
-  // Determinar a classe do card com base em se há um novo número
-  const cardClassName = `roulette-card ${active ? 'active' : 'inactive'} ${isNewNumber ? 'new-number' : ''}`;
-  
-  // Renderizar a roleta
+  // Renderizar o componente
   return (
-    <div className={cardClassName}>
-      <div className="roulette-header">
-        <h3 className="roulette-name">{name}</h3>
-        <div className="status-container">
-          <span className={`status-badge ${active ? 'active' : 'inactive'}`}>
-            {active ? 'Ativa' : 'Inativa'}
-          </span>
-          {loading && (
-            <span className="loading-indicator-small"></span>
-          )}
-        </div>
+    <div 
+      className={`roulette-card ${isSelected ? 'roulette-card-selected' : ''} ${className || ''}`}
+      onClick={handleClick}
+    >
+      <div className="roulette-card-header">
+        <h3 className="roulette-card-title">{roletaNome || 'Roleta'}</h3>
       </div>
       
-      {latestNumber && (
-        <div className="latest-number">
-          <div className="number-label">Último número:</div>
-          <div className={`number-display ${latestNumber.color}`}>
-            {latestNumber.value}
-          </div>
-          <div className="timestamp">
-            {formatTimestamp(latestNumber.timestamp)}
-          </div>
-        </div>
-      )}
-      
-      <div className="strategy-info">
-        <div className="strategy-state">
-          Estado: <span className={strategyState}>{strategyState}</span>
-        </div>
-        
-        <div className="stats-container">
-          <div className="stat wins">
-            <span className="label">Vitórias:</span>
-            <span className="value">{wins}</span>
-          </div>
-          <div className="stat losses">
-            <span className="label">Derrotas:</span>
-            <span className="value">{losses}</span>
-          </div>
-        </div>
-      </div>
-      
-      <NumberHistory numbers={numbers} maxItems={10} />
-      
-      <div className="card-footer">
-        {/* Rodapé sem informação de sincronização */}
+      <div className="roulette-card-content">
+        {isLoading ? (
+          <div className="roulette-card-loading">Carregando...</div>
+        ) : (
+          <>
+            <div className="roulette-card-numbers">
+              {numeros.length > 0 ? (
+                numeros.map((numero, index) => (
+                  <div 
+                    key={`${roletaId}-${numero}-${index}`} 
+                    className={`roulette-number roulette-number-${getCorNumero(numero)}`}
+                  >
+                    {numero}
+                  </div>
+                ))
+              ) : (
+                <div className="roulette-card-empty">Sem números disponíveis</div>
+              )}
+            </div>
+            
+            {ultimaAtualizacao && (
+              <div className="roulette-card-footer">
+                Última atualização: {ultimaAtualizacao.toLocaleTimeString()}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
