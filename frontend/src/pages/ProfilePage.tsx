@@ -7,7 +7,7 @@ import { Pencil, X, CreditCard, ChevronRight } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/Layout';
-import { useSubscription } from '@/hooks/useSubscription';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -278,7 +278,7 @@ const ProfilePage = () => {
                     </h3>
                     <p className="text-sm text-gray-400">
                       {hasActivePlan 
-                        ? `Próxima cobrança: ${formatDate(currentSubscription.currentPeriodEnd)}`
+                        ? `Próxima cobrança: ${formatDate(currentSubscription.nextBillingDate)}`
                         : 'Assine um plano para acessar recursos premium'}
                     </p>
                   </div>

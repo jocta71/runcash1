@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import NumberHistory from '../NumberHistory';
 import globalRouletteDataService from '../../../../services/GlobalRouletteDataService';
-import EventService from '../../../../services/EventService';
 import './RouletteCard.css';
 
 // Adiciona regra global para corrigir posicionamento de dropdowns
@@ -127,26 +126,20 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
     // Aplicar estilos para corrigir dropdowns
     addDropdownStyles();
     
-    console.log(`[RouletteCard] Configurando escuta de eventos para roleta ${rouletteId}`);
+    console.log(`[RouletteCard] Inscrevendo-se no serviço global para roleta ${rouletteId}`);
     setLoading(true);
     
-    // Registrar no EventService para receber atualizações
-    const handleUpdate = () => {
-      processRouletteData();
-    };
+    // Registrar no serviço global para receber atualizações
+    globalRouletteDataService.subscribe(subscriberId.current, processRouletteData);
     
-    EventService.on('roulette:data-updated', handleUpdate);
-    
-    // Processar dados iniciais se disponíveis
-    processRouletteData();
-    
-    // Forçar uma atualização inicial para buscar os dados mais recentes
+    // Forçar uma atualização inicial imediata
+    // Isso também vai disparar uma requisição limit=1000 se ainda não foi feita
     globalRouletteDataService.forceUpdate();
     
     // Limpar inscrição ao desmontar
     return () => {
-      console.log(`[RouletteCard] Removendo escuta de eventos para roleta ${rouletteId}`);
-      EventService.off('roulette:data-updated', handleUpdate);
+      console.log(`[RouletteCard] Cancelando inscrição para roleta ${rouletteId}`);
+      globalRouletteDataService.unsubscribe(subscriberId.current);
     };
   }, [rouletteId]); // Recriar efeito se o ID da roleta mudar
   

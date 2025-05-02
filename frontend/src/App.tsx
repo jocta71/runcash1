@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, useNavigate, useLocation } from "react-router-dom";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
+import { SubscriptionProvider } from "./context/SubscriptionContext";
 import { useEffect, lazy, Suspense, useRef, useState } from "react";
 import LoadingScreen from './components/LoadingScreen';
 import './App.css';
@@ -14,6 +15,7 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import SoundManager from "./components/SoundManager";
 import { LoginModalProvider, useLoginModal } from "./context/LoginModalContext";
+import SubscriptionRequired from './components/SubscriptionRequired';
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -22,13 +24,16 @@ const ProfileSubscription = lazy(() => import("@/pages/ProfileSubscription"));
 const AccountRedirect = lazy(() => import("@/pages/AccountRedirect"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const PlansPage = lazy(() => import("@/pages/PlansPage"));
+const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
+const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
+const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
 // Comentando a importação da página de teste do Asaas
 // const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 // Importação da nossa nova página de teste de assinatura
-// const TestAssinaturaPage = lazy(() => import("@/pages/TestAssinaturaPage"));
+const TestAssinaturaPage = lazy(() => import("@/pages/TestAssinaturaPage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -181,104 +186,158 @@ const App = () => {
         <ThemeProvider defaultTheme="system" storageKey="runcash-theme">
           <TooltipProvider>
             <AuthProvider>
-              <NotificationsProvider>
-                <SoundManager>
-                  <BrowserRouter>
-                    <GoogleAuthHandler />
-                    <LoginModalProvider>
-                      <AuthStateManager />
-                      <Routes>
-                        {/* Remover rota explícita de login e sempre usar o modal */}
-                        
-                        {/* Páginas principais - Acessíveis mesmo sem login, mas mostram modal se necessário */}
-                        <Route index element={
-                          <ProtectedRoute>
+              <SubscriptionProvider>
+                <NotificationsProvider>
+                  <SoundManager>
+                    <BrowserRouter>
+                      <GoogleAuthHandler />
+                      <LoginModalProvider>
+                        <AuthStateManager />
+                        <SubscriptionRequired />
+                        <Routes>
+                          {/* Remover rota explícita de login e sempre usar o modal */}
+                          
+                          {/* Páginas principais - Acessíveis mesmo sem login, mas mostram modal se necessário */}
+                          <Route index element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <Index />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Rota para a página de teste de assinatura */}
+                          <Route path="/teste-assinatura" element={
                             <Suspense fallback={<LoadingScreen />}>
-                              <Index />
+                              <TestAssinaturaPage />
                             </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Rota para a página de teste de assinatura - removida */}
-                        {/* <Route path="/teste-assinatura" element={
-                          <Suspense fallback={<LoadingScreen />}>
-                            <TestAssinaturaPage />
-                          </Suspense>
-                        } /> */}
-                        
-                        {/* Removidas as rotas: /roulettes, /history, /analysis, /strategies, /strategy/:id */}
-                        
-                        <Route path="/profile" element={
-                          <ProtectedRoute>
+                          } />
+                          
+                          {/* Removidas as rotas: /roulettes, /history, /analysis, /strategies, /strategy/:id */}
+                          
+                          <Route path="/profile" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <ProfilePage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Página de detalhes da assinatura - agora redirecionando para /billing */}
+                          <Route path="/minha-conta/assinatura" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <MinhaContaAssinaturaRedirect />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Rota para /minha-conta que redireciona para /minha-conta/assinatura */}
+                          <Route path="/minha-conta" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <MinhaContaRedirect />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Redirecionamento da rota /account (usada após pagamento) */}
+                          <Route path="/account" element={
                             <Suspense fallback={<LoadingScreen />}>
-                              <ProfilePage />
+                              <AccountRouteRedirect />
                             </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Página de detalhes da assinatura - agora redirecionando para /billing */}
-                        <Route path="/minha-conta/assinatura" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <MinhaContaAssinaturaRedirect />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Rota para /minha-conta que redireciona para /minha-conta/assinatura */}
-                        <Route path="/minha-conta" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <MinhaContaRedirect />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Redirecionamento da rota /account (usada após pagamento) */}
-                        <Route path="/account" element={
-                          <Suspense fallback={<LoadingScreen />}>
-                            <AccountRouteRedirect />
-                          </Suspense>
-                        } />
-                        
-                        <Route path="/billing" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <BillingPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/planos" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PlansPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/live" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <LiveRoulettePage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        {/* Rota para página não encontrada */}
-                        <Route path="*" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <NotFound />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                      </Routes>
-                    </LoginModalProvider>
-                    <Toaster />
-                  </BrowserRouter>
-                </SoundManager>
-              </NotificationsProvider>
+                          } />
+                          
+                          <Route path="/billing" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <BillingPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/planos" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PlansPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/pagamento" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PaymentPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/pagamento/:planId" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PaymentPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/payment-success" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PaymentSuccessPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/pagamento/sucesso" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PaymentSuccessPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/pagamento/cancelado" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PaymentCanceled />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/live" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <LiveRoulettePage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Rota para a página de teste do Asaas - DESATIVADA */}
+                          {/* 
+                          <Route path="/asaas-test" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <AsaasTestPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          */}
+                          
+                          {/* Rota para página não encontrada */}
+                          <Route path="*" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <NotFound />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                        </Routes>
+                      </LoginModalProvider>
+                      <Toaster />
+                    </BrowserRouter>
+                  </SoundManager>
+                </NotificationsProvider>
+              </SubscriptionProvider>
             </AuthProvider>
           </TooltipProvider>
         </ThemeProvider>

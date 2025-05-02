@@ -45,6 +45,7 @@ class ApiService {
         // Verificar se é erro de assinatura (403)
         if (error.response && error.response.status === 403) {
           if (error.response.data?.error === 'NO_ACTIVE_SUBSCRIPTION' || 
+              error.response.data?.error === 'NO_VALID_SUBSCRIPTION' || 
               error.response.data?.error === 'SUBSCRIPTION_REQUIRED') {
             
             // Verificar se o modal foi exibido recentemente para evitar múltiplos eventos
@@ -148,10 +149,14 @@ class ApiService {
       console.log('[API] Resposta da verificação de assinatura:', JSON.stringify(data, null, 2));
       
       // Verificar se o usuário tem assinatura ativa baseado nos dados recebidos
+      // Aceitar status 'active', 'received' ou 'confirmed'
+      const status = data.subscription?.status?.toLowerCase() || '';
       const hasActiveSubscription = !!(
         data.success && 
         data.hasSubscription && 
-        data.subscription?.status?.toLowerCase() === 'active'
+        (status === 'active' || status === 'ativo' || 
+         status === 'received' || status === 'recebido' || 
+         status === 'confirmed' || status === 'confirmado')
       );
       
       console.log(`[API] Status da assinatura: ${hasActiveSubscription ? 'ATIVA' : 'INATIVA/INEXISTENTE'}`);

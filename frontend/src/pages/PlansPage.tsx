@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSubscription } from '@/hooks/useSubscription';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -31,19 +31,12 @@ const PlansPage = () => {
         description: "Você precisa estar logado para assinar um plano.",
         variant: "destructive"
       });
-      navigate('/', { state: { showLoginModal: true } });
+      navigate('/login', { state: { returnUrl: `/pagamento/${planId}` } });
       return;
     }
     
-    // Mostrar toast informando que a funcionalidade de pagamento foi desativada
-    toast({
-      title: "Funcionalidade desativada",
-      description: "A página de pagamentos foi desativada nesta versão do aplicativo.",
-      variant: "default"
-    });
-    
-    // Redirecionar para o dashboard/início
-    navigate('/');
+    // Redirecionar para a página de pagamento
+    navigate(`/pagamento/${planId}`);
   };
 
   if (loading) {

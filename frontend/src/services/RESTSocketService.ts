@@ -556,10 +556,6 @@ class RESTSocketService {
 
   // Método para iniciar o polling do segundo endpoint (/api/ROULETTES sem parâmetro)
   private startSecondEndpointPolling() {
-    console.log('[RESTSocketService] Requisições a api/roulettes foram desativadas');
-    
-    // Código original comentado
-    /*
     console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
     
     // Usar o GlobalRouletteDataService para obter dados
@@ -570,7 +566,6 @@ class RESTSocketService {
     
     // Executar imediatamente a primeira vez
     this.processDataFromCentralService();
-    */
   }
   
   // Método para processar dados do serviço centralizado

@@ -29,7 +29,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import NumberDisplay from './NumberDisplay';
-import EventService from '@/services/EventService';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -556,9 +555,6 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const isInitialRequestDone = useRef(false);
   const subscriberId = useRef(uniqueId('roulette_stats_subscriber_'));
   
-  // Adicionar estado para rouletteData
-  const [rouletteData, setRouletteData] = useState<any>(null);
-  
   // Estados para os filtros avançados
   const [hasActiveFilters, setHasActiveFilters] = useState(false);
   const [selectedColor, setSelectedColor] = useState('todas');
@@ -672,32 +668,42 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
   // Efeito para assinar diretamente o globalRouletteDataService - SIMPLIFICADO
   useEffect(() => {
-    // Gerar um ID único para este componente
-    subscriberId.current = `RouletteSidePanelStats_${Date.now()}`;
+    logger.info(`Inicializando histórico para ${roletaNome}`);
     
-    // Função para processar os dados da roleta
-    const processRouletteData = () => {
-      const roulette = globalRouletteDataService.getRouletteByName(roletaNome);
-      if (roulette) {
-        setRouletteData(roulette);
-      }
-    };
+    // Resetar estado
+    isInitialRequestDone.current = false;
+    setIsLoading(true);
+    setHistoricalNumbers([]);
     
-    // Registrar ouvinte para eventos de atualização de dados da roleta
-    const eventListener = () => {
-      processRouletteData();
-    };
+    // Primeiro, solicitar dados detalhados com limit=1000
+    globalRouletteDataService.fetchDetailedRouletteData()
+      .then(() => {
+        logger.info(`Dados detalhados solicitados com limit=1000 para ${roletaNome}`);
+        // Processar dados após a requisição
+        handleApiData();
+      })
+      .catch(error => {
+        logger.error(`Erro ao solicitar dados detalhados: ${error}`);
+      });
     
-    EventService.on('roulette:data-updated', eventListener);
+    // Registrar no serviço global com verificação de throttling
+    let lastUpdateTime = 0;
+    const THROTTLE_TIME = 4000; // 4 segundos
     
-    // Processar dados imediatamente se disponíveis
-    processRouletteData();
+    globalRouletteDataService.subscribe(subscriberId.current, () => {
+      const now = Date.now();
+      // Verificação de throttling para garantir 4s de intervalo entre atualizações
+      if (now - lastUpdateTime < THROTTLE_TIME) return;
+      
+      lastUpdateTime = now;
+      handleApiData();
+    });
     
-    // Limpar o ouvinte quando o componente for desmontado
+    // Limpar inscrição ao desmontar
     return () => {
-      EventService.off('roulette:data-updated', eventListener);
+      globalRouletteDataService.unsubscribe(subscriberId.current);
     };
-  }, [roletaNome]);
+  }, [roletaNome, handleApiData, subscriberId]);
 
   // Simplificar o useEffect para processar lastNumbers
   useEffect(() => {
