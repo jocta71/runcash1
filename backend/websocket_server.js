@@ -23,8 +23,18 @@ console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 // Inicializar Express
 const app = express();
 
-// Importar o middleware de autenticação do Asaas
+// Importar middlewares
 const { verifyTokenAndSubscription, requireResourceAccess } = require('./middlewares/asaasAuthMiddleware');
+const requestLogger = require('./middlewares/requestLogger');
+const securityEnforcer = require('./middlewares/securityEnforcer');
+
+// Aplicar middleware de log para todas as requisições (antes de outros middlewares)
+app.use(requestLogger());
+console.log('Middleware de log de requisições configurado');
+
+// Aplicar middleware de segurança para garantir que rotas protegidas sejam verificadas
+app.use(securityEnforcer());
+console.log('Middleware de segurança configurado');
 
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
@@ -378,9 +388,20 @@ app.get('/api/roulettes',
     console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
     console.log(`[API ${requestId}] Query: ${JSON.stringify(req.query)}`);
     
-    // Verificação dupla de assinatura válida
+    // IMPORTANTE: Verificação rigorosa de autenticação e assinatura
+    if (!req.usuario) {
+      console.log(`[API ${requestId}] BLOQUEIO DE SEGURANÇA: Usuário não autenticado`);
+      return res.status(401).json({
+        success: false,
+        message: 'Autenticação necessária para acessar este recurso',
+        code: 'AUTH_REQUIRED',
+        requestId: requestId
+      });
+    }
+    
+    // Verificação rigorosa de assinatura válida
     if (!req.subscription) {
-      console.log(`[API ${requestId}] Bloqueando acesso - assinatura não encontrada`);
+      console.log(`[API ${requestId}] BLOQUEIO DE SEGURANÇA: Assinatura não encontrada`);
       return res.status(403).json({
         success: false,
         message: 'Você precisa de uma assinatura ativa para acessar este recurso',
@@ -399,6 +420,9 @@ app.get('/api/roulettes',
         console.log(`[API ${requestId}] MongoDB não conectado, retornando array vazio`);
         return res.json([]);
       }
+      
+      // Log de acesso bem-sucedido
+      console.log(`[API ${requestId}] ACESSO PERMITIDO: Usuário autenticado com assinatura válida`);
       
       // Obter roletas únicas da coleção
       const roulettes = await collection.aggregate([
@@ -425,19 +449,32 @@ app.get('/api/ROULETTES',
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
   }),
   async (req, res) => {
-    console.log('[API] Requisição processada diretamente em /api/ROULETTES');
-    console.log('[API] Usuário autenticado:', req.usuario?.id);
-    console.log('[API] Plano do usuário:', req.userPlan?.type);
-    console.log('[API] Headers:', JSON.stringify(req.headers));
-    console.log('[API] Query params:', JSON.stringify(req.query));
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[API ${requestId}] Requisição processada diretamente em /api/ROULETTES`);
+    console.log(`[API ${requestId}] Usuário: ${req.usuario?.id}`);
+    console.log(`[API ${requestId}] Plano: ${req.userPlan?.type}`);
+    console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[API ${requestId}] Query params: ${JSON.stringify(req.query)}`);
     
-    // Verificação dupla de assinatura válida
+    // IMPORTANTE: Verificação rigorosa de autenticação e assinatura
+    if (!req.usuario) {
+      console.log(`[API ${requestId}] BLOQUEIO DE SEGURANÇA: Usuário não autenticado`);
+      return res.status(401).json({
+        success: false,
+        message: 'Autenticação necessária para acessar este recurso',
+        code: 'AUTH_REQUIRED',
+        requestId: requestId
+      });
+    }
+    
+    // Verificação rigorosa de assinatura válida
     if (!req.subscription) {
-      console.log('[API] Bloqueando acesso - assinatura não encontrada');
+      console.log(`[API ${requestId}] BLOQUEIO DE SEGURANÇA: Assinatura não encontrada`);
       return res.status(403).json({
         success: false,
         message: 'Você precisa de uma assinatura ativa para acessar este recurso',
-        code: 'SUBSCRIPTION_REQUIRED'
+        code: 'SUBSCRIPTION_REQUIRED',
+        requestId: requestId
       });
     }
     
@@ -449,9 +486,12 @@ app.get('/api/ROULETTES',
     try {
       // Em vez de redirecionar, processamos a requisição aqui diretamente
       if (!isConnected || !collection) {
-        console.log('[API] MongoDB não conectado, retornando array vazio');
+        console.log(`[API ${requestId}] MongoDB não conectado, retornando array vazio`);
         return res.json([]);
       }
+      
+      // Log de acesso bem-sucedido
+      console.log(`[API ${requestId}] ACESSO PERMITIDO: Usuário autenticado com assinatura válida`);
       
       // Obter roletas únicas da coleção - código idêntico ao endpoint /api/roulettes
       const roulettes = await collection.aggregate([
@@ -459,13 +499,17 @@ app.get('/api/ROULETTES',
         { $project: { _id: 0, id: 1, nome: "$_id" } }
       ]).toArray();
       
-      console.log(`[API] Processadas ${roulettes.length} roletas para usuário ${req.usuario?.id} com plano ${req.userPlan?.type}`);
+      console.log(`[API ${requestId}] Processadas ${roulettes.length} roletas para usuário ${req.usuario?.id} com plano ${req.userPlan?.type}`);
       
       // Retornar diretamente os dados, sem redirecionamento
       return res.json(roulettes);
     } catch (error) {
-      console.error('[API] Erro ao listar roletas (endpoint maiúsculas):', error);
-      return res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+      console.error(`[API ${requestId}] Erro ao listar roletas (endpoint maiúsculas):`, error);
+      return res.status(500).json({ 
+        error: 'Erro interno ao buscar roletas',
+        message: error.message,
+        requestId: requestId
+      });
     }
 });
 

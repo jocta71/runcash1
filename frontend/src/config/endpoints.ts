@@ -6,14 +6,20 @@
 // Base API URL é inferida do ambiente (pode ser vazia se estiver usando mesmo domínio)
 const API_BASE_URL = '';
 
+/**
+ * ATENÇÃO: SEMPRE use o endpoint em minúsculas (/api/roulettes) para acessar as roletas.
+ * O endpoint em maiúsculas (/api/ROULETTES) é apenas para compatibilidade e será depreciado!
+ * 
+ * Se você está tendo problemas de acesso sem assinatura, verifique se está usando o endpoint correto.
+ */
+
 // Endpoints para roletas
 export const ROULETTE_ENDPOINTS = {
-  // Lista de todas as roletas
-  // NOTA: SEMPRE use minúsculas para endpoint de roletas
+  // Lista de todas as roletas - SEMPRE USE ESTE
   LIST: `${API_BASE_URL}/api/roulettes`,
   
-  // Endpoint alternativo para compatibilidade com versões anteriores
-  // IMPORTANTE: Use apenas LIST (minúsculas) pois este será depreciado
+  // ⚠️ DEPRECIADO! EVITE USAR ESTE ENDPOINT! ⚠️
+  // Mantenha apenas para compatibilidade com código legado
   LEGACY_LIST: `${API_BASE_URL}/api/ROULETTES`,
   
   // Informações detalhadas de uma roleta
@@ -93,6 +99,55 @@ export async function testAuth(): Promise<any> {
     
     if (data.authenticated && !data.hasSubscription) {
       console.warn('⚠️ Você está autenticado mas não possui uma assinatura ativa!');
+    }
+    
+    // Testar acesso aos endpoints de roletas
+    console.log('Testando acesso aos endpoints de roletas...');
+    
+    // Teste minúsculas
+    try {
+      const rouletteResponseLower = await fetch(ROULETTE_ENDPOINTS.LIST, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': localStorage.getItem('auth_token') 
+            ? `Bearer ${localStorage.getItem('auth_token')}`
+            : ''
+        }
+      });
+      
+      console.log(`Endpoint minúsculas (/api/roulettes): ${rouletteResponseLower.status} ${rouletteResponseLower.statusText}`);
+      
+      if (rouletteResponseLower.status === 200) {
+        console.warn('⚠️ O endpoint está permitindo acesso sem verificar assinatura!');
+      } else if (rouletteResponseLower.status === 403) {
+        console.log('✅ O endpoint está bloqueando corretamente sem assinatura.');
+      }
+    } catch (error) {
+      console.error('Erro ao testar endpoint minúsculas:', error);
+    }
+    
+    // Teste maiúsculas
+    try {
+      const rouletteResponseUpper = await fetch(ROULETTE_ENDPOINTS.LEGACY_LIST, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': localStorage.getItem('auth_token') 
+            ? `Bearer ${localStorage.getItem('auth_token')}`
+            : ''
+        }
+      });
+      
+      console.log(`Endpoint maiúsculas (/api/ROULETTES): ${rouletteResponseUpper.status} ${rouletteResponseUpper.statusText}`);
+      
+      if (rouletteResponseUpper.status === 200) {
+        console.warn('⚠️ O endpoint legado está permitindo acesso sem verificar assinatura!');
+      } else if (rouletteResponseUpper.status === 403) {
+        console.log('✅ O endpoint legado está bloqueando corretamente sem assinatura.');
+      }
+    } catch (error) {
+      console.error('Erro ao testar endpoint maiúsculas:', error);
     }
     
     return data;
