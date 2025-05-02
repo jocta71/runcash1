@@ -36,23 +36,48 @@ const RouletteNumber: React.FC<RouletteNumberProps> = ({
   isHighContrast = false,
   size = 'medium'
 }) => {
+  // Validar o número para garantir que é um valor válido para renderização
+  const safeNumber = React.useMemo(() => {
+    // Se for um número na faixa válida (0-36), usar como está
+    if (typeof number === 'number' && !isNaN(number) && number >= 0 && number <= 36) {
+      return number;
+    }
+    
+    // Se for uma string numérica, converter para número
+    if (typeof number === 'string') {
+      const parsed = parseInt(number, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 36) {
+        return parsed;
+      }
+    }
+    
+    // Valor padrão seguro para números inválidos
+    console.warn(`RouletteNumber recebeu um valor inválido: ${number}, usando 0 como fallback`);
+    return 0;
+  }, [number]);
+
   // Função para determinar a cor com base no número
   const getNumberColor = (num: number): string => {
-    if (num === 0) {
-      return '#00a651'; // Verde para o zero
-    } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
-      return '#e71d36'; // Vermelho
+    try {
+      if (num === 0) {
+        return '#00a651'; // Verde para o zero
+      } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
+        return '#e71d36'; // Vermelho
+      }
+      return '#1e1e24'; // Preto
+    } catch (error) {
+      console.error('Erro ao determinar cor do número:', error);
+      return '#1e1e24'; // Cor padrão em caso de erro
     }
-    return '#1e1e24'; // Preto
   };
 
   return (
     <NumberCircle 
-      color={getNumberColor(number)}
+      color={getNumberColor(safeNumber)}
       highcontrast={isHighContrast ? 'true' : 'false'}
       size={size}
     >
-      {number}
+      {safeNumber}
     </NumberCircle>
   );
 };
