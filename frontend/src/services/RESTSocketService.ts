@@ -1,7 +1,6 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
 import Cookies from 'js-cookie';
-import EventService from '@/services/EventService';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -111,45 +110,38 @@ class RESTSocketService {
 
   // Iniciar polling da API REST
   private startPolling() {
-    console.log('[RESTSocketService] Iniciando polling');
-    
-    // Limpar timer anterior se existir
+    // Limpar qualquer timer existente
     if (this.pollingTimer) {
       window.clearInterval(this.pollingTimer);
       this.pollingTimer = null;
     }
-    
-    // Carregar dados do cache se disponível
-    this.loadCachedData();
-    
-    // Buscar dados imediatamente
-    this.fetchDataFromREST()
-      .then(success => {
-        console.log(`[RESTSocketService] Inicialização ${success ? 'bem-sucedida' : 'falhou'}`);
-      })
-      .catch(error => {
-        console.error('[RESTSocketService] Erro na inicialização:', error);
-      });
-    
-    // Configurar polling regular
-    this._lastCreatedTimerId = window.setInterval(() => {
-      this.fetchDataFromREST()
-        .catch(error => {
-          console.error('[RESTSocketService] Erro no polling:', error);
-        });
-    }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
-    
-    // Armazenar referência
-    this.pollingTimer = this._lastCreatedTimerId;
+
     this.connectionActive = true;
     
-    // Iniciar polling do segundo endpoint
-    this.startSecondEndpointPolling();
+    console.log('[RESTSocketService] Não criando timer próprio - usando serviço global centralizado');
     
-    // Configurar verificação de saúde
-    window.setInterval(() => {
-      this.checkTimerHealth();
-    }, 30000);
+    // Registrar para receber atualizações do serviço global
+    globalRouletteDataService.subscribe('RESTSocketService-main', () => {
+      console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
+      // Reprocessar dados do serviço global quando houver atualização
+      const data = globalRouletteDataService.getAllRoulettes();
+      if (data && Array.isArray(data)) {
+        this.processDataAsEvents(data);
+      }
+    });
+    
+    // Processar dados iniciais se disponíveis
+    const initialData = globalRouletteDataService.getAllRoulettes();
+    if (initialData && initialData.length > 0) {
+      console.log('[RESTSocketService] Processando dados iniciais do serviço global');
+      this.processDataAsEvents(initialData);
+    }
+    
+    // Criar um timer de verificação para garantir que o serviço global está funcionando
+    this.pollingTimer = window.setInterval(() => {
+      // Verificação simples para manter o timer ativo
+      this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
+    }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
   }
   
   // Buscar dados da API REST
@@ -564,16 +556,21 @@ class RESTSocketService {
 
   // Método para iniciar o polling do segundo endpoint (/api/ROULETTES sem parâmetro)
   private startSecondEndpointPolling() {
+    console.log('[RESTSocketService] Requisições a api/roulettes foram desativadas');
+    
+    // Código original comentado
+    /*
     console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
     
-    // Usar o EventService para escutar eventos de atualização de dados
-    EventService.on('roulette:data-updated', () => {
+    // Usar o GlobalRouletteDataService para obter dados
+    globalRouletteDataService.subscribe('RESTSocketService', () => {
       console.log('[RESTSocketService] Recebendo dados do serviço centralizado');
       this.processDataFromCentralService();
     });
     
     // Executar imediatamente a primeira vez
     this.processDataFromCentralService();
+    */
   }
   
   // Método para processar dados do serviço centralizado
@@ -695,6 +692,44 @@ class RESTSocketService {
     }
     
     return mergedNumbers;
+  }
+
+  // Novo método para verificar assinatura antes de iniciar polling
+  private async checkSubscriptionBeforeInit(): Promise<void> {
+    try {
+      // Verificar localmente se o usuário está autenticado
+      const token = localStorage.getItem('auth_token_backup') || Cookies.get('auth_token');
+      
+      if (!token) {
+        console.log('[RESTSocketService] Usuário não autenticado, iniciando polling padrão');
+        this.startPolling();
+        return;
+      }
+      
+      // Verificar com o backend se o usuário tem plano
+      const API_URL = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${API_URL}/subscription/status`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        console.log('[RESTSocketService] Erro ao verificar assinatura, iniciando polling padrão');
+        this.startPolling();
+        return;
+      }
+      
+      const data = await response.json();
+      
+      // Iniciar polling completo independente do status da assinatura
+      console.log('[RESTSocketService] Iniciando polling padrão');
+      this.startPolling();
+      this.startSecondEndpointPolling();
+    } catch (error) {
+      console.error('[RESTSocketService] Erro ao verificar assinatura:', error);
+      this.startPolling();
+    }
   }
 }
 
