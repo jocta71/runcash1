@@ -18,9 +18,59 @@ import { CheckCircle } from 'lucide-react';
 // Estilos
 import '../styles/plans.css';
 
+// Planos padrão a serem exibidos caso a API falhe
+const defaultPlans = [
+  {
+    id: 'mensal',
+    nome: 'Plano Mensal',
+    valor: 29.90,
+    intervalo: 'mensal',
+    descricao: 'Acesso a recursos premium por 1 mês',
+    recursos: [
+      'Acesso aos dados de todas as roletas',
+      'Histórico de números das roletas',
+      'Estatísticas básicas',
+      'Exportação de dados CSV'
+    ]
+  },
+  {
+    id: 'trimestral',
+    nome: 'Plano Trimestral',
+    valor: 79.90,
+    intervalo: 'trimestral',
+    descricao: 'Acesso a recursos premium por 3 meses',
+    recursos: [
+      'Acesso aos dados de todas as roletas',
+      'Histórico de números das roletas',
+      'Estatísticas avançadas',
+      'Exportação de dados CSV',
+      'Alerta de números quentes'
+    ],
+    economia: '11% de desconto em relação ao plano mensal'
+  },
+  {
+    id: 'anual',
+    nome: 'Plano Anual',
+    valor: 299.90,
+    intervalo: 'anual',
+    descricao: 'Acesso a recursos premium por 12 meses',
+    recursos: [
+      'Acesso aos dados de todas as roletas',
+      'Histórico de números das roletas',
+      'Estatísticas avançadas',
+      'Exportação de dados CSV',
+      'Alerta de números quentes',
+      'Atualização em tempo real',
+      'Análise de padrões com IA',
+      'Suporte prioritário'
+    ],
+    economia: '16% de desconto em relação ao plano mensal'
+  }
+];
+
 const PlansPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
-  const [plans, setPlans] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>(defaultPlans);
   const [error, setError] = useState<string | null>(null);
   const [userSubscription, setUserSubscription] = useState<any>(null);
   const navigate = useNavigate();
@@ -49,7 +99,7 @@ const PlansPage: React.FC = () => {
         }
       } catch (err: any) {
         console.error('Erro ao carregar dados de planos:', err);
-        setError('Não foi possível carregar os planos disponíveis. Tente novamente mais tarde.');
+        // Não definimos o erro aqui porque usaremos os planos padrão
       } finally {
         setLoading(false);
       }
@@ -105,7 +155,7 @@ const PlansPage: React.FC = () => {
         </div>
       )}
 
-      {loading && !plans.length ? (
+      {loading ? (
         <div className="flex justify-center my-12">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
         </div>
