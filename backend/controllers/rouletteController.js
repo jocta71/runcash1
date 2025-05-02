@@ -834,84 +834,6 @@ const checkAlternatingColors = (numbers) => {
   };
 };
 
-/**
- * Modifica o endpoint de listagem de roletas para verificar assinatura
- * Esta função será usada pelos middlewares de autenticação e assinatura
- */
-const listAllRoulettes = async (req, res) => {
-  try {
-    const db = await getDb();
-    let roulettes = await db.collection('roulettes').find({}).toArray();
-    
-    // O usuário já passou pela verificação de assinatura
-    // Portanto, tem acesso a todas as roletas
-    
-    // Adicionar últimos números para cada roleta
-    for (const roulette of roulettes) {
-      const recentNumbers = await db.collection('roulette_numbers')
-        .find({ rouletteId: roulette._id.toString() })
-        .sort({ timestamp: -1 })
-        .limit(50)  // Limite generoso para assinantes
-        .toArray();
-      
-      roulette.numeros = recentNumbers.map(n => n.number);
-      roulette.lastNumbers = recentNumbers.map(n => ({
-        number: n.number,
-        timestamp: n.timestamp,
-        color: getNumberColor(n.number)
-      }));
-    }
-    
-    return res.json(roulettes);
-  } catch (error) {
-    console.error('Erro ao listar roletas:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erro ao obter lista de roletas',
-      error: error.message
-    });
-  }
-};
-
-/**
- * Fornece uma prévia limitada das roletas para usuários sem assinatura
- */
-const getRoulettePreview = async (req, res) => {
-  try {
-    const db = await getDb();
-    let roulettes = await db.collection('roulettes').find({}).limit(3).toArray();
-    
-    // Adicionar apenas últimos 5 números para cada roleta
-    for (const roulette of roulettes) {
-      const recentNumbers = await db.collection('roulette_numbers')
-        .find({ rouletteId: roulette._id.toString() })
-        .sort({ timestamp: -1 })
-        .limit(5)  // Limite restrito para não-assinantes
-        .toArray();
-      
-      roulette.numeros = recentNumbers.map(n => n.number);
-      roulette.lastNumbers = recentNumbers.map(n => ({
-        number: n.number,
-        timestamp: n.timestamp,
-        color: getNumberColor(n.number)
-      }));
-    }
-    
-    return res.json({
-      preview: true,
-      message: 'Visualização limitada - assine para acesso completo',
-      data: roulettes
-    });
-  } catch (error) {
-    console.error('Erro ao obter prévia das roletas:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erro ao obter prévia das roletas',
-      error: error.message
-    });
-  }
-};
-
 module.exports = {
   listRoulettes,
   getBasicRouletteData,
@@ -920,7 +842,5 @@ module.exports = {
   getRouletteStatistics,
   getHistoricalData,
   getNumbersBatch,
-  getFreePreview,
-  listAllRoulettes,
-  getRoulettePreview
+  getFreePreview
 }; 

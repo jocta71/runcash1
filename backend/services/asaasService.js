@@ -5,18 +5,9 @@
 
 const axios = require('axios');
 
-// Configurações do Asaas - devem vir de variáveis de ambiente
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY || 'seu_api_key_asaas';
-const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3';
-
-// Configurar cliente axios com autenticação
-const asaasClient = axios.create({
-  baseURL: ASAAS_API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    'access_token': ASAAS_API_KEY
-  }
-});
+// Configuração do Asaas API
+const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
+const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3';
 
 /**
  * Verifica o status de uma assinatura pelo ID do cliente
@@ -179,143 +170,7 @@ async function createOrGetCustomer(customerData) {
   }
 }
 
-/**
- * Cria um cliente no Asaas
- */
-const createCustomer = async (customerData) => {
-  try {
-    const response = await asaasClient.post('/customers', {
-      name: customerData.name,
-      email: customerData.email,
-      mobilePhone: customerData.phone || null,
-      cpfCnpj: customerData.cpfCnpj || null,
-      externalReference: customerData.externalId || null,
-      notificationDisabled: false
-    });
-    
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao criar cliente no Asaas:', error.response?.data || error.message);
-    throw new Error('Falha ao criar cliente no Asaas');
-  }
-};
-
-/**
- * Cria uma assinatura no Asaas
- */
-const createSubscription = async (subscriptionData) => {
-  try {
-    const payload = {
-      customer: subscriptionData.customer,
-      billingType: subscriptionData.billingType || 'CREDIT_CARD',
-      value: subscriptionData.value,
-      nextDueDate: formatDate(subscriptionData.nextDueDate),
-      cycle: subscriptionData.cycle || 'MONTHLY',
-      description: subscriptionData.description || 'Assinatura RunCash',
-      externalReference: subscriptionData.externalReference || null,
-      creditCardHolderInfo: subscriptionData.creditCardHolderInfo || null,
-      creditCard: subscriptionData.creditCard || null,
-      creditCardToken: subscriptionData.creditCardToken || null
-    };
-    
-    const response = await asaasClient.post('/subscriptions', payload);
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao criar assinatura no Asaas:', error.response?.data || error.message);
-    throw new Error('Falha ao criar assinatura no Asaas');
-  }
-};
-
-/**
- * Gera URL de checkout para pagamento da assinatura
- */
-const generateCheckoutUrl = async (checkoutData) => {
-  try {
-    // Primeiro, consulta a assinatura para ter certeza que existe
-    const subscription = await getSubscription(checkoutData.subscription);
-    
-    // Criar URL de checkout
-    const response = await asaasClient.post('/paymentLinks', {
-      name: subscription.description || 'Assinatura RunCash',
-      description: `Assinatura ${subscription.cycle.toLowerCase()} - RunCash`,
-      billingType: subscription.billingType,
-      value: subscription.value,
-      subscriptionCycle: subscription.cycle,
-      maxInstallmentCount: 1,
-      dueDateLimitDays: 3,
-      notificationEnabled: true,
-      externalReference: subscription.id,
-      callback: {
-        successUrl: checkoutData.returnUrl,
-        autoRedirect: true
-      },
-      creditCard: {
-        enabled: true,
-        automaticCapture: true
-      },
-      boleto: subscription.billingType === 'BOLETO' ? {
-        enabled: true,
-        expirationDate: subscription.nextDueDate
-      } : { enabled: false },
-      pix: {
-        enabled: true,
-        expirationDate: formatDate(new Date(Date.now() + 24 * 60 * 60 * 1000)) // 1 dia
-      }
-    });
-
-    return response.data.url;
-  } catch (error) {
-    console.error('Erro ao gerar URL de checkout:', error.response?.data || error.message);
-    throw new Error('Falha ao gerar URL de checkout');
-  }
-};
-
-/**
- * Consulta uma assinatura existente
- */
-const getSubscription = async (subscriptionId) => {
-  try {
-    const response = await asaasClient.get(`/subscriptions/${subscriptionId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao consultar assinatura:', error.response?.data || error.message);
-    throw new Error('Falha ao consultar assinatura');
-  }
-};
-
-/**
- * Cancela uma assinatura existente
- */
-const cancelSubscription = async (subscriptionId) => {
-  try {
-    const response = await asaasClient.delete(`/subscriptions/${subscriptionId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao cancelar assinatura:', error.response?.data || error.message);
-    throw new Error('Falha ao cancelar assinatura');
-  }
-};
-
-/**
- * Formata uma data para o padrão do Asaas (YYYY-MM-DD)
- */
-const formatDate = (date) => {
-  if (!date) return null;
-  
-  const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}`;
-};
-
 module.exports = {
   checkSubscriptionStatus,
-  createOrGetCustomer,
-  createCustomer,
-  createSubscription,
-  getSubscription,
-  cancelSubscription,
-  generateCheckoutUrl
+  createOrGetCustomer
 }; 

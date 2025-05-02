@@ -5,14 +5,18 @@
 
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middlewares/auth');
-const { getSubscriptionStatus } = require('../api/subscription/status');
+const subscriptionController = require('../controllers/subscriptionController');
+const authMiddleware = require('../middlewares/authMiddleware');
+const subscriptionMiddleware = require('../middlewares/subscriptionMiddleware');
 
-/**
- * @route   GET /api/subscription/status
- * @desc    Verifica status da assinatura do usuário
- * @access  Público - Não requer autenticação, mas fornece mais infos se autenticado
- */
-router.get('/status', protect, getSubscriptionStatus);
+// Rotas públicas
+router.get('/plans', subscriptionController.listPlans);
+
+// Rotas que exigem autenticação
+router.post('/create', authMiddleware.verifyToken, subscriptionController.createSubscription);
+router.get('/status', authMiddleware.verifyToken, subscriptionMiddleware.checkSubscription, subscriptionController.checkUserSubscription);
+
+// Webhook do Asaas (sem autenticação - usado pelo Asaas)
+router.post('/webhook/asaas', express.json(), subscriptionController.processWebhook);
 
 module.exports = router; 

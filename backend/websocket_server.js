@@ -26,6 +26,10 @@ const app = express();
 // Importar o middleware de autenticação do Asaas
 const { verifyTokenAndSubscription, requireResourceAccess } = require('./middlewares/asaasAuthMiddleware');
 
+// Importar middlewares
+const authMiddleware = require('./middlewares/authMiddleware');
+const subscriptionMiddleware = require('./middlewares/subscriptionMiddleware');
+
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
   // Sempre permitir todas as origens para simplificar
@@ -435,14 +439,12 @@ app.get('/api/subscription/status', verifyToken, async (req, res) => {
 
 // Rota para listar todas as roletas (endpoint em inglês)
 app.get('/api/roulettes', 
-  verifyTokenAndSubscription({ 
-    required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
-  }), 
+  authMiddleware.verifyToken,
+  subscriptionMiddleware.requireSubscription,
   async (req, res) => {
     console.log('[API] Requisição recebida para /api/roulettes');
     console.log('[API] Usuário:', req.user?.username);
-    console.log('[API] Assinatura:', req.user?.subscription ? JSON.stringify(req.user.subscription) : 'Nenhuma');
+    console.log('[API] Assinatura:', req.subscription ? 'Ativa' : 'Inativa');
     
     // Aplicar cabeçalhos CORS explicitamente para esta rota
     res.header('Access-Control-Allow-Origin', '*');

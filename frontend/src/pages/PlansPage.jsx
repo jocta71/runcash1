@@ -1,184 +1,252 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import './PlansPage.css';
-
-// Obter a URL base da API
-const API_URL = import.meta.env.VITE_API_URL || 'https://backendapi-production-36b5.up.railway.app/api';
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import { 
+  Box, 
+  Container, 
+  Grid, 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardActions,
+  Typography, 
+  Button, 
+  Divider,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  CircularProgress
+} from '@mui/material';
+import CheckIcon from '@mui/icons-material/Check';
+import useAuth from '../hooks/useAuth';
 
 const PlansPage = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const { isAuthenticated, token } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  
+
+  // Buscar planos disponíveis
   useEffect(() => {
     const fetchPlans = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`${API_URL}/plans`);
-        setPlans(response.data.data || []);
+        const response = await axios.get('/api/subscription/plans');
+        
+        if (response.data && response.data.success && Array.isArray(response.data.data)) {
+          setPlans(response.data.data);
+        } else {
+          // Se não conseguir obter os planos da API, mostrar planos de fallback
+          setPlans([
+            {
+              _id: 'basic',
+              name: 'Básico',
+              price: 29.90,
+              cycle: 'MONTHLY',
+              features: [
+                'Acesso a todas as roletas',
+                'Dados históricos (últimos 100 números)',
+                'Estatísticas básicas'
+              ],
+              active: true
+            },
+            {
+              _id: 'pro',
+              name: 'Profissional',
+              price: 49.90,
+              cycle: 'MONTHLY',
+              features: [
+                'Todos os recursos do plano Básico',
+                'Dados históricos (últimos 500 números)',
+                'Estatísticas avançadas',
+                'Alertas de oportunidades',
+                'Suporte prioritário'
+              ],
+              active: true,
+              featured: true
+            },
+            {
+              _id: 'premium',
+              name: 'Premium',
+              price: 89.90,
+              cycle: 'MONTHLY',
+              features: [
+                'Todos os recursos do plano Profissional',
+                'Dados históricos completos',
+                'Análise preditiva avançada',
+                'Acesso à API',
+                'Suporte VIP 24/7'
+              ],
+              active: true
+            }
+          ]);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar planos:', error);
+        toast.error('Não foi possível carregar os planos disponíveis');
+      } finally {
         setLoading(false);
-      } catch (err) {
-        setError('Falha ao carregar planos. Tente novamente mais tarde.');
-        setLoading(false);
-        console.error('Erro ao buscar planos:', err);
       }
     };
-    
+
     fetchPlans();
   }, []);
-  
+
+  // Iniciar checkout para o plano selecionado
   const handleSelectPlan = (plan) => {
-    setSelectedPlan(plan);
-  };
-  
-  const handleSubscribe = async () => {
-    if (!selectedPlan) return;
-    
-    try {
-      // Verificar se usuário está logado
-      if (!isAuthenticated) {
-        // Salvar plano selecionado no localStorage para recuperar após login
-        localStorage.setItem('selectedPlanId', selectedPlan.id);
-        // Redirecionar para login
-        navigate('/login?redirect=plans');
-        return;
-      }
-      
-      setLoading(true);
-      
-      // Criar assinatura no backend
-      const response = await axios.post(`${API_URL}/subscriptions/create`, {
-        planId: selectedPlan.id
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
+    if (!isAuthenticated) {
+      toast.info('Faça login para assinar um plano');
+      navigate('/login', { 
+        state: { 
+          returnUrl: '/planos',
+          message: 'Para assinar um plano, é necessário estar logado.'
+        } 
       });
-      
-      // Verificar se usuário já tem assinatura
-      if (response.data.alreadySubscribed) {
-        navigate('/dashboard/subscription');
-        return;
-      }
-      
-      // Redirecionar para checkout da Asaas
-      if (response.data.checkoutUrl) {
-        window.location.href = response.data.checkoutUrl;
-      } else {
-        setError('Não foi possível gerar o link de pagamento.');
-        setLoading(false);
-      }
-    } catch (err) {
-      setError('Falha ao iniciar assinatura. Tente novamente.');
-      setLoading(false);
-      console.error('Erro ao criar assinatura:', err);
+      return;
     }
+    
+    setSelectedPlan(plan);
+    
+    // Configurar o Asaas Checkout
+    const script = document.createElement('script');
+    script.src = 'https://www.asaas.com/checkouts.js';
+    script.async = true;
+    script.onload = () => {
+      if (window.Asaas) {
+        createAsaasCheckout(plan);
+      } else {
+        toast.error('Não foi possível carregar o checkout');
+      }
+    };
+    document.body.appendChild(script);
   };
   
-  // Verificar se tem um plano salvo no localStorage (após retorno do login)
-  useEffect(() => {
-    const savedPlanId = localStorage.getItem('selectedPlanId');
-    
-    if (savedPlanId && plans.length > 0 && isAuthenticated) {
-      const plan = plans.find(p => p.id === savedPlanId);
-      if (plan) {
-        setSelectedPlan(plan);
-        // Limpar plano salvo
-        localStorage.removeItem('selectedPlanId');
-        
-        // Se estiver logado e tiver plano salvo, iniciar assinatura automaticamente
-        handleSubscribe();
-      }
-    }
-  }, [plans, isAuthenticated]);
-  
-  if (loading) return (
-    <div className="loading-container">
-      <div className="loading-spinner"></div>
-      <p>Carregando planos...</p>
-    </div>
-  );
-  
-  if (error) return (
-    <div className="error-container">
-      <div className="error-message">
-        <h3>Erro</h3>
-        <p>{error}</p>
-        <button onClick={() => window.location.reload()}>Tentar novamente</button>
-      </div>
-    </div>
-  );
-  
-  return (
-    <div className="plans-container">
-      <h1>Escolha seu Plano</h1>
-      <p className="subtitle">Acesse recursos exclusivos com uma assinatura premium</p>
+  // Criar checkout do Asaas
+  const createAsaasCheckout = async (plan) => {
+    try {
+      // Abrir o modal de checkout do Asaas
+      // Na implementação real, você deve chamar a API para criar uma assinatura e obter o link de checkout
+      toast.info('Iniciando checkout...');
       
-      <div className="plans-grid">
-        {plans.map(plan => (
-          <div 
-            key={plan.id} 
-            className={`plan-card ${selectedPlan?.id === plan.id ? 'selected' : ''}`}
-            onClick={() => handleSelectPlan(plan)}
-          >
-            <div className="plan-header">
-              <h2>{plan.name}</h2>
-              <div className="price-container">
-                <span className="currency">R$</span>
-                <span className="price">{plan.value.toFixed(2)}</span>
-                <span className="period">/{plan.billingCycle === 'MONTHLY' ? 'mês' : 'ano'}</span>
-              </div>
-            </div>
-            
-            <div className="plan-features">
-              <ul>
-                {plan.features.map((feature, index) => (
-                  <li key={index}>
-                    <span className="feature-icon">✓</span>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            <button 
-              className={`select-button ${selectedPlan?.id === plan.id ? 'selected' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSelectPlan(plan);
+      // Exemplo de implementação com modal personalizado
+      // Na versão final, você usaria o modal oficial do Asaas ou redirecionaria para a URL de checkout
+      navigate(`/checkout/${plan._id}`);
+    } catch (error) {
+      console.error('Erro ao iniciar checkout:', error);
+      toast.error('Erro ao processar o checkout. Tente novamente.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
+        <CircularProgress />
+      </Container>
+    );
+  }
+
+  return (
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 8 }}>
+      <Box textAlign="center" mb={6}>
+        <Typography variant="h3" gutterBottom>
+          Escolha seu Plano
+        </Typography>
+        <Typography variant="subtitle1" color="textSecondary">
+          Acesse dados em tempo real e estatísticas avançadas das roletas
+        </Typography>
+      </Box>
+      
+      <Grid container spacing={4} justifyContent="center">
+        {plans.map((plan) => (
+          <Grid item key={plan._id} xs={12} sm={6} md={4}>
+            <Card 
+              raised={plan.featured} 
+              sx={{ 
+                height: '100%', 
+                display: 'flex', 
+                flexDirection: 'column',
+                border: plan.featured ? '2px solid #3f51b5' : 'none',
+                position: 'relative'
               }}
             >
-              {selectedPlan?.id === plan.id ? 'Selecionado ✓' : 'Selecionar'}
-            </button>
-          </div>
+              {plan.featured && (
+                <Box 
+                  sx={{ 
+                    position: 'absolute', 
+                    top: 10, 
+                    right: 0,
+                    backgroundColor: '#3f51b5',
+                    color: 'white',
+                    px: 2,
+                    py: 0.5,
+                    borderTopLeftRadius: 4,
+                    borderBottomLeftRadius: 4
+                  }}
+                >
+                  <Typography variant="body2">Mais Popular</Typography>
+                </Box>
+              )}
+              
+              <CardHeader
+                title={plan.name}
+                titleTypographyProps={{ align: 'center', variant: 'h5' }}
+                sx={{ backgroundColor: plan.featured ? '#f5f5ff' : 'transparent' }}
+              />
+              
+              <CardContent sx={{ flexGrow: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', mb: 2 }}>
+                  <Typography component="h2" variant="h3" color="primary">
+                    R$ {plan.price.toFixed(2)}
+                  </Typography>
+                  <Typography variant="subtitle1" color="text.secondary">
+                    /mês
+                  </Typography>
+                </Box>
+                
+                <Divider sx={{ my: 2 }} />
+                
+                <List>
+                  {plan.features.map((feature, index) => (
+                    <ListItem key={index} sx={{ py: 0.5 }}>
+                      <ListItemIcon sx={{ minWidth: 35 }}>
+                        <CheckIcon color="primary" fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary={feature} 
+                        primaryTypographyProps={{ variant: 'body2' }} 
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </CardContent>
+              
+              <CardActions sx={{ pt: 0, pb: 3, px: 3 }}>
+                <Button 
+                  fullWidth 
+                  variant={plan.featured ? 'contained' : 'outlined'} 
+                  color="primary"
+                  onClick={() => handleSelectPlan(plan)}
+                >
+                  Assinar Agora
+                </Button>
+              </CardActions>
+            </Card>
+          </Grid>
         ))}
-      </div>
+      </Grid>
       
-      {selectedPlan && (
-        <div className="subscription-summary">
-          <h3>Resumo da Assinatura</h3>
-          <p><strong>Plano:</strong> {selectedPlan.name}</p>
-          <p><strong>Valor:</strong> R$ {selectedPlan.value.toFixed(2)}/{selectedPlan.billingCycle === 'MONTHLY' ? 'mês' : 'ano'}</p>
-          <p><strong>Período:</strong> {selectedPlan.billingCycle === 'MONTHLY' ? 'Mensal' : 'Anual'} (renovação automática)</p>
-          
-          <button 
-            className="subscribe-button"
-            onClick={handleSubscribe}
-            disabled={loading}
-          >
-            {loading ? 'Processando...' : 'Assinar Agora'}
-          </button>
-          
-          <p className="disclaimer">
-            Ao assinar, você concorda com nossos termos de serviço e política de privacidade.
-            Você pode cancelar sua assinatura a qualquer momento.
-          </p>
-        </div>
-      )}
-    </div>
+      <Box mt={8} textAlign="center">
+        <Typography variant="body2" color="textSecondary">
+          Os planos são renovados automaticamente. Você pode cancelar a qualquer momento.
+        </Typography>
+        <Typography variant="body2" color="textSecondary" mt={1}>
+          Pagamentos processados de forma segura pelo Asaas.
+        </Typography>
+      </Box>
+    </Container>
   );
 };
 
