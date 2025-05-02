@@ -155,7 +155,7 @@ class GlobalRouletteDataService {
       }
       
       if (!hasSubscription) {
-        console.log('[GlobalRouletteService] Requisição a api/roulettes bloqueada - usuário sem assinatura ativa');
+        console.log('[GlobalRouletteService] Usuário sem assinatura ativa, mas permitindo acesso aos dados');
         
         // Verificar se temos dados em cache em localStorage como medida de fallback
         try {
@@ -183,36 +183,20 @@ class GlobalRouletteDataService {
           console.error('[GlobalRouletteService] Erro ao acessar cache:', cacheError);
         }
         
-        // Disparar evento para exibir modal de assinatura
-        window.dispatchEvent(new CustomEvent('subscription:required', { 
-          detail: {
-            error: 'SUBSCRIPTION_REQUIRED',
-            message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.',
-            userDetails: {
-              hasSubscription: false,
-              subscriptionStatus: subscription?.status || 'none'
-            }
-          }
-        }));
+        // Não disparamos mais o evento para exibir o modal de assinatura
+        // Permitimos que a requisição continue normalmente
         
-        // Notificar os assinantes mesmo sem dados novos para evitar travamentos na interface
-        this.notifySubscribers();
+        // Log do plano do usuário para diagnóstico
+        if (subscription) {
+          console.log(`[GlobalRouletteService] Usuário com assinatura ativa: Plano ${subscription.plan || 'Desconhecido'}, Status: ${subscription.status}`);
+        }
         
-        // Emitir evento global para outros componentes que possam estar ouvindo
-        const EventService = (await import('./EventService')).default;
-        EventService.emit('roulette:data-updated', {
-          timestamp: new Date().toISOString(),
-          count: 0,
-          source: 'central-service',
-          error: 'SUBSCRIPTION_REQUIRED'
-        });
-        
-        return this.rouletteData;
-      }
-      
-      // Log do plano do usuário para diagnóstico
-      if (subscription) {
-        console.log(`[GlobalRouletteService] Usuário com assinatura ativa: Plano ${subscription.plan || 'Desconhecido'}, Status: ${subscription.status}`);
+        // Continuamos com a requisição normal sem mostrar o modal
+      } else {
+        // Log do plano do usuário para diagnóstico
+        if (subscription) {
+          console.log(`[GlobalRouletteService] Usuário com assinatura ativa: Plano ${subscription.plan || 'Desconhecido'}, Status: ${subscription.status}`);
+        }
       }
       
       // Evitar requisições simultâneas

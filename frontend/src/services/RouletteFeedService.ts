@@ -492,21 +492,9 @@ export default class RouletteFeedService {
       const apiService = apiServiceModule.default;
       
       return apiService.checkSubscriptionStatus().then(({ hasSubscription }) => {
-        if (!hasSubscription) {
-          logger.debug('⛔ Requisição a api/roulettes bloqueada - usuário sem assinatura');
-          
-          // Disparar evento para exibir modal de assinatura
-          window.dispatchEvent(new CustomEvent('subscription:required', { 
-            detail: {
-              error: 'SUBSCRIPTION_REQUIRED',
-              message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.'
-            }
-          }));
-          
-          return this.roulettes;
-        }
+        // Ignoramos a verificação de assinatura e continuamos com a busca normal
+        logger.debug('✅ Permitindo acesso aos dados independentemente do status da assinatura');
         
-        // Usuário tem assinatura, continuar com a busca normal
         // Verificar se podemos fazer a requisição
         if (!this.canMakeRequest()) {
           logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
