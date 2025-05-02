@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { LifeBuoy, ChevronDown, Gamepad2, Globe, Send, X, Settings, CreditCard, Package, Crown } from 'lucide-react';
+import { LifeBuoy, ChevronDown, Gamepad2, Globe, Send, X, Settings, CreditCard, Package } from 'lucide-react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { useSubscription } from '../hooks/useSubscription';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -15,7 +14,6 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   const [isRoulettesActive, setIsRoulettesActive] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentPlan } = useSubscription();
   
   useEffect(() => {
     const pathname = location.pathname;
@@ -69,12 +67,6 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     setActiveSettingsTab('');
     navigate('/');
   };
-
-  const handlePlansClick = () => {
-    setActiveSettingsTab('plans');
-    setIsRoulettesActive(false);
-    navigate('/planos');
-  };
   
   const sidebarClasses = isMobile
     ? "h-full w-full mobile-sidebar-inner animate-slide-right"
@@ -108,26 +100,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
                 <Gamepad2 size={18} className={isRoulettesActive ? "text-[#00FF00]" : "text-white"} />
               </div>
               <span className="truncate">Roletas</span>
-              
-              {/* Indicador de status de assinatura */}
-              {!currentPlan && (
-                <span className="text-xs text-amber-400 ml-auto">Limitado</span>
-              )}
             </div>
-          </div>
-        </div>
-
-        {/* Destaque para planos (seção separada) */}
-        <div>
-          <div 
-            className={`menu-item bg-gradient-to-r from-amber-800/20 to-amber-700/10 ${activeSettingsTab === 'plans' ? 'border border-amber-500/50' : 'border border-amber-800/20'}`}
-            onClick={handlePlansClick}
-          >
-            <div className="bg-amber-900 p-1.5 rounded-md flex-shrink-0">
-              <Crown size={18} className="text-amber-400" />
-            </div>
-            <span className="truncate text-amber-200">Assinar Plano</span>
-            <span className="text-xs text-amber-400 ml-auto">{currentPlan ? 'Ativo' : 'Faça upgrade'}</span>
           </div>
         </div>
         
@@ -135,18 +108,16 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
           <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Configurações</h3>
           <div className="space-y-1">
             {settingsOptions.map((option) => (
-              option.id !== 'plans' && (
-                <div 
-                  key={option.id}
-                  className={`menu-item ${activeSettingsTab === option.id ? 'active' : ''}`}
-                  onClick={() => handleSettingsItemClick(option.id)}
-                >
-                  <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                    <option.icon size={18} className={activeSettingsTab === option.id ? "text-[#00FF00]" : "text-white"} />
-                  </div>
-                  <span className="truncate">{option.label}</span>
+              <div 
+                key={option.id}
+                className={`menu-item ${activeSettingsTab === option.id ? 'active' : ''}`}
+                onClick={() => handleSettingsItemClick(option.id)}
+              >
+                <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
+                  <option.icon size={18} className={activeSettingsTab === option.id ? "text-[#00FF00]" : "text-white"} />
                 </div>
-              )
+                <span className="truncate">{option.label}</span>
+              </div>
             ))}
           </div>
         </div>

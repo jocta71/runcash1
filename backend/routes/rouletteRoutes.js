@@ -15,15 +15,10 @@ const rouletteController = require('../controllers/rouletteController');
 /**
  * @route   GET /api/roulettes
  * @desc    Lista todas as roletas disponíveis (limitado por plano)
- * @access  Privado - Requer assinatura ativa no Asaas
+ * @access  Público com limitações
  */
 router.get('/roulettes', 
-  verifyTokenAndSubscription({ 
-    required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'],
-    degradedPreview: true 
-  }),
-  requireResourceAccess('roulette_data'),
+  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
   rouletteController.listRoulettes
 );
 
@@ -42,10 +37,7 @@ router.get('/roulettes/:id/basic',
  * @access  Público com limitações
  */
 router.get('/roulettes/:id/recent', 
-  verifyTokenAndSubscription({ 
-    required: false,
-    degradedPreview: true
-  }),
+  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
   rouletteController.getRecentNumbers
 );
 
@@ -82,7 +74,7 @@ router.get('/roulettes/:id/stats',
  * @desc    Obtém dados históricos avançados (para assinantes premium)
  * @access  Privado - Requer assinatura premium
  */
-router.get('/roulettes/:id/historical', 
+router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical', 
   verifyTokenAndSubscription({ 
     required: true,
     allowedPlans: ['PREMIUM']

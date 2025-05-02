@@ -24,9 +24,6 @@ router.use(express.json());
 // Rotas de assinatura
 router.use('/subscription', subscriptionRoutes);
 
-// Rota adicional para compatibilidade (plural)
-router.use('/subscriptions', subscriptionRoutes);
-
 // Rota de criação de checkout
 router.post('/checkout/create', protect, createCheckout);
 

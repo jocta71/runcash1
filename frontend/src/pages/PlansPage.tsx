@@ -1,113 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSubscription } from '@/hooks/useSubscription';
-import { Check, Loader2, AlertCircle } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
-import axios from 'axios';
-
-interface CheckoutResponse {
-  success: boolean;
-  checkoutUrl?: string;
-  message?: string;
-  error?: string;
-}
-
-// Planos padrão para garantir que algo será exibido
-const defaultPlans = [
-  {
-    id: 'basic',
-    name: 'Plano Básico',
-    price: 49.90,
-    interval: 'monthly',
-    description: 'Ideal para iniciantes',
-    features: [
-      'Acesso a todas as roletas',
-      'Estatísticas básicas',
-      'Números recentes',
-      'Suporte por email'
-    ]
-  },
-  {
-    id: 'pro',
-    name: 'Plano Profissional',
-    price: 49.90,
-    interval: 'monthly',
-    description: 'Melhor custo-benefício',
-    features: [
-      'Acesso a todas as roletas',
-      'Estatísticas avançadas',
-      'Histórico completo',
-      'Atualizações em tempo real',
-      'Suporte prioritário'
-    ]
-  },
-  {
-    id: 'premium',
-    name: 'Plano Premium',
-    price: 99.90,
-    interval: 'monthly',
-    description: 'Para profissionais exigentes',
-    features: [
-      'Tudo do plano Profissional',
-      'Dados históricos avançados',
-      'Acesso prioritário ao suporte',
-      'Previsões com IA',
-      'Sem limitações de uso'
-    ]
-  }
-];
 
 const PlansPage = () => {
-  const { availablePlans = [], currentPlan, loading, refreshSubscription } = useSubscription();
+  const { availablePlans, currentPlan, loading } = useSubscription();
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [processingPlan, setProcessingPlan] = useState<string | null>(null);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   
-  useEffect(() => {
-    // Verificar se o usuário veio de um redirecionamento do Asaas após pagamento
-    const urlParams = new URLSearchParams(window.location.search);
-    const paymentStatus = urlParams.get('payment_status');
-    
-    if (paymentStatus) {
-      if (paymentStatus === 'success') {
-        toast({
-          title: "Pagamento recebido!",
-          description: "Seu pagamento foi recebido e está sendo processado. Sua assinatura estará ativa em instantes.",
-        });
-        // Limpar URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-        // Atualizar dados da assinatura
-        if (refreshSubscription) {
-          refreshSubscription();
-        }
-      } else if (paymentStatus === 'pending') {
-        toast({
-          title: "Pagamento pendente",
-          description: "Seu pagamento está pendente de confirmação. Avisaremos quando for processado.",
-        });
-        // Limpar URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      } else if (paymentStatus === 'error') {
-        toast({
-          title: "Erro no pagamento",
-          description: "Houve um problema com seu pagamento. Por favor, tente novamente.",
-          variant: "destructive"
-        });
-        // Limpar URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }
-  }, [toast, refreshSubscription]);
-  
-  const handleSelectPlan = async (planId: string) => {
-    // Resetar estado de erro
-    setCheckoutError(null);
-    
+  const handleSelectPlan = (planId: string) => {
     // Se já for o plano atual, apenas mostrar mensagem
     if (currentPlan?.id === planId) {
       toast({
@@ -127,39 +35,15 @@ const PlansPage = () => {
       return;
     }
     
-    // Marcar plano como em processamento
-    setProcessingPlan(planId);
+    // Mostrar toast informando que a funcionalidade de pagamento foi desativada
+    toast({
+      title: "Funcionalidade desativada",
+      description: "A página de pagamentos foi desativada nesta versão do aplicativo.",
+      variant: "default"
+    });
     
-    try {
-      // Chamar API para criar checkout
-      const response = await axios.post<CheckoutResponse>('/api/subscriptions/checkout', {
-        planId,
-        userId: user.id
-      });
-      
-      if (response.data.success && response.data.checkoutUrl) {
-        // Redirecionar para URL de checkout do Asaas
-        window.location.href = response.data.checkoutUrl;
-      } else {
-        // Mostrar erro
-        setCheckoutError(response.data.message || 'Erro ao processar checkout');
-        toast({
-          title: "Erro ao processar",
-          description: response.data.message || "Não foi possível criar o checkout de assinatura.",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao processar checkout:', error);
-      setCheckoutError('Falha na comunicação com o servidor');
-      toast({
-        title: "Erro no servidor",
-        description: "Falha na comunicação com o servidor de pagamentos. Tente novamente mais tarde.",
-        variant: "destructive"
-      });
-    } finally {
-      setProcessingPlan(null);
-    }
+    // Redirecionar para o dashboard/início
+    navigate('/');
   };
 
   if (loading) {
@@ -172,10 +56,9 @@ const PlansPage = () => {
     );
   }
 
-  // Usar planos padrão se availablePlans estiver vazio
-  const plansToShow = availablePlans.length > 0 
-    ? availablePlans.filter(plan => (plan.price === 49.90 || plan.price === 99.90) && plan.interval === 'monthly')
-    : defaultPlans;
+  // Filtrar apenas os planos Profissional (49,90) e Premium (99,90)
+  const filteredPlans = availablePlans
+    .filter(plan => (plan.price === 49.90 || plan.price === 99.90) && plan.interval === 'monthly');
 
   return (
     <Layout>
@@ -185,15 +68,8 @@ const PlansPage = () => {
           Assine e tenha acesso a todos os recursos da plataforma.
         </p>
 
-        {checkoutError && (
-          <div className="bg-red-900/30 border border-red-700 p-4 rounded-lg flex items-center gap-3 mb-6 max-w-4xl mx-auto">
-            <AlertCircle className="h-5 w-5 text-red-500" />
-            <p className="text-sm text-red-300">{checkoutError}</p>
-          </div>
-        )}
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {plansToShow.map(plan => (
+          {filteredPlans.map(plan => (
             <div 
               key={plan.id}
               className={`border rounded-lg p-6 flex flex-col ${
@@ -248,18 +124,11 @@ const PlansPage = () => {
                       ? "bg-vegas-gold hover:bg-vegas-gold/80 text-black"
                       : "bg-vegas-gold/80 hover:bg-vegas-gold text-black"
                 }
-                disabled={currentPlan?.id === plan.id || processingPlan !== null}
+                disabled={currentPlan?.id === plan.id}
               >
-                {processingPlan === plan.id ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processando...
-                  </>
-                ) : currentPlan?.id === plan.id ? (
-                  "Plano Atual"
-                ) : (
-                  "Assinar Agora"
-                )}
+                {currentPlan?.id === plan.id 
+                  ? "Plano Atual" 
+                  : "Assinar Agora"}
               </Button>
             </div>
           ))}
@@ -280,20 +149,6 @@ const PlansPage = () => {
               <h3 className="font-semibold mb-2">Posso cancelar a qualquer momento?</h3>
               <p className="text-sm text-gray-400">
                 Sim, você pode cancelar sua assinatura a qualquer momento. O acesso aos recursos premium permanecerá ativo até o final do período pago.
-              </p>
-            </div>
-
-            <div>
-              <h3 className="font-semibold mb-2">Quanto tempo leva para minha assinatura ser ativada?</h3>
-              <p className="text-sm text-gray-400">
-                Com pagamento via PIX, sua assinatura é ativada em até 5 minutos após a confirmação do pagamento.
-              </p>
-            </div>
-
-            <div>
-              <h3 className="font-semibold mb-2">Posso usar cartão de crédito?</h3>
-              <p className="text-sm text-gray-400">
-                Sim, aceitamos pagamentos via PIX ou cartão de crédito. Ambas opções estão disponíveis no checkout.
               </p>
             </div>
           </div>
