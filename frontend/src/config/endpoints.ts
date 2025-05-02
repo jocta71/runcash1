@@ -264,4 +264,68 @@ export async function testAuth(): Promise<AuthTestResponse> {
       }
     };
   }
+}
+
+/**
+ * Obtém o token de autenticação do localStorage
+ * @returns Token JWT ou null se não estiver autenticado
+ */
+export function getAuthToken(): string | null {
+  return localStorage.getItem('authToken');
+}
+
+/**
+ * Função para obter dados das roletas em tempo real
+ * @returns Dados de todas as roletas ativas
+ */
+export async function getLiveTables(): Promise<any> {
+  const url = `${getApiBaseUrl()}/api/liveFeed/GetLiveTables`;
+  
+  try {
+    // Obter token de autenticação
+    const token = getAuthToken();
+    if (!token) {
+      console.error('[API] Erro: Token de autenticação não encontrado');
+      throw new Error('Token de autenticação é obrigatório');
+    }
+    
+    // Criar form data (application/x-www-form-urlencoded)
+    const formData = new URLSearchParams();
+    formData.append('ClientTime', Date.now().toString());
+    formData.append('ClientId', 'runcashh-web');
+    formData.append('SessionId', localStorage.getItem('sessionId') || 'new-session');
+    
+    // Fazer requisição com formato específico
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+    
+    // Verificar se a resposta foi bem-sucedida
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[API] Erro na requisição LiveFeed:', errorData);
+      throw new Error(errorData.message || 'Falha ao obter roletas em tempo real');
+    }
+    
+    // Armazenar session ID se existir no cookie de resposta
+    const cookies = response.headers.get('set-cookie');
+    if (cookies) {
+      const sessionMatch = cookies.match(/session_id=([^;]+)/);
+      if (sessionMatch && sessionMatch[1]) {
+        localStorage.setItem('sessionId', sessionMatch[1]);
+      }
+    }
+    
+    // Retornar dados
+    return await response.json();
+    
+  } catch (error) {
+    console.error('[API] Erro ao obter roletas em tempo real:', error);
+    throw error;
+  }
 } 

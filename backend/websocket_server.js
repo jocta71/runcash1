@@ -76,6 +76,7 @@ const requestLogger = require('./middlewares/requestLogger');
 const securityEnforcer = require('./middlewares/securityEnforcer');
 const blockBrowserAccess = require('./middlewares/browserBlockMiddleware');
 const apiProtectionShield = require('./middlewares/apiProtectionShield');
+const { requireFormUrlEncoded, acceptJsonOrForm } = require('./middlewares/contentTypeMiddleware');
 
 // Middlewares globais
 app.use(express.json());
@@ -1604,4 +1605,139 @@ app.use((err, req, res, next) => {
     requestId,
     timestamp: new Date().toISOString()
   });
+});
+
+// Endpoint LiveFeed que só aceita método POST - similar ao exemplo cgp.safe-iplay.com
+app.post('/api/liveFeed/GetLiveTables', 
+  requireFormUrlEncoded(), // Exige application/x-www-form-urlencoded como no exemplo
+  verifyTokenAndSubscription({ required: true, allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] }),
+  async (req, res) => {
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[LIVE-FEED ${requestId}] Nova requisição POST para LiveFeed`);
+    console.log(`[LIVE-FEED ${requestId}] Body: ${JSON.stringify(req.body)}`);
+    
+    // Aplicar cabeçalhos semelhantes ao exemplo
+    res.header('access-control-allow-origin', '*');
+    res.header('access-control-expose-headers', 'current-client-request-ip');
+    res.header('content-type', 'application/json; charset=utf-8');
+    res.header('vary', 'Accept-Encoding');
+    res.header('x-cdn', 'RunCashh-CDN');
+    res.header('serverid', '01');
+    
+    // Gerar data para resposta (semelhante ao exemplo)
+    const date = new Date();
+    date.setDate(date.getDate() + 1); // Adicionar um dia para simular expiração futura
+    res.header('date', date.toUTCString());
+    
+    // Configurar cookies (similar ao exemplo)
+    const sessionId = Math.random().toString(36).substring(2, 15);
+    const visitorId = `visitor_${Math.random().toString(36).substring(2, 15)}`;
+    res.cookie('visitor_id', visitorId, { 
+      expires: new Date(Date.now() + 365*24*60*60*1000), 
+      httpOnly: true, 
+      path: '/', 
+      domain: req.hostname 
+    });
+    res.cookie('session_id', sessionId, { 
+      path: '/', 
+      domain: req.hostname 
+    });
+    
+    try {
+      if (!isConnected || !collection) {
+        console.log(`[LIVE-FEED ${requestId}] MongoDB não conectado, retornando erro`);
+        return res.status(503).json({
+          success: false,
+          message: 'Serviço temporariamente indisponível',
+          code: 'DATABASE_OFFLINE',
+          requestId
+        });
+      }
+      
+      // VERIFICAÇÃO DE SEGURANÇA (similar às outras rotas)
+      if (!req.usuario || !req.subscription) {
+        console.log(`[LIVE-FEED ${requestId}] Acesso não autenticado ou sem assinatura`);
+        return res.status(401).json({
+          success: false,
+          message: 'Acesso negado - Autenticação e assinatura são obrigatórias',
+          code: 'AUTH_REQUIRED',
+          requestId
+        });
+      }
+      
+      // Obter dados de todas as roletas ativas
+      const roulettes = await collection.aggregate([
+        { $sort: { timestamp: -1 } },
+        { $group: { 
+            _id: "$roleta_nome", 
+            roleta_id: { $first: "$roleta_id" }, 
+            ultimo_numero: { $first: "$numero" }, 
+            ultima_cor: { $first: "$cor" },
+            timestamp: { $first: "$timestamp" },
+            total_registros: { $sum: 1 }
+          }
+        },
+        { $project: {
+            _id: 0,
+            TableId: "$roleta_id",
+            TableName: "$_id",
+            LastNumber: "$ultimo_numero",
+            LastColor: "$ultima_cor",
+            UpdateTime: "$timestamp",
+            TotalHistory: "$total_registros",
+            IsActive: true,
+            DealerName: { $concat: ["Dealer ", { $substr: ["$_id", 0, 1] }] },
+            Status: "InPlay"
+          }
+        }
+      ]).toArray();
+      
+      // Adicionar estatísticas e metadados (similar ao exemplo)
+      const result = {
+        Tables: roulettes,
+        TotalTables: roulettes.length,
+        UpdateTime: new Date().toISOString(),
+        ServerTime: Date.now(),
+        RequestId: requestId,
+        ClientIP: req.ip || req.headers['x-forwarded-for'] || 'unknown'
+      };
+      
+      console.log(`[LIVE-FEED ${requestId}] Retornando ${roulettes.length} roletas para usuário ${req.usuario.id}`);
+      
+      // Retornar estrutura similar ao exemplo
+      return res.json(result);
+    } catch (error) {
+      console.error(`[LIVE-FEED ${requestId}] Erro:`, error);
+      return res.status(500).json({ 
+        Message: 'Erro interno ao processar requisição',
+        ErrorCode: 'SERVER_ERROR',
+        RequestId: requestId
+      });
+    }
+});
+
+// Manipulador para método GET no mesmo endpoint - retornar erro similar ao exemplo
+app.get('/api/liveFeed/GetLiveTables', (req, res) => {
+  // Aplicar cabeçalhos CORS
+  res.header('access-control-allow-origin', '*');
+  res.header('content-type', 'application/json; charset=utf-8');
+  
+  // Retornar erro específico como no exemplo
+  res.status(405).json({
+    Message: "The requested resource does not support http method 'GET'."
+  });
+});
+
+// Handler OPTIONS para o endpoint LiveFeed
+app.options('/api/liveFeed/GetLiveTables', (req, res) => {
+  console.log('[CORS] Requisição OPTIONS recebida para /api/liveFeed/GetLiveTables');
+  
+  // Aplicar cabeçalhos CORS necessários
+  res.header('access-control-allow-origin', '*');
+  res.header('access-control-allow-methods', 'POST, OPTIONS');
+  res.header('access-control-allow-headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('access-control-max-age', '86400'); // Cache por 24 horas
+  
+  // Responder imediatamente com sucesso
+  res.status(204).end();
 });

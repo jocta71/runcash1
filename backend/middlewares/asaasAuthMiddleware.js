@@ -127,7 +127,7 @@ function verifyTokenAndSubscription(options = { required: true, allowedPlans: ['
           if (user && user.customerId) {
             console.log(`[AUTH ${requestId}] Encontrado customerId persistido: ${user.customerId}`);
             decoded.customerId = user.customerId;
-          } else {
+        } else {
             console.log(`[AUTH ${requestId}] Não foi encontrado customerId para o usuário`);
           }
         }
@@ -242,8 +242,8 @@ function verifyTokenAndSubscription(options = { required: true, allowedPlans: ['
               console.log(`[AUTH ${requestId}] Autenticação opcional, continuando sem assinatura`);
               req.subscription = null;
               req.userPlan = { type: 'FREE' };
-              return next();
-            }
+          return next();
+        }
           } else {
             console.log(`[AUTH ${requestId}] Nenhuma assinatura encontrada para o usuário`);
             
@@ -410,7 +410,7 @@ function requireResourceAccess(resourceType) {
         
       default:
         // Para outros tipos de recurso, permitir qualquer assinatura ativa
-        return next();
+    return next();
     }
     
     // Se chegou aqui, o acesso não é permitido
