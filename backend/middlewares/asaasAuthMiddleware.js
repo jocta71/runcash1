@@ -20,6 +20,7 @@ const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3';
  * @param {Array} options.allowedPlans - Lista de planos permitidos ('BASIC', 'PRO', 'PREMIUM')
  * @returns {Function} Middleware Express
  */
+
 exports.verifyTokenAndSubscription = (options = { 
   required: true,
   allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
