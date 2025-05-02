@@ -12,6 +12,7 @@
     "ASAAS_API_KEY": "$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmE4NzkxZDA3LTdiNzAtNDVkZC04ZWZjLTk0ZWJkODI1ZWIyNzo6JGFhY2hfZDVjODRmZjAtOGU4Ny00MWE5LWI4MGMtMWQ5MjBhOWI3YWYz",
     "ASAAS_ENVIRONMENT": "sandbox",
     "FRONTEND_URL": "https://runcashh11.vercel.app",
+    "BACKEND_URL": "https://https://backendapi-production-36b5.up.railway.app",
     "NODE_ENV": "production",
     "OPENAI_API_KEY": "${OPENAI_API_KEY}",
     "GEMINI_API_KEY": "AIzaSyDvpb9h0XJoc_0NrZZokQYgz8qkWxMBP3Q",
