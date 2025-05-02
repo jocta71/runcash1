@@ -1,18 +1,27 @@
 /**
  * Rotas para gerenciamento de assinaturas
- * Inclui verificação de status, gerenciamento de planos e webhooks
  */
 
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middlewares/auth');
-const { getSubscriptionStatus } = require('../api/subscription/status');
 
+// Importar middlewares
+const { authenticate } = require('../middlewares/authMiddleware');
+const { verificarPlano } = require('../middlewares/unifiedSubscriptionMiddleware');
+const subscriptionVerifier = require('../middlewares/subscriptionVerifier');
+
+// Rotas para verificação de assinatura
 /**
  * @route   GET /api/subscription/status
- * @desc    Verifica status da assinatura do usuário
- * @access  Público - Não requer autenticação, mas fornece mais infos se autenticado
+ * @desc    Verifica e retorna o status da assinatura do usuário
+ * @access  Público / Autenticação Opcional
  */
-router.get('/status', protect, getSubscriptionStatus);
+router.get('/status', 
+  authenticate({ required: false }),
+  subscriptionVerifier.getSubscriptionStatus
+);
+
+// Outras rotas existentes...
+// ... existing code ...
 
 module.exports = router; 
